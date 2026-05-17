@@ -1,67 +1,87 @@
 # ProcureX UI
 
-This folder contains the static front-end for the ProcureX user interface.
+This folder contains the static front-end prototype for ProcureX. It runs as plain HTML, CSS, and JavaScript with no package install and no build step.
 
-## Recent Improvements
+## Run Locally
 
-- **Fixed Loading Issues**: Replaced static "Loading..." messages with animated spinners that automatically retry until pages load
-- **Enhanced Navigation**: Added a sticky navigation header with back buttons and home navigation for easier page transitions
-- **Better User Experience**: Improved loading states and navigation flow throughout the application
+Open the app directly:
 
-## Run locally
+```text
+procurex-ui/index.html
+```
 
-### Option 1: Open directly in your browser
-1. Open `procurex-ui/index.html` in your preferred browser.
-2. The UI should load directly because it is a static HTML/CSS/JS app.
+For the most reliable behavior, serve this folder locally:
 
-> Note: Some browsers restrict loading local files for advanced features. If you see issues, use a local server instead.
+```powershell
+cd procurex-ui
+python -m http.server 8000
+```
 
-### Option 2: Run a local development server
-
-#### Using Python 3
-1. Open a terminal in the `procurex-ui` folder.
-2. Run one of the following commands:
-
-- Python 3 on Windows/macOS/Linux:
-  ```powershell
-  python -m http.server 8000
-  ```
-- If `python` is not available, try:
-  ```powershell
-  python3 -m http.server 8000
-  ```
-
-3. Open your browser and go to:
+Then open:
 
 ```text
 http://localhost:8000
 ```
 
-#### Using VS Code Live Server
-1. Install the **Live Server** extension.
-2. Open the `procurex-ui` folder in VS Code.
-3. Right-click `index.html` and choose **Open with Live Server**.
+VS Code Live Server also works: open this folder, right-click `index.html`, and choose **Open with Live Server**.
 
-## Features
+## Direct Routes
 
-- **Single Page Application (SPA)**: Smooth navigation without page reloads
-- **Role-based Access**: Different dashboards for admins, buyers, and suppliers
-- **Responsive Design**: Works on desktop and mobile devices
-- **Real-time Loading**: Animated loading states while content loads
-- **Easy Navigation**: Back buttons and home navigation on every page
+| Screen | URL |
+| --- | --- |
+| Welcome | `http://localhost:8000/?page=welcome` |
+| Register | `http://localhost:8000/?page=register` |
+| Sign in | `http://localhost:8000/?page=sign-in` |
+| IAM verification | `http://localhost:8000/?page=iam-verification` |
+| Workspace dashboard | `http://localhost:8000/?page=workspace-dashboard&role=buyer` |
+| Supplier marketplace | `http://localhost:8000/?page=supplier-marketplace&role=supplier` |
+| Create tender | `http://localhost:8000/?page=create-tender&role=buyer` |
+| Bid evaluation | `http://localhost:8000/?page=bid-evaluation&role=admin` |
+| Award recommendation | `http://localhost:8000/?page=award-recommendation&role=admin` |
+| Records and history | `http://localhost:8000/?page=records-history&role=admin` |
 
-## Navigation Flow
+## File Structure
 
-1. **Welcome Page**: Landing page with feature overview
-2. **Role Selection**: Choose between buyer, supplier, or admin
-3. **Identity Verification**: IAM verification process
-4. **Dashboard**: Role-specific dashboard with relevant features
-5. **Marketplace**: Browse and interact with tenders
-6. **Tender Management**: Create, evaluate, and award tenders
+```text
+procurex-ui/
+|-- index.html
+|-- assets/
+|   |-- logo.svg
+|   |-- ProcureX.json
+|   |-- page-visuals/
+|   |-- readme/
+|   `-- welcome/
+|-- js/
+|   |-- app.js
+|   |-- charts.js
+|   `-- data.js
+|-- pages/
+|   |-- workspace-dashboard.js
+|   |-- create-tender.js
+|   |-- supplier-marketplace.js
+|   `-- ...
+`-- styles/
+    |-- design-system.css
+    |-- components.css
+    |-- main.css
+    `-- pages.css
+```
 
-## Notes
+## CDN Dependencies
 
-- The UI uses Chart.js from a CDN, so an internet connection is required to load charts.
-- No build step is needed: the app runs as plain static files.
-- If you add new files or pages, ensure they are referenced correctly from `index.html`.
-- Pages load asynchronously - the app will show loading spinners until content is ready.
+The app loads these browser dependencies from CDNs:
+
+- Chart.js for dashboard charts.
+- html2pdf.js for tender document and annex PDF export.
+- dotLottie player for the ProcureX loading animation.
+- Google Fonts for the visual system.
+
+If a CDN is blocked or the machine is offline, the app still renders most screens, but charts, PDF export, fonts, or Lottie animation may degrade.
+
+## Maintenance Notes
+
+- Register new page scripts in `index.html`.
+- Add route titles and navigation behavior in `js/app.js`.
+- Keep shared mock data in `js/data.js`.
+- Prefer existing styles in `styles/design-system.css` before adding new page-specific rules.
+- Store durable UI imagery under `assets/`; README screenshots live in `assets/readme/`.
