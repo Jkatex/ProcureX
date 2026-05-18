@@ -2365,7 +2365,7 @@ function renderBiddingWorkspace() {
                                     <div><span>Eligibility gate</span><strong data-bid-gate-summary>Pending validation</strong></div>
                                     <div><span>Product specification response</span><strong>${normalizeBidWorkspaceProductSpecificationTemplate(tender).rows.length} required rows</strong></div>
                                     <div><span>Quantity schedule</span><strong>${getGoodsBidQuantityRows(tender).length} priced lines</strong></div>
-                                    <div><span>Samples</span><strong>${hasGoodsSamples ? `${getGoodsBidSampleRows(tender).length} required` : 'Not required'}</strong></div>
+                                    <div class="${hasGoodsSamples ? '' : 'not-required'}"><span>Samples</span><strong>${hasGoodsSamples ? `${getGoodsBidSampleRows(tender).length} required` : 'Not required'}</strong></div>
                                     <div><span>Deadline</span><strong>${escapeBidWorkspaceHtml(tender.closingDate)}</strong></div>
                                 </div>
                                 <div class="bid-step-intro">
@@ -2386,11 +2386,6 @@ function renderBiddingWorkspace() {
                                     <label class="bid-response-check"><input type="checkbox" data-bid-response="goods-declaration-anti-corruption" data-bid-workflow-required-response="true" ${getBidWorkspaceSavedResponse(draft, 'goods-declaration-anti-corruption') === true || getBidWorkspaceSavedResponse(draft, 'goods-declaration-anti-corruption') === 'true' ? 'checked' : ''}><span>I accept the anti-corruption and conflict of interest declarations.</span></label>
                                 </div>
                                 <div class="review-summary-grid" style="margin-top: 18px;">
-                                    <article class="review-card">
-                                        <span>Receipt hash</span>
-                                        <strong data-bid-receipt-hash>Generated after submit</strong>
-                                        <small>Stored with the submitted bid package.</small>
-                                    </article>
                                     <article class="review-card">
                                         <span>Submission date</span>
                                         <strong>${new Date().toISOString().slice(0, 10)}</strong>
@@ -2493,11 +2488,6 @@ function renderBiddingWorkspace() {
                                 <div class="panel-heading"><div><span class="section-kicker">Step 6</span><h2>Declaration & Submission</h2></div><span class="badge badge-success">Final step</span></div>
                                 ${renderWorksBidDeclaration(draft)}
                                 <div class="review-summary-grid" style="margin-top: 18px;">
-                                    <article class="review-card">
-                                        <span>Receipt hash</span>
-                                        <strong data-bid-receipt-hash>Generated after submit</strong>
-                                        <small>Stored with the submitted bid package.</small>
-                                    </article>
                                     <article class="review-card">
                                         <span>Submission date</span>
                                         <strong>${new Date().toISOString().slice(0, 10)}</strong>
@@ -2623,11 +2613,6 @@ function renderBiddingWorkspace() {
                                 ${renderServiceBidDeclaration(draft)}
                                 <div class="review-summary-grid" style="margin-top: 18px;">
                                     <article class="review-card">
-                                        <span>Receipt hash</span>
-                                        <strong data-bid-receipt-hash>Generated after submit</strong>
-                                        <small>Stored with the submitted bid package.</small>
-                                    </article>
-                                    <article class="review-card">
                                         <span>Submission date</span>
                                         <strong>${new Date().toISOString().slice(0, 10)}</strong>
                                         <small>Generated automatically by the system.</small>
@@ -2711,11 +2696,6 @@ function renderBiddingWorkspace() {
                                 <div class="panel-heading"><div><span class="section-kicker">Step 5</span><h2>Submission Receipt</h2></div><span class="badge badge-success">Receipt ready</span></div>
                                 <div class="review-summary-grid">
                                     <article class="review-card">
-                                        <span>Receipt hash</span>
-                                        <strong data-bid-receipt-hash>Generated after submit</strong>
-                                        <small>Stored with the submitted bid package.</small>
-                                    </article>
-                                    <article class="review-card">
                                         <span>Deadline lock</span>
                                         <strong>${escapeBidWorkspaceHtml(tender.closingDate)}</strong>
                                         <small>No edits are allowed after bid closing.</small>
@@ -2766,7 +2746,6 @@ function initializeBiddingWorkspace() {
     const gateStatus = wizard.querySelector('[data-bid-gate-status]');
     const gateBadge = wizard.querySelector('[data-bid-gate-badge]');
     const gateSummary = wizard.querySelector('[data-bid-gate-summary]');
-    const receiptHash = wizard.querySelector('[data-bid-receipt-hash]');
     const finalStatus = wizard.querySelector('[data-bid-final-status]');
     const existingDraft = getBidWorkspaceDraft(tenderId);
     const sessionUploadUrls = {};
@@ -3075,34 +3054,48 @@ function initializeBiddingWorkspace() {
         const totalRows = sections.reduce((total, section) => total + section.rows.length, 0);
         const submittedBidder = mockData.users?.supplier?.organization || 'Supplier organization';
         const reviewTotal = wizard.querySelector('[data-bid-review-total]')?.textContent || wizard.querySelector('[data-bid-total]')?.textContent || '';
+        const offerLabel = profile.id === 'goods'
+            ? 'Goods Offer'
+            : profile.id === 'works'
+                ? 'Works Offer'
+                : profile.id === 'services'
+                    ? 'Service Offer'
+                    : profile.responseTitle || 'Bid Offer';
         return `
             <div class="bid-response-document">
                 <header class="bid-response-document-cover">
                     <div>
-                        <span class="section-kicker">Bid response document</span>
+                        <span class="section-kicker">Official bid submission preview</span>
                         <h3>${escapeBidWorkspaceHtml(tender.title || 'Tender bid response')}</h3>
-                        <p>Compiled from the bidder's responses in the previous bid workflow sections.</p>
+                        <p>Generated from the bidder's completed response sections for validation before declaration and submission.</p>
                     </div>
-                    <div class="bid-response-document-stamp">
-                        <strong>Draft</strong>
-                        <span>${escapeBidWorkspaceHtml(profile.responseTitle || 'Bid response')}</span>
+                    <div class="bid-response-document-status">
+                        <span class="bid-status-chip draft">Draft</span>
+                        <span class="bid-status-chip offer">${escapeBidWorkspaceHtml(offerLabel)}</span>
                     </div>
                 </header>
                 <div class="bid-response-document-meta">
-                    <article><span>Tender ID</span><strong>${escapeBidWorkspaceHtml(tenderId)}</strong></article>
-                    <article><span>Bidder</span><strong>${escapeBidWorkspaceHtml(submittedBidder)}</strong></article>
-                    <article><span>Closing date</span><strong>${escapeBidWorkspaceHtml(tender.closingDate || 'Not set')}</strong></article>
-                    <article><span>Bid value</span><strong>${escapeBidWorkspaceHtml(reviewTotal || 'Pending')}</strong></article>
-                    <article><span>Responses captured</span><strong>${totalRows}</strong></article>
-                    <article><span>Prepared on</span><strong>${escapeBidWorkspaceHtml(new Date().toISOString().slice(0, 10))}</strong></article>
+                    <article><span>Tender ID</span><strong>${escapeBidWorkspaceHtml(tenderId)}</strong><em>Reference</em></article>
+                    <article><span>Bidder</span><strong>${escapeBidWorkspaceHtml(submittedBidder)}</strong><em>Supplier</em></article>
+                    <article><span>Closing date</span><strong>${escapeBidWorkspaceHtml(tender.closingDate || 'Not set')}</strong><em>Deadline</em></article>
+                    <article class="bid-value-card"><span>Bid value</span><strong>${escapeBidWorkspaceHtml(reviewTotal || 'Pending')}</strong><em>Current offer</em></article>
+                    <article><span>Responses captured</span><strong>${totalRows}</strong><em>Validation scope</em></article>
+                    <article><span>Prepared on</span><strong>${escapeBidWorkspaceHtml(new Date().toISOString().slice(0, 10))}</strong><em>System date</em></article>
                 </div>
                 ${sections.length ? `
                     <div class="bid-response-document-sections">
-                        ${sections.map((section, sectionIndex) => `
+                        ${sections.map((section, sectionIndex) => {
+                            const pendingCount = section.rows.filter(row => row.pending).length;
+                            const complete = pendingCount === 0;
+                            return `
                             <article class="bid-response-document-section">
                                 <div class="bid-response-document-section-heading">
                                     <span>${String(sectionIndex + 1).padStart(2, '0')}</span>
-                                    <h4>${escapeBidWorkspaceHtml(section.title)}</h4>
+                                    <div>
+                                        <h4>${escapeBidWorkspaceHtml(section.title)}</h4>
+                                        <small>${section.rows.length} item${section.rows.length === 1 ? '' : 's'} reviewed</small>
+                                    </div>
+                                    <em class="bid-section-status ${complete ? 'complete' : 'draft'}">${complete ? 'Complete' : `${pendingCount} pending`}</em>
                                 </div>
                                 <div class="bid-response-document-table">
                                     <table>
@@ -3114,14 +3107,14 @@ function initializeBiddingWorkspace() {
                                                 <tr class="${row.pending ? 'pending' : ''}">
                                                     <td>${escapeBidWorkspaceHtml(row.label)}</td>
                                                     <td>${escapeBidWorkspaceHtml(row.value)}</td>
-                                                    <td>${row.pending ? 'Pending' : 'Captured'}</td>
+                                                    <td><span class="bid-table-status ${row.pending ? 'draft' : 'captured'}">${row.pending ? 'Draft' : 'Captured'}</span></td>
                                                 </tr>
                                             `).join('')}
                                         </tbody>
                                     </table>
                                 </div>
                             </article>
-                        `).join('')}
+                        `; }).join('')}
                     </div>
                 ` : '<div class="scope-empty">No bidder responses have been entered yet.</div>'}
             </div>
@@ -3218,7 +3211,6 @@ function initializeBiddingWorkspace() {
             draft: draftSnapshot
         };
         localStorage.setItem(bidWorkspaceSubmittedStorageKey, JSON.stringify([bid, ...submitted.filter(item => item.tenderId !== tenderId)]));
-        if (receiptHash) receiptHash.textContent = hash;
         if (finalStatus) finalStatus.textContent = 'Submitted and sealed';
         return hash;
     };
