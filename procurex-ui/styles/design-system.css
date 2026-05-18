@@ -3149,6 +3149,81 @@ textarea.form-input {
     border-radius: 0;
 }
 
+.bid-response-review {
+    display: grid;
+    gap: 14px;
+    margin: 18px 0;
+}
+
+.bid-response-review-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.bid-response-review-heading h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 18px;
+}
+
+.bid-response-review-sections {
+    display: grid;
+    gap: 14px;
+}
+
+.bid-response-review-section {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--card-bg);
+}
+
+.bid-response-review-section h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 15px;
+}
+
+.bid-response-review-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px;
+}
+
+.bid-response-review-grid div {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 11px 12px;
+    border-radius: 8px;
+    background: var(--surface-soft);
+}
+
+.bid-response-review-grid div.pending {
+    border: 1px solid rgba(245, 158, 11, 0.34);
+    background: rgba(255, 251, 235, 0.82);
+}
+
+.bid-response-review-grid span {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.bid-response-review-grid strong {
+    min-width: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
 .metric-grid,
 .sync-columns {
     display: grid;

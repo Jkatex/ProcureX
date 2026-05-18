@@ -1133,6 +1133,26 @@ function downloadBidWorkspaceTendererTechnicalResponseCsv(tender = {}) {
     downloadBidWorkspaceCsv([columns, ...rows], 'tenderer-technical-response-template.csv');
 }
 
+function formatBidWorkspaceReviewValue(value) {
+    if (value === true) return 'Yes';
+    if (value === false) return 'No';
+    const text = String(value ?? '').trim();
+    return text || 'Pending';
+}
+
+function renderBidWorkspaceResponseReviewPlaceholder() {
+    return `
+        <div class="bid-response-review-heading">
+            <div>
+                <span class="section-kicker">Bidder response review</span>
+                <h3>Responses entered so far</h3>
+            </div>
+            <span class="badge badge-info">Updates as you fill the bid</span>
+        </div>
+        <div class="scope-empty">Responses will appear here after the bidder completes earlier sections.</div>
+    `;
+}
+
 function renderGoodsBidProductDetailResponse(tender = {}, draft = {}) {
     const rows = getGoodsBidQuantityRows(tender);
     if (!rows.length) {
@@ -1303,8 +1323,6 @@ function renderGoodsBidCommercialTerms(draft = {}) {
             <div class="form-grid two">
                 <div class="form-group"><label class="form-label">Bid Validity Period (days)</label><input class="form-input" type="number" min="1" data-bid-response="goods-commercial-bid-validity" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'goods-commercial-bid-validity') || 90)}"></div>
                 <div class="form-group"><label class="form-label">Currency</label><select class="form-input" data-bid-response="goods-commercial-currency" data-bid-workflow-required-response="true">${['TZS', 'USD', 'EUR', 'GBP'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'goods-commercial-currency') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">Incoterms</label><select class="form-input" data-bid-response="goods-commercial-incoterms">${['DAP', 'DDP', 'EXW', 'CIF', 'FOB', 'Not applicable'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'goods-commercial-incoterms') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                <div class="form-group wide"><label class="form-label">Alternative Payment Proposal</label><textarea class="form-input" rows="2" data-bid-response="goods-commercial-payment-alternative">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'goods-commercial-payment-alternative'))}</textarea></div>
                 <label class="bid-response-check"><input type="checkbox" data-bid-response="goods-commercial-delivery-terms" data-bid-workflow-required-response="true" ${getBidWorkspaceSavedResponse(draft, 'goods-commercial-delivery-terms') === true || getBidWorkspaceSavedResponse(draft, 'goods-commercial-delivery-terms') === 'true' ? 'checked' : ''}><span>I accept the delivery terms defined in the tender.</span></label>
             </div>
         </div>
@@ -2348,6 +2366,9 @@ function renderBiddingWorkspace() {
                                     <strong>System validation</strong>
                                     <span>The system checks missing documents, required compliance responses, missing prices, and mandatory sample evidence before allowing final submission.</span>
                                 </div>
+                                <section class="bid-response-review" data-bid-response-review>
+                                    ${renderBidWorkspaceResponseReviewPlaceholder()}
+                                </section>
                             </section>
 
                             <section class="journey-panel" id="bid-step-${hasGoodsSamples ? '6' : '5'}">
@@ -2457,6 +2478,9 @@ function renderBiddingWorkspace() {
                                     <strong>System validation</strong>
                                     <span>The system checks missing legal uploads, capacity evidence, methodology narratives, milestone responses, BOQ pricing, commercial confirmations, and final declarations before submission.</span>
                                 </div>
+                                <section class="bid-response-review" data-bid-response-review>
+                                    ${renderBidWorkspaceResponseReviewPlaceholder()}
+                                </section>
                             </section>
 
                             <section class="journey-panel" id="bid-step-6">
@@ -2587,6 +2611,9 @@ function renderBiddingWorkspace() {
                                     <strong>System validation</strong>
                                     <span>The system checks service methodology, schedule, staff CVs, SLA commitments, ESG documents, supporting uploads, pricing, and final declarations before submission.</span>
                                 </div>
+                                <section class="bid-response-review" data-bid-response-review>
+                                    ${renderBidWorkspaceResponseReviewPlaceholder()}
+                                </section>
                                 ${renderServiceBidDeclaration(draft)}
                                 <div class="review-summary-grid" style="margin-top: 18px;">
                                     <article class="review-card">
@@ -2652,6 +2679,9 @@ function renderBiddingWorkspace() {
                                     <div><span>Additional responses</span><strong>${dynamicRequirements.filter(isBidWorkspaceResponseRequirement).length} required / ${dynamicRequirements.length} tender items</strong></div>
                                     <div><span>Deadline</span><strong>${escapeBidWorkspaceHtml(tender.closingDate)}</strong></div>
                                 </div>
+                                <section class="bid-response-review" data-bid-response-review>
+                                    ${renderBidWorkspaceResponseReviewPlaceholder()}
+                                </section>
                                 <div class="confirm-action" data-confirm-control>
                                     <input type="checkbox" class="confirm-action-input" data-bid-declaration>
                                     <button type="button" class="confirm-action-button" data-confirm-toggle aria-pressed="false">
@@ -2956,6 +2986,119 @@ function initializeBiddingWorkspace() {
         };
     };
 
+    const getBidReviewCellText = (cell) => {
+        if (!cell) return '';
+        const controls = Array.from(cell.querySelectorAll('input, select, textarea'))
+            .map(input => input.type === 'checkbox' ? (input.checked ? 'Yes' : '') : input.value)
+            .filter(Boolean);
+        return controls.join(' / ') || cell.textContent.trim();
+    };
+
+    const getBidReviewTableLabel = (input) => {
+        const cell = input.closest('td, th');
+        const row = input.closest('tr');
+        const table = input.closest('table');
+        if (!cell || !row || !table) return '';
+        const cellIndex = Array.from(row.children).indexOf(cell);
+        const header = table.querySelectorAll('thead th')[cellIndex]?.textContent.trim() || '';
+        const rowContext = Array.from(row.children)
+            .slice(0, Math.min(2, row.children.length))
+            .filter(item => item !== cell)
+            .map(getBidReviewCellText)
+            .filter(Boolean)
+            .join(' / ');
+        return [rowContext, header].filter(Boolean).join(' - ');
+    };
+
+    const getBidReviewInputLabel = (input) => {
+        const checkboxLabel = input.closest('.bid-response-check')?.querySelector('span')?.textContent.trim();
+        if (checkboxLabel) return checkboxLabel;
+        const uploadLabel = input.closest('[data-bid-upload-control]')?.querySelector('span, .form-label')?.textContent.trim();
+        if (uploadLabel) return uploadLabel;
+        const formLabel = input.closest('.form-group')?.querySelector('.form-label, label')?.textContent.trim();
+        if (formLabel) return formLabel;
+        const tableLabel = getBidReviewTableLabel(input);
+        if (tableLabel) return tableLabel;
+        return input.getAttribute('aria-label') || humanizeBidWorkspaceKey(input.dataset.bidResponse || input.dataset.bidFreeResponse || input.dataset.bidProductSpecField || 'Response');
+    };
+
+    const getBidReviewInputValue = (input) => {
+        if (input.type === 'checkbox') return input.checked;
+        if (input.tagName === 'SELECT') {
+            return input.selectedOptions?.[0]?.textContent.trim() || input.value;
+        }
+        return input.value;
+    };
+
+    const shouldIncludeBidReviewInput = (input) => {
+        if (input.closest('[data-bid-response-review]')) return false;
+        const required = input.matches('[data-bid-required-response], [data-bid-workflow-required-response]');
+        if (input.type === 'checkbox') return input.checked || required;
+        return String(input.value || '').trim().length > 0 || required;
+    };
+
+    const collectBidReviewSections = (reviewPanel) => {
+        const reviewIndex = panels.indexOf(reviewPanel);
+        return panels.slice(0, Math.max(reviewIndex, 0)).map(panel => {
+            const panelTitle = panel.querySelector('.panel-heading h2')?.textContent.trim()
+                || panel.querySelector('h2, h3')?.textContent.trim()
+                || 'Bid section';
+            const seen = new Set();
+            const rows = Array.from(panel.querySelectorAll('[data-bid-response], [data-bid-free-response], [data-bid-product-spec-field]'))
+                .filter(shouldIncludeBidReviewInput)
+                .map(input => {
+                    const key = `${input.dataset.bidResponse || input.dataset.bidFreeResponse || input.dataset.bidProductSpecField || ''}::${getBidReviewInputLabel(input)}`;
+                    if (seen.has(key)) return null;
+                    seen.add(key);
+                    return {
+                        label: getBidReviewInputLabel(input),
+                        value: formatBidWorkspaceReviewValue(getBidReviewInputValue(input)),
+                        pending: !isResponseComplete(input)
+                    };
+                })
+                .filter(Boolean);
+            return { title: panelTitle, rows };
+        }).filter(section => section.rows.length);
+    };
+
+    const renderBidReviewSections = (sections = []) => {
+        const totalRows = sections.reduce((total, section) => total + section.rows.length, 0);
+        return `
+            <div class="bid-response-review-heading">
+                <div>
+                    <span class="section-kicker">Bidder response review</span>
+                    <h3>Responses entered so far</h3>
+                </div>
+                <span class="badge badge-info">${totalRows} response${totalRows === 1 ? '' : 's'}</span>
+            </div>
+            ${sections.length ? `
+                <div class="bid-response-review-sections">
+                    ${sections.map(section => `
+                        <article class="bid-response-review-section">
+                            <h4>${escapeBidWorkspaceHtml(section.title)}</h4>
+                            <div class="bid-response-review-grid">
+                                ${section.rows.map(row => `
+                                    <div class="${row.pending ? 'pending' : ''}">
+                                        <span>${escapeBidWorkspaceHtml(row.label)}</span>
+                                        <strong>${escapeBidWorkspaceHtml(row.value)}</strong>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </article>
+                    `).join('')}
+                </div>
+            ` : '<div class="scope-empty">No bidder responses have been entered yet.</div>'}
+        `;
+    };
+
+    const refreshBidResponseReviews = () => {
+        panels.forEach(panel => {
+            const review = panel.querySelector('[data-bid-response-review]');
+            if (!review) return;
+            review.innerHTML = renderBidReviewSections(collectBidReviewSections(panel));
+        });
+    };
+
     const setActiveStep = (index, force = false) => {
         if (index > 0 && !force && !validateMandatoryGate(true)) {
             activeStepIndex = 0;
@@ -2982,6 +3125,7 @@ function initializeBiddingWorkspace() {
         }
         if (progressOutput) progressOutput.textContent = `Step ${activeStepIndex + 1} of ${panels.length}`;
         if (stepTitleOutput) stepTitleOutput.textContent = railSteps.find(step => Number(step.dataset.bidStepIndex) === activeStepIndex)?.querySelector('span')?.textContent || '';
+        refreshBidResponseReviews();
         saveDraft();
     };
 
@@ -3213,6 +3357,7 @@ function initializeBiddingWorkspace() {
         if (event.target?.matches('[data-bid-response], [data-bid-free-response], [data-bid-product-spec-field]')) {
             validateMandatoryGate(false);
             validateWorkflowResponses(false);
+            refreshBidResponseReviews();
             saveDraft();
         }
     });
@@ -3234,6 +3379,7 @@ function initializeBiddingWorkspace() {
             updateBidUploadControlState(uploadControl);
             validateMandatoryGate(false);
             validateWorkflowResponses(false);
+            refreshBidResponseReviews();
             saveDraft();
             return;
         }
@@ -3241,6 +3387,7 @@ function initializeBiddingWorkspace() {
         if (event.target?.matches('[data-bid-response], [data-bid-free-response], [data-bid-product-spec-field]')) {
             validateMandatoryGate(false);
             validateWorkflowResponses(false);
+            refreshBidResponseReviews();
             saveDraft();
         }
     });
@@ -3249,6 +3396,7 @@ function initializeBiddingWorkspace() {
     refreshBidUploadControls();
     validateMandatoryGate(false);
     validateWorkflowResponses(false);
+    refreshBidResponseReviews();
     setActiveStep(activeStepIndex);
     wizard.dataset.ready = 'true';
 }
