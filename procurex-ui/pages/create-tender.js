@@ -252,8 +252,7 @@ function getDefaultCreateTenderFinancialRequirements() {
         advance_payment_percentage: null,
         retention_required: false,
         retention_percentage: null,
-        payment_terms_acceptance_required: true,
-        additional_financial_notes: ''
+        payment_terms_acceptance_required: true
     };
 }
 
@@ -282,8 +281,7 @@ function normalizeCreateTenderFinancialRequirements(value = {}) {
         advance_payment_percentage: advanceAllowed ? normalizePercent(source.advance_payment_percentage) : null,
         retention_required: retentionRequired,
         retention_percentage: retentionRequired ? normalizePercent(source.retention_percentage) : null,
-        payment_terms_acceptance_required: source.payment_terms_acceptance_required !== false,
-        additional_financial_notes: String(source.additional_financial_notes || '')
+        payment_terms_acceptance_required: source.payment_terms_acceptance_required !== false
     };
 }
 
@@ -2843,10 +2841,6 @@ function renderCreateTenderFinancialRequirementsControl(control, value = {}) {
                 <label class="bid-response-check financial-acceptance-setting">
                     <input type="checkbox" data-financial-requirement-field="payment_terms_acceptance_required" ${requirements.payment_terms_acceptance_required ? 'checked' : ''}>
                     <span>Suppliers must accept the payment terms before submitting their bid.</span>
-                </label>
-                <label class="form-group wide">
-                    <span class="form-label">Additional Financial Notes</span>
-                    <textarea class="form-input" rows="4" data-financial-requirement-field="additional_financial_notes" placeholder="Enter any additional financial instructions, payment conditions, or commercial notes.">${escapeCreateTenderHtml(requirements.additional_financial_notes)}</textarea>
                 </label>
             </section>
         </div>

@@ -337,8 +337,7 @@ function normalizeProcurexTenderFinancialRequirements(tender = {}) {
         advance_payment_percentage: financialRequirements.advance_payment_percentage ?? null,
         retention_required: normalizeBoolean(financialRequirements.retention_required),
         retention_percentage: financialRequirements.retention_percentage ?? null,
-        payment_terms_acceptance_required: financialRequirements.payment_terms_acceptance_required !== false,
-        additional_financial_notes: String(financialRequirements.additional_financial_notes || '')
+        payment_terms_acceptance_required: financialRequirements.payment_terms_acceptance_required !== false
     };
 }
 
@@ -351,7 +350,6 @@ function hasProcurexTenderFinancialRequirements(tender = {}) {
         requirements.payment_method,
         requirements.payment_schedule,
         requirements.payment_period,
-        requirements.additional_financial_notes,
         ...requirements.invoice_requirements
     ].some(value => String(value || '').trim())
         || requirements.advance_payment_allowed
@@ -392,12 +390,6 @@ function renderProcurexTenderFinancialRequirementsReadonly(tender = {}) {
                     </article>
                 `).join('')}
             </div>
-            ${requirements.additional_financial_notes ? `
-                <div class="financial-requirements-notes">
-                    <span>Additional Financial Notes</span>
-                    <p>${escapeSupplierTenderDetailHtml(requirements.additional_financial_notes)}</p>
-                </div>
-            ` : ''}
         </div>
     `;
 }

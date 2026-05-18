@@ -5043,8 +5043,7 @@ textarea.form-input {
     gap: 10px;
 }
 
-.financial-requirements-readonly-grid article,
-.financial-requirements-notes {
+.financial-requirements-readonly-grid article {
     display: grid;
     gap: 5px;
     padding: 12px;
@@ -5053,8 +5052,7 @@ textarea.form-input {
     background: var(--card-bg);
 }
 
-.financial-requirements-readonly-grid span,
-.financial-requirements-notes span {
+.financial-requirements-readonly-grid span {
     color: var(--text-secondary);
     font-size: 12px;
     font-weight: 700;
@@ -5065,12 +5063,6 @@ textarea.form-input {
     color: var(--text-primary);
     font-size: 14px;
     line-height: 1.4;
-}
-
-.financial-requirements-notes p {
-    margin: 0;
-    color: var(--text-primary);
-    line-height: 1.5;
 }
 
 .bid-payment-terms-acceptance {
