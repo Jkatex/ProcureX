@@ -229,7 +229,6 @@ const createTenderFinancialRequirementOptions = {
         { value: 'exclusive', label: 'Prices exclusive of tax' }
     ],
     paymentMethods: ['Bank Transfer', 'Mobile Money', 'Cheque', 'Other'],
-    paymentSchedules: ['After Delivery', 'Milestone-Based Payment', 'Monthly Payment', 'Advance and Final Payment', 'Upon Completion'],
     paymentPeriods: [
         'Within 7 days after invoice approval',
         'Within 14 days after invoice approval',
@@ -245,7 +244,6 @@ function getDefaultCreateTenderFinancialRequirements() {
         pricing_model: '',
         tax_inclusion: '',
         payment_method: '',
-        payment_schedule: '',
         payment_period: '',
         invoice_requirements: [],
         advance_payment_allowed: false,
@@ -274,7 +272,6 @@ function normalizeCreateTenderFinancialRequirements(value = {}) {
         pricing_model: String(source.pricing_model || defaults.pricing_model),
         tax_inclusion: String(source.tax_inclusion || defaults.tax_inclusion),
         payment_method: String(source.payment_method || defaults.payment_method),
-        payment_schedule: String(source.payment_schedule || defaults.payment_schedule),
         payment_period: String(source.payment_period || defaults.payment_period),
         invoice_requirements: Array.isArray(source.invoice_requirements) ? source.invoice_requirements.filter(Boolean) : [],
         advance_payment_allowed: advanceAllowed,
@@ -2775,10 +2772,6 @@ function renderCreateTenderFinancialRequirementsControl(control, value = {}) {
                         <span class="form-label">Payment Method</span>
                         ${renderSelect('payment_method', createTenderFinancialRequirementOptions.paymentMethods, requirements.payment_method, 'Payment Method')}
                     </label>
-                    <label class="form-group">
-                        <span class="form-label">Payment Schedule</span>
-                        ${renderSelect('payment_schedule', createTenderFinancialRequirementOptions.paymentSchedules, requirements.payment_schedule, 'Payment Schedule')}
-                    </label>
                     <label class="form-group wide">
                         <span class="form-label">Payment Period</span>
                         ${renderSelect('payment_period', createTenderFinancialRequirementOptions.paymentPeriods, requirements.payment_period, 'Payment Period')}
@@ -2994,7 +2987,6 @@ function isCreateTenderRequirementControlValid(control = {}, value = '') {
             requirements.pricing_model,
             requirements.tax_inclusion,
             requirements.payment_method,
-            requirements.payment_schedule,
             requirements.payment_period
         ].every(item => String(item || '').trim());
         const hasInvoiceRequirement = requirements.invoice_requirements.length > 0;

@@ -330,7 +330,6 @@ function normalizeProcurexTenderFinancialRequirements(tender = {}) {
         pricing_model: String(financialRequirements.pricing_model || ''),
         tax_inclusion: String(financialRequirements.tax_inclusion || ''),
         payment_method: String(financialRequirements.payment_method || ''),
-        payment_schedule: String(financialRequirements.payment_schedule || ''),
         payment_period: String(financialRequirements.payment_period || ''),
         invoice_requirements: Array.isArray(financialRequirements.invoice_requirements) ? financialRequirements.invoice_requirements.filter(Boolean) : [],
         advance_payment_allowed: normalizeBoolean(financialRequirements.advance_payment_allowed),
@@ -348,7 +347,6 @@ function hasProcurexTenderFinancialRequirements(tender = {}) {
         requirements.pricing_model,
         requirements.tax_inclusion,
         requirements.payment_method,
-        requirements.payment_schedule,
         requirements.payment_period,
         ...requirements.invoice_requirements
     ].some(value => String(value || '').trim())
@@ -372,7 +370,6 @@ function renderProcurexTenderFinancialRequirementsReadonly(tender = {}) {
         ['Pricing Model', requirements.pricing_model],
         ['Tax Inclusion', formatProcurexTenderFinancialRequirementValue(requirements.tax_inclusion)],
         ['Payment Method', requirements.payment_method],
-        ['Payment Schedule', requirements.payment_schedule],
         ['Payment Period', requirements.payment_period],
         ['Invoice Requirements', requirements.invoice_requirements.join(', ')],
         ['Advance Payment', requirements.advance_payment_allowed ? `Allowed${requirements.advance_payment_percentage ? ` - ${requirements.advance_payment_percentage}%` : ''}` : 'No advance payment'],
