@@ -1,5 +1,5 @@
 # ENTITY RELATIONSHIP DIAGRAM
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0
 **Date:** February 18, 2026
@@ -12,7 +12,7 @@ This document contains the complete ERD for the procurement system, organized in
 
 ---
 
-## 1. Core Identity & Access Domain (Logics 1, 2, 37)
+## 1. Core Identity and Access Domain (Logics 1, 2, 37)
 
 ```mermaid
 erDiagram
@@ -118,7 +118,7 @@ erDiagram
 
 ---
 
-## 2. Procurement Design & Tender Domain (Logics 3, 4, 24, 36)
+## 2. Procurement Design and Tender Domain (Logics 3, 4, 24, 36)
 
 ```mermaid
 erDiagram
@@ -239,7 +239,7 @@ erDiagram
 
 ---
 
-## 3. Supplier Profile & Discovery Domain (Logics 5, 15, 22, 25)
+## 3. Supplier Profile and Discovery Domain (Logics 5, 15, 22, 25)
 
 erDiagram
     %% Core Entities
@@ -419,7 +419,7 @@ erDiagram
 
 ---
 
-## 4. Bidding & Evaluation Domain (Logics 6, 7, 8, 9, 17, 26)
+## 4. Bidding and Evaluation Domain (Logics 6, 7, 8, 9, 17, 26)
 
 ```mermaid
 erDiagram
@@ -568,7 +568,7 @@ erDiagram
 
 ---
 
-## 5. Award, Contract & Budget Domain (Logics 10, 11, 12, 13, 16)
+## 5. Award, Contract and Budget Domain (Logics 10, 11, 12, 13, 16)
 
 ```mermaid
 erDiagram
@@ -709,7 +709,7 @@ erDiagram
 
 ---
 
-## 6. Post-Award & Financial Domain (Logics 19, 20)
+## 6. Post-Award and Financial Domain (Logics 19, 20)
 
 ```mermaid
 erDiagram
@@ -800,7 +800,7 @@ erDiagram
 
 ---
 
-## 7. Risk, Anti-Collusion & Governance Domain (Logics 23, 27, 29)
+## 7. Risk, Anti-Collusion and Governance Domain (Logics 23, 27, 29)
 
 ```mermaid
 erDiagram
@@ -898,7 +898,7 @@ erDiagram
 
 ---
 
-## 8. Audit & Intelligence Domain (Logics 14, 28, 31)
+## 8. Audit and Intelligence Domain (Logics 14, 28, 31)
 
 ```mermaid
 erDiagram
@@ -1083,14 +1083,14 @@ erDiagram
 
 | Domain | Entity Count | Key Entities |
 |---|---|---|
-| Identity & Access | 9 | User, Organization, Role, Permission, Trust Tier |
+| Identity and Access | 9 | User, Organization, Role, Permission, Trust Tier |
 | Procurement Design | 8 | Tender, Tender Item, Evaluation Criteria, Design Analysis, Category |
 | Supplier Profile | 7 | Supplier Profile, Capability, Capacity, Performance, Trust, Personnel |
-| Bidding & Evaluation | 10 | Bid, Bid Item, Evaluation Score, Consensus, Ranking, Price Benchmark, Sample |
-| Award & Contract | 7 | Award Decision, Contract, Milestone, Approval, Budget, Signature, Feasibility |
+| Bidding and Evaluation | 10 | Bid, Bid Item, Evaluation Score, Consensus, Ranking, Price Benchmark, Sample |
+| Award and Contract | 7 | Award Decision, Contract, Milestone, Approval, Budget, Signature, Feasibility |
 | Post-Award Financial | 6 | Invoice, Line Item, Goods Receipt, Dispute, Evidence, Appeal |
-| Risk & Governance | 7 | Risk Forecast, Collusion Analysis, Violation, Enforcement, Appeal, Reinstatement |
-| Audit & Intelligence | 5 | Audit Trail, Market Intelligence, Learning Model, Recommendation, Liquidity |
+| Risk and Governance | 7 | Risk Forecast, Collusion Analysis, Violation, Enforcement, Appeal, Reinstatement |
+| Audit and Intelligence | 5 | Audit Trail, Market Intelligence, Learning Model, Recommendation, Liquidity |
 | Integration | 4 | ERP Integration, Sync Record, Module Registry, Notification |
 | **TOTAL** | **63** | |
 
@@ -1103,7 +1103,7 @@ erDiagram
 ```mermaid
 erDiagram
     %% ═══════════════════════════════════════════
-    %% DOMAIN 1 — IDENTITY & ACCESS
+    %% DOMAIN 1 — IDENTITY and ACCESS
     %% ═══════════════════════════════════════════
 
     USER {
@@ -1182,7 +1182,7 @@ erDiagram
     }
 
     %% ═══════════════════════════════════════════
-    %% DOMAIN 2 — PROCUREMENT DESIGN & TENDER
+    %% DOMAIN 2 — PROCUREMENT DESIGN and TENDER
     %% ═══════════════════════════════════════════
 
     CATEGORY_TAXONOMY {
@@ -1266,7 +1266,7 @@ erDiagram
     }
 
     %% ═══════════════════════════════════════════
-    %% DOMAIN 3 — SUPPLIER PROFILE & DISCOVERY
+    %% DOMAIN 3 — SUPPLIER PROFILE and DISCOVERY
     %% ═══════════════════════════════════════════
 
     SUPPLIER_PROFILE {
@@ -1344,7 +1344,7 @@ erDiagram
     }
 
     %% ═══════════════════════════════════════════
-    %% DOMAIN 4 — BIDDING & EVALUATION
+    %% DOMAIN 4 — BIDDING and EVALUATION
     %% ═══════════════════════════════════════════
 
     BID {
@@ -1456,7 +1456,7 @@ erDiagram
     }
 
     %% ═══════════════════════════════════════════
-    %% DOMAIN 5 — AWARD, CONTRACT & BUDGET
+    %% DOMAIN 5 — AWARD, CONTRACT and BUDGET
     %% ═══════════════════════════════════════════
 
     AWARD_DECISION {
@@ -1566,7 +1566,7 @@ erDiagram
     }
 
     %% ═══════════════════════════════════════════
-    %% DOMAIN 6 — POST-AWARD & FINANCIAL
+    %% DOMAIN 6 — POST-AWARD and FINANCIAL
     %% ═══════════════════════════════════════════
 
     INVOICE {
@@ -1631,7 +1631,7 @@ erDiagram
     }
 
     %% ═══════════════════════════════════════════
-    %% DOMAIN 7 — RISK, ANTI-COLLUSION & GOVERNANCE
+    %% DOMAIN 7 — RISK, ANTI-COLLUSION and GOVERNANCE
     %% ═══════════════════════════════════════════
 
     RISK_FORECAST {
@@ -1698,7 +1698,7 @@ erDiagram
     }
 
     %% ═══════════════════════════════════════════
-    %% DOMAIN 8 — AUDIT & INTELLIGENCE
+    %% DOMAIN 8 — AUDIT and INTELLIGENCE
     %% ═══════════════════════════════════════════
 
     AUDIT_TRAIL {
@@ -1795,7 +1795,7 @@ erDiagram
     %% ALL RELATIONSHIPS (Cross-Domain)
     %% ═══════════════════════════════════════════════════════
 
-    %% --- Identity & Access ---
+    %% --- Identity and Access ---
     USER ||--o{ VERIFICATION_DOCUMENT : "submits"
     USER ||--o{ USER_ROLE : "has"
     USER ||--o{ TRUST_TIER_RECORD : "progresses"
@@ -1830,7 +1830,7 @@ erDiagram
     SUPPLIER_PROFILE ||--o{ PERSONNEL_RECORD : "employs"
     SUPPLIER_PROFILE ||--o{ PERFORMANCE_RECORD : "evaluated_in"
 
-    %% --- Bidding & Evaluation ---
+    %% --- Bidding and Evaluation ---
     TENDER ||--o{ BID : "receives_bids"
     SUPPLIER_PROFILE ||--o{ BID : "submits_bid"
     BID ||--o{ BID_ITEM : "contains_items"
@@ -1846,7 +1846,7 @@ erDiagram
     SUPPLIER_PROFILE ||--o{ SAMPLE_SUBMISSION : "submits_samples"
     SAMPLE_SUBMISSION ||--o{ SAMPLE_EVALUATION : "evaluated_via"
 
-    %% --- Award & Contract ---
+    %% --- Award and Contract ---
     TENDER ||--|| AWARD_DECISION : "results_in_award"
     AWARD_DECISION ||--|| CONTRACT : "creates_contract"
     ORGANIZATION ||--o{ CONTRACT : "buyer_of"
@@ -1855,7 +1855,7 @@ erDiagram
     CONTRACT ||--o{ DIGITAL_SIGNATURE : "signed_with"
     PERSONNEL_RECORD ||--o{ PERSONNEL_ASSIGNMENT : "assigned_to"
 
-    %% --- Approval & Budget ---
+    %% --- Approval and Budget ---
     ORGANIZATION ||--o{ BUDGET : "allocates"
     BUDGET ||--o{ BUDGET_TRANSACTION : "records"
     BUDGET ||--o{ TENDER : "funds"
@@ -1874,7 +1874,7 @@ erDiagram
     DISPUTE ||--o| DISPUTE_APPEAL : "appealed_via"
     USER ||--o{ DISPUTE : "raises"
 
-    %% --- Risk & Governance ---
+    %% --- Risk and Governance ---
     TENDER ||--o{ RISK_FORECAST : "risk_forecasted"
     BID ||--o| RISK_FORECAST : "risk_assessed"
     TENDER ||--o{ COLLUSION_ANALYSIS : "collusion_checked"
@@ -1884,7 +1884,7 @@ erDiagram
     ENFORCEMENT_ACTION ||--o| APPEAL_RECORD : "appealed_via"
     ENFORCEMENT_ACTION ||--o| REINSTATEMENT_RECORD : "reinstated_via"
 
-    %% --- Intelligence & Learning ---
+    %% --- Intelligence and Learning ---
     LEARNING_MODEL ||--o{ RECOMMENDATION : "generates"
 
     %% --- Integration ---

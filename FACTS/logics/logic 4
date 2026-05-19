@@ -1,6 +1,6 @@
 Below is the **complete system-level definition and flow design** for:
 
-# 🔷 LOGIC 4 – Tender Publication & Market Visibility Logic
+# 🔷 LOGIC 4 – Tender Publication and Market Visibility Logic
 
 ---
 
@@ -37,11 +37,11 @@ Supplier Eligibility Matching
         ↓
 Publication Execution
         ↓
-Notification & Distribution
+Notification and Distribution
         ↓
 Clarification Window Activation
         ↓
-Ongoing Monitoring & Fairness Enforcement
+Ongoing Monitoring and Fairness Enforcement
         ↓
 Submission Deadline Lock
 ```
@@ -188,7 +188,7 @@ Upon publication:
 
 ---
 
-# 7️⃣ FAIRNESS & ANTI-ADVANTAGE CONTROLS
+# 7️⃣ FAIRNESS and ANTI-ADVANTAGE CONTROLS
 
 The system enforces:
 
@@ -256,7 +256,7 @@ Response Visible to All Suppliers
 Controls:
 
 * No private answers allowed
-* All Q&A logged
+* All QandA logged
 * Time-stamped
 * Immutable
 
@@ -312,7 +312,7 @@ But system logs:
 
 ---
 
-# 1️⃣2️⃣ SEARCH & DISCOVERY LOGIC
+# 1️⃣2️⃣ SEARCH and DISCOVERY LOGIC
 
 Suppliers can:
 
@@ -333,7 +333,7 @@ No ranking bias toward specific suppliers.
 
 ---
 
-# 1️⃣3️⃣ AUDIT & TRANSPARENCY REQUIREMENTS
+# 1️⃣3️⃣ AUDIT and TRANSPARENCY REQUIREMENTS
 
 For every publication:
 
@@ -377,7 +377,7 @@ Notifications
 
 ---
 
-# 1️⃣5️⃣ SECURITY & GOVERNANCE CONTROLS
+# 1️⃣5️⃣ SECURITY and GOVERNANCE CONTROLS
 
 * No manual override of publish time without audit log
 * Two-factor authentication before high-value publication
@@ -428,7 +428,7 @@ It connects:
 
 **Structured procurement needs (Logic 3)**
 with
-**Active supplier participation (Logic 5 – Bidding & Submission)**
+**Active supplier participation (Logic 5 – Bidding and Submission)**
 
 ---
 

@@ -221,7 +221,7 @@ function renderWelcome() {
                 <div class="container">
                     <div>
                         <strong>ProcureX</strong>
-                        <p>&copy; 2026 ProcureX. All rights reserved. Connecting businesses, tenderers, and professionals through smarter procurement.</p>
+                        <p>andcopy; 2026 ProcureX. All rights reserved. Connecting businesses, tenderers, and professionals through smarter procurement.</p>
                     </div>
                     <nav aria-label="Company links">
                         <h3>Company</h3>

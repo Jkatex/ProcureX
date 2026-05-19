@@ -27,7 +27,7 @@ function renderTenderPublication() {
                         </div>
                         <div class="hero-action-stack">
                             <button class="btn btn-secondary" data-navigate="create-tender">Edit Draft</button>
-                            <button class="btn btn-primary" data-navigate="tender-details">Approve & Publish</button>
+                            <button class="btn btn-primary" data-navigate="tender-details">Approve and Publish</button>
                         </div>
                     </section>
 
@@ -98,7 +98,7 @@ function renderTenderPublication() {
                             <span class="section-kicker">Publication</span>
                             <h2>Approve and Go Active</h2>
                             <p>Publishing moves the tender to the active list and opens clarifications management.</p>
-                            <button class="btn btn-primary" data-navigate="tender-details">Approve & Publish Tender</button>
+                            <button class="btn btn-primary" data-navigate="tender-details">Approve and Publish Tender</button>
                         </div>
                     </section>
                 </div>

@@ -59,17 +59,17 @@ function renderPostAwardTracking() {
                         </div>
 
                         <div class="tabs">
-                            <div class="tab active" data-tab="grn">GRN & Acceptance</div>
-                            <div class="tab" data-tab="billing">Invoices & Matching</div>
-                            <div class="tab" data-tab="disputes">Disputes & Evidence</div>
+                            <div class="tab active" data-tab="grn">GRN and Acceptance</div>
+                            <div class="tab" data-tab="billing">Invoices and Matching</div>
+                            <div class="tab" data-tab="disputes">Disputes and Evidence</div>
                         </div>
 
                         <div class="tab-content" data-tab="grn" style="display: block;">
                             <div class="card">
                                 <div class="panel-heading">
                                     <div>
-                                        <span class="section-kicker">Delivery & Invoice Verification</span>
-                                        <h3>Goods Receipt Notes & Acceptance</h3>
+                                        <span class="section-kicker">Delivery and Invoice Verification</span>
+                                        <h3>Goods Receipt Notes and Acceptance</h3>
                                     </div>
                                     <span class="badge badge-warning">1 review pending</span>
                                 </div>

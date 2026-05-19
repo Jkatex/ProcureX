@@ -2,11 +2,11 @@
 
 function escapeEvaluationHtml(value = '') {
     return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function formatEvaluationMoney(value, currency = 'TZS') {
@@ -110,7 +110,7 @@ function renderEvaluationSupplierBidDocument(tender = {}, bid = {}, bidderIndex 
             submittedAt: bid.submissionTime,
             receiptHash: bid.integrityHash,
             total: bid.financial?.correctedPrice ? formatEvaluationMoney(bid.financial.correctedPrice, bid.financial?.currency || 'TZS') : formatEvaluationMoney(bid.price, bid.financial?.currency || 'TZS'),
-            status: bid.finalResult || bid.preliminaryResult || 'Evaluation review'
+            status: bid.finalResult || bid.preliminaryResult || 'Under Evaluation'
         };
 
     return renderProcurexBidPackageDocument({
@@ -119,11 +119,11 @@ function renderEvaluationSupplierBidDocument(tender = {}, bid = {}, bidderIndex 
         supplier,
         editable: false,
         includeActions: false,
-        documentLabel: submittedBid ? 'Submitted supplier bid' : 'Evaluation fallback record',
+        documentLabel: submittedBid ? 'Submitted Tenderer Bid' : 'Reconstructed Evaluation Copy',
         offerLabel: tender.category || sourceTender.type || 'Bid Offer',
         description: submittedBid
-            ? 'This evaluator copy is generated from the supplier submission saved during bid submission.'
-            : 'This evaluator copy is generated from the available evaluation record because no submitted bid package was found in this browser.'
+            ? 'This evaluation copy is generated from the tenderer submission saved during bid submission.'
+            : 'Reconstructed from evaluation data - supplier submission not found in this browser session.'
     });
 }
 
@@ -854,7 +854,7 @@ function renderBidEvaluation() {
                         <div class="evaluation-step-actions">
                             <button class="btn btn-secondary" type="button" data-evaluation-move="previous">Previous Item</button>
                             <button class="btn btn-secondary" type="button" data-evaluation-save-draft="${escapeEvaluationHtml(tender.reference)}">Save Draft</button>
-                            <button class="btn btn-primary" type="button" data-evaluation-move="next">Save & Next Item</button>
+                            <button class="btn btn-primary" type="button" data-evaluation-move="next">Save and Next Item</button>
                         </div>
                     </section>
                 </div>

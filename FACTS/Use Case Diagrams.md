@@ -1,5 +1,5 @@
 # USE CASE DIAGRAMS
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0
 **Date:** February 18, 2026
@@ -21,7 +21,7 @@
 
 ---
 
-## 1. User Registration & Identity Management (Logics 1, 2, 37)
+## 1. User Registration and Identity Management (Logics 1, 2, 37)
 
 ```mermaid
 graph LR
@@ -31,7 +31,7 @@ graph LR
         PA((Platform Admin))
     end
 
-    subgraph "UC: Identity & Access Management"
+    subgraph "UC: Identity and Access Management"
         UC1["UC-1.1: Register Account"]
         UC2["UC-1.2: Submit Verification Documents"]
         UC3["UC-1.3: Complete Identity Verification"]
@@ -66,7 +66,7 @@ graph LR
 
 ---
 
-## 2. Procurement Design & Tender Creation (Logics 3, 24, 36)
+## 2. Procurement Design and Tender Creation (Logics 3, 24, 36)
 
 ```mermaid
 graph LR
@@ -75,12 +75,12 @@ graph LR
         AP((Approver))
     end
 
-    subgraph "UC: Tender Design & Structuring"
+    subgraph "UC: Tender Design and Structuring"
         UC1["UC-2.1: Define Procurement Need"]
         UC2["UC-2.2: Enter Technical Specifications"]
         UC3["UC-2.3: Create Bill of Quantities"]
-        UC4["UC-2.4: Set Evaluation Criteria & Weights"]
-        UC5["UC-2.5: Configure Timeline & Milestones"]
+        UC4["UC-2.4: Set Evaluation Criteria and Weights"]
+        UC5["UC-2.5: Configure Timeline and Milestones"]
         UC6["UC-2.6: Attach Budget Allocation"]
         UC7["UC-2.7: Select Tender Template"]
         UC8["UC-2.8: Customize Template Fields"]
@@ -108,7 +108,7 @@ graph LR
 
 ---
 
-## 3. Tender Publication & Market Visibility (Logics 4, 21, 38)
+## 3. Tender Publication and Market Visibility (Logics 4, 21, 38)
 
 ```mermaid
 graph LR
@@ -117,7 +117,7 @@ graph LR
         S((Supplier))
     end
 
-    subgraph "UC: Publication & Marketplace"
+    subgraph "UC: Publication and Marketplace"
         UC1["UC-3.1: Publish Tender"]
         UC2["UC-3.2: Set Visibility Model"]
         UC3["UC-3.3: Issue Tender Amendment"]
@@ -148,7 +148,7 @@ graph LR
 
 ---
 
-## 4. Supplier Discovery & Matching (Logics 5, 22, 25)
+## 4. Supplier Discovery and Matching (Logics 5, 22, 25)
 
 ```mermaid
 graph LR
@@ -159,16 +159,16 @@ graph LR
 
     subgraph "UC: Supplier Discovery"
         UC1["UC-4.1: Search Supplier Registry"]
-        UC2["UC-4.2: Filter by Category & Capability"]
+        UC2["UC-4.2: Filter by Category and Capability"]
         UC3["UC-4.3: View Supplier Performance History"]
         UC4["UC-4.4: View Supplier Trust Score"]
         UC5["UC-4.5: View Supplier Capacity Status"]
         UC6["UC-4.6: Receive Supplier Recommendations"]
         UC7["UC-4.7: Invite Supplier to Tender"]
         UC8["UC-4.8: Update Company Profile"]
-        UC9["UC-4.9: Declare Capabilities & Certifications"]
+        UC9["UC-4.9: Declare Capabilities and Certifications"]
         UC10["UC-4.10: Declare Available Capacity"]
-        UC11["UC-4.11: View Own Trust Score & Tier"]
+        UC11["UC-4.11: View Own Trust Score and Tier"]
         UC12["UC-4.12: View Performance Dashboard"]
     end
 
@@ -188,7 +188,7 @@ graph LR
 
 ---
 
-## 5. Bid Submission & Validation (Logic 6)
+## 5. Bid Submission and Validation (Logic 6)
 
 ```mermaid
 graph LR
@@ -225,7 +225,7 @@ graph LR
 
 ---
 
-## 6. Bid Opening & Evaluation (Logics 7, 8, 9, 17, 18, 26)
+## 6. Bid Opening and Evaluation (Logics 7, 8, 9, 17, 18, 26)
 
 ```mermaid
 graph LR
@@ -234,7 +234,7 @@ graph LR
         EV((Evaluator))
     end
 
-    subgraph "UC: Bid Opening & Evaluation"
+    subgraph "UC: Bid Opening and Evaluation"
         UC1["UC-6.1: Authorize Bid Opening"]
         UC2["UC-6.2: Open Technical Envelopes"]
         UC3["UC-6.3: Verify Bid Integrity Hashes"]
@@ -277,7 +277,7 @@ graph LR
 
 ---
 
-## 7. Award Decision & Contract Formation (Logics 10, 13, 16)
+## 7. Award Decision and Contract Formation (Logics 10, 13, 16)
 
 ```mermaid
 graph LR
@@ -287,7 +287,7 @@ graph LR
         AP((Approver))
     end
 
-    subgraph "UC: Award & Contract"
+    subgraph "UC: Award and Contract"
         UC1["UC-7.1: Review Final Bid Rankings"]
         UC2["UC-7.2: Review Delivery Feasibility Assessment"]
         UC3["UC-7.3: Review Risk Forecast"]
@@ -301,7 +301,7 @@ graph LR
         UC11["UC-7.11: Review Contract Terms"]
         UC12["UC-7.12: Digitally Sign Contract"]
         UC13["UC-7.13: Submit Performance Security"]
-        UC14["UC-7.14: Accept Award & Sign Contract"]
+        UC14["UC-7.14: Accept Award and Sign Contract"]
         UC15["UC-7.15: Challenge Award Decision"]
     end
 
@@ -324,7 +324,7 @@ graph LR
 
 ---
 
-## 8. Approval Workflow & Budget Management (Logics 11, 12)
+## 8. Approval Workflow and Budget Management (Logics 11, 12)
 
 ```mermaid
 graph LR
@@ -334,7 +334,7 @@ graph LR
         FO((Finance Officer))
     end
 
-    subgraph "UC: Approvals & Budget"
+    subgraph "UC: Approvals and Budget"
         UC1["UC-8.1: Submit Action for Approval"]
         UC2["UC-8.2: Review Pending Approval"]
         UC3["UC-8.3: Approve/Reject Action"]
@@ -367,7 +367,7 @@ graph LR
 
 ---
 
-## 9. Post-Award & Contract Management (Logics 15, 19, 20)
+## 9. Post-Award and Contract Management (Logics 15, 19, 20)
 
 ```mermaid
 graph LR
@@ -414,7 +414,7 @@ graph LR
 
 ---
 
-## 10. Risk, Anti-Collusion & Compliance (Logics 14, 23, 27, 29)
+## 10. Risk, Anti-Collusion and Compliance (Logics 14, 23, 27, 29)
 
 ```mermaid
 graph LR
@@ -423,7 +423,7 @@ graph LR
         PA((Platform Admin))
     end
 
-    subgraph "UC: Risk & Compliance"
+    subgraph "UC: Risk and Compliance"
         UC1["UC-10.1: View Procurement Risk Forecast"]
         UC2["UC-10.2: Run What-If Risk Scenarios"]
         UC3["UC-10.3: Review Collusion Risk Alerts"]
@@ -460,7 +460,7 @@ graph LR
 
 ---
 
-## 11. Market Intelligence & Platform Learning (Logics 28, 30, 31, 38)
+## 11. Market Intelligence and Platform Learning (Logics 28, 30, 31, 38)
 
 ```mermaid
 graph LR
@@ -470,7 +470,7 @@ graph LR
         PA((Platform Admin))
     end
 
-    subgraph "UC: Intelligence & Analytics"
+    subgraph "UC: Intelligence and Analytics"
         UC1["UC-11.1: View Category Price Trends"]
         UC2["UC-11.2: View Regional Market Analytics"]
         UC3["UC-11.3: View Inter-Org Benchmark Data"]
@@ -504,7 +504,7 @@ graph LR
 
 ---
 
-## 12. System Integration & Platform Administration (Logics 35, 40)
+## 12. System Integration and Platform Administration (Logics 35, 40)
 
 ```mermaid
 graph LR
@@ -513,7 +513,7 @@ graph LR
         ERP((External System))
     end
 
-    subgraph "UC: Integration & Administration"
+    subgraph "UC: Integration and Administration"
         UC1["UC-12.1: Configure ERP Integration"]
         UC2["UC-12.2: Map Data Fields to ERP"]
         UC3["UC-12.3: Monitor Sync Status"]
@@ -546,7 +546,7 @@ graph LR
 
 ---
 
-## 13. Unified Use Case Diagram — All Actors & Key Use Cases
+## 13. Unified Use Case Diagram — All Actors and Key Use Cases
 
 ```mermaid
 graph TB
@@ -561,21 +561,21 @@ graph TB
         ERP((ERP System))
     end
 
-    subgraph "IDENTITY & ACCESS"
-        A1["Register & Verify Identity"]
-        A2["Manage Roles & Permissions"]
+    subgraph "IDENTITY and ACCESS"
+        A1["Register and Verify Identity"]
+        A2["Manage Roles and Permissions"]
         A3["Progress Trust Tiers"]
     end
 
     subgraph "TENDER DESIGN"
         B1["Define Procurement Need"]
         B2["Set Evaluation Criteria"]
-        B3["Run Quality & Bias Check"]
+        B3["Run Quality and Bias Check"]
     end
 
     subgraph "MARKETPLACE"
         C1["Publish Tender"]
-        C2["Browse & Search Tenders"]
+        C2["Browse and Search Tenders"]
         C3["Receive Matching Notifications"]
         C4["Ask/Answer Clarifications"]
     end
@@ -593,33 +593,33 @@ graph TB
     end
 
     subgraph "EVALUATION"
-        F1["Open & Verify Bids"]
+        F1["Open and Verify Bids"]
         F2["Score Bids (Tech + Financial)"]
         F3["View Price Benchmarks"]
-        F4["Rank & Disqualify Bids"]
+        F4["Rank and Disqualify Bids"]
     end
 
-    subgraph "AWARD & CONTRACT"
+    subgraph "AWARD and CONTRACT"
         G1["Make Award Decision"]
         G2["Approve Award"]
-        G3["Generate & Sign Contract"]
+        G3["Generate and Sign Contract"]
         G4["Enforce Standstill Period"]
     end
 
-    subgraph "BUDGET & APPROVALS"
-        H1["Allocate & Track Budget"]
+    subgraph "BUDGET and APPROVALS"
+        H1["Allocate and Track Budget"]
         H2["Submit/Process Approvals"]
         H3["Delegate Authority"]
     end
 
     subgraph "POST-AWARD"
-        I1["Track Milestones & Receipts"]
-        I2["Submit & Validate Invoices"]
+        I1["Track Milestones and Receipts"]
+        I2["Submit and Validate Invoices"]
         I3["Evaluate Performance"]
         I4["Resolve Disputes"]
     end
 
-    subgraph "RISK & COMPLIANCE"
+    subgraph "RISK and COMPLIANCE"
         J1["Forecast Procurement Risk"]
         J2["Detect Collusion Patterns"]
         J3["Search Audit Trails"]
@@ -708,18 +708,18 @@ graph TB
 
 | Diagram | Use Cases | Primary Actors |
 |---|---|---|
-| 1. Identity & Access | 12 | Buyer, Supplier, Platform Admin |
+| 1. Identity and Access | 12 | Buyer, Supplier, Platform Admin |
 | 2. Tender Design | 13 | Buyer, Approver |
-| 3. Publication & Marketplace | 12 | Buyer, Supplier |
+| 3. Publication and Marketplace | 12 | Buyer, Supplier |
 | 4. Supplier Discovery | 12 | Buyer, Supplier |
 | 5. Bid Submission | 11 | Supplier |
-| 6. Bid Opening & Evaluation | 18 | Buyer, Evaluator |
-| 7. Award & Contract | 15 | Buyer, Supplier, Approver |
-| 8. Approvals & Budget | 13 | Buyer, Approver, Finance Officer |
+| 6. Bid Opening and Evaluation | 18 | Buyer, Evaluator |
+| 7. Award and Contract | 15 | Buyer, Supplier, Approver |
+| 8. Approvals and Budget | 13 | Buyer, Approver, Finance Officer |
 | 9. Post-Award Operations | 15 | Buyer, Supplier, Finance Officer |
-| 10. Risk & Compliance | 15 | Compliance Officer, Platform Admin |
-| 11. Intelligence & Analytics | 12 | Buyer, Supplier, Platform Admin |
-| 12. Integration & Admin | 13 | Platform Admin, ERP System |
+| 10. Risk and Compliance | 15 | Compliance Officer, Platform Admin |
+| 11. Intelligence and Analytics | 12 | Buyer, Supplier, Platform Admin |
+| 12. Integration and Admin | 13 | Platform Admin, ERP System |
 | 13. Unified Overview | 36 (key) | All 8 Actors |
 | **TOTAL** | **~160 unique** | **8 actors** |
 

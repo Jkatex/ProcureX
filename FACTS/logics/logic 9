@@ -1,6 +1,6 @@
 Below is the **complete system-level design and analytical framework** for:
 
-# 🔷 LOGIC 9 – Price Intelligence & Benchmarking Logic
+# 🔷 LOGIC 9 – Price Intelligence and Benchmarking Logic
 
 ---
 
@@ -139,7 +139,7 @@ Ensures fair comparison across time and regions.
 
 ---
 
-## 🔹 A. Mean & Median Benchmark
+## 🔹 A. Mean and Median Benchmark
 
 System calculates:
 
@@ -382,7 +382,7 @@ Risk Score
 
 ---
 
-# 1️⃣5️⃣ SECURITY & GOVERNANCE CONTROLS
+# 1️⃣5️⃣ SECURITY and GOVERNANCE CONTROLS
 
 * Benchmark methodology version control
 * No manual benchmark manipulation without log
@@ -456,7 +456,7 @@ It enhances:
 
 **Evaluation Framework (Logic 8)**
 and supports
-**Award Decision & Contract Finalization (Logic 10)**
+**Award Decision and Contract Finalization (Logic 10)**
 
 ---
 

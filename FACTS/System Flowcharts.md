@@ -1,5 +1,5 @@
 # SYSTEM FLOWCHARTS
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0 | **Date:** February 18, 2026
 
@@ -7,44 +7,44 @@
 
 ## TABLE OF CONTENTS
 
-1. User Registration & Identity Verification
+1. User Registration and Identity Verification
 2. Role-Based Access Control (RBAC)
-3. Procurement Need Definition & Tender Creation
-4. Tender Publication & Market Distribution
-5. Supplier Discovery & Matching
-6. Bid Submission & Validation
-7. Bid Opening & Controlled Disclosure
-8. Bid Evaluation & Scoring
-9. Price Intelligence & Benchmarking
-10. Award Decision & Contract Formation
-11. Approval Workflow & Authority Hierarchy
-12. Budget Commitment & Spend Control
-13. Digital Signature & Legal Enforceability
-14. Audit Trail & Traceability
+3. Procurement Need Definition and Tender Creation
+4. Tender Publication and Market Distribution
+5. Supplier Discovery and Matching
+6. Bid Submission and Validation
+7. Bid Opening and Controlled Disclosure
+8. Bid Evaluation and Scoring
+9. Price Intelligence and Benchmarking
+10. Award Decision and Contract Formation
+11. Approval Workflow and Authority Hierarchy
+12. Budget Commitment and Spend Control
+13. Digital Signature and Legal Enforceability
+14. Audit Trail and Traceability
 15. Supplier Performance Tracking
-16. Logistics Feasibility & Delivery Risk
+16. Logistics Feasibility and Delivery Risk
 17. Sample-Based Procurement
-18. Service & Professional Procurement
-19. Invoice Validation & 3-Way Matching
-20. Dispute Resolution & Exception Handling
+18. Service and Professional Procurement
+19. Invoice Validation and 3-Way Matching
+20. Dispute Resolution and Exception Handling
 21. Market Centralization
 22. Supplier Capacity Management
 23. Anti-Collusion Detection
 24. Tender Design Quality Assurance
-25. Progressive Trust & Reputation
+25. Progressive Trust and Reputation
 26. Cross-Regional Price Normalization
 27. Risk Forecasting
-28. Market Intelligence & Analytics
-29. Governance & Enforcement
+28. Market Intelligence and Analytics
+29. Governance and Enforcement
 30. Network Liquidity Monitoring
-31. Platform Learning & AI
-32. ERP Integration & Sync
-33. Platform Modularity & Extensibility
+31. Platform Learning and AI
+32. ERP Integration and Sync
+33. Platform Modularity and Extensibility
 34. Complete Procurement Lifecycle (End-to-End)
 
 ---
 
-## 1. User Registration & Identity Verification (Logics 1, 37)
+## 1. User Registration and Identity Verification (Logics 1, 37)
 
 ```mermaid
 flowchart TD
@@ -54,7 +54,7 @@ flowchart TD
     C -->|Supplier| E[Enter Business Details]
     C -->|Individual| F[Enter Personal Details]
     
-    D --> G[Submit Email & Phone]
+    D --> G[Submit Email and Phone]
     E --> G
     F --> G
     
@@ -152,7 +152,7 @@ flowchart TD
 
 ---
 
-## 3. Procurement Need Definition & Tender Creation (Logics 3, 24)
+## 3. Procurement Need Definition and Tender Creation (Logics 3, 24)
 
 ```mermaid
 flowchart TD
@@ -164,7 +164,7 @@ flowchart TD
     C -->|Consulting| G[Enter ToR]
     
     D --> H[Create Bill of Quantities]
-    E --> I[Define Deliverables & SLAs]
+    E --> I[Define Deliverables and SLAs]
     F --> H
     G --> I
     
@@ -175,7 +175,7 @@ flowchart TD
     K --> L{Spec Quality Check}
     L -->|Vague terms found| M[Highlight: Refine Specifications]
     M --> K
-    L -->|Clear & measurable| N[Define Evaluation Criteria]
+    L -->|Clear and measurable| N[Define Evaluation Criteria]
     
     N --> O[Set Criteria Weights]
     O --> P{Weights = 100%?}
@@ -222,7 +222,7 @@ flowchart TD
 
 ---
 
-## 4. Tender Publication & Market Distribution (Logics 4, 21)
+## 4. Tender Publication and Market Distribution (Logics 4, 21)
 
 ```mermaid
 flowchart TD
@@ -273,7 +273,7 @@ flowchart TD
 
 ---
 
-## 5. Supplier Discovery & Matching Engine (Logics 5, 22, 25)
+## 5. Supplier Discovery and Matching Engine (Logics 5, 22, 25)
 
 ```mermaid
 flowchart TD
@@ -288,7 +288,7 @@ flowchart TD
     F --> G[Filter: Category Alignment]
     G --> H[Filter: Geographic Feasibility]
     H --> I[Filter: Trust Tier Minimum Met]
-    I --> J[Filter: Active & Verified Status]
+    I --> J[Filter: Active and Verified Status]
     
     J --> K{Remaining Suppliers > 0?}
     K -->|No| L[Widen Search Criteria]
@@ -297,7 +297,7 @@ flowchart TD
     
     M --> N[Score: Capability Fit]
     N --> O[Score: Capacity Availability]
-    O --> P[Score: Trust & Risk Profile]
+    O --> P[Score: Trust and Risk Profile]
     P --> Q[Score: Price Competitiveness History]
     
     Q --> R[Apply Weighted Composite Ranking]
@@ -321,7 +321,7 @@ flowchart TD
 
 ---
 
-## 6. Bid Submission & Validation (Logic 6)
+## 6. Bid Submission and Validation (Logic 6)
 
 ```mermaid
 flowchart TD
@@ -340,7 +340,7 @@ flowchart TD
     H -->|Price Only| I[Enter Line-Item Prices]
     H -->|Two-Envelope| J[Prepare Technical + Financial]
     H -->|Service/Consulting| K[Enter Qualifications + Portfolio]
-    H -->|Multi-Lot| L[Select Lots & Enter Per-Lot Data]
+    H -->|Multi-Lot| L[Select Lots and Enter Per-Lot Data]
     
     I --> M[Upload Supporting Documents]
     J --> M
@@ -381,7 +381,7 @@ flowchart TD
 
 ---
 
-## 7. Bid Opening & Controlled Disclosure (Logic 7)
+## 7. Bid Opening and Controlled Disclosure (Logic 7)
 
 ```mermaid
 flowchart TD
@@ -430,7 +430,7 @@ flowchart TD
 
 ---
 
-## 8. Bid Evaluation & Scoring (Logics 8, 17, 18)
+## 8. Bid Evaluation and Scoring (Logics 8, 17, 18)
 
 ```mermaid
 flowchart TD
@@ -489,7 +489,7 @@ flowchart TD
 
 ---
 
-## 9. Price Intelligence & Benchmarking (Logics 9, 26)
+## 9. Price Intelligence and Benchmarking (Logics 9, 26)
 
 ```mermaid
 flowchart TD
@@ -512,7 +512,7 @@ flowchart TD
     L --> M
     
     M --> N[Apply Logistics Cost Adjustment]
-    N --> O[Apply Tax & Duty Adjustment]
+    N --> O[Apply Tax and Duty Adjustment]
     O --> P[Apply Currency Risk Premium]
     P --> Q[Apply Scarcity/Demand Factor]
     Q --> R[Calculate Comparable Economic Cost]
@@ -539,7 +539,7 @@ flowchart TD
 
 ---
 
-## 10. Award Decision & Contract Formation (Logics 10, 13)
+## 10. Award Decision and Contract Formation (Logics 10, 13)
 
 ```mermaid
 flowchart TD
@@ -600,7 +600,7 @@ flowchart TD
 
 ---
 
-## 11. Approval Workflow & Authority Hierarchy (Logic 11)
+## 11. Approval Workflow and Authority Hierarchy (Logic 11)
 
 ```mermaid
 flowchart TD
@@ -663,7 +663,7 @@ flowchart TD
 
 ---
 
-## 12. Budget Commitment & Spend Control (Logic 12)
+## 12. Budget Commitment and Spend Control (Logic 12)
 
 ```mermaid
 flowchart TD
@@ -714,7 +714,7 @@ flowchart TD
 
 ---
 
-## 13. Digital Signature & Legal Enforceability (Logic 13)
+## 13. Digital Signature and Legal Enforceability (Logic 13)
 
 ```mermaid
 flowchart TD
@@ -756,7 +756,7 @@ flowchart TD
 
 ---
 
-## 14. Audit Trail & Traceability (Logic 14)
+## 14. Audit Trail and Traceability (Logic 14)
 
 ```mermaid
 flowchart TD
@@ -851,7 +851,7 @@ flowchart TD
 
 ---
 
-## 16. Logistics Feasibility & Delivery Risk (Logic 16)
+## 16. Logistics Feasibility and Delivery Risk (Logic 16)
 
 ```mermaid
 flowchart TD
@@ -905,7 +905,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A([Start: Sample Required]) --> B[Define Sample Requirements]
-    B --> C[Set Sample Type & Quantity]
+    B --> C[Set Sample Type and Quantity]
     C --> D[Set Submission Deadline]
     D --> E[Publish Requirements to Bidders]
     
@@ -914,7 +914,7 @@ flowchart TD
     G -->|Physical| H[Ship to Designated Location]
     G -->|Digital| I[Upload Digital Sample]
     
-    H --> J[Receive & Register Sample]
+    H --> J[Receive and Register Sample]
     I --> J
     
     J --> K[Assign Unique Tracking Code]
@@ -946,7 +946,7 @@ flowchart TD
 
 ---
 
-## 18. Service & Professional Procurement (Logic 18)
+## 18. Service and Professional Procurement (Logic 18)
 
 ```mermaid
 flowchart TD
@@ -987,7 +987,7 @@ flowchart TD
 
 ---
 
-## 19. Invoice Validation & 3-Way Matching (Logic 19)
+## 19. Invoice Validation and 3-Way Matching (Logic 19)
 
 ```mermaid
 flowchart TD
@@ -1037,7 +1037,7 @@ flowchart TD
 
 ---
 
-## 20. Dispute Resolution & Exception Handling (Logic 20)
+## 20. Dispute Resolution and Exception Handling (Logic 20)
 
 ```mermaid
 flowchart TD
@@ -1246,7 +1246,7 @@ flowchart TD
 
 ---
 
-## 25. Progressive Trust & Reputation (Logic 25, 37)
+## 25. Progressive Trust and Reputation (Logic 25, 37)
 
 ```mermaid
 flowchart TD
@@ -1310,7 +1310,7 @@ flowchart TD
     G --> H[Calculate: Distance-Based Transport Cost]
     H --> I[Add: Last-Mile Delivery Premium]
     
-    I --> J[Step 2: Tax & Duty Adjustment]
+    I --> J[Step 2: Tax and Duty Adjustment]
     J --> K[Apply: Import Duties if Cross-Border]
     K --> L[Apply: Local Tax Rates]
     
@@ -1374,7 +1374,7 @@ flowchart TD
 
 ---
 
-## 28. Market Intelligence & Analytics (Logic 28)
+## 28. Market Intelligence and Analytics (Logic 28)
 
 ```mermaid
 flowchart TD
@@ -1401,7 +1401,7 @@ flowchart TD
 
 ---
 
-## 29. Governance & Enforcement (Logic 29)
+## 29. Governance and Enforcement (Logic 29)
 
 ```mermaid
 flowchart TD
@@ -1482,7 +1482,7 @@ flowchart TD
 
 ---
 
-## 31. Platform Learning & AI (Logic 31)
+## 31. Platform Learning and AI (Logic 31)
 
 ```mermaid
 flowchart TD
@@ -1515,7 +1515,7 @@ flowchart TD
 
 ---
 
-## 32. ERP Integration & Data Sync (Logic 35)
+## 32. ERP Integration and Data Sync (Logic 35)
 
 ```mermaid
 flowchart TD
@@ -1562,7 +1562,7 @@ flowchart TD
 
 ---
 
-## 33. Platform Modularity & Extensibility (Logic 40)
+## 33. Platform Modularity and Extensibility (Logic 40)
 
 ```mermaid
 flowchart TD
@@ -1623,9 +1623,9 @@ flowchart TD
     
     B --> C[" 2: DESIGN
     Define Procurement Need
-    Create Specifications & BOQ
+    Create Specifications and BOQ
     Set Evaluation Criteria
-    Run Quality & Bias Checks"]
+    Run Quality and Bias Checks"]
     
     C --> D[" 3: APPROVAL
     Route Through Authority Hierarchy
@@ -1641,13 +1641,13 @@ flowchart TD
     
     E --> F[" 5: BIDDING
     Eligibility Verification
-    Bid Preparation & Validation
-    Encryption & Sealing
+    Bid Preparation and Validation
+    Encryption and Sealing
     Deadline Enforcement"]
     
     F --> G[" 6: OPENING
     Multi-Person Authorization
-    Decryption & Hash Verification
+    Decryption and Hash Verification
     Envelope-Based Disclosure
     Immutable Opening Records"]
     
@@ -1660,7 +1660,7 @@ flowchart TD
     Risk-Adjusted Rankings"]
     
     H --> I[" 8: INTELLIGENCE
-    Price Intelligence & Normalization
+    Price Intelligence and Normalization
     Collusion Detection
     Risk Forecasting
     Delivery Feasibility"]
@@ -1721,18 +1721,18 @@ flowchart TD
 
 | # | Flowchart | Decision Points | Steps | Source Logics |
 |---|---|---|---|---|
-| 1 | Registration & Verification | 6 | 34 | 1, 37 |
+| 1 | Registration and Verification | 6 | 34 | 1, 37 |
 | 2 | RBAC Access Control | 6 | 26 | 2 |
-| 3 | Tender Creation & Design | 8 | 40 | 3, 24 |
-| 4 | Publication & Distribution | 5 | 28 | 4, 21 |
-| 5 | Supplier Discovery & Matching | 4 | 28 | 5, 22, 25 |
-| 6 | Bid Submission & Validation | 7 | 35 | 6 |
-| 7 | Bid Opening & Disclosure | 4 | 28 | 7 |
-| 8 | Evaluation & Scoring | 6 | 36 | 8, 17, 18 |
+| 3 | Tender Creation and Design | 8 | 40 | 3, 24 |
+| 4 | Publication and Distribution | 5 | 28 | 4, 21 |
+| 5 | Supplier Discovery and Matching | 4 | 28 | 5, 22, 25 |
+| 6 | Bid Submission and Validation | 7 | 35 | 6 |
+| 7 | Bid Opening and Disclosure | 4 | 28 | 7 |
+| 8 | Evaluation and Scoring | 6 | 36 | 8, 17, 18 |
 | 9 | Price Intelligence | 3 | 28 | 9, 26 |
-| 10 | Award & Contract | 5 | 40 | 10, 13 |
+| 10 | Award and Contract | 5 | 40 | 10, 13 |
 | 11 | Approval Workflow | 6 | 30 | 11 |
-| 12 | Budget & Spend Control | 5 | 30 | 12 |
+| 12 | Budget and Spend Control | 5 | 30 | 12 |
 | 13 | Digital Signature | 3 | 24 | 13 |
 | 14 | Audit Trail | 4 | 22 | 14 |
 | 15 | Performance Tracking | 4 | 28 | 15 |
@@ -1745,11 +1745,11 @@ flowchart TD
 | 22 | Capacity Management | 1 | 16 | 22 |
 | 23 | Anti-Collusion Detection | 3 | 28 | 23 |
 | 24 | Design Quality Assurance | 2 | 24 | 24 |
-| 25 | Trust & Reputation | 3 | 26 | 25, 37 |
+| 25 | Trust and Reputation | 3 | 26 | 25, 37 |
 | 26 | Price Normalization | 1 | 22 | 26 |
 | 27 | Risk Forecasting | 2 | 20 | 27 |
 | 28 | Market Intelligence | 0 | 16 | 28 |
-| 29 | Governance & Enforcement | 5 | 30 | 29 |
+| 29 | Governance and Enforcement | 5 | 30 | 29 |
 | 30 | Network Liquidity | 1 | 16 | 30 |
 | 31 | Platform Learning | 2 | 16 | 31 |
 | 32 | ERP Integration | 3 | 24 | 35 |

@@ -5,11 +5,11 @@ const communicationCenterComposeDraftStorageKey = 'procurex.communicationCenter.
 
 function escapeCommunicationHtml(value = '') {
     return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function getCommunicationState() {
@@ -30,12 +30,7 @@ function getCommunicationState() {
 }
 
 function getCommunicationAudience() {
-    if (mockData.currentRole === 'buyer' || mockData.currentRole === 'supplier' || mockData.currentRole === 'admin') {
-        return mockData.currentRole;
-    }
-    const entityType = String(mockData.eKycProfile?.entityType || '').toLowerCase();
-    if (entityType === 'company' || entityType === 'business') return 'supplier';
-    return 'all';
+    return mockData.pendingAccount?.accountType === 'admin' || mockData.session?.accountType === 'admin' ? 'admin' : 'user';
 }
 
 function normalizeCommunicationMailboxId(value = '') {
@@ -44,51 +39,36 @@ function normalizeCommunicationMailboxId(value = '') {
 
 function getCommunicationRoleFromType(type = '') {
     const raw = String(type || '').toLowerCase();
-    if (raw.includes('supplier')) return 'supplier';
-    if (raw.includes('admin')) return 'admin';
-    if (raw.includes('buyer') || raw.includes('procuring')) return 'buyer';
-    if (raw.includes('evaluator')) return 'evaluator';
+    if (raw.includes('admin') || raw.includes('evaluator') || raw.includes('compliance')) return 'admin';
     if (raw.includes('system')) return 'system';
-    return raw || 'user';
+    return 'user';
 }
 
 function getCommunicationDefaultMailboxId(type = '') {
     const role = getCommunicationRoleFromType(type);
     const ids = {
-        buyer: 'buyer-001',
-        supplier: 'supplier-001',
+        user: 'user-001',
         admin: 'admin-001',
-        evaluator: 'evaluator-001',
         system: 'system'
     };
     return ids[role] || `${role || 'user'}-001`;
 }
 
 function getCommunicationMailboxProfiles() {
+    const account = mockData.pendingAccount || {};
+    const profileName = mockData.eKycProfile?.verifiedName || account.displayName || mockData.users?.current?.organization || 'Company User';
     return [
         {
-            id: 'buyer-001',
-            role: 'buyer',
-            type: 'Buyer',
-            name: mockData.users?.buyer?.organization || 'Ministry of Health'
-        },
-        {
-            id: 'supplier-001',
-            role: 'supplier',
-            type: 'Supplier',
-            name: mockData.users?.supplier?.organization || 'ABC Construction Ltd'
+            id: 'user-001',
+            role: 'user',
+            type: 'User',
+            name: profileName
         },
         {
             id: 'admin-001',
             role: 'admin',
             type: 'Admin',
             name: mockData.users?.admin?.organization || 'ProcureX Platform'
-        },
-        {
-            id: 'evaluator-001',
-            role: 'evaluator',
-            type: 'Evaluator',
-            name: 'Evaluation Panel'
         },
         {
             id: 'system',
@@ -105,15 +85,9 @@ function getCommunicationMailboxById(mailboxId = '') {
 }
 
 function inferCommunicationRoleFromUser() {
-    if (mockData.currentRole === 'buyer' || mockData.currentRole === 'supplier' || mockData.currentRole === 'admin') {
-        return mockData.currentRole;
-    }
-    if (mockData.pendingAccount?.role) return mockData.pendingAccount.role;
-    if (mockData.eKycProfile?.role) return mockData.eKycProfile.role;
-    const entityType = String(mockData.eKycProfile?.entityType || '').toLowerCase();
-    if (entityType === 'company' || entityType === 'business') return 'supplier';
     if (mockData.pendingAccount?.accountType === 'admin') return 'admin';
-    return 'buyer';
+    if (mockData.session?.accountType === 'admin') return 'admin';
+    return 'user';
 }
 
 function getCurrentCommunicationUser() {
@@ -140,7 +114,8 @@ function getCurrentCommunicationUser() {
             id,
             email,
             roleMailbox?.id,
-            getCommunicationDefaultMailboxId(role)
+            getCommunicationDefaultMailboxId(role),
+            ...(role === 'admin' ? ['admin-001', 'evaluator-001'] : ['user-001', 'buyer-001', 'supplier-001'])
         ].map(normalizeCommunicationMailboxId).filter(Boolean)
     };
 }
@@ -268,8 +243,12 @@ function communicationIdMatchesUser(participantId = '', user = getCurrentCommuni
 }
 
 function isCommunicationUserItem(item, user = getCurrentCommunicationUser()) {
+    const audience = getCommunicationAudience();
+    if (audience === 'admin') {
+        return item.audience?.includes('admin') || communicationIdMatchesUser(item.senderId, user) || communicationIdMatchesUser(item.recipientId, user);
+    }
     if (item.folder === 'sent') return communicationIdMatchesUser(item.senderId, user);
-    return communicationIdMatchesUser(item.recipientId, user);
+    return item.audience?.includes('all') || item.audience?.includes('user') || communicationIdMatchesUser(item.recipientId, user);
 }
 
 function filterCommunicationItems(items, state) {
@@ -484,11 +463,23 @@ function renderCommunicationCompose(state) {
                 <label class="span-2"><span>Message</span><textarea class="form-input" name="body" rows="4" placeholder="Write your message">${escapeCommunicationHtml(draft.body || '')}</textarea></label>
             </div>
             <div class="inline-actions">
-                <button class="btn btn-secondary" type="button">Attach File</button>
+                <label class="btn btn-secondary communication-file-button">
+                    Attach File
+                    <input type="file" data-communication-attachment multiple hidden>
+                </label>
+                <span class="communication-attachment-preview" data-communication-attachment-preview>${(draft.attachments || []).map(item => escapeCommunicationHtml(item.name)).join(', ')}</span>
                 <button class="btn btn-primary" type="submit">Send Message</button>
             </div>
         </form>
     `;
+}
+
+function getProcurexUnreadCommunicationCount() {
+    const user = getCurrentCommunicationUser();
+    return getCommunicationItems()
+        .filter(item => isCommunicationUserItem(item, user))
+        .filter(item => !item.read)
+        .length;
 }
 
 function renderCommunicationCenterInner(root) {
@@ -656,6 +647,17 @@ function initializeCommunicationCenter() {
         if (event.target.matches('[data-communication-category]')) state.category = event.target.value;
         if (event.target.matches('[data-communication-priority]')) state.priority = event.target.value;
         if (event.target.matches('[data-communication-sort]')) state.sort = event.target.value;
+        if (event.target.matches('[data-communication-attachment]')) {
+            state.composeDraft = {
+                ...(state.composeDraft || {}),
+                attachments: Array.from(event.target.files || []).map(file => ({
+                    id: `att-${Date.now()}-${file.name}`,
+                    name: file.name,
+                    fileType: file.type || 'file',
+                    size: file.size
+                }))
+            };
+        }
         render();
     });
 
@@ -689,7 +691,9 @@ function initializeCommunicationCenter() {
                 tenderReference,
                 tenderTitle,
                 status: kind === 'clarification' ? 'Pending Buyer Response' : 'Read',
-                priority: 'Normal'
+                priority: 'Normal',
+                audience: [recipient.role || 'user', 'all'],
+                attachments: state.composeDraft?.attachments || []
             };
             addProcurexCommunicationItem({
                 ...baseMessage,
@@ -726,8 +730,8 @@ function initializeCommunicationCenter() {
             const thread = [
                 ...(item?.thread || []),
                 {
-                    senderType: 'Buyer',
-                    senderName: mockData.users?.buyer?.organization || 'Buyer',
+                    senderType: 'User',
+                    senderName: getCurrentCommunicationUser().organization,
                     body,
                     notice: visibility,
                     createdAt: new Date().toISOString()
@@ -745,11 +749,11 @@ function initializeCommunicationCenter() {
                 subject: `Re: ${item?.subject || 'Clarification response'}`,
                 body,
                 senderId: getCurrentCommunicationUser().id,
-                senderType: 'Buyer',
-                senderName: mockData.users?.buyer?.organization || 'Buyer',
+                senderType: 'User',
+                senderName: getCurrentCommunicationUser().organization,
                 recipientId: item?.senderId,
-                recipientType: 'Supplier',
-                recipientName: item?.senderName || 'Supplier',
+                recipientType: 'User',
+                recipientName: item?.senderName || 'User',
                 tenderId: item?.tenderId,
                 tenderReference: item?.tenderReference,
                 tenderTitle: item?.tenderTitle,
@@ -773,3 +777,4 @@ if (window.app) {
 window.renderCommunicationCenter = renderCommunicationCenter;
 window.initializeCommunicationCenter = initializeCommunicationCenter;
 window.addProcurexCommunicationItem = addProcurexCommunicationItem;
+window.getProcurexUnreadCommunicationCount = getProcurexUnreadCommunicationCount;

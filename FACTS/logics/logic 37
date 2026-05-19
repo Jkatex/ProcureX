@@ -38,13 +38,13 @@ Users progress through **graduated trust tiers**:
 
 ---
 
-# 3️⃣ PERFORMANCE & COMPLIANCE METRICS
+# 3️⃣ PERFORMANCE and COMPLIANCE METRICS
 
 Trust expansion relies on:
 
 * Bid submission reliability (Logic 6)
 * Contract fulfillment quality (Logic 15)
-* Timely invoicing & documentation (Logic 19)
+* Timely invoicing and documentation (Logic 19)
 * Dispute resolution adherence (Logic 20)
 * Risk-aware behavior (Logic 27)
 
@@ -72,10 +72,10 @@ Users must meet thresholds to progress to the next tier.
 
 | Supporting Logics | Contribution                                         |
 | ----------------- | ---------------------------------------------------- |
-| Logic 1           | Identity verification & initial trust                |
-| Logic 5           | Supplier discovery & initial matching                |
-| Logic 6, 7        | Bid submission & controlled disclosure               |
-| Logic 15, 25      | Performance tracking & trust scoring                 |
+| Logic 1           | Identity verification and initial trust                |
+| Logic 5           | Supplier discovery and initial matching                |
+| Logic 6, 7        | Bid submission and controlled disclosure               |
+| Logic 15, 25      | Performance tracking and trust scoring                 |
 | Logic 17          | Sample-based procurement for low-risk onboarding     |
 | Logic 27          | Risk forecasting to ensure safe expansion            |
 | Logic 32          | Institutional memory enhances subsequent tier access |
@@ -96,7 +96,7 @@ Key entities:
 Flow:
 
 ```
-New User Signup → Limited Access Tender → Performance & Compliance Monitoring → Tier Upgrade → Expanded Access
+New User Signup → Limited Access Tender → Performance and Compliance Monitoring → Tier Upgrade → Expanded Access
 ```
 
 ---

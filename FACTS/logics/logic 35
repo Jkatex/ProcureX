@@ -17,7 +17,7 @@ It achieves this by:
 * Ensuring seamless data exchange between the platform and internal systems
 
 ```
-Internal ERP → Core Approvals & Accounting  
+Internal ERP → Core Approvals and Accounting  
 Platform Layer → Supplier Discovery, Market Intelligence, SME Inclusion, Competitive Pricing  
            ↓  
 Integration / Synchronization → Combined Value without Disruption
@@ -33,11 +33,11 @@ Key benefits:
 
    * Access to new suppliers, especially SMEs
 
-2. **Market Intelligence & Benchmarking** (Logic 9, 26, 28)
+2. **Market Intelligence and Benchmarking** (Logic 9, 26, 28)
 
    * Insights unavailable internally
 
-3. **Competitive Pricing & Risk Signals** (Logic 27, 29)
+3. **Competitive Pricing and Risk Signals** (Logic 27, 29)
 
    * Complements ERP data for better decision-making
 
@@ -60,9 +60,9 @@ Key benefits:
 * **Dual Workflow Mapping**
 
   * ERP handles internal approvals
-  * Platform handles external market intelligence & supplier interaction
+  * Platform handles external market intelligence and supplier interaction
 
-* **Data Consistency & Reconciliation**
+* **Data Consistency and Reconciliation**
 
   * Ensures records in ERP and platform remain aligned
 
@@ -79,8 +79,8 @@ Key benefits:
 * Minimizes resistance by highlighting:
 
   * SME access and new suppliers
-  * Competitive pricing & benchmarking
-  * Transparency in market-wide risk & performance
+  * Competitive pricing and benchmarking
+  * Transparency in market-wide risk and performance
 
 This encourages **gradual adoption without organizational friction**.
 
@@ -118,7 +118,7 @@ Key entities:
 Flow:
 
 ```
-ERP Data → Platform Integration Layer → External Intelligence & Supplier Engagement → ERP Update
+ERP Data → Platform Integration Layer → External Intelligence and Supplier Engagement → ERP Update
 ```
 
 ---
@@ -138,12 +138,12 @@ Logic 35 enables:
 
 | Supporting Logics | Contribution                                        |
 | ----------------- | --------------------------------------------------- |
-| Logic 5, 21       | Supplier discovery & market centralization          |
-| Logic 9, 26, 28   | Market intelligence & benchmarking                  |
-| Logic 11, 12      | Approval & budget compliance                        |
-| Logic 19          | Invoice & documentation synchronization             |
-| Logic 31          | Learning & recommendation loops                     |
-| Logic 32, 33      | Lock-in through institutional memory & buyer habits |
+| Logic 5, 21       | Supplier discovery and market centralization          |
+| Logic 9, 26, 28   | Market intelligence and benchmarking                  |
+| Logic 11, 12      | Approval and budget compliance                        |
+| Logic 19          | Invoice and documentation synchronization             |
+| Logic 31          | Learning and recommendation loops                     |
+| Logic 32, 33      | Lock-in through institutional memory and buyer habits |
 
 ---
 

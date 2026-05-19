@@ -1,5 +1,5 @@
 # USER EXPERIENCE FLOWCHARTS
-## Complete User Journeys — Procurement Intelligence & Governance Platform
+## Complete User Journeys — Procurement Intelligence and Governance Platform
 
 **Version:** 1.0 | **Date:** February 18, 2026
 
@@ -23,13 +23,13 @@
 
 > The Buyer is the primary demand-side actor who initiates, manages, and oversees the entire procurement lifecycle from need identification through contract completion and supplier performance review.
 
-### 1.1 Buyer Onboarding & Setup
+### 1.1 Buyer Onboarding and Setup
 
 ```mermaid
 flowchart TD
     A([🟢 Buyer Starts]) --> B[Visit Platform Registration Page]
     B --> C[Select Role: Buyer / Procurement Officer]
-    C --> D[Enter Organization Name & Details]
+    C --> D[Enter Organization Name and Details]
     D --> E[Enter Personal Info: Name, Email, Phone]
     E --> F[Set Password + Enable MFA]
     F --> G[Receive Email/SMS OTP]
@@ -76,7 +76,7 @@ flowchart TD
     D -->|Consulting| H[Fill Terms of Reference]
     
     E --> I[Step 2: Enter Bill of Quantities]
-    F --> J[Step 2: Define Deliverables & Milestones]
+    F --> J[Step 2: Define Deliverables and Milestones]
     G --> I
     H --> J
     
@@ -103,7 +103,7 @@ flowchart TD
     Y --> Z[Set: Expected Evaluation Duration]
     Z --> AA[Set: Expected Delivery Date]
     
-    AA --> AB[Step 6: Budget & Financial Setup]
+    AA --> AB[Step 6: Budget and Financial Setup]
     AB --> AC[Select Budget Code from Allocation]
     AC --> AD{Budget Available?}
     AD -->|No| AE[Request Budget Amendment]
@@ -115,9 +115,9 @@ flowchart TD
     AH --> AI{Model?}
     AI -->|Open/Public| AJ[Visible to All Suppliers]
     AI -->|Restricted| AK[Set Category/Region Filters]
-    AI -->|Closed/Invited| AL[Search & Select Suppliers to Invite]
+    AI -->|Closed/Invited| AL[Search and Select Suppliers to Invite]
     
-    AJ --> AM[Step 8: Review & Quality Check]
+    AJ --> AM[Step 8: Review and Quality Check]
     AK --> AM
     AL --> AM
     
@@ -174,12 +174,12 @@ flowchart TD
     
     U --> V[Authorize Bid Opening]
     V --> W[Co-Authorize with Second Officer]
-    W --> X[System Decrypts & Verifies Bids]
+    W --> X[System Decrypts and Verifies Bids]
     X --> Y[View Opening Report]
     Y --> Z([✓ Bids Opened — Ready for Evaluation])
 ```
 
-### 1.4 Buyer Manages Evaluation & Award
+### 1.4 Buyer Manages Evaluation and Award
 
 ```mermaid
 flowchart TD
@@ -234,7 +234,7 @@ flowchart TD
     AG -->|No Challenge| AK
     
     AK --> AL[Generate Draft Contract]
-    AL --> AM[Review & Customize Contract Terms]
+    AL --> AM[Review and Customize Contract Terms]
     AM --> AN[Send Contract to Supplier for Review]
     AN --> AO{Supplier Accepts?}
     AO -->|Counter-Proposal| AP[Negotiate Terms]
@@ -275,7 +275,7 @@ flowchart TD
     R -->|Yes| S[Rate Supplier Performance]
     S --> T[Score: Delivery Timeliness]
     T --> U[Score: Quality of Goods/Services]
-    U --> V[Score: Communication & Responsiveness]
+    U --> V[Score: Communication and Responsiveness]
     V --> W[Score: Compliance with Terms]
     W --> X[Score: Financial Accuracy]
     X --> Y[Submit Performance Review]
@@ -305,13 +305,13 @@ flowchart TD
 
 > The Supplier is the supply-side actor who discovers opportunities, submits bids, wins contracts, delivers goods/services, and builds reputation over time.
 
-### 2.1 Supplier Onboarding & Profile Setup
+### 2.1 Supplier Onboarding and Profile Setup
 
 ```mermaid
 flowchart TD
     A([🟢 Supplier Starts]) --> B[Visit Platform Registration]
     B --> C[Select Role: Supplier / Vendor]
-    C --> D[Enter Business Name & Legal Form]
+    C --> D[Enter Business Name and Legal Form]
     D --> E[Enter: Registration Number, Tax ID]
     E --> F[Enter: Primary Contact Details]
     F --> G[Set Password + Enable MFA]
@@ -337,9 +337,9 @@ flowchart TD
     V --> L
     
     S --> W[Complete Supplier Profile]
-    W --> X[Add: Business Categories & Product Lines]
+    W --> X[Add: Business Categories and Product Lines]
     X --> Y[Add: Geographic Coverage / Delivery Zones]
-    Y --> Z[Add: Company Capacity & Resources]
+    Y --> Z[Add: Company Capacity and Resources]
     Z --> AA[Add: Key Personnel / Team Details]
     AA --> AB[Add: Portfolio / Past Projects Gallery]
     AB --> AC[Add: Bank Account Details for Payment]
@@ -348,7 +348,7 @@ flowchart TD
     AE --> AF([✓ Supplier Profile Active])
 ```
 
-### 2.2 Supplier Discovers & Explores Opportunities
+### 2.2 Supplier Discovers and Explores Opportunities
 
 ```mermaid
 flowchart TD
@@ -369,9 +369,9 @@ flowchart TD
     L --> M
     
     M --> N[Click: View Tender Details]
-    N --> O[Read: Full Specifications & BOQ]
-    O --> P[Read: Evaluation Criteria & Weights]
-    P --> Q[Read: Timeline & Deadlines]
+    N --> O[Read: Full Specifications and BOQ]
+    O --> P[Read: Evaluation Criteria and Weights]
+    P --> Q[Read: Timeline and Deadlines]
     Q --> R[Download: Tender Documents Package]
     
     R --> S{Clarification Needed?}
@@ -391,7 +391,7 @@ flowchart TD
     AD --> AE([✓ Ready to Bid])
 ```
 
-### 2.3 Supplier Prepares & Submits Bid
+### 2.3 Supplier Prepares and Submits Bid
 
 ```mermaid
 flowchart TD
@@ -405,9 +405,9 @@ flowchart TD
     D --> H[Fill: Quantity × Unit Price per Item]
     E --> I[Fill: Technical Proposal Document]
     I --> J[Fill: Financial Proposal Document]
-    F --> K[Fill: Firm Experience & Capability]
+    F --> K[Fill: Firm Experience and Capability]
     K --> L[Fill: Proposed Team CVs]
-    L --> M[Fill: Methodology & Work Plan]
+    L --> M[Fill: Methodology and Work Plan]
     G --> H
     
     H --> N[Upload: Supporting Documents]
@@ -449,9 +449,9 @@ flowchart TD
     
     AK --> AL{Change of Mind Before Deadline?}
     AL -->|Yes| AM[Withdraw Bid — Enter Reason]
-    AM --> AN[Prepare & Submit Revised Bid]
+    AM --> AN[Prepare and Submit Revised Bid]
     AN --> AE
-    AL -->|No| AO([✓ Bid Sealed & Submitted])
+    AL -->|No| AO([✓ Bid Sealed and Submitted])
 ```
 
 ### 2.4 Supplier: Post-Submission to Award
@@ -478,7 +478,7 @@ flowchart TD
     M --> N[Review: My Scores vs Requirements]
     N --> O{Disagree with Result?}
     O -->|Yes| P[File Formal Challenge During Standstill]
-    P --> Q[Upload: Challenge Evidence & Arguments]
+    P --> Q[Upload: Challenge Evidence and Arguments]
     Q --> R[Await: Challenge Review Decision]
     R --> S{Challenge Outcome?}
     S -->|Upheld — Re-evaluation| T[Await New Decision]
@@ -497,11 +497,11 @@ flowchart TD
     AC --> AD([✓ Contract Execution Begins])
 ```
 
-### 2.5 Supplier: Contract Execution & Delivery
+### 2.5 Supplier: Contract Execution and Delivery
 
 ```mermaid
 flowchart TD
-    A([Supplier: Executing Contract]) --> B[View: Contract Milestones & Schedule]
+    A([Supplier: Executing Contract]) --> B[View: Contract Milestones and Schedule]
     B --> C{Milestone Due?}
     C -->|Yes| D[Prepare Deliverable / Goods]
     D --> E[Ship / Deliver to Buyer Location]
@@ -520,7 +520,7 @@ flowchart TD
     M -->|No| O[Raise Dispute]
     
     J --> P[Submit Invoice for Milestone]
-    P --> Q[Enter: Invoice Details & Amount]
+    P --> Q[Enter: Invoice Details and Amount]
     Q --> R[Attach: Invoice Document + Supporting Docs]
     R --> S[Submit Invoice via Platform]
     
@@ -528,7 +528,7 @@ flowchart TD
     T --> U{Match Result?}
     U -->|Matched ✓| V[Invoice Approved — Payment Processing]
     U -->|Discrepancy| W[Receive: Discrepancy Notice]
-    W --> X[Review & Correct Invoice]
+    W --> X[Review and Correct Invoice]
     X --> S
     U -->|Rejected| Y[Receive: Rejection Reason]
     Y --> Z[Resubmit Corrected Invoice]
@@ -554,7 +554,7 @@ flowchart TD
     AL --> AM
     
     O --> AN[File Dispute Case]
-    AN --> AO[Upload: Evidence & Documentation]
+    AN --> AO[Upload: Evidence and Documentation]
     AO --> AP[Await: Buyer Response or Mediation]
     AP --> AQ[Resolution Reached]
     AQ --> AB
@@ -577,7 +577,7 @@ flowchart TD
     D --> E{Any Conflicts with Bidders?}
     E -->|Yes| F[Declare Conflict — Recused from Tender]
     F --> G([⬅ Replaced by Another Evaluator])
-    E -->|No| H[Sign: Confidentiality & Impartiality Agreement]
+    E -->|No| H[Sign: Confidentiality and Impartiality Agreement]
     
     H --> I[Step 2: Review Assigned Bids]
     I --> J{For Each Bid Assigned}
@@ -595,8 +595,8 @@ flowchart TD
     S --> T
     
     T --> U{Service/Consulting Bid?}
-    U -->|Yes| V[Review: Portfolio & Past Projects]
-    V --> W[Review: Proposed Team CVs & Qualifications]
+    U -->|Yes| V[Review: Portfolio and Past Projects]
+    V --> W[Review: Proposed Team CVs and Qualifications]
     W --> X[Attend: Supplier Interview/Presentation]
     X --> Y[Score: Interview Performance]
     U -->|No| Z[Score Technical Criteria]
@@ -651,7 +651,7 @@ flowchart TD
     C -->|Spend Report| G[Generate: Spend Analysis Report]
     C -->|Forecast| H[Review: Budget Forecasting]
     
-    D --> I[Verify: Fiscal Year & Coding Correct]
+    D --> I[Verify: Fiscal Year and Coding Correct]
     I --> J[Verify: Amount vs Approved Limits]
     J --> K[Verify: No Duplicate Budget Codes]
     K --> L{Approve Budget?}
@@ -669,7 +669,7 @@ flowchart TD
     P -->|Decrease| W[Auto-Check: No Active Commitments Affected]
     W --> X[Approve Decrease]
     
-    F --> Y[Review: Invoice Details & Amount]
+    F --> Y[Review: Invoice Details and Amount]
     Y --> Z[View: 3-Way Match Report]
     Z --> AA{Match Status?}
     AA -->|Full Match ✓| AB[Approve for Payment]
@@ -819,7 +819,7 @@ flowchart TD
     M -->|Request More| R[Request: Additional Documents]
     
     E --> S[Configure: Approval Thresholds]
-    S --> T[Configure: Budget Rules & Limits]
+    S --> T[Configure: Budget Rules and Limits]
     T --> U[Configure: Notification Templates]
     U --> V[Configure: Evaluation Parameters]
     V --> W[Configure: Trust Tier Thresholds]
@@ -903,13 +903,13 @@ flowchart TD
     D -->|Contract Modification| H[Review Contract Change]
     D -->|User Access Change| I[Review Access Request]
     
-    E --> J[Review: Specifications & Scope]
+    E --> J[Review: Specifications and Scope]
     J --> K[Review: Budget Allocation]
     K --> L[Review: Design Quality Report]
     L --> M[Review: Visibility Model]
     M --> N{Below My Authority Threshold?}
     
-    F --> O[Review: Final Rankings & Scores]
+    F --> O[Review: Final Rankings and Scores]
     O --> P[Review: Price Intelligence Report]
     P --> Q[Review: Risk Forecast]
     Q --> R[Review: Award Justification]
@@ -972,7 +972,7 @@ flowchart TD
     C --> D[Step 1: Review Case Details]
     D --> E[Read: Complainant Statement + Evidence]
     E --> F[Read: Respondent Statement + Evidence]
-    F --> G[Read: Contract Terms & Obligations]
+    F --> G[Read: Contract Terms and Obligations]
     G --> H[Read: Delivery/Performance Records]
     H --> I[Read: Communication History]
     
@@ -1004,8 +1004,8 @@ flowchart TD
     
     V --> Y[Step 4: Issue Mediation Decision]
     Y --> Z[Document: Findings of Fact]
-    Z --> AA[Document: Analysis & Reasoning]
-    AA --> AB[Document: Decision & Remedies]
+    Z --> AA[Document: Analysis and Reasoning]
+    AA --> AB[Document: Decision and Remedies]
     
     AB --> AC{Penalty Applicable?}
     AC -->|Yes| AD[Calculate: Financial Penalty]
@@ -1058,16 +1058,16 @@ flowchart TD
         C4 --> B1
     end
     
-    subgraph PHASE_4["PHASE 4: PUBLICATION & BIDDING"]
+    subgraph PHASE_4["PHASE 4: PUBLICATION and BIDDING"]
         D1[System Publishes Tender] --> D2[System Matches Suppliers]
         D2 --> D3[Supplier Discovers Opportunity]
         D3 --> D4[Supplier Asks Clarification]
         D4 --> D5[Buyer Answers — Published to All]
-        D5 --> D6[Supplier Prepares & Submits Bid]
+        D5 --> D6[Supplier Prepares and Submits Bid]
         D6 --> D7[System: Encrypts + Seals Bid]
     end
     
-    subgraph PHASE_5["PHASE 5: OPENING & EVALUATION"]
+    subgraph PHASE_5["PHASE 5: OPENING and EVALUATION"]
         E1[Buyer + Co-Auth: Open Bids] --> E2[System: Decrypt + Verify Hashes]
         E2 --> E3[Evaluator Scores Bids Independently]
         E3 --> E4[Evaluator Interviews Supplier — if Service]
@@ -1077,8 +1077,8 @@ flowchart TD
         E7 --> E8[Compliance: Reviews Collusion Alerts]
     end
     
-    subgraph PHASE_6["PHASE 6: AWARD & CONTRACT"]
-        F1[Buyer: Recommends Winner] --> F2[Approver: Reviews & Approves Award]
+    subgraph PHASE_6["PHASE 6: AWARD and CONTRACT"]
+        F1[Buyer: Recommends Winner] --> F2[Approver: Reviews and Approves Award]
         F2 --> F3[System: Notifies Winner + Losers]
         F3 --> F4[Supplier: Reviews Contract]
         F4 --> F5[Buyer + Supplier: Digital Signing]
@@ -1089,17 +1089,17 @@ flowchart TD
         G1[Supplier: Delivers Goods/Services] --> G2[Buyer: Accepts/Rejects Delivery]
         G2 --> G3[Supplier: Submits Invoice]
         G3 --> G4[System: 3-Way Match]
-        G4 --> G5[Finance: Validates & Pays]
+        G4 --> G5[Finance: Validates and Pays]
     end
     
-    subgraph PHASE_8["PHASE 8: PERFORMANCE & DISPUTES"]
+    subgraph PHASE_8["PHASE 8: PERFORMANCE and DISPUTES"]
         H1[Buyer: Rates Supplier] --> H2[System: Updates Trust Score]
         H2 --> H3[System: Adjusts Supplier Tier]
-        H4[Buyer/Supplier: Files Dispute] --> H5[Mediator: Reviews & Decides]
+        H4[Buyer/Supplier: Files Dispute] --> H5[Mediator: Reviews and Decides]
         H5 --> H6[Compliance: Enforces Penalties if Any]
     end
     
-    subgraph PHASE_9["PHASE 9: GOVERNANCE & LEARNING"]
+    subgraph PHASE_9["PHASE 9: GOVERNANCE and LEARNING"]
         I1[Compliance: Monitors Audit Trails] --> I2[Compliance: Investigates Anomalies]
         I2 --> I3[Admin: Enforces Actions]
         I4[System: AI Learns from Outcomes] --> I5[System: Improves Matching + Risk]

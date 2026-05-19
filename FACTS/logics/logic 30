@@ -1,4 +1,4 @@
-# 🔷 LOGIC 30 – Network Effects & Liquidity Management Logic
+# 🔷 LOGIC 30 – Network Effects and Liquidity Management Logic
 
 This logic actively manages the **health, balance, and growth of the procurement marketplace** by ensuring sufficient participation from both buyers and suppliers.
 
@@ -131,7 +131,7 @@ A category may be over-supplied while another is under-served.
 
 ---
 
-# 8️⃣ SMART MATCHING & VISIBILITY DISTRIBUTION
+# 8️⃣ SMART MATCHING and VISIBILITY DISTRIBUTION
 
 Platform may:
 
@@ -238,7 +238,7 @@ Liquidity Analytics Engine
           ↓
 Health Score per Category
           ↓
-Balancing Actions & Incentives
+Balancing Actions and Incentives
 ```
 
 ---
@@ -248,7 +248,7 @@ Balancing Actions & Incentives
 Logic 30 amplifies:
 
 * Logic 21 – Market Centralization
-* Logic 25 – Trust & Reputation
+* Logic 25 – Trust and Reputation
 * Logic 28 – Shared Intelligence
 * Logic 29 – Governance Enforcement
 * Logic 24 – Tender Design Quality

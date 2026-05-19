@@ -33,10 +33,8 @@ function createMockProductSpecificationTemplate(customColumns = [], rows = [], o
 }
 
 const mockData = {
-    // Workspace roles are assigned after onboarding, not during initial authentication.
-    roles: ['buyer', 'supplier', 'admin'],
-    accountTypes: ['new user', 'existing user', 'admin'],
-    currentRole: null,
+    // One company account can create tenders and bid. Admin Evaluator is a separate platform account.
+    accountTypes: ['user', 'admin'],
     registrationDraft: {
         email: '',
         phone: ''
@@ -45,7 +43,8 @@ const mockData = {
     session: {
         isAuthenticated: false,
         isNewUser: true,
-        email: null
+        email: null,
+        accountType: 'user'
     },
     eKycProfile: {
         status: 'not_started',
@@ -70,17 +69,17 @@ const mockData = {
                 displayName: 'New User Account'
             },
             {
-                email: 'johndoe@procurex.test',
+                email: 'user@company.tz',
                 phone: '+255 713 111 222',
                 password: 'Procure1!',
                 role: null,
-                accountType: 'existing user',
+                accountType: 'user',
                 isNewUser: false,
                 ekycCompleted: true,
-                displayName: 'John Doe'
+                displayName: 'Kilimanjaro Supplies Limited'
             },
             {
-                email: 'admin@procurex.test',
+                email: 'admin@procurex.tz',
                 phone: '+255 715 555 666',
                 password: 'Admin123!',
                 role: 'admin',
@@ -101,6 +100,13 @@ const mockData = {
             riskScore: 85,
             bidLimit: 5000000
         },
+        current: {
+            name: 'Kilimanjaro Supplies Limited',
+            organization: 'Kilimanjaro Supplies Limited',
+            trustTier: 'Verified',
+            riskScore: 82,
+            bidLimit: 5000000000
+        },
         supplier: {
             name: 'ABC Construction Ltd',
             organization: 'ABC Construction Ltd',
@@ -109,9 +115,9 @@ const mockData = {
             bidLimit: 2000000
         },
         admin: {
-            name: 'Admin User',
+            name: 'Admin Evaluator',
             organization: 'ProcureX Platform',
-            permissions: ['all']
+            permissions: ['compliance:review', 'compliance:approve', 'compliance:hold', 'compliance:return', 'audit:read']
         }
     },
 
@@ -159,9 +165,9 @@ const mockData = {
             contractType: 'Unit Price Contract',
             documents: ['Architectural_Drawings.pdf', 'Structural_Drawings.pdf', 'Priced_BOQ_Template.xlsx', 'Site_Report.pdf', 'Conditions_of_Contract.pdf'],
             regulatoryLicenses: [
-                { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: true },
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true },
-                { group: 'Environmental & Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)', mandatory: true }
+                { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: true },
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true },
+                { group: 'Environmental and Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -274,9 +280,9 @@ const mockData = {
             contractType: 'Unit Price Contract',
             documents: ['Hydraulic_Assessment.pdf', 'Water_Network_Drawings.pdf', 'BOQ_Water_Rehab.xlsx', 'Safeguards_Plan.pdf'],
             regulatoryLicenses: [
-                { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: true },
-                { group: 'Energy & Water (EWURA)', license: 'Water Supply and Sanitation Services License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)', mandatory: false },
-                { group: 'Environmental & Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)', mandatory: true }
+                { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: true },
+                { group: 'Energy and Water (EWURA)', license: 'Water Supply and Sanitation Services License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)', mandatory: false },
+                { group: 'Environmental and Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -386,9 +392,9 @@ const mockData = {
             contractType: 'Lump Sum Contract',
             documents: ['Mini_Grid_Site_Layouts.pdf', 'Electrical_Single_Line_Diagrams.pdf', 'Lump_Sum_Pricing_Schedule.xlsx', 'EHS_Requirements.pdf'],
             regulatoryLicenses: [
-                { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: true },
-                { group: 'Energy & Water (EWURA)', license: 'Electricity Distribution and Supply License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)', mandatory: false },
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true }
+                { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: true },
+                { group: 'Energy and Water (EWURA)', license: 'Electricity Distribution and Supply License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)', mandatory: false },
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -485,7 +491,7 @@ const mockData = {
             commercialModel: 'Quantity Schedule',
             documents: ['Product_Specification_Template.csv', 'Quantity_Schedule.xlsx', 'Warranty_Terms.pdf', 'Installation_Requirements.pdf'],
             regulatoryLicenses: [
-                { group: 'Food, Drugs & Cosmetics', license: 'Medical Devices Registration Permit', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)', mandatory: true },
+                { group: 'Food, Drugs and Cosmetics', license: 'Medical Devices Registration Permit', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)', mandatory: true },
                 { group: 'Specialized Services', license: 'Calibration Certificate', body: 'Weights and Measures Agency (WMA)', mandatory: false }
             ],
             requirements: {
@@ -979,7 +985,7 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['SOC_Service_TOR.pdf', 'SLA_Schedule.pdf', 'Reporting_Template.xlsx', 'Data_Protection_Requirements.pdf'],
             regulatoryLicenses: [
-                { group: 'Communications & Transport', license: 'Application Services License', body: 'Tanzania Communications Regulatory Authority (TCRA)', mandatory: false },
+                { group: 'Communications and Transport', license: 'Application Services License', body: 'Tanzania Communications Regulatory Authority (TCRA)', mandatory: false },
                 { group: 'Specialized Services', license: 'Calibration Certificate', body: 'Weights and Measures Agency (WMA)', mandatory: false }
             ],
             requirements: {
@@ -1090,7 +1096,7 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['Cleaning_Scope.pdf', 'Area_Schedule.xlsx', 'Infection_Control_Requirements.pdf', 'SLA_Template.pdf'],
             regulatoryLicenses: [
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true },
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true },
                 { group: 'Specialized Services', license: 'Hazardous Chemicals Handling Certificate', body: 'Government Chemist Laboratory Authority (GCLA)', mandatory: false }
             ],
             requirements: {
@@ -1206,8 +1212,8 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['Catering_TOR.pdf', 'Menu_and_Nutrition_Schedule.xlsx', 'Food_Safety_Requirements.pdf', 'Service_Level_Agreement.pdf'],
             regulatoryLicenses: [
-                { group: 'Food, Drugs & Cosmetics', license: 'Food Business Permit / Food Handling License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)', mandatory: true },
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: false }
+                { group: 'Food, Drugs and Cosmetics', license: 'Food Business Permit / Food Handling License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)', mandatory: true },
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -1319,7 +1325,7 @@ const mockData = {
             documents: ['Fleet_Maintenance_TOR.pdf', 'Vehicle_List.xlsx', 'SLA_Response_Times.pdf', 'Spare_Parts_Rules.pdf'],
             regulatoryLicenses: [
                 { group: 'Specialized Services', license: 'Weights and Measures Inspection Certificate', body: 'Weights and Measures Agency (WMA)', mandatory: false },
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true }
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -1424,7 +1430,7 @@ const mockData = {
             commercialModel: 'Financial Proposal',
             documents: ['Terms_of_Reference.pdf', 'Technical_Proposal_Template.docx', 'Key_Expert_CV_Template.docx', 'Financial_Proposal_Template.xlsx'],
             regulatoryLicenses: [
-                { group: 'Finance & Banking', license: 'Investment Adviser License', body: 'Capital Markets and Securities Authority (CMSA)', mandatory: false }
+                { group: 'Finance and Banking', license: 'Investment Adviser License', body: 'Capital Markets and Securities Authority (CMSA)', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -1479,7 +1485,7 @@ const mockData = {
                     consultancyKeyExperts: [
                         { positionTitle: 'Change Management Lead', minimumQualification: 'Masters Degree', yearsOfExperience: 10, certifications: 'Prosci, PMP, or equivalent', quantityRequired: 1, mandatory: true },
                         { positionTitle: 'Procurement Training Specialist', minimumQualification: 'Bachelor Degree', yearsOfExperience: 8, certifications: 'Procurement professional certification', quantityRequired: 2, mandatory: true },
-                        { positionTitle: 'Monitoring and Evaluation Specialist', minimumQualification: 'Bachelor Degree', yearsOfExperience: 6, certifications: 'M&E certification desirable', quantityRequired: 1, mandatory: true }
+                        { positionTitle: 'Monitoring and Evaluation Specialist', minimumQualification: 'Bachelor Degree', yearsOfExperience: 6, certifications: 'MandE certification desirable', quantityRequired: 1, mandatory: true }
                     ],
                     consultancyReportingStructure: [
                         { consultantReportsTo: 'Project Manager', supervisingOfficer: 'Director', approvalAuthority: 'Tender Board' }
@@ -1496,7 +1502,7 @@ const mockData = {
                 criteria: [
                     { name: 'Understanding of TOR', weight: 25, subcriteria: ['Problem framing', 'Public procurement context'] },
                     { name: 'Methodology and work plan', weight: 30, subcriteria: ['Change approach', 'Training design', 'Adoption KPIs'] },
-                    { name: 'Key expert qualifications', weight: 25, subcriteria: ['Lead consultant', 'Training specialists', 'M&E specialist'] },
+                    { name: 'Key expert qualifications', weight: 25, subcriteria: ['Lead consultant', 'Training specialists', 'MandE specialist'] },
                     { name: 'Financial proposal', weight: 10, subcriteria: ['Fee realism', 'Reimbursables'] },
                     { name: 'Knowledge transfer', weight: 10, subcriteria: ['Toolkit handover', 'Training of trainers'] }
                 ]
@@ -1512,13 +1518,13 @@ const mockData = {
             commercialItems: [
                 { item: '1.1', description: 'Change management lead input', qty: 80, unit: 'Day', rate: 1800000 },
                 { item: '1.2', description: 'Procurement training specialists', qty: 160, unit: 'Day', rate: 1250000 },
-                { item: '1.3', description: 'M&E specialist input', qty: 60, unit: 'Day', rate: 1100000 },
+                { item: '1.3', description: 'MandE specialist input', qty: 60, unit: 'Day', rate: 1100000 },
                 { item: '1.4', description: 'Workshops, travel, materials, and reimbursables', qty: 1, unit: 'Lot', rate: 770000000 }
             ],
             boqItems: [
                 { item: '1.1', description: 'Change management lead input', qty: 80, unit: 'Day', rate: 1800000 },
                 { item: '1.2', description: 'Procurement training specialists', qty: 160, unit: 'Day', rate: 1250000 },
-                { item: '1.3', description: 'M&E specialist input', qty: 60, unit: 'Day', rate: 1100000 },
+                { item: '1.3', description: 'MandE specialist input', qty: 60, unit: 'Day', rate: 1100000 },
                 { item: '1.4', description: 'Workshops, travel, materials, and reimbursables', qty: 1, unit: 'Lot', rate: 770000000 }
             ],
             deliverables: ['Inception report', 'Training toolkit', 'Pilot workshop report', 'Final adoption report'],
@@ -1548,8 +1554,8 @@ const mockData = {
             commercialModel: 'Financial Proposal',
             documents: ['ESIA_Terms_of_Reference.pdf', 'Corridor_Map.pdf', 'Stakeholder_Template.xlsx', 'Financial_Proposal_Template.xlsx'],
             regulatoryLicenses: [
-                { group: 'Environmental & Safety', license: 'Environmental Impact Assessment Certificate', body: 'National Environment Management Council (NEMC)', mandatory: true },
-                { group: 'Environmental & Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)', mandatory: false }
+                { group: 'Environmental and Safety', license: 'Environmental Impact Assessment Certificate', body: 'National Environment Management Council (NEMC)', mandatory: true },
+                { group: 'Environmental and Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -1671,7 +1677,7 @@ const mockData = {
             documents: ['Road_Audit_TOR.pdf', 'Contract_Sample_List.xlsx', 'Audit_Report_Template.docx', 'Financial_Proposal_Template.xlsx'],
             regulatoryLicenses: [
                 { group: 'Specialized Services', license: 'Calibration Certificate', body: 'Weights and Measures Agency (WMA)', mandatory: false },
-                { group: 'Construction & Real Estate', license: 'Building Permit', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: false }
+                { group: 'Construction and Real Estate', license: 'Building Permit', body: 'Contractors Registration Board (CRB) and Local Government Authorities', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -1792,7 +1798,7 @@ const mockData = {
             commercialModel: 'Financial Proposal',
             documents: ['Supply_Chain_Study_TOR.pdf', 'Data_Request_Template.xlsx', 'Report_Template.docx', 'Financial_Proposal_Template.xlsx'],
             regulatoryLicenses: [
-                { group: 'Food, Drugs & Cosmetics', license: 'Pharmaceutical Business License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)', mandatory: false }
+                { group: 'Food, Drugs and Cosmetics', license: 'Pharmaceutical Business License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -2032,7 +2038,7 @@ const mockData = {
             commercialModel: 'Quantity Schedule',
             documents: ['System_Specification.pdf', 'Installation_Requirements.pdf', 'Warranty_Conditions.pdf'],
             regulatoryLicenses: [
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: false }
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -2095,7 +2101,7 @@ const mockData = {
             contractType: 'Unit Price Contract',
             documents: ['Renovation_Drawings.pdf', 'BOQ_Template.xlsx', 'Site_Conditions.pdf'],
             regulatoryLicenses: [
-                { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: true }
+                { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -2166,7 +2172,7 @@ const mockData = {
             contractType: 'Unit Price Contract',
             documents: ['Site_Plan.pdf', 'Fence_Specification.xlsx', 'BOQ_Fence.xlsx'],
             regulatoryLicenses: [
-                { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: true }
+                { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -2232,7 +2238,7 @@ const mockData = {
             contractType: 'Unit Price Contract',
             documents: ['Roof_Assessment.pdf', 'BOQ_Roof.xlsx'],
             regulatoryLicenses: [
-                { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: false }
+                { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -2295,7 +2301,7 @@ const mockData = {
             contractType: 'Unit Price Contract',
             documents: ['Tank_Specification.pdf', 'Installation_Drawing.pdf', 'BOQ_Tanks.xlsx'],
             regulatoryLicenses: [
-                { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: true }
+                { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'CRB', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -2360,7 +2366,7 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['Cleaning_Scope.pdf', 'SLA_Requirements.pdf'],
             regulatoryLicenses: [
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: false }
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -2426,7 +2432,7 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['Fleet_Details.pdf', 'Maintenance_Schedule.pdf', 'SLA_Template.pdf'],
             regulatoryLicenses: [
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: false }
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -2490,7 +2496,7 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['Building_Security_Specification.pdf', 'Guard_Requirements.pdf', 'SLA_Requirements.pdf'],
             regulatoryLicenses: [
-                { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: true }
+                { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'OSHA', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -2733,7 +2739,7 @@ const mockData = {
             commercialModel: 'Quantity Schedule',
             documents: ['Supplies_List.xlsx', 'TMDA_Certification.pdf'],
             regulatoryLicenses: [
-                { group: 'Food, Drugs & Cosmetics', license: 'Medical Devices Registration Permit', body: 'TMDA', mandatory: false }
+                { group: 'Food, Drugs and Cosmetics', license: 'Medical Devices Registration Permit', body: 'TMDA', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -2917,7 +2923,7 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['Waste_SLA.pdf', 'Disposal_Procedures.pdf'],
             regulatoryLicenses: [
-                { group: 'Environmental & Safety', license: 'Environmental Compliance Certificate', body: 'NEMC', mandatory: false }
+                { group: 'Environmental and Safety', license: 'Environmental Compliance Certificate', body: 'NEMC', mandatory: false }
             ],
             requirements: {
                 fields: {
@@ -2979,7 +2985,7 @@ const mockData = {
             commercialModel: 'Service Schedule',
             documents: ['Catering_Menu.pdf', 'Dietary_Requirements.pdf', 'Food_Safety_Standards.pdf'],
             regulatoryLicenses: [
-                { group: 'Food, Drugs & Cosmetics', license: 'Food Business Permit', body: 'TMDA', mandatory: true }
+                { group: 'Food, Drugs and Cosmetics', license: 'Food Business Permit', body: 'TMDA', mandatory: true }
             ],
             requirements: {
                 fields: {
@@ -4895,8 +4901,8 @@ const mockData = {
             { app: 'Communication Center', detail: 'Inbox, clarifications, notifications, alerts', usage: 95, nav: 'communication-center', audience: ['buyer', 'supplier', 'all'] },
             { app: 'Evaluation', detail: 'Bid opening, scoring, review', usage: 94, nav: 'bid-evaluation', audience: ['buyer', 'all'] },
             { app: 'Awarding and Contract', detail: 'Awards, approvals, signatures', usage: 92, nav: 'award-recommendation', audience: ['buyer', 'supplier', 'all'] },
-            { app: 'Records & History', detail: 'Past tenders, bids, awards, cancellations', usage: 90, nav: 'records-history', audience: ['buyer', 'supplier', 'all'] },
-            { app: 'Registration & Verification', detail: 'Registration and identity verification', usage: 88, nav: 'account-profile', audience: ['buyer', 'supplier', 'all'] },
+            { app: 'Records and History', detail: 'Past tenders, bids, awards, cancellations', usage: 90, nav: 'records-history', audience: ['buyer', 'supplier', 'all'] },
+            { app: 'Registration and Verification', detail: 'Registration and identity verification', usage: 88, nav: 'account-profile', audience: ['buyer', 'supplier', 'all'] },
             { app: 'Dashboard', detail: 'Your work, spend, and insights', usage: 84, nav: 'workspace-dashboard', audience: ['buyer', 'supplier', 'all'] }
         ],
         insights: [

@@ -1,6 +1,6 @@
 Below is the **complete system-level definition and flow design** for:
 
-# 🔷 LOGIC 6 – Bid Submission & Validation Logic
+# 🔷 LOGIC 6 – Bid Submission and Validation Logic
 
 ---
 
@@ -36,7 +36,7 @@ Compliance Validation
         ↓
 Final Submission Confirmation
         ↓
-Bid Encryption & Timestamping
+Bid Encryption and Timestamping
         ↓
 Submission Receipt Issued
         ↓
@@ -213,7 +213,7 @@ No manual acceptance after deadline unless:
 
 ---
 
-# 8️⃣ CONFIDENTIALITY & ENCRYPTION
+# 8️⃣ CONFIDENTIALITY and ENCRYPTION
 
 Upon submission:
 
@@ -263,7 +263,7 @@ Audit log records:
 
 ---
 
-# 🔟 BID WITHDRAWAL & RESUBMISSION LOGIC
+# 🔟 BID WITHDRAWAL and RESUBMISSION LOGIC
 
 If allowed:
 
@@ -364,7 +364,7 @@ Tender
    ↓
 Bids
    ↓
-Technical & Financial Envelopes
+Technical and Financial Envelopes
 ```
 
 ---
@@ -434,7 +434,7 @@ Logic 6 ensures:
 
 It protects the **integrity of competition** and forms the foundation for:
 
-**Logic 7 – Evaluation & Scoring Governance**
+**Logic 7 – Evaluation and Scoring Governance**
 
 ---
 

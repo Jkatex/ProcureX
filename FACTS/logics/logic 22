@@ -1,4 +1,4 @@
-# 🔷 LOGIC 22 – Supplier Capacity & Saturation Awareness Logic
+# 🔷 LOGIC 22 – Supplier Capacity and Saturation Awareness Logic
 
 This logic ensures suppliers are evaluated not only on **price and quality**, but also on whether they realistically have the **capacity to execute** the contract without failure.
 
@@ -37,7 +37,7 @@ Delayed delivery
         ↓
 Quality degradation
         ↓
-Disputes & penalties
+Disputes and penalties
 ```
 
 Traditional procurement does not check live workload.

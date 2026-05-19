@@ -1,5 +1,5 @@
 # CLASS DIAGRAMS
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0
 **Date:** February 19, 2026
@@ -12,7 +12,7 @@ This document contains the complete UML class diagrams for the procurement syste
 
 ---
 
-## 1. Core Identity & Access Domain (Logics 1, 2, 37)
+## 1. Core Identity and Access Domain (Logics 1, 2, 37)
 
 ```mermaid
 classDiagram
@@ -206,7 +206,7 @@ classDiagram
 
 ---
 
-## 2. Procurement Design & Tender Domain (Logics 3, 4, 24, 36)
+## 2. Procurement Design and Tender Domain (Logics 3, 4, 24, 36)
 
 ```mermaid
 classDiagram
@@ -411,7 +411,7 @@ classDiagram
 
 ---
 
-## 3. Supplier Profile & Discovery Domain (Logics 5, 15, 22, 25)
+## 3. Supplier Profile and Discovery Domain (Logics 5, 15, 22, 25)
 
 ```mermaid
 classDiagram
@@ -599,7 +599,7 @@ classDiagram
 
 ---
 
-## 4. Bidding & Evaluation Domain (Logics 6, 7, 8, 9, 17, 18, 26)
+## 4. Bidding and Evaluation Domain (Logics 6, 7, 8, 9, 17, 18, 26)
 
 ```mermaid
 classDiagram
@@ -870,7 +870,7 @@ classDiagram
 
 ---
 
-## 5. Award, Contract & Budget Domain (Logics 10, 11, 12, 13, 16)
+## 5. Award, Contract and Budget Domain (Logics 10, 11, 12, 13, 16)
 
 ```mermaid
 classDiagram
@@ -1116,7 +1116,7 @@ classDiagram
 
 ---
 
-## 6. Post-Award & Financial Domain (Logics 19, 20)
+## 6. Post-Award and Financial Domain (Logics 19, 20)
 
 ```mermaid
 classDiagram
@@ -1294,7 +1294,7 @@ classDiagram
 
 ---
 
-## 7. Risk, Anti-Fraud & Governance Domain (Logics 14, 23, 27, 29)
+## 7. Risk, Anti-Fraud and Governance Domain (Logics 14, 23, 27, 29)
 
 ```mermaid
 classDiagram
@@ -1495,7 +1495,7 @@ classDiagram
 
 ---
 
-## 8. Market Intelligence & Platform Domain (Logics 21, 28, 30, 31, 35)
+## 8. Market Intelligence and Platform Domain (Logics 21, 28, 30, 31, 35)
 
 ```mermaid
 classDiagram
@@ -1810,13 +1810,13 @@ classDiagram
 
 | Domain | Classes | Services | Enums |
 |---|---|---|---|
-| Identity & Access | 8 | 3 | 5 |
+| Identity and Access | 8 | 3 | 5 |
 | Procurement Design | 8 | 2 | 4 |
 | Supplier Profile | 8 | 4 | 2 |
-| Bidding & Evaluation | 10 | 5 | 5 |
-| Award & Contract | 9 | 4 | 3 |
+| Bidding and Evaluation | 10 | 5 | 5 |
+| Award and Contract | 9 | 4 | 3 |
 | Post-Award Financial | 6 | 2 | 4 |
-| Risk & Governance | 8 | 4 | 3 |
+| Risk and Governance | 8 | 4 | 3 |
 | Market Intelligence | 8 | 4 | 2 |
 | **TOTAL** | **65** | **28** | **28** |
 

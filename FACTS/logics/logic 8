@@ -1,6 +1,6 @@
 Below is the **complete system-level design and procedural framework** for:
 
-# 🔷 LOGIC 8 – Evaluation Framework & Scoring Logic
+# 🔷 LOGIC 8 – Evaluation Framework and Scoring Logic
 
 ---
 
@@ -21,7 +21,7 @@ If this logic is weak → awards become vulnerable to dispute, corruption allega
 # 2️⃣ CORE PRINCIPLES
 
 ✔ Criteria defined and locked before publication (Logic 3)
-✔ Scoring aligned with envelope model (Logic 6 & 7)
+✔ Scoring aligned with envelope model (Logic 6 and 7)
 ✔ Separation of duties (Logic 2 RBAC)
 ✔ Audit trail for every score
 ✔ Weighted mathematical aggregation
@@ -287,7 +287,7 @@ No hidden scoring fields.
 
 ---
 
-# 1️⃣4️⃣ JUSTIFICATION & DEFENSIBILITY CONTROLS
+# 1️⃣4️⃣ JUSTIFICATION and DEFENSIBILITY CONTROLS
 
 For each bid:
 
@@ -303,7 +303,7 @@ This becomes the official evaluation report.
 
 ---
 
-# 1️⃣5️⃣ BIAS & MANIPULATION PREVENTION CONTROLS
+# 1️⃣5️⃣ BIAS and MANIPULATION PREVENTION CONTROLS
 
 System prevents:
 
@@ -348,7 +348,7 @@ Final Aggregation
 
 ---
 
-# 1️⃣7️⃣ SECURITY & GOVERNANCE CONTROLS
+# 1️⃣7️⃣ SECURITY and GOVERNANCE CONTROLS
 
 * MFA for evaluators
 * Session timeout
@@ -412,13 +412,13 @@ It transforms:
 
 **Opened bids (Logic 7)**
 into
-**Defensible award recommendations (Logic 9 – Award & Contract Finalization)**
+**Defensible award recommendations (Logic 9 – Award and Contract Finalization)**
 
 ---
 
 If you'd like, next I can design:
 
-* 🔹 Logic 9 – Award Decision & Contract Finalization
+* 🔹 Logic 9 – Award Decision and Contract Finalization
 * 🔹 Full lifecycle architecture integrating Logics 1–8
 * 🔹 AI-assisted scoring safeguards
 * 🔹 Or regulatory compliance mapping (public procurement law alignment)

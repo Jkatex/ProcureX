@@ -5,7 +5,7 @@ function renderBuyerJourney() {
         ['Onboarding', 'Approved procurement account', 'Register, verify OTP, sign in, upload verification documents, receive approval.', 'verification-status', 'Approved'],
         ['Tender Design', 'Tender ready to publish', 'Create the tender, scope, attachments, BOQ, evaluation criteria, timeline, and procuring entity review.', 'create-tender', 'In progress'],
         ['Publication', 'Active tender detail', 'Reviewed tender goes live in the marketplace with procuring entity detail controls.', 'marketplace', 'Next'],
-        ['Clarifications', 'Tenderer Q&A handled', 'Review inbox, answer questions, create amendments, and update tender documents.', 'tender-details', '3 open'],
+        ['Clarifications', 'Tenderer QandA handled', 'Review inbox, answer questions, create amendments, and update tender documents.', 'tender-details', '3 open'],
         ['Evaluation', 'Oversight dashboard', 'Monitor evaluator progress, score variance, conflicts, and bid ranking intelligence.', 'bid-evaluation', '72%'],
         ['Award Approval', 'Approved recommendation', 'Submit award recommendation, route approvals, and notify successful bidder.', 'award-recommendation', 'Pending'],
         ['Standstill', 'No unresolved challenge', 'Run standstill period, review challenges, resolve outcomes, and continue contracting.', 'award-recommendation', '14 days'],
@@ -89,7 +89,7 @@ function renderBuyerJourney() {
                             <div class="panel-heading">
                                 <div>
                                     <span class="section-kicker">Marketplace interaction</span>
-                                    <h2>Clarifications & Amendments</h2>
+                                    <h2>Clarifications and Amendments</h2>
                                 </div>
                                 <span class="badge badge-warning">3 open</span>
                             </div>

@@ -1,6 +1,6 @@
 Below is the **complete system architecture and governance design** for:
 
-# 🔷 LOGIC 14 – Audit Trail & Traceability Logic
+# 🔷 LOGIC 14 – Audit Trail and Traceability Logic
 
 This logic ensures that **every procurement action is permanently recorded, time-stamped, and traceable**, allowing full forensic reconstruction of events.
 
@@ -92,7 +92,7 @@ If a log is altered → hash mismatch detected.
 
 ---
 
-# 5️⃣ VERSION CONTROL & STATE TRACKING
+# 5️⃣ VERSION CONTROL and STATE TRACKING
 
 For every object (tender, bid, contract, budget):
 
@@ -170,7 +170,7 @@ Audit trail is relational, not isolated.
 
 ---
 
-# 9️⃣ SEARCH & INVESTIGATION TOOLS
+# 9️⃣ SEARCH and INVESTIGATION TOOLS
 
 System provides:
 
@@ -324,7 +324,7 @@ Used in:
 
 ---
 
-# 1️⃣8️⃣ PRIVACY & DATA PROTECTION BALANCE
+# 1️⃣8️⃣ PRIVACY and DATA PROTECTION BALANCE
 
 While ensuring traceability:
 

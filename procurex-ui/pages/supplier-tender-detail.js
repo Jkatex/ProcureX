@@ -8,11 +8,11 @@ const supplierTenderClarificationCategories = ['Technical', 'Financial', 'Delive
 function escapeSupplierTenderDetailHtml(value = '') {
     if (typeof escapeBidWorkspaceHtml === 'function') return escapeBidWorkspaceHtml(value);
     return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function formatSupplierTenderMoney(value) {
@@ -649,6 +649,38 @@ function renderSupplierTenderCommercialPreview(tender, profile) {
     return renderProcurexTenderDetailCommercial(tender, profile);
 }
 
+function renderSupplierTenderSubmissionChecklist(tender = {}, profile = {}, requirementSet = {}) {
+    const mandatory = requirementSet.mandatory || [];
+    const optional = requirementSet.optional || [];
+    const checklist = [
+        ['Volume 1: Administrative Compliance', `${mandatory.length} mandatory eligibility, license, registration, and evidence item${mandatory.length === 1 ? '' : 's'}`, 'Step 0: Eligibility gate'],
+        ['Volume 2: Technical Response', profile.responseTitle || 'Technical response, methodology, personnel, equipment, and specification compliance', 'Step 1: Technical'],
+        ['Volume 3: Financial Offer', tender.commercialModel || profile.commercialName || 'Priced commercial schedule and bid value', 'Step 2: Financial'],
+        ['Volume 4: Declarations and Contract Terms', 'Clause acknowledgements, deviations, anti-corruption declaration, and authorized signatory', 'Step 3 and Step 4'],
+        ['Annex: Uploaded Evidence Files', `${optional.length} optional item${optional.length === 1 ? '' : 's'} plus all mandatory upload files with integrity metadata`, 'Upload controls throughout workspace']
+    ];
+    return `
+        <section class="journey-panel bid-submission-checklist-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="section-kicker">Bid submission checklist</span>
+                    <h2>How this tender maps to the bidding workspace</h2>
+                </div>
+                <span class="badge badge-info">${checklist.length} volumes</span>
+            </div>
+            <div class="bid-completeness-list">
+                ${checklist.map(([label, note, step]) => `
+                    <article class="bid-completeness-item">
+                        <strong>${escapeSupplierTenderDetailHtml(label)}</strong>
+                        <span>${escapeSupplierTenderDetailHtml(note)}</span>
+                        <small>${escapeSupplierTenderDetailHtml(step)}</small>
+                    </article>
+                `).join('')}
+            </div>
+        </section>
+    `;
+}
+
 function renderSupplierTenderTimeline(tender = {}) {
     const milestones = Array.isArray(tender.milestones) && tender.milestones.length
         ? tender.milestones
@@ -722,6 +754,8 @@ function renderSupplierTenderDetail() {
                         <div class="kpi-card"><div class="kpi-value">${clarificationDeadline.closed ? 'Closed' : clarifications.length}</div><div class="kpi-label">Clarifications</div></div>
                     </section>
 
+                    ${renderSupplierTenderSubmissionChecklist(tender, profile, requirementSet)}
+
                     ${renderSupplierTenderClarificationDeadline(tender)}
 
                     ${renderProcurexTenderDetailFullSections(tender, profile, { requirementSet, clarifications })}
@@ -749,7 +783,7 @@ function renderSupplierTenderDetail() {
                         <div class="public-clarification-feed" data-clarification-list>
                             <div class="public-clarification-heading">
                                 <span class="section-kicker">Public responses</span>
-                                <strong>Supplier identity hidden from public Q&A</strong>
+                                <strong>Supplier identity hidden from public QandA</strong>
                             </div>
                             ${renderSupplierTenderPublicClarificationFeed(clarifications)}
                         </div>
@@ -786,11 +820,9 @@ function initializeSupplierTenderDetail() {
 
         const url = new URL(window.location.href);
         url.searchParams.set('page', 'communication-center');
-        url.searchParams.set('role', 'supplier');
         url.hash = '';
         const opened = window.open(url.toString(), '_blank');
         if (!opened) {
-            window.app?.setRole?.('supplier');
             window.app?.navigateTo?.('communication-center');
         }
     };

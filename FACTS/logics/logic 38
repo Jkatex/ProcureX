@@ -1,4 +1,4 @@
-# 🔷 LOGIC 38 – Market Transparency & Behavioral Correction Logic
+# 🔷 LOGIC 38 – Market Transparency and Behavioral Correction Logic
 
 This logic ensures that **pricing, performance, and procurement outcomes are visible in aggregate** to platform participants. By creating **informational transparency**, it encourages suppliers and buyers to self-correct behaviors, improve competitiveness, and adopt best practices without the platform imposing direct enforcement.
 
@@ -30,7 +30,7 @@ Transparency is achieved by exposing **aggregated, anonymized metrics**, such as
 * **Supplier Performance Summaries** (Logic 15, 25)
 * **Bid Success Rates** (Logic 6, 8)
 * **Tender Quality Feedback** (Logic 24)
-* **Delivery & Risk Patterns** (Logic 16, 27)
+* **Delivery and Risk Patterns** (Logic 16, 27)
 
 ---
 
@@ -62,12 +62,12 @@ These dashboards enable **learning from peers and market signals**.
 
 | Supporting Logics | Contribution                                        |
 | ----------------- | --------------------------------------------------- |
-| Logic 9, 26       | Pricing intelligence & cross-regional normalization |
-| Logic 15, 25      | Supplier performance & trust scoring                |
+| Logic 9, 26       | Pricing intelligence and cross-regional normalization |
+| Logic 15, 25      | Supplier performance and trust scoring                |
 | Logic 24          | Tender design quality feedback                      |
 | Logic 27          | Risk forecasting outcomes                           |
 | Logic 28          | Cross-organizational intelligence                   |
-| Logic 30          | Network effects & liquidity insights                |
+| Logic 30          | Network effects and liquidity insights                |
 
 ---
 

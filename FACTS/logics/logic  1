@@ -1,8 +1,8 @@
-Below is a **complete system-level breakdown** of **Logic 1 – User Identity, Verification & Trust Establishment** in a procurement system, including flows, decision points, components, data, integrations, and governance controls.
+Below is a **complete system-level breakdown** of **Logic 1 – User Identity, Verification and Trust Establishment** in a procurement system, including flows, decision points, components, data, integrations, and governance controls.
 
 ---
 
-# 🔷 LOGIC 1 – USER IDENTITY, VERIFICATION & TRUST ESTABLISHMENT
+# 🔷 LOGIC 1 – USER IDENTITY, VERIFICATION and TRUST ESTABLISHMENT
 
 ## 1️⃣ Purpose of This Logic
 
@@ -73,9 +73,9 @@ Trust Level Assignment
       ↓
 Access Rights Provisioning
       ↓
-Ongoing Monitoring & Risk Scoring
+Ongoing Monitoring and Risk Scoring
       ↓
-Reputation & Trust Updates
+Reputation and Trust Updates
 ```
 
 ---
@@ -129,7 +129,7 @@ System stores:
 
 ---
 
-## 🔹 Step 3: Document Upload & KYC
+## 🔹 Step 3: Document Upload and KYC
 
 ### Required Documents (based on type)
 
@@ -283,7 +283,7 @@ Reputation affects:
 
 ---
 
-# 🔷 H. LEGAL & ENFORCEABILITY LAYER
+# 🔷 H. LEGAL and ENFORCEABILITY LAYER
 
 This logic must integrate with:
 
@@ -313,7 +313,7 @@ Key Tables:
 5. Trust Levels
 6. Risk Scores
 7. Sanctions Checks
-8. Roles & Permissions
+8. Roles and Permissions
 9. Audit Logs
 10. Reputation Metrics
 
@@ -379,7 +379,7 @@ Final Decision
 
 ---
 
-# 🔷 M. KPI & GOVERNANCE METRICS
+# 🔷 M. KPI and GOVERNANCE METRICS
 
 Track:
 
@@ -399,7 +399,7 @@ Track:
 3. Risk Engine
 4. Compliance Module
 5. Access Control Service
-6. Audit & Logging System
+6. Audit and Logging System
 7. Document Storage System
 8. Reputation Engine
 9. Notification Service

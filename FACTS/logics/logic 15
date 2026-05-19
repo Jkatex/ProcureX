@@ -1,6 +1,6 @@
 Below is the **complete institutional memory and performance governance architecture** for:
 
-# 🔷 LOGIC 15 – Supplier Performance Tracking & Memory Logic
+# 🔷 LOGIC 15 – Supplier Performance Tracking and Memory Logic
 
 This logic ensures that supplier participation in the procurement ecosystem is **continuously evaluated**, recorded, and factored into future sourcing decisions.
 
@@ -63,7 +63,7 @@ Supplier evaluation covers:
 | Responsiveness                 | Communication speed                 |
 | Financial reliability          | Payment disputes, insolvency risk   |
 | Ethical conduct                | Misrepresentation, collusion flags  |
-| Safety & regulatory compliance | Incident reports                    |
+| Safety and regulatory compliance | Incident reports                    |
 | Dispute history                | Arbitration or litigation cases     |
 
 Each dimension weighted per procurement category.
@@ -203,7 +203,7 @@ Low-rated supplier → additional approval scrutiny.
 
 ---
 
-# 🔟 CORRECTIVE ACTION & SANCTIONS
+# 🔟 CORRECTIVE ACTION and SANCTIONS
 
 If performance falls below threshold:
 
@@ -219,7 +219,7 @@ All actions logged under Logic 14.
 
 ---
 
-# 1️⃣1️⃣ DISPUTE & APPEAL FAIRNESS
+# 1️⃣1️⃣ DISPUTE and APPEAL FAIRNESS
 
 Supplier can:
 
@@ -290,7 +290,7 @@ Future Procurement Impact
 
 ---
 
-# 1️⃣5️⃣ OBJECTIVITY & BIAS CONTROLS
+# 1️⃣5️⃣ OBJECTIVITY and BIAS CONTROLS
 
 System prevents:
 

@@ -10,11 +10,11 @@ const procurexTenderPdfDefaults = {
 
 function escapeProcurexTenderPdfHtml(value = '') {
     return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function isProcurexTenderPdfMeaningful(value) {
@@ -366,7 +366,7 @@ function renderProcurexTenderPdfActivity(tender = {}) {
         ...clarifications.map(item => ({
             type: 'Clarification',
             title: item.title || item.question || 'Clarification',
-            detail: item.question || item.detail || item.answer || item.status || 'Pending buyer response',
+            detail: item.question || item.detail || item.answer || item.status || 'Pending procuring entity response',
             status: item.status || 'Pending'
         })),
         ...amendments.map(item => ({
@@ -378,6 +378,27 @@ function renderProcurexTenderPdfActivity(tender = {}) {
     ];
     if (!rows.length) return '<p class="procurex-pdf-empty">No clarifications or amendments have been published.</p>';
     return renderProcurexTenderPdfObjectTable(rows);
+}
+
+function renderProcurexTenderPdfResponseInstructions(tender = {}, profile = {}) {
+    const requiredDocs = tender.requiredSubmissionDocuments?.length
+        ? tender.requiredSubmissionDocuments
+        : (profile.submissionDocuments || []);
+    return `
+        <p>Tenderers must structure the bid submission as the following volumes. Each volume should be complete, clearly labelled, and supported by uploaded evidence where required.</p>
+        <table class="procurex-pdf-table">
+            <thead><tr><th>Volume</th><th>Contents</th><th>Primary evidence</th></tr></thead>
+            <tbody>
+                <tr><td>Volume 1</td><td>Administrative Compliance</td><td>Bid submission letter, registrations, tax compliance, licenses, bid security, and authorizations.</td></tr>
+                <tr><td>Volume 2</td><td>Technical Response</td><td>Specification compliance matrix, methodology, personnel, equipment, experience, quality plan, and delivery approach.</td></tr>
+                <tr><td>Volume 3</td><td>Financial Offer</td><td>${escapeProcurexTenderPdfHtml(profile.commercialName || tender.commercialModel || 'Commercial schedule')}, price summary, taxes, currency, and bid validity.</td></tr>
+                <tr><td>Volume 4</td><td>Declarations and Contract Terms</td><td>Clause acknowledgements, deviation log, anti-corruption declaration, and authorized signatory confirmation.</td></tr>
+                <tr><td>Annex</td><td>Uploaded Evidence Files</td><td>File manifest with names, sizes, upload timestamps, and integrity hashes.</td></tr>
+            </tbody>
+        </table>
+        <h3>Required submission documents</h3>
+        ${renderProcurexTenderPdfList(requiredDocs, 'No separate submission documents configured.')}
+    `;
 }
 
 function renderProcurexTenderPdfDocument(tender = {}, options = {}) {
@@ -398,7 +419,7 @@ function renderProcurexTenderPdfDocument(tender = {}, options = {}) {
     }).format(new Date());
 
     return `
-        <article class="procurex-tender-pdf" data-document-audience="${escapeProcurexTenderPdfHtml(options.audience || 'supplier')}">
+        <article class="procurex-tender-pdf" data-document-audience="${escapeProcurexTenderPdfHtml(options.audience || 'tenderer')}">
             <header class="procurex-pdf-cover">
                 <div>
                     <span class="procurex-pdf-kicker">ProcureX Standard Tender Document</span>
@@ -429,12 +450,10 @@ function renderProcurexTenderPdfDocument(tender = {}, options = {}) {
             ${renderProcurexTenderPdfSection('1', 'Invitation and Instructions to Tenderers', `
                 <p>${escapeProcurexTenderPdfHtml(standard.invitation)}</p>
                 <p>Tenderers must review the complete document, prepare all required responses, and submit a compliant bid before the closing deadline. The expected response focus is ${escapeProcurexTenderPdfHtml(standard.responseFocus)}.</p>
-                <h3>Submission documents</h3>
-                ${renderProcurexTenderPdfList(profile.submissionDocuments || [])}
             `)}
 
             ${renderProcurexTenderPdfSection('2', standard.scopeTitle, `
-                <p>${escapeProcurexTenderPdfHtml(tender.description || 'Review the structured scope and requirements configured by the buyer.')}</p>
+                <p>${escapeProcurexTenderPdfHtml(tender.description || 'Review the structured scope and requirements configured by the procuring entity.')}</p>
                 ${renderProcurexTenderPdfRequirements(tender)}
                 <h3>Key requirements</h3>
                 ${renderProcurexTenderPdfList(profile.keyRequirements || [])}
@@ -454,6 +473,8 @@ function renderProcurexTenderPdfDocument(tender = {}, options = {}) {
             ${renderProcurexTenderPdfSection('5', 'Evaluation Criteria and Submission Responses', `
                 ${renderProcurexTenderPdfEvaluation(tender, profile)}
             `)}
+
+            ${renderProcurexTenderPdfSection('5A', 'Bid Response Instructions', renderProcurexTenderPdfResponseInstructions(tender, profile))}
 
             ${renderProcurexTenderPdfSection('6', 'Programme and Key Dates', renderProcurexTenderPdfTimeline(tender))}
 
@@ -500,12 +521,12 @@ function renderProcurexTenderAnnexDocument(tender = {}, annexName = '') {
                 { label: 'Procuring entity', value: tender.organization },
                 { label: 'Procurement type', value: tender.type || profile.id },
                 { label: 'Document name', value: annexName },
-                { label: 'Status', value: 'Available to suppliers' },
+                { label: 'Status', value: 'Available to tenderers' },
                 { label: 'Generated', value: generatedAt }
             ])}
 
             ${renderProcurexTenderPdfSection('1', 'Document Preview', `
-                <p>This annex is part of the tender pack for supplier review and download. In the production workflow this action opens the buyer-uploaded source file from secure document storage.</p>
+                <p>This annex is part of the tender pack for tenderer review and download. In the production workflow this action opens the procuring entity-uploaded source file from secure document storage.</p>
                 <p>Use this preview with the full tender document, commercial schedule, clarifications, and amendments before preparing a bid.</p>
             `)}
 
@@ -642,7 +663,7 @@ async function openProcurexTenderPdf(tenderId = '', options = {}) {
 
     const blob = await generateProcurexTenderPdf(tender, {
         ...options,
-        audience: options.audience || (window.app?.currentPage === 'tender-details' ? 'buyer' : 'supplier'),
+        audience: options.audience || (window.app?.currentPage === 'tender-details' ? 'owner' : 'tenderer'),
         mode: 'open'
     });
     if (!blob) {
@@ -694,7 +715,7 @@ async function downloadProcurexTenderPdf(tenderId = '', options = {}) {
     }
     await generateProcurexTenderPdf(tender, {
         ...options,
-        audience: options.audience || (window.app?.currentPage === 'tender-details' ? 'buyer' : 'supplier'),
+        audience: options.audience || (window.app?.currentPage === 'tender-details' ? 'owner' : 'tenderer'),
         mode: 'download'
     });
 }
@@ -706,7 +727,7 @@ async function downloadProcurexTenderPdfPreview(tender = {}, options = {}) {
     }
     await generateProcurexTenderPdf(tender, {
         ...options,
-        audience: options.audience || 'buyer',
+        audience: options.audience || 'owner',
         mode: 'download'
     });
 }

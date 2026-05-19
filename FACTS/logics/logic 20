@@ -1,4 +1,4 @@
-# 🔷 LOGIC 20 – Dispute Resolution & Exception Handling Logic
+# 🔷 LOGIC 20 – Dispute Resolution and Exception Handling Logic
 
 This logic governs how procurement-related disputes, deviations, and contractual conflicts are **formally raised, evaluated, resolved, and enforced**.
 
@@ -75,7 +75,7 @@ Dispute Ticket Created
       ↓
 Counterparty Notified
       ↓
-Review & Response Window
+Review and Response Window
       ↓
 Resolution Process
 ```
@@ -132,7 +132,7 @@ Prevents silent delays.
 
 ---
 
-# 7️⃣ DISPUTE CLASSIFICATION & SEVERITY SCORING
+# 7️⃣ DISPUTE CLASSIFICATION and SEVERITY SCORING
 
 Disputes may be scored by:
 
@@ -207,7 +207,7 @@ Outcome digitally signed.
 
 ---
 
-# 1️⃣1️⃣ SLA & PENALTY ENFORCEMENT
+# 1️⃣1️⃣ SLA and PENALTY ENFORCEMENT
 
 If SLA violation confirmed:
 

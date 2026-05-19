@@ -1,5 +1,5 @@
 # FUNCTIONAL REQUIREMENTS SPECIFICATION
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0
 **Date:** February 18, 2026
@@ -8,22 +8,22 @@
 
 # TABLE OF CONTENTS
 
-1. Foundation Layer – Identity, Trust & Access
-2. Procurement Design & Structuring Layer
-3. Marketplace Visibility & Matching Layer
-4. Bidding & Evaluation Layer
-5. Award & Contract Layer
-6. Post-Award & Performance Layer
-7. Trust, Reputation & Lock-In Layer
-8. Behavioral, Market & Learning Layer
-9. Risk, Anti-Fraud & Compliance Layer
-10. Future-Proofing & Expansion Layer
+1. Foundation Layer – Identity, Trust and Access
+2. Procurement Design and Structuring Layer
+3. Marketplace Visibility and Matching Layer
+4. Bidding and Evaluation Layer
+5. Award and Contract Layer
+6. Post-Award and Performance Layer
+7. Trust, Reputation and Lock-In Layer
+8. Behavioral, Market and Learning Layer
+9. Risk, Anti-Fraud and Compliance Layer
+10. Future-Proofing and Expansion Layer
 
 ---
 
-# 1. FOUNDATION LAYER – IDENTITY, TRUST & ACCESS
+# 1. FOUNDATION LAYER – IDENTITY, TRUST and ACCESS
 
-## 1.1 User Identity, Verification & Trust Establishment (Logic 1)
+## 1.1 User Identity, Verification and Trust Establishment (Logic 1)
 
 ### FR-1.1.1 User Registration
 - FR-1.1.1.1: The system SHALL support registration for the following user types: Individual Buyer, Institutional Buyer, Individual Supplier, Company Supplier, Individual Professional, and Platform Administrator.
@@ -31,7 +31,7 @@
 - FR-1.1.1.3: The system SHALL assign a unique system identifier to each registered user.
 - FR-1.1.1.4: The system SHALL require email and phone verification during registration.
 
-### FR-1.1.2 Document Submission & Verification
+### FR-1.1.2 Document Submission and Verification
 - FR-1.1.2.1: The system SHALL allow users to upload identity verification documents (government ID, passport, business license, tax certificate, registration certificate).
 - FR-1.1.2.2: The system SHALL perform automated document validation including format check, expiry date check, and completeness check.
 - FR-1.1.2.3: The system SHALL support manual verification by platform administrators for documents that fail automated validation.
@@ -74,7 +74,7 @@
 - FR-1.2.3.3: The system SHALL prevent the same user from submitting a bid and participating in its evaluation.
 - FR-1.2.3.4: The system SHALL enforce configurable SoD rules and alert administrators of violations.
 
-### FR-1.2.4 Role Assignment & Management
+### FR-1.2.4 Role Assignment and Management
 - FR-1.2.4.1: The system SHALL allow organization administrators to assign and revoke roles for their users.
 - FR-1.2.4.2: The system SHALL maintain a complete audit log of all role assignment changes.
 - FR-1.2.4.3: The system SHALL support role delegation with time-bound expiry.
@@ -103,9 +103,9 @@
 
 ---
 
-# 2. PROCUREMENT DESIGN & STRUCTURING LAYER
+# 2. PROCUREMENT DESIGN and STRUCTURING LAYER
 
-## 2.1 Procurement Need Definition & Structuring (Logic 3)
+## 2.1 Procurement Need Definition and Structuring (Logic 3)
 
 ### FR-2.1.1 Requirement Capture
 - FR-2.1.1.1: The system SHALL provide structured forms for capturing procurement needs including item description, quantity, unit of measure, technical specifications, and delivery location.
@@ -141,7 +141,7 @@
 
 ---
 
-## 2.2 Tender Design Quality & Bias Detection (Logic 24)
+## 2.2 Tender Design Quality and Bias Detection (Logic 24)
 
 ### FR-2.2.1 Automated Design Analysis
 - FR-2.2.1.1: The system SHALL automatically analyze tender documents before publication for quality, fairness, and completeness.
@@ -152,18 +152,18 @@
 - FR-2.2.2.2: The system SHALL flag ambiguous language and suggest objective alternatives.
 - FR-2.2.2.3: The system SHALL detect missing evaluation weights or incomplete technical specifications.
 
-### FR-2.2.3 Bias & Exclusion Detection
+### FR-2.2.3 Bias and Exclusion Detection
 - FR-2.2.3.1: The system SHALL detect brand-name specifications without "or equivalent" clauses.
 - FR-2.2.3.2: The system SHALL flag single-model references, proprietary technology lock-in, and narrow certification requirements.
 - FR-2.2.3.3: The system SHALL evaluate eligibility requirements for disproportionate thresholds (turnover, insurance, geographic restrictions).
 - FR-2.2.3.4: The system SHALL estimate the number of eligible suppliers and flag if below a minimum competition threshold.
 
-### FR-2.2.4 Consistency & Feasibility Checks
+### FR-2.2.4 Consistency and Feasibility Checks
 - FR-2.2.4.1: The system SHALL detect contradictory clauses and inconsistent quantities.
 - FR-2.2.4.2: The system SHALL validate delivery timelines against market capacity and logistics data.
 - FR-2.2.4.3: The system SHALL verify that evaluation criteria align with stated requirements.
 
-### FR-2.2.5 Buyer Feedback & Remediation
+### FR-2.2.5 Buyer Feedback and Remediation
 - FR-2.2.5.1: The system SHALL generate a structured feedback report identifying problematic clauses with suggested alternatives.
 - FR-2.2.5.2: The system SHALL block publication if critical risk flags are present until resolved or overridden with justification.
 - FR-2.2.5.3: The system SHALL log all overridden warnings with justification records.
@@ -187,9 +187,9 @@
 
 ---
 
-# 3. MARKETPLACE VISIBILITY & MATCHING LAYER
+# 3. MARKETPLACE VISIBILITY and MATCHING LAYER
 
-## 3.1 Tender Publication & Market Visibility (Logic 4)
+## 3.1 Tender Publication and Market Visibility (Logic 4)
 
 ### FR-3.1.1 Publication Controls
 - FR-3.1.1.1: The system SHALL enforce pre-publication validation to ensure completeness and approval.
@@ -198,7 +198,7 @@
 - FR-3.1.1.4: The system SHALL prevent any private pre-release of tender information.
 - FR-3.1.1.5: The system SHALL timestamp all publication events immutably.
 
-### FR-3.1.2 Amendment & Clarification
+### FR-3.1.2 Amendment and Clarification
 - FR-3.1.2.1: The system SHALL support tender amendments with automatic notification to all suppliers who accessed the original tender.
 - FR-3.1.2.2: The system SHALL provide a structured clarification window where suppliers can ask questions and all answers are visible to all participants.
 - FR-3.1.2.3: The system SHALL extend submission deadlines proportionally when significant amendments are made.
@@ -209,7 +209,7 @@
 
 ---
 
-## 3.2 Supplier Discovery & Matching (Logic 5)
+## 3.2 Supplier Discovery and Matching (Logic 5)
 
 ### FR-3.2.1 Supplier Search
 - FR-3.2.1.1: The system SHALL enable buyers to search suppliers by category, region, capability, certification, performance score, and trust level.
@@ -226,7 +226,7 @@
 
 ---
 
-## 3.3 Market Centralization & Opportunity Unification (Logic 21)
+## 3.3 Market Centralization and Opportunity Unification (Logic 21)
 
 ### FR-3.3.1 Centralized Opportunity Index
 - FR-3.3.1.1: The system SHALL aggregate all tenders from public, private, and NGO organizations into a centralized searchable index.
@@ -243,7 +243,7 @@
 
 ---
 
-## 3.4 Market Transparency & Behavioral Correction (Logic 38)
+## 3.4 Market Transparency and Behavioral Correction (Logic 38)
 
 ### FR-3.4.1 Aggregated Data Dashboards
 - FR-3.4.1.1: The system SHALL expose aggregated, anonymized metrics for pricing benchmarks, supplier performance summaries, bid success rates, tender quality feedback, and delivery/risk patterns.
@@ -257,11 +257,11 @@
 
 ---
 
-# 4. BIDDING & EVALUATION LAYER
+# 4. BIDDING and EVALUATION LAYER
 
-## 4.1 Bid Submission & Validation (Logic 6)
+## 4.1 Bid Submission and Validation (Logic 6)
 
-### FR-4.1.1 Eligibility & Submission
+### FR-4.1.1 Eligibility and Submission
 - FR-4.1.1.1: The system SHALL verify supplier eligibility (trust tier, category registration, verification status) before allowing bid submission.
 - FR-4.1.1.2: The system SHALL support bid types: Price-only, Two-envelope (technical + financial), Service-based, and Multi-lot.
 - FR-4.1.1.3: The system SHALL provide structured data entry forms aligned with tender requirements.
@@ -274,19 +274,19 @@
 - FR-4.1.2.3: The system SHALL perform compliance validation against tender requirements.
 - FR-4.1.2.4: The system SHALL notify suppliers of validation errors before final submission.
 
-### FR-4.1.3 Confidentiality & Integrity
+### FR-4.1.3 Confidentiality and Integrity
 - FR-4.1.3.1: The system SHALL encrypt all submitted bid data until the official opening time.
 - FR-4.1.3.2: The system SHALL generate a hash of each submitted bid as a tamper-detection mechanism.
 - FR-4.1.3.3: The system SHALL lock bids after submission, preventing modification unless formally withdrawn and resubmitted before the deadline.
 
-### FR-4.1.4 Withdrawal & Resubmission
+### FR-4.1.4 Withdrawal and Resubmission
 - FR-4.1.4.1: The system SHALL allow bid withdrawal before the submission deadline with a logged reason.
 - FR-4.1.4.2: The system SHALL allow resubmission of a new bid after withdrawal, before the deadline.
 - FR-4.1.4.3: The system SHALL maintain a record of all withdrawn bids.
 
 ---
 
-## 4.2 Bid Opening & Controlled Disclosure (Logic 7)
+## 4.2 Bid Opening and Controlled Disclosure (Logic 7)
 
 ### FR-4.2.1 Time-Locked Opening
 - FR-4.2.1.1: The system SHALL prevent access to bid contents before the defined opening time.
@@ -300,7 +300,7 @@
 
 ---
 
-## 4.3 Evaluation Framework & Scoring (Logic 8)
+## 4.3 Evaluation Framework and Scoring (Logic 8)
 
 ### FR-4.3.1 Evaluation Setup
 - FR-4.3.1.1: The system SHALL enforce evaluation using only predefined criteria and weights established during tender design.
@@ -313,7 +313,7 @@
 - FR-4.3.2.3: The system SHALL support consensus/moderation sessions to reconcile scoring differences.
 - FR-4.3.2.4: The system SHALL require written justification for each evaluator score.
 
-### FR-4.3.3 Score Aggregation & Ranking
+### FR-4.3.3 Score Aggregation and Ranking
 - FR-4.3.3.1: The system SHALL compute weighted aggregate scores across all criteria.
 - FR-4.3.3.2: The system SHALL apply risk-adjusted scoring when applicable.
 - FR-4.3.3.3: The system SHALL generate a comparative ranking of all bids with full score breakdowns.
@@ -325,7 +325,7 @@
 
 ---
 
-## 4.4 Price Intelligence & Benchmarking (Logic 9)
+## 4.4 Price Intelligence and Benchmarking (Logic 9)
 
 ### FR-4.4.1 Historical Price Comparison
 - FR-4.4.1.1: The system SHALL provide historical price data for similar items by category, region, and time period.
@@ -354,7 +354,7 @@
 
 ---
 
-## 4.6 Service & Professional Procurement (Logic 18)
+## 4.6 Service and Professional Procurement (Logic 18)
 
 ### FR-4.6.1 Capability Evaluation
 - FR-4.6.1.1: The system SHALL support qualitative scoring based on methodology, experience, and portfolio.
@@ -379,16 +379,16 @@
 
 ---
 
-# 5. AWARD & CONTRACT LAYER
+# 5. AWARD and CONTRACT LAYER
 
-## 5.1 Award Decision & Contract Formation (Logic 10)
+## 5.1 Award Decision and Contract Formation (Logic 10)
 
 ### FR-5.1.1 Award Decision
 - FR-5.1.1.1: The system SHALL enforce that award decisions follow the predefined evaluation rules and scoring outcomes.
 - FR-5.1.1.2: The system SHALL support tie-breaker logic based on configurable criteria (e.g., SME preference, local supplier, past performance).
 - FR-5.1.1.3: The system SHALL require confirmation of any disqualifications with documented reasons.
 
-### FR-5.1.2 Award Notification & Standstill
+### FR-5.1.2 Award Notification and Standstill
 - FR-5.1.2.1: The system SHALL notify the winning supplier and all unsuccessful bidders of the award decision.
 - FR-5.1.2.2: The system SHALL enforce a configurable standstill period before contract signing to allow challenges.
 - FR-5.1.2.3: The system SHALL provide unsuccessful bidders with their score summary and ranking.
@@ -400,7 +400,7 @@
 
 ---
 
-## 5.2 Approval Workflow & Authority Hierarchy (Logic 11)
+## 5.2 Approval Workflow and Authority Hierarchy (Logic 11)
 
 ### FR-5.2.1 Approval Flow Configuration
 - FR-5.2.1.1: The system SHALL support sequential, parallel, and conditional approval flows.
@@ -414,7 +414,7 @@
 
 ---
 
-## 5.3 Procurement Budgeting & Spend Control (Logic 12)
+## 5.3 Procurement Budgeting and Spend Control (Logic 12)
 
 ### FR-5.3.1 Budget Management
 - FR-5.3.1.1: The system SHALL support multi-level budget allocation (organizational, departmental, project-level).
@@ -429,7 +429,7 @@
 
 ---
 
-## 5.4 Digital Signature & Legal Enforceability (Logic 13)
+## 5.4 Digital Signature and Legal Enforceability (Logic 13)
 
 ### FR-5.4.1 Digital Signature
 - FR-5.4.1.1: The system SHALL support digital signature types: Simple Electronic, Advanced Electronic, and Qualified Electronic signatures.
@@ -445,7 +445,7 @@
 
 ---
 
-## 5.5 Logistics Feasibility & Delivery Risk (Logic 16)
+## 5.5 Logistics Feasibility and Delivery Risk (Logic 16)
 
 ### FR-5.5.1 Delivery Feasibility Assessment
 - FR-5.5.1.1: The system SHALL evaluate delivery feasibility based on geographic distance, transport constraints, infrastructure quality, and seasonal factors.
@@ -458,9 +458,9 @@
 
 ---
 
-# 6. POST-AWARD & PERFORMANCE LAYER
+# 6. POST-AWARD and PERFORMANCE LAYER
 
-## 6.1 Supplier Performance Tracking & Memory (Logic 15)
+## 6.1 Supplier Performance Tracking and Memory (Logic 15)
 
 ### FR-6.1.1 Performance Data Collection
 - FR-6.1.1.1: The system SHALL track performance across dimensions: on-time delivery rate, quality compliance rate, rejection/rework frequency, and contractual adherence.
@@ -478,7 +478,7 @@
 
 ---
 
-## 6.2 Invoice, Receipt & Documentation Management (Logic 19)
+## 6.2 Invoice, Receipt and Documentation Management (Logic 19)
 
 ### FR-6.2.1 Invoice Validation
 - FR-6.2.1.1: The system SHALL validate invoice structure including: required fields, tax calculations, line items, and contract references.
@@ -496,7 +496,7 @@
 
 ---
 
-## 6.3 Dispute Resolution & Exception Handling (Logic 20)
+## 6.3 Dispute Resolution and Exception Handling (Logic 20)
 
 ### FR-6.3.1 Dispute Submission
 - FR-6.3.1.1: The system SHALL support formal dispute submission for delivery, quality, financial, contractual, and compliance disputes.
@@ -515,7 +515,7 @@
 
 ---
 
-## 6.4 Supplier Capacity & Saturation Awareness (Logic 22)
+## 6.4 Supplier Capacity and Saturation Awareness (Logic 22)
 
 ### FR-6.4.1 Capacity Estimation
 - FR-6.4.1.1: The system SHALL estimate supplier capacity based on: active contracts, contract value, delivery timelines, open milestones, historical throughput, and declared capacity.
@@ -540,33 +540,33 @@
 - FR-6.5.1.2: The system SHALL classify risk as Low (Green), Moderate (Yellow), High (Orange), or Critical (Red).
 - FR-6.5.1.3: The system SHALL display risk forecasts during evaluation, before award.
 
-### FR-6.5.2 Risk Explanation & Mitigation
+### FR-6.5.2 Risk Explanation and Mitigation
 - FR-6.5.2.1: The system SHALL provide explainable risk breakdowns showing primary risk drivers.
 - FR-6.5.2.2: The system SHALL suggest mitigation options: performance bond, timeline extension, contract splitting, or alternate supplier selection.
 - FR-6.5.2.3: The system SHALL support scenario simulation (e.g., "what if deadline extends 2 weeks?").
 
 ---
 
-# 7. TRUST, REPUTATION & LOCK-IN LAYER
+# 7. TRUST, REPUTATION and LOCK-IN LAYER
 
-## 7.1 Supplier Reputation & Trust Scoring (Logic 25)
+## 7.1 Supplier Reputation and Trust Scoring (Logic 25)
 
 ### FR-7.1.1 Trust Score Calculation
 - FR-7.1.1.1: The system SHALL calculate a dynamic trust score from: Delivery Performance (30%), Quality Compliance (20%), Dispute Outcome Index (15%), Financial Accuracy (15%), Capacity Reliability (10%), and Ethical Compliance (10%).
 - FR-7.1.1.2: The system SHALL calculate context-aware trust scores per category and risk level.
 - FR-7.1.1.3: The system SHALL apply time-decay to reduce the weight of older events.
 
-### FR-7.1.2 Trust Tiers & Eligibility
+### FR-7.1.2 Trust Tiers and Eligibility
 - FR-7.1.2.1: The system SHALL categorize suppliers into tiers: Tier A (High Trust), Tier B (Reliable), Tier C (Moderate Risk), Tier D (High Risk), Tier E (Restricted).
 - FR-7.1.2.2: The system SHALL enforce trust tier-based eligibility for tender access, guarantee requirements, and fast-track approvals.
 
-### FR-7.1.3 Probation & Rehabilitation
+### FR-7.1.3 Probation and Rehabilitation
 - FR-7.1.3.1: The system SHALL support probation status with conditional participation for suppliers below trust thresholds.
 - FR-7.1.3.2: The system SHALL provide a rehabilitation pathway including performance improvement plans and monitoring periods.
 
 ---
 
-## 7.2 Switching Cost & Institutional Memory Lock-In (Logic 32)
+## 7.2 Switching Cost and Institutional Memory Lock-In (Logic 32)
 
 ### FR-7.2.1: The system SHALL persistently store all tender/contract history, supplier performance records, price benchmarks, audit trails, dispute outcomes, and network insights per organization.
 ### FR-7.2.2: The system SHALL provide personalized recommendations based on organizational procurement history.
@@ -574,7 +574,7 @@
 
 ---
 
-## 7.3 Buyer Habit Formation & Workflow Dependency (Logic 33)
+## 7.3 Buyer Habit Formation and Workflow Dependency (Logic 33)
 
 ### FR-7.3.1: The system SHALL provide end-to-end workflow tools covering: procurement planning, tender creation, supplier evaluation, bid management, award execution, and post-award operations.
 ### FR-7.3.2: The system SHALL provide personalized dashboards, automated reminders, and suggested next actions.
@@ -582,7 +582,7 @@
 
 ---
 
-## 7.4 Supplier Dependence & Opportunity Concentration (Logic 34)
+## 7.4 Supplier Dependence and Opportunity Concentration (Logic 34)
 
 ### FR-7.4.1: The system SHALL provide targeted opportunity matching with intelligent notifications for eligible tenders.
 ### FR-7.4.2: The system SHALL reinforce supplier visibility based on past performance and trust scores.
@@ -597,7 +597,7 @@
 
 ---
 
-# 8. BEHAVIORAL, MARKET & LEARNING LAYER
+# 8. BEHAVIORAL, MARKET and LEARNING LAYER
 
 ## 8.1 Inter-Organizational Procurement Intelligence (Logic 28)
 
@@ -612,7 +612,7 @@
 
 ---
 
-## 8.2 Network Effects & Liquidity Management (Logic 30)
+## 8.2 Network Effects and Liquidity Management (Logic 30)
 
 ### FR-8.2.1 Liquidity Monitoring
 - FR-8.2.1.1: The system SHALL monitor marketplace liquidity per category, region, contract size, and risk level.
@@ -630,7 +630,7 @@
 
 ---
 
-## 8.3 Data Compounding & Learning Curve (Logic 31)
+## 8.3 Data Compounding and Learning Curve (Logic 31)
 
 ### FR-8.3.1: The system SHALL continuously capture and store structured data from every procurement event for learning model input.
 ### FR-8.3.2: The system SHALL apply predictive learning (risk forecasting), pattern recognition (bidding/pricing anomalies), and recommendation refinement (tender design, supplier shortlisting).
@@ -648,9 +648,9 @@
 
 ---
 
-# 9. RISK, ANTI-FRAUD & COMPLIANCE LAYER
+# 9. RISK, ANTI-FRAUD and COMPLIANCE LAYER
 
-## 9.1 Audit Trail & Traceability (Logic 14)
+## 9.1 Audit Trail and Traceability (Logic 14)
 
 ### FR-9.1.1 Audit Coverage
 - FR-9.1.1.1: The system SHALL record every procurement action including: user identity, action type, timestamp, object affected, previous state, and new state.
@@ -670,14 +670,14 @@
 
 ---
 
-## 9.2 Anti-Collusion & Bid Pattern Analysis (Logic 23)
+## 9.2 Anti-Collusion and Bid Pattern Analysis (Logic 23)
 
 ### FR-9.2.1 Collusion Pattern Detection
 - FR-9.2.1.1: The system SHALL analyze historical bid data for: price correlation between suppliers, win rotation patterns, bid spread consistency, submission timing clusters, and document similarity.
 - FR-9.2.1.2: The system SHALL calculate a Collusion Risk Index combining all detection signals.
 - FR-9.2.1.3: The system SHALL detect geographic/category segmentation patterns indicating market allocation agreements.
 
-### FR-9.2.2 Alert & Investigation
+### FR-9.2.2 Alert and Investigation
 - FR-9.2.2.1: The system SHALL generate pre-award alerts when high collusion risk is detected.
 - FR-9.2.2.2: The system SHALL require justification if proceeding with an award flagged for collusion risk.
 - FR-9.2.2.3: The system SHALL support a structured investigation workflow: alert → compliance review → evidence extraction → resolution/escalation.
@@ -688,7 +688,7 @@
 
 ---
 
-## 9.3 Platform Governance & Rule Enforcement (Logic 29)
+## 9.3 Platform Governance and Rule Enforcement (Logic 29)
 
 ### FR-9.3.1 Misconduct Classification
 - FR-9.3.1.1: The system SHALL classify violations into four levels: Level 1 (Minor Non-Compliance), Level 2 (Moderate Violation), Level 3 (Serious Misconduct), Level 4 (Critical Breach).
@@ -706,9 +706,9 @@
 
 ---
 
-# 10. FUTURE-PROOFING & EXPANSION LAYER
+# 10. FUTURE-PROOFING and EXPANSION LAYER
 
-## 10.1 Ecosystem Expansion & Future-Proofing (Logic 40)
+## 10.1 Ecosystem Expansion and Future-Proofing (Logic 40)
 
 ### FR-10.1.1 Modular Architecture
 - FR-10.1.1.1: The system SHALL implement a modular, loosely-coupled architecture enabling plug-in of new capabilities without disrupting core procurement workflows.
@@ -716,7 +716,7 @@
 - FR-10.1.1.3: The system SHALL ensure standardized data models enable cross-module communication.
 
 ### FR-10.1.2 Expansion Capabilities
-- FR-10.1.2.1: The system architecture SHALL support future integration of: financing & credit services, insurance & performance guarantees, cross-border compliance & logistics, and regulatory reporting & certification.
+- FR-10.1.2.1: The system architecture SHALL support future integration of: financing and credit services, insurance and performance guarantees, cross-border compliance and logistics, and regulatory reporting and certification.
 - FR-10.1.2.2: New modules SHALL leverage existing trust scores, institutional memory, and learning loops.
 - FR-10.1.2.3: The system SHALL maintain interoperability and backward compatibility when new modules are added.
 
@@ -726,26 +726,26 @@
 
 | Requirement Group | Source Logic(s) | Layer |
 |---|---|---|
-| User Identity & Verification | Logic 1 | Foundation |
+| User Identity and Verification | Logic 1 | Foundation |
 | Role-Based Access Control | Logic 2 | Foundation |
 | Progressive Trust Expansion | Logic 37 | Foundation |
 | Procurement Need Definition | Logic 3 | Design |
 | Tender Design Quality | Logic 24 | Design |
 | Standardization Flexibility | Logic 36 | Design |
 | Tender Publication | Logic 4 | Marketplace |
-| Supplier Discovery & Matching | Logic 5 | Marketplace |
+| Supplier Discovery and Matching | Logic 5 | Marketplace |
 | Market Centralization | Logic 21 | Marketplace |
 | Market Transparency | Logic 38 | Marketplace |
-| Bid Submission & Validation | Logic 6 | Bidding |
-| Bid Opening & Disclosure | Logic 7 | Bidding |
-| Evaluation & Scoring | Logic 8 | Bidding |
+| Bid Submission and Validation | Logic 6 | Bidding |
+| Bid Opening and Disclosure | Logic 7 | Bidding |
+| Evaluation and Scoring | Logic 8 | Bidding |
 | Price Intelligence | Logic 9 | Bidding |
 | Sample-Based Procurement | Logic 17 | Bidding |
 | Service Procurement | Logic 18 | Bidding |
 | Price Normalization | Logic 26 | Bidding |
-| Award & Contract | Logic 10 | Award |
+| Award and Contract | Logic 10 | Award |
 | Approval Workflow | Logic 11 | Award |
-| Budget & Spend Control | Logic 12 | Award |
+| Budget and Spend Control | Logic 12 | Award |
 | Digital Signature | Logic 13 | Award |
 | Logistics Feasibility | Logic 16 | Award |
 | Performance Tracking | Logic 15 | Post-Award |
@@ -753,13 +753,13 @@
 | Dispute Resolution | Logic 20 | Post-Award |
 | Capacity Awareness | Logic 22 | Post-Award |
 | Risk Forecasting | Logic 27 | Post-Award |
-| Trust & Reputation Scoring | Logic 25 | Lock-In |
+| Trust and Reputation Scoring | Logic 25 | Lock-In |
 | Institutional Memory | Logic 32 | Lock-In |
 | Buyer Habit Formation | Logic 33 | Lock-In |
 | Supplier Dependence | Logic 34 | Lock-In |
 | Disintermediation Resistance | Logic 39 | Lock-In |
 | Inter-Org Intelligence | Logic 28 | Learning |
-| Network Effects & Liquidity | Logic 30 | Learning |
+| Network Effects and Liquidity | Logic 30 | Learning |
 | Data Compounding | Logic 31 | Learning |
 | ERP Complementarity | Logic 35 | Learning |
 | Audit Trail | Logic 14 | Compliance |

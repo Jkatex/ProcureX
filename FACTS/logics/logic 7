@@ -1,6 +1,6 @@
 Below is the **complete system-level architecture and procedural flow** for:
 
-# 🔷 LOGIC 7 – Bid Opening & Controlled Disclosure Logic
+# 🔷 LOGIC 7 – Bid Opening and Controlled Disclosure Logic
 
 ---
 
@@ -199,7 +199,7 @@ Optional:
 
 ---
 
-# 9️⃣ HASH & INTEGRITY VERIFICATION
+# 9️⃣ HASH and INTEGRITY VERIFICATION
 
 Before decryption:
 
@@ -382,7 +382,7 @@ It creates the secure transition between:
 
 **Bid Submission (Logic 6)**
 and
-**Evaluation & Scoring (Logic 8)**
+**Evaluation and Scoring (Logic 8)**
 
 ---
 

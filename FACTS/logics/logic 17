@@ -88,14 +88,14 @@ Evaluation Scheduled
 
 ---
 
-# 5️⃣ SAMPLE REGISTRATION & TRACKING
+# 5️⃣ SAMPLE REGISTRATION and TRACKING
 
 Each sample receives:
 
 * Unique Sample ID
 * Linked Bid ID
 * Supplier identity
-* Date & time received
+* Date and time received
 * Receiving officer identity
 * Storage location
 * Condition status upon receipt
@@ -167,7 +167,7 @@ Enhances fairness and objectivity.
 
 ---
 
-# 🔟 TESTING & VERIFICATION PROCESS
+# 🔟 TESTING and VERIFICATION PROCESS
 
 Sample testing may include:
 
@@ -289,7 +289,7 @@ Award Impact
 
 ---
 
-# 1️⃣7️⃣ SECURITY & GOVERNANCE CONTROLS
+# 1️⃣7️⃣ SECURITY and GOVERNANCE CONTROLS
 
 * No unregistered sample allowed
 * No informal evaluation allowed
@@ -343,7 +343,7 @@ Logic 17:
 * Logic 6 → Links sample to bid
 * Logic 7 → Controls disclosure timing
 * Logic 8 → Integrates sample score
-* Logic 14 → Logs custody & evaluation
+* Logic 14 → Logs custody and evaluation
 * Logic 15 → Records supplier quality performance
 
 Logic 17 ensures procurement decisions reflect **verified quality, not just claims**.

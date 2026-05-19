@@ -1,5 +1,5 @@
 # SEQUENCE DIAGRAMS
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0
 **Date:** February 18, 2026
@@ -8,17 +8,17 @@
 
 # TABLE OF CONTENTS
 
-1. User Registration & Verification
-2. Tender Creation & Design Quality Check
-3. Tender Publication & Supplier Matching
-4. Bid Submission & Validation
-5. Bid Opening & Controlled Disclosure
-6. Bid Evaluation & Scoring
-7. Price Intelligence & Benchmarking
-8. Award Decision & Contract Formation
+1. User Registration and Verification
+2. Tender Creation and Design Quality Check
+3. Tender Publication and Supplier Matching
+4. Bid Submission and Validation
+5. Bid Opening and Controlled Disclosure
+6. Bid Evaluation and Scoring
+7. Price Intelligence and Benchmarking
+8. Award Decision and Contract Formation
 9. Approval Workflow
-10. Budget Commitment & Spend Control
-11. Invoice Validation & 3-Way Matching
+10. Budget Commitment and Spend Control
+11. Invoice Validation and 3-Way Matching
 12. Supplier Performance Evaluation
 13. Dispute Resolution
 14. Anti-Collusion Detection
@@ -29,7 +29,7 @@
 
 ---
 
-## 1. User Registration & Verification (Logics 1, 37)
+## 1. User Registration and Verification (Logics 1, 37)
 
 ```mermaid
 sequenceDiagram
@@ -69,7 +69,7 @@ sequenceDiagram
 
 ---
 
-## 2. Tender Creation & Design Quality Check (Logics 3, 24)
+## 2. Tender Creation and Design Quality Check (Logics 3, 24)
 
 ```mermaid
 sequenceDiagram
@@ -83,7 +83,7 @@ sequenceDiagram
 
     Buyer->>UI: Create new procurement request
     Buyer->>UI: Enter specifications, BOQ, timeline
-    Buyer->>UI: Define evaluation criteria & weights
+    Buyer->>UI: Define evaluation criteria and weights
     UI->>Tender: Submit tender draft
     Tender->>DB: Save tender (status: Draft)
 
@@ -95,7 +95,7 @@ sequenceDiagram
     Quality->>Quality: Check vagueness index
     Quality->>Quality: Check bias probability
     Quality->>Quality: Check exclusion risk
-    Quality->>Quality: Check feasibility & consistency
+    Quality->>Quality: Check feasibility and consistency
     Quality->>DB: Store analysis results
 
     alt Critical flags detected
@@ -116,7 +116,7 @@ sequenceDiagram
 
 ---
 
-## 3. Tender Publication & Supplier Matching (Logics 4, 5, 21)
+## 3. Tender Publication and Supplier Matching (Logics 4, 5, 21)
 
 ```mermaid
 sequenceDiagram
@@ -134,20 +134,20 @@ sequenceDiagram
     Tender->>DB: Record publication timestamp
 
     Tender->>Market: Index tender in centralized marketplace
-    Market->>Market: Standardize metadata & categorize
+    Market->>Market: Standardize metadata and categorize
     Market->>DB: Add to searchable index
 
     Tender->>Match: Trigger supplier matching
     Match->>DB: Query suppliers by category, region, capability
     Match->>Match: Score by performance, trust, capacity
-    Match->>Match: Filter by eligibility & trust tier
+    Match->>Match: Filter by eligibility and trust tier
     Match->>Match: Generate ranked supplier list
     Match->>DB: Store match results
 
     Match->>Notify: Send notifications to matched suppliers
     Notify->>Supplier: "New tender matching your profile"
     
-    Supplier->>Market: Search & browse tenders
+    Supplier->>Market: Search and browse tenders
     Market-->>Supplier: Return filtered results
     Supplier->>Tender: View tender details
     Supplier->>Tender: Submit clarification question
@@ -159,7 +159,7 @@ sequenceDiagram
 
 ---
 
-## 4. Bid Submission & Validation (Logic 6)
+## 4. Bid Submission and Validation (Logic 6)
 
 ```mermaid
 sequenceDiagram
@@ -171,7 +171,7 @@ sequenceDiagram
     participant DB as Database
     participant Clock as Server Clock
 
-    Supplier->>UI: Open tender & start bid
+    Supplier->>UI: Open tender and start bid
     UI->>Bid: Check supplier eligibility
     Bid->>DB: Verify trust tier, category, status
     Bid-->>UI: Eligibility confirmed
@@ -205,7 +205,7 @@ sequenceDiagram
 
 ---
 
-## 5. Bid Opening & Controlled Disclosure (Logic 7)
+## 5. Bid Opening and Controlled Disclosure (Logic 7)
 
 ```mermaid
 sequenceDiagram
@@ -251,7 +251,7 @@ sequenceDiagram
 
 ---
 
-## 6. Bid Evaluation & Scoring (Logic 8)
+## 6. Bid Evaluation and Scoring (Logic 8)
 
 ```mermaid
 sequenceDiagram
@@ -306,7 +306,7 @@ sequenceDiagram
 
 ---
 
-## 7. Price Intelligence & Benchmarking (Logics 9, 26)
+## 7. Price Intelligence and Benchmarking (Logics 9, 26)
 
 ```mermaid
 sequenceDiagram
@@ -347,7 +347,7 @@ sequenceDiagram
 
 ---
 
-## 8. Award Decision & Contract Formation (Logics 10, 13)
+## 8. Award Decision and Contract Formation (Logics 10, 13)
 
 ```mermaid
 sequenceDiagram
@@ -389,7 +389,7 @@ sequenceDiagram
     Contract->>Contract: Apply contract template clauses
     Contract->>DB: Store draft contract
 
-    Buyer->>Contract: Review & finalize terms
+    Buyer->>Contract: Review and finalize terms
     Contract->>Sign: Initiate digital signing
     Sign->>Buyer: Request buyer signature
     Buyer->>Sign: Apply digital signature
@@ -426,7 +426,7 @@ sequenceDiagram
     Notify->>Approver1: "Approval required — Tender #1234"
 
     alt Approver1 available
-        Approver1->>Workflow: Review & approve
+        Approver1->>Workflow: Review and approve
         Workflow->>DB: Record L1 decision + timestamp
     else Approver1 unavailable (delegation active)
         Workflow->>DB: Check delegation records
@@ -435,7 +435,7 @@ sequenceDiagram
 
     Workflow->>Notify: Notify Level 2 Approver
     Notify->>Approver2: "Approval required — Tender #1234"
-    Approver2->>Workflow: Review & approve
+    Approver2->>Workflow: Review and approve
 
     Workflow->>DB: Record L2 decision + timestamp
     Workflow->>DB: Update workflow status → Approved
@@ -450,7 +450,7 @@ sequenceDiagram
 
 ---
 
-## 10. Budget Commitment & Spend Control (Logic 12)
+## 10. Budget Commitment and Spend Control (Logic 12)
 
 ```mermaid
 sequenceDiagram
@@ -492,7 +492,7 @@ sequenceDiagram
 
 ---
 
-## 11. Invoice Validation & 3-Way Matching (Logic 19)
+## 11. Invoice Validation and 3-Way Matching (Logic 19)
 
 ```mermaid
 sequenceDiagram
@@ -558,7 +558,7 @@ sequenceDiagram
     Note over Contract, DB: Contract milestone completed
 
     Contract->>Perf: Trigger performance evaluation
-    Perf->>DB: Fetch contract & milestone data
+    Perf->>DB: Fetch contract and milestone data
 
     Buyer->>Perf: Submit performance rating
     Perf->>Perf: Calculate delivery score (on-time %)
@@ -846,24 +846,24 @@ sequenceDiagram
     participant DB as Database
 
     rect rgb(226, 231, 240)
-        Note over Buyer, DB: PHASE 1 — REGISTRATION & SETUP
-        Buyer->>Platform: Register & verify identity
-        Supplier->>Platform: Register & verify identity
-        Platform->>DB: Assign trust tiers & roles
+        Note over Buyer, DB: PHASE 1 — REGISTRATION and SETUP
+        Buyer->>Platform: Register and verify identity
+        Supplier->>Platform: Register and verify identity
+        Platform->>DB: Assign trust tiers and roles
     end
 
     rect rgb(232, 242, 237)
         Note over Buyer, DB: PHASE 2 — TENDER DESIGN
         Buyer->>Platform: Create procurement need
         Buyer->>Platform: Define specs, BOQ, criteria, timeline
-        Platform->>Platform: Run quality & bias checks
+        Platform->>Platform: Run quality and bias checks
         Buyer->>Platform: Submit for approval
         Approver->>Platform: Approve tender
-        Platform->>DB: Validate & commit budget
+        Platform->>DB: Validate and commit budget
     end
 
     rect rgb(242, 233, 224)
-        Note over Buyer, DB: PHASE 3 — PUBLICATION & MATCHING
+        Note over Buyer, DB: PHASE 3 — PUBLICATION and MATCHING
         Buyer->>Platform: Publish tender
         Platform->>Platform: Index in centralized marketplace
         Platform->>Platform: Match eligible suppliers
@@ -874,24 +874,24 @@ sequenceDiagram
 
     rect rgb(223, 214, 232)
         Note over Buyer, DB: PHASE 4 — BID SUBMISSION
-        Supplier->>Platform: Prepare & validate bid
+        Supplier->>Platform: Prepare and validate bid
         Supplier->>Platform: Submit sealed bid (encrypted)
         Platform->>DB: Store encrypted bid + hash
     end
 
     rect rgb(244, 236, 240)
-        Note over Buyer, DB: PHASE 5 — OPENING & EVALUATION
+        Note over Buyer, DB: PHASE 5 — OPENING and EVALUATION
         Buyer->>Platform: Authorize bid opening
-        Platform->>Platform: Decrypt & verify integrity
+        Platform->>Platform: Decrypt and verify integrity
         Platform->>Platform: Run collusion detection
         Evaluator->>Platform: Score bids independently
-        Platform->>Platform: Price benchmarking & normalization
+        Platform->>Platform: Price benchmarking and normalization
         Evaluator->>Platform: Consensus review
-        Platform->>Platform: Generate rankings & risk forecasts
+        Platform->>Platform: Generate rankings and risk forecasts
     end
 
     rect rgb(237, 244, 244)
-        Note over Buyer, DB: PHASE 6 — AWARD & CONTRACT
+        Note over Buyer, DB: PHASE 6 — AWARD and CONTRACT
         Buyer->>Platform: Make award recommendation
         Approver->>Platform: Approve award
         Platform->>Supplier: Notify winner + losers
@@ -910,7 +910,7 @@ sequenceDiagram
         Finance->>Platform: Validate (3-way match)
         Finance->>Platform: Process payment
         Buyer->>Platform: Evaluate supplier performance
-        Platform->>Platform: Update trust score & tier
+        Platform->>Platform: Update trust score and tier
     end
 
     rect rgb(247, 247, 234)
@@ -929,17 +929,17 @@ sequenceDiagram
 
 | # | Diagram | Participants | Source Logics |
 |---|---|---|---|
-| 1 | Registration & Verification | User, Auth, Verification, Trust | 1, 37 |
-| 2 | Tender Creation & Quality Check | Buyer, Tender, Quality, Budget, Approval | 3, 24 |
-| 3 | Publication & Supplier Matching | Buyer, Market, Matching, Notification, Supplier | 4, 5, 21 |
-| 4 | Bid Submission & Validation | Supplier, Bid, Validation, Encryption | 6 |
-| 5 | Bid Opening & Disclosure | Buyer, Opening, Crypto, Evaluation, Audit | 7 |
-| 6 | Bid Evaluation & Scoring | Evaluators, Evaluation Engine, Audit | 8 |
-| 7 | Price Intelligence & Benchmarking | Evaluation, Price, Normalization, Market | 9, 26 |
-| 8 | Award & Contract Formation | Buyer, Award, Contract, Signature, Supplier | 10, 13 |
+| 1 | Registration and Verification | User, Auth, Verification, Trust | 1, 37 |
+| 2 | Tender Creation and Quality Check | Buyer, Tender, Quality, Budget, Approval | 3, 24 |
+| 3 | Publication and Supplier Matching | Buyer, Market, Matching, Notification, Supplier | 4, 5, 21 |
+| 4 | Bid Submission and Validation | Supplier, Bid, Validation, Encryption | 6 |
+| 5 | Bid Opening and Disclosure | Buyer, Opening, Crypto, Evaluation, Audit | 7 |
+| 6 | Bid Evaluation and Scoring | Evaluators, Evaluation Engine, Audit | 8 |
+| 7 | Price Intelligence and Benchmarking | Evaluation, Price, Normalization, Market | 9, 26 |
+| 8 | Award and Contract Formation | Buyer, Award, Contract, Signature, Supplier | 10, 13 |
 | 9 | Approval Workflow | Requester, Workflow, Rules, Approvers | 11 |
-| 10 | Budget Commitment & Spend | Buyer, Tender, Budget | 12 |
-| 11 | Invoice & 3-Way Matching | Supplier, Invoice, Matching, Fraud, Finance | 19 |
+| 10 | Budget Commitment and Spend | Buyer, Tender, Budget | 12 |
+| 11 | Invoice and 3-Way Matching | Supplier, Invoice, Matching, Fraud, Finance | 19 |
 | 12 | Performance Evaluation | Contract, Performance, Trust, Capacity | 15 |
 | 13 | Dispute Resolution | Parties, Dispute, Mediator | 20 |
 | 14 | Anti-Collusion Detection | Tender, Collusion, Audit, Compliance | 23 |

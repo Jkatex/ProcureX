@@ -151,40 +151,40 @@ const defaultCreateTenderDeliverables = [];
 const defaultCreateTenderAttachments = [];
 
 const createTenderRegulatoryLicenseCatalog = [
-    { group: 'Food, Drugs & Cosmetics', license: 'Food Business Permit / Food Handling License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
-    { group: 'Food, Drugs & Cosmetics', license: 'Pharmaceutical Business License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
-    { group: 'Food, Drugs & Cosmetics', license: 'Medical Devices Registration Permit', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
-    { group: 'Food, Drugs & Cosmetics', license: 'Cosmetics Registration Certificate', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
-    { group: 'Energy & Water (EWURA)', license: 'Petroleum Retail Outlet License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
-    { group: 'Energy & Water (EWURA)', license: 'Petroleum Wholesale License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
-    { group: 'Energy & Water (EWURA)', license: 'Electricity Generation License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
-    { group: 'Energy & Water (EWURA)', license: 'Electricity Distribution and Supply License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
-    { group: 'Energy & Water (EWURA)', license: 'Water Supply and Sanitation Services License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
-    { group: 'Communications & Transport', license: 'Content Services License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
-    { group: 'Communications & Transport', license: 'Network Facilities License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
-    { group: 'Communications & Transport', license: 'Application Services License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
-    { group: 'Communications & Transport', license: 'Electronic Communications Service License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
-    { group: 'Communications & Transport', license: 'Shipping Agency License', body: 'Tanzania Shipping Agencies Corporation (TASAC)' },
-    { group: 'Communications & Transport', license: 'Port Services License', body: 'Tanzania Shipping Agencies Corporation (TASAC)' },
-    { group: 'Mining & Natural Resources', license: 'Reconnaissance License', body: 'Ministry of Minerals' },
-    { group: 'Mining & Natural Resources', license: 'Prospecting License', body: 'Ministry of Minerals' },
-    { group: 'Mining & Natural Resources', license: 'Primary Mining License', body: 'Ministry of Minerals' },
-    { group: 'Mining & Natural Resources', license: 'Mining License', body: 'Ministry of Minerals' },
-    { group: 'Mining & Natural Resources', license: 'Special Mining License', body: 'Ministry of Minerals' },
-    { group: 'Mining & Natural Resources', license: "Explosives Dealer's License", body: 'Ministry of Minerals' },
-    { group: 'Construction & Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities' },
-    { group: 'Construction & Real Estate', license: 'Building Permit', body: 'Contractors Registration Board (CRB) and Local Government Authorities' },
-    { group: 'Construction & Real Estate', license: 'Environmental Building Approval', body: 'Contractors Registration Board (CRB) and Local Government Authorities' },
-    { group: 'Environmental & Safety', license: 'Environmental Impact Assessment Certificate', body: 'National Environment Management Council (NEMC)' },
-    { group: 'Environmental & Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)' },
-    { group: 'Environmental & Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)' },
-    { group: 'Finance & Banking', license: 'Banking Business License', body: 'Bank of Tanzania (BOT)' },
-    { group: 'Finance & Banking', license: 'Financial Institution License', body: 'Bank of Tanzania (BOT)' },
-    { group: 'Finance & Banking', license: 'Microfinance Business License', body: 'Bank of Tanzania (BOT)' },
-    { group: 'Finance & Banking', license: 'Foreign Exchange Bureau License', body: 'Bank of Tanzania (BOT)' },
-    { group: 'Finance & Banking', license: 'Capital Markets and Securities Dealer License', body: 'Capital Markets and Securities Authority (CMSA)' },
-    { group: 'Finance & Banking', license: 'Investment Adviser License', body: 'Capital Markets and Securities Authority (CMSA)' },
-    { group: 'Finance & Banking', license: 'Fund Manager License', body: 'Capital Markets and Securities Authority (CMSA)' },
+    { group: 'Food, Drugs and Cosmetics', license: 'Food Business Permit / Food Handling License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
+    { group: 'Food, Drugs and Cosmetics', license: 'Pharmaceutical Business License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
+    { group: 'Food, Drugs and Cosmetics', license: 'Medical Devices Registration Permit', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
+    { group: 'Food, Drugs and Cosmetics', license: 'Cosmetics Registration Certificate', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
+    { group: 'Energy and Water (EWURA)', license: 'Petroleum Retail Outlet License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
+    { group: 'Energy and Water (EWURA)', license: 'Petroleum Wholesale License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
+    { group: 'Energy and Water (EWURA)', license: 'Electricity Generation License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
+    { group: 'Energy and Water (EWURA)', license: 'Electricity Distribution and Supply License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
+    { group: 'Energy and Water (EWURA)', license: 'Water Supply and Sanitation Services License', body: 'Energy and Water Utilities Regulatory Authority (EWURA)' },
+    { group: 'Communications and Transport', license: 'Content Services License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
+    { group: 'Communications and Transport', license: 'Network Facilities License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
+    { group: 'Communications and Transport', license: 'Application Services License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
+    { group: 'Communications and Transport', license: 'Electronic Communications Service License', body: 'Tanzania Communications Regulatory Authority (TCRA)' },
+    { group: 'Communications and Transport', license: 'Shipping Agency License', body: 'Tanzania Shipping Agencies Corporation (TASAC)' },
+    { group: 'Communications and Transport', license: 'Port Services License', body: 'Tanzania Shipping Agencies Corporation (TASAC)' },
+    { group: 'Mining and Natural Resources', license: 'Reconnaissance License', body: 'Ministry of Minerals' },
+    { group: 'Mining and Natural Resources', license: 'Prospecting License', body: 'Ministry of Minerals' },
+    { group: 'Mining and Natural Resources', license: 'Primary Mining License', body: 'Ministry of Minerals' },
+    { group: 'Mining and Natural Resources', license: 'Mining License', body: 'Ministry of Minerals' },
+    { group: 'Mining and Natural Resources', license: 'Special Mining License', body: 'Ministry of Minerals' },
+    { group: 'Mining and Natural Resources', license: "Explosives Dealer's License", body: 'Ministry of Minerals' },
+    { group: 'Construction and Real Estate', license: 'Contractor Registration Certificate', body: 'Contractors Registration Board (CRB) and Local Government Authorities' },
+    { group: 'Construction and Real Estate', license: 'Building Permit', body: 'Contractors Registration Board (CRB) and Local Government Authorities' },
+    { group: 'Construction and Real Estate', license: 'Environmental Building Approval', body: 'Contractors Registration Board (CRB) and Local Government Authorities' },
+    { group: 'Environmental and Safety', license: 'Environmental Impact Assessment Certificate', body: 'National Environment Management Council (NEMC)' },
+    { group: 'Environmental and Safety', license: 'Environmental Compliance Certificate', body: 'National Environment Management Council (NEMC)' },
+    { group: 'Environmental and Safety', license: 'Occupational Safety and Health Compliance Certificate', body: 'Occupational Safety and Health Authority (OSHA)' },
+    { group: 'Finance and Banking', license: 'Banking Business License', body: 'Bank of Tanzania (BOT)' },
+    { group: 'Finance and Banking', license: 'Financial Institution License', body: 'Bank of Tanzania (BOT)' },
+    { group: 'Finance and Banking', license: 'Microfinance Business License', body: 'Bank of Tanzania (BOT)' },
+    { group: 'Finance and Banking', license: 'Foreign Exchange Bureau License', body: 'Bank of Tanzania (BOT)' },
+    { group: 'Finance and Banking', license: 'Capital Markets and Securities Dealer License', body: 'Capital Markets and Securities Authority (CMSA)' },
+    { group: 'Finance and Banking', license: 'Investment Adviser License', body: 'Capital Markets and Securities Authority (CMSA)' },
+    { group: 'Finance and Banking', license: 'Fund Manager License', body: 'Capital Markets and Securities Authority (CMSA)' },
     { group: 'Specialized Services', license: 'Hazardous Chemicals Handling Certificate', body: 'Government Chemist Laboratory Authority (GCLA)' },
     { group: 'Specialized Services', license: 'Weights and Measures Inspection Certificate', body: 'Weights and Measures Agency (WMA)' },
     { group: 'Specialized Services', license: 'Calibration Certificate', body: 'Weights and Measures Agency (WMA)' }
@@ -208,7 +208,7 @@ const createTenderRequirementOptions = {
     educationLevels: ['Certificate', 'Diploma', 'Bachelor Degree', 'Postgraduate Diploma', 'Masters Degree', 'Professional Qualification'],
     ownershipTypes: ['Owned', 'Leased', 'Either'],
     equipmentEvidence: ['Logbook', 'Lease agreement', 'Purchase receipt', 'Photos', 'Inspection certificate', 'Availability declaration'],
-    esCategories: ['Worker Safety', 'Gender & SEA/SH', 'Environmental Protection', 'Labor Compliance', 'Other'],
+    esCategories: ['Worker Safety', 'Gender and SEA/SH', 'Environmental Protection', 'Labor Compliance', 'Other'],
     esEvidence: ['Policy document', 'Certificate', 'Training records', 'Environmental plan', 'Compliance report', 'Procedure manual'],
     evaluationMethods: ['Pass/Fail', 'Scored', 'Compliance Review'],
     responseTypes: ['Upload', 'Text response', 'Yes/No', 'Upload + Text'],
@@ -421,7 +421,7 @@ const createTenderRequirementTemplates = {
             },
             {
                 id: 'drawingsDesignDocuments',
-                title: '4. Drawings & Design Documents',
+                title: '4. Drawings and Design Documents',
                 hint: 'Reference drawings, revisions, design consultants, and CAD/PDF uploads.',
                 controls: [
                     {
@@ -477,7 +477,7 @@ const createTenderRequirementTemplates = {
             },
             {
                 id: 'timeScheduleMilestones',
-                title: '6. Time Schedule & Milestones',
+                title: '6. Time Schedule and Milestones',
                 hint: 'Capture expected timelines, milestone triggers, and optional work program uploads.',
                 controls: [
                     { id: 'commencementDate', label: 'Commencement date', type: 'date' },
@@ -594,7 +594,7 @@ const createTenderRequirementTemplates = {
             },
             {
                 id: 'deliverablesSection',
-                title: 'Deliverables & Reports',
+                title: 'Deliverables and Reports',
                 hint: 'Shown for consultancy, IT implementation, research, audits, and training services.',
                 showWhen: { field: 'serviceCategory', values: ['Consultancy', 'IT Support', 'Training', 'Other'] },
                 controls: [
@@ -675,7 +675,7 @@ const createTenderRequirementTemplates = {
             },
             {
                 id: 'environmentalSocialRequirements',
-                title: 'Environmental & Social Requirements',
+                title: 'Environmental and Social Requirements',
                 hint: 'Categorized compliance requirements for worker safety, SEA/SH, environment, and labor compliance.',
                 controls: [
                     {
@@ -725,7 +725,7 @@ const createTenderRequirementTemplates = {
             },
             {
                 id: 'riskSafetyRequirements',
-                title: 'Risk & Safety Requirements',
+                title: 'Risk and Safety Requirements',
                 hint: 'Shown for technical, field, maintenance, transport, and security services.',
                 showWhen: { field: 'serviceCategory', values: ['Security', 'Vehicle maintenance', 'Generator maintenance', 'Maintenance', 'Transport / logistics'] },
                 controls: [
@@ -1016,7 +1016,7 @@ const createTenderRequirementTemplates = {
             },
             {
                 id: 'consultancyAttachmentsReferences',
-                title: '8. Attachments & Reference Documents',
+                title: '8. Attachments and Reference Documents',
                 hint: 'Supports consultants with background materials, policy documents, studies, drawings, and external references.',
                 controls: [
                     {
@@ -1188,7 +1188,7 @@ const createTenderTypeProfiles = {
         attachmentHint: 'Add TOR, CV templates, methodology forms, and financial proposal templates.',
         responseTitle: 'Consultancy Proposal',
         responseFields: ['Technical methodology', 'Key expert plan'],
-        assuranceTitle: 'Experts & CVs',
+        assuranceTitle: 'Experts and CVs',
         assuranceBadge: 'Required',
         defaultItems: [],
         defaultDeliverables: [],
@@ -1236,8 +1236,8 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'goods-delivery-logistics',
-            name: 'Delivery & Logistics',
-            category: 'Delivery & Logistics',
+            name: 'Delivery and Logistics',
+            category: 'Delivery and Logistics',
             defaultWeight: 15,
             subcriteria: [
                 'Delivery time compliance',
@@ -1302,8 +1302,8 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'works-equipment-resources',
-            name: 'Equipment & Resources',
-            category: 'Equipment & Resources',
+            name: 'Equipment and Resources',
+            category: 'Equipment and Resources',
             defaultWeight: 10,
             subcriteria: [
                 'Availability of construction equipment',
@@ -1326,8 +1326,8 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'works-schedule-execution',
-            name: 'Schedule & Execution',
-            category: 'Schedule & Execution',
+            name: 'Schedule and Execution',
+            category: 'Schedule and Execution',
             defaultWeight: 10,
             subcriteria: [
                 'Work program / timeline',
@@ -1338,8 +1338,8 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'works-hse',
-            name: 'Health, Safety & Environment (HSE)',
-            category: 'Health, Safety & Environment (HSE)',
+            name: 'Health, Safety and Environment (HSE)',
+            category: 'Health, Safety and Environment (HSE)',
             defaultWeight: 10,
             subcriteria: [
                 'Safety plan compliance',
@@ -1366,8 +1366,8 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'services-staffing-personnel',
-            name: 'Staffing & Personnel',
-            category: 'Staffing & Personnel',
+            name: 'Staffing and Personnel',
+            category: 'Staffing and Personnel',
             defaultWeight: 20,
             subcriteria: ['Staff qualifications', 'Staff availability', 'Training plan', 'Supervisory structure']
         },
@@ -1385,8 +1385,8 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'services-sla-performance',
-            name: 'SLA & Performance',
-            category: 'SLA & Performance',
+            name: 'SLA and Performance',
+            category: 'SLA and Performance',
             defaultWeight: 20,
             subcriteria: [
                 'Response time',
@@ -1398,10 +1398,10 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'services-tools-systems',
-            name: 'Tools & Systems',
-            category: 'Tools & Systems',
+            name: 'Tools and Systems',
+            category: 'Tools and Systems',
             defaultWeight: 10,
-            subcriteria: ['Use of technology/tools', 'Service management systems', 'Monitoring & reporting systems']
+            subcriteria: ['Use of technology/tools', 'Service management systems', 'Monitoring and reporting systems']
         },
         {
             id: 'services-experience',
@@ -1421,15 +1421,15 @@ const createTenderEvaluationCatalog = {
     consultancy: [
         {
             id: 'consultancy-methodology-approach',
-            name: 'Methodology & Approach',
-            category: 'Methodology & Approach',
+            name: 'Methodology and Approach',
+            category: 'Methodology and Approach',
             defaultWeight: 30,
             subcriteria: [
                 'Understanding of Terms of Reference (ToR)',
                 'Methodology clarity',
                 'Technical approach quality',
                 'Innovation in approach',
-                'Risk identification & mitigation',
+                'Risk identification and mitigation',
                 'Work plan and timeline'
             ]
         },
@@ -1462,8 +1462,8 @@ const createTenderEvaluationCatalog = {
         },
         {
             id: 'consultancy-work-plan-organization',
-            name: 'Work Plan & Organization',
-            category: 'Work Plan & Organization',
+            name: 'Work Plan and Organization',
+            category: 'Work Plan and Organization',
             defaultWeight: 10,
             subcriteria: [
                 'Task allocation clarity',
@@ -1527,11 +1527,11 @@ const defaultCreateTenderMainDraft = {
 
 function escapeCreateTenderHtml(value = '') {
     return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function isCreateTenderClosedMethod(method = '') {
@@ -3473,7 +3473,7 @@ function getProcurexAllTenders() {
 }
 
 function getProcurexBuyerActiveTenders() {
-    return mergeProcurexTenders().filter(tender => tender.createdByCurrentUser && tender.status === 'Open' && !isProcurexTenderPast(tender));
+    return mergeProcurexTenders().filter(tender => tender.createdByCurrentUser && !['Awarded', 'Cancelled'].includes(tender.status) && !isProcurexTenderPast(tender));
 }
 
 function getProcurexTenderHistoryRecords() {
@@ -3535,7 +3535,8 @@ function publishCreateTenderToMarketplace(wizard) {
         title,
         type: selectedType.label,
         procurementTypeId: profile.id,
-        status: 'Open',
+        status: 'Pending Admin Review',
+        complianceStatus: 'Awaiting publication review',
         budget,
         closingDate,
         organization: mockData.users?.buyer?.organization || 'Buyer organization',
@@ -4580,7 +4581,7 @@ function renderCreateTender() {
         ['01', 'Basic Information', 'Tender location and contact'],
         ['02', 'Tender Planning', 'Type, category, method, invitations'],
         ['03', 'Tender Requirements', `${requirementSummary.title}, licenses`],
-        ['04', 'Evaluation Criteria & Weights', 'Criteria, weights, pass marks'],
+        ['04', 'Evaluation Criteria and Weights', 'Criteria, weights, pass marks'],
         ['05', 'Review Tender', 'All entries'],
         ['06', 'Evaluation', 'Submit to evaluator']
     ];
@@ -4598,7 +4599,7 @@ function renderCreateTender() {
                     <li><a href="#" data-navigate="procurement-guide">Procurement Process Guide</a></li>
                     <li><a href="#" data-navigate="communication-center">Communication Center</a></li>
                     <li><a href="#" data-navigate="marketplace">Marketplace</a></li>
-                    <li><a href="#" data-navigate="records-history">Records & History</a></li>
+                    <li><a href="#" data-navigate="records-history">Records and History</a></li>
                     <li><a href="#" data-navigate="welcome">Logout</a></li>
                 </ul>
             </div>
@@ -4810,7 +4811,7 @@ function renderCreateTender() {
                                 <div class="panel-heading">
                                     <div>
                                         <span class="section-kicker">Step 4</span>
-                                        <h2>Evaluation Criteria & Weights</h2>
+                                        <h2>Evaluation Criteria and Weights</h2>
                                     </div>
                                     <span class="badge ${evaluationSummary.state === 'balanced' ? 'badge-success' : evaluationSummary.state === 'over' ? 'badge-error' : 'badge-warning'}" data-evaluation-header-badge>${escapeCreateTenderHtml(evaluationSummary.message)}</span>
                                 </div>
@@ -5207,7 +5208,7 @@ function initializeCreateTenderWizard() {
         }
 
         const evaluationRail = railSteps[3]?.querySelector('span');
-        if (evaluationRail) evaluationRail.textContent = 'Evaluation Criteria & Weights';
+        if (evaluationRail) evaluationRail.textContent = 'Evaluation Criteria and Weights';
         renderEvaluationBuilder();
         renderTenderReviewWorkspace();
         const commercialHead = wizard.querySelector('[data-boq-editor] thead');

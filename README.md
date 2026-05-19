@@ -93,11 +93,12 @@ Useful routes:
 | Page | URL |
 | --- | --- |
 | Welcome | `http://localhost:8000/?page=welcome` |
-| Buyer workspace | `http://localhost:8000/?page=workspace-dashboard&role=buyer` |
-| Create tender | `http://localhost:8000/?page=create-tender&role=buyer` |
-| Supplier marketplace | `http://localhost:8000/?page=supplier-marketplace&role=supplier` |
-| Bid evaluation | `http://localhost:8000/?page=bid-evaluation&role=admin` |
-| Award recommendation | `http://localhost:8000/?page=award-recommendation&role=admin` |
+| Workspace dashboard | `http://localhost:8000/?page=workspace-dashboard` |
+| Create tender | `http://localhost:8000/?page=create-tender` |
+| Marketplace | `http://localhost:8000/?page=marketplace` |
+| Admin compliance dashboard | `http://localhost:8000/?page=admin-dashboard` |
+| Bid evaluation | `http://localhost:8000/?page=bid-evaluation` |
+| Award recommendation | `http://localhost:8000/?page=award-recommendation` |
 
 ## Repository Structure
 

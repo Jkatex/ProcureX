@@ -6,11 +6,11 @@ const contractNegotiationClauseCatalog = {
         clauses: [
             ['Delivery Clause', 'Delivery location, delivery timeline, and partial vs full delivery.'],
             ['Payment Terms', 'Payment after delivery or inspection, invoice requirements, and payment timeline.'],
-            ['Inspection & Acceptance Clause', 'Inspection process, rejection conditions, and replacement rules.'],
+            ['Inspection and Acceptance Clause', 'Inspection process, rejection conditions, and replacement rules.'],
             ['Warranty Clause', 'Warranty period, repair or replacement obligations, and defect handling.'],
             ['Penalty for Delay', 'Liquidated damages per day or week and maximum penalty cap.'],
-            ['Risk & Ownership Transfer', 'When risk passes to the buyer, usually upon delivery or acceptance.'],
-            ['Packaging & Transport Clause', 'Packaging standards and transport responsibility, including Incoterms where applicable.'],
+            ['Risk and Ownership Transfer', 'When risk passes to the buyer, usually upon delivery or acceptance.'],
+            ['Packaging and Transport Clause', 'Packaging standards and transport responsibility, including Incoterms where applicable.'],
             ['Termination Clause', 'Breach conditions and cancellation rights.']
         ]
     },
@@ -18,13 +18,13 @@ const contractNegotiationClauseCatalog = {
         label: 'Works',
         clauses: [
             ['Scope of Works Clause', 'Project scope, drawings or specifications reference, and bill of quantities.'],
-            ['Contract Price & Payment Schedule', 'Milestone-based payments, interim certificates, and retention money.'],
+            ['Contract Price and Payment Schedule', 'Milestone-based payments, interim certificates, and retention money.'],
             ['Time for Completion Clause', 'Project duration, start date, and completion deadline.'],
             ['Liquidated Damages Clause', 'Penalty per delay day or week and maximum cap, often 10% of contract value.'],
             ['Defects Liability Clause', 'Post-completion defect period and contractor responsibility for repairs.'],
             ['Variation Clause', 'How changes to works are approved and how price adjustments are handled.'],
-            ['Site & Access Clause', 'Site handover rules, access rights, and utility responsibilities.'],
-            ['Health, Safety & Environment Clause', 'Safety compliance, environmental protection, and worker safety obligations.'],
+            ['Site and Access Clause', 'Site handover rules, access rights, and utility responsibilities.'],
+            ['Health, Safety and Environment Clause', 'Safety compliance, environmental protection, and worker safety obligations.'],
             ['Performance Security Clause', 'Bank guarantee requirement and percentage such as 5-10%.']
         ]
     },
@@ -33,11 +33,11 @@ const contractNegotiationClauseCatalog = {
         clauses: [
             ['Service Scope Clause', 'Detailed service description and service boundaries.'],
             ['Service Level Agreement (SLA)', 'Performance standards, uptime or response time, and service quality metrics.'],
-            ['KPI & Performance Monitoring Clause', 'KPIs, measurement method, and reporting mechanism.'],
+            ['KPI and Performance Monitoring Clause', 'KPIs, measurement method, and reporting mechanism.'],
             ['Payment Terms Clause', 'Monthly or periodic payments and deductions for poor performance.'],
             ['Penalty Clause', 'SLA breach penalties, service credit deductions, and escalation rules.'],
-            ['Staffing & Personnel Clause', 'Required staff, qualifications, and replacement rules.'],
-            ['Equipment & Resources Clause', 'Tools or equipment required and ownership responsibilities.'],
+            ['Staffing and Personnel Clause', 'Required staff, qualifications, and replacement rules.'],
+            ['Equipment and Resources Clause', 'Tools or equipment required and ownership responsibilities.'],
             ['Reporting Requirements Clause', 'Reporting frequency, format, and submission channels.'],
             ['Termination Clause', 'Poor performance termination, notice period, and breach triggers.'],
             ['Renewal Clause', 'Extension conditions and performance-based renewal.'],
@@ -48,10 +48,10 @@ const contractNegotiationClauseCatalog = {
         label: 'Consultancy',
         clauses: [
             ['Scope of Services Clause', 'Deliverables such as reports, studies, designs, and methodology boundaries.'],
-            ['Deliverables & Milestones Clause', 'Outputs required, submission timeline, and approval process.'],
+            ['Deliverables and Milestones Clause', 'Outputs required, submission timeline, and approval process.'],
             ['Payment Terms Clause', 'Milestone-based and acceptance-linked payments.'],
             ['Personnel Clause', 'Key experts, CV approval requirement, and substitution restrictions.'],
-            ['Performance & Evaluation Clause', 'Quality evaluation of deliverables and acceptance criteria.'],
+            ['Performance and Evaluation Clause', 'Quality evaluation of deliverables and acceptance criteria.'],
             ['Intellectual Property Clause', 'Ownership of reports or data and usage rights.'],
             ['Confidentiality Clause', 'Data protection and non-disclosure obligations.'],
             ['Time Schedule Clause', 'Assignment duration and submission deadlines.'],
@@ -76,11 +76,11 @@ const contractNegotiationConsultancyGovernanceClauses = [
 
 function escapeContractNegotiationHtml(value = '') {
     return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function getContractNegotiationTender() {
@@ -166,7 +166,7 @@ function renderContractNegotiationClauseLibrary(tender = {}) {
             <div class="contract-clause-library-stack">
                 ${renderContractNegotiationClauseGroup('Ethical Contract Clauses', 'All procurement types', contractNegotiationEthicalClauses)}
                 ${activeTypeId === 'consultancy'
-                    ? renderContractNegotiationClauseGroup('Consultancy Knowledge, IP & Data Clauses', 'Consultancy contract controls', contractNegotiationConsultancyGovernanceClauses)
+                    ? renderContractNegotiationClauseGroup('Consultancy Knowledge, IP and Data Clauses', 'Consultancy contract controls', contractNegotiationConsultancyGovernanceClauses)
                     : ''}
                 ${orderedTypeIds.map(typeId => renderContractNegotiationClauseCards(typeId, activeTypeId)).join('')}
             </div>

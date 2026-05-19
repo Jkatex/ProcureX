@@ -3,11 +3,11 @@
 function escapeTenderDetailsHtml(value = '') {
     if (typeof escapeSupplierTenderDetailHtml === 'function') return escapeSupplierTenderDetailHtml(value);
     return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function getTenderDetailsClarificationStatusClass(status = '') {
@@ -55,7 +55,7 @@ function renderTenderDetails() {
                     <li><a href="#" data-navigate="procurement-guide">Procurement Process Guide</a></li>
                     <li><a href="#" data-navigate="bid-evaluation">Bid Opening</a></li>
                     <li><a href="#" data-navigate="award-recommendation">Award</a></li>
-                    <li><a href="#" data-navigate="records-history">Records & History</a></li>
+                    <li><a href="#" data-navigate="records-history">Records and History</a></li>
                     <li><a href="#" data-navigate="procurement-dashboard">Procurement Dashboard</a></li>
                 </ul>
             </div>
@@ -91,7 +91,7 @@ function renderTenderDetails() {
                             <div class="panel-heading">
                                 <div>
                                     <span class="section-kicker">Clarifications inbox</span>
-                                    <h2>Questions & Answers</h2>
+                                    <h2>Questions and Answers</h2>
                                 </div>
                                 <span class="badge badge-warning">${clarifications.length} open</span>
                             </div>
@@ -139,7 +139,7 @@ function renderTenderDetails() {
                                 <div><span>Amendments</span><strong>${amendments.length}</strong></div>
                                 <div><span>Clarifications</span><strong>${clarifications.length}</strong></div>
                             </div>
-                            <button class="btn btn-secondary" data-navigate="records-history">Open Records & History</button>
+                            <button class="btn btn-secondary" data-navigate="records-history">Open Records and History</button>
                         </div>
                     </section>
                 </div>

@@ -1,4 +1,4 @@
-# 🔷 LOGIC 33 – Buyer Habit Formation & Workflow Dependency Logic
+# 🔷 LOGIC 33 – Buyer Habit Formation and Workflow Dependency Logic
 
 This logic ensures that the **platform becomes the habitual way buyers execute procurement**, embedding workflows, processes, and insights into daily operations. Over time, this turns adoption from a contractual obligation into a **behavioral default**, creating one of the strongest forms of platform lock-in.
 
@@ -29,24 +29,24 @@ Key elements that encourage habitual adoption:
    * Calendar integration, milestone tracking, automated reminders
    * Budget vs. spend visibility (Logic 12)
 
-2. **Tender Creation & Standardization**
+2. **Tender Creation and Standardization**
 
-   * Templates, automated specifications (Logic 3 & 24)
+   * Templates, automated specifications (Logic 3 and 24)
    * Guided compliance checks
 
-3. **Supplier Discovery & Evaluation**
+3. **Supplier Discovery and Evaluation**
 
    * Intelligent supplier recommendations (Logic 5, 25)
    * Performance history dashboards (Logic 15)
 
-4. **Bid Management & Scoring**
+4. **Bid Management and Scoring**
 
    * Automated bid validation (Logic 6)
-   * Scoring and ranking dashboards (Logic 8 & 9)
+   * Scoring and ranking dashboards (Logic 8 and 9)
 
-5. **Award & Contract Execution**
+5. **Award and Contract Execution**
 
-   * Digital signatures & enforceability (Logic 13 & 10)
+   * Digital signatures and enforceability (Logic 13 and 10)
    * Risk-aware award suggestions (Logic 27)
 
 6. **Post-Award Operations**
@@ -56,21 +56,21 @@ Key elements that encourage habitual adoption:
 
 ---
 
-# 3️⃣ REPORTING & DECISION SUPPORT
+# 3️⃣ REPORTING and DECISION SUPPORT
 
 Workflow dependency is reinforced via:
 
 * Personalized dashboards
 * Category-specific insights
-* Trend analysis & benchmarking (Logic 26 & 28)
-* Risk & liquidity alerts (Logic 27 & 30)
-* Historical comparisons & learning curve recommendations (Logic 31)
+* Trend analysis and benchmarking (Logic 26 and 28)
+* Risk and liquidity alerts (Logic 27 and 30)
+* Historical comparisons and learning curve recommendations (Logic 31)
 
 When these reports **become part of daily decision-making**, behavioral lock-in is reinforced.
 
 ---
 
-# 4️⃣ AUTOMATION & GUIDED PROCESSES
+# 4️⃣ AUTOMATION and GUIDED PROCESSES
 
 Habit formation is accelerated by:
 
@@ -88,12 +88,12 @@ Automation reduces friction and **trains users to rely on the platform**.
 
 * Repetition → familiarity → cognitive comfort
 * Loss of history, benchmarks, and templates → perceived operational risk if leaving (Logic 32)
-* Integrated communication & workflow → habitually embedded into team routines
+* Integrated communication and workflow → habitually embedded into team routines
 * Behavioral lock-in is stronger than contractual lock-in: leaving feels disruptive
 
 ---
 
-# 6️⃣ TRAINING & ONBOARDING FEEDBACK LOOP
+# 6️⃣ TRAINING and ONBOARDING FEEDBACK LOOP
 
 * Initial platform guidance → rapid adoption
 * Platform usage analytics → adaptive recommendations
@@ -109,8 +109,8 @@ Platform tracks:
 
 * Frequency of workflow use per buyer team
 * Percentage of tenders processed entirely through the system
-* Re-use of historical templates & best practices
-* Adoption rate of analytics & insights in decision-making
+* Re-use of historical templates and best practices
+* Adoption rate of analytics and insights in decision-making
 * Average time saved vs. manual processes
 
 High scores indicate strong **habitual lock-in**.
@@ -124,10 +124,10 @@ Logic 33 relies on prior layers for effectiveness:
 | Supporting Logics | Contribution                                           |
 | ----------------- | ------------------------------------------------------ |
 | Logic 3, 24       | Tender creation standardization                        |
-| Logic 5, 15, 25   | Supplier evaluation & trust reinforcement              |
-| Logic 6, 8, 9     | Bid management & scoring                               |
-| Logic 10, 13      | Contract execution & enforceability                    |
-| Logic 12, 19      | Budget & post-award operations                         |
+| Logic 5, 15, 25   | Supplier evaluation and trust reinforcement              |
+| Logic 6, 8, 9     | Bid management and scoring                               |
+| Logic 10, 13      | Contract execution and enforceability                    |
+| Logic 12, 19      | Budget and post-award operations                         |
 | Logic 27, 30, 31  | Risk management, network liquidity, and learning loops |
 | Logic 32          | Institutional memory reinforces daily reliance         |
 

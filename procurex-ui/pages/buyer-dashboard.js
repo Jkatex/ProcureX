@@ -117,9 +117,9 @@ function renderBuyerDashboard() {
                             </div>
                         </div>
 
-                        <!-- Risk & Compliance -->
+                        <!-- Risk and Compliance -->
                         <div style="margin-bottom: 24px;">
-                            <h4 style="margin-bottom: 12px;">Risk & Compliance</h4>
+                            <h4 style="margin-bottom: 12px;">Risk and Compliance</h4>
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                                 <span style="font-size: 14px;">Performance Rating</span>
                                 <span class="badge badge-success">${mockData.users.buyer.riskScore}/100</span>

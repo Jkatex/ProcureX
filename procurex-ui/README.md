@@ -33,12 +33,13 @@ VS Code Live Server also works: open this folder, right-click `index.html`, and 
 | Register | `http://localhost:8000/?page=register` |
 | Sign in | `http://localhost:8000/?page=sign-in` |
 | IAM verification | `http://localhost:8000/?page=iam-verification` |
-| Workspace dashboard | `http://localhost:8000/?page=workspace-dashboard&role=buyer` |
-| Supplier marketplace | `http://localhost:8000/?page=supplier-marketplace&role=supplier` |
-| Create tender | `http://localhost:8000/?page=create-tender&role=buyer` |
-| Bid evaluation | `http://localhost:8000/?page=bid-evaluation&role=admin` |
-| Award recommendation | `http://localhost:8000/?page=award-recommendation&role=admin` |
-| Records and history | `http://localhost:8000/?page=records-history&role=admin` |
+| Workspace dashboard | `http://localhost:8000/?page=workspace-dashboard` |
+| Marketplace | `http://localhost:8000/?page=marketplace` |
+| Create tender | `http://localhost:8000/?page=create-tender` |
+| Admin compliance dashboard | `http://localhost:8000/?page=admin-dashboard` |
+| Bid evaluation | `http://localhost:8000/?page=bid-evaluation` |
+| Award recommendation | `http://localhost:8000/?page=award-recommendation` |
+| Records and history | `http://localhost:8000/?page=records-history` |
 
 ## File Structure
 

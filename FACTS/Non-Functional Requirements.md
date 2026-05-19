@@ -1,5 +1,5 @@
 # NON-FUNCTIONAL REQUIREMENTS SPECIFICATION
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0
 **Date:** February 18, 2026
@@ -8,20 +8,20 @@
 
 # TABLE OF CONTENTS
 
-1. Performance & Scalability
-2. Security & Data Protection
-3. Availability & Reliability
-4. Usability & Accessibility
-5. Auditability & Compliance
-6. Interoperability & Integration
-7. Data Integrity & Consistency
-8. Maintainability & Extensibility
-9. Legal & Regulatory
-10. Localization & Internationalization
+1. Performance and Scalability
+2. Security and Data Protection
+3. Availability and Reliability
+4. Usability and Accessibility
+5. Auditability and Compliance
+6. Interoperability and Integration
+7. Data Integrity and Consistency
+8. Maintainability and Extensibility
+9. Legal and Regulatory
+10. Localization and Internationalization
 
 ---
 
-# 1. PERFORMANCE & SCALABILITY
+# 1. PERFORMANCE and SCALABILITY
 
 ## 1.1 Response Time
 
@@ -60,9 +60,9 @@
 
 ---
 
-# 2. SECURITY & DATA PROTECTION
+# 2. SECURITY and DATA PROTECTION
 
-## 2.1 Authentication & Authorization
+## 2.1 Authentication and Authorization
 
 - NFR-2.1.1: The system SHALL enforce multi-factor authentication (MFA) for all users with access to sensitive procurement data.
 - NFR-2.1.2: The system SHALL support single sign-on (SSO) integration via SAML 2.0 and OpenID Connect for enterprise buyers.
@@ -102,7 +102,7 @@
 
 ---
 
-# 3. AVAILABILITY & RELIABILITY
+# 3. AVAILABILITY and RELIABILITY
 
 ## 3.1 System Availability
 
@@ -134,7 +134,7 @@
 
 ---
 
-# 4. USABILITY & ACCESSIBILITY
+# 4. USABILITY and ACCESSIBILITY
 
 ## 4.1 User Interface
 
@@ -144,7 +144,7 @@
 - NFR-4.1.4: The system SHALL display loading indicators for any operation exceeding 1 second.
 - NFR-4.1.5: The system SHALL provide confirmation dialogs for all irreversible actions (bid submission, contract signing, award decision).
 
-## 4.2 Learnability & Onboarding
+## 4.2 Learnability and Onboarding
 
 - NFR-4.2.1: A new buyer user SHALL be able to create and publish a standard tender within **30 minutes** of first login, using guided workflows.
 - NFR-4.2.2: A new supplier user SHALL be able to complete registration, browse tenders, and submit a bid within **45 minutes** of first visit.
@@ -158,7 +158,7 @@
 - NFR-4.3.3: The system SHALL provide screen reader compatibility for all forms, tables, and interactive elements.
 - NFR-4.3.4: The system SHALL maintain a minimum **4.5:1 contrast ratio** for all text elements.
 
-## 4.4 Error Handling & Feedback
+## 4.4 Error Handling and Feedback
 
 - NFR-4.4.1: The system SHALL display clear, actionable error messages for all validation failures (no generic "Error occurred" messages).
 - NFR-4.4.2: The system SHALL preserve user input on form submission failures to prevent data re-entry.
@@ -167,7 +167,7 @@
 
 ---
 
-# 5. AUDITABILITY & COMPLIANCE
+# 5. AUDITABILITY and COMPLIANCE
 
 ## 5.1 Audit Trail Immutability
 
@@ -190,7 +190,7 @@
 - NFR-5.3.3: The system SHALL generate audit-ready compliance reports on demand.
 - NFR-5.3.4: The system SHALL enforce configurable governance rules per organization without code changes (Logic 29).
 
-## 5.4 Transparency & Accountability
+## 5.4 Transparency and Accountability
 
 - NFR-5.4.1: The system SHALL make all scoring methodologies, normalization formulas, and risk algorithms transparent and explainable to authorized users (Logics 8, 25, 26, 27).
 - NFR-5.4.2: The system SHALL never apply hidden scoring adjustments or undocumented automated decisions.
@@ -199,7 +199,7 @@
 
 ---
 
-# 6. INTEROPERABILITY & INTEGRATION
+# 6. INTEROPERABILITY and INTEGRATION
 
 ## 6.1 API Standards
 
@@ -231,7 +231,7 @@
 
 ---
 
-# 7. DATA INTEGRITY & CONSISTENCY
+# 7. DATA INTEGRITY and CONSISTENCY
 
 ## 7.1 Transactional Integrity
 
@@ -259,9 +259,9 @@
 
 ---
 
-# 8. MAINTAINABILITY & EXTENSIBILITY
+# 8. MAINTAINABILITY and EXTENSIBILITY
 
-## 8.1 Code Quality & Architecture
+## 8.1 Code Quality and Architecture
 
 - NFR-8.1.1: The system SHALL implement a **modular, loosely-coupled architecture** enabling independent deployment and scaling of subsystems (Logic 40).
 - NFR-8.1.2: The system SHALL achieve a minimum **80% automated test coverage** for all business logic modules.
@@ -274,14 +274,14 @@
 - NFR-8.2.2: The system SHALL support per-organization configuration overrides within platform-wide defaults (Logic 36).
 - NFR-8.2.3: All configuration changes SHALL be versioned and auditable.
 
-## 8.3 Monitoring & Observability
+## 8.3 Monitoring and Observability
 
 - NFR-8.3.1: The system SHALL provide real-time monitoring dashboards for: system health, response times, error rates, and resource utilization.
 - NFR-8.3.2: The system SHALL implement structured logging with correlation IDs for request tracing across distributed components.
 - NFR-8.3.3: The system SHALL generate automated alerts for: system errors exceeding thresholds, performance degradation, security violations, and liquidity anomalies (Logic 30).
 - NFR-8.3.4: The system SHALL support integration with enterprise monitoring tools (e.g., Prometheus, Grafana, ELK, Datadog).
 
-## 8.4 Deployment & Operations
+## 8.4 Deployment and Operations
 
 - NFR-8.4.1: The system SHALL support containerized deployment (Docker/Kubernetes) for cloud-native infrastructure.
 - NFR-8.4.2: The system SHALL support CI/CD pipelines for automated testing and deployment.
@@ -290,7 +290,7 @@
 
 ---
 
-# 9. LEGAL & REGULATORY
+# 9. LEGAL and REGULATORY
 
 ## 9.1 Legal Enforceability
 
@@ -305,7 +305,7 @@
 - NFR-9.2.2: The system SHALL enforce IP ownership terms captured in service procurement contracts (Logic 18).
 - NFR-9.2.3: Bid documents SHALL not be shared, copied, or disclosed beyond authorized evaluators.
 
-## 9.3 Anti-Corruption & Ethics
+## 9.3 Anti-Corruption and Ethics
 
 - NFR-9.3.1: The system design SHALL embed anti-corruption controls including: separation of duties (Logic 2), conflict of interest declarations, audit trails (Logic 14), and anonymized evaluation options (Logic 8).
 - NFR-9.3.2: The system SHALL comply with applicable anti-bribery and anti-corruption legislation.
@@ -319,16 +319,16 @@
 
 ---
 
-# 10. LOCALIZATION & INTERNATIONALIZATION
+# 10. LOCALIZATION and INTERNATIONALIZATION
 
-## 10.1 Language & Locale
+## 10.1 Language and Locale
 
 - NFR-10.1.1: The system SHALL support **multi-language UI** with a minimum of English plus configurable additional languages.
 - NFR-10.1.2: The system SHALL support locale-specific formatting for: dates, numbers, currencies, and measurement units.
 - NFR-10.1.3: The system SHALL support right-to-left (RTL) text rendering for applicable languages.
 - NFR-10.1.4: All system-generated documents (contracts, reports, notifications) SHALL be available in the user's preferred language.
 
-## 10.2 Currency & Tax
+## 10.2 Currency and Tax
 
 - NFR-10.2.1: The system SHALL support **multi-currency** operations with real-time exchange rate integration (Logic 26).
 - NFR-10.2.2: The system SHALL support configurable tax rules per jurisdiction (VAT, sales tax, import duty) (Logic 19).
@@ -355,7 +355,7 @@
 | Response Time | 5, 8, 12, 14, 25, 26, 27 | All |
 | Throughput | 6, 19, 21 | All |
 | Scalability | 21, 28, 30, 31 | All |
-| Authentication & Authorization | 1, 2 | 37 |
+| Authentication and Authorization | 1, 2 | 37 |
 | Data Encryption | 6, 7, 13 | 14 |
 | Data Privacy | 28 | 1, 14 |
 | Bid Confidentiality | 6, 7 | 14 |
@@ -367,19 +367,19 @@
 | Data Retention | 14, 13 | All |
 | Regulatory Compliance | 29 | 14, 13 |
 | Transparency | 8, 25, 26, 27, 31 | 38 |
-| API & Integration | 35 | 40 |
+| API and Integration | 35 | 40 |
 | ERP Integration | 35 | 19, 11, 12 |
 | Data Standards | 36 | 21, 26 |
 | Transactional Integrity | 6, 10, 12 | All |
 | Document Integrity | 6, 7, 13, 14 | All |
 | Timestamp Integrity | 4, 6, 7, 14 | All |
-| Modularity & Extensibility | 40, 36 | 35 |
+| Modularity and Extensibility | 40, 36 | 35 |
 | Configuration Flexibility | 36 | 11, 29 |
 | Monitoring | 30 | All |
 | Legal Enforceability | 13 | 10, 14 |
 | Anti-Corruption | 2, 14, 23, 29 | 8 |
 | Localization | 26, 40 | All |
-| Currency & Tax | 19, 26 | 12 |
+| Currency and Tax | 19, 26 | 12 |
 | Cross-Border | 13, 26, 40 | 35 |
 
 ---

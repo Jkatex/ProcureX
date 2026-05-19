@@ -1,6 +1,6 @@
 Below is the **complete system-level architecture and governance model** for:
 
-# 🔷 LOGIC 10 – Award Decision & Contract Formation Logic
+# 🔷 LOGIC 10 – Award Decision and Contract Formation Logic
 
 This logic converts evaluation outcomes into **legally enforceable contracts** while preserving transparency, auditability, and procedural integrity.
 
@@ -8,7 +8,7 @@ It is the bridge between:
 
 * Evaluation Framework (Logic 8)
 * Price Intelligence (Logic 9)
-* Contract Execution & Performance Management (Logic 11 – future stage)
+* Contract Execution and Performance Management (Logic 11 – future stage)
 
 ---
 
@@ -42,7 +42,7 @@ Score Validation Check
         ↓
 Award Recommendation Generated
         ↓
-Compliance & Governance Review
+Compliance and Governance Review
         ↓
 Approval Workflow
         ↓
@@ -232,7 +232,7 @@ System blocks modification of material conditions post-award unless formally jus
 
 ---
 
-# 9️⃣ DIGITAL SIGNATURE & LEGAL FORMATION
+# 9️⃣ DIGITAL SIGNATURE and LEGAL FORMATION
 
 ---
 
@@ -273,7 +273,7 @@ ACTIVE CONTRACT
 
 ---
 
-# 🔟 PERFORMANCE SECURITY & GUARANTEES
+# 🔟 PERFORMANCE SECURITY and GUARANTEES
 
 If required:
 
@@ -304,7 +304,7 @@ Prevents retroactive manipulation.
 
 ---
 
-# 1️⃣2️⃣ APPEAL & DISPUTE HANDLING LOGIC
+# 1️⃣2️⃣ APPEAL and DISPUTE HANDLING LOGIC
 
 If bidder challenges:
 
@@ -369,7 +369,7 @@ Execution Phase
 
 ---
 
-# 1️⃣5️⃣ SECURITY & GOVERNANCE CONTROLS
+# 1️⃣5️⃣ SECURITY and GOVERNANCE CONTROLS
 
 * Separation of duties (RBAC – Logic 2)
 * Award lock after approval
@@ -435,7 +435,7 @@ Logic 10:
 
 Logic 10 connects:
 
-* Logic 1 (Identity & Trust) → validated signatories
+* Logic 1 (Identity and Trust) → validated signatories
 * Logic 2 (RBAC) → approval authority
 * Logic 3 (Need Definition) → scope integrity
 * Logic 6 (Bid Submission) → locked bid content

@@ -1,4 +1,4 @@
-# 🔷 LOGIC 25 – Supplier Reputation & Trust Scoring Logic
+# 🔷 LOGIC 25 – Supplier Reputation and Trust Scoring Logic
 
 This logic generates a **dynamic, evidence-based trust score** for each supplier, built from verified performance history, compliance behavior, dispute outcomes, and execution reliability.
 
@@ -48,10 +48,10 @@ Trust Score may combine:
 
 1. Delivery Reliability
 2. Quality Compliance
-3. Dispute Frequency & Outcomes (Logic 20)
+3. Dispute Frequency and Outcomes (Logic 20)
 4. Financial Integrity (Logic 19)
 5. Capacity Accuracy (Logic 22)
-6. Ethical & Compliance Record
+6. Ethical and Compliance Record
 7. Anti-Collusion Risk (Logic 23)
 8. Contract Completion Consistency
 
@@ -139,7 +139,7 @@ Encourages fair conflict resolution.
 
 ---
 
-# 9️⃣ FINANCIAL ACCURACY & DOCUMENT INTEGRITY
+# 9️⃣ FINANCIAL ACCURACY and DOCUMENT INTEGRITY
 
 Measured by:
 
@@ -164,7 +164,7 @@ Trust declines.
 
 ---
 
-# 1️⃣1️⃣ ETHICAL & COLLUSION RISK ADJUSTMENT
+# 1️⃣1️⃣ ETHICAL and COLLUSION RISK ADJUSTMENT
 
 If Logic 23 flags:
 
@@ -220,7 +220,7 @@ High trust reduces friction.
 
 ---
 
-# 1️⃣5️⃣ PROBATION & REHABILITATION MECHANISM
+# 1️⃣5️⃣ PROBATION and REHABILITATION MECHANISM
 
 If trust drops below threshold:
 
@@ -269,7 +269,7 @@ Trust Algorithm
     ↓
 Contextual Trust Score
     ↓
-Eligibility & Evaluation Impact
+Eligibility and Evaluation Impact
 ```
 
 ---

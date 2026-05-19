@@ -103,7 +103,7 @@ function renderGuestMarketplace() {
                                 <p>Smart matching algorithms ensure fair access to tenders for small businesses</p>
                             </article>
                             <article>
-                                <h3>Secure & Compliant</h3>
+                                <h3>Secure and Compliant</h3>
                                 <p>Bank-grade security with full regulatory compliance</p>
                             </article>
                     </div>

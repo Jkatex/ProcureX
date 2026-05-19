@@ -1,5 +1,5 @@
 # FULL SYSTEM IMPLEMENTATION PROCESS FLOW
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0  
 **Date:** February 25, 2026
@@ -10,23 +10,23 @@
 
 | # | Phase | Duration Est. |
 |---|---|---|
-| 1 | Project Setup & Planning | Week 1–2 |
+| 1 | Project Setup and Planning | Week 1–2 |
 | 2 | Figma UI/UX Design | Week 2–6 |
-| 3 | Database Design & Setup | Week 5–7 |
+| 3 | Database Design and Setup | Week 5–7 |
 | 4 | Backend Development | Week 6–16 |
 | 5 | Frontend Development | Week 8–18 |
-| 6 | Integration & API Wiring | Week 16–20 |
-| 7 | Testing & QA | Week 18–22 |
-| 8 | Deployment & Launch | Week 22–24 |
+| 6 | Integration and API Wiring | Week 16–20 |
+| 7 | Testing and QA | Week 18–22 |
+| 8 | Deployment and Launch | Week 22–24 |
 
 > [!NOTE]
 > Phases overlap intentionally. Backend and Frontend teams work in parallel after database schema stabilizes. Total estimated timeline: **~24 weeks (6 months)** for MVP.
 
 ---
 
-# PHASE 1: PROJECT SETUP & PLANNING (Week 1–2)
+# PHASE 1: PROJECT SETUP and PLANNING (Week 1–2)
 
-## Step 1.1 — Team Assembly & Role Assignment
+## Step 1.1 — Team Assembly and Role Assignment
 
 | Role | Responsibility | Count |
 |---|---|---|
@@ -48,9 +48,9 @@
    ├── client/          → React frontend
    ├── server/          → Node.js backend
    ├── ml-service/      → Python ML microservice
-   ├── prisma/          → Database schema & migrations
-   ├── docker/          → Dockerfiles & docker-compose
-   ├── docs/            → Architecture & design docs
+   ├── prisma/          → Database schema and migrations
+   ├── docker/          → Dockerfiles and docker-compose
+   ├── docs/            → Architecture and design docs
    └── .github/         → CI/CD workflows
 3. Configure Docker Compose for local development:
    - PostgreSQL 15+
@@ -61,7 +61,7 @@
 5. Configure environment variables (.env files per environment)
 ```
 
-## Step 1.3 — Tool & Service Setup
+## Step 1.3 — Tool and Service Setup
 
 | Tool | Purpose | Setup Action |
 |---|---|---|
@@ -72,21 +72,21 @@
 | Notion / Confluence | Documentation | Architecture docs, API specs, runbooks |
 | Figma → Storybook | Design-to-code handoff | Component documentation |
 
-## Step 1.4 — Sprint Planning & Backlog Creation
+## Step 1.4 — Sprint Planning and Backlog Creation
 
 Break the 40 system logics into **Epics**, then decompose into **User Stories**:
 
 ```
 Epic Structure (aligned with system layers):
-├── Epic 1: Identity, Trust & Access (Logics 1, 2, 37)
+├── Epic 1: Identity, Trust and Access (Logics 1, 2, 37)
 ├── Epic 2: Procurement Design (Logics 3, 24, 36)
-├── Epic 3: Marketplace & Matching (Logics 4, 5, 21, 38)
-├── Epic 4: Bidding & Evaluation (Logics 6, 7, 8, 9, 17, 18, 26)
-├── Epic 5: Award & Contract (Logics 10, 11, 12, 13, 16)
-├── Epic 6: Post-Award & Performance (Logics 15, 19, 20, 22, 27)
-├── Epic 7: Trust & Lock-In (Logics 25, 32, 33, 34, 39)
-├── Epic 8: Market Intelligence & Learning (Logics 28, 30, 31, 35)
-├── Epic 9: Compliance & Governance (Logics 14, 23, 29)
+├── Epic 3: Marketplace and Matching (Logics 4, 5, 21, 38)
+├── Epic 4: Bidding and Evaluation (Logics 6, 7, 8, 9, 17, 18, 26)
+├── Epic 5: Award and Contract (Logics 10, 11, 12, 13, 16)
+├── Epic 6: Post-Award and Performance (Logics 15, 19, 20, 22, 27)
+├── Epic 7: Trust and Lock-In (Logics 25, 32, 33, 34, 39)
+├── Epic 8: Market Intelligence and Learning (Logics 28, 30, 31, 35)
+├── Epic 9: Compliance and Governance (Logics 14, 23, 29)
 └── Epic 10: Ecosystem Expansion (Logic 40)
 ```
 
@@ -109,9 +109,9 @@ Design System Components:
 ├── 📝 Typography Scale
 │   ├── Headings (H1–H6)
 │   ├── Body (Regular, Small, Caption)
-│   ├── Labels & Badges
+│   ├── Labels and Badges
 │   └── Font: Inter / Roboto
-├── 📐 Spacing & Grid System
+├── 📐 Spacing and Grid System
 │   ├── 8px base grid
 │   ├── 12-column layout grid
 │   └── Breakpoints (mobile, tablet, desktop)
@@ -133,7 +133,7 @@ Design System Components:
     └── Timeline components
 ```
 
-## Step 2.2 — Information Architecture & Navigation
+## Step 2.2 — Information Architecture and Navigation
 
 Design the **App Shell** and navigation hierarchy:
 
@@ -156,9 +156,9 @@ flowchart LR
 | Bid Management | Submit Bid, My Bids, Bid History | Supplier |
 | Evaluations | Score Panel, Rankings, Consensus | Evaluator |
 | Contracts | Active, Draft, Archive, Milestones | All |
-| Invoices & Payments | Submit, Match, Track, Pay | Both |
+| Invoices and Payments | Submit, Match, Track, Pay | Both |
 | Suppliers | Directory, Performance, Trust Scores | Buyer |
-| Risk & Compliance | Forecasts, Collusion, Governance | Admin |
+| Risk and Compliance | Forecasts, Collusion, Governance | Admin |
 | Market Intelligence | Benchmarks, Trends, Liquidity | All |
 | Settings | Profile, Org, Security, Roles, Billing | All |
 | Admin Panel | Users, Config, Modules, Health | Super Admin |
@@ -180,25 +180,25 @@ Priority 1 (MVP-Critical):
 ├── Award Decision Page
 ├── Contract View
 ├── Invoice Submission + Verification
-└── User Profile & Settings
+└── User Profile and Settings
 ```
 
 ### Batch 2 — Operational Pages (Week 3–4)
 ```
 Priority 2 (Core Operations):
-├── Supplier Search & Profile View
+├── Supplier Search and Profile View
 ├── Approval Workflow Interface
 ├── Budget Allocation Page
-├── Contract Milestones & Performance
-├── Dispute Raise & Resolution
+├── Contract Milestones and Performance
+├── Dispute Raise and Resolution
 ├── Audit Trail Viewer
 ├── Notification Center
 ├── Organization Settings
-├── Role & Permission Management
+├── Role and Permission Management
 └── Digital Signature Flow
 ```
 
-### Batch 3 — Intelligence & Advanced (Week 4–5)
+### Batch 3 — Intelligence and Advanced (Week 4–5)
 ```
 Priority 3 (Differentiation):
 ├── Market Intelligence Dashboards
@@ -213,10 +213,10 @@ Priority 3 (Differentiation):
 └── API Token Management
 ```
 
-### Batch 4 — Admin & Future (Week 5–6)
+### Batch 4 — Admin and Future (Week 5–6)
 ```
 Priority 4 (Platform Management):
-├── Admin Dashboard & System Health
+├── Admin Dashboard and System Health
 ├── Tenant Management
 ├── Feature Flag Management
 ├── Platform Configuration
@@ -247,7 +247,7 @@ For each critical flow, create clickable prototypes in Figma:
    Consensus Review → Submit Rankings → Approve Award
 ```
 
-## Step 2.5 — Design Review & Handoff
+## Step 2.5 — Design Review and Handoff
 
 ```
 1. Internal design review with the team
@@ -264,7 +264,7 @@ For each critical flow, create clickable prototypes in Figma:
 
 ---
 
-# PHASE 3: DATABASE DESIGN & SETUP (Week 5–7)
+# PHASE 3: DATABASE DESIGN and SETUP (Week 5–7)
 
 ## Step 3.1 — Schema Design (from your ERD)
 
@@ -283,7 +283,7 @@ PostgreSQL Schemas:
 └── integration  → erp_configs, sync_records, modules, notifications
 ```
 
-## Step 3.2 — Prisma Schema & Migrations
+## Step 3.2 — Prisma Schema and Migrations
 
 ```
 Process Flow:
@@ -298,7 +298,7 @@ Process Flow:
    
 3. Seed database with reference data:
    - Category taxonomy codes
-   - Default roles & permissions
+   - Default roles and permissions
    - Trust tier definitions
    - Violation level definitions
    - Country/currency reference data
@@ -335,7 +335,7 @@ S3 / Object Storage:
 └── /cv-files/
 ```
 
-## Step 3.4 — Database Security & Performance
+## Step 3.4 — Database Security and Performance
 
 ```
 Security:
@@ -438,7 +438,7 @@ Build Order:
    └── Specification builder
    └── Evaluation criteria setup
    └── Publish with visibility controls
-   └── Amendment & clarification
+   └── Amendment and clarification
 
 5. TenderDesignService (Logic 24)
    └── Bias detection analysis
@@ -448,25 +448,25 @@ Build Order:
 6. SupplierService (Logic 5)
    └── Supplier profile CRUD
    └── Capability registration
-   └── Discovery & matching engine
+   └── Discovery and matching engine
    └── Supplier search (Elasticsearch)
 ```
 
-### Sprint 3 (Week 10–12): Bidding & Evaluation
+### Sprint 3 (Week 10–12): Bidding and Evaluation
 ```
 Build Order:
 7. BidService (Logic 6, 7)
    └── Bid submission with validation
-   └── Bid encryption & hash generation
+   └── Bid encryption and hash generation
    └── Time-locked bid opening
    └── Staged disclosure (two-envelope)
-   └── Withdrawal & resubmission
+   └── Withdrawal and resubmission
 
 8. EvaluationService (Logic 8, 9)
    └── Individual scoring
    └── Score locking
    └── Consensus moderation
-   └── Weighted aggregation & ranking
+   └── Weighted aggregation and ranking
    └── Price benchmarking
 
 9. SampleService (Logic 17)
@@ -475,10 +475,10 @@ Build Order:
 
 10. ServiceProcurementService (Logic 18)
     └── Personnel evaluation
-    └── CV review & assignment lock
+    └── CV review and assignment lock
 ```
 
-### Sprint 4 (Week 12–14): Award, Contract & Finance
+### Sprint 4 (Week 12–14): Award, Contract and Finance
 ```
 Build Order:
 11. ApprovalService (Logic 11)
@@ -487,7 +487,7 @@ Build Order:
     └── Escalation rules
 
 12. BudgetService (Logic 12)
-    └── Budget allocation & tracking
+    └── Budget allocation and tracking
     └── Spend validation
     └── Budget amendment workflow
 
@@ -503,7 +503,7 @@ Build Order:
     └── Contract milestone management
 
 15. InvoiceService (Logic 19)
-    └── Invoice submission & validation
+    └── Invoice submission and validation
     └── 3-way matching (PO ↔ Receipt ↔ Invoice)
     └── Fraud detection patterns
     └── Payment tracking
@@ -514,7 +514,7 @@ Build Order:
     └── Appeal mechanism
 ```
 
-### Sprint 5 (Week 14–16): Intelligence & Compliance
+### Sprint 5 (Week 14–16): Intelligence and Compliance
 ```
 Build Order:
 17. PerformanceService (Logic 15, 25)
@@ -524,7 +524,7 @@ Build Order:
 
 18. RiskService (Logic 27)
     └── Multi-dimensional risk scoring
-    └── Risk explanation & mitigation
+    └── Risk explanation and mitigation
     └── Scenario simulation
 
 19. CollusionService (Logic 23)
@@ -545,7 +545,7 @@ Build Order:
 22. GovernanceService (Logic 29)
     └── Violation classification
     └── Enforcement process
-    └── Appeal & reinstatement
+    └── Appeal and reinstatement
 
 23. IntegrationService (Logic 35, 40)
     └── ERP sync configuration
@@ -553,7 +553,7 @@ Build Order:
     └── Module registry
 ```
 
-## Step 4.4 — Background Workers & Queues
+## Step 4.4 — Background Workers and Queues
 
 ```
 Bull Queue Workers:
@@ -787,7 +787,7 @@ Pages:
     └── ResolutionSummary.jsx
 ```
 
-### Sprint 3 (Week 14–16): Intelligence & Risk
+### Sprint 3 (Week 14–16): Intelligence and Risk
 ```
 Pages:
 ├── Suppliers/
@@ -810,7 +810,7 @@ Pages:
     └── AuditReports.jsx
 ```
 
-### Sprint 4 (Week 16–17): Admin & Public
+### Sprint 4 (Week 16–17): Admin and Public
 ```
 Pages:
 ├── Admin/
@@ -833,10 +833,10 @@ Pages:
     └── ContactPage.jsx
 ```
 
-## Step 5.7 — Routing & Guards
+## Step 5.7 — Routing and Guards
 
 ```jsx
-// React Router v6 setup with auth & role guards
+// React Router v6 setup with auth and role guards
 <Routes>
   {/* Public Routes */}
   <Route path="/" element={<LandingPage />} />
@@ -878,7 +878,7 @@ Pages:
 
 ---
 
-# PHASE 6: INTEGRATION & API WIRING (Week 16–20)
+# PHASE 6: INTEGRATION and API WIRING (Week 16–20)
 
 ## Step 6.1 — Frontend ↔ Backend Integration
 
@@ -887,7 +887,7 @@ Integration Checklist (per module):
 
 For EACH page/feature:
 ┌─────────────────────────────────────────────────┐
-│ 1. Verify API endpoint exists & returns          │
+│ 1. Verify API endpoint exists and returns          │
 │    expected response format                      │
 │ 2. Connect Redux slice → API service call        │
 │ 3. Wire React component → Redux dispatch         │
@@ -899,7 +899,7 @@ For EACH page/feature:
 └─────────────────────────────────────────────────┘
 ```
 
-## Step 6.2 — Integration Order & Dependencies
+## Step 6.2 — Integration Order and Dependencies
 
 ```mermaid
 flowchart TD
@@ -907,14 +907,14 @@ flowchart TD
     A --> C["Sprint I-3: User/Org Management"]
     B --> D["Sprint I-4: Bid Submission"]
     B --> E["Sprint I-5: Supplier Discovery"]
-    D --> F["Sprint I-6: Evaluation & Scoring"]
-    F --> G["Sprint I-7: Award & Contract"]
-    G --> H["Sprint I-8: Invoice & Payment"]
+    D --> F["Sprint I-6: Evaluation and Scoring"]
+    F --> G["Sprint I-7: Award and Contract"]
+    G --> H["Sprint I-8: Invoice and Payment"]
     G --> I["Sprint I-9: Performance Tracking"]
     H --> J["Sprint I-10: Disputes"]
-    E --> K["Sprint I-11: Risk & Intelligence"]
+    E --> K["Sprint I-11: Risk and Intelligence"]
     I --> K
-    K --> L["Sprint I-12: Admin & Governance"]
+    K --> L["Sprint I-12: Admin and Governance"]
 ```
 
 ### Sprint I-1: Authentication Integration
@@ -933,11 +933,11 @@ Tasks:
 ```
 Tasks:
 ├── Create tender wizard → POST /api/v1/tenders
-├── Tender list with filters → GET /api/v1/tenders?status=&category=
+├── Tender list with filters → GET /api/v1/tenders?status=andcategory=
 ├── Tender detail view → GET /api/v1/tenders/:id
 ├── Publish tender → PUT /api/v1/tenders/:id/publish
 ├── Amendment flow → POST /api/v1/tenders/:id/amendments
-├── Clarification Q&A → GET/POST /api/v1/tenders/:id/clarifications
+├── Clarification QandA → GET/POST /api/v1/tenders/:id/clarifications
 ├── File upload → POST /api/v1/tenders/:id/documents (S3)
 └── Real-time: tender:published event
 ```
@@ -955,7 +955,7 @@ WebSocket Integration Steps:
 5. Update Redux state on incoming events
 6. Display toast notifications
 7. Update notification bell count
-8. Handle reconnection & missed events
+8. Handle reconnection and missed events
 ```
 
 ## Step 6.4 — File Upload Integration
@@ -977,7 +977,7 @@ File Upload Flow:
 ```
 Search Integration:
 1. Backend indexes data on create/update → ES
-2. Frontend search bar → GET /api/v1/search?q=&type=tender|supplier
+2. Frontend search bar → GET /api/v1/search?q=andtype=tender|supplier
 3. ES returns relevant results with highlights
 4. Frontend renders search results with type icons
 5. Advanced filters (category, date range, status, region)
@@ -985,7 +985,7 @@ Search Integration:
 
 ---
 
-# PHASE 7: TESTING & QA (Week 18–22)
+# PHASE 7: TESTING and QA (Week 18–22)
 
 ## Step 7.1 — Testing Strategy
 
@@ -1090,14 +1090,14 @@ UAT Process:
 2. Create test accounts (Buyer, Supplier, Evaluator, Admin)
 3. Execute test scripts per user journey
 4. Stakeholder walkthrough sessions
-5. Collect feedback & create bug tickets
+5. Collect feedback and create bug tickets
 6. Fix critical/high bugs → re-test
 7. Sign-off from product owner
 ```
 
 ---
 
-# PHASE 8: DEPLOYMENT & LAUNCH (Week 22–24)
+# PHASE 8: DEPLOYMENT and LAUNCH (Week 22–24)
 
 ## Step 8.1 — Infrastructure Provisioning
 
@@ -1152,7 +1152,7 @@ jobs:
     - Rollback on failure
 ```
 
-## Step 8.3 — Monitoring & Observability
+## Step 8.3 — Monitoring and Observability
 
 ```
 Monitoring Stack:
@@ -1172,14 +1172,14 @@ Pre-Launch:
 ├── [ ] Security penetration test passed
 ├── [ ] Performance benchmarks met
 ├── [ ] Database backups verified (restore tested)
-├── [ ] SSL certificates installed & valid
+├── [ ] SSL certificates installed and valid
 ├── [ ] CORS, CSP, HSTS headers configured
 ├── [ ] Rate limiting active
 ├── [ ] Error pages (404, 500) designed
 ├── [ ] API documentation published (Swagger)
 ├── [ ] Admin accounts created
 ├── [ ] Seed data loaded (categories, roles, permissions)
-├── [ ] Email/SMS service connected & tested
+├── [ ] Email/SMS service connected and tested
 ├── [ ] Feature flags configured (MVP features ON)
 ├── [ ] GDPR/privacy compliance verified
 ├── [ ] Cookie consent banner active
@@ -1207,43 +1207,43 @@ gantt
     axisFormat  %b %d
     
     section Phase 1 - Setup
-    Team & Environment Setup       :p1, 2026-03-02, 14d
+    Team and Environment Setup       :p1, 2026-03-02, 14d
     
     section Phase 2 - Figma Design
     Design System                  :p2a, 2026-03-09, 7d
     Core Page Designs              :p2b, after p2a, 14d
     Advanced Page Designs          :p2c, after p2b, 10d
-    Prototyping & Handoff          :p2d, after p2c, 5d
+    Prototyping and Handoff          :p2d, after p2c, 5d
     
     section Phase 3 - Database
-    Schema Design & Prisma         :p3a, 2026-04-06, 7d
-    Migrations & Seed Data         :p3b, after p3a, 7d
+    Schema Design and Prisma         :p3a, 2026-04-06, 7d
+    Migrations and Seed Data         :p3b, after p3a, 7d
     Supporting Stores Setup        :p3c, after p3a, 5d
     
     section Phase 4 - Backend
     Core Infrastructure            :p4a, 2026-04-13, 10d
     Foundation Services            :p4b, after p4a, 10d
-    Procurement & Bidding          :p4c, after p4b, 14d
-    Award & Contracts              :p4d, after p4c, 14d
-    Intelligence & Compliance      :p4e, after p4d, 14d
+    Procurement and Bidding          :p4c, after p4b, 14d
+    Award and Contracts              :p4d, after p4c, 14d
+    Intelligence and Compliance      :p4e, after p4d, 14d
     
     section Phase 5 - Frontend
-    React Setup & Design System    :p5a, 2026-04-27, 10d
+    React Setup and Design System    :p5a, 2026-04-27, 10d
     Shared Components              :p5b, after p5a, 10d
     Core Pages                     :p5c, after p5b, 14d
     Operations Pages               :p5d, after p5c, 14d
-    Intelligence & Admin Pages     :p5e, after p5d, 14d
+    Intelligence and Admin Pages     :p5e, after p5d, 14d
     
     section Phase 6 - Integration
-    Auth & Tender Integration      :p6a, 2026-07-06, 10d
-    Bidding & Evaluation           :p6b, after p6a, 10d
-    Contract & Finance             :p6c, after p6b, 10d
-    Intelligence & Admin           :p6d, after p6c, 7d
+    Auth and Tender Integration      :p6a, 2026-07-06, 10d
+    Bidding and Evaluation           :p6b, after p6a, 10d
+    Contract and Finance             :p6c, after p6b, 10d
+    Intelligence and Admin           :p6d, after p6c, 7d
     
     section Phase 7 - Testing
-    Unit & Integration Tests       :p7a, 2026-07-27, 14d
-    E2E & Security Tests           :p7b, after p7a, 14d
-    UAT & Bug Fixes                :p7c, after p7b, 7d
+    Unit and Integration Tests       :p7a, 2026-07-27, 14d
+    E2E and Security Tests           :p7b, after p7a, 14d
+    UAT and Bug Fixes                :p7c, after p7b, 7d
     
     section Phase 8 - Deployment
     Infrastructure Setup           :p8a, 2026-08-31, 7d

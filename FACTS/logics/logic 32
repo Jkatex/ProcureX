@@ -1,4 +1,4 @@
-# 🔷 LOGIC 32 – Switching Cost & Institutional Memory Lock-In Logic
+# 🔷 LOGIC 32 – Switching Cost and Institutional Memory Lock-In Logic
 
 This logic ensures that the **platform accumulates institutional memory** in a way that makes leaving or switching to a competitor **operationally costly and strategically unattractive**.
 
@@ -13,7 +13,7 @@ Logic 32 creates **lock-in through accumulated value**:
 ```
 Historical Data + Relationships + Performance Memory
         ↓
-Operational & Strategic Dependency
+Operational and Strategic Dependency
         ↓
 High Switching Cost → Strong Retention
 ```
@@ -26,7 +26,7 @@ The platform becomes **the central repository of procurement intelligence**.
 
 The platform captures:
 
-* **Tender & Contract History** – past procurement events, outcomes, award decisions
+* **Tender and Contract History** – past procurement events, outcomes, award decisions
 * **Supplier Performance Records** – timeliness, quality, compliance, trust scores (Logic 15, 25)
 * **Price Benchmarks** – normalized and cross-regional pricing (Logic 26)
 * **Audit Trails** – immutable logs of actions and approvals (Logic 14)
@@ -43,7 +43,7 @@ Switching away incurs risks and inefficiencies:
 
 * Loss of historical supplier relationships → requires requalification
 * Loss of trust and reputation → hard to rebuild in new system
-* Loss of pricing & market intelligence → reduces negotiation power
+* Loss of pricing and market intelligence → reduces negotiation power
 * Rebuilding audit compliance → time-consuming and costly
 * Data migration complexity → potential gaps, errors, or loss
 
@@ -72,22 +72,22 @@ Logic 32 relies on previously captured data streams:
 | Source Logic | Contribution to Lock-In               |
 | ------------ | ------------------------------------- |
 | Logic 15     | Supplier performance history          |
-| Logic 19     | Invoice & documentation records       |
+| Logic 19     | Invoice and documentation records       |
 | Logic 20     | Dispute resolution outcomes           |
-| Logic 25     | Trust & reputation scoring            |
+| Logic 25     | Trust and reputation scoring            |
 | Logic 26     | Cross-regional price normalization    |
 | Logic 27     | Risk forecasting models               |
 | Logic 28     | Market intelligence insights          |
 | Logic 30     | Network liquidity and engagement data |
-| Logic 31     | Continuous learning & recommendations |
+| Logic 31     | Continuous learning and recommendations |
 
 ---
 
 # 6️⃣ VALUE ACCUMULATION MECHANISMS
 
-1. **Cumulative Supplier Reputation & Trust** – incentivizes ongoing participation.
-2. **Historical Price Data & Benchmarks** – informs better negotiation decisions.
-3. **Audit & Compliance Trail** – reduces regulatory and operational risk.
+1. **Cumulative Supplier Reputation and Trust** – incentivizes ongoing participation.
+2. **Historical Price Data and Benchmarks** – informs better negotiation decisions.
+3. **Audit and Compliance Trail** – reduces regulatory and operational risk.
 4. **Performance Learning Loops** – prevents repeat mistakes.
 5. **Market Intelligence** – insights not available outside platform.
 
@@ -125,7 +125,7 @@ This creates **behavioral and strategic lock-in**, even if alternatives exist.
 
 # 9️⃣ REINFORCEMENT THROUGH NETWORK EFFECTS
 
-* Logic 30 (network effects & liquidity) ensures the platform becomes **more valuable as more users participate**.
+* Logic 30 (network effects and liquidity) ensures the platform becomes **more valuable as more users participate**.
 * Logic 28 (shared intelligence) compounds value across buyers and suppliers.
 * Leaving means losing access to **both historical and network-driven intelligence**.
 
@@ -165,9 +165,9 @@ All Platform Activities
           ↓
 Institutional Memory Engine
           ↓
-Lock-In & Switching Cost Assessment
+Lock-In and Switching Cost Assessment
           ↓
-User Retention & Strategic Dependency
+User Retention and Strategic Dependency
 ```
 
 ---

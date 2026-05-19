@@ -1,6 +1,6 @@
 Below is the **complete system-level architecture and flow definition** for:
 
-# 🔷 LOGIC 5 – Supplier Discovery & Matching Logic
+# 🔷 LOGIC 5 – Supplier Discovery and Matching Logic
 
 ---
 
@@ -86,7 +86,7 @@ Category Match Score = Overlap(Requirement Categories, Supplier Categories)
 
 ---
 
-## 🔹 2. Capability & Capacity Fit
+## 🔹 2. Capability and Capacity Fit
 
 Evaluates:
 
@@ -126,7 +126,7 @@ Performance Score =
 
 ---
 
-## 🔹 4. Trust & Risk Score (From Logic 1)
+## 🔹 4. Trust and Risk Score (From Logic 1)
 
 Evaluates:
 
@@ -143,7 +143,7 @@ High-risk suppliers:
 
 ---
 
-## 🔹 5. Geographic & Logistical Feasibility
+## 🔹 5. Geographic and Logistical Feasibility
 
 Considers:
 
@@ -218,7 +218,7 @@ Weights adjustable by:
 
 ---
 
-# 5️⃣ RANKING & BIAS CONTROL
+# 5️⃣ RANKING and BIAS CONTROL
 
 To prevent favoritism:
 
@@ -371,7 +371,7 @@ Encourages:
 
 ---
 
-# 1️⃣3️⃣ FAIRNESS & GOVERNANCE CONTROLS
+# 1️⃣3️⃣ FAIRNESS and GOVERNANCE CONTROLS
 
 System prevents:
 
@@ -440,7 +440,7 @@ It bridges:
 
 **Tender Publication (Logic 4)**
 with
-**Bid Submission & Evaluation (Logic 6)**
+**Bid Submission and Evaluation (Logic 6)**
 
 ---
 

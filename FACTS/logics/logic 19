@@ -1,4 +1,4 @@
-# 🔷 LOGIC 19 – Invoice, Receipt & Documentation Management Logic
+# 🔷 LOGIC 19 – Invoice, Receipt and Documentation Management Logic
 
 This logic governs **post-award financial documentation**, ensuring that every invoice, receipt, and supporting document is:
 
@@ -36,14 +36,14 @@ Logic 19 ensures:
 
 Logic 19 activates after:
 
-* Logic 10 → Award & Contract Formation
+* Logic 10 → Award and Contract Formation
 * Logic 18 → Service Milestone Completion (if service-based)
 * Logic 16 → Delivery Confirmation
 
 It feeds into:
 
 * Logic 20 → Payment Authorization
-* Logic 12 → Budget & Spend Control
+* Logic 12 → Budget and Spend Control
 * Logic 14 → Audit Trail
 
 ---
@@ -134,7 +134,7 @@ Advanced systems may apply anomaly detection scoring.
 
 ---
 
-# 8️⃣ RECEIPT & SUPPORTING DOCUMENT MANAGEMENT
+# 8️⃣ RECEIPT and SUPPORTING DOCUMENT MANAGEMENT
 
 Suppliers may upload:
 
@@ -167,7 +167,7 @@ Prevents billing for incomplete work.
 
 ---
 
-# 🔟 TAX & COMPLIANCE CHECKS
+# 🔟 TAX and COMPLIANCE CHECKS
 
 System verifies:
 
@@ -225,7 +225,7 @@ Ensures real-time financial reconciliation.
 
 ---
 
-# 1️⃣4️⃣ DOCUMENT IMMUTABILITY & ARCHIVING
+# 1️⃣4️⃣ DOCUMENT IMMUTABILITY and ARCHIVING
 
 After approval:
 
@@ -265,7 +265,7 @@ All steps auditable.
 
 ---
 
-# 1️⃣6️⃣ CREDIT NOTE & ADJUSTMENT LOGIC
+# 1️⃣6️⃣ CREDIT NOTE and ADJUSTMENT LOGIC
 
 System supports:
 

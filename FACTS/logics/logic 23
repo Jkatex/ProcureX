@@ -1,4 +1,4 @@
-# 🔷 LOGIC 23 – Anti-Collusion & Bid Pattern Analysis Logic
+# 🔷 LOGIC 23 – Anti-Collusion and Bid Pattern Analysis Logic
 
 This logic detects **hidden coordination, price signaling, and bid manipulation** by analyzing structured bidding data across time, suppliers, categories, and buyers.
 
@@ -138,7 +138,7 @@ Detects shared document origin or coordination.
 
 ---
 
-# 9️⃣ GEOGRAPHIC & CATEGORY SEGMENTATION PATTERNS
+# 9️⃣ GEOGRAPHIC and CATEGORY SEGMENTATION PATTERNS
 
 If suppliers:
 
@@ -271,7 +271,7 @@ Statistical Analysis
         ↓
 Risk Flag
         ↓
-Review & Action
+Review and Action
 ```
 
 ---

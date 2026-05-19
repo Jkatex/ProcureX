@@ -1,5 +1,5 @@
 # DATA FLOW DIAGRAMS
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0  
 **Date:** February 19, 2026
@@ -44,7 +44,7 @@ flowchart TB
         REGULATOR([🏛️ Regulatory Body])
     end
 
-    PLATFORM[/🔷 Procurement Intelligence\n& Governance Platform/]
+    PLATFORM[/🔷 Procurement Intelligence\nand Governance Platform/]
 
     BUYER -->|Procurement requests, tender specs,\napprovals, evaluations, invoices| PLATFORM
     PLATFORM -->|Tender notifications, bid results,\ncontracts, reports, alerts| BUYER
@@ -95,35 +95,35 @@ flowchart TB
     %% ══════════════════════════════════
     %% PROCESSES
     %% ══════════════════════════════════
-    P1[P1: Identity &\nAccess Management]
-    P2[P2: Procurement Design\n& Tender Creation]
-    P3[P3: Marketplace\n& Supplier Discovery]
-    P4[P4: Bid Submission\n& Validation]
-    P5[P5: Evaluation\n& Scoring]
-    P6[P6: Award &\nContract Formation]
+    P1[P1: Identity and\nAccess Management]
+    P2[P2: Procurement Design\nand Tender Creation]
+    P3[P3: Marketplace\nand Supplier Discovery]
+    P4[P4: Bid Submission\nand Validation]
+    P5[P5: Evaluation\nand Scoring]
+    P6[P6: Award and\nContract Formation]
     P7[P7: Post-Award\nOperations]
-    P8[P8: Risk &\nCompliance Engine]
-    P9[P9: Intelligence &\nLearning Engine]
-    P10[P10: Integration\n& Sync Engine]
+    P8[P8: Risk and\nCompliance Engine]
+    P9[P9: Intelligence and\nLearning Engine]
+    P10[P10: Integration\nand Sync Engine]
 
     %% ══════════════════════════════════
     %% DATA STORES
     %% ══════════════════════════════════
-    DS1[(DS1: User &\nOrganization Store)]
-    DS2[(DS2: Tender &\nCriteria Store)]
+    DS1[(DS1: User and\nOrganization Store)]
+    DS2[(DS2: Tender and\nCriteria Store)]
     DS3[(DS3: Supplier\nProfile Store)]
-    DS4[(DS4: Bid &\nDocument Store)]
-    DS5[(DS5: Evaluation\n& Score Store)]
-    DS6[(DS6: Contract &\nBudget Store)]
-    DS7[(DS7: Invoice &\nDispute Store)]
-    DS8[(DS8: Audit &\nViolation Store)]
-    DS9[(DS9: Intelligence &\nModel Store)]
+    DS4[(DS4: Bid and\nDocument Store)]
+    DS5[(DS5: Evaluation\nand Score Store)]
+    DS6[(DS6: Contract and\nBudget Store)]
+    DS7[(DS7: Invoice and\nDispute Store)]
+    DS8[(DS8: Audit and\nViolation Store)]
+    DS9[(DS9: Intelligence and\nModel Store)]
 
     %% ══════════════════════════════════
     %% DATA FLOWS
     %% ══════════════════════════════════
 
-    %% P1: Identity & Access
+    %% P1: Identity and Access
     BUYER -->|Registration data,\nverification docs| P1
     SUPPLIER -->|Registration data,\ncapabilities, certs| P1
     IDPROV -->|KYC results,\nverification status| P1
@@ -138,7 +138,7 @@ flowchart TB
     P2 -->|Budget reservation\nrequest| DS6
     P2 -->|Design analysis\nresults| DS8
 
-    %% P3: Marketplace & Discovery
+    %% P3: Marketplace and Discovery
     P3 -->|Supplier matches,\nnotifications| SUPPLIER
     P3 -->|Tender listing,\nmatched opportunities| SUPPLIER
     DS3 -->|Supplier capabilities,\ntrust scores| P3
@@ -152,7 +152,7 @@ flowchart TB
     P4 -->|Bid receipt\nconfirmation| SUPPLIER
     P4 -->|Bid count,\nsubmission audit| DS8
 
-    %% P5: Evaluation & Scoring
+    %% P5: Evaluation and Scoring
     DS4 -->|Opened bids,\ndecrypted content| P5
     DS2 -->|Evaluation criteria,\nweights| P5
     BUYER -->|Manual scores,\njustification| P5
@@ -160,7 +160,7 @@ flowchart TB
     P5 -->|Final rankings| P6
     P5 -->|Price benchmarks| DS9
 
-    %% P6: Award & Contract
+    %% P6: Award and Contract
     DS5 -->|Final rankings,\nscores| P6
     P6 -->|Award decision,\ncontract| DS6
     P6 -->|Award notification| BUYER
@@ -178,7 +178,7 @@ flowchart TB
     P7 -->|Dispute records| DS7
     BUYER -->|Goods receipt,\ninspection results| P7
 
-    %% P8: Risk & Compliance
+    %% P8: Risk and Compliance
     DS4 -->|Bid patterns,\ntiming data| P8
     DS3 -->|Supplier history,\ntrust data| P8
     DS8 -->|Past violations,\naudit logs| P8
@@ -187,7 +187,7 @@ flowchart TB
     P8 -->|Compliance reports| ADMIN
     P8 -->|Trust tier updates| DS1
 
-    %% P9: Intelligence & Learning
+    %% P9: Intelligence and Learning
     DS5 -->|Historical scores,\noutcomes| P9
     DS9 -->|Market data,\npast models| P9
     DS3 -->|Performance trends| P9
@@ -198,7 +198,7 @@ flowchart TB
     %% P10: Integration
     ERP -->|PO data, budget data,\nvendor records| P10
     P10 -->|Award sync, invoice sync,\nsupplier scores| ERP
-    DS6 -->|Contract & invoice data| P10
+    DS6 -->|Contract and invoice data| P10
     P10 -->|Sync records| DS9
     ADMIN -->|Configuration,\nmodule mgmt| P10
 ```
@@ -211,19 +211,19 @@ flowchart TB
 
 | Data Store | Contents | Written By | Read By |
 |---|---|---|---|
-| DS1: User & Organization | Users, roles, permissions, trust tiers, COI declarations | P1, P8 | P1, P2, P3, P4, P5, P6, P8 |
-| DS2: Tender & Criteria | Tenders, items, docs, criteria, amendments, clarifications, design analysis | P2 | P3, P4, P5, P6 |
+| DS1: User and Organization | Users, roles, permissions, trust tiers, COI declarations | P1, P8 | P1, P2, P3, P4, P5, P6, P8 |
+| DS2: Tender and Criteria | Tenders, items, docs, criteria, amendments, clarifications, design analysis | P2 | P3, P4, P5, P6 |
 | DS3: Supplier Profile | Profiles, capabilities, capacity, trust scores, performance history, personnel | P1, P7, P9 | P3, P5, P8, P9 |
-| DS4: Bid & Document | Bids, bid items, documents, validations, hashes, samples | P4 | P5, P8 |
-| DS5: Evaluation & Score | Individual scores, consensus, rankings, benchmarks | P5 | P6, P9 |
-| DS6: Contract & Budget | Awards, contracts, milestones, budgets, transactions, signatures, feasibility | P2, P6, P7 | P6, P7, P10 |
-| DS7: Invoice & Dispute | Invoices, line items, goods receipts, disputes, evidence, appeals | P7 | P7, P8 |
-| DS8: Audit & Violation | Audit trails, violations, enforcement actions, collusion analyses, risk forecasts | P2, P4, P8 | P8, P9, Auditor |
-| DS9: Intelligence & Model | Market intelligence, learning models, recommendations, liquidity indices, sync records | P3, P5, P9, P10 | P3, P5, P8, P9 |
+| DS4: Bid and Document | Bids, bid items, documents, validations, hashes, samples | P4 | P5, P8 |
+| DS5: Evaluation and Score | Individual scores, consensus, rankings, benchmarks | P5 | P6, P9 |
+| DS6: Contract and Budget | Awards, contracts, milestones, budgets, transactions, signatures, feasibility | P2, P6, P7 | P6, P7, P10 |
+| DS7: Invoice and Dispute | Invoices, line items, goods receipts, disputes, evidence, appeals | P7 | P7, P8 |
+| DS8: Audit and Violation | Audit trails, violations, enforcement actions, collusion analyses, risk forecasts | P2, P4, P8 | P8, P9, Auditor |
+| DS9: Intelligence and Model | Market intelligence, learning models, recommendations, liquidity indices, sync records | P3, P5, P9, P10 | P3, P5, P8, P9 |
 
 ---
 
-## 4. Level 2 — Identity & Access Management (P1)
+## 4. Level 2 — Identity and Access Management (P1)
 
 > Logics 1, 2, 37
 
@@ -234,14 +234,14 @@ flowchart TB
 
     P1_1[P1.1: User\nRegistration]
     P1_2[P1.2: Document\nVerification]
-    P1_3[P1.3: KYC &\nSanctions Check]
+    P1_3[P1.3: KYC and\nSanctions Check]
     P1_4[P1.4: Role\nAssignment]
     P1_5[P1.5: Trust Tier\nCalculation]
     P1_6[P1.6: Progressive\nTrust Evaluation]
 
-    DS1[(DS1: User &\nOrg Store)]
+    DS1[(DS1: User and\nOrg Store)]
     DS_DOCS[(DS: Verification\nDocuments)]
-    DS_ROLES[(DS: Roles &\nPermissions)]
+    DS_ROLES[(DS: Roles and\nPermissions)]
 
     USER -->|Personal info,\norg details| P1_1
     P1_1 -->|Pending user record| DS1
@@ -268,7 +268,7 @@ flowchart TB
 
 ---
 
-## 5. Level 2 — Procurement Design & Tender Creation (P2)
+## 5. Level 2 — Procurement Design and Tender Creation (P2)
 
 > Logics 3, 4, 24, 36
 
@@ -278,11 +278,11 @@ flowchart TB
 
     P2_1[P2.1: Need\nDefinition]
     P2_2[P2.2: Specification\nStructuring]
-    P2_3[P2.3: Criteria &\nWeighting Config]
+    P2_3[P2.3: Criteria and\nWeighting Config]
     P2_4[P2.4: Budget\nLinking]
     P2_5[P2.5: Tender Design\nQuality Analysis]
     P2_6[P2.6: Internal\nApproval]
-    P2_7[P2.7: Publication\n& Distribution]
+    P2_7[P2.7: Publication\nand Distribution]
 
     DS2[(DS2: Tender\nStore)]
     DS6[(DS6: Budget\nStore)]
@@ -318,7 +318,7 @@ flowchart TB
 
 ---
 
-## 6. Level 2 — Marketplace & Supplier Discovery (P3)
+## 6. Level 2 — Marketplace and Supplier Discovery (P3)
 
 > Logics 5, 21, 38
 
@@ -329,8 +329,8 @@ flowchart TB
     P3_1[P3.1: Opportunity\nIndexing]
     P3_2[P3.2: Supplier\nMatching Engine]
     P3_3[P3.3: Bias\nControl]
-    P3_4[P3.4: Notification\n& Distribution]
-    P3_5[P3.5: Search &\nDiscovery Portal]
+    P3_4[P3.4: Notification\nand Distribution]
+    P3_5[P3.5: Search and\nDiscovery Portal]
     P3_6[P3.6: Market\nTransparency Dashboard]
 
     DS2[(DS2: Tender\nStore)]
@@ -360,7 +360,7 @@ flowchart TB
 
 ---
 
-## 7. Level 2 — Bid Submission & Validation (P4)
+## 7. Level 2 — Bid Submission and Validation (P4)
 
 > Logics 6, 17
 
@@ -369,11 +369,11 @@ flowchart TB
     SUPPLIER([🏢 Supplier])
 
     P4_1[P4.1: Eligibility\nCheck]
-    P4_2[P4.2: Bid Data\nEntry & Upload]
+    P4_2[P4.2: Bid Data\nEntry and Upload]
     P4_3[P4.3: Structural\nValidation]
     P4_4[P4.4: Compliance\nValidation]
-    P4_5[P4.5: Encryption\n& Hash Generation]
-    P4_6[P4.6: Bid Locking\n& Receipt]
+    P4_5[P4.5: Encryption\nand Hash Generation]
+    P4_6[P4.6: Bid Locking\nand Receipt]
     P4_7[P4.7: Sample\nRegistration]
 
     DS1[(DS1: User\nStore)]
@@ -410,7 +410,7 @@ flowchart TB
 
 ---
 
-## 8. Level 2 — Evaluation & Scoring (P5)
+## 8. Level 2 — Evaluation and Scoring (P5)
 
 > Logics 7, 8, 9, 18, 26
 
@@ -418,7 +418,7 @@ flowchart TB
 flowchart TB
     BUYER([👤 Evaluator])
 
-    P5_1[P5.1: Bid Opening\n& Hash Verification]
+    P5_1[P5.1: Bid Opening\nand Hash Verification]
     P5_2[P5.2: Technical\nEnvelope Evaluation]
     P5_3[P5.3: Sample\nEvaluation]
     P5_4[P5.4: Financial\nEnvelope Opening]
@@ -467,7 +467,7 @@ flowchart TB
 
 ---
 
-## 9. Level 2 — Award & Contract Formation (P6)
+## 9. Level 2 — Award and Contract Formation (P6)
 
 > Logics 10, 11, 12, 13, 16
 
@@ -483,10 +483,10 @@ flowchart TB
     P6_4[P6.4: Approval\nWorkflow Routing]
     P6_5[P6.5: Budget\nCommitment]
     P6_6[P6.6: Standstill\nPeriod Management]
-    P6_7[P6.7: Contract\nGeneration & Signing]
+    P6_7[P6.7: Contract\nGeneration and Signing]
 
     DS5[(DS5: Score\nStore)]
-    DS6[(DS6: Contract &\nBudget Store)]
+    DS6[(DS6: Contract and\nBudget Store)]
     DS8[(DS8: Audit\nStore)]
 
     DS5 -->|Final rankings,\njustifications| P6_1
@@ -529,16 +529,16 @@ flowchart TB
     SUPPLIER([🏢 Supplier])
 
     P7_1[P7.1: Milestone\nTracking]
-    P7_2[P7.2: Goods Receipt\n& Inspection]
+    P7_2[P7.2: Goods Receipt\nand Inspection]
     P7_3[P7.3: Invoice\nSubmission]
     P7_4[P7.4: Three-Way\nMatching]
-    P7_5[P7.5: Fraud &\nDuplicate Detection]
+    P7_5[P7.5: Fraud and\nDuplicate Detection]
     P7_6[P7.6: Payment\nApproval]
     P7_7[P7.7: Performance\nEvaluation]
     P7_8[P7.8: Dispute\nManagement]
 
     DS6[(DS6: Contract\nStore)]
-    DS7[(DS7: Invoice &\nDispute Store)]
+    DS7[(DS7: Invoice and\nDispute Store)]
     DS3[(DS3: Supplier\nStore)]
     DS8[(DS8: Audit\nStore)]
 
@@ -580,7 +580,7 @@ flowchart TB
 
 ---
 
-## 11. Level 2 — Risk & Compliance Engine (P8)
+## 11. Level 2 — Risk and Compliance Engine (P8)
 
 > Logics 14, 23, 27, 29
 
@@ -594,12 +594,12 @@ flowchart TB
     P8_3[P8.3: Compliance\nReview]
     P8_4[P8.4: Violation\nClassification]
     P8_5[P8.5: Enforcement\nAction]
-    P8_6[P8.6: Appeal &\nReinstatement]
+    P8_6[P8.6: Appeal and\nReinstatement]
     P8_7[P8.7: Audit Trail\nManagement]
 
     DS3[(DS3: Supplier\nStore)]
     DS4[(DS4: Bid\nStore)]
-    DS8[(DS8: Audit &\nViolation Store)]
+    DS8[(DS8: Audit and\nViolation Store)]
     DS1[(DS1: User\nStore)]
 
     DS3 -->|Trust scores,\ncapacity data| P8_1
@@ -634,7 +634,7 @@ flowchart TB
 
 ---
 
-## 12. Level 2 — Intelligence & Learning Engine (P9)
+## 12. Level 2 — Intelligence and Learning Engine (P9)
 
 > Logics 28, 30, 31, 38
 
@@ -679,7 +679,7 @@ flowchart TB
 
 ---
 
-## 13. Level 2 — Integration & Sync Engine (P10)
+## 13. Level 2 — Integration and Sync Engine (P10)
 
 > Logics 35, 40
 
@@ -748,7 +748,7 @@ flowchart LR
 
     subgraph "🔄 Behavioral Correction Loop"
         D1[Procurement Events] -->|Aggregate data| D2[Market Transparency\nP9.6]
-        D2 -->|Peer benchmarks,\ntrend signals| D3[Supplier & Buyer\nBehavior Adjustment]
+        D2 -->|Peer benchmarks,\ntrend signals| D3[Supplier and Buyer\nBehavior Adjustment]
         D3 -->|Improved bids,\nbetter tenders| D1
     end
 ```

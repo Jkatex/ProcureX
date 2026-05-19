@@ -1,5 +1,5 @@
 # SMALL COMPANY PROCUREMENT FLOWCHARTS
-## Adapted System for Owner-Managed & Small Firms
+## Adapted System for Owner-Managed and Small Firms
 
 **Version:** 1.0 | **Date:** February 18, 2026
 
@@ -41,9 +41,9 @@
 1. Owner/Manager — Complete Small Company Journey
 2. Small Supplier Interaction with Small Buyer
 3. Simplified Tender Creation (Quick Mode)
-4. Simplified Evaluation & Award
+4. Simplified Evaluation and Award
 5. Simplified Financial Management
-6. Simplified Contract & Delivery
+6. Simplified Contract and Delivery
 7. System-Automated Compliance for Small Firms
 8. Small Company vs Full System — Decision Guide
 
@@ -58,10 +58,10 @@
 ```mermaid
 flowchart TD
     A([🟢 Owner Starts]) --> B[Visit Platform — Select: Small Business]
-    B --> C[Enter: Business Name & Type]
+    B --> C[Enter: Business Name and Type]
     C --> D{Business Type?}
-    D -->|Sole Proprietor| E[Enter: Owner ID & Tax Number]
-    D -->|Small LLC/Ltd| F[Enter: Company Reg # & Tax ID]
+    D -->|Sole Proprietor| E[Enter: Owner ID and Tax Number]
+    D -->|Small LLC/Ltd| F[Enter: Company Reg # and Tax ID]
     D -->|Partnership| G[Enter: Partnership Details]
     
     E --> H[Enter: Email + Phone]
@@ -161,7 +161,7 @@ flowchart TD
     AN --> AO([→ Uses Full System Workflow])
 ```
 
-### 1.3 Owner Manages Bids & Clarifications
+### 1.3 Owner Manages Bids and Clarifications
 
 ```mermaid
 flowchart TD
@@ -198,7 +198,7 @@ flowchart TD
     U --> V([✓ Bids Opened — Ready for Owner Review])
 ```
 
-### 1.4 Owner Evaluates & Awards — Simplified
+### 1.4 Owner Evaluates and Awards — Simplified
 
 ```mermaid
 flowchart TD
@@ -208,7 +208,7 @@ flowchart TD
     B -->|With Advisor — Large| E[Invite 1 Advisor to Co-Evaluate]
     
     C --> F[System: Price per Line Item Comparison]
-    F --> G[System: Auto-Highlight Lowest & Outliers]
+    F --> G[System: Auto-Highlight Lowest and Outliers]
     G --> H[Owner Reviews + Selects]
     
     D --> I[Owner Scores Each Criterion per Bid]
@@ -277,7 +277,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A([Small Supplier: Sees Opportunity]) --> B[View Tender on Marketplace]
-    B --> C[Read: Simple Specs & Requirements]
+    B --> C[Read: Simple Specs and Requirements]
     C --> D[See: Budget Range — Transparent Pricing Signal]
     D --> E[Check: Am I Eligible? — Quick Status Check]
     
@@ -291,7 +291,7 @@ flowchart TD
     
     H -->|Standard Bid| L[Fill: Technical Response — Guided Form]
     L --> M[Fill: Pricing Sheet — Auto-Calculated Totals]
-    M --> N[Upload: Certificates & References]
+    M --> N[Upload: Certificates and References]
     N --> O[Review: Bid Summary Page]
     O --> P{Looks Good?}
     P -->|No| Q[Edit Before Deadline]
@@ -326,7 +326,7 @@ flowchart TD
 
 > Small companies don't need multi-code budget structures. The system provides a simple "spending pool" approach.
 
-### 3.1 Owner — Simple Budget & Payment Flow
+### 3.1 Owner — Simple Budget and Payment Flow
 
 ```mermaid
 flowchart TD
@@ -373,7 +373,7 @@ flowchart TD
 
 ---
 
-## 4. SIMPLIFIED CONTRACT & DELIVERY MONITORING
+## 4. SIMPLIFIED CONTRACT and DELIVERY MONITORING
 
 ### 4.1 Owner — Lightweight Contract Management
 
@@ -517,7 +517,7 @@ flowchart TD
     Q -->|Browse Opportunities| R[→ Discovery Flow]
     Q -->|Submit Bid| S[→ Bid Submission Flow]
     Q -->|Submit Invoice| T[→ Invoice Flow]
-    Q -->|Check Performance| U[→ View Scores & Tips]
+    Q -->|Check Performance| U[→ View Scores and Tips]
     
     V{System Safeguard} --> W[Cannot Bid on Own Tenders]
     V --> X[Cannot Self-Evaluate Own Bids]
@@ -539,7 +539,7 @@ flowchart TD
 
 > The system helps small companies grow into the full system as they scale.
 
-### 7.1 Growth & Graduation Flow
+### 7.1 Growth and Graduation Flow
 
 ```mermaid
 flowchart TD

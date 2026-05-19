@@ -43,7 +43,7 @@ function renderAppLauncher() {
         {
             icon: 'iam',
             tone: 'iam',
-            title: 'Registration & Verification',
+            title: 'Registration and Verification',
             subtitle: 'Registration and identity verification',
             badge: iam.statusLabel,
             badgeClass: iam.badgeClass,
@@ -83,7 +83,7 @@ function renderAppLauncher() {
         {
             icon: 'contracts',
             tone: 'contracts',
-            title: 'Records & History',
+            title: 'Records and History',
             subtitle: 'Past tenders, bids, awards, cancellations',
             badge: 'Archive',
             badgeClass: 'badge-info',
@@ -99,7 +99,7 @@ function renderAppLauncher() {
                     <div>
                         <span class="section-kicker">Welcome to ProcureX</span>
                         <h1>Your account is ready. Choose where to start.</h1>
-                        <p>Use the app launcher to move between Registration & Verification, Procurement, Evaluation, Awarding and Contract, Records, and dashboard analytics. The 9-dot app drawer stays at the top right on every workspace screen.</p>
+                        <p>Use the app launcher to move between Registration and Verification, Procurement, Evaluation, Awarding and Contract, Records, and dashboard analytics. The 9-dot app drawer stays at the top right on every workspace screen.</p>
                     </div>
                     <div class="launcher-intro-card">
                         <span class="badge ${iam.badgeClass}">${iam.statusLabel}</span>

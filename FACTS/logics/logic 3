@@ -1,6 +1,6 @@
 Below is the **complete system-level breakdown** of:
 
-# 🔷 LOGIC 3 – Procurement Need Definition & Structuring
+# 🔷 LOGIC 3 – Procurement Need Definition and Structuring
 
 ---
 
@@ -36,13 +36,13 @@ Requirement Structuring Wizard
         ↓
 Specification Definition
         ↓
-Budget & Quantity Definition
+Budget and Quantity Definition
         ↓
 Timeline Definition
         ↓
 Evaluation Criteria Configuration
         ↓
-Risk & Compliance Checks
+Risk and Compliance Checks
         ↓
 Internal Approval Workflow
         ↓
@@ -157,7 +157,7 @@ No free-form unstructured procurement allowed.
 
 ---
 
-# 6️⃣ BUDGET & FINANCIAL STRUCTURING
+# 6️⃣ BUDGET and FINANCIAL STRUCTURING
 
 User must input:
 
@@ -182,7 +182,7 @@ Mandatory timeline elements:
 | Element                 | Purpose          |
 | ----------------------- | ---------------- |
 | Tender publication date | Transparency     |
-| Clarification window    | Q&A period       |
+| Clarification window    | QandA period       |
 | Submission deadline     | Fair competition |
 | Evaluation window       | Committee period |
 | Award date              | Governance       |
@@ -248,7 +248,7 @@ System checks:
 
 ---
 
-# 🔟 RISK & COMPLIANCE VALIDATION
+# 🔟 RISK and COMPLIANCE VALIDATION
 
 System auto-checks:
 

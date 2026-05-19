@@ -24,11 +24,11 @@ function procurementIcon(type) {
 
 function escapeProcurementDashboardHtml(value = '') {
     return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function renderProcurementDashboard() {
@@ -54,7 +54,7 @@ function renderProcurementDashboard() {
             type: 'Alert',
             title: 'Draft tender needs review',
             detail: 'Office ICT Equipment tender still needs attachments and timeline checks before publication.',
-            meta: 'Create & Manage',
+            meta: 'Create and Manage',
             tone: 'warning',
             nav: 'create-tender'
         },
@@ -99,7 +99,7 @@ function renderProcurementDashboard() {
                     <li><a href="#" data-navigate="procurement-guide">Bid Submission Path</a></li>
                     <li><a href="#" data-navigate="communication-center">Communication Center</a></li>
                     <li><a href="#" data-navigate="bidding-workspace">Draft Bids</a></li>
-                    <li><a href="#" data-navigate="records-history">Records & History</a></li>
+                    <li><a href="#" data-navigate="records-history">Records and History</a></li>
                     <li><a href="#" data-navigate="app-launcher">All Apps</a></li>
                     <li><a href="#" data-navigate="welcome">Logout</a></li>
                 </ul>
@@ -122,7 +122,7 @@ function renderProcurementDashboard() {
                     <article class="procurement-action buyer">
                         <span class="procure-icon">${procurementIcon('create')}</span>
                         <div>
-                            <span class="section-kicker">Create & Manage</span>
+                            <span class="section-kicker">Create and Manage</span>
                             <h2>Create a tender</h2>
                             <p>Start the create tender path for tender design, attachments, BOQ, publication, evaluation, award, and contract tracking.</p>
                         </div>
@@ -132,7 +132,7 @@ function renderProcurementDashboard() {
                     <article class="procurement-action supplier">
                         <span class="procure-icon">${procurementIcon('marketplace')}</span>
                         <div>
-                            <span class="section-kicker">Bid & Respond</span>
+                            <span class="section-kicker">Bid and Respond</span>
                             <h2>Find and bid</h2>
                             <p>Open marketplace tenders, review eligibility, then move into the bid submission path to prepare a bid.</p>
                         </div>

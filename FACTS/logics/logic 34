@@ -1,6 +1,6 @@
-# 🔷 LOGIC 34 – Supplier Dependence & Opportunity Concentration Logic
+# 🔷 LOGIC 34 – Supplier Dependence and Opportunity Concentration Logic
 
-This logic creates **supplier-side lock-in** by making the platform the **primary source of high-quality procurement opportunities**. As suppliers win contracts, build trust, and gain visibility, their **operational and reputational dependence** on the platform increases, complementing buyer-side lock-in (Logic 32 & 33).
+This logic creates **supplier-side lock-in** by making the platform the **primary source of high-quality procurement opportunities**. As suppliers win contracts, build trust, and gain visibility, their **operational and reputational dependence** on the platform increases, complementing buyer-side lock-in (Logic 32 and 33).
 
 ---
 
@@ -19,7 +19,7 @@ Platform Opportunity → Supplier Wins → Reputation + Visibility → Supplier 
 
 ---
 
-# 2️⃣ OPPORTUNITY FLOW & VISIBILITY
+# 2️⃣ OPPORTUNITY FLOW and VISIBILITY
 
 The system ensures:
 
@@ -111,10 +111,10 @@ For the platform:
 
 | Supporting Logics | Contribution                                        |
 | ----------------- | --------------------------------------------------- |
-| Logic 5           | Supplier discovery & matching                       |
-| Logic 15 & 25     | Supplier performance & trust scoring                |
+| Logic 5           | Supplier discovery and matching                       |
+| Logic 15 and 25     | Supplier performance and trust scoring                |
 | Logic 28          | Shared market intelligence reinforcing visibility   |
-| Logic 30          | Network effects & liquidity management              |
+| Logic 30          | Network effects and liquidity management              |
 | Logic 31          | Learning curves enhance supplier recommendations    |
 | Logic 32          | Historical performance records reinforce dependence |
 
@@ -134,7 +134,7 @@ Key entities:
 Flow:
 
 ```
-Opportunity Generation → Supplier Matching → Award + Performance → Reputation & Visibility → Lock-In Assessment
+Opportunity Generation → Supplier Matching → Award + Performance → Reputation and Visibility → Lock-In Assessment
 ```
 
 ---

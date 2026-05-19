@@ -6,11 +6,11 @@ function renderSupplierJourney() {
         ['Tender Search', 'Tender selected', 'Open dashboard, browse marketplace, view tender detail.', 'marketplace', 'Active'],
         ['Clarifications', 'Questions managed', 'Watchlist the tender, ask clarifications, and review buyer answers or amendments.', 'tender-detail', 'Open'],
         ['Bid Submission', 'Sealed bid submitted', 'Choose bid type, complete technical and financial responses, upload documents and samples, validate, review, and submit.', 'bidding-workspace', 'Draft'],
-        ['Receipt & My Bids', 'Hash receipt stored', 'View bid receipt, sealed hash, submitted status, and withdraw or resubmit before deadline.', 'bidding-workspace', 'Submitted'],
+        ['Receipt and My Bids', 'Hash receipt stored', 'View bid receipt, sealed hash, submitted status, and withdraw or resubmit before deadline.', 'bidding-workspace', 'Submitted'],
         ['Award Outcome', 'Results reviewed', 'Open award notifications center, view score breakdown, exit if lost or continue if won.', 'procurement-guide', 'Won'],
         ['Contracting', 'Contract signed', 'Review draft contract, negotiate changes, and digitally sign.', 'contract-negotiation', 'Pending'],
         ['Execution', 'Delivery accepted', 'Submit delivery evidence, buyer accepts and issues GRN.', 'post-award-tracking', '65%'],
-        ['Invoice & Payment', 'Payment received', 'Submit invoice, track status, and confirm payment received.', 'post-award-tracking', 'Pending'],
+        ['Invoice and Payment', 'Payment received', 'Submit invoice, track status, and confirm payment received.', 'post-award-tracking', 'Pending'],
         ['Closure', 'Performance dashboard', 'Review tenderer performance, scorecard, and contract history.', 'post-award-tracking', 'Final']
     ];
 

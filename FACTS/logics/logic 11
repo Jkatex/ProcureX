@@ -1,6 +1,6 @@
 Below is the **complete governance architecture and system design** for:
 
-# 🔷 LOGIC 11 – Approval Workflow & Authority Hierarchy Logic
+# 🔷 LOGIC 11 – Approval Workflow and Authority Hierarchy Logic
 
 This logic enforces **who can authorize which procurement actions**, under what conditions, and in what sequence.
 
@@ -172,7 +172,7 @@ System automatically escalates approval tier.
 
 ---
 
-# 8️⃣ DELEGATION & TEMPORARY AUTHORITY
+# 8️⃣ DELEGATION and TEMPORARY AUTHORITY
 
 Supports:
 
@@ -270,7 +270,7 @@ Prevents “incremental bypassing”.
 
 ---
 
-# 1️⃣4️⃣ AUDIT TRAIL & LOGGING
+# 1️⃣4️⃣ AUDIT TRAIL and LOGGING
 
 Every approval records:
 
@@ -376,7 +376,7 @@ Logic 11:
 * Logic 3 → Approves procurement need
 * Logic 8 → Approves evaluation outcome
 * Logic 9 → Uses price risk in escalation
-* Logic 10 → Approves award & contract
+* Logic 10 → Approves award and contract
 
 It acts as the **control backbone of the entire procurement system**.
 

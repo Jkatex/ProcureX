@@ -2,11 +2,11 @@
 
 function escapeIamProfileHtml(value = '') {
     return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+        .replace(/and/g, 'andamp;')
+        .replace(/</g, 'andlt;')
+        .replace(/>/g, 'andgt;')
+        .replace(/"/g, 'andquot;')
+        .replace(/'/g, 'and#039;');
 }
 
 function getIamProfileValue(data, key, fallback = '') {
@@ -297,7 +297,7 @@ function renderVerificationStatus() {
                     </section>
 
                     <section class="iam-profile-section" data-iam-panel="documents">
-                        <div class="iam-section-heading"><div><span class="section-kicker">Reusable documents</span><h2>Legal & Compliance Documents</h2></div>${sectionBadge('documents')}</div>
+                        <div class="iam-section-heading"><div><span class="section-kicker">Reusable documents</span><h2>Legal and Compliance Documents</h2></div>${sectionBadge('documents')}</div>
                         <div class="iam-form-grid">
                             ${renderIamField(iamData, { section: 'documents', name: 'certificateOfIncorporation', label: 'Certificate of Incorporation', type: 'upload', entity: 'organization', required: entityType === 'company' })}
                             ${renderIamField(iamData, { section: 'documents', name: 'businessLicense', label: 'Business License', type: 'upload', entity: 'organization', required: entityType === 'business' })}
@@ -325,7 +325,7 @@ function renderVerificationStatus() {
                     </section>
 
                     <section class="iam-profile-section" data-iam-panel="capacity">
-                        <div class="iam-section-heading"><div><span class="section-kicker">Experience & Capacity</span><h2>Experience & Technical Capacity</h2></div>${sectionBadge('capacity')}</div>
+                        <div class="iam-section-heading"><div><span class="section-kicker">Experience and Capacity</span><h2>Experience and Technical Capacity</h2></div>${sectionBadge('capacity')}</div>
                         <div class="iam-form-grid">
                             ${renderIamField(iamData, { section: 'capacity', name: 'yearsOfExperience', label: 'Years of Experience', type: 'number' })}
                             ${renderIamField(iamData, { section: 'capacity', name: 'pastProjects', label: 'Past Projects', type: 'repeater', wide: true, hint: 'One project per line.' })}
@@ -350,7 +350,7 @@ function renderVerificationStatus() {
                     </section>
 
                     <section class="iam-profile-section" data-iam-panel="system">
-                        <div class="iam-section-heading"><div><span class="section-kicker">System Verification Record</span><h2>Verification & System Information</h2></div><span class="badge badge-info">System generated</span></div>
+                        <div class="iam-section-heading"><div><span class="section-kicker">System Verification Record</span><h2>Verification and System Information</h2></div><span class="badge badge-info">System generated</span></div>
                         <div class="iam-overview-grid">
                             ${renderIamReadonlyRows([
                                 ['Verification Status', isComplete ? 'Verified' : 'Pending'],

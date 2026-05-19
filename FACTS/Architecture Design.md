@@ -1,5 +1,5 @@
 # ARCHITECTURE DESIGN
-## Procurement Intelligence & Governance Platform
+## Procurement Intelligence and Governance Platform
 
 **Version:** 1.0  
 **Date:** February 19, 2026
@@ -107,7 +107,7 @@ flowchart TB
         MARKETDATA["📊 Market Feeds"]
     end
 
-    subgraph "DevOps & Observability"
+    subgraph "DevOps and Observability"
         CI["🔄 CI/CD\nGitHub Actions"]
         DOCKER["🐳 Docker\nContainers"]
         K8S["☸️ Kubernetes\nOrchestration"]
@@ -168,12 +168,12 @@ flowchart TB
         G2["Rate Limiting"]
         G3["API Versioning"]
         G4["Request Validation"]
-        G5["CORS & Security Headers"]
+        G5["CORS and Security Headers"]
     end
 
-    subgraph "Authentication & Authorization Layer"
+    subgraph "Authentication and Authorization Layer"
         direction LR
-        A1["JWT Issuance\n& Validation"]
+        A1["JWT Issuance\nand Validation"]
         A2["MFA Engine\nTOTP / SMS OTP"]
         A3["RBAC Middleware"]
         A4["ABAC Extensions"]
@@ -191,16 +191,16 @@ flowchart TB
 
     subgraph "Domain Services Layer"
         direction LR
-        DS1["Identity &\nTrust Service"]
+        DS1["Identity and\nTrust Service"]
         DS2["Tender Design\nService"]
         DS3["Supplier Discovery\nService"]
         DS4["Bid Management\nService"]
-        DS5["Scoring &\nRanking Service"]
-        DS6["Award &\nApproval Service"]
-        DS7["Invoice &\nDispute Service"]
-        DS8["Risk & Collusion\nService"]
-        DS9["Intelligence &\nLearning Service"]
-        DS10["Integration &\nSync Service"]
+        DS5["Scoring and\nRanking Service"]
+        DS6["Award and\nApproval Service"]
+        DS7["Invoice and\nDispute Service"]
+        DS8["Risk and Collusion\nService"]
+        DS9["Intelligence and\nLearning Service"]
+        DS10["Integration and\nSync Service"]
     end
 
     subgraph "Data Access Layer"
@@ -300,19 +300,19 @@ flowchart TB
     end
 
     MW1 --> MW2 --> MW3 --> MW4 --> MW5 --> MW6 --> MW7
-    MW7 --> R_AUTH & R_USERS & R_ORGS & R_TENDERS & R_BIDS
-    R_AUTH --> S1 & S2
+    MW7 --> R_AUTH and R_USERS and R_ORGS and R_TENDERS and R_BIDS
+    R_AUTH --> S1 and S2
     R_TENDERS --> S3
     R_SUPPLIERS --> S4
     R_BIDS --> S5
     R_EVAL --> S6
-    R_AWARDS --> S7 & S8
-    R_CONTRACTS --> S7 & S10
+    R_AWARDS --> S7 and S8
+    R_CONTRACTS --> S7 and S10
     R_BUDGET --> S9
     R_INVOICES --> S13
     R_DISPUTES --> S14
-    R_RISK --> S16 & S17
-    R_INTEL --> S18 & S21
+    R_RISK --> S16 and S17
+    R_INTEL --> S18 and S21
     R_INTEGRATIONS --> S20
     R_ADMIN --> S19
     R_AUDIT --> S11
@@ -340,7 +340,7 @@ flowchart TB
             P_CONTRACTS["📝 Contracts\nList, Detail, Milestones"]
             P_INVOICES["💰 Invoices\nSubmit, Match, Track"]
             P_SUPPLIERS["🏢 Suppliers\nProfile, Performance, Trust"]
-            P_RISK["🔍 Risk & Compliance\nForecasts, Collusion, Governance"]
+            P_RISK["🔍 Risk and Compliance\nForecasts, Collusion, Governance"]
             P_INTEL["📈 Market Intelligence\nBenchmarks, Liquidity, Trends"]
             P_ADMIN["⚙️ Admin\nUsers, Roles, Modules, Config"]
             P_AUDIT["📋 Audit\nTrail Viewer, Reports"]
@@ -373,14 +373,14 @@ flowchart TB
     end
 
     ROUTER --> AUTH_GUARD --> ROLE_GUARD --> LAYOUT
-    LAYOUT --> P_DASH & P_TENDERS & P_BIDS & P_EVAL & P_CONTRACTS
-    P_DASH --> C_CHART & C_TABLE
-    P_TENDERS --> C_FORM & C_UPLOAD & C_TIMELINE
-    P_BIDS --> C_FORM & C_UPLOAD
-    P_EVAL --> C_TABLE & C_CHART & C_APPROVAL
-    P_CONTRACTS --> C_TIMELINE & C_APPROVAL
+    LAYOUT --> P_DASH and P_TENDERS and P_BIDS and P_EVAL and P_CONTRACTS
+    P_DASH --> C_CHART and C_TABLE
+    P_TENDERS --> C_FORM and C_UPLOAD and C_TIMELINE
+    P_BIDS --> C_FORM and C_UPLOAD
+    P_EVAL --> C_TABLE and C_CHART and C_APPROVAL
+    P_CONTRACTS --> C_TIMELINE and C_APPROVAL
     P_DASH --> STORE
-    STORE --> SL_AUTH & SL_TENDER & SL_BID & SL_EVAL & SL_NOTIFY
+    STORE --> SL_AUTH and SL_TENDER and SL_BID and SL_EVAL and SL_NOTIFY
     SL_AUTH --> API_CLIENT
     SL_NOTIFY --> WS_CLIENT
 ```
@@ -491,13 +491,13 @@ flowchart TB
     subgraph "Supporting Data Stores"
         REDIS[("Redis\n• JWT blacklist\n• Session data\n• Rate limit counters\n• Cached supplier profiles\n• Tender deadline timers")]
         ES[("Elasticsearch\n• Tender full-text index\n• Supplier search index\n• Audit trail index\n• Market intelligence queries")]
-        S3["S3 Object Storage\n• Tender documents\n• Bid envelopes (encrypted)\n• Contracts (signed)\n• Invoices & receipts\n• Sample photos\n• CV files"]
+        S3["S3 Object Storage\n• Tender documents\n• Bid envelopes (encrypted)\n• Contracts (signed)\n• Invoices and receipts\n• Sample photos\n• CV files"]
     end
 ```
 
 ---
 
-## 7. Authentication & Security Architecture
+## 7. Authentication and Security Architecture
 
 ```mermaid
 flowchart TB
@@ -630,15 +630,15 @@ flowchart TB
 
     DEV -->|git push| GIT
     GIT -->|trigger| CI
-    CI -->|build & push| REG
+    CI -->|build and push| REG
     CI -->|deploy| INGRESS
 
     CDN_D --> WAF_D --> LB_D --> INGRESS
-    INGRESS --> API_POD & WS_POD
-    API_POD --> RDS & REDIS_M & S3_M & SQS_M & ES_POD
-    WORKER_POD --> RDS & S3_M & SQS_M & ML_POD
+    INGRESS --> API_POD and WS_POD
+    API_POD --> RDS and REDIS_M and S3_M and SQS_M and ES_POD
+    WORKER_POD --> RDS and S3_M and SQS_M and ML_POD
     ML_POD --> RDS
-    HPA --> API_POD & WORKER_POD
+    HPA --> API_POD and WORKER_POD
     API_POD --> PROM --> GRAF
     API_POD --> ELK_D
     PROM --> ALERT
@@ -648,7 +648,7 @@ flowchart TB
 
 | Environment | Purpose | Infrastructure |
 |---|---|---|
-| **Development** | Local coding & debugging | Docker Compose (all services local) |
+| **Development** | Local coding and debugging | Docker Compose (all services local) |
 | **Staging** | Integration testing, UAT | Single-node K8s, shared managed DB |
 | **Production** | Live system | Multi-node K8s, HA database, CDN, WAF |
 
@@ -863,7 +863,7 @@ procurement-platform/
 │
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml                   # Test & lint on PR
+│       ├── ci.yml                   # Test and lint on PR
 │       └── deploy.yml               # Deploy on merge to main
 │
 ├── docs/
@@ -901,7 +901,7 @@ flowchart LR
         B7["Helmet + CORS"]
     end
 
-    subgraph "AUTH & SECURITY"
+    subgraph "AUTH and SECURITY"
         A1["JWT"]
         A2["bcrypt"]
         A3["AES-256"]
@@ -942,10 +942,10 @@ flowchart LR
     end
 
     F1 --> B2
-    B2 --> D1 & D2 & D3 & D4 & D5
+    B2 --> D1 and D2 and D3 and D4 and D5
     B4 --> M2
     A1 --> B2
     O1 --> O2
     O3 --> O1
-    B2 --> E1 & E2 & E3 & E4
+    B2 --> E1 and E2 and E3 and E4
 ```

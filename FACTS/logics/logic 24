@@ -1,4 +1,4 @@
-# 🔷 LOGIC 24 – Tender Design Quality & Bias Detection Logic
+# 🔷 LOGIC 24 – Tender Design Quality and Bias Detection Logic
 
 This logic evaluates procurement documents **before publication** to detect:
 
@@ -54,7 +54,7 @@ Buyer Drafts Tender
         ↓
 Automated Design Analysis
         ↓
-Risk & Bias Scoring
+Risk and Bias Scoring
         ↓
 Structured Feedback Report
         ↓
@@ -81,7 +81,7 @@ Flags statements that lack objective criteria.
 
 ---
 
-# 5️⃣ OVER-SPECIFICATION & BRAND BIAS DETECTION
+# 5️⃣ OVER-SPECIFICATION and BRAND BIAS DETECTION
 
 System checks for:
 
@@ -141,7 +141,7 @@ Flags unrealistic timelines likely to cause failure.
 
 ---
 
-# 9️⃣ CONFLICT & INCONSISTENCY DETECTION
+# 9️⃣ CONFLICT and INCONSISTENCY DETECTION
 
 System detects:
 
@@ -172,7 +172,7 @@ Buyer receives warning if tender design limits participation excessively.
 
 ---
 
-# 1️⃣1️⃣ LANGUAGE & CLARITY ANALYSIS
+# 1️⃣1️⃣ LANGUAGE and CLARITY ANALYSIS
 
 Advanced implementations may use:
 
