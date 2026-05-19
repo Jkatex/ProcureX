@@ -4119,6 +4119,22 @@ function initializeBiddingWorkspace() {
             }
         });
 
+        Array.from(root.querySelectorAll('[data-bid-commercial-body] tr')).forEach(row => {
+            const rateInput = row.querySelector('[data-bid-rate]');
+            const output = row.querySelector('[data-bid-line-amount]');
+            if (!rateInput || !output) return;
+            const qtyInput = row.querySelector('[data-bid-line-qty]');
+            const rate = parseBidWorkspaceNumber(rateInput.value);
+            const qty = parseBidWorkspaceNumber(qtyInput?.value || qtyInput?.textContent || row.children[2]?.textContent || '1') || 1;
+            const extraCost = Array.from(row.querySelectorAll('[data-bid-line-extra-cost]'))
+                .reduce((sum, input) => sum + parseBidWorkspaceNumber(input.value), 0);
+            const expectedAmount = Math.round((rate * qty) + extraCost);
+            const displayedAmount = parseBidWorkspaceNumber(output.textContent);
+            if (Number.isFinite(displayedAmount) && Math.abs(expectedAmount - displayedAmount) > 1) {
+                addIssue(rateInput, 'Commercial line total is out of sync with quantity, rate, or extra cost. Recalculate totals before submitting.');
+            }
+        });
+
         const performanceGuarantee = root.querySelector('[data-bid-response="works-commercial-performance-guarantee"]');
         if (performanceGuarantee) {
             clearInput(performanceGuarantee);
@@ -4760,6 +4776,7 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
                         focusBidWorkspaceInput(panelValidation.firstIncomplete);
                         return;
                     }
+                    refreshBidTotals();
                     const semanticValidation = validateSemanticResponses(true, panels[activeStepIndex] || wizard);
                     if (!semanticValidation.valid) {
                         alert(semanticValidation.messages[0] || 'Correct the highlighted bid values before continuing.');
@@ -4794,6 +4811,7 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
                     focusBidWorkspaceInput(panelValidation.firstIncomplete);
                     return;
                 }
+                refreshBidTotals();
                 const semanticValidation = validateSemanticResponses(true, panels[activeStepIndex] || wizard);
                 if (!semanticValidation.valid) {
                     alert(semanticValidation.messages[0] || 'Correct the highlighted bid values before continuing.');
@@ -4896,6 +4914,7 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
                 focusBidWorkspaceInput(workflowValidation.firstIncomplete);
                 return;
             }
+            refreshBidTotals();
             const semanticValidation = validateSemanticResponses(true);
             if (!semanticValidation.valid) {
                 const firstInvalidPanelIndex = panels.findIndex(panel => panel.contains(semanticValidation.firstIncomplete));
@@ -4909,7 +4928,6 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
                 alert('Confirm the bid declaration before submitting.');
                 return;
             }
-            refreshBidTotals();
             const submissionReceipt = storeSubmittedBid();
             const receiptHashValue = submissionReceipt.receiptHash;
             window.addProcurexCommunicationItem?.({
