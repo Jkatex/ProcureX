@@ -2240,6 +2240,18 @@ function renderBidWorkspaceUploadControl(responseId, draft = {}, label = 'Upload
     `;
 }
 
+function renderBidWorkspaceTrashIcon() {
+    return `
+        <svg class="trash-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18"></path>
+            <path d="M8 6V4h8v2"></path>
+            <path d="M19 6l-1 14H6L5 6"></path>
+            <path d="M10 11v5"></path>
+            <path d="M14 11v5"></path>
+        </svg>
+    `;
+}
+
 function getWorksBidBoqRows(tender = {}) {
     const fields = tender.requirements?.fields || {};
     if (fields.boqRows?.length) return fields.boqRows;
@@ -2275,6 +2287,40 @@ function getWorksBidPersonnelRoles(tender = {}) {
     return ['Project Manager', 'Site Engineer', 'Quantity Surveyor', 'Safety Officer', 'Foreman / Works Supervisor'];
 }
 
+function getWorksBidPersonnelUploadCount(draft = {}, required = false) {
+    const minimumCount = required ? 1 : 1;
+    const responseIds = new Set([
+        ...Object.keys(draft.responses || {}),
+        ...Object.keys(draft.uploadedFiles || {})
+    ]);
+    const savedIndexes = Array.from(responseIds)
+        .map(id => /^works-personnel-(\d+)-(position|cv)$/.exec(id))
+        .filter(Boolean)
+        .map(match => Number(match[1]))
+        .filter(Number.isFinite);
+    const savedCount = savedIndexes.length ? Math.max(...savedIndexes) + 1 : 0;
+    return Math.max(minimumCount, savedCount);
+}
+
+function renderWorksBidPersonnelUploadCard(index = 0, draft = {}, required = false) {
+    const baseId = `works-personnel-${index}`;
+    return `
+        <article class="works-person-card" data-works-personnel-card>
+            <div class="works-person-avatar">P</div>
+            <div>
+                <div class="bid-dynamic-group-heading">
+                    <span class="section-kicker">Personnel ${index + 1}</span>
+                    ${required ? '' : `<button class="icon-delete-btn" type="button" data-delete-personnel-slot aria-label="Delete personnel slot" title="Delete personnel slot">${renderBidWorkspaceTrashIcon()}</button>`}
+                </div>
+                <div class="form-grid two">
+                    <div class="form-group"><label class="form-label">Personnel Position</label><input class="form-input" data-bid-response="${baseId}-position" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-position`))}"></div>
+                    <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-cv`, draft, 'CV upload', '.pdf,.doc,.docx', required)}</div>
+                </div>
+            </div>
+        </article>
+    `;
+}
+
 function getWorksBidEquipmentRows(tender = {}) {
     const rows = tender.requirements?.fields?.equipmentRequirementRows || [];
     if (rows.length) return rows;
@@ -2303,79 +2349,69 @@ function getWorksBidEquipmentRows(tender = {}) {
     ];
 }
 
+function getWorksBidSimilarProjectUploadCount(draft = {}, required = false) {
+    const minimumCount = required ? 3 : 2;
+    const responseIds = new Set([
+        ...Object.keys(draft.responses || {}),
+        ...Object.keys(draft.uploadedFiles || {})
+    ]);
+    const savedIndexes = Array.from(responseIds)
+        .map(id => /^works-similar-projects-document-(\d+)$/.exec(id))
+        .filter(Boolean)
+        .map(match => Number(match[1]))
+        .filter(Number.isFinite);
+    const savedCount = savedIndexes.length ? Math.max(...savedIndexes) + 1 : 0;
+    return Math.max(minimumCount, savedCount);
+}
+
+function renderWorksBidSimilarProjectUploadCard(index = 0, draft = {}, required = false) {
+    return `
+        <article class="works-capacity-card" data-works-similar-project-card>
+            <div class="bid-dynamic-group-heading">
+                <span class="section-kicker">Similar project ${index + 1}</span>
+                ${required ? '' : `<button class="icon-delete-btn" type="button" data-delete-similar-project-slot aria-label="Delete similar project slot" title="Delete similar project slot">${renderBidWorkspaceTrashIcon()}</button>`}
+            </div>
+            ${renderBidWorkspaceUploadControl(`works-similar-projects-document-${index}`, draft, 'Upload similar project document', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', required)}
+        </article>
+    `;
+}
+
 function renderWorksBidExperienceCards(tender = {}, draft = {}) {
     const required = normalizeBidWorkspaceFlag(tender.requirements?.fields?.similarCompletedProjectsRequired);
-    const count = required ? 3 : 1;
+    const count = getWorksBidSimilarProjectUploadCount(draft, required);
     return `
         <section class="works-response-section">
             <div class="bid-dynamic-group-heading">
                 <div>
                     <h3>Similar completed projects</h3>
-                    <p>Provide comparable works references, completion proof, and client contacts.</p>
+                    <p>Upload documents explaining previous similar projects, including any completion proof, references, and client details.</p>
                 </div>
                 <span class="badge ${required ? 'badge-warning' : 'badge-info'}">${required ? 'Required' : 'Optional'}</span>
             </div>
-            <div class="works-card-grid">
-                ${Array.from({ length: count }, (_, index) => {
-                    const baseId = `works-experience-${index}`;
-                    return `
-                        <article class="works-capacity-card">
-                            <span class="section-kicker">Project ${index + 1}</span>
-                            <div class="form-grid two">
-                                <div class="form-group"><label class="form-label">Project Name</label><input class="form-input" data-bid-response="${baseId}-project-name" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-project-name`))}"></div>
-                                <div class="form-group"><label class="form-label">Client Name</label><input class="form-input" data-bid-response="${baseId}-client-name" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-client-name`))}"></div>
-                                <div class="form-group"><label class="form-label">Project Location</label><input class="form-input" data-bid-response="${baseId}-location" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-location`))}"></div>
-                                <div class="form-group"><label class="form-label">Contract Value</label><input class="form-input" type="number" min="0" step="1000" data-bid-response="${baseId}-value" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-value`))}"></div>
-                                <div class="form-group"><label class="form-label">Start Date</label><input class="form-input" type="date" data-bid-response="${baseId}-start" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-start`))}"></div>
-                                <div class="form-group"><label class="form-label">Completion Date</label><input class="form-input" type="date" data-bid-response="${baseId}-completion" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-completion`))}"></div>
-                                <div class="form-group"><label class="form-label">Completion Status</label><select class="form-input" data-bid-response="${baseId}-status"><option value="">Select</option>${['Completed', 'Substantially complete', 'Ongoing'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-status`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                                <div class="form-group"><label class="form-label">Reference Contact</label><input class="form-input" data-bid-response="${baseId}-reference" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-reference`))}"></div>
-                                <div class="form-group wide"><label class="form-label">Scope of Works</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-scope">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-scope`))}</textarea></div>
-                                <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-completion-certificate`, draft, 'Upload completion certificate', '.pdf,.doc,.docx,.jpg,.jpeg,.png', required)}</div>
-                                <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-contract-copy`, draft, 'Upload contract copy', '.pdf,.doc,.docx', false)}</div>
-                            </div>
-                        </article>
-                    `;
-                }).join('')}
+            <div class="works-card-grid" data-works-similar-project-list>
+                ${Array.from({ length: count }, (_, index) => renderWorksBidSimilarProjectUploadCard(index, draft, required && index === 0)).join('')}
             </div>
+            <button class="btn btn-secondary" type="button" data-add-similar-project style="margin-top: 12px;">Add similar projects</button>
         </section>
     `;
 }
 
 function renderWorksBidPersonnelCards(tender = {}, draft = {}) {
     const required = normalizeBidWorkspaceFlag(tender.requirements?.fields?.keyPersonnelCvsRequired);
-    const roles = getWorksBidPersonnelRoles(tender);
+    const count = getWorksBidPersonnelUploadCount(draft, required);
     return `
         <section class="works-response-section">
             <div class="bid-dynamic-group-heading">
                 <div>
                     <h3>Key personnel</h3>
-                    <p>Nominate the construction team, qualifications, registrations, availability, and CV evidence.</p>
+                    <p>Add personnel positions and upload the matching CV for each person.</p>
                 </div>
-                <span class="badge ${required ? 'badge-warning' : 'badge-info'}">${roles.length} profiles</span>
+                <span class="badge ${required ? 'badge-warning' : 'badge-info'}">${count} profile${count === 1 ? '' : 's'}</span>
             </div>
-            <div class="works-personnel-grid">
-                ${roles.map((role, index) => {
-                    const baseId = `works-personnel-${index}`;
-                    return `
-                        <article class="works-person-card">
-                            <div class="works-person-avatar">${escapeBidWorkspaceHtml(String(role).slice(0, 1).toUpperCase())}</div>
-                            <div>
-                                <span class="section-kicker">${escapeBidWorkspaceHtml(role)}</span>
-                                <div class="form-grid two">
-                                    <div class="form-group"><label class="form-label">Full Name</label><input class="form-input" data-bid-response="${baseId}-name" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-name`))}"></div>
-                                    <div class="form-group"><label class="form-label">Qualification</label><input class="form-input" data-bid-response="${baseId}-qualification" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-qualification`))}"></div>
-                                    <div class="form-group"><label class="form-label">Years of Experience</label><input class="form-input" type="number" min="0" data-bid-response="${baseId}-experience" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-experience`))}"></div>
-                                    <div class="form-group"><label class="form-label">Registration No.</label><input class="form-input" data-bid-response="${baseId}-registration" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-registration`))}"></div>
-                                    <div class="form-group"><label class="form-label">Availability Status</label><select class="form-input" data-bid-response="${baseId}-availability" ${required ? 'data-bid-workflow-required-response="true"' : ''}><option value="">Select</option>${['Available full time', 'Available part time', 'Replacement proposed'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-availability`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                                    <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-cv`, draft, 'CV upload', '.pdf,.doc,.docx', required)}</div>
-                                    <div class="form-group wide">${renderBidWorkspaceUploadControl(`${baseId}-certifications`, draft, 'Certifications upload', '.pdf,.doc,.docx,.jpg,.jpeg,.png', false)}</div>
-                                </div>
-                            </div>
-                        </article>
-                    `;
-                }).join('')}
+            <div class="works-personnel-grid" data-works-personnel-list>
+                ${Array.from({ length: count }, (_, index) => renderWorksBidPersonnelUploadCard(index, draft, required && index === 0)).join('')}
             </div>
+            <button class="btn btn-secondary" type="button" data-add-personnel style="margin-top: 12px;">Add personnel</button>
         </section>
     `;
 }
@@ -3757,7 +3793,7 @@ function renderBiddingWorkspace() {
                                     <div><span>Bidder</span><strong>${escapeBidWorkspaceHtml(mockData.users?.supplier?.organization || 'Supplier organization')}</strong></div>
                                     <div><span>Eligibility readiness</span><strong data-bid-gate-summary>Pending review</strong></div>
                                     <div><span>Experience evidence</span><strong>${normalizeBidWorkspaceFlag(tender.requirements?.fields?.similarCompletedProjectsRequired) ? 'Required' : 'Optional'}</strong></div>
-                                    <div><span>Personnel profiles</span><strong>${getWorksBidPersonnelRoles(tender).length} roles</strong></div>
+                                    <div><span>Personnel profiles</span><strong>${getWorksBidPersonnelUploadCount(draft, normalizeBidWorkspaceFlag(tender.requirements?.fields?.keyPersonnelCvsRequired))} profile${getWorksBidPersonnelUploadCount(draft, normalizeBidWorkspaceFlag(tender.requirements?.fields?.keyPersonnelCvsRequired)) === 1 ? '' : 's'}</strong></div>
                                     <div><span>Equipment capacity</span><strong>${getWorksBidEquipmentRows(tender).length} items</strong></div>
                                     <div><span>BOQ lines</span><strong>${getWorksBidBoqRows(tender).length} priced lines</strong></div>
                                     <div><span>Milestones</span><strong>${getWorksBidMilestoneRows(tender).length} schedule items</strong></div>
@@ -5088,6 +5124,85 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
             clearBidUpload(target.closest('[data-bid-upload-control]'));
             validateMandatoryGate(false);
             validateWorkflowResponses(false);
+            refreshBidResponseReviews();
+            saveDraft();
+            return;
+        }
+
+        if (target.matches('[data-add-similar-project]')) {
+            const list = wizard.querySelector('[data-works-similar-project-list]');
+            if (!list) return;
+            const existingIndexes = Array.from(list.querySelectorAll('[data-bid-response]'))
+                .map(input => /^works-similar-projects-document-(\d+)$/.exec(input.dataset.bidResponse || ''))
+                .filter(Boolean)
+                .map(match => Number(match[1]))
+                .filter(Number.isFinite);
+            const nextIndex = existingIndexes.length ? Math.max(...existingIndexes) + 1 : 0;
+            list.insertAdjacentHTML('beforeend', renderWorksBidSimilarProjectUploadCard(nextIndex, {}, false));
+            const addedCard = list.querySelector('[data-works-similar-project-card]:last-child');
+            const uploadControl = addedCard?.querySelector('[data-bid-upload-control]');
+            updateBidUploadControlState(uploadControl);
+            uploadControl?.querySelector('[data-bid-file-input]')?.focus?.();
+            validateWorkflowResponses(false);
+            refreshBidProgress();
+            refreshBidResponseReviews();
+            saveDraft();
+            return;
+        }
+
+        if (target.matches('[data-delete-similar-project-slot]')) {
+            const card = target.closest('[data-works-similar-project-card]');
+            const list = card?.closest('[data-works-similar-project-list]');
+            if (!card || !list) return;
+            const remainingCards = list.querySelectorAll('[data-works-similar-project-card]').length;
+            if (remainingCards <= 1) {
+                alert('Keep at least one similar project upload slot.');
+                return;
+            }
+            const uploadControl = card.querySelector('[data-bid-upload-control]');
+            if (uploadControl) clearBidUpload(uploadControl);
+            card.remove();
+            validateWorkflowResponses(false);
+            refreshBidProgress();
+            refreshBidResponseReviews();
+            saveDraft();
+            return;
+        }
+
+        if (target.matches('[data-add-personnel]')) {
+            const list = wizard.querySelector('[data-works-personnel-list]');
+            if (!list) return;
+            const existingIndexes = Array.from(list.querySelectorAll('[data-bid-response]'))
+                .map(input => /^works-personnel-(\d+)-(position|cv)$/.exec(input.dataset.bidResponse || ''))
+                .filter(Boolean)
+                .map(match => Number(match[1]))
+                .filter(Number.isFinite);
+            const nextIndex = existingIndexes.length ? Math.max(...existingIndexes) + 1 : 0;
+            list.insertAdjacentHTML('beforeend', renderWorksBidPersonnelUploadCard(nextIndex, {}, false));
+            const addedCard = list.querySelector('[data-works-personnel-card]:last-child');
+            addedCard?.querySelector('[data-bid-response]')?.focus?.();
+            addedCard?.querySelectorAll('[data-bid-upload-control]').forEach(updateBidUploadControlState);
+            validateWorkflowResponses(false);
+            refreshBidProgress();
+            refreshBidResponseReviews();
+            saveDraft();
+            return;
+        }
+
+        if (target.matches('[data-delete-personnel-slot]')) {
+            const card = target.closest('[data-works-personnel-card]');
+            const list = card?.closest('[data-works-personnel-list]');
+            if (!card || !list) return;
+            const remainingCards = list.querySelectorAll('[data-works-personnel-card]').length;
+            if (remainingCards <= 1) {
+                alert('Keep at least one personnel slot.');
+                return;
+            }
+            const uploadControl = card.querySelector('[data-bid-upload-control]');
+            if (uploadControl) clearBidUpload(uploadControl);
+            card.remove();
+            validateWorkflowResponses(false);
+            refreshBidProgress();
             refreshBidResponseReviews();
             saveDraft();
             return;
