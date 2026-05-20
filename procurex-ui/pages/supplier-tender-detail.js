@@ -301,9 +301,9 @@ function getProcurexTenderEligibilityComplianceItems(tender = {}, profile = {}) 
         });
 }
 
-function renderProcurexTenderDocumentSection(number, title, kicker, content, aside = '') {
+function renderProcurexTenderDocumentSection(number, title, kicker, content, aside = '', anchorId = '') {
     return `
-        <article class="tender-document-section">
+        <article class="tender-document-section" ${anchorId ? `id="${escapeSupplierTenderDetailHtml(anchorId)}" data-supplier-document-section="${escapeSupplierTenderDetailHtml(anchorId)}"` : ''}>
             <div class="tender-document-section-heading">
                 <span>${escapeSupplierTenderDetailHtml(number)}</span>
                 <div>
@@ -699,6 +699,42 @@ function renderSupplierTenderSubTabs(tabs = [], activeId = '') {
     `;
 }
 
+function renderSupplierTenderDocumentJumpNav(sections = []) {
+    return `
+        <div class="supplier-detail-subtabs supplier-detail-document-index">
+            <div class="supplier-detail-tabs" data-supplier-jump-list>
+                ${sections.map((section, index) => `
+                    <button class="supplier-detail-tab ${index === 0 ? 'active' : ''}" type="button" data-supplier-jump-target="${escapeSupplierTenderDetailHtml(section.id)}">
+                        ${escapeSupplierTenderDetailHtml(section.label)}
+                    </button>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function renderSupplierTenderProcurementDocument(tender = {}, sections = []) {
+    return `
+        <div class="supplier-detail-procurement-document">
+            ${renderSupplierTenderDocumentJumpNav(sections)}
+            <section class="tender-document-view supplier-procurement-full-document">
+                <header class="tender-document-cover">
+                    <div>
+                        <span class="section-kicker">Procurement details</span>
+                        <h2>${escapeSupplierTenderDetailHtml(tender.title || 'Tender brief')}</h2>
+                        <p>${escapeSupplierTenderDetailHtml(tender.description || 'Review the full procurement detail document before preparing a bid.')}</p>
+                    </div>
+                    <div class="tender-document-stamp">
+                        <strong>${escapeSupplierTenderDetailHtml(tender.status || 'Open')}</strong>
+                        <span>${escapeSupplierTenderDetailHtml(tender.type || 'Tender')}</span>
+                    </div>
+                </header>
+                ${sections.map(section => section.content).join('')}
+            </section>
+        </div>
+    `;
+}
+
 function getSupplierTenderFieldValue(tender = {}, key = '') {
     return tender.requirements?.fields?.[key];
 }
@@ -717,7 +753,7 @@ function renderSupplierTenderCustomerInformation(tender = {}, profile = {}) {
             <span>Categories</span>
             ${renderProcurexTenderDetailBadges(tender.categories?.length ? tender.categories : [tender.category || tender.type])}
         </div>
-    `);
+    `, '', 'customer-information');
 }
 
 function renderSupplierTenderPurchaseInformation(tender = {}, profile = {}) {
@@ -743,7 +779,7 @@ function renderSupplierTenderPurchaseInformation(tender = {}, profile = {}) {
             <span class="section-kicker">Delivery requirements</span>
             ${renderProcurexTenderDetailValue(deliveryRequirements)}
         </div>
-    `);
+    `, '', 'purchase-information');
 }
 
 function renderSupplierTenderDocumentation(tender = {}, profile = {}, requirementSet = {}) {
@@ -785,7 +821,7 @@ function renderSupplierTenderDocumentation(tender = {}, profile = {}, requiremen
             <span class="section-kicker">Supplier qualification requirements</span>
             ${renderProcurexTenderDetailLicenses(tender)}
         </div>
-    `);
+    `, '', 'tender-documentation');
 }
 
 function renderSupplierTenderDocumentsTab(tender = {}, profile = {}) {
@@ -795,7 +831,7 @@ function renderSupplierTenderDocumentsTab(tender = {}, profile = {}) {
             showActions: true,
             tenderId: tender.id
         })}
-    `, `<span class="badge badge-info">${documents.length} files</span>`);
+    `, `<span class="badge badge-info">${documents.length} files</span>`, 'documents');
 }
 
 function renderSupplierTenderContractsTab(tender = {}, profile = {}) {
@@ -822,7 +858,7 @@ function renderSupplierTenderContractsTab(tender = {}, profile = {}) {
             <span class="section-kicker">Contract terms</span>
             ${renderProcurexTenderDetailValue(profile.contractRequirements || [])}
         </div>
-    `);
+    `, '', 'contracts');
 }
 
 function renderSupplierTenderQuestionsTab(tender = {}, clarifications = [], clarificationDeadline = {}) {
@@ -954,7 +990,7 @@ function renderSupplierTenderTabbedDetail(tender = {}, profile = {}, options = {
     const clarifications = options.clarifications || getSupplierTenderClarifications(tender);
     const clarificationDeadline = options.clarificationDeadline || getSupplierTenderClarificationDeadlineState(tender);
     const daysRemaining = options.daysRemaining ?? 0;
-    const procurementTabs = [
+    const procurementSections = [
         { id: 'customer-information', label: 'Customer information', content: renderSupplierTenderCustomerInformation(tender, profile) },
         { id: 'purchase-information', label: 'Purchase information', content: renderSupplierTenderPurchaseInformation(tender, profile) },
         { id: 'tender-documentation', label: 'Tender documentation', content: renderSupplierTenderDocumentation(tender, profile, requirementSet) },
@@ -962,7 +998,7 @@ function renderSupplierTenderTabbedDetail(tender = {}, profile = {}, options = {
         { id: 'contracts', label: 'Contracts', content: renderSupplierTenderContractsTab(tender, profile) }
     ];
     const mainTabs = [
-        { id: 'procurement-details', label: 'Procurement details', content: renderSupplierTenderSubTabs(procurementTabs, 'customer-information') },
+        { id: 'procurement-details', label: 'Procurement details', content: renderSupplierTenderProcurementDocument(tender, procurementSections) },
         { id: 'questions-requirements', label: 'Questions and requirements', content: renderSupplierTenderQuestionsTab(tender, clarifications, clarificationDeadline) },
         { id: 'complaints', label: 'Complaints', content: renderSupplierTenderComplaintsTab() },
         { id: 'monitoring-reporting', label: 'Monitoring and reporting', content: renderSupplierTenderMonitoringTab(tender, profile, requirementSet, daysRemaining) }
@@ -1073,6 +1109,19 @@ function initializeSupplierTenderDetail() {
     };
 
     root.addEventListener('click', (event) => {
+        const jumpButton = event.target.closest('[data-supplier-jump-target]');
+        if (jumpButton) {
+            const documentShell = jumpButton.closest('.supplier-detail-procurement-document');
+            const targetId = jumpButton.dataset.supplierJumpTarget;
+            const targetSection = documentShell?.querySelector(`[data-supplier-document-section="${targetId}"]`);
+
+            jumpButton.closest('[data-supplier-jump-list]')?.querySelectorAll('[data-supplier-jump-target]').forEach(button => {
+                button.classList.toggle('active', button === jumpButton);
+            });
+            targetSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+
         const tabButton = event.target.closest('[data-supplier-tab-target]');
         if (tabButton) {
             const tabList = tabButton.closest('[data-supplier-tab-list]');

@@ -339,7 +339,7 @@ const createTenderRequirementTemplates = {
                             { id: 'requiresUpload', label: 'Requires upload', type: 'toggle' },
                             { id: 'notes', label: 'Notes', type: 'textarea' }
                         ],
-                        presets: ['Certificate of incorporation', 'Tax clearance certificate', 'VAT registration', 'Manufacturer authorization', 'Past supply contracts', 'Audited financial statements']
+                        presets: ['Certificate of incorporation', 'Tax clearance certificate', 'Manufacturer authorization', 'Past supply contracts', 'Audited financial statements']
                     }
                 ]
             }
@@ -1118,7 +1118,7 @@ const createTenderTypeProfiles = {
         documentLabels: ['Technical specifications', 'Quantity schedule', 'Delivery requirements', 'Warranty terms', 'Compliance certificates'],
         keyRequirements: ['Product description and standards', 'Quantity and unit of measure', 'Delivery location and timeline', 'Warranty, packaging, shelf-life, and installation requirements', 'Manufacturer authorization where required'],
         planningDocuments: ['Procurement plan', 'Technical specifications document', 'Cost estimates', 'Market survey report'],
-        submissionDocuments: ['Business license', 'Certificate of incorporation', 'Tax clearance certificate', 'VAT registration', 'Manufacturer authorization', 'Past supply contracts', 'Audited financial statements'],
+        submissionDocuments: ['Business license', 'Certificate of incorporation', 'Tax clearance certificate', 'Manufacturer authorization', 'Past supply contracts', 'Audited financial statements'],
         evaluationFlow: ['Preliminary examination', 'Technical evaluation', 'Financial evaluation', 'Award recommendation'],
         contractRequirements: ['Purchase order', 'Supply agreement', 'Delivery schedule', 'Inspection procedures', 'Warranty terms', 'Penalty clauses', 'Payment schedule'],
         evaluationStyle: 'Preliminary compliance, technical specification review, and financial comparison leading to the lowest evaluated responsive bidder.',
