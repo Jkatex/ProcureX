@@ -632,6 +632,328 @@ function renderSupplierTenderRequirementList(requirements = [], emptyText = 'No 
     `).join('');
 }
 
+function isSupplierTenderTruthy(value) {
+    if (value === true) return true;
+    const raw = String(value || '').trim().toLowerCase();
+    return ['true', 'yes', 'required', 'mandatory'].includes(raw);
+}
+
+function getSupplierTenderRequirementText(requirement = {}) {
+    return `${requirement.title || ''} ${requirement.description || ''} ${requirement.category || ''}`.toLowerCase();
+}
+
+function isSupplierTenderLicenseRequirement(requirement = {}) {
+    return /license|licence|permit|regulatory|registration certificate|osha|crb|nemc|tmda|ewura|tcra|wma|gcla/.test(getSupplierTenderRequirementText(requirement));
+}
+
+function isSupplierTenderCvRequirement(requirement = {}) {
+    return /\bcvs?\b|curriculum vitae|key personnel|staff qualification|personnel evidence/.test(getSupplierTenderRequirementText(requirement));
+}
+
+function isSupplierTenderCommercialScheduleRequirement(requirement = {}) {
+    const text = getSupplierTenderRequirementText(requirement);
+    return /boq rows|quantity schedule|commercial items|commercial schedule|pricing rows|priced boq|boq pricing|price schedule|financial proposal|financial offer|rate schedule/.test(text);
+}
+
+function isSupplierTenderTimelineRequirement(requirement = {}) {
+    const text = getSupplierTenderRequirementText(requirement);
+    return /milestone rows|works milestone|milestone:|target date|liquidated damages|programme and key dates|tender timeline/.test(text);
+}
+
+function isSupplierTenderDocumentRequirement(requirement = {}) {
+    if (isSupplierTenderCommercialScheduleRequirement(requirement) || isSupplierTenderTimelineRequirement(requirement)) return false;
+    return requirement.responseType === 'upload'
+        || /document|certificate|clearance|statement|security|authorization|authorisation|evidence|proof|methodology|schedule|plan|boq|form|declaration|policy|insurance|catalogue|catalog/.test(getSupplierTenderRequirementText(requirement));
+}
+
+function getSupplierTenderDocumentDescription(title = '', fallback = '') {
+    const raw = String(title || '').toLowerCase();
+    if (/bid security/.test(raw)) return 'Bid security or bond in the form, amount, and validity period stated by the buyer.';
+    if (/legal form|completed form/.test(raw)) return 'Signed statutory and tender forms completed by the authorized representative.';
+    if (/methodology|method statement|work methodology/.test(raw)) return 'Method statement explaining approach, sequencing, quality control, health and safety, and site management.';
+    if (/construction schedule|work program|gantt|programme/.test(raw)) return 'Work programme showing activities, milestones, sequencing, and completion period.';
+    if (/equipment/.test(raw)) return 'Ownership, lease, availability, or inspection evidence for the equipment proposed for the tender.';
+    if (/priced boq|boq/.test(raw)) return 'Completed BOQ or price schedule with rates, totals, and any required pricing assumptions.';
+    if (/business license/.test(raw)) return 'Current business license matching the supplier legal entity and business activity.';
+    if (/incorporation|registration/.test(raw)) return 'Company registration or incorporation certificate proving the supplier legal status.';
+    if (/tax clearance/.test(raw)) return 'Current tax clearance certificate issued by the relevant tax authority.';
+    if (/manufacturer/.test(raw)) return 'Manufacturer authorization letter or dealership evidence for the offered goods.';
+    if (/past supply|similar|experience|reference|completed project/.test(raw)) return 'Evidence of similar completed contracts, such as contracts, completion certificates, or client references.';
+    if (/audited|financial statement/.test(raw)) return 'Audited financial statements for the period requested by the buyer.';
+    if (/bank statement|bank letter|credit/.test(raw)) return 'Bank statements or bank letter proving financial capacity for the requested period.';
+    if (/insurance/.test(raw)) return 'Valid insurance certificate covering the scope requested in the tender.';
+    if (/catalog|catalogue|brochure/.test(raw)) return 'Product catalogue or brochure matching the items offered in the tender.';
+    if (/safety|hse|health/.test(raw)) return 'Health and safety plan or certificate relevant to the work, service, or supply scope.';
+    return fallback || 'Submit the named document as evidence for eligibility, technical responsiveness, or evaluation.';
+}
+
+function formatSupplierTenderGuideTitle(value = '') {
+    const formatted = String(value || '').trim()
+        .replace(/\bCvs\b/g, 'CVs')
+        .replace(/\bCv\b/g, 'CV')
+        .replace(/\bBoq\b/g, 'BOQ')
+        .replace(/\bOsha\b/g, 'OSHA')
+        .replace(/\bCrb\b/g, 'CRB');
+    if (/similar/i.test(formatted) && /(project|assignment|contract|experience)/i.test(formatted)) {
+        return 'Similar completed project evidence';
+    }
+    return formatted;
+}
+
+function getSupplierTenderGuideDedupeKey(value = '') {
+    const title = formatSupplierTenderGuideTitle(value);
+    if (/similar completed project evidence/i.test(title)) return 'similar completed project evidence';
+    return title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+function addSupplierTenderGuideItem(items, seen, item = {}) {
+    const title = formatSupplierTenderGuideTitle(item.title);
+    if (!title) return;
+    const key = getSupplierTenderGuideDedupeKey(title);
+    if (seen.has(key)) {
+        const index = seen.get(key);
+        if (Number.isInteger(index) && items[index]) {
+            items[index].required = items[index].required || item.required !== false;
+            if (!items[index].description && item.description) items[index].description = item.description;
+        }
+        return;
+    }
+    seen.set(key, items.length);
+    items.push({
+        title,
+        eyebrow: item.eyebrow || 'Required document',
+        description: item.description || getSupplierTenderDocumentDescription(title),
+        required: item.required !== false
+    });
+}
+
+function getSupplierTenderCvGuideItems(tender = {}, requirementSet = {}) {
+    const fields = tender.requirements?.fields || {};
+    const items = [];
+    const seen = new Map();
+    const addCv = (title, description, required = true) => addSupplierTenderGuideItem(items, seen, {
+        title,
+        eyebrow: 'CV / personnel evidence',
+        description,
+        required
+    });
+
+    (fields.personnelRequirementRows || []).forEach(row => {
+        if (!isSupplierTenderTruthy(row.cvRequired)) return;
+        const position = row.position || row.positionTitle || 'Key personnel';
+        const details = [
+            row.minimumEducation ? `minimum education: ${row.minimumEducation}` : '',
+            row.minimumQualification ? `minimum qualification: ${row.minimumQualification}` : '',
+            row.minimumYearsExperience ? `${row.minimumYearsExperience} years experience` : '',
+            row.yearsOfExperience ? `${row.yearsOfExperience} years experience` : '',
+            row.certifications ? `certification: ${row.certifications}` : ''
+        ].filter(Boolean).join(', ');
+        addCv(`${position} CV`, details ? `Upload the proposed ${position} CV showing ${details}.` : `Upload the proposed ${position} CV and supporting qualification evidence.`, row.mandatory !== false);
+    });
+
+    (fields.consultancyKeyExperts || []).forEach(row => {
+        const position = row.positionTitle || 'Key expert';
+        const details = [
+            row.minimumQualification ? `minimum qualification: ${row.minimumQualification}` : '',
+            row.yearsOfExperience ? `${row.yearsOfExperience} years experience` : '',
+            row.certifications ? `certification: ${row.certifications}` : ''
+        ].filter(Boolean).join(', ');
+        addCv(`${position} CV`, details ? `Upload the proposed ${position} CV showing ${details}.` : `Upload the proposed ${position} CV and qualification evidence.`, row.mandatory !== false);
+    });
+
+    (fields.consultancyIndividualQualifications || []).forEach(row => {
+        if (!isSupplierTenderTruthy(row.cvRequired)) return;
+        const registrations = Array.isArray(row.professionalRegistrationsCertifications)
+            ? row.professionalRegistrationsCertifications.join(', ')
+            : row.professionalRegistrationsCertifications;
+        const details = [
+            row.yearsOfExperience ? `${row.yearsOfExperience} years experience` : '',
+            registrations ? `registration/certification: ${registrations}` : '',
+            row.similarAssignmentsCount ? `${row.similarAssignmentsCount} similar assignments` : ''
+        ].filter(Boolean).join(', ');
+        addCv('Individual consultant CV', details ? `Upload the individual consultant CV showing ${details}.` : 'Upload the individual consultant CV and professional qualification evidence.');
+    });
+
+    [...(requirementSet.mandatory || []), ...(requirementSet.optional || [])]
+        .filter(isSupplierTenderCvRequirement)
+        .filter(requirement => !(isSupplierTenderTruthy(fields.keyPersonnelCvsRequired) && /key personnel/i.test(requirement.title || '')))
+        .filter(requirement => !((fields.personnelRequirementRows || []).length && /personnel requirement rows/i.test(`${requirement.title || ''} ${requirement.category || ''}`)))
+        .forEach(requirement => {
+            addCv(requirement.title, requirement.description || getSupplierTenderDocumentDescription(requirement.title), requirement.mandatory !== false);
+        });
+
+    return items;
+}
+
+function getSupplierTenderRequiredDocumentGuideItems(tender = {}, profile = {}, requirementSet = {}) {
+    const fields = tender.requirements?.fields || {};
+    const items = [];
+    const seen = new Map();
+    const requirementDocuments = [...(requirementSet.mandatory || []), ...(requirementSet.optional || [])]
+        .filter(requirement => !isSupplierTenderCommercialScheduleRequirement(requirement))
+        .filter(requirement => !isSupplierTenderTimelineRequirement(requirement))
+        .filter(requirement => isSupplierTenderDocumentRequirement(requirement))
+        .filter(requirement => !isSupplierTenderLicenseRequirement(requirement))
+        .filter(requirement => !isSupplierTenderCvRequirement(requirement));
+
+    requirementDocuments.forEach(requirement => addSupplierTenderGuideItem(items, seen, {
+            title: requirement.title,
+            eyebrow: requirement.mandatory === false ? 'Supporting document' : 'Required document',
+            description: requirement.description || getSupplierTenderDocumentDescription(requirement.title),
+            required: requirement.mandatory !== false
+        }));
+
+    (fields.supportingDocumentRows || []).forEach(row => addSupplierTenderGuideItem(items, seen, {
+        title: row.documentName || row.documentTitle || 'Supporting document',
+        eyebrow: row.mandatory === false ? 'Supporting document' : 'Required document',
+        description: row.description || row.notes || getSupplierTenderDocumentDescription(row.documentName || row.documentTitle),
+        required: row.mandatory !== false
+    }));
+
+    if (isSupplierTenderTruthy(fields.similarCompletedProjectsRequired)) {
+        addSupplierTenderGuideItem(items, seen, {
+            title: 'Similar completed project evidence',
+            description: 'Submit contracts, completion certificates, or client references showing relevant completed work of similar scope.'
+        });
+    }
+
+    if (isSupplierTenderTruthy(fields.bankStatementsRequired)) {
+        addSupplierTenderGuideItem(items, seen, {
+            title: 'Bank statements and financial capacity evidence',
+            description: fields.bankStatementPeriod || 'Submit bank statements and financial capacity evidence for the period requested by the buyer.'
+        });
+    }
+
+    (profile.submissionDocuments || []).forEach(title => {
+        if (isSupplierTenderCvRequirement({ title })) return;
+        if (isSupplierTenderCommercialScheduleRequirement({ title })) return;
+        if (seen.has(getSupplierTenderGuideDedupeKey(title))) return;
+        const matchingRequirement = requirementDocuments.find(requirement => getSupplierTenderGuideDedupeKey(requirement.title) === getSupplierTenderGuideDedupeKey(title));
+        addSupplierTenderGuideItem(items, seen, {
+            title,
+            eyebrow: matchingRequirement?.mandatory === false ? 'Supporting document' : 'Required document',
+            description: matchingRequirement?.description || getSupplierTenderDocumentDescription(title),
+            required: matchingRequirement ? matchingRequirement.mandatory !== false : false
+        });
+    });
+
+    return items;
+}
+
+function getSupplierTenderLicenseGuideItems(tender = {}) {
+    const seen = new Map();
+    const items = [];
+    (tender.regulatoryLicenses || []).forEach(license => addSupplierTenderGuideItem(items, seen, {
+        title: license.license || license.registrationType || 'Regulatory license',
+        eyebrow: license.group || 'License / certification',
+        description: `${license.body || 'Issuing authority not specified'}. Submit current license copy, registration number, validity status, and expiry date where applicable.`,
+        required: license.mandatory !== false
+    }));
+    return items;
+}
+
+function getSupplierTenderTemplateGuideItems(tender = {}) {
+    const fields = tender.requirements?.fields || {};
+    const items = [];
+    const seen = new Map();
+
+    if (fields.productSpecificationTemplate) {
+        addSupplierTenderGuideItem(items, seen, {
+            title: 'Product specification template',
+            eyebrow: 'Template',
+            description: 'Complete the buyer specification template for each offered item, including standards, warranty, packaging, and sample notes where requested.'
+        });
+    }
+
+    (fields.technicalSpecificationDocuments || []).forEach(row => addSupplierTenderGuideItem(items, seen, {
+        title: row.documentTitle || row.documentType || 'Technical specification document',
+        eyebrow: 'Reference document',
+        description: row.documentUpload
+            ? `Use ${row.documentUpload} when preparing the technical response.`
+            : 'Use this buyer technical document when preparing the response.',
+        required: row.mandatory !== false
+    }));
+
+    (fields.sampleRequirementRows || []).forEach(row => addSupplierTenderGuideItem(items, seen, {
+        title: `${row.relatedBoqItem || row.productName || 'Tender item'} sample`,
+        eyebrow: 'Sample requirement',
+        description: [
+            row.sampleDescription || 'Physical sample required where marked by the buyer.',
+            row.numberOfSamples ? `${row.numberOfSamples} sample${Number(row.numberOfSamples) === 1 ? '' : 's'}` : '',
+            row.deliveryLocation ? `deliver to ${row.deliveryLocation}` : '',
+            row.deliveryDeadline ? `by ${row.deliveryDeadline}` : ''
+        ].filter(Boolean).join('; '),
+        required: row.mandatory !== false
+    }));
+
+    return items;
+}
+
+function getSupplierTenderOtherResponseGuideItems(tender = {}, requirementSet = {}) {
+    const fields = tender.requirements?.fields || {};
+    const items = [];
+    const seen = new Map();
+
+    (fields.otherEligibilityRequirements || []).forEach(row => addSupplierTenderGuideItem(items, seen, {
+        title: row.requirementName || row.title || 'Eligibility requirement',
+        eyebrow: 'Eligibility requirement',
+        description: row.notes || 'Provide a short response and attach evidence where requested by the buyer.',
+        required: row.mandatory !== false
+    }));
+
+    [...(requirementSet.mandatory || []), ...(requirementSet.optional || [])]
+        .filter(requirement => !isSupplierTenderCommercialScheduleRequirement(requirement))
+        .filter(requirement => !isSupplierTenderTimelineRequirement(requirement))
+        .filter(requirement => !isSupplierTenderDocumentRequirement(requirement))
+        .filter(requirement => !isSupplierTenderLicenseRequirement(requirement))
+        .filter(requirement => !isSupplierTenderCvRequirement(requirement))
+        .slice(0, 8)
+        .forEach(requirement => addSupplierTenderGuideItem(items, seen, {
+            title: requirement.title,
+            eyebrow: requirement.category || 'Response requirement',
+            description: requirement.description || 'Respond to this buyer-defined requirement in the bid workspace.',
+            required: requirement.mandatory !== false
+        }));
+
+    return items;
+}
+
+function renderSupplierTenderGuideCards(items = [], emptyText = 'No items configured.') {
+    if (!items.length) return `<div class="scope-empty">${escapeSupplierTenderDetailHtml(emptyText)}</div>`;
+    return `
+        <div class="supplier-document-guide-card-list">
+            ${items.map(item => `
+                <article class="supplier-document-guide-card">
+                    <div>
+                        <span>${escapeSupplierTenderDetailHtml(item.eyebrow || 'Requirement')}</span>
+                        <em class="badge ${item.required === false ? 'badge-info' : 'badge-warning'}">${item.required === false ? 'Conditional' : 'Required'}</em>
+                    </div>
+                    <strong>${escapeSupplierTenderDetailHtml(item.title)}</strong>
+                    <p>${escapeSupplierTenderDetailHtml(item.description || 'Submit evidence as requested by the buyer.')}</p>
+                </article>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderSupplierTenderDocumentationInnerSection(title, kicker, items, emptyText) {
+    return `
+        <section class="supplier-document-guide-section">
+            <div class="supplier-document-guide-heading">
+                <div>
+                    <span class="section-kicker">${escapeSupplierTenderDetailHtml(kicker)}</span>
+                    <h4>${escapeSupplierTenderDetailHtml(title)}</h4>
+                </div>
+                <span class="badge badge-info">${items.length} item${items.length === 1 ? '' : 's'}</span>
+            </div>
+            ${renderSupplierTenderGuideCards(items, emptyText)}
+        </section>
+    `;
+}
+
 function renderSupplierTenderEvaluationRows(tender, profile) {
     const criteria = tender.evaluation?.criteria?.length
         ? tender.evaluation.criteria.map(item => [item.name, item.weight, (item.subcriteria || []).join(', ')])
@@ -783,44 +1105,21 @@ function renderSupplierTenderPurchaseInformation(tender = {}, profile = {}) {
 }
 
 function renderSupplierTenderDocumentation(tender = {}, profile = {}, requirementSet = {}) {
-    const fields = tender.requirements?.fields || {};
+    const licenseItems = getSupplierTenderLicenseGuideItems(tender);
+    const documentItems = getSupplierTenderRequiredDocumentGuideItems(tender, profile, requirementSet);
+    const cvItems = getSupplierTenderCvGuideItems(tender, requirementSet);
+    const templateItems = getSupplierTenderTemplateGuideItems(tender);
+    const otherItems = getSupplierTenderOtherResponseGuideItems(tender, requirementSet);
     return renderProcurexTenderDocumentSection('3', 'Tender Documentation', 'Supplier submission requirements', `
-        <div class="journey-grid two-col supplier-detail-requirement-columns">
-            <article class="journey-panel compact-panel">
-                <div class="panel-heading">
-                    <div>
-                        <span class="section-kicker">Mandatory before bid</span>
-                        <h3>${requirementSet.mandatory.length} items</h3>
-                    </div>
-                </div>
-                <div class="tender-detail-card-list">${renderSupplierTenderRequirementList(requirementSet.mandatory, 'No mandatory before bid items configured.')}</div>
-            </article>
-            <article class="journey-panel compact-panel">
-                <div class="panel-heading">
-                    <div>
-                        <span class="section-kicker">Additional responses</span>
-                        <h3>${requirementSet.optional.length} items</h3>
-                    </div>
-                </div>
-                <div class="tender-detail-card-list">${renderSupplierTenderRequirementList(requirementSet.optional, 'No additional responses configured.')}</div>
-            </article>
+        <div class="supplier-document-guide-intro">
+            <strong>Submission guide</strong>
+            <span>Use these grouped requirements to prepare the bid documents before opening the bidding workspace. Licenses, ordinary documents, CVs, and templates are separated so each upload is clear.</span>
         </div>
-        <div class="supplier-detail-section-block">
-            <span class="section-kicker">Product specification template</span>
-            ${renderProcurexTenderDetailValue(fields.productSpecificationTemplate || fields.technicalSpecificationDocuments || fields.technicalSpecification || [])}
-        </div>
-        <div class="supplier-detail-section-block">
-            <span class="section-kicker">Sample requirements</span>
-            ${renderProcurexTenderDetailValue(fields.sampleRequirementRows || fields.requireSamples || [])}
-        </div>
-        <div class="supplier-detail-section-block">
-            <span class="section-kicker">Other eligibility requirements</span>
-            ${renderProcurexTenderDetailValue(fields.otherEligibilityRequirements || [])}
-        </div>
-        <div class="supplier-detail-section-block">
-            <span class="section-kicker">Supplier qualification requirements</span>
-            ${renderProcurexTenderDetailLicenses(tender)}
-        </div>
+        ${renderSupplierTenderDocumentationInnerSection('Licenses and Certifications', 'Separate license evidence', licenseItems, 'No license or certification evidence is required for this tender.')}
+        ${renderSupplierTenderDocumentationInnerSection('Required Submission Documents', 'Documents to upload', documentItems, 'No required submission documents are configured.')}
+        ${renderSupplierTenderDocumentationInnerSection('CV and Personnel Evidence', 'People evidence', cvItems, 'No CV or personnel evidence is required for this tender.')}
+        ${renderSupplierTenderDocumentationInnerSection('Templates, Specifications, and Samples', 'Buyer formats', templateItems, 'No template, specification, or sample requirement is configured.')}
+        ${renderSupplierTenderDocumentationInnerSection('Other Response Requirements', 'Bid workspace responses', otherItems, 'No other response requirements are configured.')}
     `, '', 'tender-documentation');
 }
 
@@ -994,8 +1293,7 @@ function renderSupplierTenderTabbedDetail(tender = {}, profile = {}, options = {
         { id: 'customer-information', label: 'Customer information', content: renderSupplierTenderCustomerInformation(tender, profile) },
         { id: 'purchase-information', label: 'Purchase information', content: renderSupplierTenderPurchaseInformation(tender, profile) },
         { id: 'tender-documentation', label: 'Tender documentation', content: renderSupplierTenderDocumentation(tender, profile, requirementSet) },
-        { id: 'documents', label: 'Documents', content: renderSupplierTenderDocumentsTab(tender, profile) },
-        { id: 'contracts', label: 'Contracts', content: renderSupplierTenderContractsTab(tender, profile) }
+        { id: 'documents', label: 'Documents', content: renderSupplierTenderDocumentsTab(tender, profile) }
     ];
     const mainTabs = [
         { id: 'procurement-details', label: 'Procurement details', content: renderSupplierTenderProcurementDocument(tender, procurementSections) },

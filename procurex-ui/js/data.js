@@ -209,6 +209,11 @@ const mockData = {
                     siteVisitRequirement: 'Mandatory',
                     similarCompletedProjectsRequired: true,
                     keyPersonnelCvsRequired: true,
+                    personnelRequirementRows: [
+                        { position: 'Project Manager', minimumEducation: 'Bachelor Degree', minimumYearsExperience: 8, cvRequired: true, mandatory: true },
+                        { position: 'Site Engineer', minimumEducation: 'Bachelor Degree', minimumYearsExperience: 6, cvRequired: true, mandatory: true },
+                        { position: 'Health and Safety Officer', minimumEducation: 'Diploma', minimumYearsExperience: 5, cvRequired: true, mandatory: true }
+                    ],
                     bankStatementsRequired: true,
                     bankStatementPeriod: 'Submit bank statements covering the last 12 months plus audited financial statements for the last 3 years.'
                 },
@@ -320,6 +325,11 @@ const mockData = {
                     siteVisitRequirement: 'Mandatory',
                     similarCompletedProjectsRequired: true,
                     keyPersonnelCvsRequired: true,
+                    personnelRequirementRows: [
+                        { position: 'Project Manager', minimumEducation: 'Bachelor Degree', minimumYearsExperience: 7, cvRequired: true, mandatory: true },
+                        { position: 'Water Works Engineer', minimumEducation: 'Bachelor Degree', minimumYearsExperience: 6, cvRequired: true, mandatory: true },
+                        { position: 'Pump Installation Technician', minimumEducation: 'Professional Qualification', minimumYearsExperience: 4, cvRequired: true, mandatory: true }
+                    ],
                     bankStatementsRequired: true,
                     bankStatementPeriod: 'Six months of bank statements and evidence of access to credit of at least TZS 600,000,000.'
                 },
@@ -428,6 +438,11 @@ const mockData = {
                     siteVisitRequirement: 'Mandatory',
                     similarCompletedProjectsRequired: true,
                     keyPersonnelCvsRequired: true,
+                    personnelRequirementRows: [
+                        { position: 'Project Manager', minimumEducation: 'Bachelor Degree', minimumYearsExperience: 7, cvRequired: true, mandatory: true },
+                        { position: 'Electrical Supervisor', minimumEducation: 'Professional Qualification', minimumYearsExperience: 6, cvRequired: true, mandatory: true },
+                        { position: 'Site Safety Officer', minimumEducation: 'Diploma', minimumYearsExperience: 4, cvRequired: true, mandatory: true }
+                    ],
                     bankStatementsRequired: false
                 },
                 lists: {
@@ -2119,6 +2134,11 @@ const mockData = {
                     siteVisitRequirement: 'Recommended',
                     similarCompletedProjectsRequired: true,
                     keyPersonnelCvsRequired: true,
+                    personnelRequirementRows: [
+                        { position: 'Project Manager', minimumEducation: 'Diploma', minimumYearsExperience: 5, cvRequired: true, mandatory: true },
+                        { position: 'Site Engineer', minimumEducation: 'Diploma', minimumYearsExperience: 4, cvRequired: true, mandatory: true },
+                        { position: 'Site Supervisor', minimumEducation: 'Certificate', minimumYearsExperience: 3, cvRequired: true, mandatory: true }
+                    ],
                     bankStatementsRequired: false
                 }
             },
