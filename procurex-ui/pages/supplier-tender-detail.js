@@ -649,38 +649,6 @@ function renderSupplierTenderCommercialPreview(tender, profile) {
     return renderProcurexTenderDetailCommercial(tender, profile);
 }
 
-function renderSupplierTenderSubmissionChecklist(tender = {}, profile = {}, requirementSet = {}) {
-    const mandatory = requirementSet.mandatory || [];
-    const optional = requirementSet.optional || [];
-    const checklist = [
-        ['Step 1: Administrative Compliance', `${mandatory.length} mandatory eligibility, license, registration, and evidence item${mandatory.length === 1 ? '' : 's'}`, 'Step 0: Eligibility gate'],
-        ['Step 2: Technical Response', profile.responseTitle || 'Technical response, methodology, personnel, equipment, and specification compliance', 'Step 1: Technical'],
-        ['Step 3: Financial Offer', tender.commercialModel || profile.commercialName || 'Priced commercial schedule and bid value', 'Step 2: Financial'],
-        ['Step 4: Declarations and Contract Terms', 'Clause acknowledgements, deviations, anti-corruption declaration, and authorized signatory', 'Step 3 and Step 4'],
-        ['Annex: Uploaded Evidence Files', `${optional.length} optional item${optional.length === 1 ? '' : 's'} plus all mandatory upload files with integrity metadata`, 'Upload controls throughout workspace']
-    ];
-    return `
-        <section class="journey-panel bid-submission-checklist-panel">
-            <div class="panel-heading">
-                <div>
-                    <span class="section-kicker">Bid submission checklist</span>
-                    <h2>How this tender maps to the bidding workspace</h2>
-                </div>
-                <span class="badge badge-info">${checklist.length} steps</span>
-            </div>
-            <div class="bid-completeness-list">
-                ${checklist.map(([label, note, step]) => `
-                    <article class="bid-completeness-item">
-                        <strong>${escapeSupplierTenderDetailHtml(label)}</strong>
-                        <span>${escapeSupplierTenderDetailHtml(note)}</span>
-                        <small>${escapeSupplierTenderDetailHtml(step)}</small>
-                    </article>
-                `).join('')}
-            </div>
-        </section>
-    `;
-}
-
 function renderSupplierTenderTimeline(tender = {}) {
     const milestones = Array.isArray(tender.milestones) && tender.milestones.length
         ? tender.milestones
@@ -696,6 +664,316 @@ function renderSupplierTenderTimeline(tender = {}) {
             <span>${escapeSupplierTenderDetailHtml(item.date || item.targetDate || 'Not set')}</span>
         </div>
     `).join('');
+}
+
+function renderSupplierTenderTabButtons(tabs = [], group = '', activeId = '') {
+    return `
+        <div class="supplier-detail-tabs" role="tablist" data-supplier-tab-list="${escapeSupplierTenderDetailHtml(group)}">
+            ${tabs.map(tab => `
+                <button class="supplier-detail-tab ${tab.id === activeId ? 'active' : ''}" type="button" role="tab" aria-selected="${tab.id === activeId ? 'true' : 'false'}" data-supplier-tab-target="${escapeSupplierTenderDetailHtml(tab.id)}">
+                    ${escapeSupplierTenderDetailHtml(tab.label)}
+                </button>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderSupplierTenderTabPanels(tabs = [], activeId = '') {
+    return `
+        <div class="supplier-detail-tab-panels">
+            ${tabs.map(tab => `
+                <section class="supplier-detail-tab-panel" role="tabpanel" data-supplier-tab-panel="${escapeSupplierTenderDetailHtml(tab.id)}" style="display: ${tab.id === activeId ? 'block' : 'none'};">
+                    ${tab.content}
+                </section>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderSupplierTenderSubTabs(tabs = [], activeId = '') {
+    return `
+        <div class="supplier-detail-subtabs">
+            ${renderSupplierTenderTabButtons(tabs, 'sub', activeId)}
+            ${renderSupplierTenderTabPanels(tabs, activeId)}
+        </div>
+    `;
+}
+
+function getSupplierTenderFieldValue(tender = {}, key = '') {
+    return tender.requirements?.fields?.[key];
+}
+
+function renderSupplierTenderCustomerInformation(tender = {}, profile = {}) {
+    return renderProcurexTenderDocumentSection('1', 'Customer Information', 'Procurement details', `
+        ${renderProcurexTenderDetailSummary([
+            { label: 'Procuring entity', value: tender.organization },
+            { label: 'Procurement type', value: tender.type },
+            { label: 'Procurement method', value: tender.method },
+            { label: 'Visibility', value: tender.visibility },
+            { label: 'Location', value: tender.location },
+            { label: 'Eligibility summary', value: tender.eligibility }
+        ])}
+        <div class="tender-document-categories">
+            <span>Categories</span>
+            ${renderProcurexTenderDetailBadges(tender.categories?.length ? tender.categories : [tender.category || tender.type])}
+        </div>
+    `);
+}
+
+function renderSupplierTenderPurchaseInformation(tender = {}, profile = {}) {
+    const deliveryRequirements = tender.requirements?.lists?.deliveryRequirements || getSupplierTenderFieldValue(tender, 'deliveryRequirements') || [];
+    const quantitySchedule = getSupplierTenderFieldValue(tender, 'quantityScheduleRows') || tender.boqItems || tender.commercialItems || [];
+    return renderProcurexTenderDocumentSection('2', 'Purchase Information', 'Commercial scope', `
+        ${renderProcurexTenderDetailSummary([
+            { label: 'Tender title', value: tender.title },
+            { label: 'Tender ID', value: tender.id },
+            { label: 'Budget estimate', value: formatSupplierTenderMoney(tender.budget) },
+            { label: 'Commercial model', value: tender.commercialModel || profile.commercialName },
+            { label: 'Closing date', value: tender.closingDate }
+        ])}
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Quantity schedule</span>
+            ${renderProcurexTenderDetailValue(quantitySchedule)}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">BOQ / price schedule rows</span>
+            ${renderSupplierTenderCommercialPreview(tender, profile)}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Delivery requirements</span>
+            ${renderProcurexTenderDetailValue(deliveryRequirements)}
+        </div>
+    `);
+}
+
+function renderSupplierTenderDocumentation(tender = {}, profile = {}, requirementSet = {}) {
+    const fields = tender.requirements?.fields || {};
+    return renderProcurexTenderDocumentSection('3', 'Tender Documentation', 'Supplier submission requirements', `
+        <div class="journey-grid two-col supplier-detail-requirement-columns">
+            <article class="journey-panel compact-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Mandatory before bid</span>
+                        <h3>${requirementSet.mandatory.length} items</h3>
+                    </div>
+                </div>
+                <div class="tender-detail-card-list">${renderSupplierTenderRequirementList(requirementSet.mandatory, 'No mandatory before bid items configured.')}</div>
+            </article>
+            <article class="journey-panel compact-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Additional responses</span>
+                        <h3>${requirementSet.optional.length} items</h3>
+                    </div>
+                </div>
+                <div class="tender-detail-card-list">${renderSupplierTenderRequirementList(requirementSet.optional, 'No additional responses configured.')}</div>
+            </article>
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Product specification template</span>
+            ${renderProcurexTenderDetailValue(fields.productSpecificationTemplate || fields.technicalSpecificationDocuments || fields.technicalSpecification || [])}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Sample requirements</span>
+            ${renderProcurexTenderDetailValue(fields.sampleRequirementRows || fields.requireSamples || [])}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Other eligibility requirements</span>
+            ${renderProcurexTenderDetailValue(fields.otherEligibilityRequirements || [])}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Supplier qualification requirements</span>
+            ${renderProcurexTenderDetailLicenses(tender)}
+        </div>
+    `);
+}
+
+function renderSupplierTenderDocumentsTab(tender = {}, profile = {}) {
+    const documents = tender.documents?.length ? tender.documents : profile.documentLabels || ['Tender document'];
+    return renderProcurexTenderDocumentSection('4', 'Documents', 'Tender pack', `
+        ${renderProcurexTenderDetailDocuments(documents, 'Available to view or download', 'No tender documents configured.', {
+            showActions: true,
+            tenderId: tender.id
+        })}
+    `, `<span class="badge badge-info">${documents.length} files</span>`);
+}
+
+function renderSupplierTenderContractsTab(tender = {}, profile = {}) {
+    const deliveryRequirements = tender.requirements?.lists?.deliveryRequirements || [];
+    const warrantyRows = getSupplierTenderFieldValue(tender, 'productSpecificationTemplate') || [];
+    return renderProcurexTenderDocumentSection('5', 'Contracts', 'Award and contract outputs', `
+        ${renderProcurexTenderDetailSummary([
+            { label: 'Contract type', value: tender.contractType },
+            { label: 'Commercial model', value: tender.commercialModel || profile.commercialName }
+        ])}
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Contract outputs and deliverables</span>
+            ${renderProcurexTenderDetailValue(tender.deliverables || [])}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Warranty requirements</span>
+            ${renderProcurexTenderDetailValue(warrantyRows)}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Delivery notes and replacement obligations</span>
+            ${renderProcurexTenderDetailValue(deliveryRequirements)}
+        </div>
+        <div class="supplier-detail-section-block">
+            <span class="section-kicker">Contract terms</span>
+            ${renderProcurexTenderDetailValue(profile.contractRequirements || [])}
+        </div>
+    `);
+}
+
+function renderSupplierTenderQuestionsTab(tender = {}, clarifications = [], clarificationDeadline = {}) {
+    return renderSupplierTenderSubTabs([
+        {
+            id: 'clarifications',
+            label: 'Clarifications',
+            content: renderProcurexTenderDocumentSection('1', 'Clarifications', 'Questions and requirements', `
+                ${renderSupplierTenderClarificationDeadline(tender)}
+                <div class="clarification-rule-note">
+                    <strong>Pre-bid transparency rule</strong>
+                    <span>Questions and buyer answers are public to all suppliers, with supplier identity hidden. After bid submission, evaluation-related clarifications are handled confidentially.</span>
+                </div>
+            `)
+        },
+        {
+            id: 'ask-buyer',
+            label: 'Ask Buyer',
+            content: renderProcurexTenderDocumentSection('2', 'Ask the Buyer Before Bidding', 'Clarification request', `
+                <div class="clarification-compose enhanced communication-center-cta">
+                    <div>
+                        <strong>Use Communication Center</strong>
+                        <span>Open a dedicated message thread with the buyer, attach files, and keep the tender communication history in one place.</span>
+                    </div>
+                    <button class="btn btn-primary" type="button" data-supplier-focus-clarification ${clarificationDeadline.closed ? 'disabled' : ''}>Open Communication Center</button>
+                </div>
+            `)
+        },
+        {
+            id: 'public-responses',
+            label: 'Public responses',
+            content: renderProcurexTenderDocumentSection('3', 'Public Q&A', 'Published buyer responses', `
+                <div class="public-clarification-feed" data-clarification-list>
+                    <div class="public-clarification-heading">
+                        <span class="section-kicker">Public responses</span>
+                        <strong>Supplier identity hidden from public QandA</strong>
+                    </div>
+                    ${renderSupplierTenderPublicClarificationFeed(clarifications)}
+                </div>
+            `, `<span class="badge badge-info">${clarifications.length} items</span>`)
+        },
+        {
+            id: 'communication-center',
+            label: 'Communication Center',
+            content: renderProcurexTenderDocumentSection('4', 'Communication Center', 'Tender messages', `
+                <div class="clarification-compose enhanced communication-center-cta">
+                    <div>
+                        <strong>Open Communication Center</strong>
+                        <span>Continue buyer communication, review public clarification history, and keep tender messages in one place.</span>
+                    </div>
+                    <button class="btn btn-primary" type="button" data-supplier-focus-clarification ${clarificationDeadline.closed ? 'disabled' : ''}>Open Communication Center</button>
+                </div>
+            `)
+        }
+    ], 'clarifications');
+}
+
+function renderSupplierTenderComplaintsTab() {
+    return renderSupplierTenderSubTabs([
+        {
+            id: 'submit-complaint',
+            label: 'Submit complaint',
+            content: renderProcurexTenderDocumentSection('1', 'Submit Complaint', 'Supplier remedy', `
+                <div class="supplier-detail-empty-state">
+                    <strong>No complaints submitted yet.</strong>
+                    <span>Complaint submission will be available here when a supplier starts a review request.</span>
+                    <button class="btn btn-secondary" type="button">Submit Complaint</button>
+                </div>
+            `)
+        },
+        {
+            id: 'complaint-history',
+            label: 'Complaint history',
+            content: renderProcurexTenderDocumentSection('2', 'Complaint History', 'Records', '<div class="scope-empty">No complaints submitted yet.</div>')
+        },
+        {
+            id: 'complaint-status',
+            label: 'Complaint status',
+            content: renderProcurexTenderDocumentSection('3', 'Complaint Status', 'Buyer/admin response', '<div class="scope-empty">No complaints submitted yet.</div>')
+        }
+    ], 'submit-complaint');
+}
+
+function renderSupplierTenderMonitoringTab(tender = {}, profile = {}, requirementSet = {}, daysRemaining = 0) {
+    return renderSupplierTenderSubTabs([
+        {
+            id: 'timeline',
+            label: 'Timeline',
+            content: renderProcurexTenderDocumentSection('1', 'Tender Timeline', 'Monitoring', `
+                <div class="supplier-timeline-list">
+                    ${renderSupplierTenderTimeline(tender)}
+                </div>
+            `, `<span class="badge badge-info">${(tender.milestones || []).length || 4} milestones</span>`)
+        },
+        {
+            id: 'milestones',
+            label: 'Milestones',
+            content: renderProcurexTenderDocumentSection('2', 'Milestones', 'Key dates', renderProcurexTenderDetailValue(tender.milestones || []))
+        },
+        {
+            id: 'evaluation-status',
+            label: 'Evaluation status',
+            content: renderProcurexTenderDocumentSection('3', 'Evaluation Status', 'Published criteria', `
+                <div class="data-table tender-detail-table">
+                    <table>
+                        <thead><tr><th>Criterion</th><th>Weight</th><th>Supplier focus</th></tr></thead>
+                        <tbody>${renderSupplierTenderEvaluationRows(tender, profile)}</tbody>
+                    </table>
+                </div>
+            `, '<span class="badge badge-success">Published</span>')
+        },
+        {
+            id: 'award-reporting',
+            label: 'Award reporting',
+            content: renderProcurexTenderDocumentSection('4', 'Award Reporting', 'Reports', `
+                <div class="record-summary tender-detail-summary">
+                    <div><span>Submission progress</span><strong>${daysRemaining}d remaining</strong></div>
+                    <div><span>Mandatory before bid</span><strong>${requirementSet.mandatory.length} items</strong></div>
+                    <div><span>Additional responses</span><strong>${requirementSet.optional.length} items</strong></div>
+                    <div><span>Award target</span><strong>${escapeSupplierTenderDetailHtml((tender.milestones || []).find(item => /award/i.test(item.name || item.title || ''))?.date || 'Not set')}</strong></div>
+                </div>
+            `)
+        }
+    ], 'timeline');
+}
+
+function renderSupplierTenderTabbedDetail(tender = {}, profile = {}, options = {}) {
+    const requirementSet = options.requirementSet || getSupplierTenderRequirementSet(tender, profile);
+    const clarifications = options.clarifications || getSupplierTenderClarifications(tender);
+    const clarificationDeadline = options.clarificationDeadline || getSupplierTenderClarificationDeadlineState(tender);
+    const daysRemaining = options.daysRemaining ?? 0;
+    const procurementTabs = [
+        { id: 'customer-information', label: 'Customer information', content: renderSupplierTenderCustomerInformation(tender, profile) },
+        { id: 'purchase-information', label: 'Purchase information', content: renderSupplierTenderPurchaseInformation(tender, profile) },
+        { id: 'tender-documentation', label: 'Tender documentation', content: renderSupplierTenderDocumentation(tender, profile, requirementSet) },
+        { id: 'documents', label: 'Documents', content: renderSupplierTenderDocumentsTab(tender, profile) },
+        { id: 'contracts', label: 'Contracts', content: renderSupplierTenderContractsTab(tender, profile) }
+    ];
+    const mainTabs = [
+        { id: 'procurement-details', label: 'Procurement details', content: renderSupplierTenderSubTabs(procurementTabs, 'customer-information') },
+        { id: 'questions-requirements', label: 'Questions and requirements', content: renderSupplierTenderQuestionsTab(tender, clarifications, clarificationDeadline) },
+        { id: 'complaints', label: 'Complaints', content: renderSupplierTenderComplaintsTab() },
+        { id: 'monitoring-reporting', label: 'Monitoring and reporting', content: renderSupplierTenderMonitoringTab(tender, profile, requirementSet, daysRemaining) }
+    ];
+
+    return `
+        <section class="supplier-detail-tabbed-view">
+            ${renderSupplierTenderTabButtons(mainTabs, 'main', 'procurement-details')}
+            ${renderSupplierTenderTabPanels(mainTabs, 'procurement-details')}
+        </section>
+    `;
 }
 
 function renderSupplierTenderDetail() {
@@ -754,40 +1032,7 @@ function renderSupplierTenderDetail() {
                         <div class="kpi-card"><div class="kpi-value">${clarificationDeadline.closed ? 'Closed' : clarifications.length}</div><div class="kpi-label">Clarifications</div></div>
                     </section>
 
-                    ${renderSupplierTenderSubmissionChecklist(tender, profile, requirementSet)}
-
-                    ${renderSupplierTenderClarificationDeadline(tender)}
-
-                    ${renderProcurexTenderDetailFullSections(tender, profile, { requirementSet, clarifications })}
-
-                    <section class="journey-panel supplier-clarification-panel">
-                        <div class="panel-heading">
-                            <div>
-                                <span class="section-kicker">Clarifications</span>
-                                <h2>Ask the Buyer Before Bidding</h2>
-                            </div>
-                            <span class="badge badge-info">${clarifications.length} items</span>
-                        </div>
-                        ${renderSupplierTenderClarificationDeadline(tender)}
-                        <div class="clarification-rule-note">
-                            <strong>Pre-bid transparency rule</strong>
-                            <span>Questions and buyer answers are public to all suppliers, with supplier identity hidden. After bid submission, evaluation-related clarifications are handled confidentially.</span>
-                        </div>
-                        <div class="clarification-compose enhanced communication-center-cta">
-                            <div>
-                                <strong>Use Communication Center</strong>
-                                <span>Open a dedicated message thread with the buyer, attach files, and keep the tender communication history in one place.</span>
-                            </div>
-                            <button class="btn btn-primary" type="button" data-supplier-focus-clarification ${clarificationDeadline.closed ? 'disabled' : ''}>Open Communication Center</button>
-                        </div>
-                        <div class="public-clarification-feed" data-clarification-list>
-                            <div class="public-clarification-heading">
-                                <span class="section-kicker">Public responses</span>
-                                <strong>Supplier identity hidden from public QandA</strong>
-                            </div>
-                            ${renderSupplierTenderPublicClarificationFeed(clarifications)}
-                        </div>
-                    </section>
+                    ${renderSupplierTenderTabbedDetail(tender, profile, { requirementSet, clarifications, clarificationDeadline, daysRemaining })}
                 </div>
             </div>
         </div>
@@ -828,6 +1073,26 @@ function initializeSupplierTenderDetail() {
     };
 
     root.addEventListener('click', (event) => {
+        const tabButton = event.target.closest('[data-supplier-tab-target]');
+        if (tabButton) {
+            const tabList = tabButton.closest('[data-supplier-tab-list]');
+            const tabShell = tabList?.parentElement;
+            const panelShell = Array.from(tabShell?.children || []).find(child => child.classList.contains('supplier-detail-tab-panels'));
+            const target = tabButton.dataset.supplierTabTarget;
+
+            if (tabList && panelShell && target) {
+                Array.from(tabList.children).forEach(button => {
+                    const active = button === tabButton;
+                    button.classList.toggle('active', active);
+                    button.setAttribute('aria-selected', String(active));
+                });
+                Array.from(panelShell.children).forEach(panel => {
+                    panel.style.display = panel.dataset.supplierTabPanel === target ? 'block' : 'none';
+                });
+            }
+            return;
+        }
+
         const saveButton = event.target.closest('[data-supplier-save-tender]');
         if (saveButton) {
             const saved = new Set(getSupplierTenderSavedIds());
