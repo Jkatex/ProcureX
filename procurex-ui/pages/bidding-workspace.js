@@ -4966,7 +4966,6 @@ function initializeBiddingWorkspace() {
         }
     };
 
-<<<<<<< HEAD
     const syncWorksSiteVisitSection = () => {
         const section = wizard.querySelector('[data-works-site-visit-section]');
         if (!section) return;
@@ -5008,7 +5007,9 @@ function initializeBiddingWorkspace() {
                 if (proposed) input.setAttribute('data-bid-workflow-required-response', 'true');
                 else input.removeAttribute('data-bid-workflow-required-response');
             });
-=======
+        });
+    };
+
     const syncConsultancySubmissionModePanels = () => {
         const submissionType = wizard.querySelector('[data-bid-response="consultancy-submission-type"]')?.value || '';
         const firmSubmission = isConsultancyFirmSubmission(submissionType);
@@ -5023,7 +5024,6 @@ function initializeBiddingWorkspace() {
         });
         wizard.querySelectorAll('[data-consultancy-mode-prompt]').forEach(prompt => {
             prompt.hidden = Boolean(submissionType);
->>>>>>> 27d27f3a29afdd5c335faaaacaf8e6e48c882387
         });
     };
 
@@ -6394,12 +6394,9 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
 
     refreshBidTotals();
     syncBidSecurityUploadPanel();
-<<<<<<< HEAD
     syncWorksSiteVisitSection();
     syncWorksAlternativeDesignSection();
-=======
     syncConsultancySubmissionModePanels();
->>>>>>> 27d27f3a29afdd5c335faaaacaf8e6e48c882387
     refreshBidUploadControls();
     validateMandatoryGate(false);
     validateWorkflowResponses(false);
