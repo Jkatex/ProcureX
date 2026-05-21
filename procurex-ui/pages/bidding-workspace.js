@@ -2038,9 +2038,9 @@ function renderProcurexBidPackageDocument(config = {}) {
                             </div>
                             <div class="bid-response-document-table">
                                 ${section.financialOfferRows?.length ? `
-                                    <table>
+                                    <table class="financial-offer-review-table">
                                         <thead>
-                                            <tr><th>Item</th><th>Work item</th><th>Qty</th><th>Unit</th><th>Status</th><th>Labor</th><th>Material</th><th>Equipment</th><th>Overheads</th><th>Profit %</th><th>Unit rate</th><th>Total</th></tr>
+                                            <tr><th>Item</th><th>Work item</th><th>Qty</th><th>Unit</th><th>Status</th><th>Labor</th><th>Material</th><th>Equipment</th><th>Overheads</th><th>Profit %</th><th>Unit rate</th><th>Total</th>${editable ? '<th>Action</th>' : ''}</tr>
                                         </thead>
                                         <tbody>
                                             ${section.financialOfferRows.map(row => `
@@ -2049,7 +2049,7 @@ function renderProcurexBidPackageDocument(config = {}) {
                                                     <td>${escapeBidWorkspaceHtml(row.workItem)}</td>
                                                     <td>${escapeBidWorkspaceHtml(row.quantity)}</td>
                                                     <td>${escapeBidWorkspaceHtml(row.unit)}</td>
-                                                    <td>${escapeBidWorkspaceHtml(row.status)}</td>
+                                                    <td><span class="financial-review-status ${row.status === 'Bid' ? 'is-bid' : row.status === 'Not Bid' ? 'is-not-bid' : 'is-pending'}">${escapeBidWorkspaceHtml(row.status)}</span></td>
                                                     <td>${escapeBidWorkspaceHtml(row.labor)}</td>
                                                     <td>${escapeBidWorkspaceHtml(row.material)}</td>
                                                     <td>${escapeBidWorkspaceHtml(row.equipment)}</td>
@@ -2057,6 +2057,7 @@ function renderProcurexBidPackageDocument(config = {}) {
                                                     <td>${escapeBidWorkspaceHtml(row.profit)}</td>
                                                     <td>${escapeBidWorkspaceHtml(row.unitRate)}</td>
                                                     <td>${escapeBidWorkspaceHtml(row.total)}</td>
+                                                    ${editable ? `<td class="financial-review-action-cell">${row.sourceId ? `<button class="bid-review-edit-button financial-review-edit-button" type="button" data-bid-review-edit="${escapeBidWorkspaceHtml(row.sourceId)}">Edit</button>` : '<span class="bid-review-readonly">Read only</span>'}</td>` : ''}
                                                 </tr>
                                             `).join('')}
                                         </tbody>
@@ -2772,7 +2773,7 @@ function renderWorksBidTechnicalProposal(tender = {}, draft = {}) {
 
 function renderWorksBidFinancialRows(tender = {}, draft = {}) {
     const rows = getWorksBidBoqRows(tender);
-    if (!rows.length) return '<tr><td colspan="8">No works BOQ configured.</td></tr>';
+    if (!rows.length) return '<tr><td colspan="12">No works BOQ configured.</td></tr>';
     return rows.map((item, index) => {
         const baseId = `works-boq-${index}`;
         const qty = parseBidWorkspaceNumber(item.quantity || item.qty) || 1;
@@ -2789,25 +2790,23 @@ function renderWorksBidFinancialRows(tender = {}, draft = {}) {
         const unitRate = Math.round(lineTotal / qty);
         return `
             <tr class="works-boq-row" data-works-boq-row>
-                <td>${escapeBidWorkspaceHtml(item.item || item.section || `${index + 1}.1`)}</td>
-                <td><strong>${escapeBidWorkspaceHtml(item.workItem || item.description || `Work item ${index + 1}`)}</strong><small>${escapeBidWorkspaceHtml(item.description || tender.contractType || 'Works BOQ item')}</small></td>
-                <td data-bid-line-qty>${qty}</td>
-                <td>${escapeBidWorkspaceHtml(unit)}</td>
-                <td><select class="form-input" data-bid-line-status data-bid-response="${baseId}-status" data-bid-workflow-required-response="true"><option value="">Select</option>${['Bid', 'Not Bid'].map(option => `<option ${savedStatus === option ? 'selected' : ''}>${option}</option>`).join('')}</select></td>
-                <td data-works-unit-rate>${formatBidWorkspaceMoney(unitRate)}<input type="hidden" data-bid-rate data-bid-response="${baseId}-unit-rate" value="${unitRate}"></td>
-                <td data-bid-line-amount>${isNotBid ? formatBidWorkspaceMoney(0) : formatBidWorkspaceMoney(lineTotal)}</td>
-            </tr>
-            <tr class="works-cost-detail-row">
-                <td></td>
-                <td colspan="6">
-                    <div class="works-cost-grid">
-                        <div class="form-group"><label class="form-label">Labor Cost</label><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-labor" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(labor)}"></div>
-                        <div class="form-group"><label class="form-label">Material Cost</label><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-material" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(material)}"></div>
-                        <div class="form-group"><label class="form-label">Equipment Cost</label><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-equipment" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(equipment)}"></div>
-                        <div class="form-group"><label class="form-label">Overheads</label><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-overheads" value="${escapeBidWorkspaceHtml(overheads)}"></div>
-                        <div class="form-group"><label class="form-label">Profit Margin (%)</label><input class="form-input" type="number" min="0" max="100" step="0.5" data-works-cost data-bid-response="${baseId}-profit" value="${escapeBidWorkspaceHtml(profit)}"></div>
-                    </div>
+                <td class="financial-review-code">${escapeBidWorkspaceHtml(item.item || item.section || `${index + 1}.1`)}</td>
+                <td class="financial-review-work-item"><strong>${escapeBidWorkspaceHtml(item.workItem || item.description || `Work item ${index + 1}`)}</strong><small>${escapeBidWorkspaceHtml(item.description || tender.contractType || 'Works BOQ item')}</small></td>
+                <td class="financial-review-qty" data-bid-line-qty>${qty}</td>
+                <td class="financial-review-unit">${escapeBidWorkspaceHtml(unit)}</td>
+                <td>
+                    <select class="form-input financial-review-select" data-bid-line-status data-bid-response="${baseId}-status" data-bid-workflow-required-response="true" aria-label="Bid status for work item ${index + 1}">
+                        <option value="">Select</option>
+                        ${['Bid', 'Not Bid'].map(option => `<option ${savedStatus === option ? 'selected' : ''}>${option}</option>`).join('')}
+                    </select>
                 </td>
+                <td><div class="money-edit-field"><span>TZS</span><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-labor" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(labor)}" aria-label="Labor cost for work item ${index + 1}"></div></td>
+                <td><div class="money-edit-field"><span>TZS</span><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-material" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(material)}" aria-label="Material cost for work item ${index + 1}"></div></td>
+                <td><div class="money-edit-field"><span>TZS</span><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-equipment" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(equipment)}" aria-label="Equipment cost for work item ${index + 1}"></div></td>
+                <td><div class="money-edit-field"><span>TZS</span><input class="form-input" type="number" min="0" step="1000" data-works-cost data-bid-response="${baseId}-overheads" value="${escapeBidWorkspaceHtml(overheads)}" aria-label="Overheads for work item ${index + 1}"></div></td>
+                <td><input class="form-input financial-review-profit" type="number" min="0" max="100" step="0.5" data-works-cost data-bid-response="${baseId}-profit" value="${escapeBidWorkspaceHtml(profit)}" aria-label="Profit margin percentage for work item ${index + 1}"></td>
+                <td class="financial-review-total-cell" data-works-unit-rate>${formatBidWorkspaceMoney(unitRate)}<input type="hidden" data-bid-rate data-bid-response="${baseId}-unit-rate" value="${unitRate}"></td>
+                <td class="financial-review-grand-total" data-bid-line-amount>${isNotBid ? formatBidWorkspaceMoney(0) : formatBidWorkspaceMoney(lineTotal)}</td>
             </tr>
         `;
     }).join('');
@@ -3903,9 +3902,9 @@ function renderBiddingWorkspace() {
                                     <span>Price labor, materials, equipment, overheads, and margin for each work item. The unit rate and total are recalculated automatically.</span>
                                 </div>
                                 ${renderBidWorkspaceFinancialCapacityMatrix(tender, draft, 'works-financial-capacity')}
-                                <div class="data-table works-boq-table">
-                                    <table>
-                                        <thead><tr><th>Code</th><th>Work Item</th><th>Qty</th><th>Unit</th><th>Status</th><th>Unit Rate</th><th>Total</th></tr></thead>
+                                <div class="data-table works-boq-table premium-review-table">
+                                    <table class="financial-review-table" aria-label="Editable financial offer review table">
+                                        <thead><tr><th>Item</th><th>Work Item</th><th>Qty</th><th>Unit</th><th>Status</th><th>Labor</th><th>Material</th><th>Equipment</th><th>Overheads</th><th>Profit %</th><th>Unit Rate</th><th>Total</th></tr></thead>
                                         <tbody data-bid-commercial-body>${renderWorksBidFinancialRows(tender, draft)}</tbody>
                                     </table>
                                 </div>
@@ -4494,7 +4493,7 @@ function initializeBiddingWorkspace() {
             if (value && (percent < 0 || percent > 100)) addIssue(advancePercent, 'Proposed advance percentage must be between 0 and 100.');
         }
 
-        Array.from(root.querySelectorAll('[data-bid-rate], [data-bid-line-qty], [data-bid-line-extra-cost]')).forEach(input => {
+        Array.from(root.querySelectorAll('[data-bid-rate], [data-works-cost], [data-bid-line-qty], [data-bid-line-extra-cost]')).forEach(input => {
             clearInput(input);
             if (isBidWorkspaceCommercialLineNotBid(input)) return;
             if (String(input.value || '').trim() && parseBidWorkspaceNumber(input.value) < 0) {
@@ -4713,28 +4712,31 @@ function initializeBiddingWorkspace() {
         return Boolean(uploadControl) || Boolean(getBidReviewInputLabel(input)) || String(input.value || '').trim().length > 0 || required;
     };
 
-    const getWorksFinancialInputValue = (detailRow, suffix) => {
-        const input = detailRow?.querySelector(`[data-bid-response$="${suffix}"]`);
+    const getWorksFinancialInputValue = (row, suffix) => {
+        const detailRow = row?.nextElementSibling?.classList.contains('works-cost-detail-row') ? row.nextElementSibling : null;
+        const input = (detailRow || row)?.querySelector(`[data-bid-response$="${suffix}"]`);
         return input ? formatBidWorkspaceMoney(parseBidWorkspaceNumber(input.value)) : 'Not provided';
     };
 
     const collectWorksFinancialOfferRows = () => Array.from(wizard.querySelectorAll('[data-works-boq-row]')).map((row, index) => {
-        const detailRow = row.nextElementSibling?.classList.contains('works-cost-detail-row') ? row.nextElementSibling : null;
         const statusSelect = row.querySelector('[data-bid-line-status]');
-        const status = statusSelect?.selectedOptions?.[0]?.textContent.trim() || statusSelect?.value || 'Not selected';
+        const status = String(statusSelect?.value || '').trim()
+            ? (statusSelect?.selectedOptions?.[0]?.textContent.trim() || statusSelect.value)
+            : 'Not selected';
         return {
             item: row.children[0]?.textContent.trim() || String(index + 1),
             workItem: row.children[1]?.querySelector('strong')?.textContent.trim() || row.children[1]?.textContent.trim() || `Work item ${index + 1}`,
             quantity: row.querySelector('[data-bid-line-qty]')?.textContent.trim() || row.children[2]?.textContent.trim() || '1',
             unit: row.children[3]?.textContent.trim() || 'Lot',
             status,
-            labor: getWorksFinancialInputValue(detailRow, '-labor'),
-            material: getWorksFinancialInputValue(detailRow, '-material'),
-            equipment: getWorksFinancialInputValue(detailRow, '-equipment'),
-            overheads: getWorksFinancialInputValue(detailRow, '-overheads'),
-            profit: detailRow?.querySelector('[data-bid-response$="-profit"]')?.value || 'Not provided',
+            labor: getWorksFinancialInputValue(row, '-labor'),
+            material: getWorksFinancialInputValue(row, '-material'),
+            equipment: getWorksFinancialInputValue(row, '-equipment'),
+            overheads: getWorksFinancialInputValue(row, '-overheads'),
+            profit: row.querySelector('[data-bid-response$="-profit"]')?.value || 'Not provided',
             unitRate: row.querySelector('[data-works-unit-rate]')?.childNodes?.[0]?.textContent?.trim() || row.querySelector('[data-bid-rate]')?.value || 'Not calculated',
-            total: row.querySelector('[data-bid-line-amount]')?.textContent.trim() || 'Not calculated'
+            total: row.querySelector('[data-bid-line-amount]')?.textContent.trim() || 'Not calculated',
+            sourceId: getBidReviewSourceId(statusSelect || row.querySelector('[data-works-cost]') || row.querySelector('[data-bid-rate]'))
         };
     });
 
@@ -4879,6 +4881,23 @@ body { margin: 0; padding: 32px; background: #eef2f7; color: #0f172a; font-famil
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 13px 14px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; font-size: 14px; line-height: 1.4; }
 th { background: #f1f5f9; color: #334155; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.financial-offer-review-table { min-width: 1450px; table-layout: fixed; }
+.financial-offer-review-table th { background: #eef3f8; color: #071a33; }
+.financial-offer-review-table th, .financial-offer-review-table td { padding: 12px 14px; white-space: normal; overflow-wrap: normal; }
+.financial-offer-review-table th:nth-child(1), .financial-offer-review-table td:nth-child(1) { width: 70px; }
+.financial-offer-review-table td:nth-child(2) { width: 250px; min-width: 250px; }
+.financial-offer-review-table th:nth-child(3), .financial-offer-review-table td:nth-child(3), .financial-offer-review-table th:nth-child(4), .financial-offer-review-table td:nth-child(4) { width: 74px; }
+.financial-offer-review-table th:nth-child(5), .financial-offer-review-table td:nth-child(5) { width: 124px; }
+.financial-offer-review-table th:nth-child(n + 6):nth-child(-n + 9), .financial-offer-review-table td:nth-child(n + 6):nth-child(-n + 9) { width: 130px; }
+.financial-offer-review-table th:nth-child(10), .financial-offer-review-table td:nth-child(10) { width: 82px; }
+.financial-offer-review-table th:nth-child(13), .financial-offer-review-table td:nth-child(13) { width: 96px; }
+.financial-offer-review-table td:nth-child(6), .financial-offer-review-table td:nth-child(7), .financial-offer-review-table td:nth-child(8), .financial-offer-review-table td:nth-child(9), .financial-offer-review-table td:nth-child(11), .financial-offer-review-table td:nth-child(12) { color: #071a33; font-weight: 900; white-space: nowrap; }
+.financial-offer-review-table tbody tr:nth-child(even) td { background: #fbfdff; }
+.financial-review-status { display: inline-flex; align-items: center; min-height: 26px; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; line-height: 1; white-space: nowrap; }
+.financial-review-status.is-bid { background: #e8f5e9; color: #0d7c3d; }
+.financial-review-status.is-not-bid { background: #fff1f1; color: #b00020; }
+.financial-review-status.is-pending { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+.financial-review-action-cell { text-align: right; white-space: nowrap; }
 td strong { display: block; color: #0f172a; }
 td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.35; }
 .bid-requirement-marker, .bid-deviation-marker { display: inline-flex; width: max-content; max-width: 100%; min-height: 22px; margin: 0 5px 5px 0; padding: 4px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
@@ -5145,7 +5164,8 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
             }
             if (row.matches('[data-works-boq-row]')) {
                 const detailRow = row.nextElementSibling?.classList.contains('works-cost-detail-row') ? row.nextElementSibling : null;
-                const getCost = (suffix) => parseBidWorkspaceNumber(detailRow?.querySelector(`[data-bid-response$="${suffix}"]`)?.value);
+                const costScope = detailRow || row;
+                const getCost = (suffix) => parseBidWorkspaceNumber(costScope?.querySelector(`[data-bid-response$="${suffix}"]`)?.value);
                 const directCost = getCost('-labor') + getCost('-material') + getCost('-equipment') + getCost('-overheads');
                 const profit = getCost('-profit');
                 const qtyInput = row.querySelector('[data-bid-line-qty]');

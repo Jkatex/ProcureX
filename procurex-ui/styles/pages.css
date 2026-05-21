@@ -4494,6 +4494,80 @@
     min-width: 980px;
 }
 
+.works-boq-table.premium-review-table {
+    border-color: rgba(15, 23, 42, 0.12);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+.works-boq-table.premium-review-table table {
+    min-width: 1320px;
+    table-layout: fixed;
+}
+
+.works-boq-table.premium-review-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 13px 14px;
+    background: #eef3f8;
+    color: #071a33;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+.works-boq-table.premium-review-table td {
+    padding: 12px 14px;
+    border-color: rgba(203, 213, 225, 0.72);
+    background: #ffffff;
+    vertical-align: top;
+}
+
+.works-boq-table.premium-review-table tbody tr:hover td {
+    background: #f8fafc;
+}
+
+.works-boq-table.premium-review-table th:nth-child(1),
+.works-boq-table.premium-review-table td:nth-child(1) {
+    width: 74px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(2),
+.works-boq-table.premium-review-table td:nth-child(2) {
+    width: 240px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(3),
+.works-boq-table.premium-review-table td:nth-child(3),
+.works-boq-table.premium-review-table th:nth-child(4),
+.works-boq-table.premium-review-table td:nth-child(4) {
+    width: 76px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(5),
+.works-boq-table.premium-review-table td:nth-child(5) {
+    width: 118px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(n + 6):nth-child(-n + 9),
+.works-boq-table.premium-review-table td:nth-child(n + 6):nth-child(-n + 9) {
+    width: 145px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(10),
+.works-boq-table.premium-review-table td:nth-child(10) {
+    width: 90px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(11),
+.works-boq-table.premium-review-table td:nth-child(11),
+.works-boq-table.premium-review-table th:nth-child(12),
+.works-boq-table.premium-review-table td:nth-child(12) {
+    width: 150px;
+}
+
 .works-drawing-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -4517,6 +4591,71 @@
 .works-boq-row small {
     display: block;
     margin-top: 4px;
+}
+
+.financial-review-code,
+.financial-review-qty,
+.financial-review-unit {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.financial-review-work-item strong {
+    display: block;
+    color: var(--text-primary);
+    line-height: 1.25;
+}
+
+.financial-review-select {
+    min-width: 100%;
+}
+
+.money-edit-field {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    align-items: center;
+    min-height: 40px;
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: #ffffff;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.money-edit-field:focus-within {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(11, 90, 168, 0.12);
+}
+
+.money-edit-field span {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    background: #f1f5f9;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.money-edit-field .form-input {
+    min-width: 0;
+    min-height: 38px;
+    padding: 8px 9px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.financial-review-profit {
+    min-width: 72px;
+}
+
+.financial-review-total-cell,
+.financial-review-grand-total {
+    color: #071a33;
+    font-weight: 900;
+    white-space: nowrap;
 }
 
 .works-cost-detail-row td {
