@@ -4494,6 +4494,93 @@
     min-width: 980px;
 }
 
+.works-boq-table.premium-review-table {
+    border-color: rgba(15, 23, 42, 0.12);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+.works-boq-table.premium-review-table table {
+    min-width: 1840px;
+    table-layout: fixed;
+}
+
+.works-boq-table.premium-review-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 13px 14px;
+    background: #eef3f8;
+    color: #071a33;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.works-boq-table.premium-review-table td {
+    padding: 14px;
+    border-color: rgba(203, 213, 225, 0.72);
+    background: #ffffff;
+    vertical-align: middle;
+}
+
+.works-boq-table.premium-review-table tbody tr:hover td {
+    background: #f8fafc;
+}
+
+.works-boq-table.premium-review-table th:nth-child(1),
+.works-boq-table.premium-review-table td:nth-child(1) {
+    width: 72px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(2),
+.works-boq-table.premium-review-table td:nth-child(2) {
+    width: 310px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(3),
+.works-boq-table.premium-review-table td:nth-child(3),
+.works-boq-table.premium-review-table th:nth-child(4),
+.works-boq-table.premium-review-table td:nth-child(4) {
+    width: 78px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(5),
+.works-boq-table.premium-review-table td:nth-child(5) {
+    width: 150px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(n + 6):nth-child(-n + 9),
+.works-boq-table.premium-review-table td:nth-child(n + 6):nth-child(-n + 9) {
+    width: 176px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(10),
+.works-boq-table.premium-review-table td:nth-child(10) {
+    width: 110px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(11),
+.works-boq-table.premium-review-table td:nth-child(11) {
+    width: 170px;
+}
+
+.works-boq-table.premium-review-table th:nth-child(12),
+.works-boq-table.premium-review-table td:nth-child(12) {
+    width: 185px;
+}
+
+.works-boq-table.premium-review-table::-webkit-scrollbar {
+    height: 10px;
+}
+
+.works-boq-table.premium-review-table::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #cbd5e1;
+}
+
 .works-drawing-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -4517,6 +4604,96 @@
 .works-boq-row small {
     display: block;
     margin-top: 4px;
+}
+
+.financial-review-code,
+.financial-review-qty,
+.financial-review-unit {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.financial-review-work-item strong {
+    display: block;
+    color: var(--text-primary);
+    line-height: 1.25;
+}
+
+.financial-review-select {
+    width: 100%;
+    min-width: 122px;
+    white-space: nowrap;
+}
+
+.money-edit-field {
+    display: grid;
+    grid-template-columns: 44px minmax(104px, 1fr);
+    align-items: stretch;
+    min-height: 42px;
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: #ffffff;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.money-edit-field:focus-within {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(11, 90, 168, 0.12);
+}
+
+.money-edit-field span {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    background: #f1f5f9;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.money-edit-field .form-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #071a33;
+    font-weight: 800;
+    text-align: right;
+}
+
+.money-edit-field .form-input::-webkit-outer-spin-button,
+.money-edit-field .form-input::-webkit-inner-spin-button,
+.financial-review-profit::-webkit-outer-spin-button,
+.financial-review-profit::-webkit-inner-spin-button {
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.money-edit-field .form-input,
+.financial-review-profit {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.financial-review-profit {
+    width: 100%;
+    min-width: 82px;
+    color: #071a33;
+    font-weight: 800;
+    text-align: right;
+}
+
+.financial-review-total-cell,
+.financial-review-grand-total {
+    color: #071a33;
+    font-weight: 900;
+    white-space: nowrap;
 }
 
 .works-cost-detail-row td {
