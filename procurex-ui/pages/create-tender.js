@@ -383,7 +383,7 @@ const createTenderRequirementTemplates = {
                 controls: [
                     {
                         id: 'scopeSummary',
-                        label: 'Scope Summary *',
+                        label: 'Scope Summary',
                         type: 'textarea',
                         required: true,
                         maxLength: 1000,
