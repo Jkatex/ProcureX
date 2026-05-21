@@ -2548,25 +2548,43 @@ function renderWorksBidEquipmentCards(tender = {}, draft = {}) {
                 </div>
                 <span class="badge badge-warning">${equipmentRows.length} equipment items</span>
             </div>
-            <div class="works-equipment-grid">
-                ${equipmentRows.map((equipment, index) => {
-                    const baseId = `works-equipment-${index}`;
-                    return `
-                        <article class="works-capacity-card">
-                            <span class="section-kicker">${escapeBidWorkspaceHtml(equipment.equipmentName || `Equipment ${index + 1}`)}</span>
-                            <p>${escapeBidWorkspaceHtml(`Requested quantity/access: ${equipment.quantity || 1} / ${equipment.ownershipRequirement || 'Evidence required'}`)}</p>
-                            <div class="form-grid two">
-                                <div class="form-group"><label class="form-label">Model</label><input class="form-input" data-bid-response="${baseId}-model" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-model`))}"></div>
-                                <div class="form-group"><label class="form-label">Quantity Available</label><input class="form-input" type="number" min="0" data-bid-response="${baseId}-quantity" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-quantity`))}"></div>
-                                <div class="form-group"><label class="form-label">Ownership Status</label><select class="form-input" data-bid-response="${baseId}-ownership" data-bid-workflow-required-response="true"><option value="">Select</option>${['Owned', 'Leased', 'Hire agreement', 'Subcontractor provided'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-ownership`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                                <div class="form-group"><label class="form-label">Condition</label><select class="form-input" data-bid-response="${baseId}-condition"><option value="">Select</option>${['Excellent', 'Good', 'Serviceable', 'Requires mobilization'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-condition`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                                <div class="form-group"><label class="form-label">Availability Date</label><input class="form-input" type="date" data-bid-response="${baseId}-availability-date" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-availability-date`))}"></div>
-                                <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-ownership-proof`, draft, 'Ownership proof', '.pdf,.doc,.docx,.jpg,.jpeg,.png', false)}</div>
-                                <div class="form-group wide">${renderBidWorkspaceUploadControl(`${baseId}-lease-proof`, draft, 'Lease / access agreement', '.pdf,.doc,.docx,.jpg,.jpeg,.png', false)}</div>
-                            </div>
-                        </article>
-                    `;
-                }).join('')}
+            <div class="data-table works-equipment-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Equipment Name</th>
+                            <th>Quantity Available</th>
+                            <th>Ownership Status</th>
+                            <th>Lease / Access Agreement</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${equipmentRows.map((equipment, index) => {
+                            const baseId = `works-equipment-${index}`;
+                            return `
+                                <tr class="works-equipment-row">
+                                    <td class="works-equipment-name">
+                                        <strong>${escapeBidWorkspaceHtml(equipment.equipmentName || `Equipment ${index + 1}`)}</strong>
+                                        <small>${escapeBidWorkspaceHtml(`Requested: ${equipment.quantity || 1} / ${equipment.ownershipRequirement || 'Evidence required'}`)}</small>
+                                    </td>
+                                    <td>
+                                        <div class="form-group">
+                                            <input class="form-input" type="number" min="0" aria-label="Quantity available for ${escapeBidWorkspaceHtml(equipment.equipmentName || `Equipment ${index + 1}`)}" data-bid-response="${baseId}-quantity" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-quantity`))}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="form-group">
+                                            <select class="form-input" aria-label="Ownership status for ${escapeBidWorkspaceHtml(equipment.equipmentName || `Equipment ${index + 1}`)}" data-bid-response="${baseId}-ownership" data-bid-workflow-required-response="true"><option value="">Select</option>${['Owned', 'Leased', 'Hire agreement', 'Subcontractor provided'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-ownership`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        ${renderBidWorkspaceUploadControl(`${baseId}-lease-proof`, draft, 'Lease / access agreement', '.pdf,.doc,.docx,.jpg,.jpeg,.png', false)}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
             </div>
         </section>
     `;

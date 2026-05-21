@@ -4372,6 +4372,49 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.works-equipment-table table {
+    min-width: 900px;
+}
+
+.works-equipment-table th:nth-child(1) {
+    width: 28%;
+}
+
+.works-equipment-table th:nth-child(2) {
+    width: 18%;
+}
+
+.works-equipment-table th:nth-child(3) {
+    width: 22%;
+}
+
+.works-equipment-table td {
+    vertical-align: top;
+}
+
+.works-equipment-table .form-group {
+    margin-bottom: 0;
+}
+
+.works-equipment-name {
+    display: grid;
+    gap: 4px;
+}
+
+.works-equipment-name strong {
+    color: var(--text-primary);
+}
+
+.works-equipment-name small {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.works-equipment-table .bid-upload-response {
+    min-width: 220px;
+}
+
 .works-capacity-card,
 .works-person-card,
 .works-accordion-card,
