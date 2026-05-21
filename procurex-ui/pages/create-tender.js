@@ -470,13 +470,12 @@ const createTenderRequirementTemplates = {
                         importLabel: 'Import Excel',
                         emptyText: 'No BOQ lines added yet.',
                         columns: [
-                            { id: 'workItem', label: 'Work item', type: 'text' },
-                            { id: 'quantity', label: 'Qty', type: 'number' },
+                            { id: 'itemNumber', label: 'No.', type: 'index' },
+                            { id: 'description', label: 'Description', type: 'text' },
                             { id: 'unit', label: 'Unit', type: 'select', options: createTenderRequirementOptions.units },
-                            { id: 'laborCost', label: 'Labor', type: 'currency' },
-                            { id: 'materialCost', label: 'Materials', type: 'currency' },
-                            { id: 'equipmentCost', label: 'Equipment', type: 'currency' },
-                            { id: 'totalCost', label: 'Total', type: 'calculated', formula: 'laborCost+materialCost+equipmentCost' }
+                            { id: 'quantity', label: 'Quantity', type: 'number' },
+                            { id: 'rate', label: 'Rate', type: 'currency' },
+                            { id: 'totalAmount', label: 'Total amount', type: 'calculated', formula: 'quantity*rate' }
                         ]
                     }
                 ]
@@ -548,6 +547,29 @@ const createTenderRequirementTemplates = {
                     { id: 'scopeOfServices', label: 'Scope of services', type: 'textarea' },
                     { id: 'serviceLocations', label: 'Service locations', type: 'list', addLabel: 'Add Service Location', emptyText: 'No service locations added yet.' },
                     { id: 'duration', label: 'Duration', type: 'text' }
+                ]
+            },
+            {
+                id: 'serviceBoq',
+                title: 'Bill of Quantities (BOQ)',
+                hint: 'Line-item BOQ schedule for the service items suppliers should price.',
+                controls: [
+                    {
+                        id: 'serviceBoqRows',
+                        label: 'BOQ table',
+                        type: 'table',
+                        addLabel: 'Add BOQ Line',
+                        importLabel: 'Import Excel',
+                        emptyText: 'No BOQ lines added yet.',
+                        columns: [
+                            { id: 'itemNumber', label: 'No.', type: 'index' },
+                            { id: 'description', label: 'Description', type: 'text' },
+                            { id: 'unit', label: 'Unit', type: 'select', options: createTenderRequirementOptions.units },
+                            { id: 'quantity', label: 'Quantity', type: 'number' },
+                            { id: 'rate', label: 'Rate', type: 'currency' },
+                            { id: 'totalAmount', label: 'Total amount', type: 'calculated', formula: 'quantity*rate' }
+                        ]
+                    }
                 ]
             },
             createTenderFinancialCapacitySection(),
@@ -1754,24 +1776,40 @@ function isCreateTenderLegacyDefaultTextList(value = [], defaultTexts = []) {
 function normalizeCreateTenderRequirementTableRows(rows = [], columns = [], controlId = 'table') {
     if (!Array.isArray(rows)) return [];
     return rows.map((row, index) => {
+        const sourceRow = { ...(row || {}) };
+        if (controlId === 'boqRows') {
+            if (!sourceRow.description && sourceRow.workItem) {
+                sourceRow.description = sourceRow.workItem;
+            }
+            if (!sourceRow.rate) {
+                const totalCost = parseCreateTenderRequirementAmount(sourceRow.totalCost);
+                const componentTotal = ['laborCost', 'materialCost', 'equipmentCost']
+                    .map(fieldId => parseCreateTenderRequirementAmount(sourceRow[fieldId]))
+                    .reduce((total, value) => total + value, 0);
+                const totalAmount = totalCost || componentTotal;
+                const quantity = parseCreateTenderRequirementAmount(sourceRow.quantity) || 1;
+                if (totalAmount) sourceRow.rate = totalAmount / quantity;
+            }
+        }
+
         const normalizedRow = {
-            id: String(row?.id || `requirement-${controlId}-${Date.now()}-${index}`)
+            id: String(sourceRow?.id || `requirement-${controlId}-${Date.now()}-${index}`)
         };
         columns.forEach(column => {
             if (column.type === 'multiselect' || column.type === 'tag-select' || column.type === 'repeatable-text') {
-                normalizedRow[column.id] = Array.isArray(row?.[column.id]) ? row[column.id].map(String) : [];
+                normalizedRow[column.id] = Array.isArray(sourceRow?.[column.id]) ? sourceRow[column.id].map(String) : [];
                 return;
             }
             if (column.type === 'repeatable-certification') {
-                normalizedRow[column.id] = normalizeCreateTenderCertificationItems(row?.[column.id]);
+                normalizedRow[column.id] = normalizeCreateTenderCertificationItems(sourceRow?.[column.id]);
                 return;
             }
             if (column.type === 'toggle') {
-                normalizedRow[column.id] = Boolean(row?.[column.id]);
+                normalizedRow[column.id] = Boolean(sourceRow?.[column.id]);
                 return;
             }
             if (column.type !== 'index' && column.type !== 'calculated') {
-                normalizedRow[column.id] = String(row?.[column.id] || '');
+                normalizedRow[column.id] = String(sourceRow?.[column.id] || '');
             }
         });
         return normalizedRow;
@@ -3770,8 +3808,12 @@ function getCreateTenderBoqTemplateRows(profile = getCreateTenderCurrentTypeProf
                 ['2', 'Printer toner cartridge', 'Pcs', '50', '95000', '=D3*E3']
             ],
             boqRows: [
-                ['Foundation excavation', '120', 'm3', '1500000', '3200000', '800000', '=D2+E2+F2'],
-                ['Concrete works', '40', 'm3', '2200000', '5400000', '1200000', '=D3+E3+F3']
+                ['1', 'Foundation excavation', 'm3', '120', '150000', '=D2*E2'],
+                ['2', 'Concrete works', 'm3', '40', '180000', '=D3*E3']
+            ],
+            serviceBoqRows: [
+                ['1', 'Monthly cleaning service', 'Month', '12', '650000', '=D2*E2'],
+                ['2', 'Deep cleaning service', 'Quarter', '4', '1200000', '=D3*E3']
             ]
         };
         return [
