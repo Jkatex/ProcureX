@@ -2471,7 +2471,7 @@ function getWorksBidEquipmentRows(tender = {}) {
 }
 
 function getWorksBidSimilarProjectUploadCount(draft = {}, required = false) {
-    const minimumCount = required ? 3 : 2;
+    const minimumCount = 1;
     const responseIds = new Set([
         ...Object.keys(draft.responses || {}),
         ...Object.keys(draft.uploadedFiles || {})
