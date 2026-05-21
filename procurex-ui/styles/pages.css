@@ -4502,7 +4502,7 @@
 }
 
 .works-boq-table.premium-review-table table {
-    min-width: 1320px;
+    min-width: 1840px;
     table-layout: fixed;
 }
 
@@ -4516,13 +4516,14 @@
     font-size: 12px;
     font-weight: 900;
     letter-spacing: 0;
+    white-space: nowrap;
 }
 
 .works-boq-table.premium-review-table td {
-    padding: 12px 14px;
+    padding: 14px;
     border-color: rgba(203, 213, 225, 0.72);
     background: #ffffff;
-    vertical-align: top;
+    vertical-align: middle;
 }
 
 .works-boq-table.premium-review-table tbody tr:hover td {
@@ -4531,41 +4532,53 @@
 
 .works-boq-table.premium-review-table th:nth-child(1),
 .works-boq-table.premium-review-table td:nth-child(1) {
-    width: 74px;
+    width: 72px;
 }
 
 .works-boq-table.premium-review-table th:nth-child(2),
 .works-boq-table.premium-review-table td:nth-child(2) {
-    width: 240px;
+    width: 310px;
 }
 
 .works-boq-table.premium-review-table th:nth-child(3),
 .works-boq-table.premium-review-table td:nth-child(3),
 .works-boq-table.premium-review-table th:nth-child(4),
 .works-boq-table.premium-review-table td:nth-child(4) {
-    width: 76px;
+    width: 78px;
 }
 
 .works-boq-table.premium-review-table th:nth-child(5),
 .works-boq-table.premium-review-table td:nth-child(5) {
-    width: 118px;
+    width: 150px;
 }
 
 .works-boq-table.premium-review-table th:nth-child(n + 6):nth-child(-n + 9),
 .works-boq-table.premium-review-table td:nth-child(n + 6):nth-child(-n + 9) {
-    width: 145px;
+    width: 176px;
 }
 
 .works-boq-table.premium-review-table th:nth-child(10),
 .works-boq-table.premium-review-table td:nth-child(10) {
-    width: 90px;
+    width: 110px;
 }
 
 .works-boq-table.premium-review-table th:nth-child(11),
-.works-boq-table.premium-review-table td:nth-child(11),
+.works-boq-table.premium-review-table td:nth-child(11) {
+    width: 170px;
+}
+
 .works-boq-table.premium-review-table th:nth-child(12),
 .works-boq-table.premium-review-table td:nth-child(12) {
-    width: 150px;
+    width: 185px;
+}
+
+.works-boq-table.premium-review-table::-webkit-scrollbar {
+    height: 10px;
+}
+
+.works-boq-table.premium-review-table::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #cbd5e1;
 }
 
 .works-drawing-list {
@@ -4607,14 +4620,16 @@
 }
 
 .financial-review-select {
-    min-width: 100%;
+    width: 100%;
+    min-width: 122px;
+    white-space: nowrap;
 }
 
 .money-edit-field {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr);
-    align-items: center;
-    min-height: 40px;
+    grid-template-columns: 44px minmax(104px, 1fr);
+    align-items: stretch;
+    min-height: 42px;
     overflow: hidden;
     border: 1px solid var(--border-soft);
     border-radius: 8px;
@@ -4638,17 +4653,40 @@
 }
 
 .money-edit-field .form-input {
+    width: 100%;
     min-width: 0;
-    min-height: 38px;
-    padding: 8px 9px;
+    min-height: 40px;
+    padding: 8px 10px;
     border: 0;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
+    color: #071a33;
+    font-weight: 800;
+    text-align: right;
+}
+
+.money-edit-field .form-input::-webkit-outer-spin-button,
+.money-edit-field .form-input::-webkit-inner-spin-button,
+.financial-review-profit::-webkit-outer-spin-button,
+.financial-review-profit::-webkit-inner-spin-button {
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.money-edit-field .form-input,
+.financial-review-profit {
+    appearance: textfield;
+    -moz-appearance: textfield;
 }
 
 .financial-review-profit {
-    min-width: 72px;
+    width: 100%;
+    min-width: 82px;
+    color: #071a33;
+    font-weight: 800;
+    text-align: right;
 }
 
 .financial-review-total-cell,
