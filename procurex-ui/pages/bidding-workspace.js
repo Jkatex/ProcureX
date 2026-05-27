@@ -1709,6 +1709,119 @@ function getProcurexBidReviewRowStatus(row = {}) {
     return row.mandatory ? 'Complete' : 'Provided';
 }
 
+function isProcurexAdministrativeComplianceSection(section = {}) {
+    return normalizeProcurexBidPackageCategory(section.title || '') === 'Step 1: Administrative Compliance';
+}
+
+function isProcurexTechnicalResponseSection(section = {}) {
+    return normalizeProcurexBidPackageCategory(section.title || '') === 'Step 2: Technical Response';
+}
+
+function simplifyProcurexAdminResponse(value = '', row = {}) {
+    const raw = typeof value === 'object' && value !== null ? (value.name || value.fileName || '') : String(value || '');
+    if (row.upload || row.file || /\.(pdf|docx?|xlsx?|png|jpe?g)\b/i.test(raw)) return 'File uploaded';
+    if (!isBidWorkspaceMeaningfulValue(raw) || /no response provided|not provided|pending/i.test(raw)) return 'Not provided';
+    if (/^yes$/i.test(raw.trim())) return 'Accepted';
+    if (/^valid$/i.test(raw.trim())) return 'Valid';
+    return raw.trim();
+}
+
+function summarizeProcurexAdminComplianceRows(rows = []) {
+    const normalizedRows = rows.map(row => ({
+        ...row,
+        summaryResponse: simplifyProcurexAdminResponse(row.value, row),
+        status: getProcurexBidReviewRowStatus(row),
+        action: getProcurexBidReviewAction(row)
+    }));
+    const completedRows = normalizedRows.filter(row => !row.pending);
+    const missingRequiredRows = normalizedRows.filter(row => row.pending && row.mandatory);
+    const optionalMissingRows = normalizedRows.filter(row => row.pending && !row.mandatory);
+    return {
+        totalRequirements: normalizedRows.length,
+        completedCount: completedRows.length,
+        missingRequiredCount: missingRequiredRows.length,
+        optionalMissingCount: optionalMissingRows.length,
+        completedItems: completedRows.map(row => ({
+            label: row.label || 'Requirement',
+            response: row.summaryResponse,
+            sourceId: row.sourceId || ''
+        })),
+        missingItems: missingRequiredRows.map(row => ({
+            label: row.label || 'Requirement',
+            response: row.summaryResponse,
+            sourceId: row.sourceId || ''
+        })),
+        status: missingRequiredRows.length ? 'Incomplete' : 'Complete',
+        rows: normalizedRows
+    };
+}
+
+function simplifyProcurexTechnicalLabel(value = '') {
+    return String(value || 'Requirement')
+        .replace(/\s+is\s+mandatory\s+and\s+incomplete\.?$/i, '')
+        .replace(/\s+is\s+not\s+provided\.?$/i, '')
+        .replace(/^complete\s+/i, '')
+        .replace(/^upload\s+missing\s+/i, '')
+        .replace(/^upload\s+/i, '')
+        .replace(/\s+-\s*quantity available$/i, ' quantity')
+        .replace(/\s+-\s*ownership status$/i, ' ownership')
+        .replace(/\s+requested:\s*\d+\s*\/\s*owned or leased\s*\/\s*\d+/i, '')
+        .replace(/\s+requested:\s*\d+\s*\/\s*owned or leased/i, '')
+        .replace(/\s+requested\b/ig, '')
+        .replace(/\s+add response if applicable.*$/i, '')
+        .replace(/[.]+$/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim() || 'Requirement';
+}
+
+function simplifyProcurexTechnicalResponse(value = '', row = {}) {
+    const raw = typeof value === 'object' && value !== null ? (value.name || value.fileName || '') : String(value || '');
+    if (row.upload || row.file || /\.(pdf|docx?|xlsx?|png|jpe?g)\b/i.test(raw)) return 'File uploaded';
+    if (!isBidWorkspaceMeaningfulValue(raw) || /no response provided|not provided|pending/i.test(raw)) return 'Not provided';
+    const trimmed = raw.trim();
+    if (/^yes$/i.test(trimmed)) return 'Accepted';
+    if (/^(owned|leased)$/i.test(trimmed)) return trimmed;
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) return 'Provided';
+    return trimmed.length > 42 ? 'Provided' : trimmed;
+}
+
+function summarizeProcurexTechnicalResponseRows(rows = []) {
+    const normalizedRows = rows.map(row => ({
+        ...row,
+        summaryLabel: simplifyProcurexTechnicalLabel(row.label),
+        summaryResponse: simplifyProcurexTechnicalResponse(row.value, row),
+        status: getProcurexBidReviewRowStatus(row),
+        action: getProcurexBidReviewAction(row)
+    }));
+    const completedRows = normalizedRows.filter(row => !row.pending);
+    const missingRequiredRows = normalizedRows.filter(row => row.pending && row.mandatory);
+    const optionalMissingRows = normalizedRows.filter(row => row.pending && !row.mandatory);
+    const status = missingRequiredRows.length ? 'Incomplete' : optionalMissingRows.length ? 'Partial' : 'Complete';
+    return {
+        totalRequirements: normalizedRows.length,
+        completedCount: completedRows.length,
+        missingRequiredCount: missingRequiredRows.length,
+        optionalMissingCount: optionalMissingRows.length,
+        completedItems: completedRows.map(row => ({
+            label: row.summaryLabel,
+            response: row.summaryResponse,
+            sourceId: row.sourceId || ''
+        })),
+        missingRequiredItems: missingRequiredRows.map(row => ({
+            label: row.summaryLabel,
+            response: row.summaryResponse,
+            sourceId: row.sourceId || ''
+        })),
+        optionalMissingItems: optionalMissingRows.map(row => ({
+            label: row.summaryLabel,
+            response: row.summaryResponse,
+            sourceId: row.sourceId || ''
+        })),
+        status,
+        rows: normalizedRows
+    };
+}
+
 function getProcurexBidReviewAction(row = {}) {
     if (row.action) return row.action;
     const label = String(row.label || 'this requirement').toLowerCase();
@@ -1745,7 +1858,10 @@ function getProcurexBidPackageActionRows(sections = []) {
             issue: row.pending
                 ? `${row.label || 'Requirement'} is ${row.mandatory ? 'mandatory and incomplete' : 'not provided'}`
                 : `${row.label || 'Requirement'} has a deviation`,
-            action: getProcurexBidReviewAction(row)
+            action: getProcurexBidReviewAction(row),
+            required: Boolean(row.mandatory),
+            sourceId: row.sourceId || '',
+            label: row.label || 'Requirement'
         }))
         .sort((a, b) => procurexBidReviewPriorityOrder[a.priority] - procurexBidReviewPriorityOrder[b.priority]);
 }
@@ -1767,34 +1883,417 @@ function getProcurexBidPackageRowValue(sections = [], pattern) {
     return row ? row.value : '';
 }
 
-function renderProcurexBidPackageActionSummary(actionRows = []) {
+function getProcurexBidActionSectionTitle(section = '') {
+    return String(section || 'Bid section')
+        .replace(/^step\s*\d+\s*:\s*/i, '')
+        .replace(/\s*\/\s*/g, ' / ')
+        .trim() || 'Bid section';
+}
+
+function getProcurexBidActionSectionKey(section = '') {
+    const title = getProcurexBidActionSectionTitle(section).toLowerCase();
+    if (/technical|methodology|work program|service understanding|dynamic response/.test(title)) return 'technical-response';
+    if (/financial|commercial|price|pricing|offer|boq|quantity schedule/.test(title)) return 'financial-offer';
+    if (/evidence|document|upload|supporting|license|eligibility|administrative|capacity|personnel|staffing|sample/.test(title)) return 'supporting-evidence';
+    return title.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'bid-section';
+}
+
+function getProcurexBidActionButtonLabel(group = {}) {
+    const title = group.sectionTitle || 'Section';
+    if (group.sectionKey === 'technical-response') return 'Fix Technical Response';
+    if (group.sectionKey === 'financial-offer') return 'Review Financial Offer';
+    if (group.sectionKey === 'supporting-evidence') return 'Review Evidence';
+    return `Fix ${title}`;
+}
+
+function getProcurexBidActionMainAction(group = {}) {
+    if (group.sectionKey === 'technical-response') return 'Complete missing technical response items';
+    if (group.sectionKey === 'financial-offer') return 'Review commercial clarifications if applicable';
+    if (group.sectionKey === 'supporting-evidence') return 'Review supporting evidence if applicable';
+    return group.requiredCount ? `Complete missing ${String(group.sectionTitle || 'section').toLowerCase()} items` : `Review ${String(group.sectionTitle || 'section').toLowerCase()} if applicable`;
+}
+
+function renderProcurexBidActionIcon(type = 'warning') {
+    const icons = {
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.1 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4.1a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+        technical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>',
+        financial: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h2"/><path d="M12 11h4"/><path d="M8 15h2"/><path d="M12 15h4"/><path d="M8 19h8"/></svg>',
+        evidence: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>'
+    };
+    return icons[type] || icons.warning;
+}
+
+function getProcurexBidActionIconType(sectionKey = '') {
+    if (sectionKey === 'technical-response') return 'technical';
+    if (sectionKey === 'financial-offer') return 'financial';
+    if (sectionKey === 'supporting-evidence') return 'evidence';
+    return 'technical';
+}
+
+function simplifyProcurexBidActionItemText(value = '') {
+    const cleaned = String(value || 'Requirement')
+        .replace(/\s+is\s+mandatory\s+and\s+incomplete\.?$/i, '')
+        .replace(/\s+is\s+not\s+provided\.?$/i, '')
+        .replace(/\s+has\s+a\s+deviation\.?$/i, '')
+        .replace(/^complete\s+/i, '')
+        .replace(/^upload\s+missing\s+/i, '')
+        .replace(/[.]+$/g, '')
+        .trim() || 'Requirement';
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
+function groupProcurexBidPackageActionRows(actionRows = []) {
+    const groups = new Map();
+    actionRows.forEach(row => {
+        const sectionKey = getProcurexBidActionSectionKey(row.section);
+        const sectionTitle = sectionKey === 'technical-response'
+            ? 'Technical Response'
+            : sectionKey === 'financial-offer'
+                ? 'Financial Offer'
+                : sectionKey === 'supporting-evidence'
+                    ? 'Supporting Evidence'
+                    : getProcurexBidActionSectionTitle(row.section);
+        if (!groups.has(sectionKey)) {
+            groups.set(sectionKey, {
+                sectionKey,
+                sectionTitle,
+                displayTitle: normalizeProcurexBidPackageCategory(row.section || sectionTitle),
+                priority: row.priority || 'Low',
+                requiredCount: 0,
+                optionalCount: 0,
+                items: []
+            });
+        }
+        const group = groups.get(sectionKey);
+        if (procurexBidReviewPriorityOrder[row.priority] < procurexBidReviewPriorityOrder[group.priority]) {
+            group.priority = row.priority;
+        }
+        if (row.required) group.requiredCount += 1;
+        else group.optionalCount += 1;
+        group.items.push({
+            label: simplifyProcurexBidActionItemText(row.issue || row.label),
+            required: Boolean(row.required),
+            sourceId: row.sourceId || ''
+        });
+    });
+    return Array.from(groups.values())
+        .sort((a, b) => procurexBidReviewPriorityOrder[a.priority] - procurexBidReviewPriorityOrder[b.priority] || b.requiredCount - a.requiredCount);
+}
+
+function renderProcurexBidPackageActionSummary(actionRows = [], completeness = {}, readiness = {}) {
+    const groups = groupProcurexBidPackageActionRows(actionRows);
+    const optionalMissing = actionRows.filter(row => !row.required).length;
+    const missingRequired = readiness.missingMandatory ?? actionRows.filter(row => row.required).length;
+    const requiredTotal = completeness.mandatoryTotal || 0;
+    const requiredComplete = completeness.mandatoryComplete || Math.max(requiredTotal - missingRequired, 0);
+    const ready = missingRequired === 0;
+    const blockingGroups = groups.filter(group => group.requiredCount > 0);
+    const mainBlockingGroup = blockingGroups[0] || null;
+    const statusText = ready ? 'Ready for submission' : 'Not ready for submission';
+    const mainAction = mainBlockingGroup ? getProcurexBidActionMainAction(mainBlockingGroup) : 'Proceed to Declaration & Submission.';
+
     return `
-        <section class="bid-response-document-section bid-action-summary">
-            <div class="bid-response-document-section-heading">
-                <span>RA</span>
-                <div>
-                    <h4>Required Action Summary</h4>
-                    <small>Supplier corrections to complete before final submission</small>
+        <section class="bid-response-document-section bid-action-summary ${ready ? 'is-ready' : 'is-blocked'}">
+                <div class="bid-action-screen">
+                    <div class="bid-action-blocker-card">
+                        <div class="bid-action-blocker-copy">
+                            <span class="bid-action-state-icon ${ready ? 'success' : 'warning'}">${ready ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>' : renderProcurexBidActionIcon('warning')}</span>
+                            <div>
+                                <h4>Action Required Before Submission</h4>
+                                <p>${ready ? 'Your bid is ready for declaration and submission.' : 'Your bid is not ready for final submission because some required items are still missing.'}</p>
+                            </div>
+                        </div>
+                        <div class="bid-action-blocker-metrics">
+                            <article class="is-progress"><span>Bid completion</span><strong>${completeness.percent || 0}%</strong></article>
+                            <article class="is-progress"><span>Required complete</span><strong>${requiredComplete} / ${requiredTotal}</strong></article>
+                            <article class="is-required"><span>Missing required</span><strong>${missingRequired}</strong></article>
+                            <article class="is-optional"><span>Optional not provided</span><strong>${optionalMissing}</strong></article>
+                        </div>
+                        ${ready ? `
+                            <div class="bid-action-ready-note">
+                                <strong>Your bid is ready for declaration and submission.</strong>
+                                <span>Optional items are shown in their section summaries and do not block submission unless marked mandatory by the buyer.</span>
+                            </div>
+                        ` : `
+                            <div class="bid-action-blocking-sections">
+                                <strong>Main blocking section${blockingGroups.length > 1 ? 's' : ''}</strong>
+                                <ul>
+                                    ${blockingGroups.map(group => `
+                                        <li>
+                                            <span>${escapeBidWorkspaceHtml(group.displayTitle || group.sectionTitle)} - ${group.requiredCount} required missing</span>
+                                            <button type="button" data-bid-action-section-key="${escapeBidWorkspaceHtml(group.sectionKey)}" data-bid-fix-blocking-section>Fix</button>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                                <p>Complete all required items before proceeding to Declaration &amp; Submission. Optional items are shown in their section summaries and do not block submission unless marked mandatory by the buyer.</p>
+                            </div>
+                        `}
+                        <div class="bid-action-blocker-buttons">
+                            ${ready ? `
+                                <button class="btn btn-primary" type="button" data-bid-continue-declaration>Continue to Declaration</button>
+                            ` : `
+                                <button class="btn btn-secondary" type="button" data-bid-action-section-key="${escapeBidWorkspaceHtml(mainBlockingGroup?.sectionKey || 'technical-response')}" data-bid-view-blocking-section>View Missing Items</button>
+                                <button class="btn btn-primary" type="button" data-bid-action-section-key="${escapeBidWorkspaceHtml(mainBlockingGroup?.sectionKey || 'technical-response')}" data-bid-fix-blocking-section>${escapeBidWorkspaceHtml(getProcurexBidActionButtonLabel(mainBlockingGroup || { sectionKey: 'technical-response' }))}</button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+                <div class="bid-action-print">
+                    <h4>Action Required Before Submission</h4>
+                    <div class="bid-action-print-status">
+                        <strong>Status: ${escapeBidWorkspaceHtml(statusText)}</strong>
+                        <span>Missing required items: ${missingRequired}</span>
+                        <span>Main blocking section: ${escapeBidWorkspaceHtml(mainBlockingGroup?.displayTitle || 'None')}</span>
+                        <span>Action: ${escapeBidWorkspaceHtml(ready ? 'Proceed to Declaration & Submission.' : mainAction)}</span>
+                    </div>
+                </div>
+        </section>
+    `;
+}
+
+function renderProcurexAdminComplianceReviewSection(section = {}, sectionIndex = 0, editable = true) {
+    const summary = summarizeProcurexAdminComplianceRows(section.rows || []);
+    const complete = summary.status === 'Complete';
+    const visibleCompleted = summary.completedItems.slice(0, 4);
+    const visibleMissing = summary.missingItems.slice(0, 4);
+    const primarySourceId = [...summary.missingItems, ...summary.completedItems].find(item => item.sourceId)?.sourceId || '';
+    return `
+        <article class="bid-response-document-section bid-admin-review-summary">
+            <div class="bid-admin-screen">
+                <div class="bid-response-document-section-heading">
+                    <span>${String(sectionIndex + 1).padStart(2, '0')}</span>
+                    <div>
+                        <h4>Step 1: Administrative Compliance</h4>
+                        <small>${summary.totalRequirements} tender requirement${summary.totalRequirements === 1 ? '' : 's'} and supplier response${summary.totalRequirements === 1 ? '' : 's'}</small>
+                    </div>
+                </div>
+                <div class="bid-admin-summary-card ${complete ? 'is-complete' : 'is-incomplete'}">
+                    <div class="bid-admin-summary-top">
+                        <div>
+                            <span class="bid-admin-status-badge ${complete ? 'complete' : 'incomplete'}">${summary.status}</span>
+                            <h5>Step 1: Administrative Compliance</h5>
+                            <p>${complete ? 'Administrative requirements are complete.' : 'Administrative requirements need attention before submission.'}</p>
+                        </div>
+                        <div class="bid-admin-metrics">
+                            <article><span>Overall status</span><strong>${summary.status}</strong></article>
+                            <article><span>Completed</span><strong>${summary.completedCount} / ${summary.totalRequirements}</strong></article>
+                            <article><span>Missing</span><strong>${summary.missingRequiredCount}</strong></article>
+                            ${summary.optionalMissingCount ? `<article><span>Optional missing</span><strong>${summary.optionalMissingCount}</strong></article>` : ''}
+                        </div>
+                    </div>
+                    ${summary.missingRequiredCount ? `
+                        <div class="bid-admin-list-block missing">
+                            <strong>Missing items:</strong>
+                            <ul>${visibleMissing.map(item => `<li>${escapeBidWorkspaceHtml(item.label)}</li>`).join('')}</ul>
+                        </div>
+                    ` : ''}
+                    <div class="bid-admin-list-block">
+                        <strong>Completed items:</strong>
+                        <ul>
+                            ${visibleCompleted.length ? visibleCompleted.map(item => `<li>${escapeBidWorkspaceHtml(item.label)} <span>- ${escapeBidWorkspaceHtml(item.response)}</span></li>`).join('') : '<li>No completed administrative items yet.</li>'}
+                        </ul>
+                    </div>
+                    <div class="bid-admin-detail-panel" data-bid-admin-details hidden>
+                        <div class="bid-admin-detail-table">
+                            <table>
+                                <thead><tr><th>Item</th><th>Status</th><th>Supplier response</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    ${summary.rows.map(row => `
+                                        <tr class="${row.pending ? 'is-incomplete' : ''}">
+                                            <td>${escapeBidWorkspaceHtml(row.label)}</td>
+                                            <td><span class="bid-requirement-marker ${row.mandatory ? (row.pending ? 'required-incomplete' : 'required-complete') : (row.pending ? 'optional-empty' : 'optional-complete')}">${escapeBidWorkspaceHtml(row.status)}</span></td>
+                                            <td>${escapeBidWorkspaceHtml(row.summaryResponse)}</td>
+                                            <td>
+                                                <span>${escapeBidWorkspaceHtml(row.pending ? row.action : 'Complete')}</span>
+                                                ${editable && row.sourceId ? `<button class="bid-review-edit-button compact" type="button" data-bid-review-edit="${escapeBidWorkspaceHtml(row.sourceId)}">${row.upload ? 'Replace file' : 'Change'}</button>` : ''}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="bid-admin-actions">
+                        <button class="btn btn-secondary" type="button" data-bid-toggle-admin-summary>View Details</button>
+                        <button class="btn btn-primary" type="button" data-bid-admin-edit data-bid-review-edit="${escapeBidWorkspaceHtml(primarySourceId)}">${complete ? 'Edit Section' : 'Fix Administrative Compliance'}</button>
+                    </div>
                 </div>
             </div>
-            ${actionRows.length ? `
-                <div class="bid-response-document-table">
+            <div class="bid-admin-print">
+                <div class="bid-response-document-section-heading">
+                    <span>${String(sectionIndex + 1).padStart(2, '0')}</span>
+                    <div>
+                        <h4>Step 1: Administrative Compliance</h4>
+                        <small>Status: ${summary.status} / Requirements reviewed: ${summary.totalRequirements} / Completed: ${summary.completedCount} / Missing required: ${summary.missingRequiredCount} / Optional missing: ${summary.optionalMissingCount}</small>
+                    </div>
+                </div>
+                <div class="bid-response-document-table bid-admin-print-table">
                     <table>
-                        <thead><tr><th>Priority</th><th>Section</th><th>Issue</th><th>Required action</th></tr></thead>
+                        <thead><tr><th>Item</th><th>Status</th><th>Supplier Response</th><th>Action Needed</th></tr></thead>
                         <tbody>
-                            ${actionRows.slice(0, 12).map(row => `
+                            ${summary.rows.map(row => `
                                 <tr>
-                                    <td><span class="bid-action-priority ${row.priority.toLowerCase()}">${escapeBidWorkspaceHtml(row.priority)}</span></td>
-                                    <td>${escapeBidWorkspaceHtml(row.section)}</td>
-                                    <td>${escapeBidWorkspaceHtml(row.issue)}</td>
-                                    <td>${escapeBidWorkspaceHtml(row.action)}</td>
+                                    <td>${escapeBidWorkspaceHtml(row.label)}</td>
+                                    <td>${escapeBidWorkspaceHtml(row.pending ? (row.mandatory ? 'Missing' : 'Optional') : row.status)}</td>
+                                    <td>${escapeBidWorkspaceHtml(row.summaryResponse)}</td>
+                                    <td>${escapeBidWorkspaceHtml(row.pending ? row.action : 'No action required')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
                 </div>
-            ` : '<p class="bid-review-positive-note">No missing mandatory items or supplier deviations are currently flagged. Review the detail sections before submission.</p>'}
-        </section>
+            </div>
+        </article>
+    `;
+}
+
+function renderProcurexTechnicalSummaryList(title = '', items = [], options = {}) {
+    const visible = items.slice(0, 5);
+    const extraCount = Math.max(items.length - visible.length, 0);
+    const emptyText = options.emptyText || 'No items in this group.';
+    return `
+        <div class="bid-technical-list-block ${options.type || ''}">
+            <strong>${escapeBidWorkspaceHtml(title)}</strong>
+            <ul>
+                ${visible.length ? visible.map(item => `
+                    <li>
+                        <span>${escapeBidWorkspaceHtml(item.label)}</span>
+                        ${item.response && item.response !== 'Not provided' ? `<em>- ${escapeBidWorkspaceHtml(item.response)}</em>` : ''}
+                    </li>
+                `).join('') : `<li>${escapeBidWorkspaceHtml(emptyText)}</li>`}
+            </ul>
+            ${extraCount ? `<small>+ ${extraCount} more ${escapeBidWorkspaceHtml(options.moreLabel || 'items')}</small>` : ''}
+        </div>
+    `;
+}
+
+function renderProcurexTechnicalResponseReviewSection(section = {}, sectionIndex = 0, editable = true) {
+    const summary = summarizeProcurexTechnicalResponseRows(section.rows || []);
+    const statusClass = summary.status.toLowerCase();
+    const primarySourceId = [...summary.missingRequiredItems, ...summary.optionalMissingItems, ...summary.completedItems].find(item => item.sourceId)?.sourceId || '';
+    return `
+        <article class="bid-response-document-section bid-technical-review-summary">
+            <div class="bid-technical-screen">
+                <div class="bid-response-document-section-heading">
+                    <span>${String(sectionIndex + 1).padStart(2, '0')}</span>
+                    <div>
+                        <h4>Step 2: Technical Response</h4>
+                        <small>${summary.totalRequirements} tender requirement${summary.totalRequirements === 1 ? '' : 's'} and supplier response${summary.totalRequirements === 1 ? '' : 's'}</small>
+                    </div>
+                </div>
+                <div class="bid-technical-summary-card ${statusClass}">
+                    <div class="bid-technical-summary-top">
+                        <div>
+                            <span class="bid-technical-status-badge ${statusClass}">${summary.status}</span>
+                            <h5>Step 2: Technical Response</h5>
+                            <p>${summary.status === 'Complete' ? 'Technical requirements are complete.' : summary.status === 'Partial' ? 'Required technical items are complete; optional items can still be reviewed.' : 'Required technical items need attention before submission.'}</p>
+                        </div>
+                        <div class="bid-technical-metrics">
+                            <article><span>Overall status</span><strong>${summary.status}</strong></article>
+                            <article><span>Completed</span><strong>${summary.completedCount} / ${summary.totalRequirements}</strong></article>
+                            <article><span>Required missing</span><strong>${summary.missingRequiredCount}</strong></article>
+                            <article><span>Optional not provided</span><strong>${summary.optionalMissingCount}</strong></article>
+                        </div>
+                    </div>
+                    <div class="bid-technical-summary-groups">
+                        ${renderProcurexTechnicalSummaryList('Completed evidence / completed responses', summary.completedItems, { type: 'completed', moreLabel: 'completed items', emptyText: 'No completed technical items yet.' })}
+                        ${renderProcurexTechnicalSummaryList('Required missing items', summary.missingRequiredItems, { type: 'missing', moreLabel: 'required items', emptyText: 'No required technical items are missing.' })}
+                        ${renderProcurexTechnicalSummaryList('Optional not provided', summary.optionalMissingItems, { type: 'optional', moreLabel: 'optional items', emptyText: 'No optional technical items are missing.' })}
+                    </div>
+                    <div class="bid-technical-detail-panel" data-bid-technical-details hidden>
+                        <div class="bid-technical-detail-groups">
+                            <section>
+                                <h6>Required Missing Items</h6>
+                                <div class="bid-technical-detail-table">
+                                    <table>
+                                        <thead><tr><th>Item</th><th>Status</th><th>Action Needed</th></tr></thead>
+                                        <tbody>
+                                            ${summary.missingRequiredItems.length ? summary.missingRequiredItems.map(item => `
+                                                <tr><td>${escapeBidWorkspaceHtml(item.label)}</td><td>Missing</td><td>Complete before submission</td></tr>
+                                            `).join('') : '<tr><td colspan="3">No required technical items are missing.</td></tr>'}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                            <section>
+                                <h6>Completed Evidence Summary</h6>
+                                <div class="bid-technical-detail-table">
+                                    <table>
+                                        <thead><tr><th>Item</th><th>Supplier Response</th><th>Status</th></tr></thead>
+                                        <tbody>
+                                            ${summary.completedItems.length ? summary.completedItems.map(item => `
+                                                <tr><td>${escapeBidWorkspaceHtml(item.label)}</td><td>${escapeBidWorkspaceHtml(item.response)}</td><td>Complete</td></tr>
+                                            `).join('') : '<tr><td colspan="3">No completed technical items yet.</td></tr>'}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                            <section>
+                                <h6>Optional Not Provided</h6>
+                                <div class="bid-technical-detail-table">
+                                    <table>
+                                        <thead><tr><th>Item</th><th>Status</th><th>Note</th></tr></thead>
+                                        <tbody>
+                                            ${summary.optionalMissingItems.length ? summary.optionalMissingItems.map(item => `
+                                                <tr><td>${escapeBidWorkspaceHtml(item.label)}</td><td>Not provided</td><td>Optional</td></tr>
+                                            `).join('') : '<tr><td colspan="3">No optional technical items are missing.</td></tr>'}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                    <div class="bid-technical-actions">
+                        <button class="btn btn-secondary" type="button" data-bid-toggle-technical-summary>View Details</button>
+                        <button class="btn btn-primary" type="button" data-bid-technical-edit data-bid-review-edit="${escapeBidWorkspaceHtml(primarySourceId)}">Fix Technical Response</button>
+                    </div>
+                </div>
+            </div>
+            <div class="bid-technical-print">
+                <div class="bid-response-document-section-heading">
+                    <span>${String(sectionIndex + 1).padStart(2, '0')}</span>
+                    <div>
+                        <h4>Step 2: Technical Response</h4>
+                        <small>Status: ${summary.status} / Requirements reviewed: ${summary.totalRequirements} / Completed: ${summary.completedCount} / Missing required: ${summary.missingRequiredCount} / Optional not provided: ${summary.optionalMissingCount}</small>
+                    </div>
+                </div>
+                <div class="bid-technical-print-groups">
+                    <section>
+                        <h5>Required Missing Items</h5>
+                        <div class="bid-response-document-table bid-technical-print-table">
+                            <table>
+                                <thead><tr><th>Item</th><th>Status</th><th>Action Needed</th></tr></thead>
+                                <tbody>
+                                    ${summary.missingRequiredItems.length ? summary.missingRequiredItems.map(item => `<tr><td>${escapeBidWorkspaceHtml(item.label)}</td><td>Missing</td><td>Complete before submission</td></tr>`).join('') : '<tr><td colspan="3">No required technical items are missing.</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                    <section>
+                        <h5>Completed Evidence Summary</h5>
+                        <div class="bid-response-document-table bid-technical-print-table">
+                            <table>
+                                <thead><tr><th>Item</th><th>Supplier Response</th><th>Status</th></tr></thead>
+                                <tbody>
+                                    ${summary.completedItems.length ? summary.completedItems.map(item => `<tr><td>${escapeBidWorkspaceHtml(item.label)}</td><td>${escapeBidWorkspaceHtml(item.response)}</td><td>Complete</td></tr>`).join('') : '<tr><td colspan="3">No completed technical items yet.</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                    <section>
+                        <h5>Optional Not Provided</h5>
+                        <div class="bid-response-document-table bid-technical-print-table">
+                            <table>
+                                <thead><tr><th>Item</th><th>Status</th><th>Note</th></tr></thead>
+                                <tbody>
+                                    ${summary.optionalMissingItems.length ? summary.optionalMissingItems.map(item => `<tr><td>${escapeBidWorkspaceHtml(item.label)}</td><td>Not provided</td><td>Optional</td></tr>`).join('') : '<tr><td colspan="3">No optional technical items are missing.</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </article>
     `;
 }
 
@@ -2146,14 +2645,6 @@ function renderProcurexBidPackageDocument(config = {}) {
                     <span class="bid-status-chip offer">${escapeBidWorkspaceHtml(offerLabel)}</span>
                 </div>
             </header>
-            <section class="bid-completeness-summary">
-                <div>
-                    <span class="section-kicker">Submission readiness</span>
-                    <strong>${completeness.percent}%</strong>
-                    <p>${completeness.mandatoryComplete}/${completeness.mandatoryTotal || 0} mandatory complete / ${completeness.optionalComplete}/${completeness.optionalTotal || 0} optional provided / ${readiness.missingMandatory} missing mandatory / ready for submission: ${readiness.ready ? 'Yes' : 'No'}</p>
-                </div>
-                <div class="bid-completeness-meter" aria-hidden="true"><span style="width: ${Math.max(0, Math.min(100, completeness.percent))}%"></span></div>
-            </section>
             <div class="bid-response-document-meta">
                 ${tenderMeta.map(([label, value]) => `
                     <article><span>${escapeBidWorkspaceHtml(label)}</span><strong>${escapeBidWorkspaceHtml(value)}</strong><em>Tender information</em></article>
@@ -2163,11 +2654,15 @@ function renderProcurexBidPackageDocument(config = {}) {
                 `).join('')}
                 <article><span>Responses captured</span><strong>${totalRows}</strong><em>Bid package scope</em></article>
             </div>
-            ${renderProcurexBidPackageActionSummary(actionRows)}
+            ${renderProcurexBidPackageActionSummary(actionRows, completeness, readiness)}
             ${renderProcurexBidPackageFinancialSummary(sections, supplier)}
             ${sections.length ? `
                 <div class="bid-response-document-sections">
-                    ${sections.map((section, sectionIndex) => `
+                    ${sections.map((section, sectionIndex) => isProcurexAdministrativeComplianceSection(section)
+                        ? renderProcurexAdminComplianceReviewSection(section, sectionIndex, editable)
+                        : isProcurexTechnicalResponseSection(section)
+                            ? renderProcurexTechnicalResponseReviewSection(section, sectionIndex, editable)
+                            : `
                         <article class="bid-response-document-section">
                             <div class="bid-response-document-section-heading">
                                 <span>${String(sectionIndex + 1).padStart(2, '0')}</span>
@@ -5565,7 +6060,7 @@ function initializeBiddingWorkspace() {
 
     const openBidReviewSource = (sourceId) => {
         const input = wizard.querySelector(`[data-bid-review-source-id="${sourceId}"]`);
-        if (!input) return;
+        if (!input) return false;
         const targetPanelIndex = panels.findIndex(panel => panel.contains(input));
         if (targetPanelIndex > -1) setActiveStep(targetPanelIndex, true);
         const container = input.closest('[data-bid-upload-control], [data-bid-requirement-card], [data-bid-product-spec-row], .form-group, .bid-response-check, .goods-compliance-card, .goods-offer-row, .goods-sample-card, .works-capacity-card, .works-person-card, .works-accordion-card, .works-boq-row, .works-drawing-card, .site-visit-card, .site-visit-response, .service-accordion-card, .service-sla-card, .service-staff-card, .service-pricing-row, .service-document-card, .service-kpi-card, .service-category-table-response') || input;
@@ -5581,6 +6076,49 @@ function initializeBiddingWorkspace() {
                 focusBidWorkspaceInput(input);
             }
         }, 80);
+        return true;
+    };
+
+    const openBidActionSection = (sectionKey = '') => {
+        const patterns = {
+            'technical-response': /technical|methodology|proposal|response|work program|dynamic/i,
+            'financial-offer': /financial|commercial|pricing|price|boq|quantity schedule|offer/i,
+            'supporting-evidence': /evidence|document|upload|eligibility|administrative|capacity|personnel|staffing|sample|supporting/i
+        };
+        const pattern = patterns[sectionKey] || null;
+        if (!pattern) return false;
+        const targetPanelIndex = panels.findIndex(panel => pattern.test(panel.querySelector('h2')?.textContent || ''));
+        if (targetPanelIndex < 0) return false;
+        setActiveStep(targetPanelIndex, true);
+        panels[targetPanelIndex]?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        return true;
+    };
+
+    const openBidBlockingSummary = (sectionKey = '') => {
+        const summarySelectors = {
+            'technical-response': '.bid-technical-review-summary',
+            'supporting-evidence': '.bid-admin-review-summary'
+        };
+        const detailSelectors = {
+            'technical-response': '[data-bid-technical-details]',
+            'supporting-evidence': '[data-bid-admin-details]'
+        };
+        const buttonSelectors = {
+            'technical-response': '[data-bid-toggle-technical-summary]',
+            'supporting-evidence': '[data-bid-toggle-admin-summary]'
+        };
+        const summarySelector = summarySelectors[sectionKey];
+        if (!summarySelector) return openBidActionSection(sectionKey);
+        const summary = wizard.querySelector(summarySelector);
+        if (!summary) return openBidActionSection(sectionKey);
+        const targetPanelIndex = panels.findIndex(panel => panel.contains(summary));
+        if (targetPanelIndex > -1) setActiveStep(targetPanelIndex, true);
+        const details = summary.querySelector(detailSelectors[sectionKey] || '');
+        if (details) details.hidden = false;
+        const button = summary.querySelector(buttonSelectors[sectionKey] || '');
+        if (button) button.textContent = 'Hide Details';
+        summary.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        return true;
     };
 
     const validateMandatoryGate = (show = false) => {
@@ -5887,6 +6425,20 @@ body { margin: 0; padding: 32px; background: #eef2f7; color: #0f172a; font-famil
 .bid-action-priority.high { background: #fff1f1; color: #b00020; }
 .bid-action-priority.medium { background: #fff8e1; color: #7a4d00; }
 .bid-action-priority.low { background: #f1f5f9; color: #475569; }
+.bid-action-screen { display: none !important; }
+.bid-action-print { display: block; margin-top: 14px; }
+.bid-action-print-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; padding: 12px; border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; font-size: 12px; }
+.bid-action-print-status strong { grid-column: 1 / -1; font-size: 14px; }
+.bid-action-print-status span { color: #334155; }
+.bid-action-print-note { margin: 10px 0 0; color: #334155; font-size: 12px; line-height: 1.45; }
+.bid-admin-screen { display: none !important; }
+.bid-admin-print { display: grid !important; gap: 10px; }
+.bid-admin-print-table table { min-width: 0; table-layout: fixed; }
+.bid-technical-screen { display: none !important; }
+.bid-technical-print { display: grid !important; gap: 10px; }
+.bid-technical-print-groups { display: grid; gap: 12px; }
+.bid-technical-print-groups h5 { margin: 0 0 6px; color: #0f172a; font-size: 13px; }
+.bid-technical-print-table table { min-width: 0; table-layout: fixed; }
 .bid-review-positive-note, .bid-review-warning-note { margin: 14px 0 0; padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.45; }
 .bid-review-positive-note { border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; }
 .bid-review-warning-note { border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; }
@@ -5947,7 +6499,7 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
 .bid-review-readonly { display: inline-flex; align-items: center; min-height: 28px; color: #64748b; font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .bid-response-document-footer { display: flex; justify-content: space-between; margin-top: 28px; padding-top: 14px; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 @page { size: A4 portrait; margin: 16mm; }
-@media print { body { padding: 0; background: #fff; } .bid-response-document { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; border: 0; } .bid-response-download-panel, .bid-review-edit-button, .bid-status-chip.editable, .no-print, button, .view-full-boq-button, .edit-button, .action-column { display: none !important; } .financial-review-section { width: 100%; max-width: 100%; box-shadow: none; border: 1px solid #ddd; background: #fff; break-inside: avoid; page-break-inside: avoid; } .summary-grid.financial-review-summary-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; } .summary-card.financial-review-summary-card, .bid-response-document-section, .bid-deviation-log, .bid-file-manifest, table, tr { break-inside: avoid; page-break-inside: avoid; box-shadow: none; } .bid-response-document-table { overflow: visible; } table { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; } th, td, .financial-review-compact-table th, .financial-review-compact-table td { word-wrap: break-word; overflow-wrap: anywhere; padding: 6px; font-size: 11px; } }
+@media print { body { padding: 0; background: #fff; } .bid-response-document { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; border: 0; } .bid-action-screen, .bid-admin-screen, .bid-technical-screen { display: none !important; } .bid-action-print { display: block !important; } .bid-admin-print, .bid-technical-print { display: grid !important; } .bid-response-download-panel, .bid-review-edit-button, .bid-status-chip.editable, .no-print, button, .view-full-boq-button, .edit-button, .action-column { display: none !important; } .financial-review-section { width: 100%; max-width: 100%; box-shadow: none; border: 1px solid #ddd; background: #fff; break-inside: avoid; page-break-inside: avoid; } .summary-grid.financial-review-summary-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; } .summary-card.financial-review-summary-card, .bid-response-document-section, .bid-deviation-log, .bid-file-manifest, table, tr { break-inside: avoid; page-break-inside: avoid; box-shadow: none; } .bid-response-document-table { overflow: visible; } table { width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; } th, td, .financial-review-compact-table th, .financial-review-compact-table td { word-wrap: break-word; overflow-wrap: anywhere; padding: 6px; font-size: 11px; } }
 </style>
 </head>
 <body>${documentHtml}</body>
@@ -6533,8 +7085,96 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
             return;
         }
 
+        if (target.matches('[data-bid-action-filter]')) {
+            const section = target.closest('.bid-action-summary');
+            const filter = target.dataset.bidActionFilter || 'all';
+            section?.querySelectorAll('[data-bid-action-filter]').forEach(button => {
+                button.classList.toggle('active', button === target);
+            });
+            section?.querySelectorAll('[data-bid-action-card]').forEach(card => {
+                card.hidden = filter === 'required'
+                    ? card.dataset.hasRequired !== 'true'
+                    : filter === 'optional'
+                        ? card.dataset.hasOptional !== 'true'
+                        : false;
+            });
+            return;
+        }
+
+        if (target.matches('[data-bid-toggle-action-card]')) {
+            const card = target.closest('[data-bid-action-card]');
+            if (!card) return;
+            const extras = Array.from(card.querySelectorAll('[data-bid-action-extra]'));
+            const shouldOpen = extras.some(item => item.hidden);
+            extras.forEach(item => { item.hidden = !shouldOpen; });
+            card.classList.toggle('is-expanded', shouldOpen);
+            const countText = card.querySelector('[data-bid-action-count-text]');
+            if (countText) countText.textContent = shouldOpen ? countText.dataset.expandedText : countText.dataset.collapsedText;
+            card.querySelectorAll('[data-bid-toggle-action-card]').forEach(button => {
+                if (button.classList.contains('bid-action-more')) {
+                    button.textContent = shouldOpen ? 'Hide Details' : `+ ${extras.length} more item${extras.length === 1 ? '' : 's'}`;
+                } else if (button.classList.contains('bid-action-collapse')) {
+                    button.textContent = shouldOpen ? 'v' : '^';
+                } else {
+                    button.textContent = shouldOpen ? 'Hide Details' : 'View Details';
+                }
+            });
+            return;
+        }
+
+        if (target.matches('[data-bid-toggle-admin-summary]')) {
+            const card = target.closest('.bid-admin-summary-card');
+            const panel = card?.querySelector('[data-bid-admin-details]');
+            if (!panel) return;
+            const shouldOpen = panel.hidden;
+            panel.hidden = !shouldOpen;
+            card.classList.toggle('is-expanded', shouldOpen);
+            target.textContent = shouldOpen ? 'Hide Details' : 'View Details';
+            return;
+        }
+
+        if (target.matches('[data-bid-admin-edit]')) {
+            const openedSource = openBidReviewSource(target.dataset.bidReviewEdit || '');
+            if (!openedSource) setActiveStep(0, true);
+            return;
+        }
+
+        if (target.matches('[data-bid-toggle-technical-summary]')) {
+            const card = target.closest('.bid-technical-summary-card');
+            const panel = card?.querySelector('[data-bid-technical-details]');
+            if (!panel) return;
+            const shouldOpen = panel.hidden;
+            panel.hidden = !shouldOpen;
+            card.classList.toggle('is-expanded', shouldOpen);
+            target.textContent = shouldOpen ? 'Hide Details' : 'View Details';
+            return;
+        }
+
+        if (target.matches('[data-bid-technical-edit]')) {
+            const openedSource = openBidReviewSource(target.dataset.bidReviewEdit || '');
+            if (!openedSource) openBidActionSection('technical-response');
+            return;
+        }
+
+        if (target.matches('[data-bid-view-blocking-section]')) {
+            openBidBlockingSummary(target.dataset.bidActionSectionKey || 'technical-response');
+            return;
+        }
+
+        if (target.matches('[data-bid-fix-blocking-section]')) {
+            openBidActionSection(target.dataset.bidActionSectionKey || 'technical-response');
+            return;
+        }
+
+        if (target.matches('[data-bid-continue-declaration]')) {
+            const currentPanelIndex = panels.findIndex(panel => panel.contains(target));
+            setActiveStep(currentPanelIndex > -1 ? currentPanelIndex + 1 : activeStepIndex + 1, true);
+            return;
+        }
+
         if (target.matches('[data-bid-review-edit]')) {
-            openBidReviewSource(target.dataset.bidReviewEdit || '');
+            const openedSource = openBidReviewSource(target.dataset.bidReviewEdit || '');
+            if (!openedSource) openBidActionSection(target.dataset.bidActionSectionKey || '');
             return;
         }
 
