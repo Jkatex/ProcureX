@@ -20359,7 +20359,8 @@ body:not([data-page="iam-verification"]) .communication-shell {
     font-size: 13px;
 }
 
-.evaluation-evidence-panel div {
+.evaluation-evidence-panel div,
+.evaluation-evidence-panel .evaluation-evidence-item {
     border-top: 1px solid var(--px-line-soft);
     padding-top: 8px;
 }
@@ -20565,9 +20566,39 @@ body:not([data-page="iam-verification"]) .communication-shell {
 .goods-evidence-panel div,
 .works-evidence-panel div,
 .service-evidence-panel div,
-.consultancy-evidence-panel div {
+.consultancy-evidence-panel div,
+.goods-evidence-panel .evaluation-evidence-item,
+.works-evidence-panel .evaluation-evidence-item,
+.service-evidence-panel .evaluation-evidence-item,
+.consultancy-evidence-panel .evaluation-evidence-item {
     border-top: 1px solid var(--px-line-soft);
     padding-top: 8px;
+}
+
+.evaluation-evidence-item {
+    min-width: 0;
+}
+
+.evaluation-document-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.evaluation-evidence-panel .evaluation-document-actions,
+.goods-evidence-panel .evaluation-document-actions,
+.works-evidence-panel .evaluation-document-actions,
+.service-evidence-panel .evaluation-document-actions,
+.consultancy-evidence-panel .evaluation-document-actions {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.evaluation-document-actions .btn {
+    min-height: 30px;
+    padding: 6px 10px;
+    font-size: 12px;
 }
 
 .goods-evaluation-table th,

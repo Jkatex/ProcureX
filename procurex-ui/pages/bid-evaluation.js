@@ -38,6 +38,151 @@ function getEvaluationValueSummary(value = '') {
     return String(value || '').trim();
 }
 
+function getEvaluationEvidenceDocumentRegistry() {
+    if (typeof window === 'undefined') return {};
+    window.procurexEvaluationEvidenceDocuments = window.procurexEvaluationEvidenceDocuments || {};
+    return window.procurexEvaluationEvidenceDocuments;
+}
+
+function getEvaluationEvidenceDocumentName(row = {}) {
+    const file = row.file && typeof row.file === 'object' ? row.file : null;
+    const raw = file?.name
+        || (typeof row.file === 'string' ? row.file : '')
+        || row.fileName
+        || row.value
+        || row.label
+        || 'Submitted evidence';
+    return String(raw || 'Submitted evidence').trim();
+}
+
+function isEvaluationDocumentEvidence(row = {}) {
+    const text = `${row.section || ''} ${row.label || ''} ${row.value || ''} ${row.fileName || ''}`.toLowerCase();
+    return Boolean(row.upload || row.file || row.fileKey)
+        || /submitted document|document|proposal|license|certificate|registration|tax|form|attachment|upload|evidence|pdf|docx?|xlsx?|jpe?g|png/.test(text);
+}
+
+function registerEvaluationEvidenceDocument(row = {}) {
+    if (!isEvaluationDocumentEvidence(row)) return '';
+    const registry = getEvaluationEvidenceDocumentRegistry();
+    const file = row.file && typeof row.file === 'object' ? row.file : {};
+    const name = getEvaluationEvidenceDocumentName(row);
+    const id = `evidence-${slugEvaluationId(row.fileKey || row.sourceId || row.label || name)}-${Object.keys(registry).length + 1}`;
+    registry[id] = {
+        id,
+        name,
+        type: row.type || file.type || 'text/html',
+        size: row.size || file.size || 0,
+        uploadedAt: row.uploadedAt || file.uploadedAt || '',
+        sha256: row.sha256 || row.hash || file.sha256 || file.hash || '',
+        dataUrl: row.dataUrl || file.dataUrl || '',
+        section: row.section || 'Submitted evidence',
+        label: row.label || name,
+        value: row.value || name
+    };
+    return id;
+}
+
+function getEvaluationSafeFilename(value = 'submitted-document', extension = '') {
+    const clean = String(value || 'submitted-document')
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 100) || 'submitted-document';
+    return extension && !clean.toLowerCase().endsWith(extension) ? `${clean}${extension}` : clean;
+}
+
+function buildEvaluationDocumentPreviewHtml(documentMeta = {}) {
+    return `<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${escapeEvaluationHtml(documentMeta.name || 'Submitted evidence')}</title>
+    <style>
+        body { margin: 0; background: #f8fafc; color: #0f172a; font-family: Arial, sans-serif; }
+        main { max-width: 760px; margin: 32px auto; border: 1px solid #cbd5e1; background: #fff; padding: 28px; }
+        h1 { margin: 0 0 10px; font-size: 24px; }
+        dl { display: grid; grid-template-columns: 140px 1fr; gap: 10px 16px; margin: 20px 0 0; }
+        dt { color: #64748b; font-weight: 700; }
+        dd { margin: 0; overflow-wrap: anywhere; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>${escapeEvaluationHtml(documentMeta.name || 'Submitted evidence')}</h1>
+        <p>This evaluation preview contains the submitted document metadata available in the bid package.</p>
+        <dl>
+            <dt>Section</dt><dd>${escapeEvaluationHtml(documentMeta.section || '-')}</dd>
+            <dt>Evidence row</dt><dd>${escapeEvaluationHtml(documentMeta.label || '-')}</dd>
+            <dt>Submitted value</dt><dd>${escapeEvaluationHtml(documentMeta.value || '-')}</dd>
+            <dt>File type</dt><dd>${escapeEvaluationHtml(documentMeta.type || '-')}</dd>
+            <dt>File size</dt><dd>${escapeEvaluationHtml(documentMeta.size ? `${Number(documentMeta.size).toLocaleString()} bytes` : '-')}</dd>
+            <dt>Uploaded at</dt><dd>${escapeEvaluationHtml(documentMeta.uploadedAt || '-')}</dd>
+            <dt>SHA-256</dt><dd>${escapeEvaluationHtml(documentMeta.sha256 || '-')}</dd>
+        </dl>
+    </main>
+</body>
+</html>`;
+}
+
+function downloadEvaluationDocumentContent(content = '', filename = 'submitted-document.html', type = 'text/html;charset=utf-8') {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function openEvaluationEvidenceDocument(documentId = '') {
+    const documentMeta = getEvaluationEvidenceDocumentRegistry()[documentId];
+    if (!documentMeta) return;
+    if (documentMeta.dataUrl) {
+        window.open(documentMeta.dataUrl, '_blank', 'noopener');
+        return;
+    }
+    const previewWindow = window.open('', '_blank', 'noopener');
+    if (!previewWindow) {
+        alert('Allow pop-ups to view the submitted document.');
+        return;
+    }
+    previewWindow.document.open();
+    previewWindow.document.write(buildEvaluationDocumentPreviewHtml(documentMeta));
+    previewWindow.document.close();
+}
+
+function downloadEvaluationEvidenceDocument(documentId = '') {
+    const documentMeta = getEvaluationEvidenceDocumentRegistry()[documentId];
+    if (!documentMeta) return;
+    if (documentMeta.dataUrl) {
+        const link = document.createElement('a');
+        link.href = documentMeta.dataUrl;
+        link.download = getEvaluationSafeFilename(documentMeta.name || 'submitted-document');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        return;
+    }
+    downloadEvaluationDocumentContent(
+        buildEvaluationDocumentPreviewHtml(documentMeta),
+        getEvaluationSafeFilename(documentMeta.name || 'submitted-document', '.html')
+    );
+}
+
+function renderEvaluationEvidenceDocumentActions(row = {}) {
+    const documentId = registerEvaluationEvidenceDocument(row);
+    if (!documentId) return '';
+    return `
+        <div class="evaluation-document-actions">
+            <button class="btn btn-secondary btn-sm" type="button" data-evaluation-document-action="view" data-evaluation-document-id="${escapeEvaluationHtml(documentId)}">View</button>
+            <button class="btn btn-secondary btn-sm" type="button" data-evaluation-document-action="download" data-evaluation-document-id="${escapeEvaluationHtml(documentId)}">Download</button>
+        </div>
+    `;
+}
+
 function renderEvaluationStatusBadge(value = 'Pending') {
     const text = String(value || 'Pending');
     const status = text.toLowerCase();
@@ -496,16 +641,46 @@ function getEvaluationReviewSections(tender = {}) {
 function getEvaluationBidEvidenceRows(tender = {}, bid = {}, bidderIndex = 0) {
     const submittedBid = getEvaluationSubmittedBidForSupplier(tender.sourceTender || tender, bid, bidderIndex);
     if (submittedBid?.draft && typeof createProcurexBidPackageSectionsFromDraft === 'function') {
-        return createProcurexBidPackageSectionsFromDraft(submittedBid.draft || {})
+        const draft = submittedBid.draft || {};
+        const rows = createProcurexBidPackageSectionsFromDraft(draft)
             .flatMap(section => (section.rows || []).map(row => ({
                 section: section.title,
                 label: row.label || row.requirement || row.key || 'Bid response',
                 value: row.value || row.file?.name || 'Provided',
-                file: row.file?.name || ''
+                file: row.file || '',
+                fileKey: row.sourceId || row.key || '',
+                upload: Boolean(row.upload || row.file),
+                type: row.file?.type || '',
+                size: row.file?.size || 0,
+                uploadedAt: row.file?.uploadedAt || '',
+                sha256: row.file?.sha256 || row.file?.hash || '',
+                dataUrl: row.file?.dataUrl || ''
             })));
+        Object.entries(draft.uploadedFiles || {}).forEach(([key, file]) => {
+            const name = file?.name || file || '';
+            const alreadyListed = rows.some(row => row.fileKey === key || getEvaluationEvidenceDocumentName(row) === name);
+            if (alreadyListed) return;
+            const label = typeof humanizeBidWorkspaceKey === 'function'
+                ? humanizeBidWorkspaceKey(file?.parentResponseId || key)
+                : 'Submitted document';
+            rows.push({
+                section: 'Submitted documents',
+                label,
+                value: name || 'Uploaded file',
+                file,
+                fileKey: key,
+                upload: true,
+                type: file?.type || '',
+                size: file?.size || 0,
+                uploadedAt: file?.uploadedAt || '',
+                sha256: file?.sha256 || file?.hash || '',
+                dataUrl: file?.dataUrl || ''
+            });
+        });
+        return rows;
     }
     const rows = [
-        ...(bid.documents || []).map(document => ({ section: 'Submitted documents', label: document, value: 'Submitted' })),
+        ...(bid.documents || []).map(document => ({ section: 'Submitted documents', label: document, value: 'Submitted', file: document, upload: true })),
         ...(bid.preliminaryChecks || []).map(item => ({ section: 'Preliminary checks', label: item.requirement, value: `${item.result || ''}${item.comment ? ` - ${item.comment}` : ''}` })),
         ...(bid.eligibilityChecks || []).map(item => ({ section: 'Eligibility checks', label: item.requirement, value: `${item.result || ''}${item.comment ? ` - ${item.comment}` : ''}` }))
     ];
@@ -517,18 +692,39 @@ function getEvaluationBidEvidenceRows(tender = {}, bid = {}, bidderIndex = 0) {
     return rows;
 }
 
-function findEvaluationEvidenceForRequirement(rows = [], requirement = {}) {
-    const haystackRows = rows.map(row => ({
-        ...row,
-        text: `${row.section || ''} ${row.label || ''} ${row.value || ''}`.toLowerCase()
-    }));
-    const tokens = (requirement.labels || [requirement.title])
-        .join(' ')
+function getEvaluationEvidenceMatchTokens(value = '') {
+    const stopWords = new Set([
+        'and', 'for', 'the', 'with', 'from', 'this', 'that', 'submitted', 'submit',
+        'upload', 'uploaded', 'document', 'documents', 'evidence', 'supporting',
+        'required', 'requirement', 'requirements', 'administrative', 'eligibility'
+    ]);
+    return String(value || '')
         .toLowerCase()
         .split(/[^a-z0-9]+/)
-        .filter(token => token.length > 3);
-    const matches = haystackRows.filter(row => tokens.some(token => row.text.includes(token)));
-    return matches.length ? matches.slice(0, 3) : haystackRows.slice(0, 2);
+        .filter(token => token.length > 2 && !stopWords.has(token));
+}
+
+function findEvaluationEvidenceForRequirement(rows = [], requirement = {}, options = {}) {
+    const haystackRows = rows.map(row => ({
+        ...row,
+        text: `${row.section || ''} ${row.label || ''} ${row.value || ''} ${row.fileKey || ''}`.toLowerCase()
+    }));
+    const tokens = getEvaluationEvidenceMatchTokens((requirement.labels || [requirement.title]).join(' '));
+    const limit = options.limit || 3;
+    if (!tokens.length) return options.strict ? [] : haystackRows.slice(0, 2);
+    const minimumMatches = options.strict
+        ? (tokens.length === 1 ? 1 : Math.min(tokens.length, 2))
+        : 1;
+    const matches = haystackRows
+        .map(row => ({
+            row,
+            score: tokens.reduce((sum, token) => sum + (row.text.includes(token) ? 1 : 0), 0)
+        }))
+        .filter(item => item.score >= minimumMatches)
+        .sort((a, b) => b.score - a.score)
+        .map(item => item.row);
+    if (matches.length) return matches.slice(0, limit);
+    return options.strict ? [] : haystackRows.slice(0, 2);
 }
 
 function getEvaluationSupplierDraft(draft = {}, supplier = '') {
@@ -541,6 +737,11 @@ function getEvaluationProgress(reference = '', tender = null) {
     if (draft?.status === 'Completed') return 100;
     if (!tender || !reference) return Number(draft?.progress || 0);
     const bids = getEvaluationBidsForTender({ ...tender, ready: true, reference });
+    const profileId = getEvaluationProfileId(tender);
+    if (profileId === 'goods') return getGoodsEvaluationCompletion(tender, bids, draft).percent;
+    if (profileId === 'works') return getWorksEvaluationCompletion(tender, bids, draft).percent;
+    if (profileId === 'services') return getServiceEvaluationCompletion(tender, bids, draft).percent;
+    if (profileId === 'consultancy') return getConsultancyCompletion(tender, bids, draft).percent;
     const sections = getEvaluationReviewSections(tender);
     const rows = sections.flatMap(section => section.id === 'supplier-info' ? [] : section.items);
     const total = rows.length * Math.max(1, bids.length || 1);
@@ -567,6 +768,72 @@ function getEvaluationCompletion(tender = {}, bids = [], draft = {}) {
         return sum + rows.filter(row => isEvaluationRequirementComplete(supplierRows[row.id], row)).length;
     }, 0);
     return { complete, total, percent: total ? Math.round((complete / total) * 100) : 0, canComplete: total > 0 && complete >= total };
+}
+
+function getEvaluationDraftReferences() {
+    const references = new Set();
+    try {
+        for (let index = 0; index < localStorage.length; index += 1) {
+            const key = localStorage.key(index) || '';
+            if (key.startsWith('procurex.evaluationDraft.')) {
+                references.add(key.replace('procurex.evaluationDraft.', ''));
+            }
+        }
+    } catch (error) {
+        if (typeof window !== 'undefined') {
+            Object.keys(window.procurexEvaluationDrafts || {}).forEach(reference => references.add(reference));
+        }
+    }
+    if (typeof window !== 'undefined') {
+        Object.keys(window.procurexEvaluationDrafts || {}).forEach(reference => references.add(reference));
+    }
+    return Array.from(references).filter(Boolean);
+}
+
+function getEvaluationDraftStageLabel(tender = {}, draft = {}) {
+    const profileId = getEvaluationProfileId(tender);
+    if (profileId === 'goods') {
+        const stages = getGoodsEvaluationStages();
+        const stageId = draft.goods?.currentStageId || 'opening';
+        return (stages.find(stage => stage.id === stageId) || stages[0])?.label || 'Opening Register';
+    }
+    if (profileId === 'works') {
+        const stages = getWorksEvaluationStages();
+        const stageId = draft.works?.currentStageId || 'opening';
+        return (stages.find(stage => stage.id === stageId) || stages[0])?.label || 'Opening Register';
+    }
+    if (profileId === 'services') {
+        const stages = getServiceEvaluationStages();
+        const stageId = draft.services?.currentStageId || 'opening';
+        return (stages.find(stage => stage.id === stageId) || stages[0])?.label || 'Opening Register';
+    }
+    if (profileId === 'consultancy') {
+        const stages = getConsultancyEvaluationStages();
+        const stageId = draft.consultancy?.currentStageId || 'opening';
+        return (stages.find(stage => stage.id === stageId) || stages[0])?.label || 'Opening Register';
+    }
+    const sections = getEvaluationReviewSections(tender);
+    const sectionId = draft.currentSectionId || sections[0]?.id || 'supplier-info';
+    return (sections.find(section => section.id === sectionId) || sections[0])?.label || 'Supplier Information';
+}
+
+function getEvaluationDraftTenderRows() {
+    return getEvaluationDraftReferences()
+        .map(reference => {
+            const draft = getEvaluationDraft(reference);
+            if (!draft || draft.status === 'Completed') return null;
+            const tender = getEvaluationTenderModel(reference);
+            return {
+                reference,
+                tender,
+                draft,
+                progress: getEvaluationProgress(reference, tender),
+                stageLabel: getEvaluationDraftStageLabel(tender, draft),
+                savedAt: draft.savedAt || ''
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => Date.parse(b.savedAt || 0) - Date.parse(a.savedAt || 0));
 }
 
 function getEvaluationRecommendedBid(tender = {}, bids = []) {
@@ -601,6 +868,7 @@ function renderEvaluationShell(content, title = 'Evaluation', subtitle = '') {
 
 function renderEvaluationTenderList() {
     const tenders = getEvaluationTenderList();
+    const draftRows = getEvaluationDraftTenderRows();
     const readyCount = tenders.filter(tender => tender.ready).length;
     const lockedCount = tenders.length - readyCount;
 
@@ -614,8 +882,21 @@ function renderEvaluationTenderList() {
             <div class="evaluation-hero-stats">
                 <div><strong>${tenders.length}</strong><span>Published tenders</span></div>
                 <div><strong>${readyCount}</strong><span>Ready to evaluate</span></div>
+                <div><strong>${draftRows.length}</strong><span>Drafted evaluations</span></div>
                 <div><strong>${lockedCount}</strong><span>Locked until closing</span></div>
-                <div><strong>${tenders.reduce((sum, tender) => sum + getEvaluationTenderRequirementCount(tender), 0)}</strong><span>Configured checks</span></div>
+            </div>
+        </section>
+
+        <section class="procurement-panel evaluation-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="section-kicker">Drafted in evaluation</span>
+                    <h2>Continue a saved evaluation draft</h2>
+                </div>
+                ${renderEvaluationStatusBadge(`${draftRows.length} draft${draftRows.length === 1 ? '' : 's'}`)}
+            </div>
+            <div class="evaluation-tender-list">
+                ${draftRows.length ? draftRows.map(item => renderEvaluationDraftTenderRow(item)).join('') : '<div class="scope-empty">No saved evaluation drafts yet. Save an evaluation draft and it will appear here for continuation.</div>'}
             </div>
         </section>
 
@@ -632,6 +913,38 @@ function renderEvaluationTenderList() {
             </div>
         </section>
     `, 'Bid Evaluation', 'Tender list');
+}
+
+function renderEvaluationDraftTenderRow(item = {}) {
+    const tender = item.tender || {};
+    const draft = item.draft || {};
+    const profile = getEvaluationProfile(tender);
+    const savedAt = item.savedAt ? new Date(item.savedAt).toLocaleString() : 'Not recorded';
+    const supplierIndex = Number(draft.currentSupplierIndex || draft.goods?.currentSupplierIndex || draft.works?.currentSupplierIndex || draft.services?.currentSupplierIndex || draft.consultancy?.currentSupplierIndex || 0) + 1;
+    return `
+        <article class="evaluation-tender-row is-ready is-draft">
+            <div class="evaluation-tender-row-main">
+                <span class="section-kicker">${escapeEvaluationHtml(profile.id)} evaluation draft</span>
+                <h3>${escapeEvaluationHtml(tender.title)}</h3>
+                <p>${escapeEvaluationHtml(tender.reference)} / Last saved ${escapeEvaluationHtml(savedAt)}</p>
+            </div>
+            <div class="evaluation-tender-row-meta">
+                <div><span>Resume at</span><strong>${escapeEvaluationHtml(item.stageLabel || 'Evaluation')}</strong></div>
+                <div><span>Supplier position</span><strong>${escapeEvaluationHtml(String(supplierIndex))}</strong></div>
+                <div><span>Status</span><strong>${escapeEvaluationHtml(draft.status || 'Saved as draft')}</strong></div>
+                <div><span>Progress</span><strong>${escapeEvaluationHtml(item.progress || 0)}%</strong></div>
+            </div>
+            <div class="evaluation-tender-row-status">
+                ${renderEvaluationStatusBadge('Draft in evaluation')}
+                ${renderEvaluationStatusBadge(item.stageLabel || 'Saved stage')}
+                <div class="evaluation-progress-track"><span style="width: ${Math.min(100, Math.max(0, Number(item.progress || 0)))}%"></span></div>
+            </div>
+            <div class="evaluation-tender-row-actions">
+                <button class="btn btn-secondary" type="button" data-select-tender="${escapeEvaluationHtml(tender.reference)}" data-navigate="tender-details">View Tender</button>
+                <button class="btn btn-primary" type="button" data-evaluation-select="${escapeEvaluationHtml(tender.reference)}">Continue Draft</button>
+            </div>
+        </article>
+    `;
 }
 
 function renderEvaluationTenderRow(tender = {}) {
@@ -733,7 +1046,12 @@ function renderEvaluationSectionRail(sections = [], activeSectionId = '') {
 }
 
 function renderEvaluationRequirementRow(tender = {}, bid = {}, bidderIndex = 0, requirement = {}, saved = {}) {
-    const evidenceRows = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), requirement);
+    const documentReview = /eligibility|document|administrative|license|certificate|registration|tax|form/.test(`${requirement.sectionId || ''} ${requirement.category || ''} ${requirement.title || ''}`.toLowerCase());
+    const evidenceRows = findEvaluationEvidenceForRequirement(
+        getEvaluationBidEvidenceRows(tender, bid, bidderIndex),
+        requirement,
+        documentReview ? { strict: true, limit: 1 } : {}
+    );
     const decision = saved.decision || '';
     const score = saved.score ?? '';
     const comment = saved.comment || '';
@@ -749,11 +1067,12 @@ function renderEvaluationRequirementRow(tender = {}, bid = {}, bidderIndex = 0, 
             <div class="evaluation-evidence-panel">
                 <strong>Supplier response and evidence</strong>
                 ${evidenceRows.length ? evidenceRows.map(row => `
-                    <div>
+                    <article class="evaluation-evidence-item">
                         <span>${escapeEvaluationHtml(row.section || 'Evidence')}</span>
                         <p>${escapeEvaluationHtml(row.label || '')}: ${escapeEvaluationHtml(row.value || row.file || 'Provided')}</p>
-                    </div>
-                `).join('') : '<p>No matching evidence found in the available bid package. Record a clarification or not eligible decision if this item is mandatory.</p>'}
+                        ${renderEvaluationEvidenceDocumentActions(row)}
+                    </article>
+                `).join('') : `<p>${documentReview ? 'No specific submitted document was found for this requirement. Record a clarification or not eligible decision if this item is mandatory.' : 'No matching evidence found in the available bid package. Record a clarification or not eligible decision if this item is mandatory.'}</p>`}
             </div>
             <div class="evaluation-decision-panel">
                 <label>Decision
@@ -982,16 +1301,17 @@ function getGoodsCriterionDecisionOptions(criterion = {}) {
     return ['', 'Accepted', 'Rejected', 'Clarification Required'];
 }
 
-function getGoodsEvaluationEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = []) {
-    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels });
+function getGoodsEvaluationEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = [], options = {}) {
+    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels }, options);
     return `
         <aside class="goods-evidence-panel">
             <strong>Supplier Evidence</strong>
             ${evidence.length ? evidence.map(item => `
-                <div>
+                <article class="evaluation-evidence-item">
                     <span>${escapeEvaluationHtml(item.section || 'Evidence')}</span>
                     <p>${escapeEvaluationHtml(item.label || '')}: ${escapeEvaluationHtml(item.value || item.file || 'Provided')}</p>
-                </div>
+                    ${renderEvaluationEvidenceDocumentActions(item)}
+                </article>
             `).join('') : '<p>No matching submitted evidence was found. The buyer must decide manually from the available bid package.</p>'}
         </aside>
     `;
@@ -1083,7 +1403,7 @@ function renderGoodsAdministrativeReview(tender = {}, bid = {}, bidderIndex = 0,
                                 <h3>${escapeEvaluationHtml(item.title)}</h3>
                                 <p>${escapeEvaluationHtml(item.source || 'Published tender requirement')}</p>
                             </div>
-                            ${getGoodsEvaluationEvidencePanel(tender, bid, bidderIndex, [item.title])}
+                            ${getGoodsEvaluationEvidencePanel(tender, bid, bidderIndex, [item.title], { strict: true, limit: 1 })}
                             <div class="evaluation-decision-panel">
                                 <label>Buyer decision
                                     <select class="form-input" data-goods-admin-decision>
@@ -1549,7 +1869,6 @@ function getWorksEvaluationStages() {
         { id: 'administrative', label: 'Administrative Responsiveness' },
         { id: 'criteria', label: 'Buyer-Defined Criteria Evaluation' },
         { id: 'boq', label: 'BOQ / Financial Review' },
-        { id: 'commercial', label: 'Commercial Terms' },
         { id: 'postqual', label: 'Post-Qualification' },
         { id: 'ranking', label: 'Final Ranking' },
         { id: 'report', label: 'Evaluation Report' }
@@ -1691,8 +2010,7 @@ function hasWorksFailedAdministrativeGate(worksDraft = {}, contractor = '', tend
 function hasWorksBlockingReview(worksDraft = {}, contractor = '', tender = {}) {
     const financialStatus = getWorksFinancialReviewStatus(worksDraft, contractor);
     const postResult = worksDraft.postQualification?.[contractor]?.result || '';
-    const commercialFailed = getWorksEvaluationCommercialTerms(tender).some(term => /fail|rejected|non-responsive/i.test(worksDraft.commercialTerms?.[contractor]?.[term.id]?.decision || ''));
-    return /non-responsive|fail|abnormally low/i.test(financialStatus) || /not qualified/i.test(postResult) || commercialFailed;
+    return /non-responsive|fail|abnormally low/i.test(financialStatus) || /not qualified/i.test(postResult);
 }
 
 function getWorksContractorScore(worksDraft = {}, contractor = '', criteria = []) {
@@ -1725,8 +2043,7 @@ function getWorksEvaluationCompletion(tender = {}, bids = [], draft = {}) {
     const works = getWorksEvaluationDraft(draft);
     const criteria = getEvaluationCriteriaForTender(tender);
     const adminItems = getWorksEvaluationAdministrativeItems(tender);
-    const commercialTerms = getWorksEvaluationCommercialTerms(tender);
-    const total = bids.length * (criteria.length + adminItems.length + commercialTerms.length + 3);
+    const total = bids.length * (criteria.length + adminItems.length + 3);
     let hasRecommendation = false;
     const complete = bids.reduce((sum, bid, index) => {
         const contractor = getWorksEvaluationContractorKey(bid, index);
@@ -1734,25 +2051,25 @@ function getWorksEvaluationCompletion(tender = {}, bids = [], draft = {}) {
         if (ranking.recommendation === 'Recommended for Award') hasRecommendation = true;
         const adminDone = adminItems.filter(item => isWorksAdministrativeComplete(works.administrative?.[contractor]?.[item.id] || {})).length;
         const criteriaDone = criteria.filter(criterion => isWorksCriterionComplete(getWorksCriterionSaved(works, contractor, criterion.id), criterion)).length;
-        const commercialDone = commercialTerms.filter(term => isWorksCommercialTermComplete(works.commercialTerms?.[contractor]?.[term.id] || {})).length;
         const financialDone = getWorksFinancialReviewStatus(works, contractor) ? 1 : 0;
         const postDone = works.postQualification?.[contractor]?.result ? 1 : 0;
         const rankingDone = isWorksRankingDecisionComplete(ranking) ? 1 : 0;
-        return sum + adminDone + criteriaDone + commercialDone + financialDone + postDone + rankingDone;
+        return sum + adminDone + criteriaDone + financialDone + postDone + rankingDone;
     }, 0);
     return { total, complete, percent: total ? Math.round((complete / total) * 100) : 0, canComplete: total > 0 && complete >= total && hasRecommendation };
 }
 
-function getWorksEvaluationEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = []) {
-    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels });
+function getWorksEvaluationEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = [], options = {}) {
+    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels }, options);
     return `
         <aside class="works-evidence-panel goods-evidence-panel">
             <strong>Submitted Works Evidence</strong>
             ${evidence.length ? evidence.map(item => `
-                <div>
+                <article class="evaluation-evidence-item">
                     <span>${escapeEvaluationHtml(item.section || 'Evidence')}</span>
                     <p>${escapeEvaluationHtml(item.label || '')}: ${escapeEvaluationHtml(item.value || item.file || 'Provided')}</p>
-                </div>
+                    ${renderEvaluationEvidenceDocumentActions(item)}
+                </article>
             `).join('') : '<p>No matching submitted evidence was found. Review the available works bid package and record the buyer decision manually.</p>'}
         </aside>
     `;
@@ -1845,7 +2162,7 @@ function renderWorksAdministrativeReview(tender = {}, bid = {}, bidderIndex = 0,
                                 <h3>${escapeEvaluationHtml(item.title)}</h3>
                                 <p>${escapeEvaluationHtml(item.source || 'Published tender requirement')}</p>
                             </div>
-                            ${getWorksEvaluationEvidencePanel(tender, bid, bidderIndex, [item.title, 'bid security', 'contractor registration', 'tax clearance', 'signed form', 'OSHA', 'insurance'])}
+                            ${getWorksEvaluationEvidencePanel(tender, bid, bidderIndex, [item.title], { strict: true, limit: 1 })}
                             <div class="evaluation-decision-panel">
                                 <label>Buyer Decision
                                     <select class="form-input" data-works-admin-decision>${['', 'Pass', 'Fail', 'Not Applicable', 'Clarification Required'].map(option => `<option value="${escapeEvaluationHtml(option)}" ${saved.decision === option ? 'selected' : ''}>${escapeEvaluationHtml(option || 'Select decision')}</option>`).join('')}</select>
@@ -2123,7 +2440,6 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
     const worksDraft = getWorksEvaluationDraft(draft);
     const criteria = getEvaluationCriteriaForTender(tender);
     const adminItems = getWorksEvaluationAdministrativeItems(tender);
-    const commercialTerms = getWorksEvaluationCommercialTerms(tender);
     const completion = getWorksEvaluationCompletion(tender, bids, draft);
     const recommendation = draft.recommendation || getWorksManualRecommendation(tender, bids, draft);
     const maxScore = getWorksContractorMaxScore(criteria);
@@ -2153,7 +2469,7 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
                 <div><span>Completion</span><strong>${completion.complete}/${completion.total}</strong></div>
             </section>
 
-            <section><h2>1. Tender Information</h2><p>${escapeEvaluationHtml(tender.title)} was evaluated against the published works requirements, submitted contractor evidence, BOQ, commercial terms, and buyer-defined evaluation criteria.</p></section>
+            <section><h2>1. Tender Information</h2><p>${escapeEvaluationHtml(tender.title)} was evaluated against the published works requirements, submitted contractor evidence, BOQ, and buyer-defined evaluation criteria.</p></section>
             <section><h2>2. Evaluation Method</h2><p>The system organized submitted works documents, methodology, work program, personnel, equipment, HSE evidence, site response, BOQ, and scoring records. The buyer manually recorded all decisions.</p></section>
             <section><h2>3. Evaluation Criteria Used</h2><p>${criteria.map(criterion => `${criterion.name} (${formatGoodsEvaluationType(criterion.evaluationType)}, ${criterion.maxScore || criterion.weight || 0})`).map(escapeEvaluationHtml).join('; ') || 'No buyer-defined criteria available.'}</p></section>
 
@@ -2197,20 +2513,7 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
             <section><h2>7. BOQ and Financial Review</h2><p>BOQ checks, arithmetic corrections, abnormal rate review, and evaluated price details are recorded separately from scoring. Price is scored only where the buyer published a financial/price criterion.</p></section>
 
             <section>
-                <h2>8. Commercial Terms Review</h2>
-                <div class="evaluation-table-scroll"><table><thead><tr><th>Contractor</th><th>Term</th><th>Decision</th><th>Remark</th></tr></thead><tbody>
-                    ${bids.flatMap((bid, index) => {
-                        const contractor = getWorksEvaluationContractorKey(bid, index);
-                        return commercialTerms.map(term => {
-                            const row = worksDraft.commercialTerms?.[contractor]?.[term.id] || {};
-                            return `<tr><td>${escapeEvaluationHtml(contractor)}</td><td>${escapeEvaluationHtml(term.term)}</td><td>${escapeEvaluationHtml(row.decision || 'Pending')}</td><td>${escapeEvaluationHtml(row.remark || '-')}</td></tr>`;
-                        });
-                    }).join('')}
-                </tbody></table></div>
-            </section>
-
-            <section>
-                <h2>9. Post-Qualification</h2>
+                <h2>8. Post-Qualification</h2>
                 <div class="evaluation-table-scroll"><table><thead><tr><th>Contractor</th><th>Result</th><th>Remark</th></tr></thead><tbody>
                     ${bids.map((bid, index) => {
                         const contractor = getWorksEvaluationContractorKey(bid, index);
@@ -2221,16 +2524,16 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
             </section>
 
             <section>
-                <h2>10. Final Ranking and Award Recommendation</h2>
+                <h2>9. Final Ranking and Award Recommendation</h2>
                 <div class="evaluation-table-scroll"><table><thead><tr><th>Rank</th><th>Contractor</th><th>Gate status</th><th>Total Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason</th></tr></thead><tbody>
                     ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate/review' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.contractor)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
                 </tbody></table></div>
                 <p><strong>Recommended for Award:</strong> ${escapeEvaluationHtml(recommendation.supplier || 'Pending buyer recommendation')}</p>
             </section>
 
-            <section><h2>11. Rejected Bidders and Reasons</h2><p>${rankingRows.filter(row => /rejected/i.test(row.ranking.recommendation || '')).map(row => `${row.contractor}: ${row.ranking.reason || 'No reason recorded'}`).map(escapeEvaluationHtml).join('; ') || 'No rejected contractors recorded yet.'}</p></section>
-            <section><h2>12. Buyer Declaration</h2><p>I confirm that the submitted works bids were reviewed manually against the published tender requirements and buyer-defined evaluation criteria. The system organized the submitted documents, BOQ, technical proposal, and scoring records, but the evaluation decision was made by the buyer.</p></section>
-            <section><h2>13. Attachments Reviewed</h2><p>Administrative documents, methodology, work program, drawings acknowledgement, site response, personnel CVs, equipment proof, HSE evidence, BOQ, and commercial terms where available in the submitted bid package.</p></section>
+            <section><h2>10. Rejected Bidders and Reasons</h2><p>${rankingRows.filter(row => /rejected/i.test(row.ranking.recommendation || '')).map(row => `${row.contractor}: ${row.ranking.reason || 'No reason recorded'}`).map(escapeEvaluationHtml).join('; ') || 'No rejected contractors recorded yet.'}</p></section>
+            <section><h2>11. Buyer Declaration</h2><p>I confirm that the submitted works bids were reviewed manually against the published tender requirements and buyer-defined evaluation criteria. The system organized the submitted documents, BOQ, technical proposal, and scoring records, but the evaluation decision was made by the buyer.</p></section>
+            <section><h2>12. Attachments Reviewed</h2><p>Administrative documents, methodology, work program, drawings acknowledgement, site response, personnel CVs, equipment proof, HSE evidence, and BOQ where available in the submitted bid package.</p></section>
         </div>
     `;
 }
@@ -2242,7 +2545,6 @@ function renderWorksActiveStage(tender = {}, bids = [], supplierIndex = 0, activ
     if (activeStageId === 'administrative') return renderWorksAdministrativeReview(tender, bid, supplierIndex, worksDraft);
     if (activeStageId === 'criteria') return renderWorksCriteriaEvaluation(tender, bid, supplierIndex, worksDraft);
     if (activeStageId === 'boq') return renderWorksBoqFinancialReview(tender, bid, supplierIndex, worksDraft);
-    if (activeStageId === 'commercial') return renderWorksCommercialTerms(tender, bid, supplierIndex, worksDraft);
     if (activeStageId === 'postqual') return renderWorksPostQualification(tender, bid, supplierIndex, worksDraft);
     if (activeStageId === 'ranking') return renderWorksRanking(tender, bids, worksDraft);
     return renderWorksEvaluationReportDocument(tender, bids, draft);
@@ -2253,7 +2555,8 @@ function renderWorksBidEvaluationWorkspace(tender = {}) {
     const draft = getEvaluationDraft(tender.reference) || {};
     const worksDraft = getWorksEvaluationDraft(draft);
     const stages = getWorksEvaluationStages();
-    const activeStageId = worksDraft.currentStageId || 'opening';
+    const savedStageId = worksDraft.currentStageId || 'opening';
+    const activeStageId = stages.some(stage => stage.id === savedStageId) ? savedStageId : 'opening';
     const supplierIndex = Math.min(Math.max(Number(draft.currentSupplierIndex || worksDraft.currentSupplierIndex || 0), 0), Math.max(0, bids.length - 1));
     const completion = getWorksEvaluationCompletion(tender, bids, draft);
     const criteria = getEvaluationCriteriaForTender(tender);
@@ -2279,7 +2582,7 @@ function renderWorksBidEvaluationWorkspace(tender = {}) {
             <div>
                 <span class="section-kicker">Works Bid Evaluation Workspace</span>
                 <h1>${escapeEvaluationHtml(tender.title)}</h1>
-                <p>Manual evaluation of submitted works bids using the buyer's published criteria, tender requirements, BOQ, drawings, methodology, personnel, equipment, and commercial response.</p>
+                <p>Manual evaluation of submitted works bids using the buyer's published criteria, tender requirements, BOQ, drawings, methodology, personnel, and equipment.</p>
             </div>
             <div class="evaluation-hero-stats">
                 <div><strong>${escapeEvaluationHtml(tender.reference)}</strong><span>Reference number</span></div>
@@ -2527,16 +2830,17 @@ function getServiceEvaluationCompletion(tender = {}, bids = [], draft = {}) {
     return { total, complete, percent: total ? Math.round((complete / total) * 100) : 0, canComplete: total > 0 && complete >= total && hasRecommendation };
 }
 
-function getServiceEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = []) {
-    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels });
+function getServiceEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = [], options = {}) {
+    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels }, options);
     return `
         <aside class="service-evidence-panel goods-evidence-panel">
             <strong>Submitted Service Evidence</strong>
             ${evidence.length ? evidence.map(item => `
-                <div>
+                <article class="evaluation-evidence-item">
                     <span>${escapeEvaluationHtml(item.section || 'Evidence')}</span>
                     <p>${escapeEvaluationHtml(item.label || '')}: ${escapeEvaluationHtml(item.value || item.file || 'Provided')}</p>
-                </div>
+                    ${renderEvaluationEvidenceDocumentActions(item)}
+                </article>
             `).join('') : '<p>No matching submitted evidence was found. Review the available service bid package and record the buyer decision manually.</p>'}
         </aside>
     `;
@@ -2628,7 +2932,7 @@ function renderServiceAdministrativeReview(tender = {}, bid = {}, bidderIndex = 
                                 <h3>${escapeEvaluationHtml(item.title)}</h3>
                                 <p>${escapeEvaluationHtml(item.source || 'Published tender requirement')}</p>
                             </div>
-                            ${getServiceEvidencePanel(tender, bid, bidderIndex, [item.title, 'business license', 'tax clearance', 'insurance certificate', 'professional license', 'signed forms'])}
+                            ${getServiceEvidencePanel(tender, bid, bidderIndex, [item.title], { strict: true, limit: 1 })}
                             <div class="evaluation-decision-panel">
                                 <label>Buyer Decision
                                     <select class="form-input" data-service-admin-decision>${['', 'Pass', 'Fail', 'Not Applicable', 'Clarification Required'].map(option => `<option value="${escapeEvaluationHtml(option)}" ${saved.decision === option ? 'selected' : ''}>${escapeEvaluationHtml(option || 'Select decision')}</option>`).join('')}</select>
@@ -3315,16 +3619,17 @@ function getConsultancyCompletion(tender = {}, bids = [], draft = {}) {
     return { total, complete, percent: total ? Math.round((complete / total) * 100) : 0, canComplete: total > 0 && complete >= total && hasRecommendation };
 }
 
-function getConsultancyEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = []) {
-    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels });
+function getConsultancyEvidencePanel(tender = {}, bid = {}, bidderIndex = 0, labels = [], options = {}) {
+    const evidence = findEvaluationEvidenceForRequirement(getEvaluationBidEvidenceRows(tender, bid, bidderIndex), { title: labels.join(' '), labels }, options);
     return `
         <aside class="consultancy-evidence-panel goods-evidence-panel">
             <strong>Submitted Consultancy Evidence</strong>
             ${evidence.length ? evidence.map(item => `
-                <div>
+                <article class="evaluation-evidence-item">
                     <span>${escapeEvaluationHtml(item.section || 'Evidence')}</span>
                     <p>${escapeEvaluationHtml(item.label || '')}: ${escapeEvaluationHtml(item.value || item.file || 'Provided')}</p>
-                </div>
+                    ${renderEvaluationEvidenceDocumentActions(item)}
+                </article>
             `).join('') : '<p>No matching submitted consultancy evidence was found. Review the available proposal package and record the buyer decision manually.</p>'}
         </aside>
     `;
@@ -3417,7 +3722,7 @@ function renderConsultancyAdministrativeReview(tender = {}, bid = {}, bidderInde
                                 <h3>${escapeEvaluationHtml(item.title)}</h3>
                                 <p>${escapeEvaluationHtml(item.source || 'Published tender requirement')}</p>
                             </div>
-                            ${getConsultancyEvidencePanel(tender, bid, bidderIndex, [item.title, 'registration', 'license', 'tax clearance', 'technical proposal', 'financial proposal', 'signed forms'])}
+                            ${getConsultancyEvidencePanel(tender, bid, bidderIndex, [item.title], { strict: true, limit: 1 })}
                             <div class="evaluation-decision-panel">
                                 <label>Buyer Decision
                                     <select class="form-input" data-consultancy-admin-decision>${['', 'Pass', 'Fail', 'Not Applicable', 'Clarification Required'].map(option => `<option value="${escapeEvaluationHtml(option)}" ${saved.decision === option ? 'selected' : ''}>${escapeEvaluationHtml(option || 'Select decision')}</option>`).join('')}</select>
@@ -4146,7 +4451,7 @@ function collectEvaluationDraftFromDom(reference = '', status = 'Saved as draft'
             report: {
                 ...(existing.works?.report || {}),
                 updatedAt: new Date().toISOString(),
-                sections: ['tender_information', 'evaluation_method', 'criteria_used', 'opening', 'administrative', 'criteria', 'boq_financial', 'commercial_terms', 'post_qualification', 'ranking', 'recommendation', 'rejected_bidders', 'declaration', 'attachments_reviewed']
+                sections: ['tender_information', 'evaluation_method', 'criteria_used', 'opening', 'administrative', 'criteria', 'boq_financial', 'post_qualification', 'ranking', 'recommendation', 'rejected_bidders', 'declaration', 'attachments_reviewed']
             }
         };
 
@@ -4716,10 +5021,19 @@ if (typeof document !== 'undefined' && !window.procurexEvaluationRedesignListene
         const viewReportButton = event.target.closest('[data-evaluation-view-report]');
         const closeReportButton = event.target.closest('[data-evaluation-close-report]');
         const downloadReportButton = event.target.closest('[data-evaluation-download-report]');
+        const documentActionButton = event.target.closest('[data-evaluation-document-action]');
 
-        if (!selectButton && !clearButton && !sectionButton && !goodsStageButton && !goodsSupplierButton && !worksStageButton && !worksContractorButton && !serviceStageButton && !serviceProviderButton && !consultancyStageButton && !consultancyConsultantButton && !moveSupplierButton && !saveButton && !completeButton && !viewReportButton && !closeReportButton && !downloadReportButton) return;
+        if (!selectButton && !clearButton && !sectionButton && !goodsStageButton && !goodsSupplierButton && !worksStageButton && !worksContractorButton && !serviceStageButton && !serviceProviderButton && !consultancyStageButton && !consultancyConsultantButton && !moveSupplierButton && !saveButton && !completeButton && !viewReportButton && !closeReportButton && !downloadReportButton && !documentActionButton) return;
 
         event.preventDefault();
+
+        if (documentActionButton) {
+            const documentId = documentActionButton.getAttribute('data-evaluation-document-id') || '';
+            const action = documentActionButton.getAttribute('data-evaluation-document-action') || 'view';
+            if (action === 'download') downloadEvaluationEvidenceDocument(documentId);
+            else openEvaluationEvidenceDocument(documentId);
+            return;
+        }
 
         if (selectButton) {
             setSelectedEvaluationTender(selectButton.getAttribute('data-evaluation-select') || '');
@@ -4819,6 +5133,7 @@ if (typeof document !== 'undefined' && !window.procurexEvaluationRedesignListene
         } else if (saveButton) {
             const reference = saveButton.getAttribute('data-evaluation-save-draft') || getSelectedEvaluationTenderReference();
             saveEvaluationDraft(reference, collectEvaluationDraftFromDom(reference, 'Saved as draft'));
+            setSelectedEvaluationTender('');
         } else if (completeButton) {
             completeEvaluation(completeButton.getAttribute('data-evaluation-complete') || getSelectedEvaluationTenderReference());
         } else if (viewReportButton) {

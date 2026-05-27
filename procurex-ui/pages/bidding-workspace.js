@@ -1383,13 +1383,42 @@ function getBidWorkspaceFinancialCapacityRows(tender = {}) {
     if (candidates.length) return candidates;
     if (normalizeBidWorkspaceFlag(fields.bankStatementsRequired)) {
         return [{
-            requirement: 'Bank statements',
-            minimumValue: fields.bankStatementPeriod || 'Buyer-specified period',
-            evidence: 'Bank statement upload',
+            requirementType: 'Bank Statement Requirement',
+            period: fields.bankStatementPeriod || 'Buyer-specified period',
+            evidenceRequired: ['Bank statement'],
             mandatory: true
         }];
     }
     return [];
+}
+
+function formatBidWorkspaceFinancialRequirementAmount(row = {}) {
+    const rawValue = row.minimumValue ?? row.minimumAmount ?? row.threshold ?? row.value ?? '';
+    if (!isBidWorkspaceMeaningfulValue(rawValue)) return '';
+    const currency = String(row.currency || '').trim();
+    const parsed = parseBidWorkspaceNumber(rawValue);
+    if (typeof rawValue === 'number' || /^-?\d[\d,.\s]*$/.test(String(rawValue).trim())) {
+        const formatted = Math.round(parsed).toLocaleString('en-US');
+        return currency ? `${currency} ${formatted}` : formatted;
+    }
+    return String(rawValue);
+}
+
+function getBidWorkspaceFinancialRequirementTitle(row = {}, index = 0) {
+    return String(row.requirementType || row.requirement || row.requirementName || row.title || row.description || `Financial requirement ${index + 1}`);
+}
+
+function getBidWorkspaceFinancialRequirementEvidence(row = {}) {
+    const evidence = row.evidenceRequired || row.evidence || row.requiredEvidence || row.documentRequired || row.documents;
+    if (Array.isArray(evidence)) return evidence.filter(Boolean).join(', ');
+    return String(evidence || 'Financial capability evidence');
+}
+
+function getBidWorkspaceFinancialRequirementMinimumPeriod(row = {}) {
+    const amount = formatBidWorkspaceFinancialRequirementAmount(row);
+    const period = row.period || row.duration || row.statementPeriod || row.minimumPeriod || '';
+    if (amount && period) return `${amount} / ${period}`;
+    return amount || String(period || 'Not specified');
 }
 
 function renderBidWorkspaceFinancialCapacityMatrix(tender = {}, draft = {}, prefix = 'financial-capacity') {
@@ -1408,19 +1437,23 @@ function renderBidWorkspaceFinancialCapacityMatrix(tender = {}, draft = {}, pref
             </div>
             <div class="data-table">
                 <table>
-                    <thead><tr><th>Buyer Requirement</th><th>Minimum / Period</th><th>Your Value</th><th>Evidence Note</th><th>Upload</th></tr></thead>
+                    <thead><tr><th>Buyer Requirement</th><th>Minimum / Period</th><th>Your Response</th><th>Evidence Note</th><th>Upload</th></tr></thead>
                     <tbody>
                         ${rows.map((row, index) => {
                             const item = typeof row === 'string' ? { requirement: row } : row;
                             const baseId = `${prefix}-${index}`;
                             const required = consultancyPolicy ? isConsultancyBidRequired(item) : item.mandatory !== false;
+                            const evidence = getBidWorkspaceFinancialRequirementEvidence(item);
+                            const uploadLabel = evidence && evidence !== 'Financial capability evidence' && evidence.length <= 60
+                                ? `Upload ${evidence}`
+                                : 'Upload financial evidence';
                             return `
                                 <tr>
-                                    <td><strong>${escapeBidWorkspaceHtml(item.requirement || item.requirementName || item.description || `Financial requirement ${index + 1}`)}</strong><small>${escapeBidWorkspaceHtml(item.evidence || item.notes || 'Financial capability evidence')}</small></td>
-                                    <td>${escapeBidWorkspaceHtml(item.minimumValue || item.minimumAmount || item.period || item.threshold || 'Not specified')}</td>
-                                    <td><input class="form-input" type="number" min="0" step="1000" data-bid-response="${baseId}-value" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-value`))}"></td>
+                                    <td><strong>${escapeBidWorkspaceHtml(getBidWorkspaceFinancialRequirementTitle(item, index))}</strong><small>${escapeBidWorkspaceHtml(evidence)}</small></td>
+                                    <td>${escapeBidWorkspaceHtml(getBidWorkspaceFinancialRequirementMinimumPeriod(item))}</td>
+                                    <td><textarea class="form-input" rows="2" data-bid-response="${baseId}-value" ${required ? 'data-bid-workflow-required-response="true"' : ''} placeholder="Enter amount or response">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-value`))}</textarea></td>
                                     <td><textarea class="form-input" rows="2" data-bid-response="${baseId}-note">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-note`))}</textarea></td>
-                                    <td>${renderBidWorkspaceUploadControl(`${baseId}-upload`, draft, 'Upload evidence', '.pdf,.doc,.docx,.xls,.xlsx', required)}</td>
+                                    <td>${renderBidWorkspaceUploadControl(`${baseId}-upload`, draft, uploadLabel, '.pdf,.doc,.docx,.xls,.xlsx', required)}</td>
                                 </tr>
                             `;
                         }).join('')}
@@ -4491,6 +4524,19 @@ function isConsultancyCvRequirement(requirement = {}) {
     return /(^|\b)(cv|cvs|curriculum vitae|resume|expert cv|consultant cv|key expert cv)(\b|$)/i.test(text);
 }
 
+function isConsultancyTechnicalProposalRequirement(requirement = {}) {
+    const text = [
+        getBidWorkspaceRequirementSearchText(requirement),
+        getBidWorkspaceRequirementTitle(requirement, ''),
+        requirement.documentTitle,
+        requirement.documentName,
+        requirement.name,
+        requirement.title,
+        requirement.description
+    ].filter(Boolean).join(' ');
+    return /(^|\b)technical proposal(\b|$)/i.test(text);
+}
+
 function getConsultancyRequirementRows(tender = {}) {
     const fields = tender.requirements?.fields || {};
     return {
@@ -4551,13 +4597,13 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
         reportingStructureRows,
         coordinationRows,
         administrativeRows,
-        licenseRows,
-        financialCapacityRows
+        licenseRows
     } = getConsultancyRequirementRows(tender);
     const torRequired = isConsultancyDynamicRequirementRequired(dynamicRequirements, /tor|terms of reference|understanding|technical proposal/);
     const methodologyRequired = isConsultancyDynamicRequirementRequired(dynamicRequirements, /methodology|technical approach|approach/);
     const workPlanRequired = isConsultancyDynamicRequirementRequired(dynamicRequirements, /work plan|timeline|gantt|mobilization|mobilisation/);
-    const technicalUploadRequired = isConsultancyDynamicRequirementRequired(dynamicRequirements, /technical proposal/);
+    const technicalUploadRequired = isConsultancyDynamicRequirementRequired(dynamicRequirements, /technical proposal/)
+        || supportingRows.some(row => isConsultancyBidRequired(row) && isConsultancyTechnicalProposalRequirement(row));
     const coordinationRequired = [...reportingStructureRows, ...coordinationRows, ...administrativeRows].some(isConsultancyBidRequired);
     const qualificationRequired = [...individualRows, ...firmRows, ...expertRows].some(isConsultancyBidRequired);
     const selectedSubmissionType = getConsultancySubmissionType(draft, tender);
@@ -4567,16 +4613,15 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
     const individualCvRequired = individualRows.some(row => isConsultancyBidRequired(row.cvRequired));
     const cvEvidenceRequired = expertCvRequired || individualCvRequired || dynamicRequirements.some(requirement => requirement.mandatory && isConsultancyCvRequirement(requirement));
     const hasStructuredCvControls = expertRows.length > 0 || individualRows.some(row => isConsultancyBidRequired(row.cvRequired));
-    const visibleSupportingRows = supportingRows.filter(row => !(hasStructuredCvControls && isConsultancyCvRequirement(row)));
-    const technicalUploadRequirements = getBidWorkspaceTechnicalUploadRequirements(dynamicRequirements, { id: 'consultancy' })
-        .filter(requirement => !(hasStructuredCvControls && isConsultancyCvRequirement(requirement)));
-    const residualDynamicRequirements = dynamicRequirements.filter(requirement => (
-        isBidWorkspaceResponseRequirement(requirement)
-        && !isBidWorkspaceFinancialOrCommercialUploadRequirement(requirement)
-        && !isBidWorkspaceLicenseDocumentRequirement(requirement)
-        && !technicalUploadRequirements.some(uploadRequirement => uploadRequirement.id === requirement.id)
-        && !(hasStructuredCvControls && isConsultancyCvRequirement(requirement))
+    const visibleSupportingRows = supportingRows.filter(row => (
+        !(hasStructuredCvControls && isConsultancyCvRequirement(row))
+        && !isConsultancyTechnicalProposalRequirement(row)
     ));
+    const technicalUploadRequirements = getBidWorkspaceTechnicalUploadRequirements(dynamicRequirements, { id: 'consultancy' })
+        .filter(requirement => (
+            !(hasStructuredCvControls && isConsultancyCvRequirement(requirement))
+            && !isConsultancyTechnicalProposalRequirement(requirement)
+        ));
     return `
         <div class="consultancy-tor-workbook">
             <section class="bid-dynamic-group consultancy-tor-section">
@@ -4599,12 +4644,12 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
             </section>
             ${objectiveRows.length || activityRows.length ? `<section class="bid-dynamic-group consultancy-tor-section">
                 <div class="bid-dynamic-group-heading">
-                    <div><h3>Objectives and activities response</h3><p>Map each TOR objective or activity to the proposed response, assumptions, and evidence.</p></div>
+                    <div><h3>Objectives and activities response</h3><p>Map each TOR objective or activity to the proposed response.</p></div>
                     <span class="badge ${[...objectiveRows, ...activityRows].some(isConsultancyBidRequired) ? 'badge-warning' : 'badge-info'}">${objectiveRows.length + activityRows.length} item${objectiveRows.length + activityRows.length === 1 ? '' : 's'}</span>
                 </div>
                 <div class="data-table">
                     <table>
-                        <thead><tr><th>TOR Item</th><th>Supplier Response</th><th>Evidence / Assumption</th></tr></thead>
+                        <thead><tr><th>TOR Item</th><th>Supplier Response</th></tr></thead>
                         <tbody>
                             ${[...objectiveRows, ...activityRows].map((item, index) => {
                                 const baseId = `consultancy-objective-${index}`;
@@ -4614,7 +4659,6 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
                                     <tr>
                                         <td>${escapeBidWorkspaceHtml(title)}</td>
                                         <td><textarea class="form-input" rows="2" data-bid-response="${baseId}-response"${getConsultancyRequiredAttr(required)}>${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-response`))}</textarea></td>
-                                        <td><input class="form-input" data-bid-response="${baseId}-evidence" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-evidence`))}"></td>
                                     </tr>
                                 `;
                             }).join('')}
@@ -4650,7 +4694,7 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
             </section>` : ''}
             <section class="bid-dynamic-group consultancy-tor-section">
                 <div class="bid-dynamic-group-heading">
-                    <div><h3>Consultant profile, experts, and experience</h3><p>${escapeBidWorkspaceHtml(getBidWorkspaceRawValueSummary(fields.consultancyFirmExperience || fields.consultancyIndividualQualifications) || 'Provide profile, expert CVs, relevant experience, and qualifications where the tender requires them.')}</p></div>
+                    <div><h3>Consultant profile and expert CVs</h3><p>${escapeBidWorkspaceHtml(getBidWorkspaceRawValueSummary(fields.consultancyFirmExperience || fields.consultancyIndividualQualifications) || 'Upload the CVs requested for the consultancy experts.')}</p></div>
                     <span class="badge ${qualificationRequired ? 'badge-warning' : 'badge-info'}">${qualificationRequired ? 'Tender-required items' : 'Optional qualification response'}</span>
                 </div>
                 ${!selectedSubmissionType && cvEvidenceRequired ? '<div class="bid-prequalification-note" data-consultancy-mode-prompt><strong>Select submission type</strong><span>Choose Individual Consultant or Consulting Firm to show the correct CV upload fields for this tender.</span></div>' : ''}
@@ -4666,9 +4710,6 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
                                 <div>
                                     <span class="section-kicker">${escapeBidWorkspaceHtml(title)}</span>
                                     <div class="form-grid two">
-                                        <div class="form-group"><label class="form-label">Expert Name</label><input class="form-input" data-bid-response="${baseId}-name"${getConsultancyRequiredAttr(required)} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-name`))}"></div>
-                                        <div class="form-group"><label class="form-label">Role / Level of Effort</label><input class="form-input" data-bid-response="${baseId}-effort"${getConsultancyRequiredAttr(required)} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-effort`) || item.quantityRequired || '')}"></div>
-                                        <div class="form-group"><label class="form-label">Relevant Experience</label><input class="form-input" data-bid-response="${baseId}-experience" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-experience`))}"></div>
                                         <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-cv`, draft, 'Upload CV', '.pdf,.doc,.docx', cvRequired)}</div>
                                     </div>
                                 </div>
@@ -4682,7 +4723,6 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
                     ${[...individualRows, ...firmRows].some(row => isConsultancyBidRequired(row.similarAssignmentsEvidenceRequired || row.requiredEvidence)) ? `<div class="form-group">${renderBidWorkspaceUploadControl('consultancy-similar-assignment-evidence', draft, 'Similar assignment evidence', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', true)}</div>` : ''}
                 </div>
             </section>
-            ${financialCapacityRows.length ? renderBidWorkspaceFinancialCapacityMatrix(tender, draft, 'consultancy-financial-capacity') : ''}
             ${(reportingStructureRows.length || coordinationRows.length || administrativeRows.length) ? `<section class="bid-dynamic-group consultancy-tor-section">
                 <div class="bid-dynamic-group-heading">
                     <div><h3>Responsibilities and coordination</h3><p>${escapeBidWorkspaceHtml(getBidWorkspaceRawValueSummary(fields.consultancyCoordinationArrangements || fields.consultancyAdministrativeArrangements) || 'Confirm responsibilities, reporting lines, meetings, and client support needs.')}</p></div>
@@ -4707,8 +4747,7 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
                     }).join('')}
                 </div>
             </section>` : ''}
-            ${renderBidWorkspaceTechnicalUploadSection(technicalUploadRequirements, draft, 'Other technical proposal uploads', 'Upload any extra technical evidence that this tender explicitly requested.')}
-            ${residualDynamicRequirements.length ? renderBidWorkspaceDynamicResponses(residualDynamicRequirements, draft, ['Supplier response', 'Supporting note'], tender, { id: 'consultancy' }) : ''}
+            ${renderBidWorkspaceTechnicalUploadSection(technicalUploadRequirements, draft, 'Other technical supporting uploads', 'Upload any extra technical evidence that this tender explicitly requested.')}
         </div>
     `;
 }
@@ -4757,13 +4796,12 @@ function renderConsultancyBidCommercialTerms(draft = {}, tender = {}, pricingReq
     return `
         <section class="bid-dynamic-group">
             <div class="bid-dynamic-group-heading">
-                <div><h3>Consultancy commercial terms</h3><p>Confirm fee basis, expenses, taxes, currency, validity, and signed financial proposal step.</p></div>
+                <div><h3>Consultancy commercial terms</h3><p>Confirm fee basis, expenses, taxes, validity, and signed financial proposal step.</p></div>
                 <span class="badge ${commercialRequired ? 'badge-warning' : 'badge-info'}">${commercialRequired ? 'Tender-required pricing' : 'Optional commercial terms'}</span>
             </div>
             <div class="form-grid two">
                 <div class="form-group"><label class="form-label">Fee Basis</label><select class="form-input" data-bid-response="consultancy-commercial-fee-basis"${getConsultancyRequiredAttr(commercialRequired)}><option value="">Select</option>${['Time based', 'Lump sum', 'Milestone based', 'Retainer'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'consultancy-commercial-fee-basis') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
                 <div class="form-group"><label class="form-label">Price Validity (days)</label><input class="form-input" type="number" min="1" data-bid-response="consultancy-commercial-validity"${getConsultancyRequiredAttr(commercialRequired)} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'consultancy-commercial-validity') || 90)}"></div>
-                <div class="form-group"><label class="form-label">Currency</label><select class="form-input" data-bid-response="consultancy-commercial-currency"${getConsultancyRequiredAttr(commercialRequired)}>${['TZS', 'USD', 'EUR', 'GBP'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'consultancy-commercial-currency') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
                 <div class="form-group">${renderBidWorkspaceUploadControl('consultancy-financial-proposal-upload', draft, 'Signed financial proposal document', '.pdf,.doc,.docx', financialUploadRequired)}</div>
                 <div class="form-group wide"><label class="form-label">Financial Proposal Assumptions</label><textarea class="form-input" rows="2" data-bid-response="consultancy-commercial-assumptions">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'consultancy-commercial-assumptions'))}</textarea></div>
                 <label class="bid-response-check"><input type="checkbox" data-bid-response="consultancy-commercial-tax-confirm"${getConsultancyRequiredAttr(commercialRequired)} ${getBidWorkspaceSavedResponse(draft, 'consultancy-commercial-tax-confirm') === true || getBidWorkspaceSavedResponse(draft, 'consultancy-commercial-tax-confirm') === 'true' ? 'checked' : ''}><span>I confirm taxes, reimbursables, and professional fees are reflected in the financial offer.</span></label>
@@ -4783,11 +4821,8 @@ function renderConsultancyTechnicalProposalStep(tender = {}, draft = {}, dynamic
         ...rows.firmRows,
         ...rows.expertRows,
         ...rows.supportingRows,
-        ...rows.licenseRows,
-        ...rows.financialCapacityRows
-    ].filter(isConsultancyBidRequired).length + dynamicRequirements.filter(requirement => (
-        requirement.mandatory && !isBidWorkspaceFinancialOrCommercialUploadRequirement(requirement)
-    )).length;
+        ...rows.licenseRows
+    ].filter(isConsultancyBidRequired).length;
     return `
         <section class="journey-panel" id="bid-step-${stepNumber}">
             <div class="panel-heading">
@@ -4815,9 +4850,10 @@ function renderConsultancyFinancialProposalStep(tender = {}, draft = {}, commerc
             </div>
             <div class="bid-step-intro">
                 <strong>Separate financial envelope</strong>
-                <span>Complete fees, reimbursables, taxes, currency, validity, and financial proposal upload only as required by this tender.</span>
+                <span>Complete fees, reimbursables, taxes, validity, and financial proposal upload only as required by this tender.</span>
             </div>
             ${renderConsultancyEnvelopeNotice(tender)}
+            ${renderBidWorkspaceFinancialCapacityMatrix(tender, draft, 'consultancy-financial-capacity')}
             <div class="data-table">
                 <table>
                     <thead><tr><th>Code</th><th>Consultancy Line</th><th>Person Days</th><th>Daily Rate / Fee</th><th>Reimbursables</th><th>Tax</th><th>Assumption</th><th>Amount</th></tr></thead>
@@ -4831,12 +4867,22 @@ function renderConsultancyFinancialProposalStep(tender = {}, draft = {}, commerc
 }
 
 function renderConsultancyReviewSubmitStep(tender = {}, profile = {}, draft = {}, context = {}, stepNumber = 4) {
-    const dynamicRequirements = context.dynamicRequirements || [];
     const commercialItems = context.commercialItems || [];
-    const technicalRequiredCount = dynamicRequirements.filter(requirement => (
-        requirement.mandatory && !isBidWorkspaceFinancialOrCommercialUploadRequirement(requirement)
-    )).length;
-    const financialRequired = isConsultancyPricingConfigured(tender) || isConsultancyFinancialProposalRequired(tender);
+    const rows = getConsultancyRequirementRows(tender);
+    const technicalRequiredCount = [
+        ...rows.objectiveRows,
+        ...rows.activityRows,
+        ...rows.deliverableRows,
+        ...rows.reportingRows,
+        ...rows.individualRows,
+        ...rows.firmRows,
+        ...rows.expertRows,
+        ...rows.supportingRows,
+        ...rows.licenseRows
+    ].filter(isConsultancyBidRequired).length;
+    const financialRequired = isConsultancyPricingConfigured(tender)
+        || isConsultancyFinancialProposalRequired(tender)
+        || getBidWorkspaceFinancialCapacityRows(tender).some(isConsultancyBidRequired);
     return `
         <section class="journey-panel" id="bid-step-${stepNumber}">
             <div class="panel-heading">
@@ -6520,7 +6566,21 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
     };
 
     const saveStoredSubmittedBids = (items = []) => {
-        localStorage.setItem(bidWorkspaceSubmittedStorageKey, JSON.stringify(items));
+        try {
+            localStorage.setItem(bidWorkspaceSubmittedStorageKey, JSON.stringify(items));
+        } catch (error) {
+            const compactItems = items.map(item => ({
+                ...item,
+                draft: {
+                    ...(item.draft || {}),
+                    uploadedFiles: Object.fromEntries(Object.entries(item.draft?.uploadedFiles || {}).map(([key, file]) => [key, file && typeof file === 'object'
+                        ? { ...file, dataUrl: '' }
+                        : file
+                    ]))
+                }
+            }));
+            localStorage.setItem(bidWorkspaceSubmittedStorageKey, JSON.stringify(compactItems));
+        }
     };
 
     const isBidWorkspaceBeforeClosing = () => {
@@ -6793,7 +6853,8 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
             type: file?.type || '',
             size: file?.size || 0,
             uploadedAt: file?.uploadedAt || '',
-            sha256: file?.sha256 || file?.hash || ''
+            sha256: file?.sha256 || file?.hash || '',
+            dataUrl: file?.dataUrl || ''
         }]));
         const submittedAt = new Date().toISOString();
         const procurementType = profile.id || getBidWorkspaceTypeId(tender);
