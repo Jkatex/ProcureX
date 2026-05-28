@@ -101,7 +101,7 @@ function renderProcurementDashboard() {
                     <li><a href="#" data-navigate="bidding-workspace">Draft Bids</a></li>
                     <li><a href="#" data-navigate="records-history">Records and History</a></li>
                     <li><a href="#" data-navigate="app-launcher">All Apps</a></li>
-                    <li><a href="#" data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
             </aside>
 

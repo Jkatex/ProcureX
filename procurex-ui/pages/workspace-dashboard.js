@@ -194,7 +194,7 @@ function getWorkspaceDashboardPipeline(tenders = [], bidDrafts = [], submittedBi
         Published: tenders.filter(tender => /open|published|pending admin review/i.test(tender.status || '')).length,
         Evaluation: tenders.filter(tender => /evaluation/i.test(tender.status || '')).length,
         Award: tenders.filter(tender => /award/i.test(tender.status || '')).length,
-        Contract: mockData.postAwardTracking ? 1 : 0,
+        Contract: mockData.awardingContracts?.execution ? 1 : 0,
         Completed: getWorkspaceDashboardAllTenders().filter(tender => /completed|closed|cancelled/i.test(tender.status || '')).length + submittedBids.length
     };
 
@@ -239,16 +239,17 @@ function getWorkspaceDashboardActiveWork(tenders = [], bidDrafts = [], submitted
 
     items.push(...bidDrafts, ...submittedBids);
 
-    if (mockData.postAwardTracking) {
+    if (mockData.awardingContracts?.execution) {
+        const execution = mockData.awardingContracts.execution;
         items.push({
             id: 'active-contract',
-            title: 'Active contract execution',
+            title: execution.title || 'Active contract execution',
             type: 'Contract',
-            status: 'Active',
+            status: execution.status || 'Active',
             nextAction: 'Track performance',
-            deadline: '2026-08-30',
+            deadline: execution.endDate || '2026-08-30',
             lastActivity: '2026-07-02T14:20:00',
-            amount: 0,
+            amount: Number(execution.contractValue || 0),
             nav: 'awarding-contracts'
         });
     }
@@ -405,7 +406,7 @@ function renderDashboardSidebar(dashboard) {
                 <li><a href="#" data-navigate="awarding-contracts">Awards and Contracts</a></li>
                 <li><a href="#" data-navigate="records-history">Records and History</a></li>
                 <li><a href="#" data-navigate="account-profile">Account and Verification</a></li>
-                <li><a href="#" data-navigate="welcome">Logout</a></li>
+                <li><a href="#" data-navigate="sign-in">Logout</a></li>
             </ul>
         </aside>
     `;

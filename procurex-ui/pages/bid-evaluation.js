@@ -866,7 +866,7 @@ function renderEvaluationShell(content, title = 'Evaluation', subtitle = '') {
                     <li><a href="#" data-navigate="bid-evaluation" class="active">Evaluation</a></li>
                     <li><a href="#" data-navigate="award-recommendation">Award Recommendation</a></li>
                     <li><a href="#" data-evaluation-clear-selection>Select Tender</a></li>
-                    <li><a href="#" data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
             </aside>
             <main class="main-content procurement-content evaluation-workspace">

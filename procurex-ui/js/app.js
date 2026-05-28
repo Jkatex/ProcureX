@@ -137,11 +137,27 @@ class ProcureXApp {
         const adminApps = `
             <button class="app-menu-card app-menu-insights" data-navigate="admin-dashboard">
                 <span class="app-menu-icon">${this.getAppMenuIcon('insights')}</span>
-                <span><strong>Compliance Dashboard</strong><em>Review, approve, hold, and return procurements</em></span>
+                <span><strong>Command Center</strong><em>Admin KPIs, queues, and oversight</em></span>
             </button>
             <button class="app-menu-card app-menu-procurement" data-navigate="admin-search">
                 <span class="app-menu-icon">${this.getAppMenuIcon('search')}</span>
                 <span><strong>Admin Deep Search</strong><em>Tenders, bids, users, evidence, evaluations</em></span>
+            </button>
+            <button class="app-menu-card app-menu-iam" data-navigate="admin-users">
+                <span class="app-menu-icon">${this.getAppMenuIcon('iam')}</span>
+                <span><strong>User Management</strong><em>Accounts, roles, and verification</em></span>
+            </button>
+            <button class="app-menu-card app-menu-evaluation" data-navigate="admin-compliance">
+                <span class="app-menu-icon">${this.getAppMenuIcon('evaluation')}</span>
+                <span><strong>Compliance Rules</strong><em>Thresholds, checklists, and alerts</em></span>
+            </button>
+            <button class="app-menu-card app-menu-insights" data-navigate="admin-analytics">
+                <span class="app-menu-icon">${this.getAppMenuIcon('insights')}</span>
+                <span><strong>Platform Analytics</strong><em>Procurement metrics and trends</em></span>
+            </button>
+            <button class="app-menu-card app-menu-contracts" data-navigate="admin-audit">
+                <span class="app-menu-icon">${this.getAppMenuIcon('contracts')}</span>
+                <span><strong>Full Audit Trail</strong><em>System-wide action history</em></span>
             </button>
             <button class="app-menu-card app-menu-iam" data-navigate="account-profile">
                 <span class="app-menu-icon">${this.getAppMenuIcon('iam')}</span>
@@ -195,7 +211,7 @@ class ProcureXApp {
                     <button type="button" data-navigate="communication-center">Messages</button>
                     <button type="button">Help</button>
                     <button type="button">Language</button>
-                    <button type="button" data-navigate="welcome">Logout</button>
+                    <button type="button" data-navigate="sign-in">Logout</button>
                 </div>
             </header>
         `;
@@ -226,6 +242,10 @@ class ProcureXApp {
             'workspace-dashboard': 'Dashboard',
             'admin-dashboard': 'Admin',
             'admin-search': 'Admin Deep Search',
+            'admin-users': 'Admin User Management',
+            'admin-compliance': 'Admin Compliance Rules',
+            'admin-analytics': 'Admin Analytics',
+            'admin-audit': 'Admin Audit Trail',
             'account-profile': 'Registration and Verification',
             'verification-status': 'Registration and Verification',
             'supplier-journey': 'Procurement',
@@ -265,6 +285,10 @@ class ProcureXApp {
             'procurement-dashboard': 'workspace-dashboard',
             'admin-dashboard': null,
             'admin-search': 'admin-dashboard',
+            'admin-users': 'admin-dashboard',
+            'admin-compliance': 'admin-dashboard',
+            'admin-analytics': 'admin-dashboard',
+            'admin-audit': 'admin-dashboard',
             'buyer-dashboard': 'workspace-dashboard',
             'buyer-journey': 'workspace-dashboard',
             'procurement-guide': 'workspace-dashboard',
@@ -304,6 +328,10 @@ class ProcureXApp {
             'procurement-dashboard': 'Dashboard',
             'admin-dashboard': 'Admin Dashboard',
             'admin-search': 'Admin Deep Search',
+            'admin-users': 'User Management',
+            'admin-compliance': 'Compliance Rules',
+            'admin-analytics': 'Platform Analytics',
+            'admin-audit': 'Full Audit Trail',
             'buyer-dashboard': 'Dashboard',
             'buyer-journey': 'Procurement Process Guide',
             'procurement-guide': 'Procurement Process Guide',
@@ -383,6 +411,9 @@ class ProcureXApp {
         }
         if (typeof window.initializeAwardingContracts === 'function') {
             window.initializeAwardingContracts();
+        }
+        if (typeof window.initializeAwardRecommendation === 'function') {
+            window.initializeAwardRecommendation();
         }
         if (typeof window.initializeAwardContractDraftControls === 'function') {
             window.initializeAwardContractDraftControls();
@@ -611,6 +642,17 @@ class ProcureXApp {
     initializeTabs() {
         const tabs = document.querySelectorAll('.tab');
         tabs.forEach(tab => {
+            const tabGroup = tab.closest('.tabs');
+            const tabContent = tabGroup?.nextElementSibling;
+            if (tab.classList.contains('active') && tabContent) {
+                const activeTab = tab.getAttribute('data-tab');
+                tabContent.querySelectorAll('.tab-content').forEach(content => {
+                    const isActive = content.getAttribute('data-tab') === activeTab;
+                    content.classList.toggle('tab-content--visible', isActive);
+                    content.classList.toggle('tab-content--hidden', !isActive);
+                });
+            }
+
             tab.addEventListener('click', () => {
                 const tabGroup = tab.closest('.tabs');
                 const tabContent = tabGroup.nextElementSibling;
@@ -623,7 +665,9 @@ class ProcureXApp {
                 // Update content
                 if (tabContent) {
                     tabContent.querySelectorAll('.tab-content').forEach(content => {
-                        content.style.display = content.getAttribute('data-tab') === targetTab ? 'block' : 'none';
+                        const isActive = content.getAttribute('data-tab') === targetTab;
+                        content.classList.toggle('tab-content--visible', isActive);
+                        content.classList.toggle('tab-content--hidden', !isActive);
                     });
                 }
             });
@@ -1784,6 +1828,10 @@ class ProcureXApp {
             'workspace-dashboard',
             'admin-dashboard',
             'admin-search',
+            'admin-users',
+            'admin-compliance',
+            'admin-analytics',
+            'admin-audit',
             'procurement-guide',
             'guest-marketplace',
             'marketplace',
@@ -1859,6 +1907,10 @@ class ProcureXApp {
     renderWorkspaceDashboard() { return this.getLoadingSpinner('dashboard'); }
     renderAdminDashboard() { return this.getLoadingSpinner('admin dashboard'); }
     renderAdminSearch() { return this.getLoadingSpinner('admin search'); }
+    renderAdminUsers() { return this.getLoadingSpinner('admin users'); }
+    renderAdminCompliance() { return this.getLoadingSpinner('admin compliance'); }
+    renderAdminAnalytics() { return this.getLoadingSpinner('admin analytics'); }
+    renderAdminAudit() { return this.getLoadingSpinner('admin audit'); }
     renderBuyerDashboard() { return this.getLoadingSpinner('dashboard'); }
     renderSupplierDashboard() { return this.getLoadingSpinner('dashboard'); }
     renderSupplierJourney() { return this.getLoadingSpinner('procurement process guide'); }

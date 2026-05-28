@@ -1,39 +1,46 @@
 // Post-award execution workspace for delivery, payments, issues, variations, closure, and performance.
 
-function escapePostAwardHtml(value = '') {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
-function formatPostAwardMoney(value, currency = 'TZS') {
-    const amount = Number(value || 0);
-    return Number.isFinite(amount) ? `${currency} ${amount.toLocaleString()}` : escapePostAwardHtml(value || '-');
-}
-
-function renderPostAwardBadge(value = '') {
-    const text = String(value || '');
-    const lower = text.toLowerCase();
-    const tone = lower.includes('accepted') || lower.includes('paid') || lower.includes('resolved') || lower.includes('complete')
-        ? 'badge-success'
-        : lower.includes('pending') || lower.includes('review') || lower.includes('required') || lower.includes('progress') || lower.includes('draft')
-            ? 'badge-warning'
-            : lower.includes('blocked') || lower.includes('high')
-                ? 'badge-error'
-                : 'badge-info';
-    return `<span class="badge ${tone}">${escapePostAwardHtml(text)}</span>`;
-}
+const PXPostAwardUtils = window.ProcureXShared || {};
+const escapePostAwardHtml = PXPostAwardUtils.escapeHtml || ((value = '') => String(value));
+const formatPostAwardMoney = PXPostAwardUtils.formatMoney || ((value, currency = 'TZS') => `${currency} ${Number(value || 0).toLocaleString()}`);
+const renderPostAwardBadge = PXPostAwardUtils.renderStatusBadge || ((value = '') => `<span class="badge badge-info">${escapePostAwardHtml(value)}</span>`);
 
 function renderPostAwardTable(headers = [], rows = []) {
+    if (PXPostAwardUtils.renderDataTable) return PXPostAwardUtils.renderDataTable(headers, rows);
     return `
         <div class="data-table evaluation-table-scroll">
             <table>
                 <thead><tr>${headers.map(header => `<th>${escapePostAwardHtml(header)}</th>`).join('')}</tr></thead>
                 <tbody>${rows.join('')}</tbody>
             </table>
+        </div>
+    `;
+}
+
+function renderMatchStatus(matchStatus = {}) {
+    const parts = [
+        ['PO', matchStatus.po],
+        ['Certificate', matchStatus.certificate],
+        ['Invoice', matchStatus.invoice]
+    ];
+    return `<div class="match-status">${parts.map(([label, ok]) => `<span class="${ok ? 'matched' : 'mismatch'}">${escapePostAwardHtml(label)} ${ok ? '✓' : '!'}</span>`).join('')}</div>`;
+}
+
+function parseVariationMoney(value = '') {
+    const amount = String(value).replace(/[^\d.-]/g, '');
+    return Number(amount || 0);
+}
+
+function parseVariationDays(value = '') {
+    const amount = String(value).match(/-?\d+/);
+    return amount ? Number(amount[0]) : 0;
+}
+
+function renderStars(rating = 0, label = '') {
+    const count = Number(rating || 0);
+    return `
+        <div class="star-rating" role="radiogroup" aria-label="${escapePostAwardHtml(label)} rating">
+            ${[1, 2, 3, 4, 5].map(value => `<button type="button" role="radio" aria-checked="${value === count ? 'true' : 'false'}" class="${value <= count ? 'active' : ''}">★</button>`).join('')}
         </div>
     `;
 }
@@ -57,20 +64,22 @@ function renderPostAwardTracking() {
     const averagePerformance = (execution.performance || []).length
         ? ((execution.performance || []).reduce((sum, row) => sum + Number(row.rating || 0), 0) / execution.performance.length).toFixed(1)
         : '0.0';
+    const mandatoryClosure = (execution.closureChecklist || []).filter(row => row.mandatory !== false);
+    const completeClosure = mandatoryClosure.filter(row => row.complete || /complete|resolved|processed|rated/i.test(row.status || '')).length;
+    const closureReady = mandatoryClosure.length > 0 && completeClosure === mandatoryClosure.length;
+    const totalVariationValue = (execution.variations || []).reduce((sum, row) => sum + parseVariationMoney(row.priceImpact), 0);
+    const totalVariationDays = (execution.variations || []).reduce((sum, row) => sum + parseVariationDays(row.timelineImpact), 0);
 
     return `
         <div class="main-layout procurement-layout evaluation-app-layout post-award-page" data-award-contract-workspace data-award-current-step="execution" data-award-tender-id="${escapePostAwardHtml(draft.tenderId || '')}">
             <aside class="sidebar evaluation-sidebar">
-                <div class="evaluation-sidebar-head">
-                    <h3>Post-Award Tracking</h3>
-                    <span>Contract #${escapePostAwardHtml(execution.contractId || 'Active')}</span>
-                </div>
+                <div class="evaluation-sidebar-head"><h3>Post-Award Tracking</h3><span>Contract #${escapePostAwardHtml(execution.contractId || 'Active')}</span></div>
                 <ul class="sidebar-nav">
                     <li><a href="#" data-award-guard-navigate data-navigate="awarding-contracts">Awarding Dashboard</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="contract-negotiation">Back to Contract</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="post-award-tracking" class="active">Execution</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
-                    <li><a href="#" data-award-guard-navigate data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-award-guard-navigate data-navigate="sign-in">Logout</a></li>
                 </ul>
             </aside>
 
@@ -98,10 +107,7 @@ function renderPostAwardTracking() {
 
                 <section class="procurement-panel evaluation-panel award-draft-control-panel">
                     <div class="panel-heading">
-                        <div>
-                            <span class="section-kicker">Execution draft</span>
-                            <h2>Leave execution tracking and return to another tender</h2>
-                        </div>
+                        <div><span class="section-kicker">Execution draft</span><h2>Leave execution tracking and return to another tender</h2></div>
                         ${renderPostAwardBadge(draft.draftSaved ? 'Draft saved' : 'Execution active')}
                     </div>
                     <div class="inline-actions">
@@ -113,10 +119,7 @@ function renderPostAwardTracking() {
 
                 <section class="procurement-panel evaluation-panel post-award-panel">
                     <div class="panel-heading">
-                        <div>
-                            <span class="section-kicker">Execution workspace</span>
-                            <h2>Milestones, payments, issues, variations, closure, and performance</h2>
-                        </div>
+                        <div><span class="section-kicker">Execution workspace</span><h2>Milestones, payments, issues, variations, closure, and performance</h2></div>
                         ${renderPostAwardBadge(`${execution.progress || 0}% complete`)}
                     </div>
 
@@ -130,7 +133,7 @@ function renderPostAwardTracking() {
                     </div>
 
                     <div class="post-award-tab-content">
-                        <div class="tab-content" data-tab="milestones" style="display: block;">
+                        <div class="tab-content tab-content--visible" data-tab="milestones">
                             <div class="post-award-progress-card">
                                 <div><strong>Overall Progress</strong><span>${execution.progress || 0}%</span></div>
                                 <div class="progress-bar"><div class="progress-fill" style="width: ${Number(execution.progress || 0)}%"></div></div>
@@ -152,7 +155,7 @@ function renderPostAwardTracking() {
                             )}
                         </div>
 
-                        <div class="tab-content" data-tab="payments" style="display: none;">
+                        <div class="tab-content tab-content--hidden" data-tab="payments">
                             <section class="post-award-metric-grid">
                                 <article><span>Contract amount</span><strong>${formatPostAwardMoney(execution.contractValue, execution.currency)}</strong></article>
                                 <article><span>Amount invoiced</span><strong>${formatPostAwardMoney(invoiced, execution.currency)}</strong></article>
@@ -160,21 +163,25 @@ function renderPostAwardTracking() {
                                 <article><span>Balance remaining</span><strong>${formatPostAwardMoney(Number(execution.contractValue || 0) - paid, execution.currency)}</strong></article>
                             </section>
                             ${renderPostAwardTable(
-                                ['Invoice', 'Milestone', 'Amount', 'Status', 'Matching Result', 'Action'],
-                                (execution.invoices || []).map(row => `
-                                    <tr>
-                                        <td><strong>${escapePostAwardHtml(row.invoice)}</strong></td>
-                                        <td>${escapePostAwardHtml(row.milestone)}</td>
-                                        <td>${formatPostAwardMoney(row.amount, execution.currency)}</td>
-                                        <td>${renderPostAwardBadge(row.status)}</td>
-                                        <td>${escapePostAwardHtml(row.match)}</td>
-                                        <td><button class="btn btn-secondary btn-sm" type="button">${/pending/i.test(row.status) ? 'Approve' : 'View'}</button></td>
-                                    </tr>
-                                `)
+                                ['Invoice', 'Milestone', 'Amount', 'Status', '3-way Match', 'Action'],
+                                (execution.invoices || []).map(row => {
+                                    const matchOk = row.matchStatus && Object.values(row.matchStatus).every(Boolean);
+                                    const approve = /pending/i.test(row.status || '');
+                                    return `
+                                        <tr>
+                                            <td><strong>${escapePostAwardHtml(row.invoice)}</strong><span>${escapePostAwardHtml(row.match)}</span></td>
+                                            <td>${escapePostAwardHtml(row.milestone)}</td>
+                                            <td>${formatPostAwardMoney(row.amount, execution.currency)}</td>
+                                            <td>${renderPostAwardBadge(row.status)}</td>
+                                            <td>${renderMatchStatus(row.matchStatus)}</td>
+                                            <td><button class="btn btn-secondary btn-sm" type="button" ${approve && !matchOk ? 'disabled aria-disabled="true" title="Resolve 3-way match before approval"' : ''}>${approve ? 'Approve' : 'View'}</button></td>
+                                        </tr>
+                                    `;
+                                })
                             )}
                         </div>
 
-                        <div class="tab-content" data-tab="issues" style="display: none;">
+                        <div class="tab-content tab-content--hidden" data-tab="issues">
                             ${renderPostAwardTable(
                                 ['Issue', 'Raised By', 'Priority', 'Responsible Party', 'Status', 'Required Action'],
                                 (execution.issues || []).map(row => `
@@ -191,48 +198,71 @@ function renderPostAwardTracking() {
                             <div class="inline-actions"><button class="btn btn-primary" type="button">Raise Issue</button><button class="btn btn-secondary" type="button">Upload Evidence</button></div>
                         </div>
 
-                        <div class="tab-content" data-tab="variations" style="display: none;">
+                        <div class="tab-content tab-content--hidden" data-tab="variations">
+                            <section class="post-award-metric-grid">
+                                <article><span>Total price impact</span><strong>${formatPostAwardMoney(totalVariationValue, execution.currency)}</strong></article>
+                                <article><span>Total timeline impact</span><strong>${escapePostAwardHtml(totalVariationDays)} days</strong></article>
+                                <article><span>Open variations</span><strong>${escapePostAwardHtml((execution.variations || []).length)}</strong></article>
+                            </section>
                             <div class="evaluation-notice warning">After signing, changes are managed as formal amendments, variation requests, extensions of time, or change orders.</div>
                             ${renderPostAwardTable(
-                                ['Variation', 'Requested By', 'Price Impact', 'Timeline Impact', 'Status', 'Supporting Document'],
+                                ['Variation', 'Requested By', 'Impact', 'Status', 'Awaiting', 'Actions'],
                                 (execution.variations || []).map(row => `
                                     <tr>
-                                        <td><strong>${escapePostAwardHtml(row.title)}</strong></td>
+                                        <td><strong>${escapePostAwardHtml(row.title)}</strong><span>${escapePostAwardHtml(row.document)}</span></td>
                                         <td>${escapePostAwardHtml(row.requestedBy)}</td>
-                                        <td>${escapePostAwardHtml(row.priceImpact)}</td>
-                                        <td>${escapePostAwardHtml(row.timelineImpact)}</td>
+                                        <td>${escapePostAwardHtml(row.priceImpact)} / ${escapePostAwardHtml(row.timelineImpact)}</td>
                                         <td>${renderPostAwardBadge(row.status)}</td>
-                                        <td>${escapePostAwardHtml(row.document)}</td>
+                                        <td><strong>${escapePostAwardHtml(row.awaitingApprovalFrom)}</strong><span>${escapePostAwardHtml(row.requiredAction)}</span></td>
+                                        <td><div class="inline-actions"><button class="btn btn-secondary btn-sm" type="button">Approve</button><button class="btn btn-secondary btn-sm" type="button">Reject</button><button class="btn btn-primary btn-sm" type="button">Request More Info</button></div></td>
                                     </tr>
                                 `)
                             )}
                         </div>
 
-                        <div class="tab-content" data-tab="closure" style="display: none;">
-                            <div class="closure-checklist">
-                                ${(execution.closureChecklist || []).map(row => `
-                                    <article>
-                                        <strong>${escapePostAwardHtml(row.item)}</strong>
-                                        ${renderPostAwardBadge(row.status)}
-                                    </article>
-                                `).join('')}
-                            </div>
-                            <div class="inline-actions"><button class="btn btn-primary" type="button">Submit Completion Request</button><button class="btn btn-secondary" type="button">Issue Completion Certificate</button></div>
+                        <div class="tab-content tab-content--hidden" data-tab="closure">
+                            <div class="closure-counter">${completeClosure} of ${mandatoryClosure.length} mandatory items complete</div>
+                            <ul class="closure-checklist" role="list">
+                                ${(execution.closureChecklist || []).map((row, index) => {
+                                    const checked = row.complete || /complete|resolved|processed|rated/i.test(row.status || '');
+                                    return `
+                                        <li>
+                                            <label>
+                                                <input type="checkbox" ${checked ? 'checked' : ''} ${row.mandatory === false ? '' : 'required'}>
+                                                <span><strong>${escapePostAwardHtml(row.item)}</strong>${renderPostAwardBadge(row.status)}</span>
+                                            </label>
+                                        </li>
+                                    `;
+                                }).join('')}
+                            </ul>
+                            <section class="defect-liability-panel">
+                                <div class="panel-heading"><div><span class="section-kicker">Defect liability</span><h3>Post-handover warranty period</h3></div>${renderPostAwardBadge(execution.defectLiability?.status || 'Not Started')}</div>
+                                <div class="award-control-grid">
+                                    <article><strong>Period</strong><span>${escapePostAwardHtml(execution.defectLiability?.period || '-')}</span></article>
+                                    <article><strong>Start</strong><span>${escapePostAwardHtml(execution.defectLiability?.startDate || '-')}</span></article>
+                                    <article><strong>End</strong><span>${escapePostAwardHtml(execution.defectLiability?.endDate || '-')}</span></article>
+                                    <article><strong>Retention release</strong><span>${escapePostAwardHtml(execution.defectLiability?.retentionRelease || '-')}</span></article>
+                                </div>
+                            </section>
+                            <div class="inline-actions"><button class="btn btn-primary" type="button" ${closureReady ? '' : 'disabled aria-disabled="true"'}>Submit Completion Request</button><button class="btn btn-secondary" type="button">Issue Completion Certificate</button></div>
                         </div>
 
-                        <div class="tab-content" data-tab="performance" style="display: none;">
-                            <div class="post-award-performance-grid">
+                        <div class="tab-content tab-content--hidden" data-tab="performance">
+                            <section class="post-award-metric-grid">
+                                <article><span>Current average</span><strong>${averagePerformance}/5</strong></article>
+                                <article><span>Predicted final score</span><strong>${Math.min(5, Number(averagePerformance) + 0.1).toFixed(1)}/5</strong></article>
+                            </section>
+                            <dl class="post-award-performance-grid">
                                 ${(execution.performance || []).map(row => `
-                                    <article>
-                                        <div><strong>${escapePostAwardHtml(row.criteria)}</strong><span>${escapePostAwardHtml(row.rating)}/5</span></div>
-                                        <div class="progress-bar"><div class="progress-fill" style="width: ${Number(row.rating || 0) * 20}%"></div></div>
-                                    </article>
+                                    <div>
+                                        <dt>${escapePostAwardHtml(row.criteria)}</dt>
+                                        <dd>${renderStars(row.rating, row.criteria)}<span>${escapePostAwardHtml(row.rating)}/5</span></dd>
+                                        <label>Notes <textarea class="form-input" rows="3">${escapePostAwardHtml(row.notes || '')}</textarea></label>
+                                    </div>
                                 `).join('')}
-                            </div>
-                            ${renderPostAwardTable(
-                                ['Date', 'Contract History'],
-                                (execution.history || []).map(row => `<tr><td>${escapePostAwardHtml(row.date)}</td><td>${escapePostAwardHtml(row.event)}</td></tr>`)
-                            )}
+                            </dl>
+                            <div class="inline-actions"><button class="btn btn-primary" type="button">Submit Interim Performance Assessment</button></div>
+                            ${renderPostAwardTable(['Date', 'Contract History'], (execution.history || []).map(row => `<tr><td>${escapePostAwardHtml(row.date)}</td><td>${escapePostAwardHtml(row.event)}</td></tr>`))}
                         </div>
                     </div>
                 </section>

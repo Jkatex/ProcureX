@@ -22,7 +22,7 @@ function renderBuyerDashboard() {
                     <li><a href="#" data-navigate="bid-evaluation">Evaluation</a></li>
                     <li><a href="#" data-navigate="contract-negotiation">Contracts</a></li>
                     <li><a href="#" data-navigate="post-award-tracking">Post-Award</a></li>
-                    <li><a href="#" data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
             </div>
 

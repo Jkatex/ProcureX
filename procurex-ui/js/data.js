@@ -4637,6 +4637,7 @@ const mockData = {
         ],
         pendingAwarding: [
             {
+                tenderId: 'PX-WRK-2026-001',
                 title: 'Construction of Rural Health Centers',
                 reference: 'PX-TND-2026-014',
                 procurementType: 'Works',
@@ -4648,6 +4649,7 @@ const mockData = {
                 nav: 'award-recommendation'
             },
             {
+                tenderId: 'PX-GDS-2026-002',
                 title: 'Supply of Office Furniture',
                 reference: 'PX-TND-2026-021',
                 procurementType: 'Goods',
@@ -4659,6 +4661,7 @@ const mockData = {
                 nav: 'contract-negotiation'
             },
             {
+                tenderId: 'PX-SVC-2026-003',
                 title: 'Cleaning Services Framework',
                 reference: 'PX-TND-2026-033',
                 procurementType: 'Services',
@@ -4672,6 +4675,7 @@ const mockData = {
         ],
         awardedToUs: [
             {
+                tenderId: 'supplier-award-1',
                 title: 'Supply of Laptops',
                 buyer: 'ABC University',
                 awardValue: 25000000,
@@ -4682,6 +4686,7 @@ const mockData = {
                 nav: 'award-recommendation'
             },
             {
+                tenderId: 'supplier-award-2',
                 title: 'Maintenance Services',
                 buyer: 'City Council',
                 awardValue: 8000000,
@@ -4692,6 +4697,7 @@ const mockData = {
                 nav: 'contract-negotiation'
             },
             {
+                tenderId: 'supplier-award-3',
                 title: 'Consultancy Assignment',
                 buyer: 'Health Project',
                 awardValue: 15000000,
@@ -4722,6 +4728,11 @@ const mockData = {
             buyer: 'Dodoma Regional Health Authority',
             procurementType: 'Works',
             closingDate: '2026-06-10',
+            noticeDate: '2026-07-01',
+            standstillStart: '2026-07-01',
+            standstillEnd: '2026-07-15',
+            complaintsReceived: 'None',
+            complaintsResolved: true,
             evaluationStatus: 'Completed',
             awardStatus: 'Awaiting Supplier Acceptance',
             selectedSupplier: 'ABC Construction Ltd',
@@ -4824,88 +4835,52 @@ const mockData = {
                 { name: 'Final Handover', description: 'Finishing works, completion certificate, and defect list.', scheduled: '2026-09-30', actual: '-', status: 'Pending', evidence: 'Not submitted', paymentPercent: 50 }
             ],
             invoices: [
-                { invoice: 'INV-2026-001', milestone: 'Mobilization', amount: 467000000, status: 'Paid', match: 'PO, certificate, and invoice align.' },
-                { invoice: 'INV-2026-002', milestone: 'MEP Installations', amount: 1868000000, status: 'Pending Approval', match: 'Inspection accepted after original due date; finance review required.' },
-                { invoice: 'INV-2026-003', milestone: 'Final Handover', amount: 2335000000, status: 'Blocked', match: 'No completion certificate yet.' }
+                { invoice: 'INV-2026-001', milestone: 'Mobilization', amount: 467000000, status: 'Paid', match: 'PO, certificate, and invoice align.', matchStatus: { po: true, certificate: true, invoice: true } },
+                { invoice: 'INV-2026-002', milestone: 'MEP Installations', amount: 1868000000, status: 'Pending Approval', match: 'Inspection accepted after original due date; finance review required.', matchStatus: { po: true, certificate: false, invoice: true } },
+                { invoice: 'INV-2026-003', milestone: 'Final Handover', amount: 2335000000, status: 'Blocked', match: 'No completion certificate yet.', matchStatus: { po: true, certificate: false, invoice: false } }
             ],
             issues: [
                 { id: 'ISS-001', title: 'Delivery delay for Item #5', raisedBy: 'Buyer', priority: 'Medium', responsibleParty: 'Supplier', status: 'Resolved', requiredAction: 'Record accepted revised schedule.' },
                 { id: 'ISS-002', title: 'Missing updated insurance document', raisedBy: 'Buyer', priority: 'High', responsibleParty: 'Supplier', status: 'Action Required', requiredAction: 'Upload valid insurance certificate.' }
             ],
             variations: [
-                { title: 'Extension of Time for Imported Equipment', requestedBy: 'Supplier', priceImpact: 'None', timelineImpact: '4 days', status: 'Under Review', document: 'Courier notice and customs letter' },
-                { title: 'Additional Drainage Works', requestedBy: 'Buyer', priceImpact: 'TZS 42,000,000', timelineImpact: '6 days', status: 'Draft Variation', document: 'Site instruction draft' }
+                { title: 'Extension of Time for Imported Equipment', requestedBy: 'Supplier', priceImpact: 'None', timelineImpact: '4 days', status: 'Under Review', document: 'Courier notice and customs letter', requiredAction: 'Buyer decision required', awaitingApprovalFrom: 'Buyer' },
+                { title: 'Additional Drainage Works', requestedBy: 'Buyer', priceImpact: 'TZS 42,000,000', timelineImpact: '6 days', status: 'Draft Variation', document: 'Site instruction draft', requiredAction: 'Supplier review required', awaitingApprovalFrom: 'Supplier' }
             ],
             closureChecklist: [
-                { item: 'All deliverables completed', status: 'Pending' },
-                { item: 'All inspections completed', status: 'In Progress' },
-                { item: 'All invoices processed', status: 'Pending' },
-                { item: 'All disputes resolved', status: 'In Progress' },
-                { item: 'Performance security release recorded', status: 'Pending' },
-                { item: 'Supplier performance rated', status: 'Pending' }
+                { item: 'All deliverables completed', status: 'Pending', mandatory: true, complete: false },
+                { item: 'All inspections completed', status: 'In Progress', mandatory: true, complete: false },
+                { item: 'All invoices processed', status: 'Pending', mandatory: true, complete: false },
+                { item: 'All disputes resolved', status: 'In Progress', mandatory: true, complete: false },
+                { item: 'Performance security release recorded', status: 'Pending', mandatory: true, complete: false },
+                { item: 'Supplier performance rated', status: 'Pending', mandatory: true, complete: false }
             ],
+            defectLiability: {
+                period: '12 months',
+                startDate: 'Pending completion certificate',
+                endDate: 'Pending',
+                status: 'Not Started',
+                retentionRelease: 'After defects liability clearance'
+            },
             performance: [
-                { criteria: 'Delivery timeliness', rating: 4 },
-                { criteria: 'Quality of works', rating: 5 },
-                { criteria: 'Communication', rating: 4 },
-                { criteria: 'Contract compliance', rating: 5 },
-                { criteria: 'Issue handling', rating: 4 }
+                { criteria: 'Delivery timeliness', rating: 4, notes: 'Mobilization finished early; MEP milestone needs closer monitoring.' },
+                { criteria: 'Quality of works', rating: 5, notes: 'Accepted work meets inspection standard.' },
+                { criteria: 'Communication', rating: 4, notes: 'Supplier responds within agreed window.' },
+                { criteria: 'Contract compliance', rating: 5, notes: 'Core contract obligations are on track.' },
+                { criteria: 'Issue handling', rating: 4, notes: 'Delay issue resolved with accepted evidence.' }
             ],
             history: [
                 { date: '2026-07-01', event: 'Contract signed and activated' },
                 { date: '2026-07-18', event: 'Mobilization accepted' },
                 { date: '2026-07-25', event: 'Mobilization payment released' },
                 { date: '2026-08-22', event: 'Delay issue resolved and schedule memory updated' }
-            ]
-        }
-    },
-
-    // Contract negotiation
-    contractNegotiation: {
-        contractId: 'PX-2026-0892',
-        status: 'negotiation',
-        poMatched: true,
-        budgetVerified: true,
-        signaturePending: true,
-        messages: [
-            { from: 'buyer', message: 'Please review the payment terms in section 3.2', timestamp: '2026-07-02 10:30' },
-            { from: 'supplier', message: 'We can accept the revised payment schedule', timestamp: '2026-07-02 11:15' },
-            { from: 'buyer', message: 'Great, let\'s proceed with the signature', timestamp: '2026-07-02 14:20' }
-        ]
-    },
-
-    // Post-award tracking
-    postAwardTracking: {
-        contractId: 'PX-2026-0892',
-        status: 'in_progress',
-        progress: 65,
-        supplierPerformance: {
-            delivery: 85,
-            quality: 90,
-            communication: 88,
-            overall: 87
-        },
-        supplierHealth: {
-            trustScore: 82,
-            riskLevel: 'Low',
-            lastAudit: '2026-06-30'
-        },
-        disputes: [
-            {
-                id: 'D001',
-                title: 'Delivery delay for Item #5',
-                status: 'resolved',
-                priority: 'medium',
-                responseDue: 'Closed on August 22, 2026',
-                evidence: ['Courier notice', 'Revised delivery schedule', 'Buyer acceptance memo'],
-                outcome: 'No penalty; milestone dates updated in contract memory.'
+            ],
+            supplierHealth: {
+                trustScore: 82,
+                riskLevel: 'Low',
+                lastAudit: '2026-06-30'
             }
-        ],
-        invoiceChecks: [
-            { invoice: 'INV-2026-001', result: 'Matched', detail: 'PO, GRN, and invoice values align.' },
-            { invoice: 'INV-2026-002', result: 'Review', detail: 'GRN accepted after original due date; finance review required.' },
-            { invoice: 'INV-2026-003', result: 'Blocked', detail: 'No GRN yet, payment cannot be released.' }
-        ]
+        }
     },
 
     // Governance, intelligence, and integration operations
@@ -5632,7 +5607,9 @@ const mockData = {
 // Export for use in other modules
 window.mockData = mockData;
 
-const awardContractDraftStoragePrefix = 'procurex.awardContractDraft.v1.';
+const awardContractDraftStoragePrefix = 'procurex:award-draft:';
+const awardContractLegacyDraftStoragePrefix = 'procurex.awardContractDraft.v1.';
+const awardContractDraftMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 
 function getAwardContractTenderId(tender = {}) {
     return String(tender.id || tender.reference || tender.tenderReference || mockData.awardingContracts?.contract?.tenderReference || 'demo-award-contract');
@@ -5640,6 +5617,24 @@ function getAwardContractTenderId(tender = {}) {
 
 function getAwardContractDraftKey(tenderId) {
     return `${awardContractDraftStoragePrefix}${tenderId || 'demo-award-contract'}`;
+}
+
+function getAwardContractLegacyDraftKey(tenderId) {
+    return `${awardContractLegacyDraftStoragePrefix}${tenderId || 'demo-award-contract'}`;
+}
+
+function sanitizeAwardContractDraftValue(value) {
+    if (typeof window.ProcureXShared?.sanitizeDraftField === 'function') return window.ProcureXShared.sanitizeDraftField(value);
+    return String(value ?? '').replace(/<[^>]*>/g, '').trim().slice(0, 1500);
+}
+
+function sanitizeAwardContractDraftObject(value) {
+    if (Array.isArray(value)) return value.map(item => sanitizeAwardContractDraftObject(item));
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeAwardContractDraftObject(item)]));
+    }
+    if (typeof value === 'string') return sanitizeAwardContractDraftValue(value);
+    return value;
 }
 
 function normalizeAwardContractType(tender = {}) {
@@ -5813,6 +5808,9 @@ function createAwardContractDraftFromTender(tender = getSelectedAwardContractTen
             conditions: 'Supplier must submit required pre-contract documents before signing.',
             negotiationRequired: 'Yes',
             approver: 'Authorized Representative',
+            coiDeclared: false,
+            basedOnEvaluation: false,
+            coiDeclaredBy: '',
             approvalConfirmed: false
         },
         notification: {
@@ -5845,16 +5843,32 @@ function loadAwardContractDraft(tenderId, tender = null) {
     const selectedTender = tender || getSelectedAwardContractTender();
     const id = tenderId || getAwardContractTenderId(selectedTender);
     try {
-        const parsed = JSON.parse(localStorage.getItem(getAwardContractDraftKey(id)) || 'null');
+        const key = getAwardContractDraftKey(id);
+        const legacyKey = getAwardContractLegacyDraftKey(id);
+        let raw = localStorage.getItem(key);
+        if (!raw && localStorage.getItem(legacyKey)) {
+            raw = localStorage.getItem(legacyKey);
+            localStorage.setItem(key, raw);
+            localStorage.removeItem(legacyKey);
+        }
+        const parsed = JSON.parse(raw || 'null');
         if (parsed && typeof parsed === 'object') {
+            const savedAt = parsed.savedAt || parsed.lastEditedAt || parsed.updatedAt;
+            if (savedAt && Date.now() - new Date(savedAt).getTime() > awardContractDraftMaxAgeMs) {
+                localStorage.removeItem(key);
+                return createAwardContractDraftFromTender(selectedTender);
+            }
+            const sanitized = sanitizeAwardContractDraftObject(parsed);
+            const baseDraft = createAwardContractDraftFromTender(selectedTender);
             return {
-                ...createAwardContractDraftFromTender(selectedTender),
-                ...parsed,
-                awardDecision: { ...createAwardContractDraftFromTender(selectedTender).awardDecision, ...(parsed.awardDecision || {}) },
-                notification: { ...createAwardContractDraftFromTender(selectedTender).notification, ...(parsed.notification || {}) },
-                contract: { ...createAwardContractDraftFromTender(selectedTender).contract, ...(parsed.contract || {}) },
-                clauses: parsed.clauses?.length ? parsed.clauses : buildTypeSpecificClauses(selectedTender),
-                documents: parsed.documents?.length ? parsed.documents : buildRequiredDocuments(selectedTender)
+                ...baseDraft,
+                ...sanitized,
+                hasRestorableDraft: true,
+                awardDecision: { ...baseDraft.awardDecision, ...(sanitized.awardDecision || {}) },
+                notification: { ...baseDraft.notification, ...(sanitized.notification || {}) },
+                contract: { ...baseDraft.contract, ...(sanitized.contract || {}) },
+                clauses: sanitized.clauses?.length ? sanitized.clauses : buildTypeSpecificClauses(selectedTender),
+                documents: sanitized.documents?.length ? sanitized.documents : buildRequiredDocuments(selectedTender)
             };
         }
     } catch (error) {
@@ -5868,11 +5882,12 @@ function saveAwardContractDraft(tenderId, patch = {}) {
     const current = loadAwardContractDraft(tenderId, tender);
     const next = {
         ...current,
-        ...patch,
-        awardDecision: { ...(current.awardDecision || {}), ...(patch.awardDecision || {}) },
-        notification: { ...(current.notification || {}), ...(patch.notification || {}) },
-        contract: { ...(current.contract || {}), ...(patch.contract || {}) },
+        ...sanitizeAwardContractDraftObject(patch),
+        awardDecision: { ...(current.awardDecision || {}), ...(sanitizeAwardContractDraftObject(patch.awardDecision || {})) },
+        notification: { ...(current.notification || {}), ...(sanitizeAwardContractDraftObject(patch.notification || {})) },
+        contract: { ...(current.contract || {}), ...(sanitizeAwardContractDraftObject(patch.contract || {})) },
         lastEditedAt: new Date().toISOString(),
+        savedAt: new Date().toISOString(),
         draftSaved: true
     };
     localStorage.setItem(getAwardContractDraftKey(tenderId), JSON.stringify(next));
@@ -5911,7 +5926,7 @@ function collectAwardContractDraftFields(root = document) {
     const patch = {};
     root.querySelectorAll('[data-award-draft-field]').forEach(field => {
         const path = field.getAttribute('data-award-draft-field');
-        const value = field.type === 'checkbox' ? field.checked : field.value;
+        const value = field.type === 'checkbox' ? field.checked : sanitizeAwardContractDraftValue(field.value);
         const parts = path.split('.');
         let cursor = patch;
         parts.forEach((part, index) => {

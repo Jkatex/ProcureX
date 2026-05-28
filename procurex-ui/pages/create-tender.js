@@ -4836,7 +4836,7 @@ function renderCreateTender() {
                     <li><a href="#" data-navigate="communication-center">Communication Center</a></li>
                     <li><a href="#" data-navigate="marketplace">Marketplace</a></li>
                     <li><a href="#" data-navigate="records-history">Records and History</a></li>
-                    <li><a href="#" data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
             </div>
 

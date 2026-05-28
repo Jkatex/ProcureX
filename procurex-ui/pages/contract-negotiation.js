@@ -1,33 +1,12 @@
 // Contract review, clause negotiation, version control, and signature workspace.
 
-function escapeContractNegotiationHtml(value = '') {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
-function formatContractNegotiationMoney(value, currency = 'TZS') {
-    const amount = Number(value || 0);
-    return Number.isFinite(amount) ? `${currency} ${amount.toLocaleString()}` : escapeContractNegotiationHtml(value || '-');
-}
-
-function renderContractNegotiationBadge(value = '') {
-    const text = String(value || '');
-    const lower = text.toLowerCase();
-    const tone = lower.includes('locked') || lower.includes('agreed') || lower.includes('signed') || lower.includes('verified') || lower.includes('accepted')
-        ? 'badge-success'
-        : lower.includes('pending') || lower.includes('review') || lower.includes('counter') || lower.includes('requested')
-            ? 'badge-warning'
-            : lower.includes('reject') || lower.includes('declined')
-                ? 'badge-error'
-                : 'badge-info';
-    return `<span class="badge ${tone}">${escapeContractNegotiationHtml(text)}</span>`;
-}
+const PXContractUtils = window.ProcureXShared || {};
+const escapeContractNegotiationHtml = PXContractUtils.escapeHtml || ((value = '') => String(value));
+const formatContractNegotiationMoney = PXContractUtils.formatMoney || ((value, currency = 'TZS') => `${currency} ${Number(value || 0).toLocaleString()}`);
+const renderContractNegotiationBadge = PXContractUtils.renderStatusBadge || ((value = '') => `<span class="badge badge-info">${escapeContractNegotiationHtml(value)}</span>`);
 
 function renderContractNegotiationDataTable(headers = [], rows = []) {
+    if (PXContractUtils.renderDataTable) return PXContractUtils.renderDataTable(headers, rows);
     return `
         <div class="data-table evaluation-table-scroll">
             <table>
@@ -36,6 +15,18 @@ function renderContractNegotiationDataTable(headers = [], rows = []) {
             </table>
         </div>
     `;
+}
+
+function countOpenContractRequests(contract = {}) {
+    return (contract.negotiationRequests || []).filter(row => /pending|counter|requested|review/i.test(row.status || '')).length;
+}
+
+function countRequiredContractDocuments(contract = {}) {
+    return (contract.documents || []).filter(row => /pending|required|upload/i.test(row.status || '')).length;
+}
+
+function renderActionRequiredMarker(count) {
+    return count ? `<span class="tab-alert" aria-label="${count} action required">${count}</span>` : '';
 }
 
 function renderContractOverview(contract) {
@@ -84,14 +75,8 @@ function renderContractClauses(contract) {
 
     return `
         <div class="contract-boundary-grid">
-            <article>
-                <h3>Locked after award</h3>
-                ${locked.map(item => `<span>${escapeContractNegotiationHtml(item)}</span>`).join('')}
-            </article>
-            <article>
-                <h3>Negotiable before signing</h3>
-                ${negotiable.map(item => `<span>${escapeContractNegotiationHtml(item)}</span>`).join('')}
-            </article>
+            <article><h3>Locked after award</h3>${locked.map(item => `<span>${escapeContractNegotiationHtml(item)}</span>`).join('')}</article>
+            <article><h3>Negotiable before signing</h3>${negotiable.map(item => `<span>${escapeContractNegotiationHtml(item)}</span>`).join('')}</article>
         </div>
         <div class="contract-clause-grid contract-workspace-clause-grid">
             ${(contract.clauses || []).map(clause => `
@@ -101,18 +86,9 @@ function renderContractClauses(contract) {
                         ${renderContractNegotiationBadge(clause.lock)}
                     </div>
                     <p>${escapeContractNegotiationHtml(clause.text)}</p>
-                    <div class="contract-clause-meta">
-                        ${renderContractNegotiationBadge(clause.status)}
-                        <span>${escapeContractNegotiationHtml(clause.comments)} comments</span>
-                    </div>
+                    <div class="contract-clause-meta">${renderContractNegotiationBadge(clause.status)}<span>${escapeContractNegotiationHtml(clause.comments)} comments</span></div>
                     <em>${escapeContractNegotiationHtml(clause.requestedChange)}</em>
-                    ${clause.lock === 'Negotiable' ? `
-                        <div class="inline-actions">
-                            <button class="btn btn-secondary btn-sm" type="button">Accept</button>
-                            <button class="btn btn-secondary btn-sm" type="button">Comment</button>
-                            <button class="btn btn-primary btn-sm" type="button">Request Change</button>
-                        </div>
-                    ` : ''}
+                    ${clause.lock === 'Negotiable' ? `<div class="inline-actions"><button class="btn btn-secondary btn-sm" type="button">Accept</button><button class="btn btn-secondary btn-sm" type="button">Comment</button><button class="btn btn-primary btn-sm" type="button">Request Change</button></div>` : ''}
                 </article>
             `).join('')}
         </div>
@@ -138,15 +114,12 @@ function renderContractNegotiationTab(contract) {
             `)
         )}
         <div class="contract-negotiation-grid compact">
-            <section class="contract-chat-panel">
+            <section class="contract-chat-panel" aria-label="Clause negotiation conversation">
                 <div class="panel-heading">
-                    <div>
-                        <span class="section-kicker">Negotiation comments</span>
-                        <h3>Clause conversation</h3>
-                    </div>
+                    <div><span class="section-kicker">Negotiation comments</span><h3>Clause conversation</h3></div>
                     ${renderContractNegotiationBadge('Round 3')}
                 </div>
-                <div class="chat-messages">
+                <div class="chat-messages" aria-live="polite">
                     ${(contract.messages || []).map(msg => `
                         <article class="contract-chat-message ${msg.from === 'buyer' ? 'buyer' : 'supplier'}">
                             <div><strong>${msg.from === 'buyer' ? 'Buyer' : 'Supplier'}</strong><span>${escapeContractNegotiationHtml(msg.timestamp)}</span></div>
@@ -162,10 +135,7 @@ function renderContractNegotiationTab(contract) {
             </section>
             <section class="contract-chat-panel">
                 <div class="panel-heading">
-                    <div>
-                        <span class="section-kicker">Final agreement</span>
-                        <h3>Dual confirmation before signing</h3>
-                    </div>
+                    <div><span class="section-kicker">Final agreement</span><h3>Dual confirmation before signing</h3></div>
                     ${renderContractNegotiationBadge(contract.lockedForSignature ? 'Locked' : 'Not Locked')}
                 </div>
                 <div class="contract-confirmation-stack">
@@ -216,23 +186,38 @@ function renderContractDocuments(contract) {
 }
 
 function renderContractSignatures(contract) {
+    const signatures = contract.signatures || [];
+    const supplierSigned = /signed/i.test(signatures[0]?.status || '');
     return `
         <div class="contract-signature-grid">
-            ${(contract.signatures || []).map((row, index) => `
-                <article class="contract-signature-card">
-                    <h3>${escapeContractNegotiationHtml(row.party)} Signature</h3>
-                    <div class="signature-preview"><strong>${escapeContractNegotiationHtml(row.party)}</strong><span>${escapeContractNegotiationHtml(row.status)}</span></div>
-                    <input class="form-input" value="${escapeContractNegotiationHtml(row.representative)}" aria-label="${escapeContractNegotiationHtml(row.party)} representative">
-                    <span>${renderContractNegotiationBadge(index === 0 ? 'Supplier signs first' : 'Buyer countersigns')}</span>
-                    <small>Timestamp: ${escapeContractNegotiationHtml(row.timestamp)}</small>
-                    <button class="btn ${index === 0 ? 'btn-primary' : 'btn-secondary'}" type="button">Apply Digital Signature</button>
-                </article>
-            `).join('')}
+            ${signatures.map((row, index) => {
+                const isSupplier = index === 0;
+                const disabledReason = !contract.lockedForSignature
+                    ? 'Signature unavailable: contract terms are not yet confirmed by both parties.'
+                    : (!isSupplier && !supplierSigned ? 'Signature unavailable: waiting for supplier signature first.' : '');
+                const disabled = disabledReason ? 'disabled aria-disabled="true"' : '';
+                const descId = `signature-reason-${index}`;
+                return `
+                    <article class="contract-signature-card">
+                        <h3>${escapeContractNegotiationHtml(row.party)} Signature</h3>
+                        <div class="signature-preview"><strong>${escapeContractNegotiationHtml(row.party)}</strong><span>${escapeContractNegotiationHtml(row.status)}</span></div>
+                        <input class="form-input" value="${escapeContractNegotiationHtml(row.representative)}" aria-label="${escapeContractNegotiationHtml(row.party)} representative">
+                        <span>${renderContractNegotiationBadge(isSupplier ? 'Supplier signs first' : 'Buyer countersigns')}</span>
+                        <small>Timestamp: ${escapeContractNegotiationHtml(row.timestamp)}</small>
+                        <div class="certificate-summary">
+                            <strong>Certificate summary</strong>
+                            <span>Issuer: ProcureX Trust CA • Validity: pending signature • Hash: SHA256 pending</span>
+                        </div>
+                        <span id="${descId}" class="signature-disabled-reason">${escapeContractNegotiationHtml(disabledReason || 'Signature is available for this party.')}</span>
+                        <button class="btn ${isSupplier ? 'btn-primary' : 'btn-secondary'}" type="button" ${disabled} aria-describedby="${descId}">${disabledReason && !isSupplier ? 'Waiting for supplier signature' : 'Apply Digital Signature'}</button>
+                    </article>
+                `;
+            }).join('')}
         </div>
         <div class="status-pipeline horizontal contract-signature-pipeline">
-            <div class="done"><strong>Terms Agreed</strong><span>Both parties confirm contract terms</span></div>
-            <div class="current"><strong>Supplier Signs</strong><span>Supplier signature is first</span></div>
-            <div><strong>Buyer Signs</strong><span>Buyer countersigns</span></div>
+            <div class="${contract.supplierConfirmedTerms && contract.buyerConfirmedTerms ? 'done' : 'current'}"><strong>Terms Agreed</strong><span>Both parties confirm contract terms</span></div>
+            <div class="${supplierSigned ? 'done' : contract.lockedForSignature ? 'current' : ''}"><strong>Supplier Signs</strong><span>Supplier signature is first</span></div>
+            <div class="${supplierSigned ? 'current' : ''}"><strong>Buyer Signs</strong><span>Buyer countersigns</span></div>
             <div><strong>Contract Active</strong><span>Execution workspace opens</span></div>
         </div>
         <div class="evaluation-notice success">Signature audit records signer identity, document hash, timestamp, certificate metadata, and final signed version hash.</div>
@@ -265,21 +250,20 @@ function renderContractNegotiation() {
     const contract = context?.contract || mockData.awardingContracts?.contract || {};
     contract.procurementType = draft.procurementType || contract.procurementType || 'Works';
     contract.role = draft.role || 'Buyer';
+    const openRequests = countOpenContractRequests(contract);
+    const requiredDocuments = countRequiredContractDocuments(contract);
 
     return `
         <div class="main-layout procurement-layout evaluation-app-layout contract-page" data-award-contract-workspace data-award-current-step="${escapeContractNegotiationHtml(draft.currentStep || 'draft-contract')}" data-award-tender-id="${escapeContractNegotiationHtml(draft.tenderId || tender.id || '')}">
             <aside class="sidebar evaluation-sidebar">
-                <div class="evaluation-sidebar-head">
-                    <h3>Contract Workspace</h3>
-                    <span>Contract #${escapeContractNegotiationHtml(contract.contractId || 'Draft')}</span>
-                </div>
+                <div class="evaluation-sidebar-head"><h3>Contract Workspace</h3><span>Contract #${escapeContractNegotiationHtml(contract.contractId || 'Draft')}</span></div>
                 <ul class="sidebar-nav">
                     <li><a href="#" data-award-guard-navigate data-navigate="awarding-contracts">Awarding Dashboard</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="award-recommendation">Award Decision</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="contract-negotiation" class="active">Contract Workspace</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="post-award-tracking">Post-Award Tracking</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
-                    <li><a href="#" data-award-guard-navigate data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-award-guard-navigate data-navigate="sign-in">Logout</a></li>
                 </ul>
             </aside>
 
@@ -299,16 +283,10 @@ function renderContractNegotiation() {
 
                 <section class="procurement-panel evaluation-panel contract-workspace-panel">
                     <div class="panel-heading">
-                        <div>
-                            <span class="section-kicker">Contract workspace</span>
-                            <h2>Overview, terms, negotiation, documents, signatures, and activity</h2>
-                        </div>
+                        <div><span class="section-kicker">Contract workspace</span><h2>Overview, terms, negotiation, versions, documents, signatures, and activity</h2></div>
                         ${renderContractNegotiationBadge(contract.poMatched && contract.budgetVerified ? 'PO and budget verified' : 'Verification pending')}
                     </div>
-                    <div class="contract-rule-banner">
-                        <strong>Draft progress</strong>
-                        <span>Current step: ${escapeContractNegotiationHtml(draft.currentStep || 'draft-contract')} / Required action: ${escapeContractNegotiationHtml(draft.requiredAction || 'Review contract')}. Last saved: ${escapeContractNegotiationHtml(draft.lastEditedAt ? new Date(draft.lastEditedAt).toLocaleString() : 'Not saved')}.</span>
-                    </div>
+                    <div class="contract-rule-banner"><strong>Draft progress</strong><span>Current step: ${escapeContractNegotiationHtml(draft.currentStep || 'draft-contract')} / Required action: ${escapeContractNegotiationHtml(draft.requiredAction || 'Review contract')}. Last saved: ${escapeContractNegotiationHtml(draft.lastEditedAt ? new Date(draft.lastEditedAt).toLocaleString() : 'Not saved')}.</span></div>
                     <div class="inline-actions">
                         <button class="btn btn-secondary" type="button" data-award-save-draft data-award-step="${escapeContractNegotiationHtml(draft.currentStep || 'draft-contract')}">Save Draft</button>
                         <button class="btn btn-secondary" type="button" data-award-save-exit data-award-step="${escapeContractNegotiationHtml(draft.currentStep || 'draft-contract')}">Save Draft & Exit</button>
@@ -318,19 +296,21 @@ function renderContractNegotiation() {
                     <div class="tabs contract-workspace-tabs">
                         <div class="tab active" data-tab="overview">Overview</div>
                         <div class="tab" data-tab="clauses">Terms & Clauses</div>
-                        <div class="tab" data-tab="negotiation">Negotiation</div>
-                        <div class="tab" data-tab="documents">Documents</div>
-                        <div class="tab" data-tab="signatures">Signatures</div>
+                        <div class="tab" data-tab="negotiation">Negotiation ${renderActionRequiredMarker(openRequests)}</div>
+                        <div class="tab" data-tab="versions">Version History</div>
+                        <div class="tab" data-tab="documents">Documents ${renderActionRequiredMarker(requiredDocuments)}</div>
+                        <div class="tab" data-tab="signatures">Signatures ${renderActionRequiredMarker(contract.lockedForSignature ? 0 : 1)}</div>
                         <div class="tab" data-tab="activity">Activity Log</div>
                     </div>
 
                     <div class="contract-workspace-tab-content">
-                        <div class="tab-content" data-tab="overview" style="display: block;">${renderContractOverview(contract)}</div>
-                        <div class="tab-content" data-tab="clauses" style="display: none;">${renderContractClauses(contract)}</div>
-                        <div class="tab-content" data-tab="negotiation" style="display: none;">${renderContractNegotiationTab(contract)}${renderContractVersions(contract)}</div>
-                        <div class="tab-content" data-tab="documents" style="display: none;">${renderContractDocuments(contract)}</div>
-                        <div class="tab-content" data-tab="signatures" style="display: none;">${renderContractSignatures(contract)}</div>
-                        <div class="tab-content" data-tab="activity" style="display: none;">${renderContractActivity(contract)}</div>
+                        <div class="tab-content tab-content--visible" data-tab="overview">${renderContractOverview(contract)}</div>
+                        <div class="tab-content tab-content--hidden" data-tab="clauses">${renderContractClauses(contract)}</div>
+                        <div class="tab-content tab-content--hidden" data-tab="negotiation">${renderContractNegotiationTab(contract)}</div>
+                        <div class="tab-content tab-content--hidden" data-tab="versions">${renderContractVersions(contract)}</div>
+                        <div class="tab-content tab-content--hidden" data-tab="documents">${renderContractDocuments(contract)}</div>
+                        <div class="tab-content tab-content--hidden" data-tab="signatures">${renderContractSignatures(contract)}</div>
+                        <div class="tab-content tab-content--hidden" data-tab="activity">${renderContractActivity(contract)}</div>
                     </div>
                 </section>
             </main>

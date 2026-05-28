@@ -17,7 +17,7 @@ function renderSupplierDashboard() {
                     <li><a href="#" data-navigate="bidding-workspace">My Bids</a></li>
                     <li><a href="#" data-navigate="contract-negotiation">Contracts</a></li>
                     <li><a href="#" data-navigate="post-award-tracking">Performance</a></li>
-                    <li><a href="#" data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
             </div>
 

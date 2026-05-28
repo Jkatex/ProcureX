@@ -13,7 +13,7 @@ function renderTenderPublication() {
                     <li><a href="#" data-navigate="create-tender">Back to Create</a></li>
                     <li><a href="#" data-navigate="procurement-guide">Procurement Process Guide</a></li>
                     <li><a href="#" data-navigate="procurement-dashboard">Procurement Dashboard</a></li>
-                    <li><a href="#" data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
             </div>
 

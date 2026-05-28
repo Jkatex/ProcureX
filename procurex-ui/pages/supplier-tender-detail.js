@@ -1327,7 +1327,7 @@ function renderSupplierTenderDetail() {
                     <li><a href="#" data-navigate="communication-center">Communication Center</a></li>
                     <li><a href="#" data-navigate="bidding-workspace">Start Bid</a></li>
                     <li><a href="#" data-navigate="procurement-guide">Procurement Process Guide</a></li>
-                    <li><a href="#" data-navigate="welcome">Logout</a></li>
+                    <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
             </div>
 
