@@ -3033,6 +3033,22 @@ function renderBidWorkspaceUploadControl(responseId, draft = {}, label = 'Upload
     `;
 }
 
+function renderServiceMilestoneEvidenceUploadControl(responseId, draft = {}) {
+    const value = getBidWorkspaceSavedResponse(draft, responseId);
+    return `
+        <div class="bid-upload-response service-milestone-upload-control" data-bid-upload-control>
+            <span>Evidence upload</span>
+            <label class="service-milestone-upload-drop">
+                <input class="service-milestone-upload-input" type="file" data-bid-file-input accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" aria-label="Upload evidence / deliverable file">
+                <strong>Choose deliverable file</strong>
+                <small>PDF, Word, Excel, JPG or PNG</small>
+            </label>
+            <input type="hidden" data-bid-response="${escapeBidWorkspaceHtml(responseId)}" value="${escapeBidWorkspaceHtml(value)}">
+            <small data-bid-file-name>${value ? `Selected: ${escapeBidWorkspaceHtml(value)}` : 'No evidence file uploaded yet.'}</small>
+        </div>
+    `;
+}
+
 function formatBidWorkspaceFileSize(size = 0) {
     const bytes = Number(size || 0);
     if (!Number.isFinite(bytes) || bytes <= 0) return 'Size pending';
@@ -4204,105 +4220,235 @@ function renderServiceBidDeliveryPlan(tender = {}, draft = {}) {
                     <div class="form-group"><label class="form-label">Service Locations Covered</label><input class="form-input" data-bid-response="service-schedule-locations" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-schedule-locations') || locations.map(item => item.text).filter(Boolean).join(', '))}"></div>
                     <div class="form-group wide"><label class="form-label">Availability Plan</label><textarea class="form-input" rows="3" data-bid-response="service-schedule-availability" data-bid-workflow-required-response="true">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-schedule-availability'))}</textarea></div>
                 </div>
-                <div class="works-milestone-table service-milestone-table">
-                    <table>
-                        <thead><tr><th>Milestone</th><th>Supplier Target Date</th><th>Owner</th><th>Acceptance Evidence</th></tr></thead>
-                        <tbody>
-                            ${(milestones.length ? milestones : [{ text: 'Service mobilization complete' }, { text: 'First monthly performance report' }]).map((item, index) => {
-                                const baseId = `service-milestone-${index}`;
-                                return `
-                                    <tr>
-                                        <td>${escapeBidWorkspaceHtml(item.text || item.milestone || `Milestone ${index + 1}`)}</td>
-                                        <td><input class="form-input" type="date" data-bid-response="${baseId}-date" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-date`))}"></td>
-                                        <td><input class="form-input" data-bid-response="${baseId}-owner" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-owner`))}"></td>
-                                        <td><input class="form-input" data-bid-response="${baseId}-evidence" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-evidence`))}"></td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </tbody>
-                    </table>
+                <div class="service-milestone-panel">
+                    <div class="service-milestone-panel-heading">
+                        <div>
+                            <h4>Delivery milestones</h4>
+                            <p>Provide your proposed delivery dates, responsible owner, and evidence you will submit to confirm each delivery milestone.</p>
+                        </div>
+                        <span>${milestones.length || 2} milestone${(milestones.length || 2) === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="service-milestone-list">
+                        ${(milestones.length ? milestones : [{ text: 'Service mobilization complete' }, { text: 'First monthly performance report' }]).map((item, index) => {
+                            const baseId = `service-milestone-${index}`;
+                            const milestoneName = item.text || item.milestone || `Milestone ${index + 1}`;
+                            return `
+                                <article class="service-milestone-card">
+                                    <div class="service-milestone-card-heading">
+                                        <span>${String(index + 1).padStart(2, '0')}</span>
+                                        <div>
+                                            <small>Milestone</small>
+                                            <strong>${escapeBidWorkspaceHtml(milestoneName)}</strong>
+                                        </div>
+                                    </div>
+                                    <div class="service-milestone-fields">
+                                        <label class="form-group">
+                                            <span class="form-label">Proposed Delivery Date</span>
+                                            <input class="form-input" type="date" data-bid-response="${baseId}-date" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-date`))}">
+                                        </label>
+                                        <label class="form-group">
+                                            <span class="form-label">Responsible Owner / Role</span>
+                                            <input class="form-input" data-bid-response="${baseId}-owner" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-owner`))}" placeholder="e.g. Project manager">
+                                        </label>
+                                        <div class="form-group service-milestone-evidence-field">
+                                            <label class="form-label" for="${escapeBidWorkspaceHtml(baseId)}-evidence">Evidence / Deliverable Required</label>
+                                            <input id="${escapeBidWorkspaceHtml(baseId)}-evidence" class="form-input" data-bid-response="${baseId}-evidence" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-evidence`))}" placeholder="e.g. Signed delivery note, completion report, photos">
+                                            <div class="service-milestone-upload">
+                                                ${renderServiceMilestoneEvidenceUploadControl(`${baseId}-evidence-upload`, draft)}
+                                            </div>
+                                        </div>
+                                        <label class="form-group">
+                                            <span class="form-label">Dependencies / Notes</span>
+                                            <textarea class="form-input" rows="4" data-bid-response="${baseId}-dependencies" placeholder="Optional notes or dependencies">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-dependencies`))}</textarea>
+                                        </label>
+                                    </div>
+                                </article>
+                            `;
+                        }).join('')}
+                    </div>
                 </div>
             </section>
         </div>
+    `;
+}
+
+function getServiceBidStaffRoleCount(draft = {}, minimumCount = 0) {
+    const responseIds = new Set([
+        ...Object.keys(draft.responses || {}),
+        ...Object.keys(draft.uploadedFiles || {})
+    ]);
+    const savedIndexes = Array.from(responseIds)
+        .map(id => /^service-staff-(\d+)-(role-title|name|cv)$/.exec(id))
+        .filter(Boolean)
+        .map(match => Number(match[1]))
+        .filter(Number.isFinite);
+    const savedCount = savedIndexes.length ? Math.max(...savedIndexes) + 1 : 0;
+    return Math.max(minimumCount, savedCount);
+}
+
+function renderServiceBidStaffRoleCard(index = 0, draft = {}, person = {}, required = false) {
+    const baseId = `service-staff-${index}`;
+    const defaultRole = person.position || person.role || person.staffRole || '';
+    const roleTitle = getBidWorkspaceSavedResponse(draft, `${baseId}-role-title`) || defaultRole;
+    return `
+        <article class="service-staff-card service-staff-role-card" data-service-staff-card>
+            <div class="works-person-avatar">${escapeBidWorkspaceHtml(String(roleTitle || 'R').slice(0, 1).toUpperCase())}</div>
+            <div class="service-staff-card-body">
+                <div class="bid-dynamic-group-heading">
+                    <div>
+                        <span class="section-kicker">Staff role ${index + 1}${required ? ' / mandatory' : ''}</span>
+                        ${defaultRole ? `<p>Buyer role: ${escapeBidWorkspaceHtml(defaultRole)}</p>` : '<p>Proposed bidder team role.</p>'}
+                    </div>
+                    ${required ? '' : `<button class="icon-delete-btn" type="button" data-delete-service-staff-role aria-label="Delete staff role" title="Delete staff role">${renderBidWorkspaceTrashIcon()}</button>`}
+                </div>
+                <div class="form-grid two">
+                    <div class="form-group"><label class="form-label">Role Title</label><input class="form-input" data-bid-response="${baseId}-role-title" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(roleTitle)}" placeholder="e.g. Service supervisor"></div>
+                    <div class="form-group"><label class="form-label">Named Person</label><input class="form-input" data-bid-response="${baseId}-name" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-name`))}" placeholder="e.g. Asha Mollel"></div>
+                    <div class="form-group"><label class="form-label">Employment Type</label><select class="form-input" data-bid-response="${baseId}-employment"><option value="">Select</option>${['Full-time employee', 'Part-time employee', 'Contractor', 'Subcontractor', 'Partner resource'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-employment`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
+                    <div class="form-group"><label class="form-label">Allocation</label><input class="form-input" data-bid-response="${baseId}-allocation" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-allocation`))}" placeholder="e.g. 50%, 10 days/month"></div>
+                    <div class="form-group"><label class="form-label">Location</label><input class="form-input" data-bid-response="${baseId}-location" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-location`))}" placeholder="e.g. Dar es Salaam / remote"></div>
+                    <div class="form-group"><label class="form-label">Start Availability</label><input class="form-input" data-bid-response="${baseId}-start-availability" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-start-availability`))}" placeholder="e.g. Available from contract award"></div>
+                    <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-cv`, draft, 'CV upload', '.pdf,.doc,.docx', required && normalizeBidWorkspaceFlag(person.cvRequired))}</div>
+                </div>
+            </div>
+        </article>
     `;
 }
 
 function renderServiceBidStaffingCapacity(tender = {}, draft = {}) {
     const personnelRows = getServiceBidPersonnelRows(tender);
     const equipmentRows = getServiceBidEquipmentRows(tender);
+    const staffRoleCount = getServiceBidStaffRoleCount(draft, personnelRows.length);
     return `
         <div class="service-workbook">
             <section class="service-response-section">
                 <div class="bid-dynamic-group-heading">
                     <div>
-                        <h3>Personnel / staffing plan</h3>
-                        <p>Assign service roles, staff names, qualifications, allocations, CVs, certifications, and replacement plans.</p>
+                        <h3>Staffing, Capacity and Continuity Plan</h3>
+                        <p>Provide the service roles, named personnel, employment type, allocation, location, start availability, CVs, tools, and continuity arrangements that show you can deliver the contract without interruption.</p>
                     </div>
-                    <span class="badge badge-warning">${personnelRows.length} roles</span>
+                    <span class="badge ${personnelRows.length ? 'badge-warning' : 'badge-info'}">${staffRoleCount} staff role${staffRoleCount === 1 ? '' : 's'}</span>
                 </div>
-                ${personnelRows.length ? `
-                    <div class="service-staffing-grid">
-                        ${personnelRows.map((person, index) => {
-                        const baseId = `service-staff-${index}`;
-                        const role = person.position || person.role || person.staffRole || `Service role ${index + 1}`;
-                        const required = person.mandatory !== false;
-                        return `
-                            <article class="service-staff-card">
-                                <div class="works-person-avatar">${escapeBidWorkspaceHtml(String(role).slice(0, 1).toUpperCase())}</div>
-                                <div>
-                                    <span class="section-kicker">${escapeBidWorkspaceHtml(role)}</span>
-                                    <p>Minimum: ${escapeBidWorkspaceHtml(person.minimumEducation || 'Buyer-defined qualification')} / ${escapeBidWorkspaceHtml(person.minimumYearsExperience || 0)} years</p>
-                                    <div class="form-grid two">
-                                        <div class="form-group"><label class="form-label">Assigned Staff Name</label><input class="form-input" data-bid-response="${baseId}-name" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-name`))}"></div>
-                                        <div class="form-group"><label class="form-label">Qualification</label><input class="form-input" data-bid-response="${baseId}-qualification" ${required ? 'data-bid-workflow-required-response="true"' : ''} value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-qualification`))}"></div>
-                                        <div class="form-group"><label class="form-label">Experience (Years)</label><input class="form-input" type="number" min="0" data-bid-response="${baseId}-experience" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-experience`))}"></div>
-                                        <div class="form-group"><label class="form-label">Employment Type</label><select class="form-input" data-bid-response="${baseId}-employment"><option value="">Select</option>${['Full-time', 'Part-time', 'Contract'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-employment`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                                        <div class="form-group"><label class="form-label">Availability</label><select class="form-input" data-bid-response="${baseId}-availability" ${required ? 'data-bid-workflow-required-response="true"' : ''}><option value="">Select</option>${['Available', 'Available on award', 'Backup proposed'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-availability`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                                        <div class="form-group"><label class="form-label">Daily / Monthly Allocation</label><input class="form-input" type="number" min="0" data-bid-response="${baseId}-allocation" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-allocation`))}" placeholder="Hours or days"></div>
-                                        <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-cv`, draft, 'CV upload', '.pdf,.doc,.docx', required && normalizeBidWorkspaceFlag(person.cvRequired))}</div>
-                                        <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-certification`, draft, 'Certification upload', '.pdf,.doc,.docx,.jpg,.jpeg,.png', false)}</div>
-                                        <div class="form-group wide"><label class="form-label">Replacement Plan</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-replacement">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-replacement`))}</textarea></div>
-                                    </div>
-                                </div>
-                            </article>
-                        `;
-                    }).join('')}
+                <section class="service-plan-subsection">
+                    <div class="service-plan-subsection-heading">
+                        <div>
+                            <h4>Proposed Team Roles</h4>
+                            <p>${personnelRows.length ? 'Complete each mandatory role and add any additional team roles needed for reliable delivery.' : 'No mandatory staffing requirements have been set, but bidders may still add proposed team roles.'}</p>
+                        </div>
+                        <button class="btn btn-secondary" type="button" data-add-service-staff-role>+ Add Staff Role</button>
                     </div>
-                ` : '<div class="scope-empty">No personnel requirements configured for this tender.</div>'}
-            </section>
-            ${equipmentRows.length ? `
-                <section class="service-response-section">
-                    <div class="bid-dynamic-group-heading">
-                        <div><h3>Tools, systems, and equipment capacity</h3><p>Confirm equipment, systems, and proof required for service delivery.</p></div>
-                        <span class="badge badge-warning">${equipmentRows.length} items</span>
+                    ${staffRoleCount ? `
+                        <div class="service-staffing-grid" data-service-staff-list>
+                            ${Array.from({ length: staffRoleCount }, (_, index) => renderServiceBidStaffRoleCard(index, draft, personnelRows[index] || {}, Boolean(personnelRows[index] && personnelRows[index].mandatory !== false))).join('')}
+                        </div>
+                    ` : '<div class="scope-empty">No mandatory staffing requirements have been set, but bidders may still add proposed team roles.</div><div class="service-staffing-grid" data-service-staff-list></div>'}
+                </section>
+                <section class="service-plan-subsection">
+                    <div class="service-plan-subsection-heading">
+                        <div><h4>Capacity Evidence</h4><p>Attach proof that your proposed team has the depth, experience, and availability to deliver the service.</p></div>
                     </div>
-                    <div class="works-equipment-grid">
-                        ${equipmentRows.map((item, index) => {
-                            const baseId = `service-equipment-${index}`;
-                            return `
-                                <article class="works-capacity-card service-capacity-card">
-                                    <span class="section-kicker">${escapeBidWorkspaceHtml(item.equipmentName || `Equipment ${index + 1}`)}</span>
-                                    <p>${escapeBidWorkspaceHtml(item.technicalSpecification || item.ownershipRequirement || 'Buyer-required service equipment or tool')}</p>
-                                    <div class="form-grid two">
-                                        <div class="form-group"><label class="form-label">Quantity Available</label><input class="form-input" type="number" min="0" data-bid-response="${baseId}-quantity" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-quantity`))}"></div>
-                                        <div class="form-group"><label class="form-label">Ownership / Access</label><select class="form-input" data-bid-response="${baseId}-ownership" data-bid-workflow-required-response="true"><option value="">Select</option>${['Owned', 'Leased', 'Subscription', 'Partner provided'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-ownership`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                                        <div class="form-group wide">${renderBidWorkspaceUploadControl(`${baseId}-proof`, draft, 'Upload proof', '.pdf,.doc,.docx,.jpg,.jpeg,.png', item.mandatory !== false)}</div>
-                                    </div>
-                                </article>
-                            `;
-                        }).join('')}
+                    <div class="form-grid two">
+                        <div class="form-group wide"><label class="form-label">Capacity Evidence Summary</label><textarea class="form-input" rows="3" data-bid-response="service-capacity-evidence-summary" placeholder="Summarize team capacity, similar assignments, peak-load coverage, and current workload">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-capacity-evidence-summary'))}</textarea></div>
+                        <div class="form-group">${renderBidWorkspaceUploadControl('service-capacity-evidence-upload', draft, 'Upload capacity evidence', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', false)}</div>
                     </div>
                 </section>
-            ` : ''}
+                <section class="service-plan-subsection">
+                    <div class="service-plan-subsection-heading">
+                        <div><h4>Staff Replacement and Continuity Plan</h4><p>Explain how you will maintain service coverage during leave, absence, turnover, escalation, or surge demand.</p></div>
+                    </div>
+                    <div class="form-grid two">
+                        <div class="form-group wide"><label class="form-label">Replacement Procedure</label><textarea class="form-input" rows="3" data-bid-response="service-staff-replacement-procedure" placeholder="Replacement approval, handover, and buyer notification process">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-staff-replacement-procedure'))}</textarea></div>
+                        <div class="form-group wide"><label class="form-label">Continuity Plan</label><textarea class="form-input" rows="3" data-bid-response="service-continuity-cover-plan" data-bid-workflow-required-response="true" placeholder="Escalation contacts, continuity controls, and service stability measures">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-continuity-cover-plan'))}</textarea></div>
+                    </div>
+                </section>
+                <section class="service-plan-subsection">
+                    <div class="service-plan-subsection-heading">
+                        <div><h4>Tools, Systems and Equipment</h4><p>Confirm the tools, systems, equipment, licenses, and access arrangements that support the proposed team.</p></div>
+                        <span class="badge ${equipmentRows.length ? 'badge-warning' : 'badge-info'}">${equipmentRows.length} configured item${equipmentRows.length === 1 ? '' : 's'}</span>
+                    </div>
+                    <div class="form-grid two">
+                        <div class="form-group wide"><label class="form-label">Tools and Systems Plan</label><textarea class="form-input" rows="3" data-bid-response="service-tools-systems-plan" placeholder="List operational tools, software, equipment, vehicles, licenses, and access arrangements">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-tools-systems-plan'))}</textarea></div>
+                    </div>
+                    ${equipmentRows.length ? `
+                        <div class="works-equipment-grid">
+                            ${equipmentRows.map((item, index) => {
+                                const baseId = `service-equipment-${index}`;
+                                return `
+                                    <article class="works-capacity-card service-capacity-card">
+                                        <span class="section-kicker">${escapeBidWorkspaceHtml(item.equipmentName || `Equipment ${index + 1}`)}</span>
+                                        <p>${escapeBidWorkspaceHtml(item.technicalSpecification || item.ownershipRequirement || 'Buyer-required service equipment or tool')}</p>
+                                        <div class="form-grid two">
+                                            <div class="form-group"><label class="form-label">Quantity Available</label><input class="form-input" type="number" min="0" data-bid-response="${baseId}-quantity" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-quantity`))}"></div>
+                                            <div class="form-group"><label class="form-label">Ownership / Access</label><select class="form-input" data-bid-response="${baseId}-ownership" data-bid-workflow-required-response="true"><option value="">Select</option>${['Owned', 'Leased', 'Subscription', 'Partner provided'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-ownership`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
+                                            <div class="form-group wide">${renderBidWorkspaceUploadControl(`${baseId}-proof`, draft, 'Upload proof', '.pdf,.doc,.docx,.jpg,.jpeg,.png', item.mandatory !== false)}</div>
+                                        </div>
+                                    </article>
+                                `;
+                            }).join('')}
+                        </div>
+                    ` : '<div class="scope-empty">No mandatory tool or equipment requirements have been set. Describe your proposed tools and systems above.</div>'}
+                </section>
+            </section>
         </div>
     `;
+}
+
+function getServiceSlaMetricLabel(kpi = {}, index = 0) {
+    if (typeof kpi === 'string') return kpi;
+    return kpi.name || kpi.label || kpi.title || kpi.metric || kpi.description || `SLA metric ${index + 1}`;
+}
+
+function getServiceSlaMetricConfig(metricName = '') {
+    const normalized = String(metricName || '').toLowerCase();
+    if (/response/.test(normalized)) {
+        return {
+            valueLabel: 'Commitment Value (Hours)',
+            valuePlaceholder: 'e.g. 2 hours for high-priority requests',
+            periodPlaceholder: 'e.g. 24/7 clock, business hours, per incident',
+            evidencePlaceholder: 'e.g. Ticket timestamps, call logs, service desk audit trail',
+            reportingPlaceholder: 'e.g. Daily exception report, weekly SLA dashboard'
+        };
+    }
+    if (/resolution|resolve|repair|closure/.test(normalized)) {
+        return {
+            valueLabel: 'Commitment Value (Hours)',
+            valuePlaceholder: 'e.g. 8 hours to resolve priority incidents',
+            periodPlaceholder: 'e.g. Per incident, monthly average, business hours',
+            evidencePlaceholder: 'e.g. Closure records, work orders, incident reports',
+            reportingPlaceholder: 'e.g. Weekly resolution report, monthly SLA summary'
+        };
+    }
+    if (/completion|task|fulfil|fulfill|delivery/.test(normalized)) {
+        return {
+            valueLabel: 'Commitment Value (%)',
+            valuePlaceholder: 'e.g. 98% of tasks completed by due date',
+            periodPlaceholder: 'e.g. Monthly service period, weekly work cycle',
+            evidencePlaceholder: 'e.g. Completed task register, signed checklists, portal logs',
+            reportingPlaceholder: 'e.g. Weekly task completion dashboard'
+        };
+    }
+    if (/satisfaction|customer|csat|score/.test(normalized)) {
+        return {
+            valueLabel: 'Commitment Value (Score / %)',
+            valuePlaceholder: 'e.g. 4.5/5 average score or 90% satisfied',
+            periodPlaceholder: 'e.g. Monthly survey window, quarterly average',
+            evidencePlaceholder: 'e.g. Survey results, complaint register, feedback reports',
+            reportingPlaceholder: 'e.g. Monthly satisfaction report'
+        };
+    }
+    return {
+        valueLabel: 'Commitment Value',
+        valuePlaceholder: 'e.g. numeric target, threshold, score, or percentage',
+        periodPlaceholder: 'e.g. Per incident, weekly, monthly, quarterly',
+        evidencePlaceholder: 'e.g. System report, signed record, audit log',
+        reportingPlaceholder: 'e.g. Weekly dashboard, monthly report'
+    };
 }
 
 function renderServiceBidSlaReportingCompliance(tender = {}, draft = {}) {
     const fields = tender.requirements?.fields || {};
     const esCards = fields.esRequirementCards || [];
-    const docs = getServiceBidDocumentRows(tender);
-    const kpis = (tender.evaluation?.criteria || []).find(item => /sla|performance/i.test(item.name || ''))?.subcriteria || ['Response time', 'Resolution time', 'Task completion rate', 'Customer satisfaction'];
+    const kpis = (tender.evaluation?.criteria || []).find(item => /sla|performance/i.test(item.name || ''))?.subcriteria || ['Response Time', 'Resolution Time', 'Task Completion Rate', 'Customer Satisfaction'];
     return `
         <div class="service-workbook">
             <section class="service-response-section">
@@ -4325,12 +4471,41 @@ function renderServiceBidSlaReportingCompliance(tender = {}, draft = {}) {
                 <div class="service-kpi-grid">
                     ${kpis.map((kpi, index) => {
                         const baseId = `service-kpi-${index}`;
+                        const metricName = getServiceSlaMetricLabel(kpi, index);
+                        const metricConfig = getServiceSlaMetricConfig(metricName);
                         return `
                             <article class="service-kpi-card">
-                                <strong>${escapeBidWorkspaceHtml(kpi)}</strong>
-                                <label class="form-label">Commitment level</label>
-                                <input class="form-input" type="range" min="50" max="100" step="5" data-bid-response="${baseId}-commitment" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-commitment`) || 90)}">
-                                <textarea class="form-input" rows="2" data-bid-response="${baseId}-metric" placeholder="Metric definition and evidence">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-metric`))}</textarea>
+                                <strong>${escapeBidWorkspaceHtml(metricName)}</strong>
+                                <div class="service-kpi-field-grid">
+                                    <div class="form-group">
+                                        <label class="form-label">${escapeBidWorkspaceHtml(metricConfig.valueLabel)}</label>
+                                        <input class="form-input" data-bid-response="${baseId}-commitment-value" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-commitment-value`))}" placeholder="${escapeBidWorkspaceHtml(metricConfig.valuePlaceholder)}">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Measurement Period</label>
+                                        <input class="form-input" data-bid-response="${baseId}-measurement-period" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-measurement-period`))}" placeholder="${escapeBidWorkspaceHtml(metricConfig.periodPlaceholder)}">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Priority Level</label>
+                                        <select class="form-input" data-bid-response="${baseId}-priority-level" data-bid-workflow-required-response="true"><option value="">Select</option>${['Critical', 'High', 'Medium', 'Low', 'All priorities'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-priority-level`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Commitment Confidence</label>
+                                        <select class="form-input" data-bid-response="${baseId}-commitment-confidence" data-bid-workflow-required-response="true"><option value="">Select</option>${['Low', 'Medium', 'High', 'Guaranteed'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-commitment-confidence`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Evidence Source</label>
+                                        <input class="form-input" data-bid-response="${baseId}-evidence-source" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-evidence-source`))}" placeholder="${escapeBidWorkspaceHtml(metricConfig.evidencePlaceholder)}">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Reporting Frequency</label>
+                                        <select class="form-input" data-bid-response="${baseId}-reporting-frequency" data-bid-workflow-required-response="true"><option value="">Select</option>${['Real time', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'On breach', 'On demand'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-reporting-frequency`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select>
+                                    </div>
+                                    <div class="form-group wide">
+                                        <label class="form-label">How this SLA will be measured and evidenced.</label>
+                                        <textarea class="form-input" rows="3" data-bid-response="${baseId}-metric" placeholder="${escapeBidWorkspaceHtml(metricConfig.reportingPlaceholder)}">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-metric`))}</textarea>
+                                    </div>
+                                </div>
                             </article>
                         `;
                     }).join('')}
@@ -4338,7 +4513,7 @@ function renderServiceBidSlaReportingCompliance(tender = {}, draft = {}) {
             </section>
             <section class="service-response-section">
                 <div class="bid-dynamic-group-heading">
-                    <div><h3>Reporting and communication plan</h3><p>${escapeBidWorkspaceHtml(fields.reportingRequirements || 'Define reporting format, channels, templates, escalation, and meetings.')}</p></div>
+                    <div><h3>Reporting and communication plan</h3><p>${escapeBidWorkspaceHtml(fields.reportingRequirements || 'Define reporting format, channels, templates, and meetings.')}</p></div>
                     <span class="badge badge-info">Continuous reporting</span>
                 </div>
                 <div class="form-grid two">
@@ -4346,7 +4521,6 @@ function renderServiceBidSlaReportingCompliance(tender = {}, draft = {}) {
                     <div class="form-group"><label class="form-label">Communication Channels</label><input class="form-input" data-bid-response="service-report-channels" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-report-channels'))}" placeholder="Portal, email, meetings, hotline"></div>
                     <div class="form-group">${renderBidWorkspaceUploadControl('service-report-template', draft, 'Client reporting template', '.pdf,.doc,.docx,.xls,.xlsx', false)}</div>
                     <div class="form-group"><label class="form-label">Meeting Schedule</label><input class="form-input" data-bid-response="service-report-meetings" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-report-meetings'))}" placeholder="e.g. Monthly review meeting"></div>
-                    <div class="form-group wide"><label class="form-label">Escalation Matrix</label><textarea class="form-input" rows="3" data-bid-response="service-report-escalation-matrix">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-report-escalation-matrix'))}</textarea></div>
                 </div>
             </section>
             <section class="service-response-section">
@@ -4369,30 +4543,6 @@ function renderServiceBidSlaReportingCompliance(tender = {}, draft = {}) {
                                 <div class="form-grid two">
                                     <div class="form-group"><label class="form-label">Policy Available</label><select class="form-input" data-bid-response="${baseId}-policy" ${card.mandatory !== false ? 'data-bid-workflow-required-response="true"' : ''}><option value="">Select</option>${['Yes', 'No', 'In development'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-policy`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
                                     <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-document`, draft, 'Upload ESG document', '.pdf,.doc,.docx,.jpg,.jpeg,.png', card.mandatory !== false)}</div>
-                                    <div class="form-group wide"><label class="form-label">Measures / Notes</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-notes">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-notes`))}</textarea></div>
-                                </div>
-                            </article>
-                        `;
-                    }).join('')}
-                </div>
-            </section>
-            <section class="service-response-section">
-                <div class="bid-dynamic-group-heading">
-                    <div><h3>Supporting documents</h3><p>Upload the buyer-required service documents and generic compliance evidence.</p></div>
-                    <span class="badge badge-warning">${docs.length} documents</span>
-                </div>
-                <div class="service-document-grid">
-                    ${docs.map((doc, index) => {
-                        const baseId = `service-doc-${index}`;
-                        const required = doc.mandatory !== false;
-                        return `
-                            <article class="service-document-card">
-                                <span class="section-kicker">${required ? 'Mandatory' : 'Optional'}</span>
-                                <strong>${escapeBidWorkspaceHtml(doc.documentName || doc.documentTitle || `Document ${index + 1}`)}</strong>
-                                <div class="form-grid two">
-                                    <div class="form-group"><label class="form-label">Document Name</label><input class="form-input" data-bid-response="${baseId}-name" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-name`) || doc.documentName || '')}"></div>
-                                    <div class="form-group">${renderBidWorkspaceUploadControl(`${baseId}-upload`, draft, 'Upload file', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', required)}</div>
-                                    <div class="form-group wide"><label class="form-label">Description</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-description">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-description`))}</textarea></div>
                                 </div>
                             </article>
                         `;
@@ -4405,38 +4555,126 @@ function renderServiceBidSlaReportingCompliance(tender = {}, draft = {}) {
 
 function renderServiceBidPricingRows(tender = {}, profile = {}, draft = {}) {
     const rows = getServiceBidCommercialRows(tender, profile);
-    if (!rows.length) return '<tr><td colspan="8">No service pricing schedule configured.</td></tr>';
+    if (!rows.length) return '<tr><td colspan="8">No commercial pricing schedule configured.</td></tr>';
     return rows.map((item, index) => {
         const baseId = `service-price-${index}`;
         const qty = parseBidWorkspaceNumber(item.qty || item.quantity) || 1;
         const frequency = item.frequency || item.unit || item.unitOfMeasure || 'Monthly';
         const buyerRate = parseBidWorkspaceNumber(item.rate || item.unitPrice || item.amount);
-        const monthlyRate = getBidWorkspaceSavedResponse(draft, `${baseId}-monthly-rate`) || (buyerRate ? Math.round(buyerRate * 0.98) : '');
-        const equipmentCost = getBidWorkspaceSavedResponse(draft, `${baseId}-equipment-cost`) || '';
-        const staffCount = getBidWorkspaceSavedResponse(draft, `${baseId}-staff-count`) || item.staffCount || '';
+        const ratePerFrequency = getBidWorkspaceSavedResponse(draft, `${baseId}-rate-per-frequency`) || getBidWorkspaceSavedResponse(draft, `${baseId}-monthly-rate`) || (buyerRate ? Math.round(buyerRate * 0.98) : '');
+        const equipmentMaterialsCost = getBidWorkspaceSavedResponse(draft, `${baseId}-equipment-materials-cost`) || getBidWorkspaceSavedResponse(draft, `${baseId}-equipment-cost`) || '';
+        const staffQuantity = getBidWorkspaceSavedResponse(draft, `${baseId}-staff-quantity-fte`) || getBidWorkspaceSavedResponse(draft, `${baseId}-staff-count`) || item.staffCount || '';
+        const billingFrequency = getBidWorkspaceSavedResponse(draft, `${baseId}-billing-frequency`) || getBidWorkspaceSavedResponse(draft, `${baseId}-frequency`) || frequency;
         const savedStatus = getBidWorkspaceSavedResponse(draft, `${baseId}-status`);
         const isNotBid = String(savedStatus || '').toLowerCase() === 'not bid';
+        const costCategories = [
+            ['labour', 'Labour', 'Staff wages, supervision, benefits'],
+            ['equipment-materials', 'Equipment / Materials', 'Consumables, tools, materials'],
+            ['transport-logistics', 'Transport / Logistics', 'Vehicles, travel, delivery'],
+            ['overheads', 'Overheads', 'Administration, insurance, facilities'],
+            ['margin', 'Margin', 'Profit or management margin'],
+            ['taxes', 'Taxes', 'VAT, withholding, duties'],
+            ['one-off-costs', 'One-off Costs', 'Setup, transition, onboarding'],
+            ['recurring-costs', 'Recurring Costs', 'Monthly or periodic running costs']
+        ];
+        const paymentMilestones = [
+            ['mobilisation', 'Mobilisation / contract start'],
+            ['periodic-service', 'Periodic service delivery'],
+            ['completion', 'Completion / acceptance']
+        ];
         return `
             <tr class="service-pricing-row">
-                <td>${escapeBidWorkspaceHtml(item.item || item.category || `${index + 1}.1`)}</td>
-                <td><strong>${escapeBidWorkspaceHtml(item.description || item.serviceTask || `Service line ${index + 1}`)}</strong><small>${escapeBidWorkspaceHtml(item.slaLink || item.notes || 'Service pricing line')}</small></td>
-                <td><select class="form-input" data-bid-line-status data-bid-response="${baseId}-status" data-bid-workflow-required-response="true"><option value="">Select</option>${['Bid', 'Not Bid'].map(option => `<option ${savedStatus === option ? 'selected' : ''}>${option}</option>`).join('')}</select></td>
-                <td><input class="form-input" data-bid-response="${baseId}-frequency" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-frequency`) || frequency)}"></td>
-                <td><input class="form-input" type="number" min="0" data-bid-line-qty data-bid-response="${baseId}-staff-count" value="${escapeBidWorkspaceHtml(staffCount || qty)}"></td>
-                <td><input class="form-input boq-input boq-number" type="number" min="0" step="1000" data-bid-rate data-bid-response="${baseId}-monthly-rate" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(monthlyRate)}"></td>
-                <td><input class="form-input" type="number" min="0" step="1000" data-bid-line-extra-cost data-bid-response="${baseId}-equipment-cost" value="${escapeBidWorkspaceHtml(equipmentCost)}"></td>
-                <td data-bid-line-amount>${isNotBid ? formatBidWorkspaceMoney(0) : formatBidWorkspaceMoney(((parseBidWorkspaceNumber(staffCount || qty) || 1) * parseBidWorkspaceNumber(monthlyRate)) + parseBidWorkspaceNumber(equipmentCost))}</td>
+                <td class="service-price-line-cell">
+                    <span>${escapeBidWorkspaceHtml(item.item || item.category || `${index + 1}.1`)}</span>
+                    <div><strong>${escapeBidWorkspaceHtml(item.description || item.serviceTask || `Service line ${index + 1}`)}</strong><small>${escapeBidWorkspaceHtml(item.slaLink || item.notes || 'Service pricing line')}</small></div>
+                </td>
+                <td class="service-price-billing-cell">
+                    <select class="form-input" data-bid-line-status data-bid-response="${baseId}-status" data-bid-workflow-required-response="true"><option value="">Select status</option>${['Bid', 'Not Bid'].map(option => `<option ${savedStatus === option ? 'selected' : ''}>${option}</option>`).join('')}</select>
+                    <input class="form-input" data-bid-response="${baseId}-billing-frequency" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(billingFrequency)}" placeholder="Monthly, weekly, per visit">
+                </td>
+                <td><input class="form-input" type="number" min="0" step="0.01" data-bid-line-qty data-bid-response="${baseId}-staff-quantity-fte" value="${escapeBidWorkspaceHtml(staffQuantity || qty)}"></td>
+                <td><input class="form-input boq-input boq-number" type="number" min="0" step="1000" data-bid-rate data-bid-response="${baseId}-rate-per-frequency" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(ratePerFrequency)}"></td>
+                <td class="service-price-total-cell" data-bid-line-amount>${isNotBid ? formatBidWorkspaceMoney(0) : formatBidWorkspaceMoney(((parseBidWorkspaceNumber(staffQuantity || qty) || 1) * parseBidWorkspaceNumber(ratePerFrequency)) + parseBidWorkspaceNumber(equipmentMaterialsCost))}</td>
             </tr>
             <tr class="service-price-detail-row">
-                <td></td>
-                <td colspan="7">
+                <td colspan="5">
                     <div class="works-cost-grid service-cost-grid">
+                        <div class="service-line-detail-heading wide">
+                            <span>Line details</span>
+                            <small>Complete only the commercial details needed for this service line.</small>
+                        </div>
                         <div class="form-group"><label class="form-label">Pricing Model</label><select class="form-input" data-bid-response="${baseId}-model" data-bid-workflow-required-response="true"><option value="">Select</option>${['Monthly Retainer', 'Unit Rate', 'Lump Sum', 'Hybrid', 'SLA-based'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-model`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                        <div class="form-group"><label class="form-label">VAT / Taxes Included</label><select class="form-input" data-bid-response="${baseId}-tax-included" data-bid-workflow-required-response="true"><option value="">Select</option>${['Yes', 'No'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-tax-included`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                        <div class="form-group"><label class="form-label">Discount</label><input class="form-input" data-bid-response="${baseId}-discount" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-discount`))}" placeholder="%"></div>
-                        <div class="form-group"><label class="form-label">SLA Cost Linkage</label><input class="form-input" data-bid-response="${baseId}-sla-link" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-sla-link`))}" placeholder="KPI or SLA metric"></div>
-                        <div class="form-group wide"><label class="form-label">Cost Breakdown</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-breakdown">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-breakdown`))}</textarea></div>
-                        <div class="form-group wide"><label class="form-label">Payment Milestones</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-payment-milestones">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-payment-milestones`))}</textarea></div>
+                        <div class="form-group"><label class="form-label">Currency</label><select class="form-input" data-bid-response="${baseId}-currency" data-bid-workflow-required-response="true"><option value="">Select</option>${['TZS', 'USD', 'EUR', 'GBP'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-currency`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
+                        <div class="form-group"><label class="form-label">Unit of Measure</label><input class="form-input" data-bid-response="${baseId}-unit-of-measure" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-unit-of-measure`) || item.unitOfMeasure || item.unit || '')}" placeholder="FTE, visit, month, task"></div>
+                        <div class="form-group"><label class="form-label">Equipment / Materials Cost</label><input class="form-input" type="number" min="0" step="1000" data-bid-line-extra-cost data-bid-response="${baseId}-equipment-materials-cost" value="${escapeBidWorkspaceHtml(equipmentMaterialsCost)}"></div>
+                        <div class="form-group"><label class="form-label">Contract Duration</label><input class="form-input" data-bid-response="${baseId}-contract-duration" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-contract-duration`))}" placeholder="e.g. 12 months"></div>
+                        <div class="form-group"><label class="form-label">Price Validity</label><input class="form-input" data-bid-response="${baseId}-price-validity" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-price-validity`))}" placeholder="e.g. 90 days"></div>
+                        <div class="form-group"><label class="form-label">Taxes / VAT</label><select class="form-input" data-bid-response="${baseId}-tax-included" data-bid-workflow-required-response="true"><option value="">Select</option>${['Inclusive', 'Exclusive', 'Exempt', 'To be added'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, `${baseId}-tax-included`) === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
+                        <div class="form-group"><label class="form-label">Discount</label><input class="form-input" data-bid-response="${baseId}-discount" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-discount`))}" placeholder="Amount or %"></div>
+                        <div class="service-optional-commercial-sections wide">
+                            <details class="service-commercial-optional-panel">
+                                <summary>
+                                    <span>Optional cost assumptions</span>
+                                    <small>Indexation, optional costs, mobilisation, assumptions, and exclusions</small>
+                                </summary>
+                                <div class="service-cost-category-grid">
+                                    <div class="form-group"><label class="form-label">Indexation</label><input class="form-input" data-bid-response="${baseId}-indexation" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-indexation`))}" placeholder="CPI, fixed, none"></div>
+                                    <div class="form-group"><label class="form-label">Optional Costs</label><input class="form-input" type="number" min="0" step="1000" data-bid-response="${baseId}-optional-costs" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-optional-costs`))}"></div>
+                                    <div class="form-group"><label class="form-label">Mobilisation Cost</label><input class="form-input" type="number" min="0" step="1000" data-bid-response="${baseId}-mobilisation-cost" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-mobilisation-cost`))}"></div>
+                                    <div class="form-group wide"><label class="form-label">Assumptions</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-assumptions" placeholder="Volume, staffing, access, buyer inputs, working hours">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-assumptions`))}</textarea></div>
+                                    <div class="form-group wide"><label class="form-label">Exclusions</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-exclusions" placeholder="Out-of-scope tasks, reimbursables, third-party fees">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-exclusions`))}</textarea></div>
+                                </div>
+                            </details>
+                            <details class="service-commercial-optional-panel">
+                                <summary>
+                                    <span>Optional SLA linkage</span>
+                                    <small>Use only where the price changes based on SLA performance</small>
+                                </summary>
+                                <div class="service-cost-category-grid">
+                                    <div class="form-group"><label class="form-label">SLA Cost Linkage</label><input class="form-input" data-bid-response="${baseId}-sla-link" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-sla-link`))}" placeholder="KPI or SLA metric"></div>
+                                    <div class="form-group wide"><label class="form-label">SLA Credits or Penalties</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-sla-credits-penalties" placeholder="Service credits, penalty caps, deductions, or rebate method">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-sla-credits-penalties`))}</textarea></div>
+                                </div>
+                            </details>
+                            <details class="service-commercial-optional-panel">
+                                <summary>
+                                    <span>Optional detailed cost breakdown</span>
+                                    <small>Labour, materials, transport, overheads, margin, taxes, one-off, and recurring costs</small>
+                                </summary>
+                                <div class="service-cost-category-group">
+                                    <div class="service-cost-category-grid">
+                                        ${costCategories.map(([key, label, placeholder]) => `
+                                            <div class="form-group">
+                                                <label class="form-label">${escapeBidWorkspaceHtml(label)}</label>
+                                                <input class="form-input" type="number" min="0" step="1000" data-bid-response="${baseId}-cost-${key}" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-cost-${key}`))}" placeholder="${escapeBidWorkspaceHtml(placeholder)}">
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </details>
+                            <details class="service-commercial-optional-panel">
+                                <summary>
+                                    <span>Optional payment milestones</span>
+                                    <small>Milestone, amount or percentage, trigger date, and evidence</small>
+                                </summary>
+                                <div class="service-payment-milestones">
+                                    <div class="data-table service-payment-milestone-table premium-commercial-table">
+                                        <table>
+                                            <thead><tr><th>Milestone</th><th>Amount or Percentage</th><th>Trigger / Due Date</th><th>Evidence Required</th></tr></thead>
+                                            <tbody>
+                                                ${paymentMilestones.map(([key, label]) => `
+                                                    <tr>
+                                                        <td><input class="form-input" data-bid-response="${baseId}-payment-${key}-milestone" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-payment-${key}-milestone`) || label)}"></td>
+                                                        <td><input class="form-input" data-bid-response="${baseId}-payment-${key}-amount" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-payment-${key}-amount`))}" placeholder="Amount or %"></td>
+                                                        <td><input class="form-input" data-bid-response="${baseId}-payment-${key}-trigger" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-payment-${key}-trigger`))}" placeholder="Date, acceptance, invoice, report"></td>
+                                                        <td><input class="form-input" data-bid-response="${baseId}-payment-${key}-evidence" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-payment-${key}-evidence`))}" placeholder="Invoice, report, sign-off"></td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
                     </div>
                 </td>
             </tr>
@@ -4448,11 +4686,19 @@ function renderServiceBidCommercialTerms(draft = {}) {
     return `
         <div class="goods-commercial-terms service-commercial-terms">
             <div class="form-grid two">
-                <div class="form-group"><label class="form-label">Price Validity Period (days)</label><input class="form-input" type="number" min="1" data-bid-response="service-commercial-validity" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-validity') || 90)}"></div>
                 <div class="form-group"><label class="form-label">Currency</label><select class="form-input" data-bid-response="service-commercial-currency" data-bid-workflow-required-response="true">${['TZS', 'USD', 'EUR', 'GBP'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'service-commercial-currency') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
+                <div class="form-group"><label class="form-label">Price Validity Period (days)</label><input class="form-input" type="number" min="1" data-bid-response="service-commercial-validity" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-validity') || 90)}"></div>
                 <div class="form-group"><label class="form-label">Overall Pricing Model</label><select class="form-input" data-bid-response="service-commercial-model" data-bid-workflow-required-response="true"><option value="">Select</option>${['Lump Sum', 'Unit Rate', 'Monthly Retainer', 'Hybrid', 'SLA-based'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'service-commercial-model') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">Discount Offer</label><input class="form-input" data-bid-response="service-commercial-discount" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-discount'))}" placeholder="Amount or %"></div>
+                <div class="form-group"><label class="form-label">Default Billing Frequency</label><select class="form-input" data-bid-response="service-commercial-billing-frequency"><option value="">Select</option>${['Monthly', 'Quarterly', 'Per visit', 'Per task', 'Milestone based', 'On demand'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'service-commercial-billing-frequency') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
+                <div class="form-group"><label class="form-label">Contract Duration</label><input class="form-input" data-bid-response="service-commercial-contract-duration" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-contract-duration'))}" placeholder="e.g. 12 months"></div>
+                <div class="form-group"><label class="form-label">Taxes / VAT Treatment</label><select class="form-input" data-bid-response="service-commercial-tax-treatment" data-bid-workflow-required-response="true"><option value="">Select</option>${['Inclusive', 'Exclusive', 'Exempt', 'To be added'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'service-commercial-tax-treatment') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
+                <div class="form-group"><label class="form-label">Discount</label><input class="form-input" data-bid-response="service-commercial-discount" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-discount'))}" placeholder="Amount or %"></div>
+                <div class="form-group"><label class="form-label">Indexation</label><input class="form-input" data-bid-response="service-commercial-indexation" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-indexation'))}" placeholder="Fixed, CPI, exchange rate, none"></div>
+                <div class="form-group"><label class="form-label">Optional Costs</label><input class="form-input" data-bid-response="service-commercial-optional-costs" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-optional-costs'))}" placeholder="Amount, condition, or none"></div>
+                <div class="form-group"><label class="form-label">Mobilisation Cost</label><input class="form-input" data-bid-response="service-commercial-mobilisation-cost" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-mobilisation-cost'))}" placeholder="Amount or included"></div>
+                <div class="form-group wide"><label class="form-label">SLA Credits or Penalties</label><textarea class="form-input" rows="2" data-bid-response="service-commercial-sla-credits-penalties">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-sla-credits-penalties'))}</textarea></div>
                 <div class="form-group wide"><label class="form-label">Commercial Assumptions</label><textarea class="form-input" rows="2" data-bid-response="service-commercial-assumptions">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-assumptions'))}</textarea></div>
+                <div class="form-group wide"><label class="form-label">Commercial Exclusions</label><textarea class="form-input" rows="2" data-bid-response="service-commercial-exclusions">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-commercial-exclusions'))}</textarea></div>
             </div>
         </div>
     `;
@@ -5033,9 +5279,9 @@ function renderBiddingWorkspace() {
                     ['01', 'Eligibility and Document Requirements', 'Licenses, certifications, submission files, and document uploads'],
                     ['02', 'Methodology', 'Service understanding, workflow, QA, and risk approach'],
                     ['03', 'Delivery Plan', 'Schedule, locations, SLA timers, and milestones'],
-                    ['04', 'Staffing and Capacity', 'People, equipment, finance, and service capability'],
+                    ['04', 'Staffing, Capacity and Continuity Plan', 'Roles, named personnel, tools, continuity, and capacity evidence'],
                     ['05', 'SLA and Reporting', 'Performance metrics, reporting, ESG, and documents'],
-                    ['06', 'Pricing', 'Service schedule, SLA-linked pricing, and commercial terms'],
+                    ['06', 'Commercial Pricing', 'Cost breakdown, billing, taxes, milestones, and SLA-linked commercial terms'],
                     ['07', 'Review Submission', 'Review, declare, and submit service bid']
                 ]
                 : consultancyFlow
@@ -5379,14 +5625,14 @@ function renderBiddingWorkspace() {
 
                             <section class="journey-panel" id="bid-step-4">
                                 <div class="panel-heading">
-                                    <div><span class="section-kicker">Step 4</span><h2>Personnel, Staffing and Capacity</h2></div>
+                                    <div><span class="section-kicker">Step 4</span><h2>Staffing, Capacity and Continuity Plan</h2></div>
                                     <span class="badge badge-warning">${getServiceBidPersonnelRows(tender).length} staff roles</span>
                                 </div>
                                 <div class="bid-step-intro">
                                     <strong>People and operational sustainability</strong>
-                                    <span>Assign staff, upload CVs, and prove tools or systems where required.</span>
+                                    <span>Provide roles, named personnel, employment details, availability, CVs, tools, and continuity arrangements for reliable delivery.</span>
                                 </div>
-                                ${renderBidWorkspaceClarificationPrompt('Need clarification about staffing, certifications, or equipment?', 'Technical', 'Question about service staffing, certifications, or equipment')}
+                                ${renderBidWorkspaceClarificationPrompt('Need clarification about staffing, continuity, or equipment?', 'Technical', 'Question about service staffing, continuity, or equipment')}
                                 ${renderServiceBidStaffingCapacity(tender, draft)}
                             </section>
 
@@ -5405,25 +5651,25 @@ function renderBiddingWorkspace() {
 
                             <section class="journey-panel" id="bid-step-6">
                                 <div class="panel-heading">
-                                    <div><span class="section-kicker">Step 6</span><h2>Service Pricing / Commercial Offer</h2></div>
+                                    <div><span class="section-kicker">Step 6</span><h2>Commercial Pricing and Cost Breakdown</h2></div>
                                     <span class="badge badge-info" data-bid-total>${formatBidWorkspaceMoney(bidAmount)}</span>
                                 </div>
                                 <div class="bid-step-intro">
-                                    <strong>Service pricing calculator</strong>
-                                    <span>Price the schedule using monthly retainers, unit rates, lump sums, hybrid pricing, or SLA-based assumptions.</span>
+                                    <strong>Commercial pricing and cost breakdown</strong>
+                                    <span>Price the schedule with rate, frequency, staffing, equipment/materials, cost categories, milestones, taxes, discounts, and SLA-linked commercial assumptions.</span>
                                 </div>
                                 ${renderBidWorkspaceFinancialCapacityMatrix(tender, draft, 'service-financial-capacity')}
-                                <div class="data-table service-pricing-table">
+                                <div class="data-table service-pricing-table premium-commercial-table">
                                     <table>
-                                        <thead><tr><th>Code</th><th>Service Line</th><th>Status</th><th>Frequency</th><th>Staff Count</th><th>Monthly Rate</th><th>Equipment Cost</th><th>Total</th></tr></thead>
+                                        <thead><tr><th>Service Line</th><th>Status / Billing</th><th>Staff Quantity / FTE</th><th>Rate per Frequency</th><th>Total</th></tr></thead>
                                         <tbody data-bid-commercial-body>${renderServiceBidPricingRows(tender, profile, draft)}</tbody>
                                     </table>
                                 </div>
                                 <section class="bid-dynamic-group">
                                     <div class="bid-dynamic-group-heading">
                                         <div>
-                                            <h3>Commercial terms response</h3>
-                                            <p>Confirm price validity, payment acceptance, discounts, and commercial assumptions.</p>
+                                            <h3>Commercial terms and evaluation inputs</h3>
+                                            <p>Confirm price validity, currency, billing, tax, discounts, indexation, optional costs, mobilisation, SLA credits or penalties, assumptions, and exclusions.</p>
                                         </div>
                                         <span class="badge badge-warning">Response required</span>
                                     </div>
@@ -5440,10 +5686,9 @@ function renderBiddingWorkspace() {
                                 <div class="record-summary submission-readiness-dashboard">
                                     <div><span>Bidder</span><strong>${escapeBidWorkspaceHtml(mockData.users?.supplier?.organization || 'Supplier organization')}</strong></div>
                                     <div><span>Eligibility readiness</span><strong data-bid-gate-summary>Pending review</strong></div>
-                                    <div><span>Staffing roles</span><strong>${getServiceBidPersonnelRows(tender).length} roles</strong></div>
+                                    <div><span>Staffing and continuity</span><strong>${getServiceBidStaffRoleCount(draft, getServiceBidPersonnelRows(tender).length)} role${getServiceBidStaffRoleCount(draft, getServiceBidPersonnelRows(tender).length) === 1 ? '' : 's'}</strong></div>
                                     <div><span>Service locations</span><strong>${getServiceBidLocationRows(tender).length || 1} covered</strong></div>
                                     <div><span>SLA / KPI controls</span><strong>${(tender.evaluation?.criteria || []).find(item => /sla|performance/i.test(item.name || ''))?.subcriteria?.length || 4} metrics</strong></div>
-                                    <div><span>Supporting documents</span><strong>${getServiceBidDocumentRows(tender).length} uploads</strong></div>
                                     <div><span>Pricing lines</span><strong>${getServiceBidCommercialRows(tender, profile).length} service lines</strong></div>
                                     <div><span>Deadline</span><strong>${escapeBidWorkspaceHtml(tender.closingDate)}</strong></div>
                                     <div class="bid-value-summary"><span>Bid value</span><strong>${formatBidWorkspaceMoney(bidAmount)}</strong></div>
@@ -7117,6 +7362,44 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
             const uploadControl = card.querySelector('[data-bid-upload-control]');
             if (uploadControl) clearBidUpload(uploadControl);
             card.remove();
+            validateWorkflowResponses(false);
+            refreshBidProgress();
+            refreshBidResponseReviews();
+            saveDraft();
+            return;
+        }
+
+        if (target.matches('[data-add-service-staff-role]')) {
+            const section = target.closest('.service-plan-subsection');
+            const list = section?.querySelector('[data-service-staff-list]');
+            if (!list) return;
+            section.querySelector('.scope-empty')?.remove();
+            const existingIndexes = Array.from(list.querySelectorAll('[data-bid-response]'))
+                .map(input => /^service-staff-(\d+)-/.exec(input.dataset.bidResponse || ''))
+                .filter(Boolean)
+                .map(match => Number(match[1]))
+                .filter(Number.isFinite);
+            const nextIndex = existingIndexes.length ? Math.max(...existingIndexes) + 1 : 0;
+            list.insertAdjacentHTML('beforeend', renderServiceBidStaffRoleCard(nextIndex, {}, {}, false));
+            const addedCard = list.querySelector('[data-service-staff-card]:last-child');
+            addedCard?.querySelector('[data-bid-response]')?.focus?.();
+            addedCard?.querySelectorAll('[data-bid-upload-control]').forEach(updateBidUploadControlState);
+            validateWorkflowResponses(false);
+            refreshBidProgress();
+            refreshBidResponseReviews();
+            saveDraft();
+            return;
+        }
+
+        if (target.matches('[data-delete-service-staff-role]')) {
+            const card = target.closest('[data-service-staff-card]');
+            const list = card?.closest('[data-service-staff-list]');
+            if (!card || !list) return;
+            card.querySelectorAll('[data-bid-upload-control]').forEach(clearBidUpload);
+            card.remove();
+            if (!list.querySelector('[data-service-staff-card]')) {
+                list.insertAdjacentHTML('beforebegin', '<div class="scope-empty">No mandatory staffing requirements have been set, but bidders may still add proposed team roles.</div>');
+            }
             validateWorkflowResponses(false);
             refreshBidProgress();
             refreshBidResponseReviews();

@@ -9191,6 +9191,186 @@ ul.closure-checklist {
     min-width: 980px;
 }
 
+.service-milestone-panel,
+.service-milestone-list,
+.service-milestone-fields,
+.service-milestone-evidence-field {
+    display: grid;
+    gap: 14px;
+}
+
+.service-milestone-panel {
+    padding: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 8px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.service-milestone-panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.service-milestone-panel-heading h4 {
+    margin: 0 0 4px;
+    color: var(--text-primary);
+    font-size: 17px;
+    line-height: 1.25;
+}
+
+.service-milestone-panel-heading p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.service-milestone-panel-heading > span {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border: 1px solid rgba(28, 117, 188, 0.18);
+    border-radius: 999px;
+    background: rgba(28, 117, 188, 0.08);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.service-milestone-card {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.service-milestone-card-heading {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+}
+
+.service-milestone-card-heading > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    background: #102a43;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.service-milestone-card-heading small {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.service-milestone-card-heading strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 1.35;
+}
+
+.service-milestone-fields {
+    grid-template-columns: minmax(180px, 0.85fr) minmax(220px, 1fr);
+    align-items: start;
+}
+
+.service-milestone-evidence-field {
+    grid-row: span 2;
+}
+
+.service-milestone-upload .bid-upload-response {
+    gap: 8px;
+    padding: 12px;
+    border: 1px dashed rgba(28, 117, 188, 0.35);
+    border-radius: 8px;
+    background: rgba(28, 117, 188, 0.05);
+}
+
+.service-milestone-upload .bid-upload-response span {
+    color: var(--primary);
+}
+
+.service-milestone-upload-drop {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    min-height: 78px;
+    align-content: center;
+    padding: 14px;
+    border: 1px solid rgba(28, 117, 188, 0.22);
+    border-radius: 8px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.service-milestone-upload-drop:hover {
+    border-color: rgba(28, 117, 188, 0.5);
+    box-shadow: 0 10px 24px rgba(28, 117, 188, 0.1);
+    transform: translateY(-1px);
+}
+
+.service-milestone-upload-drop:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(28, 117, 188, 0.14);
+}
+
+.service-milestone-upload-drop strong {
+    color: #102a43;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.service-milestone-upload-drop small,
+.service-milestone-upload-control > small {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.service-milestone-upload-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+}
+
+@media (max-width: 820px) {
+    .service-milestone-panel-heading {
+        display: grid;
+    }
+
+    .service-milestone-panel-heading > span {
+        width: max-content;
+    }
+
+    .service-milestone-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .service-milestone-evidence-field {
+        grid-row: auto;
+    }
+}
+
 .works-boq-table.premium-review-table {
     border-color: rgba(15, 23, 42, 0.12);
     border-radius: 8px;
@@ -9640,6 +9820,42 @@ ul.closure-checklist {
     background: var(--card-bg);
 }
 
+.service-plan-subsection {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.service-plan-subsection-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.service-plan-subsection-heading h4 {
+    margin: 0 0 4px;
+    color: var(--text-primary);
+    font-size: 17px;
+    line-height: 1.25;
+}
+
+.service-plan-subsection-heading p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.service-plan-subsection-heading .btn {
+    flex: 0 0 auto;
+}
+
 .service-accordion-card,
 .service-sla-card,
 .service-staff-card,
@@ -9693,6 +9909,22 @@ ul.closure-checklist {
     background: var(--card-bg);
 }
 
+.service-staff-role-card {
+    border-color: rgba(15, 23, 42, 0.12);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.service-staff-card-body {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.service-staff-card-body .bid-dynamic-group-heading {
+    align-items: flex-start;
+}
+
 .service-sla-timer-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -9724,25 +9956,158 @@ ul.closure-checklist {
     line-height: 1.35;
 }
 
-.service-kpi-card input[type="range"] {
-    width: 100%;
+.service-kpi-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.service-kpi-field-grid .wide {
+    grid-column: 1 / -1;
 }
 
 .service-pricing-table table {
-    min-width: 1120px;
+    min-width: 860px;
+    table-layout: fixed;
 }
 
-.service-pricing-row td {
+.premium-commercial-table {
+    border-color: rgba(148, 163, 184, 0.42);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.premium-commercial-table table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.premium-commercial-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.46);
+    background: #eef3f8;
+    color: #071a33;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1.25;
+    white-space: normal;
+}
+
+.premium-commercial-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.72);
+    background: #ffffff;
     vertical-align: top;
 }
 
-.service-pricing-row td:nth-child(2) {
-    min-width: 240px;
+.premium-commercial-table tbody tr:hover > td {
+    background: #f8fafc;
+}
+
+.service-pricing-table th:nth-child(1),
+.service-pricing-table td:nth-child(1) {
+    width: 310px;
+}
+
+.service-pricing-table th:nth-child(2),
+.service-pricing-table td:nth-child(2) {
+    width: 180px;
+}
+
+.service-pricing-table th:nth-child(3),
+.service-pricing-table td:nth-child(3) {
+    width: 140px;
+}
+
+.service-pricing-table th:nth-child(4),
+.service-pricing-table td:nth-child(4) {
+    width: 160px;
+}
+
+.service-pricing-table th:nth-child(5),
+.service-pricing-table td:nth-child(5) {
+    width: 150px;
+}
+
+.service-pricing-row td {
+    vertical-align: middle;
 }
 
 .service-pricing-row small {
     display: block;
     margin-top: 4px;
+}
+
+.service-price-line-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.service-price-line-cell > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-width: 42px;
+    min-height: 28px;
+    padding: 4px 8px;
+    border: 1px solid rgba(0, 135, 128, 0.22);
+    border-radius: 8px;
+    background: rgba(0, 135, 128, 0.08);
+    color: var(--primary-blue);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.service-price-line-cell div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.service-price-billing-cell {
+    display: grid;
+    gap: 8px;
+}
+
+.service-price-total-cell {
+    border-left: 1px solid rgba(148, 163, 184, 0.34);
+    background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%) !important;
+    color: #071a33;
+    font-size: 18px;
+    font-weight: 900;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.service-pricing-table .service-pricing-row .form-input {
+    min-height: 42px;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.service-price-billing-cell .form-input {
+    min-height: 36px;
+    font-size: 14px;
+}
+
+.service-pricing-row .form-input,
+.service-payment-milestone-table .form-input {
+    min-height: 40px;
+    border-color: rgba(148, 163, 184, 0.45);
+    background: #ffffff;
+}
+
+.service-pricing-row .form-input:focus,
+.service-payment-milestone-table .form-input:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(0, 135, 128, 0.12);
 }
 
 .premium-response-matrix {
@@ -9900,12 +10265,182 @@ ul.closure-checklist {
 }
 
 .service-price-detail-row td {
-    padding-top: 0;
-    background: var(--surface-soft);
+    padding: 0 14px 18px;
+    background: #f8fafc;
+}
+
+.premium-commercial-table .service-price-detail-row:hover > td {
+    background: #f8fafc;
 }
 
 .service-cost-grid {
     grid-template-columns: repeat(4, minmax(150px, 1fr));
+    margin-top: 4px;
+    border-color: rgba(148, 163, 184, 0.34);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: inset 4px 0 0 rgba(0, 135, 128, 0.18);
+}
+
+.service-line-detail-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.service-line-detail-heading span {
+    color: #071a33;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.service-line-detail-heading small {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.service-cost-category-group,
+.service-payment-milestones {
+    display: grid;
+    gap: 10px;
+}
+
+.service-optional-commercial-sections {
+    display: grid;
+    gap: 10px;
+}
+
+.service-commercial-optional-panel {
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.service-commercial-optional-panel summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.service-commercial-optional-panel summary::-webkit-details-marker {
+    display: none;
+}
+
+.service-commercial-optional-panel summary::after {
+    content: "+";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(0, 135, 128, 0.24);
+    border-radius: 999px;
+    background: rgba(0, 135, 128, 0.08);
+    color: var(--primary-blue);
+    font-weight: 900;
+}
+
+.service-commercial-optional-panel[open] summary {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+    background: #f8fafc;
+}
+
+.service-commercial-optional-panel[open] summary::after {
+    content: "-";
+}
+
+.service-commercial-optional-panel summary span {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.3;
+}
+
+.service-commercial-optional-panel summary small {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.service-commercial-optional-panel > .service-cost-category-grid,
+.service-commercial-optional-panel > .service-cost-category-group,
+.service-commercial-optional-panel > .service-payment-milestones {
+    padding: 14px;
+}
+
+.service-cost-category-group h4,
+.service-payment-milestones h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1.3;
+}
+
+.service-cost-category-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.service-payment-milestone-table table {
+    min-width: 680px;
+    table-layout: fixed;
+}
+
+.service-payment-milestone-table th:nth-child(1),
+.service-payment-milestone-table td:nth-child(1) {
+    width: 26%;
+}
+
+.service-payment-milestone-table th:nth-child(2),
+.service-payment-milestone-table td:nth-child(2) {
+    width: 20%;
+}
+
+.service-payment-milestone-table th:nth-child(3),
+.service-payment-milestone-table td:nth-child(3) {
+    width: 27%;
+}
+
+.service-payment-milestone-table th:nth-child(4),
+.service-payment-milestone-table td:nth-child(4) {
+    width: 27%;
+}
+
+.service-payment-milestone-table {
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.service-payment-milestone-table th {
+    background: #f1f5f9;
+    font-size: 10px;
+}
+
+.service-payment-milestone-table th,
+.service-payment-milestone-table td {
+    padding: 10px;
+}
+
+.premium-commercial-table::-webkit-scrollbar {
+    height: 10px;
+}
+
+.premium-commercial-table::-webkit-scrollbar-thumb {
+    border: 2px solid #ffffff;
+    border-radius: 999px;
+    background: #cbd5e1;
 }
 
 .service-commercial-terms {
@@ -11566,12 +12101,22 @@ ul.closure-checklist {
     .service-sla-card-grid,
     .service-document-grid,
     .service-kpi-grid,
+    .service-kpi-field-grid,
     .service-staff-card,
     .service-sla-timer-grid,
     .service-cost-grid,
+    .service-cost-category-grid,
     .journey-grid.four-col,
     .clarification-compose {
         grid-template-columns: 1fr;
+    }
+
+    .service-plan-subsection-heading {
+        display: grid;
+    }
+
+    .service-plan-subsection-heading .btn {
+        width: 100%;
     }
 
     .tender-wizard-page .contact-verify-row {
