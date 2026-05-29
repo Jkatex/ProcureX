@@ -204,7 +204,7 @@ function renderRegister() {
                                         <span>Confirm agreement</span>
                                     </button>
                                     <p class="confirm-action-note" data-confirm-note>
-                                        Confirm that you accept the <a href="#" class="link-new">Terms of Service</a> and <a href="#" class="link-new">Privacy Policy</a>.
+                                        Confirm that you accept the <a href="#" class="link-new" data-navigate="terms-and-conditions">Terms and Conditions</a> and <a href="#" class="link-new" data-navigate="privacy-policy">Privacy Policy</a>.
                                     </p>
                                 </div>
 

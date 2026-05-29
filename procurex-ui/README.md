@@ -30,6 +30,10 @@ VS Code Live Server also works: open this folder, right-click `index.html`, and 
 | Screen | URL |
 | --- | --- |
 | Welcome | `http://localhost:8000/?page=welcome` |
+| About ProcureX | `http://localhost:8000/?page=about-procurex` |
+| Privacy Policy | `http://localhost:8000/?page=privacy-policy` |
+| Terms and Conditions | `http://localhost:8000/?page=terms-and-conditions` |
+| Contact | `http://localhost:8000/?page=contact` |
 | Register | `http://localhost:8000/?page=register` |
 | Sign in | `http://localhost:8000/?page=sign-in` |
 | IAM verification | `http://localhost:8000/?page=iam-verification` |

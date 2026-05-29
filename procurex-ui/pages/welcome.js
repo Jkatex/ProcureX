@@ -64,7 +64,7 @@ function renderWelcome() {
                     <nav class="landing-nav-links welcome-nav-links-v2" aria-label="Welcome navigation">
                         <a class="active" href="#" data-navigate="guest-marketplace">Browse Open Tenders</a>
                         <a href="#how-it-works">How It Works</a>
-                        <a href="#about-procurex">About</a>
+                        <a href="#" data-navigate="about-procurex">About</a>
                         <a href="#help-center">Help Center</a>
                     </nav>
                     <div class="welcome-nav-actions-v2">
@@ -225,9 +225,9 @@ function renderWelcome() {
                     </div>
                     <nav aria-label="Company links">
                         <h3>Company</h3>
-                        <a href="#about-procurex">About ProcureX</a>
-                        <a href="#help-center">Privacy Policy</a>
-                        <a href="#help-center">Terms and Conditions</a>
+                        <a href="#" data-navigate="about-procurex">About ProcureX</a>
+                        <a href="#" data-navigate="privacy-policy">Privacy Policy</a>
+                        <a href="#" data-navigate="terms-and-conditions">Terms and Conditions</a>
                     </nav>
                     <nav aria-label="Platform links">
                         <h3>Platform</h3>
@@ -236,8 +236,8 @@ function renderWelcome() {
                     </nav>
                     <nav aria-label="Support links">
                         <h3>Support</h3>
-                        <a href="#help-center">Help Center</a>
-                        <a href="#help-center">Contact Support</a>
+                        <a href="#" data-navigate="contact">Help Center</a>
+                        <a href="#" data-navigate="contact">Contact Support</a>
                     </nav>
                 </div>
             </footer>

@@ -102,7 +102,7 @@ class ProcureXApp {
     }
 
     getNavigationHeader() {
-        const pagesWithoutAppBar = ['welcome', 'register', 'sign-in', 'identity-verification', 'iam-verification', 'guest-marketplace'];
+        const pagesWithoutAppBar = ['welcome', 'register', 'sign-in', 'identity-verification', 'iam-verification', 'guest-marketplace', 'about-procurex', 'privacy-policy', 'terms-and-conditions', 'contact'];
         if (pagesWithoutAppBar.includes(this.currentPage)) return '';
 
         const currentAppName = this.getCurrentAppName();
@@ -248,6 +248,10 @@ class ProcureXApp {
             'admin-audit': 'Admin Audit Trail',
             'account-profile': 'Registration and Verification',
             'verification-status': 'Registration and Verification',
+            'about-procurex': 'About ProcureX',
+            'privacy-policy': 'Privacy Policy',
+            'terms-and-conditions': 'Terms and Conditions',
+            'contact': 'Contact ProcureX',
             'supplier-journey': 'Procurement',
             'buyer-journey': 'Procurement',
             'procurement-guide': 'Procurement',
@@ -300,6 +304,10 @@ class ProcureXApp {
             'supplier-tender-detail': 'tender-detail',
             'communication-center': 'workspace-dashboard',
             'guest-marketplace': 'welcome',
+            'about-procurex': 'welcome',
+            'privacy-policy': 'welcome',
+            'terms-and-conditions': 'welcome',
+            'contact': 'welcome',
             'create-tender': 'workspace-dashboard',
             'tender-publication': 'create-tender',
             'tender-details': 'marketplace',
@@ -343,6 +351,10 @@ class ProcureXApp {
             'supplier-tender-detail': 'Tender Detail',
             'communication-center': 'Communication Center',
             'guest-marketplace': 'ProcureX Marketplace',
+            'about-procurex': 'About ProcureX',
+            'privacy-policy': 'Privacy Policy',
+            'terms-and-conditions': 'Terms and Conditions',
+            'contact': 'Contact ProcureX',
             'create-tender': 'Create Tender',
             'tender-publication': 'Tender Draft Detail',
             'tender-details': 'Tender Detail',
@@ -1161,6 +1173,9 @@ class ProcureXApp {
             case 'submit-bid':
                 this.handleBidSubmission(form);
                 break;
+            case 'contact-support':
+                this.handleContactSupport(form);
+                break;
             default:
                 console.log('Unknown action:', action);
         }
@@ -1815,6 +1830,38 @@ class ProcureXApp {
         }, 1000);
     }
 
+    handleContactSupport(form) {
+        const email = form.querySelector('input[name="email"]')?.value.trim();
+        const message = form.querySelector('textarea[name="message"]')?.value.trim();
+        const consent = form.querySelector('input[name="contactConsent"]')?.checked;
+        const status = form.querySelector('[data-contact-form-status]');
+        status?.classList.remove('success');
+
+        if (!this.isValidEmail(email)) {
+            if (status) status.textContent = 'Enter a valid email address before submitting your request.';
+            form.querySelector('input[name="email"]')?.focus();
+            return;
+        }
+
+        if (!message) {
+            if (status) status.textContent = 'Add a short message describing your request.';
+            form.querySelector('textarea[name="message"]')?.focus();
+            return;
+        }
+
+        if (!consent) {
+            if (status) status.textContent = 'Confirm that ProcureX may use these details to respond to your request.';
+            form.querySelector('input[name="contactConsent"]')?.focus();
+            return;
+        }
+
+        if (status) {
+            status.textContent = 'Request captured in this prototype. No information was sent.';
+            status.classList.add('success');
+        }
+        form.reset();
+    }
+
     loadAllPages() {
         // Load all page modules - render functions are registered by individual page files or available globally
         const pageNames = [
@@ -1834,6 +1881,10 @@ class ProcureXApp {
             'admin-audit',
             'procurement-guide',
             'guest-marketplace',
+            'about-procurex',
+            'privacy-policy',
+            'terms-and-conditions',
+            'contact',
             'marketplace',
             'tender-detail',
             'communication-center',
