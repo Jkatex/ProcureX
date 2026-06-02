@@ -1,25 +1,18 @@
 function renderTenderPlanning() {
     return `
         <div class="main-layout tender-planning-page">
-            <aside class="sidebar tender-planning-sidebar">
-                <div class="evaluation-sidebar-head">
-                    <h3>Tender Planning</h3>
-                    <span>Pre-award planning workspace</span>
-                </div>
-                <ul class="sidebar-nav">
-                    <li><a href="#planning-dashboard" class="active">Dashboard</a></li>
-                    <li><a href="#app-plan">Annual Procurement Plan</a></li>
-                    <li><a href="#spp-plan">Specific Procurement Plan</a></li>
-                    <li><a href="#budget-confirmation">Budget Confirmation</a></li>
-                    <li><a href="#plan-approvals">Plan Approvals</a></li>
-                    <li><a href="#planning-documents">Documents</a></li>
-                    <li><a href="#planning-reports">Reports</a></li>
-                    <li><a href="#" data-navigate="create-tender">Tender/RFQ</a></li>
-                    <li><a href="#" data-navigate="awarding-contracts">Award and Contract</a></li>
-                </ul>
-            </aside>
-
             <main class="main-content tender-planning-content">
+                <nav class="planning-top-nav" aria-label="Tender planning sections">
+                    <a href="#planning-dashboard" class="planning-nav-card active"><span>01</span><strong>Procurement details</strong><em>Overview and readiness</em></a>
+                    <a href="#spp-plan" class="planning-nav-card"><span>02</span><strong>Questions and requirements</strong><em>SPP schedule and permissions</em></a>
+                    <a href="#budget-confirmation" class="planning-nav-card"><span>03</span><strong>Complaints</strong><em>Risks, alerts, and actions</em></a>
+                    <a href="#planning-reports" class="planning-nav-card"><span>04</span><strong>Monitoring and reporting</strong><em>APP and SPP exports</em></a>
+                    <a href="#app-plan" class="planning-nav-card"><span>05</span><strong>Customer information</strong><em>APP item and department data</em></a>
+                    <a href="#budget-confirmation" class="planning-nav-card"><span>06</span><strong>Purchase information</strong><em>Budget and funding checks</em></a>
+                    <a href="#planning-documents" class="planning-nav-card"><span>07</span><strong>Tender documentation</strong><em>Evidence and approvals</em></a>
+                    <a href="#planning-documents" class="planning-nav-card"><span>08</span><strong>Documents</strong><em>Register and review status</em></a>
+                </nav>
+
                 <section class="procurement-hero tender-planning-hero planning-command-hero" id="planning-dashboard">
                     <div>
                         <span class="section-kicker">Planning before tendering</span>

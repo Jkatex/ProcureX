@@ -288,6 +288,27 @@ function activateTabByName(root: HTMLElement, target: string) {
   if (tab) setActiveTab(tab);
 }
 
+function activatePlanningAnchor(root: HTMLElement, link: HTMLAnchorElement) {
+  const href = link.getAttribute('href');
+  if (!href?.startsWith('#') || href.length < 2) return false;
+
+  const panel = root.querySelector<HTMLElement>(`#${CSS.escape(href.slice(1))}`);
+  if (!panel) return false;
+
+  const tabName = panel.getAttribute('data-tab');
+  if (tabName) activateTabByName(root, tabName);
+
+  root.querySelectorAll<HTMLElement>('.planning-nav-card').forEach((card) => {
+    card.classList.toggle('active', card === link);
+  });
+
+  window.requestAnimationFrame(() => {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  return true;
+}
+
 function scrollPageToTop() {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
@@ -346,6 +367,12 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     const communicationTab = target.closest<HTMLElement>('[data-communication-tab]');
     const awardingJump = target.closest<HTMLElement>('[data-awarding-tab-jump]');
     const menuButton = target.closest<HTMLElement>('[data-app-menu-toggle], [data-profile-menu-toggle]');
+    const planningAnchor = target.closest<HTMLAnchorElement>('.planning-nav-card[href^="#"]');
+
+    if (planningAnchor && rootRef.current && activatePlanningAnchor(rootRef.current, planningAnchor)) {
+      event.preventDefault();
+      return;
+    }
 
     if (navTarget) {
       event.preventDefault();
