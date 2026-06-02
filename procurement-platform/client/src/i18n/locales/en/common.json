@@ -25,6 +25,7 @@
     "contact": "Contact",
     "dashboard": "Dashboard",
     "identity": "Registration and Verification",
+    "tenderPlanning": "Tender Planning",
     "procurement": "Procurement",
     "bidding": "Bidding",
     "evaluation": "Evaluation",
@@ -85,6 +86,10 @@
     "dashboard": {
       "title": "Workspace Dashboard",
       "subtitle": "Track active tenders, bids, communications, evaluations, awards, deadlines, and records."
+    },
+    "tenderPlanning": {
+      "title": "Tender Planning",
+      "subtitle": "Manage APP, SPP, budget confirmation, approvals, planning reports, and Tender/RFQ handoff before award and contract."
     },
     "procurementGuide": {
       "title": "Procurement Process Guide",

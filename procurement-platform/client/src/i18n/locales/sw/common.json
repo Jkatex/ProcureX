@@ -25,6 +25,7 @@
     "contact": "Mawasiliano",
     "dashboard": "Dashibodi",
     "identity": "Usajili na Uthibitishaji",
+    "tenderPlanning": "Mipango ya Zabuni",
     "procurement": "Ununuzi",
     "bidding": "Uandaaji Zabuni",
     "evaluation": "Tathmini",
@@ -85,6 +86,10 @@
     "dashboard": {
       "title": "Dashibodi ya Kazi",
       "subtitle": "Fuatilia zabuni hai, zabuni ulizowasilisha, mawasiliano, tathmini, tuzo, muda wa mwisho, na kumbukumbu."
+    },
+    "tenderPlanning": {
+      "title": "Mipango ya Zabuni",
+      "subtitle": "Simamia APP, SPP, uthibitisho wa bajeti, idhini, ripoti za mipango, na uhamishaji kwenda Tender/RFQ kabla ya tuzo na mkataba."
     },
     "procurementGuide": {
       "title": "Mwongozo wa Mchakato wa Ununuzi",

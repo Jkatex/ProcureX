@@ -28,6 +28,7 @@ const pageToRoute: Record<string, string> = {
   'buyer-dashboard': '/dashboard',
   'supplier-dashboard': '/dashboard',
   'procurement-dashboard': '/dashboard',
+  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'supplier-marketplace': '/procurement/marketplace',
   'create-tender': '/procurement/create-tender',
@@ -58,6 +59,74 @@ const pageToRoute: Record<string, string> = {
 const originalTextNodes = new WeakMap<Text, string>();
 const originalAttributes = new WeakMap<Element, Record<string, string>>();
 const translatableAttributes = ['aria-label', 'title', 'placeholder', 'alt'];
+
+const appDrawerHtml = `
+  <div class="app-menu-header">
+    <div class="app-menu-brand">
+      <span class="platform-logo platform-logo-sm">
+        <img class="platform-logo-image" src="/assets/logo.svg" alt="ProcureX">
+      </span>
+      <strong>ProcureX Apps</strong>
+    </div>
+    <span>Company account tools</span>
+  </div>
+  <button class="app-menu-card app-menu-iam" type="button" data-navigate="account-profile">
+    <span class="app-menu-icon">
+      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/><path d="M16 11l2 2 4-4"/>
+      </svg>
+    </span>
+    <span><strong>Registration and Verification</strong><em>Account and identity verification</em></span>
+  </button>
+  <button class="app-menu-card app-menu-procurement" type="button" data-navigate="tender-planning">
+    <span class="app-menu-icon">
+      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/>
+      </svg>
+    </span>
+    <span><strong>Tender Planning</strong><em>APP, SPP, budgets, approvals</em></span>
+  </button>
+  <button class="app-menu-card app-menu-procurement" type="button" data-navigate="marketplace">
+    <span class="app-menu-icon">
+      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 9h18l-2-5H5z"/><path d="M5 9v11h14V9"/><path d="M9 13h6"/><path d="M9 17h4"/>
+      </svg>
+    </span>
+    <span><strong>Procurement</strong><em>Marketplace, create tender, bid</em></span>
+  </button>
+  <button class="app-menu-card app-menu-communication" type="button" data-navigate="communication-center">
+    <span class="app-menu-icon">
+      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8"/><path d="M8 13h5"/>
+      </svg>
+    </span>
+    <span><strong>Communication Center</strong><em>Messages, clarifications, alerts</em></span>
+  </button>
+  <button class="app-menu-card app-menu-evaluation" type="button" data-navigate="bid-evaluation">
+    <span class="app-menu-icon">
+      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 11l2 2 4-4"/><path d="M8 4h8"/><path d="M8 20h8"/><path d="M5 7h14v10H5z"/>
+      </svg>
+    </span>
+    <span><strong>Evaluation</strong><em>Evaluate bids on your tenders</em></span>
+  </button>
+  <button class="app-menu-card app-menu-awarding" type="button" data-navigate="awarding-contracts">
+    <span class="app-menu-icon">
+      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="8" r="4"/><path d="M8.5 11.5L7 21l5-3 5 3-1.5-9.5"/><path d="M10.5 8l1 1 2-2"/>
+      </svg>
+    </span>
+    <span><strong>Awarding and Contract</strong><em>Awards, negotiations, signatures</em></span>
+  </button>
+  <button class="app-menu-card app-menu-contracts" type="button" data-navigate="records-history">
+    <span class="app-menu-icon">
+      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 3h8l3 3v15H5V3z"/><path d="M15 3v4h4"/><path d="M8 12h8"/><path d="M8 16h6"/>
+      </svg>
+    </span>
+    <span><strong>Records and History</strong><em>Past tenders, bids, awards</em></span>
+  </button>
+`;
 
 function translateStaticText(text: string, language: string) {
   if (language !== 'sw') return text;
@@ -109,6 +178,12 @@ function applyStaticTranslations(root: HTMLElement, language: string) {
       originals[attribute] = original;
       element.setAttribute(attribute, translateStaticText(original.trim().replace(/\s+/g, ' '), language));
     });
+  });
+}
+
+function normalizeAppDrawer(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>('[data-app-menu]').forEach((menu) => {
+    menu.innerHTML = appDrawerHtml;
   });
 }
 
@@ -202,6 +277,7 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     document.body.dataset.procurexReactPage = 'true';
     const root = rootRef.current;
     if (root) {
+      normalizeAppDrawer(root);
       syncInitialTabs(root);
       applyStaticTranslations(root, i18n.language);
     }

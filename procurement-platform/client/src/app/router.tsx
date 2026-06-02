@@ -31,6 +31,7 @@ export const router = createBrowserRouter([
   { path: '/dashboard', element: protectedPage('workspace-dashboard') },
   { path: '/identity/verification', element: protectedPage('identity-verification') },
   { path: '/identity/profile', element: protectedPage('account-profile') },
+  { path: '/tender-planning', element: protectedPage('tender-planning') },
   { path: '/procurement/guide', element: protectedPage('procurement-guide') },
   { path: '/procurement/marketplace', element: protectedPage('marketplace') },
   { path: '/procurement/create-tender', element: protectedPage('create-tender') },

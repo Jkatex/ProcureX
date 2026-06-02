@@ -14,6 +14,7 @@ import { IdentityVerificationProcurexPage } from '@/features/identity/components
 import { AccountProfileProcurexPage } from '@/features/identity/components/procurex/AccountProfileProcurexPage';
 import { AppLauncherProcurexPage } from '@/features/workspace/components/procurex/AppLauncherProcurexPage';
 import { WorkspaceDashboardProcurexPage } from '@/features/workspace/components/procurex/WorkspaceDashboardProcurexPage';
+import { TenderPlanningProcurexPage } from '@/features/tenderPlanning/components/procurex/TenderPlanningProcurexPage';
 import { MarketplaceProcurexPage } from '@/features/procurement/components/procurex/MarketplaceProcurexPage';
 import { CreateTenderProcurexPage } from '@/features/procurement/components/procurex/CreateTenderProcurexPage';
 import { TenderPublicationProcurexPage } from '@/features/procurement/components/procurex/TenderPublicationProcurexPage';
@@ -50,6 +51,7 @@ export const procurexPageRegistry = {
   'account-profile': AccountProfileProcurexPage,
   'app-launcher': AppLauncherProcurexPage,
   'workspace-dashboard': WorkspaceDashboardProcurexPage,
+  'tender-planning': TenderPlanningProcurexPage,
   'marketplace': MarketplaceProcurexPage,
   'create-tender': CreateTenderProcurexPage,
   'tender-publication': TenderPublicationProcurexPage,

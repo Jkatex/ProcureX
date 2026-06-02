@@ -330,3 +330,497 @@
     display: block;
   }
 }
+
+.tender-planning-page .tender-planning-hero h1 {
+  max-width: 820px;
+}
+
+.tender-planning-page.main-layout {
+  display: flex !important;
+  align-items: stretch;
+}
+
+body[data-page="tender-planning"] .main-layout.tender-planning-page {
+  display: flex !important;
+}
+
+.tender-planning-page .sidebar {
+  display: block !important;
+  flex: 0 0 var(--sidebar-width);
+  width: var(--sidebar-width);
+}
+
+body[data-page="tender-planning"] .main-layout > .sidebar {
+  display: block !important;
+}
+
+.tender-planning-page .evaluation-sidebar-head {
+  padding: 0 14px 18px;
+}
+
+.tender-planning-page .evaluation-sidebar-head h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.tender-planning-page .sidebar-nav a {
+  color: var(--text-primary);
+}
+
+.tender-planning-page .main-content {
+  width: min(1280px, calc(100% - 32px));
+}
+
+.tender-planning-flow {
+  align-items: flex-start;
+}
+
+.planning-filter-bar,
+.planning-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin: 18px 0;
+}
+
+.planning-filter-bar label,
+.planning-form-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--px-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.planning-filter-bar .btn {
+  min-height: 42px;
+}
+
+.planning-dashboard-grid,
+.planning-spp-layout,
+.planning-approval-grid,
+.planning-documents-grid,
+.planning-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.planning-report-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.planning-form-card,
+.planning-modal-panel,
+.planning-document-review {
+  margin-bottom: 16px;
+}
+
+.planning-form-grid .form-status,
+.planning-form-grid .inline-actions,
+.planning-upload-box {
+  grid-column: 1 / -1;
+}
+
+.planning-upload-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px dashed var(--px-line-soft);
+  border-radius: var(--px-radius-sm);
+  background: var(--px-surface-soft);
+  padding: 14px;
+}
+
+.planning-upload-box strong,
+.planning-upload-box span {
+  display: block;
+}
+
+.planning-upload-box span {
+  color: var(--px-muted);
+  font-size: 0.88rem;
+}
+
+.planning-document-dropzone {
+  margin-bottom: 16px;
+}
+
+.planning-modal-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--px-line-soft);
+  border-radius: var(--px-radius-sm);
+  background: var(--px-surface-soft);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.planning-modal-card > span {
+  color: var(--px-muted);
+  line-height: 1.55;
+}
+
+.planning-modal-card label {
+  display: grid;
+  gap: 6px;
+  color: var(--px-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.planning-documents-table table {
+  min-width: 560px;
+}
+
+.planning-progress-list,
+.planning-timeline-list {
+  display: grid;
+  gap: 12px;
+}
+
+.planning-progress-list div {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(160px, 2fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.planning-progress-list span {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--px-radius-full);
+  background: var(--px-line-soft);
+}
+
+.planning-progress-list i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--px-primary);
+}
+
+.planning-progress-list em {
+  color: var(--px-muted);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.planning-timeline-list div {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--px-line-soft);
+  padding-bottom: 10px;
+}
+
+.planning-timeline-list div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.planning-timeline-list span {
+  color: var(--px-muted);
+}
+
+.planning-roles-table table {
+  min-width: 620px;
+}
+
+.planning-alert-list .dashboard-action-row {
+  width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .planning-filter-bar,
+  .planning-form-grid,
+  .planning-report-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .planning-filter-bar,
+  .planning-form-grid,
+  .planning-dashboard-grid,
+  .planning-executive-grid,
+  .planning-spp-layout,
+  .planning-approval-grid,
+  .planning-documents-grid,
+  .planning-report-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-progress-list div,
+  .planning-timeline-list div {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-upload-box {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.tender-planning-page {
+  --planning-teal: var(--px-primary, #008080);
+  --planning-ink: var(--px-ink, #102032);
+  --planning-muted: var(--px-muted, #64748b);
+  --planning-line: var(--px-line-soft, #e6edf3);
+  --planning-soft: #f5f9fb;
+  --planning-blue: #1268b3;
+  --planning-green: #16834a;
+  --planning-amber: #b7791f;
+}
+
+.tender-planning-page .main-content {
+  background:
+    linear-gradient(180deg, rgba(245, 249, 251, 0.92) 0%, rgba(255, 255, 255, 0.98) 360px),
+    var(--planning-soft);
+}
+
+.planning-command-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+  align-items: stretch;
+  gap: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 128, 128, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(237, 249, 249, 0.96) 50%, rgba(246, 250, 252, 0.98) 100%);
+  box-shadow: 0 18px 44px rgba(15, 35, 50, 0.09);
+}
+
+.planning-command-hero h1 {
+  color: var(--planning-ink);
+}
+
+.planning-command-hero p {
+  max-width: 760px;
+}
+
+.planning-command-panel {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  min-height: 220px;
+  border: 1px solid rgba(0, 128, 128, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.planning-command-panel-head,
+.planning-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.planning-command-panel-head span {
+  color: var(--planning-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.planning-command-panel-head strong {
+  color: var(--planning-teal);
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 0.95;
+}
+
+.planning-readiness-meter {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7eef3;
+}
+
+.planning-readiness-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--planning-teal), var(--planning-blue), var(--planning-green));
+}
+
+.planning-command-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.planning-command-list div {
+  border: 1px solid var(--planning-line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.planning-command-list strong,
+.planning-command-list span {
+  display: block;
+}
+
+.planning-command-list strong {
+  color: var(--planning-ink);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.planning-command-list span {
+  margin-top: 5px;
+  color: var(--planning-muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.planning-workflow-stepper {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(88px, 1fr));
+  gap: 8px;
+  overflow-x: auto;
+  margin: 12px 0 18px;
+  padding-bottom: 4px;
+}
+
+.planning-workflow-stepper span {
+  position: relative;
+  min-height: 42px;
+  border: 1px solid var(--planning-line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--planning-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(15, 35, 50, 0.05);
+}
+
+.planning-workflow-stepper .complete {
+  border-color: rgba(22, 131, 74, 0.24);
+  color: var(--planning-green);
+  background: #f0fbf5;
+}
+
+.planning-workflow-stepper .active {
+  border-color: rgba(0, 128, 128, 0.28);
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--planning-teal), #0b9b9b);
+  box-shadow: 0 12px 26px rgba(0, 128, 128, 0.18);
+}
+
+.planning-executive-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.planning-premium-card {
+  min-height: 176px;
+  display: grid;
+  gap: 12px;
+  align-content: space-between;
+  border: 1px solid rgba(15, 35, 50, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 14px 32px rgba(15, 35, 50, 0.08);
+}
+
+.planning-premium-card h3 {
+  margin: 4px 0 0;
+  color: var(--planning-ink);
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.planning-premium-card p {
+  margin: 0;
+  color: var(--planning-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.planning-readiness-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  background:
+    linear-gradient(135deg, #ffffff 0%, #f3fbfb 100%);
+}
+
+.planning-ring {
+  width: 112px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, #ffffff 0 56%, transparent 57%),
+    conic-gradient(var(--planning-teal) 0 73%, #dfe8ee 73% 100%);
+}
+
+.planning-ring strong,
+.planning-ring span {
+  grid-area: 1 / 1;
+  display: block;
+  text-align: center;
+}
+
+.planning-ring strong {
+  color: var(--planning-ink);
+  font-size: 1.35rem;
+  transform: translateY(-6px);
+}
+
+.planning-ring span {
+  color: var(--planning-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  transform: translateY(16px);
+}
+
+.planning-card-foot {
+  border-top: 1px solid var(--planning-line);
+  padding-top: 12px;
+}
+
+.planning-card-foot strong {
+  color: var(--planning-ink);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 1120px) {
+  .planning-command-hero,
+  .planning-executive-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .planning-command-list,
+  .planning-readiness-card {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-ring {
+    justify-self: start;
+  }
+}

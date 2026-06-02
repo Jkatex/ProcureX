@@ -113,6 +113,10 @@ class ProcureXApp {
                 <span class="app-menu-icon">${this.getAppMenuIcon('iam')}</span>
                 <span><strong>Registration and Verification</strong><em>Account and identity verification</em></span>
             </button>
+            <button class="app-menu-card app-menu-procurement" data-navigate="tender-planning">
+                <span class="app-menu-icon">${this.getAppMenuIcon('planning')}</span>
+                <span><strong>Tender Planning</strong><em>APP, SPP, budgets, approvals</em></span>
+            </button>
             <button class="app-menu-card app-menu-procurement" data-navigate="marketplace">
                 <span class="app-menu-icon">${this.getAppMenuIcon('procurement')}</span>
                 <span><strong>Procurement</strong><em>Marketplace, create tender, bid</em></span>
@@ -220,6 +224,7 @@ class ProcureXApp {
     getAppMenuIcon(type) {
         const icons = {
             iam: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/><path d="M16 11l2 2 4-4"/>',
+            planning: '<path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/>',
             procurement: '<path d="M3 9h18l-2-5H5z"/><path d="M5 9v11h14V9"/><path d="M9 13h6"/><path d="M9 17h4"/>',
             evaluation: '<path d="M9 11l2 2 4-4"/><path d="M8 4h8"/><path d="M8 20h8"/><path d="M5 7h14v10H5z"/>',
             awarding: '<circle cx="12" cy="8" r="4"/><path d="M8.5 11.5L7 21l5-3 5 3-1.5-9.5"/><path d="M10.5 8l1 1 2-2"/>',
@@ -252,6 +257,7 @@ class ProcureXApp {
             'privacy-policy': 'Privacy Policy',
             'terms-and-conditions': 'Terms and Conditions',
             'contact': 'Contact ProcureX',
+            'tender-planning': 'Tender Planning',
             'supplier-journey': 'Procurement',
             'buyer-journey': 'Procurement',
             'procurement-guide': 'Procurement',
@@ -1873,6 +1879,7 @@ class ProcureXApp {
             'account-profile',
             'app-launcher',
             'workspace-dashboard',
+            'tender-planning',
             'admin-dashboard',
             'admin-search',
             'admin-users',
@@ -1956,6 +1963,7 @@ class ProcureXApp {
     renderIAMVerification() { return this.getLoadingSpinner('identity verification'); }
     renderVerificationStatus() { return this.getLoadingSpinner('account profile'); }
     renderWorkspaceDashboard() { return this.getLoadingSpinner('dashboard'); }
+    renderTenderPlanning() { return this.getLoadingSpinner('tender planning'); }
     renderAdminDashboard() { return this.getLoadingSpinner('admin dashboard'); }
     renderAdminSearch() { return this.getLoadingSpinner('admin search'); }
     renderAdminUsers() { return this.getLoadingSpinner('admin users'); }
