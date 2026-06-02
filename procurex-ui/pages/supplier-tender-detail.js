@@ -592,6 +592,22 @@ function renderSupplierTenderPublicClarificationFeed(clarifications = []) {
     }).join('');
 }
 
+function renderSupplierTenderAmendmentFeed(amendments = []) {
+    const published = amendments.filter(item => !/ready|draft/i.test(String(item.status || '')));
+    if (!published.length) return '<div class="scope-empty">No published amendments yet.</div>';
+    return published.map(item => `
+        <article class="public-clarification-item">
+            <div class="public-clarification-topline">
+                <span>${escapeSupplierTenderDetailHtml(item.publishedAt ? formatSupplierTenderDate(String(item.publishedAt).slice(0, 10)) : 'Published amendment')}</span>
+                <em class="badge badge-success">${escapeSupplierTenderDetailHtml(item.status || 'Published')}</em>
+            </div>
+            <p><strong>${escapeSupplierTenderDetailHtml(item.title || 'Tender amendment')}</strong></p>
+            <p>${escapeSupplierTenderDetailHtml(item.detail || item.summary || 'Review the revised tender document before preparing your bid.')}</p>
+            ${item.affectedSections?.length ? `<small>Affected sections: ${escapeSupplierTenderDetailHtml(item.affectedSections.join(', '))}</small>` : ''}
+        </article>
+    `).join('');
+}
+
 function renderSupplierTenderClarificationPrompt(context = '', category = 'Technical') {
     return `
         <div class="contextual-clarification-prompt">
@@ -1166,6 +1182,7 @@ function renderSupplierTenderContractsTab(tender = {}, profile = {}) {
 }
 
 function renderSupplierTenderQuestionsTab(tender = {}, clarifications = [], clarificationDeadline = {}) {
+    const amendments = tender.amendments || [];
     return renderSupplierTenderSubTabs([
         {
             id: 'clarifications',
@@ -1205,9 +1222,22 @@ function renderSupplierTenderQuestionsTab(tender = {}, clarifications = [], clar
             `, `<span class="badge badge-info">${clarifications.length} items</span>`)
         },
         {
+            id: 'amendments',
+            label: 'Amendments',
+            content: renderProcurexTenderDocumentSection('4', 'Published Amendments', 'Tender addenda', `
+                <div class="public-clarification-feed">
+                    <div class="public-clarification-heading">
+                        <span class="section-kicker">Tender addenda</span>
+                        <strong>Published amendments update the effective tender</strong>
+                    </div>
+                    ${renderSupplierTenderAmendmentFeed(amendments)}
+                </div>
+            `, `<span class="badge badge-info">${amendments.filter(item => !/ready|draft/i.test(String(item.status || ''))).length} published</span>`)
+        },
+        {
             id: 'communication-center',
             label: 'Communication Center',
-            content: renderProcurexTenderDocumentSection('4', 'Communication Center', 'Tender messages', `
+            content: renderProcurexTenderDocumentSection('5', 'Communication Center', 'Tender messages', `
                 <div class="clarification-compose enhanced communication-center-cta">
                     <div>
                         <strong>Open Communication Center</strong>
@@ -1304,7 +1334,8 @@ function renderSupplierTenderTabbedDetail(tender = {}, profile = {}, options = {
 }
 
 function renderSupplierTenderDetail() {
-    const tender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders[0];
+    const baseTender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders[0];
+    const tender = typeof getEffectiveTender === 'function' ? getEffectiveTender(baseTender) : baseTender;
     const profile = typeof getCreateTenderTypeProfile === 'function'
         ? getCreateTenderTypeProfile(tender)
         : { commercialName: 'Pricing schedule', bidderPreparation: ['Technical response', 'Pricing'], evaluationCriteria: [] };
@@ -1314,6 +1345,7 @@ function renderSupplierTenderDetail() {
     const saved = getSupplierTenderSavedIds().includes(tender.id);
     const daysRemaining = Math.max(0, Math.ceil((Date.parse(`${tender.closingDate}T23:59:59`) - Date.now()) / 86400000)) || 0;
     const clarificationDeadline = getSupplierTenderClarificationDeadlineState(tender);
+    const publishedAmendments = (tender.amendments || []).filter(item => !/ready|draft/i.test(String(item.status || '')));
 
     return `
         <div class="main-layout">
@@ -1359,6 +1391,19 @@ function renderSupplierTenderDetail() {
                         <div class="kpi-card"><div class="kpi-value">${clarificationDeadline.closed ? 'Closed' : clarifications.length}</div><div class="kpi-label">Clarifications</div></div>
                     </section>
 
+                    ${publishedAmendments.length ? `
+                        <section class="journey-panel supplier-amendment-notice">
+                            <div class="panel-heading">
+                                <div>
+                                    <span class="section-kicker">Published Amendments</span>
+                                    <h2>${publishedAmendments.length} tender amendment${publishedAmendments.length === 1 ? '' : 's'} published</h2>
+                                </div>
+                                <span class="badge badge-success">Effective tender updated</span>
+                            </div>
+                            ${renderSupplierTenderAmendmentFeed(publishedAmendments)}
+                        </section>
+                    ` : ''}
+
                     ${renderSupplierTenderTabbedDetail(tender, profile, { requirementSet, clarifications, clarificationDeadline, daysRemaining })}
                 </div>
             </div>
@@ -1370,7 +1415,8 @@ function initializeSupplierTenderDetail() {
     const root = document.querySelector('[data-supplier-tender-detail]');
     if (!root || root.dataset.ready === 'true') return;
     const tenderId = root.dataset.tenderId;
-    const tender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders.find(item => item.id === tenderId);
+    const baseTender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders.find(item => item.id === tenderId);
+    const tender = typeof getEffectiveTender === 'function' ? getEffectiveTender(baseTender) : baseTender;
 
     const openClarificationInCommunicationCenter = (context = '', category = 'Technical') => {
         const normalizedCategory = category || 'Technical';

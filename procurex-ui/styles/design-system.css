@@ -8254,7 +8254,8 @@ ul.closure-checklist {
     font-size: 13px;
 }
 
-.supplier-tender-detail-page .tender-document-view {
+.supplier-tender-detail-page .tender-document-view,
+.buyer-tender-detail-page .tender-document-view {
     width: min(100%, 900px);
 }
 
@@ -8264,29 +8265,41 @@ ul.closure-checklist {
 .supplier-tender-detail-page .tender-document-section-heading,
 .supplier-tender-detail-page .tender-document-two-column,
 .supplier-tender-detail-page .tender-detail-field-grid,
-.supplier-tender-detail-page .tender-detail-attachment-grid {
+.supplier-tender-detail-page .tender-detail-attachment-grid,
+.buyer-tender-detail-page .tender-document-cover,
+.buyer-tender-detail-page .tender-document-meta-table .record-summary,
+.buyer-tender-detail-page .tender-detail-summary,
+.buyer-tender-detail-page .tender-document-section-heading,
+.buyer-tender-detail-page .tender-document-two-column,
+.buyer-tender-detail-page .tender-detail-field-grid,
+.buyer-tender-detail-page .tender-detail-attachment-grid {
     grid-template-columns: 1fr;
 }
 
-.supplier-tender-detail-page .tender-document-cover {
+.supplier-tender-detail-page .tender-document-cover,
+.buyer-tender-detail-page .tender-document-cover {
     gap: 18px;
 }
 
-.supplier-tender-detail-page .tender-document-stamp {
+.supplier-tender-detail-page .tender-document-stamp,
+.buyer-tender-detail-page .tender-document-stamp {
     justify-self: start;
     min-width: 170px;
 }
 
-.supplier-tender-detail-page .tender-document-section-heading {
+.supplier-tender-detail-page .tender-document-section-heading,
+.buyer-tender-detail-page .tender-document-section-heading {
     gap: 10px;
 }
 
-.supplier-tender-detail-page .tender-document-section-heading>span {
+.supplier-tender-detail-page .tender-document-section-heading>span,
+.buyer-tender-detail-page .tender-document-section-heading>span {
     width: 38px;
     height: 38px;
 }
 
-.supplier-tender-detail-page .tender-document-section-body {
+.supplier-tender-detail-page .tender-document-section-body,
+.buyer-tender-detail-page .tender-document-section-body {
     padding-left: 0;
 }
 
@@ -8294,13 +8307,211 @@ ul.closure-checklist {
 .supplier-tender-detail-page .tender-document-view .supplier-requirement-preview-list,
 .supplier-tender-detail-page .tender-document-view .tender-detail-card-list,
 .supplier-tender-detail-page .tender-document-view .supplier-timeline-list,
-.supplier-tender-detail-page .tender-detail-list-groups {
+.supplier-tender-detail-page .tender-detail-list-groups,
+.buyer-tender-detail-page .tender-document-view .tender-detail-field-grid,
+.buyer-tender-detail-page .tender-document-view .supplier-requirement-preview-list,
+.buyer-tender-detail-page .tender-document-view .tender-detail-card-list,
+.buyer-tender-detail-page .tender-document-view .supplier-timeline-list,
+.buyer-tender-detail-page .tender-detail-list-groups {
     grid-template-columns: 1fr;
 }
 
-.supplier-tender-detail-page .tender-detail-table table {
+.supplier-tender-detail-page .tender-detail-table table,
+.buyer-tender-detail-page .tender-detail-table table {
     min-width: 0;
     width: 100%;
+}
+
+.buyer-tender-status-list,
+.buyer-tender-detail-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.buyer-tender-status-list {
+    margin: 24px 0;
+}
+
+.buyer-tender-detail-rows {
+    margin-top: 24px;
+}
+
+.buyer-tender-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-width: 0;
+    padding: 16px 18px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    background: var(--card-bg);
+}
+
+.buyer-tender-status-row span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.buyer-tender-status-row strong {
+    color: var(--text-primary);
+    font-size: 24px;
+    line-height: 1;
+}
+
+.buyer-amendment-list,
+.buyer-amendment-badges,
+.buyer-amendment-recipients,
+.buyer-amendment-preview,
+.buyer-amendment-actions {
+    display: grid;
+    gap: 12px;
+}
+
+.buyer-amendment-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: start;
+    padding: 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    background: var(--surface-soft);
+}
+
+.buyer-amendment-row p {
+    margin: 6px 0 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.buyer-amendment-badges {
+    grid-template-columns: repeat(auto-fit, minmax(88px, max-content));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.buyer-amendment-workspace {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: stretch;
+    padding: 18px;
+    background: rgba(12, 23, 38, 0.64);
+    backdrop-filter: blur(10px);
+}
+
+.buyer-amendment-card {
+    display: grid;
+    gap: 20px;
+    width: min(1120px, 100%);
+    max-height: calc(100vh - 36px);
+    margin: auto;
+    padding: 22px;
+    overflow: auto;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-2xl);
+}
+
+.buyer-amendment-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.buyer-amendment-form-grid label,
+.buyer-amendment-section-picker label {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.buyer-amendment-form-grid .span-2 {
+    grid-column: 1 / -1;
+}
+
+.buyer-amendment-section-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    background: var(--surface-soft);
+}
+
+.buyer-amendment-section-picker legend {
+    padding: 0 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.buyer-amendment-section-picker label {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    background: var(--card-bg);
+}
+
+.buyer-amendment-recipients {
+    padding: 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    background: var(--surface-soft);
+}
+
+.buyer-amendment-preview {
+    min-width: 0;
+}
+
+.buyer-amendment-preview .tender-detail-table table {
+    min-width: 720px;
+}
+
+.buyer-amendment-actions {
+    grid-template-columns: repeat(2, minmax(0, max-content));
+    justify-content: end;
+}
+
+@media (max-width: 768px) {
+    .buyer-amendment-workspace {
+        padding: 0;
+    }
+
+    .buyer-amendment-card {
+        width: 100%;
+        max-height: 100vh;
+        min-height: 100vh;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    .buyer-amendment-row,
+    .buyer-amendment-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .buyer-amendment-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .buyer-amendment-actions .btn {
+        width: 100%;
+    }
 }
 
 .supplier-requirement-preview,

@@ -383,6 +383,77 @@ function getRecordsHistoryBaseRecords() {
     ];
 }
 
+function getRecordsHistoryTenderById(tenderId = '') {
+    const tenders = typeof getProcurexAllTenders === 'function'
+        ? getProcurexAllTenders()
+        : (typeof mockData !== 'undefined' ? mockData.tenders || [] : []);
+    return tenders.find(item => String(item.id) === String(tenderId)) || {};
+}
+
+function getRecordsHistoryAmendmentDocumentName(amendment = {}) {
+    if (typeof getProcurexAmendmentDocumentName === 'function') return getProcurexAmendmentDocumentName(amendment);
+    const safeTitle = String(amendment.title || 'Tender amendment')
+        .replace(/[^a-z0-9]+/gi, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 48) || 'Tender_amendment';
+    return `${safeTitle}.pdf`;
+}
+
+function getRecordsHistoryStoredAmendmentRecords(user) {
+    const amendments = getRecordsHistoryStoredArray(window.procurexTenderAmendmentsStorageKey || 'procurex.tenderAmendments.v1')
+        .filter(amendment => amendment.status === 'published');
+
+    return amendments.flatMap((amendment, index) => {
+        const tender = getRecordsHistoryTenderById(amendment.tenderId);
+        const buyer = tender.organization || amendment.createdBy || 'Buyer';
+        const recipients = Array.isArray(amendment.recipients) ? amendment.recipients : [];
+        const publishedDate = amendment.publishedAt || amendment.createdAt || new Date().toISOString();
+        const formattedDate = formatRecordsHistoryDate(publishedDate);
+        const documentName = getRecordsHistoryAmendmentDocumentName(amendment);
+        const title = amendment.title || `Tender amendment ${index + 1}`;
+        const supplierNames = recipients.map(recipient => recipient.name).filter(Boolean).join(', ') || 'Interested suppliers';
+        const sharedRecord = {
+            date: publishedDate,
+            type: 'Amendment',
+            title,
+            reference: amendment.tenderId || `PX-AMD-2026-${String(index + 31).padStart(3, '0')}`,
+            buyer,
+            category: tender.category || tender.type || 'Tender amendment',
+            status: 'Completed',
+            value: Number(tender.budget || 0),
+            evidenceItems: ['Details', 'Amendment', 'Tender', 'Notification'],
+            timeline: [
+                { title: 'Amendment drafted', date: formatRecordsHistoryDate(amendment.createdAt || publishedDate), role: 'Procurement Officer' },
+                { title: 'Amendment published', date: formattedDate, role: 'Buyer' },
+                { title: 'Interested suppliers notified', date: formattedDate, role: 'System notification' }
+            ],
+            documents: [
+                { name: documentName, type: 'PDF', date: formattedDate },
+                { name: 'Revised tender document', type: 'PDF', date: formattedDate }
+            ]
+        };
+        const buyerRecord = buildProcurementRecord({
+            ...sharedRecord,
+            id: `stored-amendment-buyer-${amendment.id || index}`,
+            ownerRole: 'buyer',
+            ownerOrganization: buyer,
+            supplier: supplierNames
+        });
+        const supplierRecords = recipients.map((recipient, recipientIndex) => {
+            const isCurrentUserRecipient = recipient.id === 'user-001' || recipient.name === user.organization;
+            const supplierOrganization = isCurrentUserRecipient ? user.organization : (recipient.name || 'Interested supplier');
+            return buildProcurementRecord({
+                ...sharedRecord,
+                id: `stored-amendment-supplier-${amendment.id || index}-${recipient.id || recipientIndex}`,
+                ownerRole: 'supplier',
+                ownerOrganization: supplierOrganization,
+                supplier: supplierOrganization
+            });
+        });
+        return [buyerRecord, ...supplierRecords];
+    });
+}
+
 function getRecordsHistoryRows() {
     const user = getRecordsHistoryCurrentUser();
     const baseRecords = getRecordsHistoryBaseRecords();
@@ -408,8 +479,9 @@ function getRecordsHistoryRows() {
                 { name: 'Bid submission receipt', type: 'PDF', date: formatRecordsHistoryDate(bid.submittedAt || bid.savedAt || new Date()) }
             ]
         }));
+    const storedAmendments = getRecordsHistoryStoredAmendmentRecords(user);
 
-    return [...baseRecords, ...storedBids]
+    return [...baseRecords, ...storedBids, ...storedAmendments]
         .filter(record => record.ownerRole === user.role && record.ownerOrganization === user.organization)
         .sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 }

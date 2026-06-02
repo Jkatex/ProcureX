@@ -457,6 +457,9 @@ class ProcureXApp {
         if (typeof window.initializeProcurexMarketplace === 'function') {
             window.initializeProcurexMarketplace();
         }
+        if (typeof window.initializeTenderDetails === 'function') {
+            window.initializeTenderDetails();
+        }
         if (typeof window.initializeRecordsHistory === 'function') {
             window.initializeRecordsHistory();
         }

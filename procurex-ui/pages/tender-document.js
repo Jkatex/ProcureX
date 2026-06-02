@@ -115,16 +115,17 @@ function getProcurexTenderPdfTypeStandard(profile = {}) {
 
 function getProcurexTenderPdfById(tenderId = '') {
     const selected = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : null;
-    if (!tenderId) return selected || (typeof mockData !== 'undefined' ? mockData.tenders?.[0] : null);
+    const applyEffectiveTender = tender => (tender && typeof getEffectiveTender === 'function') ? getEffectiveTender(tender) : tender;
+    if (!tenderId) return applyEffectiveTender(selected || (typeof mockData !== 'undefined' ? mockData.tenders?.[0] : null));
 
     const tenders = typeof getProcurexAllTenders === 'function'
         ? getProcurexAllTenders()
         : (typeof mockData !== 'undefined' ? mockData.tenders || [] : []);
     const tender = tenders.find(item => String(item.id) === String(tenderId));
-    if (tender) return tender;
+    if (tender) return applyEffectiveTender(tender);
 
     if (typeof selectProcurexTender === 'function') selectProcurexTender(tenderId);
-    return typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : selected;
+    return applyEffectiveTender(typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : selected);
 }
 
 function getProcurexTenderPdfValueTitle(value, fallback = 'Item') {
@@ -487,6 +488,8 @@ function renderProcurexTenderPdfDocument(tender = {}, options = {}) {
             `)}
 
             ${renderProcurexTenderPdfSection('9', 'Clarifications and Amendments', renderProcurexTenderPdfActivity(tender))}
+
+            ${tender.amendmentAddendumText?.length ? renderProcurexTenderPdfSection('10', 'Published Addendum Text', renderProcurexTenderPdfList(tender.amendmentAddendumText)) : ''}
         </article>
     `;
 }
