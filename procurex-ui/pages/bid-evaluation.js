@@ -346,6 +346,11 @@ function setSelectedEvaluationReport(reference = '') {
     }
 }
 
+function clearProcurexEvaluationSelection() {
+    setSelectedEvaluationTender('');
+    setSelectedEvaluationReport('');
+}
+
 function getEvaluationDraft(reference = '') {
     if (!reference) return null;
     try {
@@ -5076,6 +5081,7 @@ function initializeBidEvaluation() {
 }
 
 window.initializeBidEvaluation = initializeBidEvaluation;
+window.clearProcurexEvaluationSelection = clearProcurexEvaluationSelection;
 
 if (window.app) {
     window.app.renderBidEvaluation = renderBidEvaluation;

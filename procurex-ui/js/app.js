@@ -88,6 +88,9 @@ class ProcureXApp {
             'verification-status': 'account-profile'
         };
         page = pageAliases[page] || page;
+        if (page === 'bid-evaluation') {
+            this.clearEvaluationEntrySelection();
+        }
         const previousPage = this.currentPage;
         this.currentPage = page;
         if (updateHistory && page !== previousPage) {
@@ -95,6 +98,21 @@ class ProcureXApp {
             history.pushState({ page }, '', url);
         }
         this.renderPage();
+    }
+
+    clearEvaluationEntrySelection() {
+        if (typeof window.clearProcurexEvaluationSelection === 'function') {
+            window.clearProcurexEvaluationSelection();
+            return;
+        }
+
+        try {
+            localStorage.removeItem('procurex.selectedEvaluationTender');
+            localStorage.removeItem('procurex.selectedEvaluationReport');
+        } catch (error) {
+            window.procurexSelectedEvaluationTender = '';
+            window.procurexSelectedEvaluationReport = '';
+        }
     }
 
     isAdminSession() {

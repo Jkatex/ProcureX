@@ -1,6 +1,6 @@
 import { FormEvent, MouseEvent, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import i18nInstance from '@/i18n';
 import { LanguageSwitcher } from '../LanguageSwitcher';
 
@@ -55,6 +55,27 @@ const pageToRoute: Record<string, string> = {
   'admin-analytics': '/admin/analytics',
   'admin-audit': '/admin/audit'
 };
+
+const evaluationSelectionStorageKeys = ['procurex.selectedEvaluationTender', 'procurex.selectedEvaluationReport'];
+
+type EvaluationSelectionWindow = Window & {
+  procurexSelectedEvaluationTender?: string;
+  procurexSelectedEvaluationReport?: string;
+};
+
+function clearEvaluationEntrySelection() {
+  if (typeof window === 'undefined') return;
+
+  const evaluationWindow = window as EvaluationSelectionWindow;
+  evaluationWindow.procurexSelectedEvaluationTender = '';
+  evaluationWindow.procurexSelectedEvaluationReport = '';
+
+  try {
+    evaluationSelectionStorageKeys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // localStorage may be unavailable in some embedded/test environments; window fallbacks above cover the prototype state.
+  }
+}
 
 const originalTextNodes = new WeakMap<Text, string>();
 const originalAttributes = new WeakMap<Element, Record<string, string>>();
@@ -267,29 +288,57 @@ function activateTabByName(root: HTMLElement, target: string) {
   if (tab) setActiveTab(tab);
 }
 
+function scrollPageToTop() {
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+
+  if (typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)) return;
+
+  try {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  } catch {
+    // jsdom does not implement scrollTo; direct scrollTop assignment above is enough for tests.
+  }
+}
+
+function initializeStaticPage(root: HTMLElement, language: string) {
+  normalizeAppDrawer(root);
+  syncInitialTabs(root);
+  applyStaticTranslations(root, language);
+}
+
+function resetStaticPage(root: HTMLElement, html: string, language: string) {
+  root.innerHTML = html;
+  initializeStaticPage(root, language);
+  scrollPageToTop();
+}
+
 export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
   const navigate = useNavigate();
   const { i18n } = useTranslation();
+  const staticPageInstanceKey = pageKey === 'bid-evaluation' ? `${pageKey}:${location.key}` : pageKey;
 
   useEffect(() => {
     document.body.dataset.page = pageKey;
     document.body.dataset.procurexReactPage = 'true';
     const root = rootRef.current;
     if (root) {
-      normalizeAppDrawer(root);
-      syncInitialTabs(root);
-      applyStaticTranslations(root, i18n.language);
+      if (pageKey === 'bid-evaluation') clearEvaluationEntrySelection();
+      initializeStaticPage(root, i18n.language);
+      if (pageKey === 'bid-evaluation') scrollPageToTop();
     }
 
     return () => {
       delete document.body.dataset.procurexReactPage;
     };
-  }, [pageKey, html, i18n.language]);
+  }, [pageKey, html, i18n.language, location.key]);
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
     const navTarget = target.closest<HTMLElement>('[data-navigate]');
+    const evaluationReset = target.closest<HTMLElement>('[data-evaluation-clear-selection]');
     const tab = target.closest<HTMLElement>('.tab[data-tab]');
     const supplierTab = target.closest<HTMLElement>('[data-supplier-tab-target]');
     const supplierJump = target.closest<HTMLElement>('[data-supplier-jump-target]');
@@ -301,7 +350,18 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     if (navTarget) {
       event.preventDefault();
       const page = navTarget.getAttribute('data-navigate') || 'welcome';
+      if (page === 'bid-evaluation') clearEvaluationEntrySelection();
+      if (pageKey === 'bid-evaluation' && page === 'bid-evaluation' && rootRef.current) {
+        resetStaticPage(rootRef.current, html, i18n.language);
+      }
       navigate(pageToRoute[page] || '/');
+      return;
+    }
+
+    if (evaluationReset && rootRef.current) {
+      event.preventDefault();
+      clearEvaluationEntrySelection();
+      resetStaticPage(rootRef.current, html, i18n.language);
       return;
     }
 
@@ -385,6 +445,7 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
         <LanguageSwitcher />
       </div>
       <div
+        key={staticPageInstanceKey}
         ref={rootRef}
         id="page-content"
         role="main"
