@@ -9,21 +9,10 @@ type PlanningEditorViewProps = {
   onSave: (financialYear: string, records: ProcurementPlanningRecord[]) => void;
 };
 
-const firstRowDefaults: Record<string, string> = {
-  tenderTitle: '',
-  openingDate: '2026-08-01',
-  closingDate: '2026-08-30',
-  category: 'Works',
-  budget: '480000000',
-  procurementMethod: 'Open Tender',
-  sourceOfFunds: 'Development budget',
-  expectedCompletionDate: '2026-12-15'
-};
-
 function createInitialRows(): PlanningEditorRow[] {
   return [0, 1, 2].map((index) => ({
     id: `editor-row-${index}`,
-    values: index === 0 ? { ...firstRowDefaults } : {}
+    values: {}
   }));
 }
 
@@ -113,7 +102,7 @@ export function PlanningEditorView({ hidden, selectedYear, onSave }: PlanningEdi
           <div>
             <span className="section-kicker">Create plan</span>
             <h1>Procurement Plan Worksheet</h1>
-            <p>Add rows, delete or rename columns, and add any other plan columns your team needs.</p>
+            <p>Start with blank rows, then add the planned tenders your team is ready to approve.</p>
           </div>
           <button className="btn btn-primary" type="submit">
             Save Plan

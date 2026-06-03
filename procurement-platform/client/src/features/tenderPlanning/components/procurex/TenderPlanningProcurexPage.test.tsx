@@ -14,6 +14,28 @@ function renderPlanningPage(initialEntries = ['/tender-planning']) {
   );
 }
 
+function seedPlanningRecords() {
+  const records = [
+    {
+      id: 'user-plan-fleet',
+      financialYear: '2026/2027',
+      tenderTitle: 'Fleet maintenance framework agreement',
+      openingDate: '2026-07-20',
+      closingDate: '2026-08-12',
+      category: 'Non Consultancy',
+      budget: 125000000,
+      procurementMethod: 'Framework',
+      sourceOfFunds: 'Operational budget',
+      expectedCompletionDate: '2026-09-18',
+      status: 'Inactive',
+      planState: 'Not started',
+      notes: 'Funding approved by finance'
+    }
+  ];
+
+  window.localStorage.setItem('procurex.procurementPlans.v4', JSON.stringify(records));
+}
+
 describe('TenderPlanningProcurexPage', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -25,8 +47,8 @@ describe('TenderPlanningProcurexPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Procurement Planning' })).toBeInTheDocument();
     expect(screen.getByText('Create, upload, view, and download procurement plans. Use the Plan action to finish tender requirements before publication.')).toBeInTheDocument();
-    expect(screen.getAllByText('Construction of community water wells').length).toBeGreaterThan(0);
-    expect(screen.getByText('TZS 1.4B')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your procurement plan will appear here once you create or upload it.' })).toBeInTheDocument();
+    expect(screen.getByText('TZS 0')).toBeInTheDocument();
   });
 
   it('opens the full worksheet view from the quick plan table', () => {
@@ -41,7 +63,7 @@ describe('TenderPlanningProcurexPage', () => {
   it('uploads directly into the full worksheet without showing the import panel', () => {
     renderPlanningPage();
 
-    fireEvent.click(screen.getByRole('button', { name: /Upload Plan/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Upload Plan/i })[0]);
     expect(screen.queryByText('Import Excel plan')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Upload annual procurement plan Excel file'), {
@@ -57,18 +79,19 @@ describe('TenderPlanningProcurexPage', () => {
   });
 
   it('opens record details using the same plan data', () => {
+    seedPlanningRecords();
     renderPlanningPage();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Construction of community water wells' })).toBeInTheDocument();
-    expect(screen.getAllByText('Specifications cleared for tender creation').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Fleet maintenance framework agreement' })).toBeInTheDocument();
+    expect(screen.getAllByText('Funding approved by finance').length).toBeGreaterThan(0);
   });
 
   it('saves a created plan into the annual plan table', () => {
     const { container } = renderPlanningPage();
 
-    fireEvent.click(screen.getByRole('button', { name: /Create Plan/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /Create Plan/i })[0]);
     const tenderInput = container.querySelector<HTMLInputElement>('input[name="tenderTitle"]');
     expect(tenderInput).toBeInTheDocument();
 
@@ -80,6 +103,7 @@ describe('TenderPlanningProcurexPage', () => {
   });
 
   it('hands a planned tender to the create tender route', () => {
+    seedPlanningRecords();
     renderPlanningPage();
 
     fireEvent.click(screen.getByRole('button', { name: 'Plan' }));

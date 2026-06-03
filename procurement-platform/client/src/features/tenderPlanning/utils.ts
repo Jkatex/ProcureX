@@ -2,7 +2,6 @@ import {
   procurementPlanningCreateTenderDraftKey,
   procurementPlanningDefaultColumns,
   procurementPlanningMilestoneKey,
-  procurementPlanningSeedRecords,
   procurementPlanningSelectedTenderKey,
   procurementPlanningStatuses,
   procurementPlanningStorageKey
@@ -55,10 +54,10 @@ export function readProcurementPlanningRecords() {
     const parsed = JSON.parse(window.localStorage.getItem(procurementPlanningStorageKey) || 'null') as unknown;
     if (Array.isArray(parsed) && parsed.length) return parsed.map(normalizeProcurementPlanningRecord);
   } catch {
-    // Seed records keep the UI usable when storage is unavailable or malformed.
+    // Storage can be unavailable or malformed; first-run planning should still start cleanly.
   }
 
-  return procurementPlanningSeedRecords;
+  return [];
 }
 
 export function saveProcurementPlanningRecords(records: ProcurementPlanningRecord[]) {
@@ -95,17 +94,6 @@ export function getProcurementPlanningTemplateCsv() {
       'Budget',
       'Expected Completion Date',
       'Notes'
-    ].join(','),
-    [
-      'Construction of community water wells',
-      'Works',
-      'Open Tender',
-      '2026-08-01',
-      '2026-08-30',
-      'Development budget',
-      '480000000',
-      '2026-12-15',
-      ''
     ].join(',')
   ].join('\n');
 }

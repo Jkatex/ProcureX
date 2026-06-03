@@ -1249,3 +1249,229 @@ body[data-page="tender-planning"] .main-layout.tender-planning-page {
     width: 100%;
   }
 }
+
+/* First-run product states */
+.dashboard-first-run-page .sidebar-nav button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-first-run-page .sidebar-nav button:hover,
+.dashboard-first-run-page .sidebar-nav button.active {
+  background: var(--surface-soft);
+  color: var(--primary);
+}
+
+.dashboard-first-run-hero .dashboard-welcome-actions {
+  margin-top: 22px;
+}
+
+.dashboard-first-run-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-first-run-action {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 82px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-first-run-action:hover {
+  border-color: rgba(0, 128, 128, 0.36);
+  background: #f7fbfb;
+}
+
+.dashboard-first-run-action .app-menu-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.dashboard-first-run-action strong,
+.dashboard-first-run-action em {
+  display: block;
+}
+
+.dashboard-first-run-action em {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.procurex-empty-guidance {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid rgba(0, 128, 128, 0.24);
+  border-radius: 8px;
+  background: #fbffff;
+  padding: 20px;
+}
+
+.procurex-empty-guidance.compact,
+.dashboard-active-empty {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.procurex-empty-guidance h2,
+.communication-empty-state h2 {
+  margin: 4px 0 8px;
+  color: var(--text-primary);
+  font-size: 28px;
+  line-height: 1.18;
+}
+
+.procurex-empty-guidance p,
+.procurex-empty-guidance span,
+.communication-empty-state p,
+.communication-empty-state span {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.procurex-empty-guidance strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-primary);
+}
+
+.procurex-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(0, 128, 128, 0.28);
+  border-radius: 8px;
+  background: #effafa;
+  color: var(--planning-teal, var(--primary));
+}
+
+.procurex-empty-icon svg,
+.procurex-empty-actions svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.procurex-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.communication-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-height: 340px;
+  align-content: center;
+  border: 1px solid rgba(0, 128, 128, 0.2);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: clamp(22px, 4vw, 38px);
+  text-align: center;
+}
+
+.communication-empty-state.compact {
+  min-height: 220px;
+}
+
+.communication-empty-state p {
+  max-width: 700px;
+  margin: 0;
+}
+
+.communication-empty-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: min(100%, 840px);
+  margin: 4px 0 6px;
+}
+
+.communication-empty-steps span {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.communication-hero .btn {
+  width: fit-content;
+  margin-top: 18px;
+}
+
+.planning-first-run {
+  margin: 18px 0;
+}
+
+.planning-empty-row strong,
+.planning-empty-row span {
+  display: block;
+}
+
+.planning-empty-row strong {
+  margin-bottom: 4px;
+  color: var(--planning-ink, var(--text-primary));
+}
+
+.planning-empty-row span {
+  color: var(--planning-muted, var(--text-secondary));
+}
+
+.planning-register-actions .btn:disabled {
+  opacity: 0.54;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .procurex-empty-guidance,
+  .procurex-empty-guidance.compact,
+  .dashboard-active-empty {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .procurex-empty-actions {
+    justify-content: flex-start;
+  }
+
+  .communication-empty-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .procurex-empty-guidance h2,
+  .communication-empty-state h2 {
+    font-size: 24px;
+  }
+}

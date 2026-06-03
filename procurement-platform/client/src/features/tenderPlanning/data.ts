@@ -81,68 +81,7 @@ export const procurementPlanningStatuses: ProcurementPlanningStatus[] = [
   }
 ];
 
-export const procurementPlanningSeedRecords: ProcurementPlanningRecord[] = [
-  {
-    id: 'plan-2026-well',
-    financialYear: '2026/2027',
-    tenderTitle: 'Construction of community water wells',
-    openingDate: '2026-08-01',
-    closingDate: '2026-08-30',
-    category: 'Works',
-    budget: 480000000,
-    procurementMethod: 'Open Tender',
-    sourceOfFunds: 'Development budget',
-    expectedCompletionDate: '2026-12-15',
-    status: 'Draft planning',
-    planState: 'Planning begun',
-    notes: 'Specifications cleared for tender creation'
-  },
-  {
-    id: 'plan-2026-fleet',
-    financialYear: '2026/2027',
-    tenderTitle: 'Fleet maintenance framework agreement',
-    openingDate: '2026-07-20',
-    closingDate: '2026-08-12',
-    category: 'Non Consultancy',
-    budget: 125000000,
-    procurementMethod: 'Framework',
-    sourceOfFunds: 'Operational budget',
-    expectedCompletionDate: '2026-09-18',
-    status: 'Inactive',
-    planState: 'Not started',
-    notes: 'Funding shortfall under finance review'
-  },
-  {
-    id: 'plan-2026-renovation',
-    financialYear: '2026/2027',
-    tenderTitle: 'Ward renovation works',
-    openingDate: '2026-09-04',
-    closingDate: '2026-10-03',
-    category: 'Works',
-    budget: 760000000,
-    procurementMethod: 'Open Tender',
-    sourceOfFunds: 'Capital projects',
-    expectedCompletionDate: '2027-01-20',
-    status: 'In evaluation',
-    planState: 'Planning ended',
-    notes: 'Board minutes pending'
-  },
-  {
-    id: 'plan-2025-helpdesk',
-    financialYear: '2025/2026',
-    tenderTitle: 'ICT helpdesk support services',
-    openingDate: '2025-08-10',
-    closingDate: '2025-08-24',
-    category: 'Non Consultancy',
-    budget: 94000000,
-    procurementMethod: 'RFQ',
-    sourceOfFunds: 'Operational budget',
-    expectedCompletionDate: '2025-09-21',
-    status: 'Finished',
-    planState: 'Done',
-    notes: 'Contract issued and archived'
-  }
-];
+export const procurementPlanningSeedRecords: ProcurementPlanningRecord[] = [];
 
 export const pageToRoute: Record<string, string> = {
   'account-profile': '/identity/profile',

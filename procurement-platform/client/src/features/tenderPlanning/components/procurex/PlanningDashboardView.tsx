@@ -56,6 +56,9 @@ export function PlanningDashboardView({
   onStatusNavigate,
   onUploadChange
 }: PlanningDashboardViewProps) {
+  const hasRecords = records.length > 0;
+  const yearOptions = years.length ? years : [selectedYear];
+
   return (
     <div data-planning-front hidden={hidden}>
       <section className="planning-dashboard-header app-planning-hero" id="planning-dashboard">
@@ -96,6 +99,32 @@ export function PlanningDashboardView({
         onChange={onUploadChange}
       />
 
+      {!hasRecords ? (
+        <section className="procurex-empty-guidance planning-first-run">
+          <div className="procurex-empty-icon" aria-hidden="true">
+            <PlanningActionIcon kind="create" />
+          </div>
+          <div>
+            <span className="section-kicker">First plan setup</span>
+            <h2>Your procurement plan will appear here once you create or upload it.</h2>
+            <p>
+              Begin by creating the annual procurement plan worksheet, or upload an approved spreadsheet from your team.
+              ProcureX will keep this page focused on your own plan lines after that.
+            </p>
+          </div>
+          <div className="procurex-empty-actions">
+            <button className="btn btn-primary planning-action-button" type="button" onClick={onCreatePlan}>
+              <PlanningActionIcon kind="create" />
+              <span>Create Plan</span>
+            </button>
+            <button className="btn btn-secondary planning-action-button" type="button" onClick={onUploadPlan}>
+              <PlanningActionIcon kind="upload" />
+              <span>Upload Plan</span>
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <PlanningSummary records={records} selectedYear={selectedYear} />
 
       <section className="procurement-panel evaluation-panel planning-control-panel" id="planning-register">
@@ -109,7 +138,7 @@ export function PlanningDashboardView({
             <label className="planning-field planning-year-filter">
               <span>Filter Year</span>
               <select className="form-input" data-planning-year-filter value={selectedYear} onChange={(event) => onYearChange(event.target.value)}>
-                {years.map((year) => (
+                {yearOptions.map((year) => (
                   <option key={year}>{year}</option>
                 ))}
               </select>
@@ -118,7 +147,7 @@ export function PlanningDashboardView({
               <PlanningActionIcon kind="view" />
               <span>View Plan</span>
             </button>
-            <button className="btn btn-secondary btn-sm" type="button" data-plan-download onClick={onDownloadPlan}>
+            <button className="btn btn-secondary btn-sm" type="button" data-plan-download onClick={onDownloadPlan} disabled={!hasRecords}>
               <PlanningActionIcon kind="download" />
               <span>Download Plan</span>
             </button>
@@ -191,7 +220,8 @@ function PlanningRecordsTable({
           ) : (
             <tr>
               <td colSpan={9} className="planning-empty-row">
-                No plan lines found for {selectedYear}.
+                <strong>No plan lines yet.</strong>
+                <span>Create a plan or upload a spreadsheet to start building this year's procurement schedule.</span>
               </td>
             </tr>
           )}
@@ -315,7 +345,8 @@ export function PlanningFullPlanView({ hidden, records, selectedYear }: Planning
               ) : (
                 <tr>
                   <td colSpan={11} className="planning-empty-row">
-                    No records.
+                    <strong>No records yet.</strong>
+                    <span>Create or upload a procurement plan before viewing the full worksheet.</span>
                   </td>
                 </tr>
               )}

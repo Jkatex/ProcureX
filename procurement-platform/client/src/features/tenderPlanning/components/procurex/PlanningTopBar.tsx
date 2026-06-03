@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppMenuIcon } from './icons';
 
 type PlanningTopBarProps = {
+  title?: string;
   onNavigate: (pageKey: string) => void;
 };
 
@@ -57,7 +58,7 @@ const appMenuItems = [
   }
 ] as const;
 
-export function PlanningTopBar({ onNavigate }: PlanningTopBarProps) {
+export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: PlanningTopBarProps) {
   const [openMenu, setOpenMenu] = useState<'apps' | 'profile' | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
 
@@ -87,7 +88,7 @@ export function PlanningTopBar({ onNavigate }: PlanningTopBarProps) {
           <span className="platform-logo">
             <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
           </span>
-          <span>Procurement Planning</span>
+          <span>{title}</span>
         </button>
       </div>
 

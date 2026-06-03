@@ -1,9 +1,222 @@
-/* This file is generated from the ProcureX design prototype. Do not edit by hand. */
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppSelector } from '@/app/store';
+import { AppMenuIcon } from '@/features/tenderPlanning/components/procurex/icons';
+import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
 
-import { ProcurexStaticPage } from '@/shared/components/procurex/ProcurexStaticPage';
+const pageToRoute: Record<string, string> = {
+  'account-profile': '/identity/profile',
+  'tender-planning': '/tender-planning',
+  marketplace: '/procurement/marketplace',
+  'communication-center': '/communication',
+  'bid-evaluation': '/evaluation',
+  'awarding-contracts': '/awards-contracts',
+  'records-history': '/records',
+  'create-tender': '/procurement/create-tender',
+  'workspace-dashboard': '/dashboard',
+  'sign-in': '/sign-in'
+};
 
-const html = "\n            <header class=\"app-topbar\">\n                <div class=\"app-topbar-left\">\n                    <button class=\"app-brand-button\" type=\"button\" data-navigate=\"workspace-dashboard\">\n                        \n        <span class=\"platform-logo\">\n            <img class=\"platform-logo-image\" src=\"/assets/logo.svg\" alt=\"ProcureX\">\n        </span>\n    \n                        <span>Dashboard</span>\n                    </button>\n                </div>\n\n                <div class=\"app-topbar-actions\">\n                      <button class=\"icon-menu-btn\" type=\"button\" data-app-menu-toggle aria-label=\"Open apps\" aria-expanded=\"false\">\n                        <span></span><span></span><span></span>\n                        <span></span><span></span><span></span>\n                        <span></span><span></span><span></span>\n                    </button>\n                    <div class=\"profile-menu-wrap\">\n                        <button class=\"profile-button\" type=\"button\" data-profile-menu-toggle aria-label=\"Open profile menu\" aria-expanded=\"false\">\n                            <span>AU</span>\n                        </button>\n                    </div>\n                </div>\n\n                <div class=\"app-drawer-menu\" data-app-menu>\n                    <div class=\"app-menu-header\">\n                        <div class=\"app-menu-brand\">\n                            \n        <span class=\"platform-logo platform-logo-sm\">\n            <img class=\"platform-logo-image\" src=\"/assets/logo.svg\" alt=\"ProcureX\">\n        </span>\n    \n                            <strong>ProcureX Apps</strong>\n                        </div>\n                        <span>Company account tools</span>\n                    </div>\n                    \n            <button class=\"app-menu-card app-menu-iam\" data-navigate=\"account-profile\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M20 21a8 8 0 0 0-16 0\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/><path d=\"M16 11l2 2 4-4\"/>\n            </svg>\n        </span>\n                <span><strong>Registration and Verification</strong><em>Account and identity verification</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-procurement\" data-navigate=\"tender-planning\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M4 4h16v16H4z\"/><path d=\"M8 8h8\"/><path d=\"M8 12h8\"/><path d=\"M8 16h5\"/>\n            </svg>\n        </span>\n                <span><strong>Procurement Planning</strong><em>APP, SPP, budgets, approvals</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-procurement\" data-navigate=\"marketplace\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M3 9h18l-2-5H5z\"/><path d=\"M5 9v11h14V9\"/><path d=\"M9 13h6\"/><path d=\"M9 17h4\"/>\n            </svg>\n        </span>\n                <span><strong>Procurement</strong><em>Marketplace, create tender, bid</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-communication\" data-navigate=\"communication-center\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z\"/><path d=\"M8 9h8\"/><path d=\"M8 13h5\"/>\n            </svg>\n        </span>\n                <span><strong>Communication Center</strong><em>Messages, clarifications, alerts</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-evaluation\" data-navigate=\"bid-evaluation\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M9 11l2 2 4-4\"/><path d=\"M8 4h8\"/><path d=\"M8 20h8\"/><path d=\"M5 7h14v10H5z\"/>\n            </svg>\n        </span>\n                <span><strong>Evaluation</strong><em>Evaluate bids on your tenders</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-awarding\" data-navigate=\"awarding-contracts\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M8.5 11.5L7 21l5-3 5 3-1.5-9.5\"/><path d=\"M10.5 8l1 1 2-2\"/>\n            </svg>\n        </span>\n                <span><strong>Awarding and Contract</strong><em>Awards, negotiations, signatures</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-contracts\" data-navigate=\"records-history\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M8 3h8l3 3v15H5V3z\"/><path d=\"M15 3v4h4\"/><path d=\"M8 12h8\"/><path d=\"M8 16h6\"/>\n            </svg>\n        </span>\n                <span><strong>Records and History</strong><em>Past tenders, bids, awards</em></span>\n            </button>\n        \n                </div>\n\n                <div class=\"profile-menu\" data-profile-menu>\n                    <button type=\"button\" data-navigate=\"account-profile\">Profile</button>\n                    <button type=\"button\" data-navigate=\"communication-center\">Messages</button>\n                    <button type=\"button\">Help</button>\n                    <button type=\"button\">Language</button>\n                    <button type=\"button\" data-navigate=\"sign-in\">Logout</button>\n                </div>\n            </header>\n        \n        <div class=\"main-layout dashboard-command-center\">\n            \n        <aside class=\"sidebar dashboard-sidebar\">\n            <div class=\"sidebar-heading\">\n                <h3>Dashboard</h3>\n                <div>user</div>\n            </div>\n            <ul class=\"sidebar-nav\">\n                <li><a href=\"#\" data-navigate=\"workspace-dashboard\" class=\"active\">Dashboard</a></li>\n                <li><a href=\"#\" data-navigate=\"create-tender\">My Tenders</a></li>\n                <li><a href=\"#\" data-navigate=\"marketplace\">My Bids</a></li>\n                <li><a href=\"#\" data-navigate=\"communication-center\">Communication Center <span class=\"dashboard-sidebar-count\">13</span></a></li>\n                <li><a href=\"#\" data-navigate=\"marketplace\">Marketplace</a></li>\n                <li><a href=\"#\" data-navigate=\"create-tender\">Create Tender</a></li>\n                <li><a href=\"#\" data-navigate=\"bid-evaluation\">Evaluation</a></li>\n                <li><a href=\"#\" data-navigate=\"awarding-contracts\">Awards and Contracts</a></li>\n                <li><a href=\"#\" data-navigate=\"records-history\">Records and History</a></li>\n                <li><a href=\"#\" data-navigate=\"account-profile\">Account and Verification</a></li>\n                <li><a href=\"#\" data-navigate=\"sign-in\">Logout</a></li>\n            </ul>\n        </aside>\n    \n            <main class=\"main-content\">\n                <div class=\"workspace-home\">\n                    <section class=\"dashboard-welcome-card dashboard-reference-welcome\">\n                        <div class=\"dashboard-reference-copy\">\n                            <span class=\"section-kicker\">User dashboard</span>\n                            <h1>Good evening! <span>user</span></h1>\n                            <p>user@procurex.test</p>\n                            <button class=\"btn btn-primary\" type=\"button\" data-navigate=\"marketplace\">View Marketplace</button>\n                        </div>\n                        <div class=\"dashboard-reference-visual\" aria-label=\"Account overview\">\n                            <div class=\"dashboard-reference-avatar\" aria-hidden=\"true\">\n                                U\n                            </div>\n                            <article class=\"dashboard-reference-profile\">\n                                <span class=\"badge badge-warning\">Registration required</span>\n                                <strong>user</strong>\n                                <p>Individual, company, or business</p>\n                            </article>\n                            <div class=\"dashboard-reference-pills\" aria-label=\"Dashboard totals\">\n                                <span>6 urgent</span>\n                                <span>3 workflows</span>\n                                <span>4 apps</span>\n                            </div>\n                        </div>\n                    </section>\n\n                    <section class=\"dashboard-panel dashboard-pipeline-panel\">\n                        <div class=\"panel-heading\">\n                            <div>\n                                <span class=\"section-kicker\">Pipeline overview</span>\n                                <h2>Procurement lifecycle status</h2>\n                            </div>\n                        </div>\n                        <div class=\"dashboard-pipeline\">\n                            \n        <button class=\"dashboard-pipeline-stage\" type=\"button\" data-navigate=\"create-tender\">\n            <strong>0</strong>\n            <span>Draft</span>\n        </button>\n    \n        <button class=\"dashboard-pipeline-stage\" type=\"button\" data-navigate=\"marketplace\">\n            <strong>2</strong>\n            <span>Published</span>\n        </button>\n    \n        <button class=\"dashboard-pipeline-stage\" type=\"button\" data-navigate=\"bid-evaluation\">\n            <strong>0</strong>\n            <span>Evaluation</span>\n        </button>\n    \n        <button class=\"dashboard-pipeline-stage\" type=\"button\" data-navigate=\"awarding-contracts\">\n            <strong>0</strong>\n            <span>Award</span>\n        </button>\n    \n        <button class=\"dashboard-pipeline-stage\" type=\"button\" data-navigate=\"awarding-contracts\">\n            <strong>1</strong>\n            <span>Contract</span>\n        </button>\n    \n        <button class=\"dashboard-pipeline-stage\" type=\"button\" data-navigate=\"records-history\">\n            <strong>0</strong>\n            <span>Completed</span>\n        </button>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"analytics-grid dashboard-real-metrics\">\n                        \n                            <article class=\"analytics-card\">\n                                <span>My tenders</span>\n                                <strong>2</strong>\n                                <p>Active tenders created by this account</p>\n                            </article>\n                        \n                            <article class=\"analytics-card\">\n                                <span>My bids</span>\n                                <strong>0</strong>\n                                <p>Bid drafts and submitted opportunities</p>\n                            </article>\n                        \n                            <article class=\"analytics-card\">\n                                <span>Recorded value</span>\n                                <strong>TZS 10.3B</strong>\n                                <p>Sum of active tender budgets and captured bid totals</p>\n                            </article>\n                        \n                            <article class=\"analytics-card\">\n                                <span>Compliance status</span>\n                                <strong>Clear</strong>\n                                <p>Items awaiting or returned from compliance review</p>\n                            </article>\n                        \n                    </section>\n\n                    <section class=\"dashboard-grid-main\">\n                        <div class=\"dashboard-panel\">\n                            <div class=\"panel-heading\">\n                                <div>\n                                    <span class=\"section-kicker\">Action Queue</span>\n                                    <h2>Items requiring attention</h2>\n                                </div>\n                                <span class=\"badge badge-error\">6 active</span>\n                            </div>\n                            <div class=\"dashboard-action-queue\">\n                                \n        <button class=\"dashboard-action-row critical\" type=\"button\" data-navigate=\"awarding-contracts\">\n            <span class=\"dashboard-action-count\">2</span>\n            <div>\n                <strong>Contracts awaiting signature</strong>\n                <span>Due: Today</span>\n            </div>\n            <em>Critical</em>\n            <b>Open</b>\n        </button>\n    \n        <button class=\"dashboard-action-row critical\" type=\"button\" data-navigate=\"awarding-contracts\">\n            <span class=\"dashboard-action-count\">3</span>\n            <div>\n                <strong>Pending approvals</strong>\n                <span>Due: Today</span>\n            </div>\n            <em>Critical</em>\n            <b>Open</b>\n        </button>\n    \n        <button class=\"dashboard-action-row critical\" type=\"button\" data-navigate=\"communication-center\">\n            <span class=\"dashboard-action-count\">13</span>\n            <div>\n                <strong>Unread messages</strong>\n                <span>Due: Now</span>\n            </div>\n            <em>Critical</em>\n            <b>Open inbox</b>\n        </button>\n    \n        <button class=\"dashboard-action-row attention\" type=\"button\" data-navigate=\"awarding-contracts\">\n            <span class=\"dashboard-action-count\">4</span>\n            <div>\n                <strong>Payments overdue</strong>\n                <span>Due: Overdue</span>\n            </div>\n            <em>Attention</em>\n            <b>Open</b>\n        </button>\n    \n        <button class=\"dashboard-action-row attention\" type=\"button\" data-navigate=\"bid-evaluation\">\n            <span class=\"dashboard-action-count\">7</span>\n            <div>\n                <strong>New bids received</strong>\n                <span>Due: 2 hours</span>\n            </div>\n            <em>Attention</em>\n            <b>Score</b>\n        </button>\n    \n        <button class=\"dashboard-action-row attention\" type=\"button\" data-navigate=\"communication-center\">\n            <span class=\"dashboard-action-count\">5</span>\n            <div>\n                <strong>Messages requiring reply</strong>\n                <span>Due: 1 day</span>\n            </div>\n            <em>Attention</em>\n            <b>Open inbox</b>\n        </button>\n    \n                            </div>\n                        </div>\n\n                        <aside class=\"dashboard-panel\">\n                            <div class=\"panel-heading\">\n                                <div>\n                                    <span class=\"section-kicker\">Deadline timeline</span>\n                                    <h2>Upcoming dates</h2>\n                                </div>\n                            </div>\n                            <div class=\"dashboard-deadline-list\">\n                                \n        <button class=\"dashboard-deadline-item\" type=\"button\" data-select-tender=\"PX-SVC-2026-002\" data-navigate=\"tender-detail\">\n            <time>May 17, 2026</time>\n            <strong>Publication: Hospital Cleaning, Laundry, and Waste Handling Services</strong>\n        </button>\n    \n        <button class=\"dashboard-deadline-item\" type=\"button\" data-select-tender=\"PX-WRK-2026-001\" data-navigate=\"tender-details\">\n            <time>May 18, 2026</time>\n            <strong>Publication: Construction of District Maternal Health Wing</strong>\n        </button>\n    \n        <button class=\"dashboard-deadline-item\" type=\"button\" data-select-tender=\"PX-GDS-2026-001\" data-navigate=\"tender-detail\">\n            <time>May 18, 2026</time>\n            <strong>Publication: Supply and Installation of Digital X-Ray Systems</strong>\n        </button>\n    \n        <button class=\"dashboard-deadline-item\" type=\"button\" data-select-tender=\"PX-CNS-2026-003\" data-navigate=\"tender-detail\">\n            <time>May 18, 2026</time>\n            <strong>Publication: Technical Audit of Regional Road Maintenance Program</strong>\n        </button>\n    \n        <button class=\"dashboard-deadline-item\" type=\"button\" data-select-tender=\"PX-GDS-2026-002\" data-navigate=\"tender-detail\">\n            <time>May 19, 2026</time>\n            <strong>Publication: Supply of School Science Laboratory Equipment</strong>\n        </button>\n    \n        <button class=\"dashboard-deadline-item\" type=\"button\" data-select-tender=\"PX-WRK-2026-002\" data-navigate=\"tender-details\">\n            <time>May 20, 2026</time>\n            <strong>Publication: Rehabilitation of Rural Water Supply Network</strong>\n        </button>\n    \n                            </div>\n                        </aside>\n                    </section>\n\n                    <section class=\"dashboard-panel\">\n                        <div class=\"panel-heading\">\n                            <div>\n                                <span class=\"section-kicker\">My Active Work</span>\n                                <h2>Continue where you left off</h2>\n                            </div>\n                            <div class=\"inline-actions\">\n                                <button class=\"btn btn-secondary\" type=\"button\" data-navigate=\"create-tender\">Create Tender</button>\n                                <button class=\"btn btn-secondary\" type=\"button\" data-navigate=\"marketplace\">Find Tenders</button>\n                            </div>\n                        </div>\n                        <div class=\"dashboard-active-work-table\">\n                            <div class=\"dashboard-active-work-head\">\n                                <span>Type</span><span>Item</span><span>Status</span><span>Next action</span><span>Deadline</span>\n                            </div>\n                            \n        <button class=\"dashboard-active-work-row\" type=\"button\" data-select-tender=\"PX-WRK-2026-001\" data-navigate=\"tender-details\">\n            <span>Tender</span>\n            <strong>Construction of District Maternal Health Wing</strong>\n            <em>Open</em>\n            <small>Manage tender</small>\n            <time>Jul 3, 2026</time>\n        </button>\n    \n        <button class=\"dashboard-active-work-row\" type=\"button\"  data-navigate=\"awarding-contracts\">\n            <span>Contract</span>\n            <strong>Construction of Rural Health Centers</strong>\n            <em>In Progress</em>\n            <small>Track performance</small>\n            <time>Oct 13, 2026</time>\n        </button>\n    \n        <button class=\"dashboard-active-work-row\" type=\"button\" data-select-tender=\"PX-WRK-2026-002\" data-navigate=\"tender-details\">\n            <span>Tender</span>\n            <strong>Rehabilitation of Rural Water Supply Network</strong>\n            <em>Open</em>\n            <small>Manage tender</small>\n            <time>Jun 26, 2026</time>\n        </button>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"dashboard-grid-main\">\n                        <div class=\"dashboard-panel\">\n                            <div class=\"panel-heading\">\n                                <div>\n                                    <span class=\"section-kicker\">Recent Activity</span>\n                                    <h2>Latest account events</h2>\n                                </div>\n                            </div>\n                            <div class=\"dashboard-activity-feed\">\n                                \n        <button class=\"dashboard-activity-item\" type=\"button\" data-select-tender=\"PX-WRK-2026-003\" data-navigate=\"tender-detail\">\n            <div>\n                <strong>Solar Mini-Grid Civil Works and Distribution Network updated</strong>\n                <span>PX-WRK-2026-003 / Open</span>\n            </div>\n            <time>1m ago</time>\n        </button>\n    \n        <button class=\"dashboard-activity-item\" type=\"button\" data-select-tender=\"PX-CNS-2026-001\" data-navigate=\"tender-detail\">\n            <div>\n                <strong>Consultancy for National e-Procurement Change Management updated</strong>\n                <span>PX-CNS-2026-001 / Open</span>\n            </div>\n            <time>1m ago</time>\n        </button>\n    \n        <button class=\"dashboard-activity-item\" type=\"button\" data-select-tender=\"PX-WRK-2026-007\" data-navigate=\"tender-detail\">\n            <div>\n                <strong>Installation of Water Harvesting Tanks updated</strong>\n                <span>PX-WRK-2026-007 / Open</span>\n            </div>\n            <time>1m ago</time>\n        </button>\n    \n        <button class=\"dashboard-activity-item\" type=\"button\" data-select-tender=\"PX-SVC-2026-001\" data-navigate=\"tender-detail\">\n            <div>\n                <strong>Managed Cybersecurity Monitoring Service updated</strong>\n                <span>PX-SVC-2026-001 / Open</span>\n            </div>\n            <time>1m ago</time>\n        </button>\n    \n        <button class=\"dashboard-activity-item\" type=\"button\" data-select-tender=\"PX-CNS-2026-002\" data-navigate=\"tender-detail\">\n            <div>\n                <strong>Environmental and Social Impact Assessment for Bus Rapid Transit Corridor updated</strong>\n                <span>PX-CNS-2026-002 / Open</span>\n            </div>\n            <time>1m ago</time>\n        </button>\n    \n        <button class=\"dashboard-activity-item\" type=\"button\" data-select-tender=\"PX-WRK-2026-005\" data-navigate=\"tender-detail\">\n            <div>\n                <strong>Fence Construction for School Compound updated</strong>\n                <span>PX-WRK-2026-005 / Open</span>\n            </div>\n            <time>1m ago</time>\n        </button>\n    \n        <button class=\"dashboard-activity-item\" type=\"button\" data-select-tender=\"PX-GDS-2026-004\" data-navigate=\"tender-detail\">\n            <div>\n                <strong>Framework Supply of Office Furniture and Ergonomic Chairs updated</strong>\n                <span>PX-GDS-2026-004 / Open</span>\n            </div>\n            <time>1m ago</time>\n        </button>\n    \n                            </div>\n                        </div>\n\n                        <aside class=\"dashboard-panel\">\n                            <div class=\"panel-heading\">\n                                <div>\n                                    <span class=\"section-kicker\">Quick Launch</span>\n                                    <h2>Common destinations</h2>\n                                </div>\n                            </div>\n                            <div class=\"quick-action-grid\">\n                                \n                                    <button class=\"smart-action\" type=\"button\" data-navigate=\"marketplace\">\n                                        <strong>Procurement</strong>\n                                        <span>Marketplace, create tender, bid</span>\n                                    </button>\n                                \n                                    <button class=\"smart-action\" type=\"button\" data-navigate=\"communication-center\">\n                                        <strong>Communication Center</strong>\n                                        <span>13 unread messages</span>\n                                    </button>\n                                \n                                    <button class=\"smart-action\" type=\"button\" data-navigate=\"bid-evaluation\">\n                                        <strong>Evaluation</strong>\n                                        <span>Bid opening and scoring</span>\n                                    </button>\n                                \n                                    <button class=\"smart-action\" type=\"button\" data-navigate=\"records-history\">\n                                        <strong>Records and History</strong>\n                                        <span>Audit archive and exports</span>\n                                    </button>\n                                \n                            </div>\n                            <div class=\"status-section-list dashboard-account-compliance\">\n                                <div class=\"status-section attention\">\n                                    <strong>Account and Compliance</strong>\n                                    <span>Registration required</span>\n                                    <button class=\"btn btn-secondary\" data-navigate=\"account-profile\">Review</button>\n                                </div>\n                            </div>\n                        </aside>\n                    </section>\n                </div>\n            </main>\n        </div>\n    ";
+const startActions = [
+  {
+    page: 'tender-planning',
+    icon: 'planning',
+    title: 'Create your first procurement plan',
+    description: 'Set up the annual plan before tenders move into publication.'
+  },
+  {
+    page: 'communication-center',
+    icon: 'communication',
+    title: 'Send your first platform message',
+    description: 'Use the mailbox for procurement questions, clarifications, and notices.'
+  },
+  {
+    page: 'create-tender',
+    icon: 'procurement',
+    title: 'Prepare a tender workspace',
+    description: 'Start a tender when your plan line is ready for drafting.'
+  }
+] as const;
 
 export function WorkspaceDashboardProcurexPage() {
-  return <ProcurexStaticPage pageKey="workspace-dashboard" html={html} />;
+  const navigate = useNavigate();
+  const user = useAppSelector((state) => state.auth.user);
+  const displayName = user?.displayName || 'ProcureX user';
+  const organization = user?.organization || 'Your organization';
+
+  useEffect(() => {
+    const previousPage = document.body.dataset.page;
+    document.body.dataset.page = 'workspace-dashboard';
+    document.body.dataset.procurexReactPage = 'true';
+
+    return () => {
+      if (previousPage) document.body.dataset.page = previousPage;
+      else delete document.body.dataset.page;
+      delete document.body.dataset.procurexReactPage;
+    };
+  }, []);
+
+  function navigateToPage(pageKey: string) {
+    navigate(pageToRoute[pageKey] || '/dashboard');
+  }
+
+  return (
+    <>
+      <PlanningTopBar title="Dashboard" onNavigate={navigateToPage} />
+      <div className="main-layout dashboard-command-center dashboard-first-run-page">
+        <aside className="sidebar dashboard-sidebar">
+          <div className="sidebar-heading">
+            <h3>Dashboard</h3>
+            <div>{organization}</div>
+          </div>
+          <ul className="sidebar-nav">
+            <li><button type="button" className="active" onClick={() => navigateToPage('workspace-dashboard')}>Dashboard</button></li>
+            <li><button type="button" onClick={() => navigateToPage('tender-planning')}>Procurement Planning</button></li>
+            <li><button type="button" onClick={() => navigateToPage('communication-center')}>Communication Center</button></li>
+            <li><button type="button" onClick={() => navigateToPage('create-tender')}>Create Tender</button></li>
+            <li><button type="button" onClick={() => navigateToPage('marketplace')}>Marketplace</button></li>
+            <li><button type="button" onClick={() => navigateToPage('records-history')}>Records and History</button></li>
+          </ul>
+        </aside>
+
+        <main className="main-content">
+          <div className="workspace-home">
+            <section className="dashboard-welcome-card dashboard-reference-welcome dashboard-first-run-hero">
+              <div className="dashboard-reference-copy">
+                <span className="section-kicker">First run dashboard</span>
+                <h1>Welcome, <span>{displayName}</span></h1>
+                <p>
+                  This dashboard will fill with procurement work, messages, deadlines, and compliance actions as your team
+                  starts using ProcureX.
+                </p>
+                <div className="inline-actions dashboard-welcome-actions">
+                  <button className="btn btn-primary" type="button" onClick={() => navigateToPage('tender-planning')}>
+                    Start Planning
+                  </button>
+                  <button className="btn btn-secondary" type="button" onClick={() => navigateToPage('communication-center')}>
+                    Open Messages
+                  </button>
+                </div>
+              </div>
+              <div className="dashboard-reference-visual" aria-label="Account overview">
+                <div className="dashboard-reference-avatar" aria-hidden="true">
+                  {displayName.trim().charAt(0).toUpperCase()}
+                </div>
+                <article className="dashboard-reference-profile">
+                  <span className="badge badge-info">No activity yet</span>
+                  <strong>{organization}</strong>
+                  <p>Your procurement activity will appear after you create or receive work.</p>
+                </article>
+                <div className="dashboard-reference-pills" aria-label="Dashboard totals">
+                  <span>0 urgent</span>
+                  <span>0 workflows</span>
+                  <span>0 unread</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="dashboard-panel dashboard-pipeline-panel">
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">Pipeline overview</span>
+                  <h2>Procurement lifecycle status</h2>
+                </div>
+              </div>
+              <div className="dashboard-pipeline">
+                {['Draft', 'Published', 'Evaluation', 'Award', 'Contract', 'Completed'].map((stage) => (
+                  <button className="dashboard-pipeline-stage" type="button" key={stage}>
+                    <strong>0</strong>
+                    <span>{stage}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="analytics-grid dashboard-real-metrics">
+              {[
+                ['My tenders', '0', 'Tenders you create will be counted here.'],
+                ['My bids', '0', 'Bid drafts and submissions will appear after activity starts.'],
+                ['Recorded value', 'TZS 0', 'Procurement value is calculated from real plan and tender records.'],
+                ['Unread messages', '0', 'New platform communication will be surfaced here.']
+              ].map(([label, value, note]) => (
+                <article className="analytics-card" key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                  <p>{note}</p>
+                </article>
+              ))}
+            </section>
+
+            <section className="dashboard-grid-main">
+              <div className="dashboard-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Start here</span>
+                    <h2>Recommended first actions</h2>
+                  </div>
+                  <span className="badge badge-info">Guided setup</span>
+                </div>
+                <div className="dashboard-first-run-actions">
+                  {startActions.map((action) => (
+                    <button className="dashboard-first-run-action" type="button" key={action.page} onClick={() => navigateToPage(action.page)}>
+                      <AppMenuIcon kind={action.icon} />
+                      <span>
+                        <strong>{action.title}</strong>
+                        <em>{action.description}</em>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <aside className="dashboard-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Upcoming dates</span>
+                    <h2>Deadline timeline</h2>
+                  </div>
+                </div>
+                <div className="procurex-empty-guidance compact">
+                  <div>
+                    <strong>No deadlines yet.</strong>
+                    <span>Planning dates, tender closing dates, and contract milestones will appear here once created.</span>
+                  </div>
+                  <button className="btn btn-secondary" type="button" onClick={() => navigateToPage('tender-planning')}>
+                    Add Plan Dates
+                  </button>
+                </div>
+              </aside>
+            </section>
+
+            <section className="dashboard-panel">
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">My Active Work</span>
+                  <h2>Continue where you left off</h2>
+                </div>
+              </div>
+              <div className="procurex-empty-guidance dashboard-active-empty">
+                <div>
+                  <span className="section-kicker">No active work yet</span>
+                  <h2>Your work queue is ready for real activity.</h2>
+                  <p>
+                    When you create a plan, submit a tender, receive a message, or move into evaluation, the next action
+                    will appear here instead of demo records.
+                  </p>
+                </div>
+                <div className="procurex-empty-actions">
+                  <button className="btn btn-primary" type="button" onClick={() => navigateToPage('tender-planning')}>
+                    Create Plan
+                  </button>
+                  <button className="btn btn-secondary" type="button" onClick={() => navigateToPage('communication-center')}>
+                    Create Message
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </>
+  );
 }
