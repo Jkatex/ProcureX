@@ -39,8 +39,8 @@ function getBidWorkspaceTypeId(tender = {}) {
     }
     const raw = String(tender.procurementTypeId || tender.type || 'works').toLowerCase();
     if (raw.includes('good')) return 'goods';
+    if (raw.includes('non consultancy') || raw.includes('non-consultancy') || raw.includes('service')) return 'services';
     if (raw.includes('consult')) return 'consultancy';
-    if (raw.includes('service')) return 'services';
     return 'works';
 }
 

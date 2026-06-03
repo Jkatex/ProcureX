@@ -1267,7 +1267,7 @@ const mockData = {
         {
             id: 'PX-SVC-2026-001',
             title: 'Managed Cybersecurity Monitoring Service',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 1480000000,
@@ -1378,7 +1378,7 @@ const mockData = {
         {
             id: 'PX-SVC-2026-002',
             title: 'Hospital Cleaning, Laundry, and Waste Handling Services',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 920000000,
@@ -1489,7 +1489,7 @@ const mockData = {
         {
             id: 'PX-SVC-2026-003',
             title: 'Regional Student Meal Catering Services',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 1560000000,
@@ -1606,7 +1606,7 @@ const mockData = {
         {
             id: 'PX-SVC-2026-004',
             title: 'Fleet Maintenance and Breakdown Recovery Services',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 760000000,
@@ -2653,7 +2653,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-003',
             title: 'Office Cleaning and Maintenance Services',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 72000000,
@@ -2719,7 +2719,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-004',
             title: 'Vehicle Maintenance and Repair Services',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 95000000,
@@ -2783,7 +2783,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-005',
             title: 'Security Guarding Services for Government Building',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 148000000,
@@ -2854,7 +2854,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-006',
             title: 'Transport and Courier Service',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 65000000,
@@ -3210,7 +3210,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-007',
             title: 'Waste Management and Garbage Collection Service',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 58000000,
@@ -3272,7 +3272,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-008',
             title: 'Office Catering and Food Service',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 42000000,
@@ -3879,7 +3879,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-009',
             title: 'Office Messenger Service - 6 Months',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 3000000,
@@ -3926,7 +3926,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-010',
             title: 'Gardening and Lawn Maintenance - Monthly',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 4500000,
@@ -3973,7 +3973,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-011',
             title: 'Watchman Service - 3 Months',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 4200000,
@@ -4020,7 +4020,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-012',
             title: 'Computer Technical Support - Per Month',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 5400000,
@@ -4067,7 +4067,7 @@ const mockData = {
         {
             id: 'PX-SRV-2026-013',
             title: 'Car Wash Service - Weekly',
-            type: 'Service',
+            type: 'Non Consultancy',
             procurementTypeId: 'services',
             status: 'Open',
             budget: 2880000,
@@ -4422,7 +4422,7 @@ const mockData = {
             },
             {
                 id: 'services',
-                label: 'Service',
+                label: 'Non Consultancy',
                 description: 'Operational services where advisory expertise is not the main component.',
                 categories: [
                     'Auction Services',
@@ -4948,7 +4948,7 @@ const mockData = {
                 tenderId: 'PX-SVC-2026-003',
                 title: 'Cleaning Services Framework',
                 reference: 'PX-TND-2026-033',
-                procurementType: 'Services',
+                procurementType: 'Non Consultancy',
                 evaluationStatus: 'Ready',
                 recommendedSupplier: 'Usafi Pro Services',
                 awardStatus: 'Notice Drafted',
@@ -5924,13 +5924,13 @@ function sanitizeAwardContractDraftObject(value) {
 function normalizeAwardContractType(tender = {}) {
     const raw = String(tender.procurementTypeId || tender.type || tender.procurementType || tender.category || 'works').toLowerCase();
     if (raw.includes('good')) return 'goods';
+    if (raw.includes('non consultancy') || raw.includes('non-consultancy') || raw.includes('service')) return 'services';
     if (raw.includes('consult')) return 'consultancy';
-    if (raw.includes('service')) return 'services';
     return 'works';
 }
 
 function getAwardContractTypeLabel(typeId) {
-    return ({ goods: 'Goods', works: 'Works', services: 'Services', consultancy: 'Consultancy' })[typeId] || 'Works';
+    return ({ goods: 'Goods', works: 'Works', services: 'Non Consultancy', consultancy: 'Consultancy' })[typeId] || 'Works';
 }
 
 function getSelectedAwardContractTender() {
@@ -5943,7 +5943,7 @@ function getSelectedAwardContractTender() {
                 id: selectedId,
                 reference: selectedId,
                 title: row.title,
-                type: row.procurementType || 'Services',
+                type: row.procurementType || 'Non Consultancy',
                 procurementTypeId: normalizeAwardContractType(row),
                 organization: row.buyer,
                 createdByCurrentUser: false,

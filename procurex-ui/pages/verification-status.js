@@ -163,7 +163,7 @@ function renderVerificationStatus() {
     const languages = ['English', 'Swahili', 'French', 'Arabic'];
     const companyTypes = ['Private limited company', 'Public company', 'Partnership', 'NGO', 'Government agency', 'Sole proprietorship'];
     const industries = ['Construction', 'Health', 'ICT', 'Education', 'Transport', 'Manufacturing', 'Agriculture', 'Consulting', 'Supplies'];
-    const categories = ['Goods', 'Works', 'Services', 'Consultancy', 'Medical Supplies', 'ICT Equipment', 'Construction Works', 'Office Supplies', 'Vehicle Maintenance'];
+    const categories = ['Goods', 'Works', 'Non Consultancy', 'Consultancy', 'Medical Supplies', 'ICT Equipment', 'Construction Works', 'Office Supplies', 'Vehicle Maintenance'];
     const sizes = ['Micro', 'Small', 'Medium', 'Large', 'Enterprise'];
     const locations = ['Local', 'International', 'Both'];
     const capacityRanges = ['Below TZS 100M', 'TZS 100M - 500M', 'TZS 500M - 1B', 'TZS 1B - 5B', 'Above TZS 5B'];

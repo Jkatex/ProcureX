@@ -53,7 +53,7 @@ const procurementPlanningSeedRecords = [
         appCode: 'APP-2026-021',
         department: 'Operations',
         itemDescription: 'Fleet maintenance framework agreement',
-        procurementCategory: 'Services',
+        procurementCategory: 'Non Consultancy',
         tenderNumber: 'PX-SRV-2026-021',
         lotNumber: 'LOT-02',
         procurementMethod: 'Framework',
@@ -141,7 +141,7 @@ const procurementPlanningSeedRecords = [
         appCode: 'APP-2026-032',
         department: 'ICT',
         itemDescription: 'ICT helpdesk support services',
-        procurementCategory: 'Services',
+        procurementCategory: 'Non Consultancy',
         tenderNumber: 'PX-SRV-2026-032',
         lotNumber: 'LOT-01',
         procurementMethod: 'RFQ',
@@ -432,7 +432,7 @@ function renderProcurementPlanningForm() {
                     <label class="planning-field"><span>Financial Year</span><input class="form-input" name="financialYear" value="2026/2027"></label>
                     <label class="planning-field"><span>APP Code</span><input class="form-input" name="appCode" value="APP-2026-040"></label>
                     <label class="planning-field"><span>Department / Requesting Unit</span><input class="form-input" name="department" value="Procurement Unit"></label>
-                    <label class="planning-field"><span>Procurement Category</span><select class="form-input" name="procurementCategory"><option>Goods</option><option>Works</option><option>Services</option><option>Consultancy</option></select></label>
+                    <label class="planning-field"><span>Procurement Category</span><select class="form-input" name="procurementCategory"><option>Goods</option><option>Works</option><option>Non Consultancy</option><option>Consultancy</option></select></label>
                     <label class="planning-field planning-field-wide"><span>Procurement Item Description</span><textarea class="form-input" name="itemDescription" rows="3">Office furniture and fit-out services</textarea></label>
                     <label class="planning-field"><span>Tender Number</span><input class="form-input" name="tenderNumber" value="PX-GDS-2026-040"></label>
                     <label class="planning-field"><span>Lot Number</span><input class="form-input" name="lotNumber" value="LOT-01"></label>

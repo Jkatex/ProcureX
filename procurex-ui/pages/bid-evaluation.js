@@ -249,8 +249,8 @@ function getEvaluationProfileId(tender = {}) {
         return getCreateTenderTypeId(tender.procurementTypeId || tender.type || tender.category || tender.id || 'works');
     }
     const raw = String(tender.procurementTypeId || tender.type || tender.category || '').toLowerCase();
+    if (/non[-\s]?consultancy|service/.test(raw)) return 'services';
     if (/consult/.test(raw)) return 'consultancy';
-    if (/service/.test(raw)) return 'services';
     if (/goods|supply|equipment|laboratory/.test(raw)) return 'goods';
     return 'works';
 }
@@ -3022,7 +3022,7 @@ function getServiceFinancialAmount(bid = {}) {
 
 function getServiceCategory(tender = {}) {
     const source = tender.sourceTender || tender;
-    return source.requirements?.fields?.serviceCategory || source.category || source.type || 'Services';
+    return source.requirements?.fields?.serviceCategory || source.category || source.type || 'Non Consultancy';
 }
 
 function getServicePricingRows(tender = {}, bid = {}) {
