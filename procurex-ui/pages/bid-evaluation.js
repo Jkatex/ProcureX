@@ -385,10 +385,15 @@ function getEvaluationReadyMeta(reference = '') {
 function getEvaluationTenderList() {
     const readyTenders = mockData.bidEvaluation?.readyTenders || [];
     const readyRefs = new Set(readyTenders.map(item => item.reference));
-    const sourceTenders = getEvaluationAllTenders()
-        .filter(tender => !/draft|cancelled|awarded/i.test(String(tender.status || '')));
+    const allTenders = getEvaluationAllTenders().map(tender => typeof normalizeProcurexTenderOwnership === 'function' ? normalizeProcurexTenderOwnership(tender) : tender);
+    const sourceTenders = allTenders
+        .filter(tender => (typeof isProcurexTenderOwnedByCurrentUser === 'function' ? isProcurexTenderOwnedByCurrentUser(tender) : tender.createdByCurrentUser) && !/draft|cancelled|awarded/i.test(String(tender.status || '')));
     const missingReady = readyTenders
-        .filter(item => !sourceTenders.some(tender => tender.id === item.reference || tender.reference === item.reference))
+        .filter(item => {
+            const source = allTenders.find(tender => tender.id === item.reference || tender.reference === item.reference);
+            const owned = source && (typeof isProcurexTenderOwnedByCurrentUser === 'function' ? isProcurexTenderOwnedByCurrentUser(source) : source.createdByCurrentUser);
+            return owned && !sourceTenders.some(tender => tender.id === item.reference || tender.reference === item.reference);
+        })
         .map(item => ({
             id: item.reference,
             reference: item.reference,
@@ -5065,6 +5070,11 @@ function renderBidEvaluation() {
 
     const selectedReference = getSelectedEvaluationTenderReference();
     if (!selectedReference) return renderEvaluationTenderList();
+    const selectedTender = getEvaluationSourceTender(selectedReference);
+    if (selectedTender && typeof isProcurexTenderOwnedByCurrentUser === 'function' && !isProcurexTenderOwnedByCurrentUser(selectedTender)) {
+        setSelectedEvaluationTender('');
+        return renderEvaluationTenderList();
+    }
     return renderBidEvaluationWorkspace(selectedReference);
 }
 

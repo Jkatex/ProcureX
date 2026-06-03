@@ -9014,6 +9014,15 @@ ul.closure-checklist {
     animation: supplierTenderTabFade 0.16s ease;
 }
 
+.marketplace-tab-panels .supplier-detail-tab-panel {
+    display: grid;
+    gap: 18px;
+}
+
+.marketplace-work-section {
+    margin: 0;
+}
+
 .supplier-detail-section-block {
     display: grid;
     gap: 10px;

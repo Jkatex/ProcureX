@@ -6840,7 +6840,7 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
     };
 
     const withdrawSubmittedBid = () => {
-        saveStoredSubmittedBids(getStoredSubmittedBids().filter(item => item.tenderId !== tenderId));
+        saveStoredSubmittedBids(getStoredSubmittedBids().filter(item => item.tenderId !== tenderId || (typeof isProcurexBidOwnedByCurrentUser === 'function' && !isProcurexBidOwnedByCurrentUser(item))));
         if (finalStatus) finalStatus.textContent = 'Draft until submitted';
         const receiptPanel = panels[panels.length - 1];
         if (receiptPanel) {
@@ -7139,7 +7139,7 @@ td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; lin
                 fileManifest: getBidFileManifest()
             }
         };
-        saveStoredSubmittedBids([bid, ...submitted.filter(item => item.tenderId !== tenderId)]);
+        saveStoredSubmittedBids([bid, ...submitted.filter(item => item.tenderId !== tenderId || (typeof isProcurexBidOwnedByCurrentUser === 'function' && !isProcurexBidOwnedByCurrentUser(item)))]);
         if (finalStatus) finalStatus.textContent = 'Submitted and sealed';
         return {
             receiptHash: hash,
