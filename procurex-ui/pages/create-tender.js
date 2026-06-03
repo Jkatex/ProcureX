@@ -4844,6 +4844,13 @@ function renderCreateTender() {
     const fundingSourceCustomValue = fundingSourceIsCustom ? fundingSourceValue : '';
     const invitedUsers = getCreateTenderInvitedUsers();
     const isClosedTender = isCreateTenderClosedMethod(tenderMethod);
+    const plannedTender = getCreateTenderStoredObject('procurex.planning.selectedTenderPlan', null);
+    const planningAutofillNotice = plannedTender
+        ? `<div class="planning-autofill-notice" data-planning-autofill-notice>
+                <strong>Filled from procurement plan</strong>
+                <span>Basic information and procurement planning were copied from ${escapeCreateTenderHtml(plannedTender.title || 'the selected plan')}. You can go back to amend them, but changes should match the approved plan.</span>
+           </div>`
+        : '';
     const steps = [
         ['01', 'Basic Information', 'Tender location and contact'],
         ['02', 'Procurement Planning', 'Type, category, method, invitations'],
@@ -4905,6 +4912,7 @@ function renderCreateTender() {
 
                         <div class="wizard-workspace">
                             <section class="journey-panel active" id="wizard-step-1">
+                                ${planningAutofillNotice}
                                 <div class="panel-heading">
                                     <div>
                                         <span class="section-kicker">Step 1</span>
@@ -4972,6 +4980,7 @@ function renderCreateTender() {
                             </section>
 
                             <section class="journey-panel" id="wizard-step-2">
+                                ${planningAutofillNotice}
                                 <div class="panel-heading">
                                     <div>
                                         <span class="section-kicker">Step 2</span>
@@ -5132,6 +5141,8 @@ function initializeCreateTenderWizard() {
     if (!wizard || wizard.dataset.ready === 'true') return;
 
     const setup = getCreateTenderSetup();
+    const plannedTender = getCreateTenderStoredObject('procurex.planning.selectedTenderPlan', null);
+    let planningAmendmentWarningShown = false;
     const methodSelect = wizard.querySelector('[data-procurement-method]');
     const customCategoryGroup = wizard.querySelector('[data-custom-category-group]');
     const customCategoryInput = wizard.querySelector('[data-custom-category]');
@@ -5550,6 +5561,14 @@ function initializeCreateTenderWizard() {
             visibilityNote: getCreateTenderVisibilityNoteForMethod(methodSelect?.value, getCreateTenderInvitedUsers().length),
             invitedUsers: getCreateTenderInvitedUsers()
         });
+    };
+
+    const warnPlanningAmendment = (input) => {
+        if (!plannedTender || planningAmendmentWarningShown) return;
+        const panel = input.closest('.journey-panel');
+        if (!panel || !['wizard-step-1', 'wizard-step-2'].includes(panel.id)) return;
+        planningAmendmentWarningShown = true;
+        alert('These details came from the approved procurement plan. If you amend them here, make sure the difference is approved or update the plan too.');
     };
 
     const refreshContactSummary = () => {
@@ -7607,6 +7626,14 @@ function initializeCreateTenderWizard() {
         }
     });
 
+    wizard.addEventListener('input', (event) => {
+        if (event.target?.matches('input, textarea, select')) warnPlanningAmendment(event.target);
+    }, { capture: true });
+
+    wizard.addEventListener('change', (event) => {
+        if (event.target?.matches('input, textarea, select')) warnPlanningAmendment(event.target);
+    }, { capture: true });
+
     renderSelectedCategories(getCreateTenderSelectedCategories(getCreateTenderMainDraft()));
     refreshContactSummary();
     refreshBoqSummary();
@@ -7617,7 +7644,7 @@ function initializeCreateTenderWizard() {
     syncCustomCategoryField();
     syncFundingSourceCustomField();
     refreshTenderReview();
-    setActiveStep(0);
+    setActiveStep(Number(plannedTender?.startStep ?? 0) || 0);
     wizard.dataset.ready = 'true';
 
     document.querySelector('[data-save-tender-draft]')?.addEventListener('click', () => {
