@@ -127,6 +127,7 @@ function normalizeProcurexTenderOwnership(tender = {}) {
     const ownerOrganization = tender.ownerOrganization || seedOwner?.organization || tender.organization || '';
     return {
         ...tender,
+        organization: ownerOrganization || tender.organization || '',
         ownerId,
         ownerEmail,
         ownerName,

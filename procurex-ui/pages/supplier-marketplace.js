@@ -108,10 +108,12 @@ function renderMarketplaceTenderRow(tender = {}) {
             </div>
             <div class="tender-row-actions">
                 <button class="btn btn-secondary" type="button" data-marketplace-save>Save</button>
-                <button class="btn btn-secondary" type="button" data-select-tender="${escapeMarketplaceHtml(tenderId)}" data-navigate="${owned ? 'tender-details' : 'tender-detail'}">View Tender</button>
                 ${owned
                     ? `<button class="btn btn-primary" type="button" data-select-tender="${escapeMarketplaceHtml(tenderId)}" data-navigate="tender-details">View My Tender</button>`
-                    : `<button class="btn btn-primary" type="button" data-select-tender="${escapeMarketplaceHtml(tenderId)}" ${canBid ? `data-navigate="${hasDraftBid ? 'bidding-workspace' : 'tender-detail'}"` : 'disabled'}>${hasSubmittedBid ? 'Already Bid' : hasDraftBid ? 'Continue Bid' : 'Bid'}</button>`}
+                    : `
+                        <button class="btn btn-secondary" type="button" data-select-tender="${escapeMarketplaceHtml(tenderId)}" data-navigate="tender-detail">View Tender</button>
+                        <button class="btn btn-primary" type="button" data-select-tender="${escapeMarketplaceHtml(tenderId)}" ${canBid ? `data-navigate="${hasDraftBid ? 'bidding-workspace' : 'tender-detail'}"` : 'disabled'}>${hasSubmittedBid ? 'Already Bid' : hasDraftBid ? 'Continue Bid' : 'Bid'}</button>
+                    `}
             </div>
         </article>
     `;

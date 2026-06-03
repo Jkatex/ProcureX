@@ -9019,6 +9019,10 @@ ul.closure-checklist {
     gap: 18px;
 }
 
+.buyer-detail-tab-panels .supplier-detail-tab-panel {
+    gap: 18px;
+}
+
 .marketplace-work-section {
     margin: 0;
 }

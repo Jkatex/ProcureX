@@ -212,6 +212,178 @@ function renderTenderDetailsAmendmentWorkspace(baseTender = {}, clarifications =
     `;
 }
 
+function renderBuyerTenderTabButtons(tabs = [], activeId = '') {
+    return `
+        <div class="supplier-detail-tabs buyer-detail-tabs" role="tablist">
+            ${tabs.map(tab => `
+                <button class="supplier-detail-tab ${tab.id === activeId ? 'active' : ''}" type="button" role="tab" aria-selected="${tab.id === activeId ? 'true' : 'false'}" data-buyer-tender-tab="${escapeTenderDetailsHtml(tab.id)}">
+                    ${escapeTenderDetailsHtml(tab.label)}
+                </button>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderBuyerTenderTabPanels(tabs = [], activeId = '') {
+    return `
+        <div class="supplier-detail-tab-panels buyer-detail-tab-panels">
+            ${tabs.map(tab => `
+                <section class="supplier-detail-tab-panel" role="tabpanel" data-buyer-tender-tab-panel="${escapeTenderDetailsHtml(tab.id)}" style="display: ${tab.id === activeId ? 'grid' : 'none'};">
+                    ${tab.content}
+                </section>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderBuyerTenderQuestionsTab(tender = {}, clarifications = [], amendments = [], storedAmendments = []) {
+    return `
+        <section class="buyer-tender-detail-rows">
+            <article class="journey-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Clarifications inbox</span>
+                        <h2>Questions and Answers</h2>
+                    </div>
+                    <span class="badge badge-warning">${clarifications.length} open</span>
+                </div>
+                <div class="inbox-list">
+                    ${clarifications.length ? clarifications.map(item => `
+                        <div class="inbox-item clarification-buyer-item">
+                            <div>
+                                <strong>${escapeTenderDetailsHtml(item.title || item.question || 'Clarification request')}</strong>
+                                <span>${escapeTenderDetailsHtml(item.category || 'Technical')} / ${escapeTenderDetailsHtml(item.question || item.detail || item.answer || 'No question text captured')}</span>
+                            </div>
+                            <em class="badge ${getTenderDetailsClarificationStatusClass(item.status)}">${escapeTenderDetailsHtml(item.status || 'Pending')}</em>
+                            <div class="inline-actions">
+                                <button class="btn btn-secondary" type="button">Answer Only</button>
+                                <button class="btn btn-primary" type="button" data-tender-amendment-clarification="${clarifications.indexOf(item)}">Issue Amendment</button>
+                            </div>
+                        </div>
+                    `).join('') : '<div class="scope-empty">No supplier clarifications have been submitted yet.</div>'}
+                </div>
+            </article>
+
+            <article class="journey-panel control-panel">
+                <span class="section-kicker">Tender Addenda</span>
+                <h2>${storedAmendments.length ? `${storedAmendments.length} amendment record${storedAmendments.length === 1 ? '' : 's'}` : (amendments[0]?.title || 'Create amendment')}</h2>
+                <p>${storedAmendments.length ? 'Draft and published amendment records for this tender.' : (amendments[0]?.detail || 'Create amendment, notify all watchers, and retain the previous version in the audit log.')}</p>
+                <div class="buyer-amendment-list">${renderTenderDetailsAmendmentRows(tender)}</div>
+                <button class="btn btn-secondary" type="button" data-tender-amendment-create>Create Amendment</button>
+            </article>
+        </section>
+    `;
+}
+
+function renderBuyerTenderSupplierActivityTab(tender = {}, interestedSuppliers = [], clarifications = [], daysToClose = 0, isPast = false) {
+    const supplierCount = interestedSuppliers.length;
+    const marketplaceViews = 180 + supplierCount * 22;
+    const documentDownloads = 45 + supplierCount * 11;
+    return `
+        <section class="buyer-tender-detail-rows">
+            <article class="journey-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Marketplace activity</span>
+                        <h2>Supplier engagement</h2>
+                    </div>
+                    <span class="badge badge-info">${supplierCount} supplier${supplierCount === 1 ? '' : 's'}</span>
+                </div>
+                <div class="record-summary">
+                    <div><span>Marketplace views</span><strong>${marketplaceViews}</strong></div>
+                    <div><span>Document downloads</span><strong>${documentDownloads}</strong></div>
+                    <div><span>Time to close</span><strong>${isPast ? 'Closed' : `${daysToClose}d`}</strong></div>
+                </div>
+                <div class="inbox-list">
+                    <div class="inbox-item">
+                        <div>
+                            <strong>Marketplace engagement</strong>
+                            <span>${supplierCount ? `${supplierCount} supplier${supplierCount === 1 ? '' : 's'} have shown aggregate activity.` : 'No supplier engagement recorded yet.'}</span>
+                        </div>
+                        <em>${marketplaceViews} views</em>
+                    </div>
+                    <div class="inbox-item">
+                        <div>
+                            <strong>Document interest</strong>
+                            <span>Tender documents have been accessed through the marketplace.</span>
+                        </div>
+                        <em>${documentDownloads} downloads</em>
+                    </div>
+                    <div class="inbox-item">
+                        <div>
+                            <strong>Clarification activity</strong>
+                            <span>Supplier questions are summarized without revealing individual supplier identities.</span>
+                        </div>
+                        <em>${clarifications.length} item${clarifications.length === 1 ? '' : 's'}</em>
+                    </div>
+                </div>
+            </article>
+
+            <article class="journey-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Supplier questions</span>
+                        <h2>Activity requiring buyer attention</h2>
+                    </div>
+                    <span class="badge badge-warning">${clarifications.length} item${clarifications.length === 1 ? '' : 's'}</span>
+                </div>
+                <div class="record-summary">
+                    <div><span>Clarifications</span><strong>${clarifications.length}</strong></div>
+                    <div><span>Documents</span><strong>${(tender.documents || []).length}</strong></div>
+                </div>
+                <button class="btn btn-secondary" type="button" data-tender-amendment-create>Create Amendment</button>
+            </article>
+        </section>
+    `;
+}
+
+function renderBuyerTenderEvaluationRecordsTab(tender = {}, amendments = [], clarifications = [], isPast = false) {
+    return `
+        <section class="buyer-tender-detail-rows">
+            <article class="journey-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">Audit Trail</span>
+                        <h2>Lifecycle archive</h2>
+                    </div>
+                    <span class="badge ${isPast ? 'badge-info' : 'badge-success'}">${isPast ? 'In records' : 'Active'}</span>
+                </div>
+                <div class="record-summary">
+                    <div><span>Amendments</span><strong>${amendments.length}</strong></div>
+                    <div><span>Clarifications</span><strong>${clarifications.length}</strong></div>
+                    <div><span>Tender reference</span><strong>${escapeTenderDetailsHtml(tender.id || tender.reference || '-')}</strong></div>
+                </div>
+                <button class="btn btn-secondary" type="button" data-navigate="records-history">Open Records and History</button>
+            </article>
+        </section>
+    `;
+}
+
+function renderBuyerTenderTabbedDetail(tender = {}, profile = {}, options = {}) {
+    const clarifications = options.clarifications || [];
+    const amendments = options.amendments || [];
+    const interestedSuppliers = options.interestedSuppliers || [];
+    const storedAmendments = options.storedAmendments || [];
+    const daysToClose = options.daysToClose || 0;
+    const isPast = Boolean(options.isPast);
+    const procurementContent = typeof renderProcurexTenderDetailFullSections === 'function'
+        ? renderProcurexTenderDetailFullSections(tender, profile, { clarifications, amendments, interestedSuppliers, showActivity: false, showMarketplaceActivity: true, showSupplierInterest: true })
+        : '<div class="scope-empty">Tender detail sections are unavailable.</div>';
+    const tabs = [
+        { id: 'procurement-details', label: 'Procurement details', content: procurementContent },
+        { id: 'questions-amendments', label: 'Questions and amendments', content: renderBuyerTenderQuestionsTab(tender, clarifications, amendments, storedAmendments) },
+        { id: 'supplier-activity', label: 'Supplier activity', content: renderBuyerTenderSupplierActivityTab(tender, interestedSuppliers, clarifications, daysToClose, isPast) },
+        { id: 'evaluation-records', label: 'Evaluation and records', content: renderBuyerTenderEvaluationRecordsTab(tender, amendments, clarifications, isPast) }
+    ];
+
+    return `
+        <section class="supplier-detail-tabbed-view buyer-detail-tabbed-view">
+            ${renderBuyerTenderTabButtons(tabs, 'procurement-details')}
+            ${renderBuyerTenderTabPanels(tabs, 'procurement-details')}
+        </section>
+    `;
+}
+
 function renderTenderDetails() {
     const baseTender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders[0];
     const tender = typeof getEffectiveTender === 'function' ? getEffectiveTender(baseTender) : baseTender;
@@ -287,66 +459,7 @@ function renderTenderDetails() {
                         </article>
                     </section>
 
-                    ${typeof renderProcurexTenderDetailFullSections === 'function'
-                        ? renderProcurexTenderDetailFullSections(tender, profile, { clarifications, amendments, interestedSuppliers, showActivity: false, showMarketplaceActivity: true, showSupplierInterest: true })
-                        : ''}
-
-                    <section class="buyer-tender-detail-rows">
-                        <article class="journey-panel">
-                            <div class="panel-heading">
-                                <div>
-                                    <span class="section-kicker">Clarifications inbox</span>
-                                    <h2>Questions and Answers</h2>
-                                </div>
-                                <span class="badge badge-warning">${clarifications.length} open</span>
-                            </div>
-                            <div class="inbox-list">
-                                ${clarifications.map(item => `
-                                    <div class="inbox-item clarification-buyer-item">
-                                        <div>
-                                            <strong>${escapeTenderDetailsHtml(item.title || item.question || 'Clarification request')}</strong>
-                                            <span>${escapeTenderDetailsHtml(item.category || 'Technical')} / ${escapeTenderDetailsHtml(item.question || item.detail || item.answer || 'No question text captured')}</span>
-                                        </div>
-                                        <em class="badge ${getTenderDetailsClarificationStatusClass(item.status)}">${escapeTenderDetailsHtml(item.status || 'Pending')}</em>
-                                        <div class="inline-actions">
-                                            <button class="btn btn-secondary">Answer Only</button>
-                                            <button class="btn btn-primary" type="button" data-tender-amendment-clarification="${clarifications.indexOf(item)}">Issue Amendment</button>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </article>
-
-                        <article class="journey-panel control-panel">
-                            <span class="section-kicker">Tender Addenda</span>
-                            <h2>${storedAmendments.length ? `${storedAmendments.length} amendment record${storedAmendments.length === 1 ? '' : 's'}` : (amendments[0]?.title || 'Create amendment')}</h2>
-                            <p>${storedAmendments.length ? 'Draft and published amendment records for this tender.' : (amendments[0]?.detail || 'Create amendment, notify all watchers, and retain the previous version in the audit log.')}</p>
-                            <div class="buyer-amendment-list">${renderTenderDetailsAmendmentRows(tender)}</div>
-                            <button class="btn btn-secondary" type="button" data-tender-amendment-create>Create Amendment</button>
-                        </article>
-
-                        <article class="journey-panel control-panel">
-                            <span class="section-kicker">Bid Evaluation</span>
-                            <h2>Ready for Review</h2>
-                            <p>Move to scoring, tenderer questions, and award preparation when the tender reaches evaluation.</p>
-                            <button class="btn btn-primary" data-navigate="bid-evaluation">Open Evaluation</button>
-                        </article>
-
-                        <article class="journey-panel">
-                            <div class="panel-heading">
-                                <div>
-                                    <span class="section-kicker">Audit Trail</span>
-                                    <h2>Lifecycle archive</h2>
-                                </div>
-                                <span class="badge ${isPast ? 'badge-info' : 'badge-success'}">${isPast ? 'In records' : 'Active'}</span>
-                            </div>
-                            <div class="record-summary">
-                                <div><span>Amendments</span><strong>${amendments.length}</strong></div>
-                                <div><span>Clarifications</span><strong>${clarifications.length}</strong></div>
-                            </div>
-                            <button class="btn btn-secondary" data-navigate="records-history">Open Records and History</button>
-                        </article>
-                    </section>
+                    ${renderBuyerTenderTabbedDetail(tender, profile, { clarifications, amendments, interestedSuppliers, storedAmendments, daysToClose, isPast })}
                     ${renderTenderDetailsAmendmentWorkspace(baseTender, clarifications)}
                 </div>
             </div>
@@ -387,10 +500,25 @@ function initializeTenderDetails() {
     root.addEventListener('click', (event) => {
         const state = getTenderDetailsAmendmentState();
         const baseTender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders[0];
+        const tabButton = event.target.closest('[data-buyer-tender-tab]');
         const createButton = event.target.closest('[data-tender-amendment-create]');
         const editButton = event.target.closest('[data-tender-amendment-edit]');
         const clarificationButton = event.target.closest('[data-tender-amendment-clarification]');
         const closeButton = event.target.closest('[data-tender-amendment-close]');
+
+        if (tabButton) {
+            event.preventDefault();
+            const target = tabButton.dataset.buyerTenderTab;
+            root.querySelectorAll('[data-buyer-tender-tab]').forEach(button => {
+                const active = button.dataset.buyerTenderTab === target;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            root.querySelectorAll('[data-buyer-tender-tab-panel]').forEach(panel => {
+                panel.style.display = panel.dataset.buyerTenderTabPanel === target ? 'grid' : 'none';
+            });
+            return;
+        }
 
         if (createButton) {
             state.open = true;

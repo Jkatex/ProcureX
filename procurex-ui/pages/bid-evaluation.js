@@ -267,7 +267,8 @@ function normalizeEvaluationCriterion(criterion = {}, index = 0) {
         ? [criterion[2]].filter(Boolean)
         : (Array.isArray(criterion.subcriteria) ? criterion.subcriteria : [criterion.description].filter(Boolean));
     const evaluationType = normalizeGoodsEvaluationType(criterion.evaluationType || criterion.type || inferGoodsEvaluationType({ ...criterion, name, subcriteria }));
-    const maxScore = Number(criterion.maxScore || criterion.weight || weight || (/pass_fail|document_check/.test(evaluationType) ? 0 : 10)) || 0;
+    const passFailGate = Boolean(criterion.passFailGate || /pass_fail|document_check/.test(evaluationType));
+    const maxScore = passFailGate ? 0 : 100;
     return {
         id: criterion.id || slugEvaluationId(name),
         name,
@@ -280,7 +281,7 @@ function normalizeEvaluationCriterion(criterion = {}, index = 0) {
         scoringGuide: Array.isArray(criterion.scoringGuide) ? criterion.scoringGuide : [],
         evaluationType,
         mandatory: Boolean(criterion.mandatory),
-        passFailGate: Boolean(criterion.passFailGate || /pass_fail|document_check/.test(evaluationType)),
+        passFailGate,
         type: /financial|price|cost|boq|fee/i.test(`${name} ${evaluationType}`) ? 'financial' : 'technical'
     };
 }
@@ -291,6 +292,46 @@ function getEvaluationCriteriaForTender(tender = {}) {
         ? tender.evaluation.criteria
         : (profile.evaluationCriteria || mockData.bidEvaluation?.technicalCriteria || []);
     return source.map(normalizeEvaluationCriterion);
+}
+
+function isEvaluationScoredCriterion(criterion = {}) {
+    return !criterion.passFailGate && !/pass_fail|document_check/.test(criterion.evaluationType || '') && Number(criterion.maxScore || 0) > 0;
+}
+
+function getEvaluationScoredCriteria(criteria = []) {
+    return criteria.filter(isEvaluationScoredCriterion);
+}
+
+function getEvaluationCriterionWeight(criterion = {}, scoredCriteria = []) {
+    const weight = Number(criterion.weight || 0);
+    if (Number.isFinite(weight) && weight > 0) return weight;
+    return scoredCriteria.length ? 100 / scoredCriteria.length : 0;
+}
+
+function getEvaluationWeightedMaxScore(criteria = []) {
+    return getEvaluationScoredCriteria(criteria).length ? 100 : 0;
+}
+
+function formatEvaluationScore(value = 0) {
+    const score = Number(value || 0);
+    if (!Number.isFinite(score)) return '0';
+    return String(Math.round(score * 100) / 100).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+}
+
+function formatEvaluationCriterionReportSummary(criterion = {}) {
+    return `${criterion.name} (${formatGoodsEvaluationType(criterion.evaluationType)}, weight ${criterion.weight || 0}, max score ${criterion.maxScore || 0})`;
+}
+
+function getEvaluationWeightedScore(criteria = [], getSavedRow = () => ({})) {
+    const scoredCriteria = getEvaluationScoredCriteria(criteria);
+    const totalWeight = scoredCriteria.reduce((sum, criterion) => sum + getEvaluationCriterionWeight(criterion, scoredCriteria), 0);
+    if (!totalWeight) return 0;
+    const weighted = scoredCriteria.reduce((sum, criterion) => {
+        const row = getSavedRow(criterion) || {};
+        const score = Math.min(Math.max(Number(row.score || 0) || 0, 0), 100);
+        return sum + (score / 100) * getEvaluationCriterionWeight(criterion, scoredCriteria);
+    }, 0);
+    return Math.round((weighted / totalWeight) * 10000) / 100;
 }
 
 function parseEvaluationDate(value = '') {
@@ -740,6 +781,100 @@ function findEvaluationEvidenceForRequirement(rows = [], requirement = {}, optio
         .map(item => item.row);
     if (matches.length) return matches.slice(0, limit);
     return options.strict ? [] : haystackRows.slice(0, 2);
+}
+
+function renderEvaluationSubmittedBidReportActions(tender = {}, bid = {}, bidderIndex = 0) {
+    const reference = tender.reference || tender.id || '';
+    const supplier = bid.supplier || `Supplier ${bidderIndex + 1}`;
+    return `
+        <div class="inline-actions evaluation-bid-report-actions">
+            <button class="btn btn-secondary" type="button" data-evaluation-bid-report-action="view" data-evaluation-bid-report-reference="${escapeEvaluationHtml(reference)}" data-evaluation-bid-report-index="${bidderIndex}">View Submitted Bid Report</button>
+            <button class="btn btn-secondary" type="button" data-evaluation-bid-report-action="download" data-evaluation-bid-report-reference="${escapeEvaluationHtml(reference)}" data-evaluation-bid-report-index="${bidderIndex}">Download Submitted Bid Report</button>
+            <span class="section-kicker">${escapeEvaluationHtml(supplier)}</span>
+        </div>
+    `;
+}
+
+function buildEvaluationSubmittedBidReportHtml(tender = {}, bid = {}, bidderIndex = 0) {
+    const rows = getEvaluationBidEvidenceRows(tender, bid, bidderIndex);
+    const supplier = bid.supplier || `Supplier ${bidderIndex + 1}`;
+    const documents = bid.documents?.length ? bid.documents : rows.filter(isEvaluationDocumentEvidence).map(getEvaluationEvidenceDocumentName);
+    const amount = bid.financial?.correctedPrice || bid.price || bid.draft?.total || '';
+    const currency = bid.financial?.currency || 'TZS';
+    return `<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${escapeEvaluationHtml(supplier)} Submitted Bid Report</title>
+    <style>
+        body { margin: 0; background: #f8fafc; color: #111827; font-family: Arial, sans-serif; }
+        main { max-width: 960px; margin: 28px auto; padding: 28px; background: #fff; border: 1px solid #dbe3ee; }
+        h1, h2 { margin: 0 0 10px; }
+        h1 { font-size: 26px; }
+        h2 { margin-top: 26px; font-size: 18px; }
+        p { color: #4b5563; }
+        .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+        .summary div { border: 1px solid #e5e7eb; padding: 12px; }
+        .summary span { display: block; color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .summary strong { display: block; margin-top: 4px; font-size: 15px; overflow-wrap: anywhere; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #e5e7eb; padding: 9px; text-align: left; vertical-align: top; font-size: 13px; }
+        th { background: #f3f4f6; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Submitted Bid Report</h1>
+        <p>${escapeEvaluationHtml(tender.title || 'Tender evaluation')} / ${escapeEvaluationHtml(tender.reference || tender.id || '-')}</p>
+        <section class="summary">
+            <div><span>Supplier</span><strong>${escapeEvaluationHtml(supplier)}</strong></div>
+            <div><span>Submission time</span><strong>${escapeEvaluationHtml(bid.submissionTime || bid.submittedBid?.submittedAt || '-')}</strong></div>
+            <div><span>Receipt / hash</span><strong>${escapeEvaluationHtml(bid.integrityHash || bid.submittedBid?.receiptHash || '-')}</strong></div>
+            <div><span>Financial offer</span><strong>${amount ? formatEvaluationMoney(amount, currency) : '-'}</strong></div>
+            <div><span>Registration number</span><strong>${escapeEvaluationHtml(bid.registrationNumber || '-')}</strong></div>
+            <div><span>Contact person</span><strong>${escapeEvaluationHtml(bid.contactPerson || '-')}</strong></div>
+        </section>
+        <section>
+            <h2>Submitted Documents</h2>
+            <p>${documents.length ? documents.map(escapeEvaluationHtml).join('; ') : 'No submitted document names were captured.'}</p>
+        </section>
+        <section>
+            <h2>Bid Package Evidence</h2>
+            <table>
+                <thead><tr><th>Section</th><th>Label</th><th>Submitted value</th><th>Document</th></tr></thead>
+                <tbody>
+                    ${rows.length ? rows.map(row => `<tr><td>${escapeEvaluationHtml(row.section || '-')}</td><td>${escapeEvaluationHtml(row.label || '-')}</td><td>${escapeEvaluationHtml(row.value || '-')}</td><td>${escapeEvaluationHtml(isEvaluationDocumentEvidence(row) ? getEvaluationEvidenceDocumentName(row) : '-')}</td></tr>`).join('') : '<tr><td colspan="4">No bid package evidence rows were captured for this supplier.</td></tr>'}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>`;
+}
+
+function openEvaluationSubmittedBidReport(reference = '', bidderIndex = 0) {
+    const tender = getEvaluationTenderModel(reference);
+    const bids = getEvaluationBidsForTender(tender);
+    const bid = bids[bidderIndex] || bids[0] || {};
+    const reportWindow = window.open('', '_blank');
+    if (!reportWindow) {
+        alert('Allow pop-ups to view the submitted bid report.');
+        return;
+    }
+    reportWindow.document.open();
+    reportWindow.document.write(buildEvaluationSubmittedBidReportHtml(tender, bid, bidderIndex));
+    reportWindow.document.close();
+}
+
+function downloadEvaluationSubmittedBidReport(reference = '', bidderIndex = 0) {
+    const tender = getEvaluationTenderModel(reference);
+    const bids = getEvaluationBidsForTender(tender);
+    const bid = bids[bidderIndex] || bids[0] || {};
+    const supplier = bid.supplier || `Supplier ${Number(bidderIndex || 0) + 1}`;
+    downloadEvaluationDocumentContent(
+        buildEvaluationSubmittedBidReportHtml(tender, bid, bidderIndex),
+        getEvaluationSafeFilename(`${reference}-${supplier}-submitted-bid-report`, '.html')
+    );
 }
 
 function getEvaluationSupplierDraft(draft = {}, supplier = '') {
@@ -1199,7 +1334,7 @@ function renderEvaluationActiveSection(tender = {}, bid = {}, bidderIndex = 0, s
 function getGoodsEvaluationStages() {
     return [
         { id: 'opening', label: 'Opening Register' },
-        { id: 'administrative', label: 'Administrative Review' },
+        { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
         { id: 'criteria', label: 'Buyer Criteria Evaluation' },
         { id: 'financial', label: 'Financial Review' },
         { id: 'postqual', label: 'Post-Qualification' },
@@ -1340,14 +1475,11 @@ function hasGoodsFailedAdministrativeGate(goodsDraft = {}, supplier = '', tender
 }
 
 function getGoodsSupplierScore(goodsDraft = {}, supplier = '', criteria = []) {
-    return criteria.reduce((sum, criterion) => {
-        const row = getGoodsCriterionSaved(goodsDraft, supplier, criterion.id);
-        return sum + (Number(row.score || 0) || 0);
-    }, 0);
+    return getEvaluationWeightedScore(criteria, criterion => getGoodsCriterionSaved(goodsDraft, supplier, criterion.id));
 }
 
 function getGoodsSupplierMaxScore(criteria = []) {
-    return criteria.reduce((sum, criterion) => sum + (Number(criterion.maxScore || 0) || 0), 0);
+    return getEvaluationWeightedMaxScore(criteria);
 }
 
 function getGoodsManualRecommendation(tender = {}, bids = [], draft = {}) {
@@ -1464,7 +1596,7 @@ function renderGoodsAdministrativeReview(tender = {}, bid = {}, bidderIndex = 0,
         <section class="evaluation-section-workspace">
             <div class="panel-heading">
                 <div>
-                    <span class="section-kicker">Administrative review</span>
+                    <span class="section-kicker">Administrative & Eligibility Evaluation</span>
                     <h2>${escapeEvaluationHtml(supplier)}</h2>
                     <p>Pass/fail review of mandatory eligibility, regulatory, document, and declaration checks.</p>
                 </div>
@@ -1512,6 +1644,7 @@ function renderGoodsCriteriaEvaluation(tender = {}, bid = {}, bidderIndex = 0, g
                 </div>
                 ${renderEvaluationStatusBadge(`${criteria.length} criteria`)}
             </div>
+            ${renderEvaluationSubmittedBidReportActions(tender, bid, bidderIndex)}
             <div class="evaluation-notice warning">The system does not create new criteria or decide the winner. Scores and decisions below are manual buyer entries.</div>
             <div class="goods-evaluation-card-list">
                 ${criteria.map((criterion, index) => {
@@ -1691,7 +1824,7 @@ function renderGoodsRanking(tender = {}, bids = [], goodsDraft = {}) {
                                 <td>${row.failedGate ? '-' : index + 1}</td>
                                 <td>${escapeEvaluationHtml(row.supplier)}</td>
                                 <td>${renderEvaluationStatusBadge(row.failedGate ? 'Failed gate' : 'Passed gates')}</td>
-                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}`}</td>
+                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(maxScore)}`}</td>
                                 <td>${formatEvaluationMoney(row.price, row.bid.financial?.currency || 'TZS')}</td>
                                 <td><select class="form-input" data-goods-ranking-recommendation>${['', 'Recommended for Award', 'Reserve Bidder', 'Rejected', 'Request Clarification'].map(option => `<option value="${escapeEvaluationHtml(option)}" ${row.saved.recommendation === option ? 'selected' : ''}>${escapeEvaluationHtml(option || 'Select action')}</option>`).join('')}</select></td>
                                 <td><textarea class="form-input" rows="2" data-goods-ranking-reason>${escapeEvaluationHtml(row.saved.reason || '')}</textarea></td>
@@ -1712,12 +1845,13 @@ function renderGoodsEvaluationReportDocument(tender = {}, bids = [], draft = {})
     const recommendation = draft.recommendation || getGoodsManualRecommendation(tender, bids, draft);
     const rankingRows = bids.map((bid, index) => {
         const supplier = getGoodsEvaluationSupplierKey(bid, index);
+        const failedGate = hasGoodsFailedGate(goodsDraft, supplier, criteria) || hasGoodsFailedAdministrativeGate(goodsDraft, supplier, tender);
         return {
             supplier,
-            score: getGoodsSupplierScore(goodsDraft, supplier, criteria),
+            score: failedGate ? null : getGoodsSupplierScore(goodsDraft, supplier, criteria),
             price: getGoodsEvaluationFinancialAmount(bid),
             currency: bid.financial?.currency || 'TZS',
-            gate: (hasGoodsFailedGate(goodsDraft, supplier, criteria) || hasGoodsFailedAdministrativeGate(goodsDraft, supplier, tender)) ? 'Failed gate' : 'Passed gates',
+            gate: failedGate ? 'Failed gate' : 'Passed gates',
             ranking: goodsDraft.ranking?.[supplier] || {}
         };
     }).sort((a, b) => (b.score || 0) - (a.score || 0) || a.price - b.price);
@@ -1778,7 +1912,7 @@ function renderGoodsEvaluationReportDocument(tender = {}, bids = [], draft = {})
             </section>
 
             <section>
-                <h2>5. Administrative Evaluation</h2>
+                <h2>5. Administrative & Eligibility Evaluation</h2>
                 <div class="evaluation-table-scroll">
                     <table>
                         <thead><tr><th>Supplier</th><th>Requirement</th><th>Decision</th><th>Remark</th></tr></thead>
@@ -1840,7 +1974,7 @@ function renderGoodsEvaluationReportDocument(tender = {}, bids = [], draft = {})
                     <table>
                         <thead><tr><th>Rank</th><th>Supplier</th><th>Gate status</th><th>Buyer score</th><th>Evaluated price</th><th>Buyer action</th><th>Reason</th></tr></thead>
                         <tbody>
-                            ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.supplier)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(getGoodsSupplierMaxScore(criteria))}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
+                            ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.supplier)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(getGoodsSupplierMaxScore(criteria))}`}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -1943,7 +2077,7 @@ function renderGoodsBidEvaluationWorkspace(tender = {}) {
 function getWorksEvaluationStages() {
     return [
         { id: 'opening', label: 'Opening Register' },
-        { id: 'administrative', label: 'Administrative Responsiveness' },
+        { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
         { id: 'criteria', label: 'Buyer-Defined Criteria Evaluation' },
         { id: 'boq', label: 'BOQ / Financial Review' },
         { id: 'postqual', label: 'Post-Qualification' },
@@ -2091,10 +2225,7 @@ function hasWorksBlockingReview(worksDraft = {}, contractor = '', tender = {}) {
 }
 
 function getWorksContractorScore(worksDraft = {}, contractor = '', criteria = []) {
-    return criteria.reduce((sum, criterion) => {
-        const row = getWorksCriterionSaved(worksDraft, contractor, criterion.id);
-        return sum + (Number(row.score || 0) || 0);
-    }, 0);
+    return getEvaluationWeightedScore(criteria, criterion => getWorksCriterionSaved(worksDraft, contractor, criterion.id));
 }
 
 function getWorksContractorMaxScore(criteria = []) {
@@ -2223,7 +2354,7 @@ function renderWorksAdministrativeReview(tender = {}, bid = {}, bidderIndex = 0,
         <section class="evaluation-section-workspace">
             <div class="panel-heading">
                 <div>
-                    <span class="section-kicker">Administrative responsiveness</span>
+                    <span class="section-kicker">Administrative & Eligibility Evaluation</span>
                     <h2>${escapeEvaluationHtml(contractor)}</h2>
                     <p>Check mandatory works documents and basic eligibility. The system can show evidence, but the buyer decides pass, fail, or clarification.</p>
                 </div>
@@ -2269,6 +2400,7 @@ function renderWorksCriteriaEvaluation(tender = {}, bid = {}, bidderIndex = 0, w
                 </div>
                 ${renderEvaluationStatusBadge(`${criteria.length} criteria`)}
             </div>
+            ${renderEvaluationSubmittedBidReportActions(tender, bid, bidderIndex)}
             <div class="evaluation-notice warning">The system organizes works evidence and calculates totals only. Buyer Score and Buyer Decision are entered manually.</div>
             <div class="works-evaluation-card-list goods-evaluation-card-list">
                 ${criteria.map((criterion, index) => {
@@ -2493,14 +2625,14 @@ function renderWorksRanking(tender = {}, bids = [], worksDraft = {}) {
             </div>
             <div class="evaluation-table-scroll">
                 <table class="works-evaluation-table goods-evaluation-table">
-                    <thead><tr><th>Rank</th><th>Contractor</th><th>Gate status</th><th>Total Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason / override</th></tr></thead>
+                    <thead><tr><th>Rank</th><th>Contractor</th><th>Gate status</th><th>Weighted Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason / override</th></tr></thead>
                     <tbody>
                         ${ranked.map((row, index) => `
                             <tr data-works-ranking-row data-contractor="${escapeEvaluationHtml(row.contractor)}">
                                 <td>${row.failedGate ? '-' : index + 1}</td>
                                 <td>${escapeEvaluationHtml(row.contractor)}</td>
                                 <td>${renderEvaluationStatusBadge(row.failedGate ? 'Failed gate/review' : 'Passed gates')}</td>
-                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}`}</td>
+                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(maxScore)}`}</td>
                                 <td>${formatEvaluationMoney(row.price, row.bid.financial?.currency || 'TZS')}</td>
                                 <td><select class="form-input" data-works-ranking-recommendation>${['', 'Recommended for Award', 'Reserve Contractor', 'Rejected', 'Request Clarification'].map(option => `<option value="${escapeEvaluationHtml(option)}" ${row.saved.recommendation === option ? 'selected' : ''}>${escapeEvaluationHtml(option || 'Select action')}</option>`).join('')}</select></td>
                                 <td><textarea class="form-input" rows="2" data-works-ranking-reason>${escapeEvaluationHtml(row.saved.reason || '')}</textarea></td>
@@ -2522,12 +2654,13 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
     const maxScore = getWorksContractorMaxScore(criteria);
     const rankingRows = bids.map((bid, index) => {
         const contractor = getWorksEvaluationContractorKey(bid, index);
+        const failedGate = hasWorksFailedGate(worksDraft, contractor, criteria) || hasWorksFailedAdministrativeGate(worksDraft, contractor, tender) || hasWorksBlockingReview(worksDraft, contractor, tender);
         return {
             contractor,
-            score: getWorksContractorScore(worksDraft, contractor, criteria),
+            score: failedGate ? null : getWorksContractorScore(worksDraft, contractor, criteria),
             price: getWorksEvaluationFinancialAmount(bid),
             currency: bid.financial?.currency || 'TZS',
-            gate: (hasWorksFailedGate(worksDraft, contractor, criteria) || hasWorksFailedAdministrativeGate(worksDraft, contractor, tender) || hasWorksBlockingReview(worksDraft, contractor, tender)) ? 'Failed gate/review' : 'Passed gates',
+            gate: failedGate ? 'Failed gate/review' : 'Passed gates',
             ranking: worksDraft.ranking?.[contractor] || {}
         };
     }).sort((a, b) => (b.score || 0) - (a.score || 0) || a.price - b.price);
@@ -2548,7 +2681,7 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
 
             <section><h2>1. Tender Information</h2><p>${escapeEvaluationHtml(tender.title)} was evaluated against the published works requirements, submitted contractor evidence, BOQ, and buyer-defined evaluation criteria.</p></section>
             <section><h2>2. Evaluation Method</h2><p>The system organized submitted works documents, methodology, work program, personnel, equipment, HSE evidence, site response, BOQ, and scoring records. The buyer manually recorded all decisions.</p></section>
-            <section><h2>3. Evaluation Criteria Used</h2><p>${criteria.map(criterion => `${criterion.name} (${formatGoodsEvaluationType(criterion.evaluationType)}, ${criterion.maxScore || criterion.weight || 0})`).map(escapeEvaluationHtml).join('; ') || 'No buyer-defined criteria available.'}</p></section>
+            <section><h2>3. Evaluation Criteria Used</h2><p>${criteria.map(formatEvaluationCriterionReportSummary).map(escapeEvaluationHtml).join('; ') || 'No buyer-defined criteria available.'}</p></section>
 
             <section>
                 <h2>4. Bid Opening Register</h2>
@@ -2562,7 +2695,7 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
             </section>
 
             <section>
-                <h2>5. Administrative / Responsiveness Review</h2>
+                <h2>5. Administrative & Eligibility Evaluation</h2>
                 <div class="evaluation-table-scroll"><table><thead><tr><th>Contractor</th><th>Requirement</th><th>Decision</th><th>Remark</th></tr></thead><tbody>
                     ${bids.flatMap((bid, index) => {
                         const contractor = getWorksEvaluationContractorKey(bid, index);
@@ -2602,8 +2735,8 @@ function renderWorksEvaluationReportDocument(tender = {}, bids = [], draft = {})
 
             <section>
                 <h2>9. Final Ranking and Award Recommendation</h2>
-                <div class="evaluation-table-scroll"><table><thead><tr><th>Rank</th><th>Contractor</th><th>Gate status</th><th>Total Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason</th></tr></thead><tbody>
-                    ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate/review' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.contractor)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
+                <div class="evaluation-table-scroll"><table><thead><tr><th>Rank</th><th>Contractor</th><th>Gate status</th><th>Weighted Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason</th></tr></thead><tbody>
+                    ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate/review' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.contractor)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(maxScore)}`}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
                 </tbody></table></div>
                 <p><strong>Recommended for Award:</strong> ${escapeEvaluationHtml(recommendation.supplier || 'Pending buyer recommendation')}</p>
             </section>
@@ -2706,7 +2839,7 @@ function renderWorksBidEvaluationWorkspace(tender = {}) {
 function getServiceEvaluationStages() {
     return [
         { id: 'opening', label: 'Opening Register' },
-        { id: 'administrative', label: 'Administrative Responsiveness' },
+        { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
         { id: 'criteria', label: 'Buyer-Defined Criteria Evaluation' },
         { id: 'pricing', label: 'Service Pricing Review' },
         { id: 'sla', label: 'SLA / Performance Review' },
@@ -2860,10 +2993,7 @@ function hasServiceBlockingReview(serviceDraft = {}, provider = {}, tender = {})
 }
 
 function getServiceProviderScore(serviceDraft = {}, provider = '', criteria = []) {
-    return criteria.reduce((sum, criterion) => {
-        const row = getServiceCriterionSaved(serviceDraft, provider, criterion.id);
-        return sum + (Number(row.score || 0) || 0);
-    }, 0);
+    return getEvaluationWeightedScore(criteria, criterion => getServiceCriterionSaved(serviceDraft, provider, criterion.id));
 }
 
 function getServiceProviderMaxScore(criteria = []) {
@@ -2993,7 +3123,7 @@ function renderServiceAdministrativeReview(tender = {}, bid = {}, bidderIndex = 
         <section class="evaluation-section-workspace">
             <div class="panel-heading">
                 <div>
-                    <span class="section-kicker">Administrative responsiveness</span>
+                    <span class="section-kicker">Administrative & Eligibility Evaluation</span>
                     <h2>${escapeEvaluationHtml(provider)}</h2>
                     <p>Check mandatory service documents and eligibility. The system can show submitted evidence, but the buyer records every decision manually.</p>
                 </div>
@@ -3039,6 +3169,7 @@ function renderServiceCriteriaEvaluation(tender = {}, bid = {}, bidderIndex = 0,
                 </div>
                 ${renderEvaluationStatusBadge(`${criteria.length} criteria`)}
             </div>
+            ${renderEvaluationSubmittedBidReportActions(tender, bid, bidderIndex)}
             <div class="evaluation-notice warning">The system organizes service submissions and calculates totals only. Buyer Score and Buyer Decision are entered manually.</div>
             <div class="service-evaluation-card-list goods-evaluation-card-list">
                 ${criteria.map((criterion, index) => {
@@ -3263,14 +3394,14 @@ function renderServiceRanking(tender = {}, bids = [], serviceDraft = {}) {
             </div>
             <div class="evaluation-table-scroll">
                 <table class="service-evaluation-table goods-evaluation-table">
-                    <thead><tr><th>Rank</th><th>Service Provider</th><th>Gate status</th><th>Total Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason / override</th></tr></thead>
+                    <thead><tr><th>Rank</th><th>Service Provider</th><th>Gate status</th><th>Weighted Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason / override</th></tr></thead>
                     <tbody>
                         ${ranked.map((row, index) => `
                             <tr data-service-ranking-row data-provider="${escapeEvaluationHtml(row.provider)}">
                                 <td>${row.failedGate ? '-' : index + 1}</td>
                                 <td>${escapeEvaluationHtml(row.provider)}</td>
                                 <td>${renderEvaluationStatusBadge(row.failedGate ? 'Failed gate/review' : 'Passed gates')}</td>
-                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}`}</td>
+                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(maxScore)}`}</td>
                                 <td>${formatEvaluationMoney(row.price, row.bid.financial?.currency || 'TZS')}</td>
                                 <td><select class="form-input" data-service-ranking-recommendation>${['', 'Recommended for Award', 'Reserve Supplier', 'Rejected', 'Request Clarification'].map(option => `<option value="${escapeEvaluationHtml(option)}" ${row.saved.recommendation === option ? 'selected' : ''}>${escapeEvaluationHtml(option || 'Select action')}</option>`).join('')}</select></td>
                                 <td><textarea class="form-input" rows="2" data-service-ranking-reason>${escapeEvaluationHtml(row.saved.reason || '')}</textarea></td>
@@ -3293,12 +3424,13 @@ function renderServiceEvaluationReportDocument(tender = {}, bids = [], draft = {
     const maxScore = getServiceProviderMaxScore(criteria);
     const rankingRows = bids.map((bid, index) => {
         const provider = getServiceProviderKey(bid, index);
+        const failedGate = hasServiceFailedGate(serviceDraft, provider, criteria) || hasServiceFailedAdministrativeGate(serviceDraft, provider, tender) || hasServiceBlockingReview(serviceDraft, provider, tender);
         return {
             provider,
-            score: getServiceProviderScore(serviceDraft, provider, criteria),
+            score: failedGate ? null : getServiceProviderScore(serviceDraft, provider, criteria),
             price: getServiceFinancialAmount(bid),
             currency: bid.financial?.currency || 'TZS',
-            gate: (hasServiceFailedGate(serviceDraft, provider, criteria) || hasServiceFailedAdministrativeGate(serviceDraft, provider, tender) || hasServiceBlockingReview(serviceDraft, provider, tender)) ? 'Failed gate/review' : 'Passed gates',
+            gate: failedGate ? 'Failed gate/review' : 'Passed gates',
             ranking: serviceDraft.ranking?.[provider] || {}
         };
     }).sort((a, b) => (b.score || 0) - (a.score || 0) || a.price - b.price);
@@ -3319,7 +3451,7 @@ function renderServiceEvaluationReportDocument(tender = {}, bids = [], draft = {
 
             <section><h2>1. Tender Information</h2><p>${escapeEvaluationHtml(tender.title)} was evaluated against the published service requirements, submitted service responses, pricing schedule, SLA commitments, and buyer-defined criteria.</p></section>
             <section><h2>2. Evaluation Method</h2><p>The system organized submitted documents, service responses, pricing schedules, SLA responses, and scoring records. The buyer manually recorded all decisions.</p></section>
-            <section><h2>3. Evaluation Criteria Used</h2><p>${criteria.map(criterion => `${criterion.name} (${formatGoodsEvaluationType(criterion.evaluationType)}, ${criterion.maxScore || criterion.weight || 0})`).map(escapeEvaluationHtml).join('; ') || 'No buyer-defined criteria available.'}</p></section>
+            <section><h2>3. Evaluation Criteria Used</h2><p>${criteria.map(formatEvaluationCriterionReportSummary).map(escapeEvaluationHtml).join('; ') || 'No buyer-defined criteria available.'}</p></section>
 
             <section>
                 <h2>4. Bid Opening Register</h2>
@@ -3333,7 +3465,7 @@ function renderServiceEvaluationReportDocument(tender = {}, bids = [], draft = {
             </section>
 
             <section>
-                <h2>5. Administrative Responsiveness Review</h2>
+                <h2>5. Administrative & Eligibility Evaluation</h2>
                 <div class="evaluation-table-scroll"><table><thead><tr><th>Provider</th><th>Requirement</th><th>Decision</th><th>Remark</th></tr></thead><tbody>
                     ${bids.flatMap((bid, index) => {
                         const provider = getServiceProviderKey(bid, index);
@@ -3386,8 +3518,8 @@ function renderServiceEvaluationReportDocument(tender = {}, bids = [], draft = {
 
             <section>
                 <h2>10. Final Ranking</h2>
-                <div class="evaluation-table-scroll"><table><thead><tr><th>Rank</th><th>Provider</th><th>Gate status</th><th>Total Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason</th></tr></thead><tbody>
-                    ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate/review' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.provider)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
+                <div class="evaluation-table-scroll"><table><thead><tr><th>Rank</th><th>Provider</th><th>Gate status</th><th>Weighted Score</th><th>Evaluated Price</th><th>Recommendation</th><th>Reason</th></tr></thead><tbody>
+                    ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate/review' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.provider)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(maxScore)}`}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
                 </tbody></table></div>
             </section>
 
@@ -3490,7 +3622,7 @@ function renderServiceBidEvaluationWorkspace(tender = {}) {
 function getConsultancyEvaluationStages() {
     return [
         { id: 'opening', label: 'Opening Register' },
-        { id: 'administrative', label: 'Administrative Responsiveness' },
+        { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
         { id: 'criteria', label: 'Buyer-Defined Criteria Evaluation' },
         { id: 'tor', label: 'Technical Proposal / TOR Review' },
         { id: 'financial', label: 'Financial Proposal Review' },
@@ -3647,10 +3779,7 @@ function hasConsultancyBlockingReview(consultancyDraft = {}, consultant = '', te
 }
 
 function getConsultancyScore(consultancyDraft = {}, consultant = '', criteria = []) {
-    return criteria.reduce((sum, criterion) => {
-        const row = getConsultancyCriterionSaved(consultancyDraft, consultant, criterion.id);
-        return sum + (Number(row.score || 0) || 0);
-    }, 0);
+    return getEvaluationWeightedScore(criteria, criterion => getConsultancyCriterionSaved(consultancyDraft, consultant, criterion.id));
 }
 
 function getConsultancyMaxScore(criteria = []) {
@@ -3783,7 +3912,7 @@ function renderConsultancyAdministrativeReview(tender = {}, bid = {}, bidderInde
         <section class="evaluation-section-workspace">
             <div class="panel-heading">
                 <div>
-                    <span class="section-kicker">Administrative responsiveness</span>
+                    <span class="section-kicker">Administrative & Eligibility Evaluation</span>
                     <h2>${escapeEvaluationHtml(consultant)}</h2>
                     <p>Check required registrations, signed forms, proposal files, and eligibility documents. The buyer records all decisions manually.</p>
                 </div>
@@ -3829,6 +3958,7 @@ function renderConsultancyCriteriaEvaluation(tender = {}, bid = {}, bidderIndex 
                 </div>
                 ${renderEvaluationStatusBadge(`${criteria.length} criteria`)}
             </div>
+            ${renderEvaluationSubmittedBidReportActions(tender, bid, bidderIndex)}
             <div class="evaluation-notice warning">The system organizes consultancy proposals and calculates totals only. Buyer Score and Buyer Decision are entered manually.</div>
             <div class="consultancy-evaluation-card-list goods-evaluation-card-list">
                 ${criteria.map((criterion, index) => {
@@ -4057,14 +4187,14 @@ function renderConsultancyRanking(tender = {}, bids = [], consultancyDraft = {})
             </div>
             <div class="evaluation-table-scroll">
                 <table class="consultancy-evaluation-table goods-evaluation-table">
-                    <thead><tr><th>Rank</th><th>Consultant</th><th>Gate status</th><th>Total Score</th><th>Evaluated Fee</th><th>Recommendation</th><th>Reason / override</th></tr></thead>
+                    <thead><tr><th>Rank</th><th>Consultant</th><th>Gate status</th><th>Weighted Score</th><th>Evaluated Fee</th><th>Recommendation</th><th>Reason / override</th></tr></thead>
                     <tbody>
                         ${ranked.map((row, index) => `
                             <tr data-consultancy-ranking-row data-consultant="${escapeEvaluationHtml(row.consultant)}" data-blocked="${row.failedGate ? 'true' : 'false'}">
                                 <td>${row.failedGate ? '-' : index + 1}</td>
                                 <td>${escapeEvaluationHtml(row.consultant)}</td>
                                 <td>${renderEvaluationStatusBadge(row.failedGate ? 'Failed gate/review' : 'Passed gates')}</td>
-                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}`}</td>
+                                <td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(maxScore)}`}</td>
                                 <td>${formatEvaluationMoney(row.price, row.bid.financial?.currency || 'TZS')}</td>
                                 <td><select class="form-input" data-consultancy-ranking-recommendation>${['', 'Recommended for Award', 'Reserve Consultant', 'Rejected', 'Request Clarification'].map(option => `<option value="${escapeEvaluationHtml(option)}" ${row.saved.recommendation === option ? 'selected' : ''}>${escapeEvaluationHtml(option || 'Select action')}</option>`).join('')}</select></td>
                                 <td><textarea class="form-input" rows="2" data-consultancy-ranking-reason>${escapeEvaluationHtml(row.saved.reason || '')}</textarea></td>
@@ -4087,12 +4217,13 @@ function renderConsultancyEvaluationReportDocument(tender = {}, bids = [], draft
     const maxScore = getConsultancyMaxScore(criteria);
     const rankingRows = bids.map((bid, index) => {
         const consultant = getConsultancyKey(bid, index);
+        const failedGate = hasConsultancyFailedGate(consultancyDraft, consultant, criteria) || hasConsultancyFailedAdministrativeGate(consultancyDraft, consultant, tender) || hasConsultancyBlockingReview(consultancyDraft, consultant, tender);
         return {
             consultant,
-            score: getConsultancyScore(consultancyDraft, consultant, criteria),
+            score: failedGate ? null : getConsultancyScore(consultancyDraft, consultant, criteria),
             price: getConsultancyFinancialAmount(bid),
             currency: bid.financial?.currency || 'TZS',
-            gate: (hasConsultancyFailedGate(consultancyDraft, consultant, criteria) || hasConsultancyFailedAdministrativeGate(consultancyDraft, consultant, tender) || hasConsultancyBlockingReview(consultancyDraft, consultant, tender)) ? 'Failed gate/review' : 'Passed gates',
+            gate: failedGate ? 'Failed gate/review' : 'Passed gates',
             ranking: consultancyDraft.ranking?.[consultant] || {}
         };
     }).sort((a, b) => (b.score || 0) - (a.score || 0) || a.price - b.price);
@@ -4113,7 +4244,7 @@ function renderConsultancyEvaluationReportDocument(tender = {}, bids = [], draft
 
             <section><h2>1. Tender Information</h2><p>${escapeEvaluationHtml(tender.title)} was evaluated against the published consultancy TOR, requirements, proposal evidence, financial proposal review, and buyer-defined criteria.</p></section>
             <section><h2>2. Evaluation Method</h2><p>The system organized submitted consultancy proposals and calculated totals from buyer-entered scores only. The buyer manually recorded all decisions and recommendations.</p></section>
-            <section><h2>3. Evaluation Criteria Used</h2><p>${criteria.map(criterion => `${criterion.name} (${formatGoodsEvaluationType(criterion.evaluationType)}, ${criterion.maxScore || criterion.weight || 0})`).map(escapeEvaluationHtml).join('; ') || 'No buyer-defined criteria available.'}</p></section>
+            <section><h2>3. Evaluation Criteria Used</h2><p>${criteria.map(formatEvaluationCriterionReportSummary).map(escapeEvaluationHtml).join('; ') || 'No buyer-defined criteria available.'}</p></section>
 
             <section>
                 <h2>4. Proposal Opening Register</h2>
@@ -4127,7 +4258,7 @@ function renderConsultancyEvaluationReportDocument(tender = {}, bids = [], draft
             </section>
 
             <section>
-                <h2>5. Administrative Responsiveness Review</h2>
+                <h2>5. Administrative & Eligibility Evaluation</h2>
                 <div class="evaluation-table-scroll"><table><thead><tr><th>Consultant</th><th>Requirement</th><th>Decision</th><th>Remark</th></tr></thead><tbody>
                     ${bids.flatMap((bid, index) => {
                         const consultant = getConsultancyKey(bid, index);
@@ -4168,8 +4299,8 @@ function renderConsultancyEvaluationReportDocument(tender = {}, bids = [], draft
             <section><h2>8. Financial Proposal Review</h2><p>Financial proposal status, corrections, cost realism checks, and buyer remarks are recorded separately from scoring. Price is scored only where the buyer published a price/financial criterion.</p></section>
             <section>
                 <h2>9. Selection Method / Final Ranking</h2>
-                <div class="evaluation-table-scroll"><table><thead><tr><th>Rank</th><th>Consultant</th><th>Gate status</th><th>Total Score</th><th>Evaluated Fee</th><th>Recommendation</th><th>Reason</th></tr></thead><tbody>
-                    ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate/review' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.consultant)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${escapeEvaluationHtml(row.score)} / ${escapeEvaluationHtml(maxScore)}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
+                <div class="evaluation-table-scroll"><table><thead><tr><th>Rank</th><th>Consultant</th><th>Gate status</th><th>Weighted Score</th><th>Evaluated Fee</th><th>Recommendation</th><th>Reason</th></tr></thead><tbody>
+                    ${rankingRows.map((row, index) => `<tr><td>${row.gate === 'Failed gate/review' ? '-' : index + 1}</td><td>${escapeEvaluationHtml(row.consultant)}</td><td>${escapeEvaluationHtml(row.gate)}</td><td>${row.score === null ? '-' : `${escapeEvaluationHtml(formatEvaluationScore(row.score))} / ${escapeEvaluationHtml(maxScore)}`}</td><td>${formatEvaluationMoney(row.price, row.currency)}</td><td>${escapeEvaluationHtml(row.ranking.recommendation || 'Pending')}</td><td>${escapeEvaluationHtml(row.ranking.reason || '-')}</td></tr>`).join('')}
                 </tbody></table></div>
             </section>
 
@@ -5118,10 +5249,32 @@ if (typeof document !== 'undefined' && !window.procurexEvaluationRedesignListene
         const closeReportButton = event.target.closest('[data-evaluation-close-report]');
         const downloadReportButton = event.target.closest('[data-evaluation-download-report]');
         const documentActionButton = event.target.closest('[data-evaluation-document-action]');
+        const bidReportButton = event.target.closest('[data-evaluation-bid-report-action]');
 
-        if (!selectButton && !clearButton && !sectionButton && !goodsStageButton && !goodsSupplierButton && !worksStageButton && !worksContractorButton && !serviceStageButton && !serviceProviderButton && !consultancyStageButton && !consultancyConsultantButton && !moveSupplierButton && !saveButton && !completeButton && !viewReportButton && !closeReportButton && !downloadReportButton && !documentActionButton) return;
+        if (!selectButton && !clearButton && !sectionButton && !goodsStageButton && !goodsSupplierButton && !worksStageButton && !worksContractorButton && !serviceStageButton && !serviceProviderButton && !consultancyStageButton && !consultancyConsultantButton && !moveSupplierButton && !saveButton && !completeButton && !viewReportButton && !closeReportButton && !downloadReportButton && !documentActionButton && !bidReportButton) return;
 
         event.preventDefault();
+
+        if (bidReportButton) {
+            const reference = bidReportButton.getAttribute('data-evaluation-bid-report-reference') || getSelectedEvaluationTenderReference();
+            const bidderIndex = Number(bidReportButton.getAttribute('data-evaluation-bid-report-index') || 0);
+            const action = bidReportButton.getAttribute('data-evaluation-bid-report-action') || 'view';
+            if (action === 'download') downloadEvaluationSubmittedBidReport(reference, bidderIndex);
+            else openEvaluationSubmittedBidReport(reference, bidderIndex);
+            if (typeof appendProcurexAdminAudit === 'function') {
+                const adminOversight = isEvaluationAdminOversightSession();
+                appendProcurexAdminAudit({
+                    action: `${adminOversight ? 'System Admin' : 'Buyer'} ${action === 'download' ? 'downloaded' : 'viewed'} submitted bid report`,
+                    entityType: 'Submitted Bid Report',
+                    entityRef: reference,
+                    ref: reference,
+                    actorRole: adminOversight ? 'System Admin' : 'Buyer',
+                    severity: 'info',
+                    summary: `Submitted bid report for supplier ${bidderIndex + 1} was ${action === 'download' ? 'downloaded' : 'viewed'} during evaluation.`
+                });
+            }
+            return;
+        }
 
         if (documentActionButton) {
             const documentId = documentActionButton.getAttribute('data-evaluation-document-id') || '';
