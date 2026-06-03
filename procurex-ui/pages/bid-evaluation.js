@@ -4858,6 +4858,10 @@ function collectEvaluationDraftFromDom(reference = '', status = 'Saved as draft'
             const existingOpening = works.opening[contractor] || {};
             works.opening[contractor] = {
                 status: row.querySelector('[data-works-opening-status]')?.value || existingOpening.status || 'Opened',
+<<<<<<< HEAD
+=======
+                bidSecurityStatus: row.querySelector('[data-works-opening-bid-security]')?.value || existingOpening.bidSecurityStatus || 'Submitted',
+>>>>>>> fa3075c28f0ef73b32cb7a9b1a0c4c7fb5dc3a1c
                 completionPeriodOffered: row.querySelector('[data-works-opening-completion]')?.value || '',
                 remark: row.querySelector('[data-works-opening-remark]')?.value || '',
                 updatedAt: new Date().toISOString()
