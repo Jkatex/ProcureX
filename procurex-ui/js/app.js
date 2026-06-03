@@ -276,6 +276,7 @@ class ProcureXApp {
             'terms-and-conditions': 'Terms and Conditions',
             'contact': 'Contact ProcureX',
             'tender-planning': 'Procurement Planning',
+            'tender-planning': 'Procurement Planning',
             'procurement-planning-details': 'Procurement Planning',
             'procurement-planning-questions': 'Procurement Planning',
             'procurement-planning-complaints': 'Procurement Planning',
@@ -519,6 +520,9 @@ class ProcureXApp {
         }
         if (typeof window.initializeWorkspaceDashboard === 'function') {
             window.initializeWorkspaceDashboard();
+        }
+        if (typeof window.initializeTenderPlanning === 'function') {
+            window.initializeTenderPlanning();
         }
         this.initializeProcurementLiveFeed();
     }

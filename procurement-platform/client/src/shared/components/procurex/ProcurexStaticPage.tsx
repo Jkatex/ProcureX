@@ -105,7 +105,7 @@ const appDrawerHtml = `
         <path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/>
       </svg>
     </span>
-    <span><strong>Tender Planning</strong><em>APP, SPP, budgets, approvals</em></span>
+    <span><strong>Procurement Planning</strong><em>APP, SPP, budgets, approvals</em></span>
   </button>
   <button class="app-menu-card app-menu-procurement" type="button" data-navigate="marketplace">
     <span class="app-menu-icon">
@@ -309,6 +309,51 @@ function activatePlanningAnchor(root: HTMLElement, link: HTMLAnchorElement) {
   return true;
 }
 
+function setProcurementPlanningView(button: HTMLElement, root: HTMLElement) {
+  const view = button.getAttribute('data-planning-view');
+  if (!view) return;
+
+  root.querySelectorAll<HTMLElement>('[data-planning-view]').forEach((item) => {
+    item.classList.toggle('active', item === button);
+    item.setAttribute('aria-selected', String(item === button));
+  });
+
+  root.querySelectorAll<HTMLElement>('[data-planning-panel]').forEach((panel) => {
+    const isActive = panel.getAttribute('data-planning-panel') === view;
+    panel.classList.toggle('active', isActive);
+    panel.style.display = isActive ? '' : 'none';
+  });
+}
+
+function openProcurementPlanDrawer(button: HTMLElement, root: HTMLElement) {
+  const recordId = button.getAttribute('data-plan-open');
+  const drawer = root.querySelector<HTMLElement>('[data-plan-drawer]');
+  const content = root.querySelector<HTMLElement>('[data-plan-drawer-content]');
+  const template = recordId
+    ? root.querySelector<HTMLTemplateElement>(`template[data-plan-template="${CSS.escape(recordId)}"]`)
+    : null;
+
+  if (!drawer || !content || !template) return;
+
+  content.innerHTML = template.innerHTML;
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+}
+
+function closeProcurementPlanDrawer(root: HTMLElement) {
+  const drawer = root.querySelector<HTMLElement>('[data-plan-drawer]');
+  drawer?.classList.remove('open');
+  drawer?.setAttribute('aria-hidden', 'true');
+}
+
+function scrollProcurementPlanningTarget(button: HTMLElement, root: HTMLElement) {
+  const target = button.getAttribute('data-planning-scroll');
+  if (!target) return;
+
+  const element = root.querySelector<HTMLElement>(`#${CSS.escape(target)}`) || root.querySelector<HTMLElement>(`[data-planning-panel="${CSS.escape(target)}"]`);
+  element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function scrollPageToTop() {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
@@ -368,9 +413,37 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     const awardingJump = target.closest<HTMLElement>('[data-awarding-tab-jump]');
     const menuButton = target.closest<HTMLElement>('[data-app-menu-toggle], [data-profile-menu-toggle]');
     const planningAnchor = target.closest<HTMLAnchorElement>('.planning-nav-card[href^="#"]');
+    const procurementPlanningView = target.closest<HTMLElement>('[data-planning-view]');
+    const procurementPlanOpen = target.closest<HTMLElement>('[data-plan-open]');
+    const procurementPlanClose = target.closest<HTMLElement>('[data-plan-close]');
+    const procurementPlanningScroll = target.closest<HTMLElement>('[data-planning-scroll]');
 
     if (planningAnchor && rootRef.current && activatePlanningAnchor(rootRef.current, planningAnchor)) {
       event.preventDefault();
+      return;
+    }
+
+    if (procurementPlanOpen && rootRef.current) {
+      event.preventDefault();
+      openProcurementPlanDrawer(procurementPlanOpen, rootRef.current);
+      return;
+    }
+
+    if (procurementPlanClose && rootRef.current) {
+      event.preventDefault();
+      closeProcurementPlanDrawer(rootRef.current);
+      return;
+    }
+
+    if (procurementPlanningView && rootRef.current) {
+      event.preventDefault();
+      setProcurementPlanningView(procurementPlanningView, rootRef.current);
+      return;
+    }
+
+    if (procurementPlanningScroll && rootRef.current) {
+      event.preventDefault();
+      scrollProcurementPlanningTarget(procurementPlanningScroll, rootRef.current);
       return;
     }
 
