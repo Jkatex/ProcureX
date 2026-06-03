@@ -182,15 +182,15 @@ function renderProcurementPlanningDetailPage(section) {
                         <span class="section-kicker">${section.kicker}</span>
                         <h1>${section.title}</h1>
                         <p>${section.summary}</p>
+                        <div class="planning-detail-summary-strip" aria-label="${section.title} summary">
+                            <span>${section.number}</span>
+                            <strong>${section.badge}</strong>
+                            <em>${section.title}</em>
+                        </div>
                         <div class="inline-actions">
                             <button class="btn btn-secondary" type="button" data-navigate="tender-planning">Back to Procurement Planning</button>
                             <button class="btn btn-primary" type="button">Open action queue</button>
                         </div>
-                    </div>
-                    <div class="planning-detail-badge" aria-hidden="true">
-                        <span>${section.number}</span>
-                        <strong>${section.badge}</strong>
-                        <em>${section.title}</em>
                     </div>
                 </section>
 
