@@ -34,6 +34,8 @@ export const router = createBrowserRouter([
   { path: '/tender-planning', element: protectedPage('tender-planning') },
   { path: '/procurement/guide', element: protectedPage('procurement-guide') },
   { path: '/procurement/marketplace', element: protectedPage('marketplace') },
+  { path: '/procurement/my-tenders', element: protectedPage('marketplace') },
+  { path: '/procurement/my-bids', element: protectedPage('marketplace') },
   { path: '/procurement/create-tender', element: protectedPage('create-tender') },
   { path: '/procurement/tender-publication', element: protectedPage('tender-publication') },
   { path: '/procurement/tender-details', element: protectedPage('tender-details') },

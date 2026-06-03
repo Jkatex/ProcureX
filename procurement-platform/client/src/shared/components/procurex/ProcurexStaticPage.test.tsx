@@ -1,10 +1,27 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import i18n, { persistLanguage } from '@/i18n';
 import { ProcurexStaticPage } from './ProcurexStaticPage';
 
 const selectedEvaluationTenderKey = 'procurex.selectedEvaluationTender';
 const selectedEvaluationReportKey = 'procurex.selectedEvaluationReport';
+const marketplaceHtml = `
+  <section data-marketplace-root>
+    <div role="tablist">
+      <button type="button" role="tab" class="active" aria-selected="true" data-marketplace-tab="marketplace">Marketplace</button>
+      <button type="button" role="tab" aria-selected="false" data-marketplace-tab="my-tenders">My Tenders</button>
+      <button type="button" role="tab" aria-selected="false" data-marketplace-tab="my-bids">My Bids</button>
+    </div>
+    <section data-marketplace-tab-panel="marketplace">Marketplace page</section>
+    <section data-marketplace-tab-panel="my-tenders">Tender page</section>
+    <section data-marketplace-tab-panel="my-bids">Bid page</section>
+  </section>
+`;
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
 
 describe('ProcurexStaticPage localization', () => {
   afterEach(async () => {
@@ -66,5 +83,31 @@ describe('ProcurexStaticPage localization', () => {
 
     expect(window.localStorage.getItem(selectedEvaluationTenderKey)).toBeNull();
     expect(window.localStorage.getItem(selectedEvaluationReportKey)).toBeNull();
+  });
+
+  it('shows marketplace work sections from route-backed pages', async () => {
+    render(
+      <MemoryRouter initialEntries={['/procurement/my-tenders']}>
+        <ProcurexStaticPage pageKey="marketplace" html={marketplaceHtml} />
+      </MemoryRouter>
+    );
+
+    const panel = screen.getByText('Tender page').closest<HTMLElement>('[data-marketplace-tab-panel]');
+    await waitFor(() => expect(panel).toHaveStyle({ display: 'grid' }));
+    expect(screen.getByRole('tab', { name: 'My Tenders' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('navigates marketplace work tabs to in-app pages', async () => {
+    render(
+      <MemoryRouter initialEntries={['/procurement/marketplace']}>
+        <LocationProbe />
+        <ProcurexStaticPage pageKey="marketplace" html={marketplaceHtml} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'My Bids' }));
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/my-bids'));
+    expect(screen.getByRole('tab', { name: 'My Bids' })).toHaveAttribute('aria-selected', 'true');
   });
 });

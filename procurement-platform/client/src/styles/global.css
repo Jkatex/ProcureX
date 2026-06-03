@@ -90,6 +90,8 @@ img {
 @media (max-width: 720px) {
   .procurex-floating-language {
     display: none;
+  }
+
   .register-header-inner-new,
   .app-topbar-actions,
   .welcome-nav-actions-v2,
