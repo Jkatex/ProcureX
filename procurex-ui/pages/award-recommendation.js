@@ -8,18 +8,18 @@ const renderAwardRecommendationBadge = PXAwardUtils.renderStatusBadge || ((value
 
 const awardWorkflowSteps = [
     { id: 'evaluation-result', title: 'Evaluation Results', shortTitle: 'Evaluation Results', meta: 'Report and ranked bidders' },
-    { id: 'award-decision', title: 'Award Decision', shortTitle: 'Award Decision', meta: 'Supplier, amount, and reason' },
-    { id: 'approval', title: 'Approval', shortTitle: 'Approval', meta: 'Authority and COI declaration' },
-    { id: 'award-notification', title: 'Notices', shortTitle: 'Notices', meta: 'Required bidder notifications' },
+    { id: 'award-decision', title: 'Award Decision', shortTitle: 'Award Decision', meta: 'Supplier, amount, reason, and confirmation' },
+    { id: 'award-notification', title: 'Notice Preparation', shortTitle: 'Notices', meta: 'Communication Center notices' },
     { id: 'standstill-period', title: 'Standstill & Complaints', shortTitle: 'Standstill', meta: 'Contracting lock window' },
     { id: 'supplier-acceptance', title: 'Supplier Acceptance', shortTitle: 'Acceptance', meta: 'Accept, decline, or clarify' },
-    { id: 'pre-contract-documents', title: 'Pre-Contract Documents', shortTitle: 'Documents', meta: 'Supplier evidence checklist' },
+    { id: 'pre-contract-documents', title: 'Pre-Contract Documents', shortTitle: 'Documents', meta: 'Buyer document set' },
     { id: 'draft-contract', title: 'Draft Contract', shortTitle: 'Draft Contract', meta: 'Generate only after blockers clear' }
 ];
 
 function normalizeAwardStep(step = '') {
     if (step === 'notice') return 'award-notification';
     if (step === 'evaluation-results') return 'evaluation-result';
+    if (step === 'approval') return 'award-decision';
     return awardWorkflowSteps.some(item => item.id === step) ? step : 'evaluation-result';
 }
 
@@ -136,6 +136,93 @@ function renderDocumentStatusBadge(status = '') {
     return renderAwardRecommendationBadge(status || 'Missing');
 }
 
+function getAwardNoticeDrafts(draft = {}, award = {}, tender = {}, selectedSupplier = '') {
+    const source = draft.notices?.length ? draft.notices : (award.notices?.length ? award.notices : []);
+    if (source.length) {
+        return source.map((row, index) => ({
+            id: row.id || `notice-${index + 1}`,
+            type: row.type || 'Award Notice',
+            recipient: row.recipient || row.recipientScope || 'Supplier',
+            recipientScope: row.recipientScope || row.recipient || 'Supplier',
+            recipientId: row.recipientId || '',
+            status: row.status || 'Ready for Communication Center',
+            deadline: row.deadline || draft.notification?.responseDeadline || '',
+            subject: row.subject || `${row.type || 'Award Notice'} - ${award.reference || draft.tenderReference || tender.reference || ''}`,
+            body: row.body || draft.notification?.message || `Notice for ${award.tenderTitle || draft.title || 'this tender'}.`
+        }));
+    }
+
+    const reference = award.reference || draft.tenderReference || tender.reference || tender.id || 'Tender';
+    const title = award.tenderTitle || draft.title || tender.title || reference;
+    return [
+        {
+            id: 'award-notification-selected-supplier',
+            type: 'Award Notification',
+            recipient: selectedSupplier || 'Selected supplier',
+            recipientScope: 'Selected supplier',
+            recipientId: 'supplier',
+            status: 'Ready for Communication Center',
+            deadline: draft.notification?.responseDeadline || '',
+            subject: `Award Notification - ${reference}`,
+            body: `Your company has been selected for award for ${title}. Please review and respond through ProcureX.`
+        },
+        {
+            id: 'unsuccessful-bidder-notice',
+            type: 'Unsuccessful Bidder Notice',
+            recipient: 'Unsuccessful bidders',
+            recipientScope: 'Unsuccessful bidders',
+            recipientId: '',
+            status: 'Ready for Communication Center',
+            deadline: draft.standstill?.complaintDeadline || award.standstillEnd || '',
+            subject: `Tender Result Notice - ${reference}`,
+            body: `The buyer has completed evaluation for ${title}. This notice shares the tender result and available next steps.`
+        },
+        {
+            id: 'standstill-intention-notice',
+            type: 'Notice of Intention and Standstill',
+            recipient: 'All bidders',
+            recipientScope: 'All bidders',
+            recipientId: '',
+            status: 'Ready for Communication Center',
+            deadline: draft.standstill?.complaintDeadline || award.standstillEnd || '',
+            subject: `Notice of Intention to Award - ${reference}`,
+            body: `The buyer intends to award ${title}. Any complaint must be submitted before the buyer-set standstill deadline.`
+        }
+    ];
+}
+
+function renderAwardNoticeComposeButton(row, tenderId = '', reference = '', title = '') {
+    const sent = /sent|awaiting response/i.test(row.status || '');
+    return `
+        <button class="btn ${sent ? 'btn-secondary' : 'btn-primary'} btn-sm" type="button"
+            data-award-notice-compose
+            data-award-notice-id="${escapeAwardRecommendationHtml(row.id || '')}"
+            data-award-notice-type="${escapeAwardRecommendationHtml(row.type || 'Award Notice')}"
+            data-award-notice-recipient="${escapeAwardRecommendationHtml(row.recipient || '')}"
+            data-award-notice-recipient-id="${escapeAwardRecommendationHtml(row.recipientId || '')}"
+            data-award-notice-subject="${escapeAwardRecommendationHtml(row.subject || '')}"
+            data-award-notice-body="${escapeAwardRecommendationHtml(row.body || '')}"
+            data-award-notice-tender-id="${escapeAwardRecommendationHtml(tenderId || '')}"
+            data-award-notice-reference="${escapeAwardRecommendationHtml(reference || '')}"
+            data-award-notice-title="${escapeAwardRecommendationHtml(title || '')}">
+            ${sent ? 'View in Communication Center' : 'Prepare in Communication Center'}
+        </button>
+    `;
+}
+
+function normalizeAwardDocumentRows(rows = []) {
+    return rows.map((row, index) => ({
+        id: row.id || `buyer-document-${index + 1}`,
+        name: row.name || 'Pre-contract document',
+        type: row.type || 'Pre-contract Document',
+        owner: row.owner || 'Buyer',
+        required: row.required !== false,
+        status: row.status || 'Pending Buyer Upload',
+        fileName: row.fileName || row.file || '',
+        expiryDate: row.expiryDate || ''
+    }));
+}
+
 function renderAwardRecommendation() {
     const context = typeof getAwardContractLifecycleContext === 'function' ? getAwardContractLifecycleContext() : null;
     const lifecycle = mockData.awardingContracts || {};
@@ -153,13 +240,13 @@ function renderAwardRecommendation() {
         currency: draft.awardDecision?.currency || lifecycle.award?.currency,
         reason: draft.awardDecision?.reason || lifecycle.award?.reason,
         awardStatus: draft.awardStatus || lifecycle.award?.awardStatus,
-        approval: {
-            ...(lifecycle.award?.approval || {}),
-            approver: draft.awardDecision?.approver || lifecycle.award?.approval?.approver,
-            date: draft.awardDecision?.awardDate || lifecycle.award?.approval?.date,
-            status: draft.awardDecision?.approvalConfirmed ? 'Approved' : 'Pending'
+        confirmation: {
+            ...(lifecycle.award?.confirmation || {}),
+            confirmedBy: draft.awardDecision?.confirmedBy || lifecycle.award?.confirmation?.confirmedBy || 'Buyer authority',
+            date: draft.awardDecision?.awardDate || lifecycle.award?.confirmation?.date,
+            status: draft.awardDecision?.confirmed ? 'Confirmed' : 'Draft'
         },
-        notices: lifecycle.award?.notices || [],
+        notices: draft.notices?.length ? draft.notices : (lifecycle.award?.notices || []),
         supplierResponses: lifecycle.award?.supplierResponses || []
     };
     const evaluation = mockData.bidEvaluation || {};
@@ -178,27 +265,41 @@ function renderAwardRecommendation() {
     const awardAmount = Number(award.awardAmount || recommendation.amount || 0);
     const amountDifference = awardAmount - correctedPrice;
     const amountMismatch = correctedPrice > 0 && Math.abs(amountDifference) > 0;
-    const approved = Boolean(draft.awardDecision?.approvalConfirmed);
-    const standstill = getStandstillStatus(award);
+    const confirmed = Boolean(draft.awardDecision?.confirmed || draft.awardDecision?.approvalConfirmed);
+    const awardStandstill = {
+        ...award,
+        standstillStart: draft.standstill?.startDate || award.standstillStart,
+        standstillEnd: draft.standstill?.endDate || award.standstillEnd,
+        complaintsReceived: draft.standstill?.complaints?.some(row => !/resolved|closed/i.test(row.status || '')) ? 'Yes' : award.complaintsReceived,
+        complaintsResolved: draft.standstill?.complaints?.length ? draft.standstill.complaints.every(row => /resolved|closed/i.test(row.status || '')) : award.complaintsResolved
+    };
+    const standstill = getStandstillStatus(awardStandstill);
+    const standstillRequired = draft.standstill?.required !== false && draft.standstill?.required !== 'false';
     const currentStep = normalizeAwardStep(draft.currentStep || 'evaluation-result');
     const activeStepIndex = Math.max(0, awardWorkflowSteps.findIndex(step => step.id === currentStep));
     const responseDeadline = draft.notification?.responseDeadline || award.notices?.find(row => /award notification/i.test(row.type || ''))?.deadline || award.standstillEnd || '';
-    const requiredNoticesSent = (award.notices || []).every(row => /sent|awaiting response/i.test(row.status || ''));
-    const supplierAccepted = /accepted/i.test(award.awardStatus || '') || draft.supplierAccepted;
-    const requiredDocuments = draft.documents || [];
-    const requiredDocumentsApproved = requiredDocuments.length > 0 && requiredDocuments.every(row => /approved|verified/i.test(row.status || ''));
-    const readonly = approved ? 'readonly aria-readonly="true"' : '';
+    const noticeRows = getAwardNoticeDrafts(draft, award, tender, selectedSupplier);
+    const requiredNoticesSent = noticeRows.every(row => /sent|awaiting response/i.test(row.status || ''));
+    const supplierDecision = draft.supplierResponse?.decision || '';
+    const supplierAccepted = /accepted/i.test(draft.supplierResponse?.status || award.awardStatus || '') || supplierDecision === 'accept' || draft.supplierAccepted;
+    const supplierDeclined = /declined/i.test(draft.supplierResponse?.status || '') || supplierDecision === 'decline';
+    const supplierResponseStatus = draft.supplierResponse?.status || (supplierAccepted ? 'Award Accepted' : supplierDeclined ? 'Award Declined' : 'Awaiting supplier response');
+    const requiredDocuments = normalizeAwardDocumentRows(draft.documents || []);
+    const requiredDocumentsApproved = requiredDocuments.length > 0 && requiredDocuments
+        .filter(row => row.required !== false)
+        .every(row => /uploaded|approved|verified|locked|current/i.test(row.status || ''));
+    const readonly = confirmed ? 'readonly aria-readonly="true"' : '';
     const blockers = [
-        { label: 'Award decision approved', complete: approved },
+        { label: 'Award decision confirmed', complete: confirmed },
         { label: 'Required notices sent', complete: requiredNoticesSent },
-        { label: 'Standstill completed', complete: !standstill.blocked },
+        { label: 'Standstill clear', complete: !standstillRequired || !standstill.blocked },
         { label: 'No unresolved complaints', complete: !standstill.unresolvedComplaint },
         { label: 'Supplier accepted award', complete: Boolean(supplierAccepted) },
-        { label: 'Required pre-contract documents approved', complete: requiredDocumentsApproved }
+        { label: 'Required pre-contract documents uploaded', complete: requiredDocumentsApproved }
     ];
     const statusItems = [
-        { label: 'Current status', value: renderAwardRecommendationBadge(approved ? 'Award Approved' : 'Award Decision Pending') },
-        { label: 'Next action', value: `<span>${escapeAwardRecommendationHtml(approved ? 'Send required notices' : 'Complete approval')}</span>` },
+        { label: 'Current status', value: renderAwardRecommendationBadge(confirmed ? 'Award Confirmed' : 'Award Decision Draft') },
+        { label: 'Next action', value: `<span>${escapeAwardRecommendationHtml(confirmed ? 'Prepare notices in Communication Center' : 'Confirm award decision')}</span>` },
         { label: 'Contract status', value: renderAwardRecommendationBadge(blockers.some(item => !item.complete) ? 'Blocked' : 'Ready') }
     ];
 
@@ -300,7 +401,7 @@ function renderAwardRecommendation() {
                                         </table>
                                     </div>
                                     ${!selectedIsFirstRanked ? `
-                                        <div class="evaluation-notice warning">Selected supplier is not the first-ranked bidder. Provide justification before approval.</div>
+                                        <div class="evaluation-notice warning">Selected supplier is not the first-ranked bidder. Record the buyer justification before confirming the award decision.</div>
                                         <div class="evaluation-form-grid recommendation-form award-justification-form">
                                             <label>Justification option
                                                 <select class="form-input" data-award-draft-field="awardDecision.rankJustification">
@@ -308,7 +409,7 @@ function renderAwardRecommendation() {
                                                     <option>First-ranked bidder failed post-qualification</option>
                                                     <option>First-ranked bidder failed clarification</option>
                                                     <option>First-ranked bidder had unresolved compliance issue</option>
-                                                    <option>Approved exception</option>
+                                                    <option>Documented exception</option>
                                                     <option>Other reason</option>
                                                 </select>
                                             </label>
@@ -331,26 +432,18 @@ function renderAwardRecommendation() {
                                         <article>${renderAwardRecommendationBadge(amountMismatch ? 'Requires justification' : 'Aligned')}</article>
                                     </div>
                                     <div class="evaluation-form-grid recommendation-form award-decision-form" data-award-validation-form>
-                                        <label>Selected supplier <input class="form-input" required ${readonly} data-award-required="Selected supplier" data-award-draft-field="awardDecision.selectedSupplier" value="${escapeAwardRecommendationHtml(selectedSupplier)}">${renderAwardFieldError('Required before approval')}</label>
-                                        <label>Award amount <input class="form-input" required ${readonly} type="number" data-award-required="Award amount" data-award-draft-field="awardDecision.awardAmount" value="${escapeAwardRecommendationHtml(award.awardAmount || '')}">${renderAwardFieldError('Required before approval')}</label>
-                                        <label>Currency <input class="form-input" required ${readonly} data-award-required="Currency" data-award-draft-field="awardDecision.currency" value="${escapeAwardRecommendationHtml(award.currency || 'TZS')}">${renderAwardFieldError('Required before approval')}</label>
-                                        <label>Award decision date <input class="form-input" required ${readonly} type="date" data-award-required="Award decision date" data-award-draft-field="awardDecision.awardDate" value="${escapeAwardRecommendationHtml(draft.awardDecision?.awardDate || '')}">${renderAwardFieldError('Required before approval')}</label>
-                                        <label>Award reason <textarea class="form-input" required ${readonly} rows="4" data-award-required="Award reason" data-award-draft-field="awardDecision.reason">${escapeAwardRecommendationHtml(award.reason || '')}</textarea>${renderAwardFieldError('Required before approval')}</label>
+                                        <label>Selected supplier <input class="form-input" required ${readonly} data-award-required="Selected supplier" data-award-draft-field="awardDecision.selectedSupplier" value="${escapeAwardRecommendationHtml(selectedSupplier)}">${renderAwardFieldError('Required before confirmation')}</label>
+                                        <label>Award amount <input class="form-input" required ${readonly} type="number" data-award-required="Award amount" data-award-draft-field="awardDecision.awardAmount" value="${escapeAwardRecommendationHtml(award.awardAmount || '')}">${renderAwardFieldError('Required before confirmation')}</label>
+                                        <label>Currency <input class="form-input" required ${readonly} data-award-required="Currency" data-award-draft-field="awardDecision.currency" value="${escapeAwardRecommendationHtml(award.currency || 'TZS')}">${renderAwardFieldError('Required before confirmation')}</label>
+                                        <label>Award decision date <input class="form-input" required ${readonly} type="date" data-award-required="Award decision date" data-award-draft-field="awardDecision.awardDate" value="${escapeAwardRecommendationHtml(draft.awardDecision?.awardDate || '')}">${renderAwardFieldError('Required before confirmation')}</label>
+                                        <label>Award reason <textarea class="form-input" required ${readonly} rows="4" data-award-required="Award reason" data-award-draft-field="awardDecision.reason">${escapeAwardRecommendationHtml(award.reason || '')}</textarea>${renderAwardFieldError('Required before confirmation')}</label>
                                         <label>Award conditions <textarea class="form-input" ${readonly} rows="4" data-award-draft-field="awardDecision.conditions">${escapeAwardRecommendationHtml(draft.awardDecision?.conditions || '')}</textarea></label>
-                                        <label>Negotiation required <select class="form-input" ${approved ? 'disabled aria-disabled="true"' : ''} data-award-draft-field="awardDecision.negotiationRequired"><option ${draft.awardDecision?.negotiationRequired === 'Yes' ? 'selected' : ''}>Yes</option><option ${draft.awardDecision?.negotiationRequired === 'No' ? 'selected' : ''}>No</option></select></label>
-                                        <label>Authorized representative <input class="form-input" required ${readonly} data-award-required="Authorized representative" data-award-draft-field="awardDecision.approver" value="${escapeAwardRecommendationHtml(award.approval?.approver || '')}">${renderAwardFieldError('Required before approval')}</label>
+                                        <label>Negotiation required <select class="form-input" ${confirmed ? 'disabled aria-disabled="true"' : ''} data-award-draft-field="awardDecision.negotiationRequired"><option ${draft.awardDecision?.negotiationRequired === 'Yes' ? 'selected' : ''}>Yes</option><option ${draft.awardDecision?.negotiationRequired === 'No' ? 'selected' : ''}>No</option></select></label>
+                                        <label>Confirmed by <input class="form-input" required ${readonly} data-award-required="Confirmed by" data-award-draft-field="awardDecision.confirmedBy" value="${escapeAwardRecommendationHtml(award.confirmation?.confirmedBy || 'Buyer authority')}">${renderAwardFieldError('Required before confirmation')}</label>
                                         ${amountMismatch ? `
                                             <label>Reason for amount difference <textarea class="form-input" rows="3" data-award-draft-field="awardDecision.amountDifferenceReason">${escapeAwardRecommendationHtml(draft.awardDecision?.amountDifferenceReason || '')}</textarea></label>
-                                            <label>Approval authority required <select class="form-input" data-award-draft-field="awardDecision.amountApprovalAuthority"><option>Accounting Officer</option><option>Tender Board</option><option>Finance Officer</option><option>Approved exception committee</option></select></label>
-                                            <label>Supporting document upload <input class="form-input" data-award-draft-field="awardDecision.amountSupportDocument" placeholder="Attach or reference approval document"></label>
+                                            <label>Supporting buyer note <input class="form-input" data-award-draft-field="awardDecision.amountSupportDocument" placeholder="Reference the note that explains the difference"></label>
                                         ` : ''}
-                                    </div>
-                                </section>
-
-                                <section class="journey-panel ${activeStepIndex === 2 ? 'active' : ''}" id="award-step-approval" data-award-step-panel data-award-step-id="approval">
-                                    <div class="panel-heading">
-                                        <div><span class="section-kicker">Step 3</span><h2>Approval</h2></div>
-                                        ${renderAwardRecommendationBadge(award.approval?.status || 'Pending')}
                                     </div>
                                     <ul class="award-checklist">
                                         ${[
@@ -358,54 +451,45 @@ function renderAwardRecommendation() {
                                             ['Selected supplier confirmed', Boolean(selectedSupplier)],
                                             ['Award amount checked', !amountMismatch || Boolean(draft.awardDecision?.amountDifferenceReason)],
                                             ['COI declaration completed', Boolean(draft.awardDecision?.coiDeclared && draft.awardDecision?.basedOnEvaluation && draft.awardDecision?.fairTreatmentConfirmed)],
-                                            ['Budget confirmed', true],
+                                            ['Buyer confirmation ready', Boolean(draft.awardDecision?.confirmedBy || award.confirmation?.confirmedBy)],
                                             ['Award reason provided', Boolean(award.reason)],
-                                            ['Standstill rule identified', Boolean(award.standstillStart && award.standstillEnd)],
-                                            ['Notices prepared', (award.notices || []).length > 0]
+                                            ['Standstill setting prepared', Boolean(draft.standstill || award.standstillStart || award.standstillEnd)],
+                                            ['Notice drafts prepared', noticeRows.length > 0]
                                         ].map(([label, complete]) => renderAwardCheck(label, complete)).join('')}
                                     </ul>
                                     <fieldset class="award-coi-panel">
-                                        <legend>Conflict of Interest Declaration</legend>
-                                        <label class="confirm-inline"><input type="checkbox" data-award-required-checkbox data-award-draft-field="awardDecision.coiDeclared" ${draft.awardDecision?.coiDeclared ? 'checked' : ''} ${approved ? 'disabled' : ''}> I confirm that I have no personal or financial interest in the recommended supplier.</label>
-                                        <label class="confirm-inline"><input type="checkbox" data-award-required-checkbox data-award-draft-field="awardDecision.basedOnEvaluation" ${draft.awardDecision?.basedOnEvaluation ? 'checked' : ''} ${approved ? 'disabled' : ''}> I confirm that the award is based solely on the approved evaluation results.</label>
-                                        <label class="confirm-inline"><input type="checkbox" data-award-required-checkbox data-award-draft-field="awardDecision.fairTreatmentConfirmed" ${draft.awardDecision?.fairTreatmentConfirmed ? 'checked' : ''} ${approved ? 'disabled' : ''}> I confirm that no bidder has received unfair treatment.</label>
-                                        <label>Declaration by <input class="form-input" ${readonly} data-award-draft-field="awardDecision.coiDeclaredBy" value="${escapeAwardRecommendationHtml(draft.awardDecision?.coiDeclaredBy || award.approval?.approver || '')}"></label>
+                                        <legend>Buyer confirmation</legend>
+                                        <label class="confirm-inline"><input type="checkbox" data-award-required-checkbox data-award-draft-field="awardDecision.coiDeclared" ${draft.awardDecision?.coiDeclared ? 'checked' : ''} ${confirmed ? 'disabled' : ''}> I confirm that I have no personal or financial interest in the selected supplier.</label>
+                                        <label class="confirm-inline"><input type="checkbox" data-award-required-checkbox data-award-draft-field="awardDecision.basedOnEvaluation" ${draft.awardDecision?.basedOnEvaluation ? 'checked' : ''} ${confirmed ? 'disabled' : ''}> I confirm that the award is based on the completed evaluation results.</label>
+                                        <label class="confirm-inline"><input type="checkbox" data-award-required-checkbox data-award-draft-field="awardDecision.fairTreatmentConfirmed" ${draft.awardDecision?.fairTreatmentConfirmed ? 'checked' : ''} ${confirmed ? 'disabled' : ''}> I confirm that bidders were treated consistently.</label>
+                                        <label>Declaration by <input class="form-input" ${readonly} data-award-draft-field="awardDecision.coiDeclaredBy" value="${escapeAwardRecommendationHtml(draft.awardDecision?.coiDeclaredBy || award.confirmation?.confirmedBy || '')}"></label>
                                     </fieldset>
-                                    <div class="award-approval-route">
-                                        ${[
-                                            ['Procurement Officer', 'Reviewed', '2026-06-03'],
-                                            ['Evaluation Committee Chair', 'Recommended', '2026-06-03'],
-                                            ['Authorized Representative', approved ? 'Approved' : 'Pending Approval', award.approval?.date || 'Pending'],
-                                            ['Finance Officer', 'Pending Budget Confirmation', 'Pending'],
-                                            ['Legal Officer', 'Not Started', 'Pending']
-                                        ].map(([actor, status, date]) => `<article><strong>${escapeAwardRecommendationHtml(actor)}</strong>${renderAwardRecommendationBadge(status)}<span>${escapeAwardRecommendationHtml(date)}</span></article>`).join('')}
-                                    </div>
                                     <div class="inline-actions">
-                                        <button class="btn btn-secondary" type="button" data-award-save-draft data-award-step="approval">Save Draft</button>
-                                        <button class="btn btn-secondary" type="button">Return for Correction</button>
-                                        <button class="btn btn-secondary" type="button">Request Clarification</button>
-                                        <button class="btn btn-primary" type="button" data-award-approval-button data-award-save-continue data-award-next-step="award-notification" data-award-required-action="Send Required Notices" disabled aria-disabled="true">Approve Award Decision</button>
+                                        <button class="btn btn-secondary" type="button" data-award-save-draft data-award-step="award-decision">Save Draft</button>
+                                        <button class="btn btn-secondary" type="button">Return to Evaluation Results</button>
+                                        <button class="btn btn-secondary" type="button">Request Bid Clarification Note</button>
+                                        <button class="btn btn-primary" type="button" data-award-confirm-decision data-award-confirm-button data-award-save-continue data-award-next-step="award-notification" data-award-required-action="Prepare Notices" ${confirmed ? '' : 'disabled aria-disabled="true"'}>${confirmed ? 'Award Decision Confirmed' : 'Confirm Award Decision'}</button>
                                     </div>
                                 </section>
 
-                                <section class="journey-panel ${activeStepIndex === 3 ? 'active' : ''}" id="award-step-notices" data-award-step-panel data-award-step-id="award-notification">
+                                <section class="journey-panel ${activeStepIndex === 2 ? 'active' : ''}" id="award-step-notices" data-award-step-panel data-award-step-id="award-notification">
                                     <div class="panel-heading">
-                                        <div><span class="section-kicker">Step 4</span><h2>Notification before contracting</h2></div>
-                                        ${renderAwardRecommendationBadge(requiredNoticesSent ? 'Required notices sent' : 'Required notices pending')}
+                                        <div><span class="section-kicker">Step 3</span><h2>Notice preparation</h2></div>
+                                        ${renderAwardRecommendationBadge(requiredNoticesSent ? 'Notices sent' : 'Communication Center pending')}
                                     </div>
                                     <div class="data-table evaluation-table-scroll">
                                         <table>
                                             <thead><tr><th>Notice</th><th>Recipient</th><th>Status</th><th>Deadline</th><th>Action</th></tr></thead>
-                                            <tbody>${renderAwardRecommendationRows((award.notices || []).map(row => [
+                                            <tbody data-award-notices-body>${renderAwardRecommendationRows(noticeRows.map(row => [
                                                 escapeAwardRecommendationHtml(row.type),
                                                 escapeAwardRecommendationHtml(row.recipient),
                                                 renderAwardRecommendationBadge(row.status),
                                                 escapeAwardRecommendationHtml(row.deadline),
-                                                /sent|awaiting response/i.test(row.status || '') ? '<button class="btn btn-secondary btn-sm" type="button">View</button>' : '<button class="btn btn-primary btn-sm" type="button">Send</button>'
+                                                renderAwardNoticeComposeButton(row, draft.tenderId || tender.id || '', award.reference || draft.tenderReference || '', award.tenderTitle || draft.title || '')
                                             ]))}</tbody>
                                         </table>
                                     </div>
-                                    ${!requiredNoticesSent ? '<div class="evaluation-notice warning">Contract blocked: one or more required notices have not been sent.</div>' : ''}
+                                    ${!requiredNoticesSent ? '<div class="evaluation-notice warning">Contract blocked: prepare and send the selected supplier notice plus bidder/standstill notices through Communication Center.</div>' : ''}
                                     <div class="evaluation-form-grid recommendation-form award-notice-decision-form">
                                         <label>Notice type
                                             <select class="form-input" data-award-draft-field="notification.noticeType">
@@ -431,45 +515,73 @@ function renderAwardRecommendation() {
                                         <label>Response deadline <input class="form-input" type="date" data-award-draft-field="notification.responseDeadline" value="${escapeAwardRecommendationHtml(draft.notification?.responseDeadline || '')}"></label>
                                         <label>Notify unsuccessful bidders <select class="form-input" data-award-draft-field="notification.notifyUnsuccessful"><option ${draft.notification?.notifyUnsuccessful === 'Yes' ? 'selected' : ''}>Yes</option><option ${draft.notification?.notifyUnsuccessful === 'No' ? 'selected' : ''}>No</option></select></label>
                                         <label>Debrief option <select class="form-input" data-award-draft-field="notification.debriefOption"><option>Allow debrief requests</option><option>Do not allow debrief requests</option><option>Debrief by appointment only</option></select></label>
-                                        <label>Complaint deadline <input class="form-input" type="date" data-award-draft-field="notification.complaintDeadline" value="${escapeAwardRecommendationHtml(award.standstillEnd || '')}"></label>
+                                        <label>Complaint deadline <input class="form-input" type="date" data-award-draft-field="notification.complaintDeadline" value="${escapeAwardRecommendationHtml(draft.standstill?.complaintDeadline || award.standstillEnd || '')}"></label>
                                         <label>Message to awarded supplier <textarea class="form-input" rows="4" data-award-draft-field="notification.message">${escapeAwardRecommendationHtml(draft.notification?.message || '')}</textarea></label>
                                     </div>
                                     <div class="inline-actions">
                                         <button class="btn btn-secondary" type="button" data-award-save-draft data-award-step="award-notification">Save Draft</button>
-                                        <button class="btn btn-primary" type="button" data-award-save-continue data-award-next-step="standstill-period" data-award-required-action="Monitor Standstill Period">Send Required Notices</button>
+                                        <button class="btn btn-primary" type="button" data-award-save-continue data-award-next-step="standstill-period" data-award-required-action="Monitor Standstill Period">Continue to Standstill</button>
                                     </div>
                                 </section>
 
-                                <section class="journey-panel ${activeStepIndex === 4 ? 'active' : ''}" id="award-step-standstill" data-award-step-panel data-award-step-id="standstill-period">
+                                <section class="journey-panel ${activeStepIndex === 3 ? 'active' : ''}" id="award-step-standstill" data-award-step-panel data-award-step-id="standstill-period">
                                     <div class="panel-heading">
-                                        <div><span class="section-kicker">Step 5</span><h2>Standstill & Complaints</h2></div>
-                                        ${renderAwardRecommendationBadge(standstill.blocked ? 'Contract blocked' : 'Window clear')}
+                                        <div><span class="section-kicker">Step 4</span><h2>Standstill & Complaints</h2></div>
+                                        ${renderAwardRecommendationBadge(!standstillRequired ? 'Not required' : standstill.blocked ? 'Contract blocked' : 'Window clear')}
+                                    </div>
+                                    <div class="evaluation-form-grid recommendation-form award-standstill-form">
+                                        <label>Standstill required
+                                            <select class="form-input" data-award-draft-field="standstill.required">
+                                                <option value="true" ${standstillRequired ? 'selected' : ''}>Yes</option>
+                                                <option value="false" ${!standstillRequired ? 'selected' : ''}>No</option>
+                                            </select>
+                                        </label>
+                                        <label>Start date <input class="form-input" type="date" data-award-draft-field="standstill.startDate" value="${escapeAwardRecommendationHtml(draft.standstill?.startDate || award.standstillStart || '')}"></label>
+                                        <label>End date <input class="form-input" type="date" data-award-draft-field="standstill.endDate" value="${escapeAwardRecommendationHtml(draft.standstill?.endDate || award.standstillEnd || '')}"></label>
+                                        <label>Duration days <input class="form-input" type="number" min="0" data-award-draft-field="standstill.durationDays" value="${escapeAwardRecommendationHtml(draft.standstill?.durationDays || standstill.durationDays || 0)}"></label>
+                                        <label>Complaint deadline <input class="form-input" type="date" data-award-draft-field="standstill.complaintDeadline" value="${escapeAwardRecommendationHtml(draft.standstill?.complaintDeadline || award.standstillEnd || '')}"></label>
+                                        <label>Status <input class="form-input" data-award-draft-field="standstill.status" value="${escapeAwardRecommendationHtml(draft.standstill?.status || 'Buyer configured')}"></label>
                                     </div>
                                     <div class="award-control-grid">
                                         <article><strong>Notice date</strong><span>${formatAwardRecommendationDate(award.noticeDate, 'Not sent')}</span></article>
-                                        <article><strong>Standstill duration</strong><span>${standstill.durationDays || 0} days</span></article>
-                                        <article><strong>Standstill start</strong><span>${formatAwardRecommendationDate(award.standstillStart, 'Not set')}</span></article>
-                                        <article><strong>Standstill end</strong><span>${formatAwardRecommendationDate(award.standstillEnd, 'Not set')}</span></article>
+                                        <article><strong>Standstill duration</strong><span>${standstillRequired ? standstill.durationDays || 0 : 0} days</span></article>
+                                        <article><strong>Standstill start</strong><span>${formatAwardRecommendationDate(draft.standstill?.startDate || award.standstillStart, 'Not set')}</span></article>
+                                        <article><strong>Standstill end</strong><span>${formatAwardRecommendationDate(draft.standstill?.endDate || award.standstillEnd, 'Not set')}</span></article>
                                         <article><strong>Days remaining</strong><span>${standstill.daysRemaining}</span></article>
-                                        <article><strong>Contract status</strong>${renderAwardRecommendationBadge(standstill.blocked ? 'Blocked' : 'Clear')}</article>
+                                        <article><strong>Contract status</strong>${renderAwardRecommendationBadge(standstillRequired && standstill.blocked ? 'Blocked' : 'Clear')}</article>
                                     </div>
                                     <div class="data-table evaluation-table-scroll">
                                         <table>
                                             <thead><tr><th>Complaint ID</th><th>Bidder</th><th>Date Received</th><th>Issue</th><th>Status</th><th>Deadline</th><th>Action</th></tr></thead>
                                             <tbody>
-                                                <tr><td colspan="7">No complaints received during the standstill period.</td></tr>
+                                                ${(draft.standstill?.complaints || []).length ? (draft.standstill.complaints || []).map((row, index) => `
+                                                    <tr>
+                                                        <td>${escapeAwardRecommendationHtml(row.id || `CMP-${index + 1}`)}</td>
+                                                        <td>${escapeAwardRecommendationHtml(row.bidder || '-')}</td>
+                                                        <td>${escapeAwardRecommendationHtml(row.receivedDate || '-')}</td>
+                                                        <td>${escapeAwardRecommendationHtml(row.issue || '-')}</td>
+                                                        <td>${renderAwardRecommendationBadge(row.status || 'Open')}</td>
+                                                        <td>${escapeAwardRecommendationHtml(row.deadline || draft.standstill?.complaintDeadline || '-')}</td>
+                                                        <td><button class="btn btn-secondary btn-sm" type="button">Update</button></td>
+                                                    </tr>
+                                                `).join('') : '<tr><td colspan="7">No complaints recorded for the standstill period.</td></tr>'}
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div class="evaluation-notice ${standstill.blocked ? 'warning' : 'success'}">${standstill.blocked ? 'Draft contract generation is blocked until the standstill window closes and any complaints are resolved.' : 'Standstill and complaint conditions are clear for contract generation.'}</div>
+                                    <div class="evaluation-notice ${standstillRequired && standstill.blocked ? 'warning' : 'success'}">${standstillRequired && standstill.blocked ? 'Draft contract generation is blocked until the buyer-set standstill window closes and any complaints are resolved.' : 'Standstill and complaint conditions are clear for contract generation.'}</div>
                                 </section>
 
-                                <section class="journey-panel ${activeStepIndex === 5 ? 'active' : ''}" id="award-step-acceptance" data-award-step-panel data-award-step-id="supplier-acceptance">
+                                <section class="journey-panel ${activeStepIndex === 4 ? 'active' : ''}" id="award-step-acceptance" data-award-step-panel data-award-step-id="supplier-acceptance">
                                     <div class="panel-heading">
-                                        <div><span class="section-kicker">Step 6</span><h2>Supplier Acceptance</h2></div>
-                                        ${renderAwardRecommendationBadge(supplierAccepted ? 'Accepted' : 'Awaiting supplier response')}
+                                        <div><span class="section-kicker">Step 5</span><h2>Supplier Acceptance</h2></div>
+                                        ${renderAwardRecommendationBadge(supplierResponseStatus)}
                                     </div>
                                     <div class="award-control-grid">
+                                        <article>
+                                            <strong>Actual supplier response</strong>
+                                            <span data-award-supplier-response-detail>${escapeAwardRecommendationHtml(draft.supplierResponse?.message || draft.supplierResponse?.reason || 'No response recorded yet.')}</span>
+                                            ${renderAwardRecommendationBadge(supplierResponseStatus)}
+                                        </article>
                                         ${(award.supplierResponses || []).map(row => `
                                             <article>
                                                 <strong>${escapeAwardRecommendationHtml(row.action)}</strong>
@@ -481,50 +593,66 @@ function renderAwardRecommendation() {
                                     <div class="evaluation-notice warning">Clarification is allowed only for award and contract preparation. It cannot change the evaluated bid substance.</div>
                                     <div class="award-fallback-panel">
                                         <strong>Supplier decline fallback</strong>
-                                        <span>If the winning supplier declines, prepare a recorded fallback decision before restarting approval.</span>
+                                        <span>${escapeAwardRecommendationHtml(supplierDeclined ? 'Selected supplier declined. Record the buyer fallback decision before changing the award path.' : 'Fallback remains available if the selected supplier declines the award.')}</span>
                                         <div class="inline-actions">
-                                            <button class="btn btn-secondary" type="button">Award to Next Ranked Bidder: ${escapeAwardRecommendationHtml(nextRankedSupplier)}</button>
-                                            <button class="btn btn-secondary" type="button">Cancel Award Process</button>
-                                            <button class="btn btn-secondary" type="button">Return to Approval Stage</button>
+                                            <button class="btn btn-secondary" type="button" data-award-fallback-action="next-ranked" data-award-next-ranked-supplier="${escapeAwardRecommendationHtml(nextRankedSupplier)}">Award to Next Ranked Bidder: ${escapeAwardRecommendationHtml(nextRankedSupplier)}</button>
+                                            <button class="btn btn-secondary" type="button" data-award-fallback-action="cancel-award">Cancel Award Process</button>
+                                            <button class="btn btn-secondary" type="button" data-award-fallback-action="return-award-decision">Return to Award Decision</button>
                                         </div>
+                                        <div class="evaluation-notice ${supplierDeclined ? 'warning' : 'success'}" data-award-fallback-status>${escapeAwardRecommendationHtml(draft.fallbackDecision?.status || (supplierDeclined ? 'Fallback decision required.' : 'No fallback action needed.'))}</div>
                                     </div>
                                 </section>
 
-                                <section class="journey-panel ${activeStepIndex === 6 ? 'active' : ''}" id="award-step-documents" data-award-step-panel data-award-step-id="pre-contract-documents">
+                                <section class="journey-panel ${activeStepIndex === 5 ? 'active' : ''}" id="award-step-documents" data-award-step-panel data-award-step-id="pre-contract-documents">
                                     <div class="panel-heading">
-                                        <div><span class="section-kicker">Step 7</span><h2>Pre-Contract Documents</h2></div>
-                                        ${renderAwardRecommendationBadge(requiredDocumentsApproved ? 'Documents approved' : 'Documents pending')}
+                                        <div><span class="section-kicker">Step 6</span><h2>Pre-Contract Documents</h2></div>
+                                        ${renderAwardRecommendationBadge(requiredDocumentsApproved ? 'Buyer documents uploaded' : 'Buyer documents pending')}
+                                    </div>
+                                    <div class="evaluation-form-grid recommendation-form award-document-builder" data-award-document-builder>
+                                        <label>Document name <input class="form-input" data-award-doc-name placeholder="Document name"></label>
+                                        <label>Document type <input class="form-input" data-award-doc-type placeholder="Pre-contract Document"></label>
+                                        <label>Requirement
+                                            <select class="form-input" data-award-doc-required>
+                                                <option value="true">Required</option>
+                                                <option value="false">Optional</option>
+                                            </select>
+                                        </label>
+                                        <label>Expiry date <input class="form-input" type="date" data-award-doc-expiry></label>
+                                        <div class="inline-actions">
+                                            <button class="btn btn-primary" type="button" data-award-document-add>Add Document</button>
+                                        </div>
                                     </div>
                                     <div class="data-table evaluation-table-scroll">
                                         <table>
-                                            <thead><tr><th>Document</th><th>Required</th><th>Status</th><th>Expiry Date</th><th>Reviewed By</th><th>Action</th></tr></thead>
-                                            <tbody>${renderAwardRecommendationRows(requiredDocuments.map(row => [
+                                            <thead><tr><th>Document</th><th>Owner</th><th>Required</th><th>Status</th><th>Expiry Date</th><th>File</th><th>Action</th></tr></thead>
+                                            <tbody data-award-documents-body>${renderAwardRecommendationRows(requiredDocuments.map(row => [
                                                 `<strong>${escapeAwardRecommendationHtml(row.name)}</strong>`,
-                                                'Yes',
+                                                escapeAwardRecommendationHtml(row.owner || 'Buyer'),
+                                                row.required === false ? 'No' : 'Yes',
                                                 renderDocumentStatusBadge(row.status),
                                                 escapeAwardRecommendationHtml(row.expiryDate || '-'),
-                                                escapeAwardRecommendationHtml(row.reviewedBy || '-'),
-                                                `<button class="btn btn-secondary btn-sm" type="button">${/pending|missing/i.test(row.status || '') ? 'Upload' : 'View'}</button>`
+                                                escapeAwardRecommendationHtml(row.fileName || 'No file recorded'),
+                                                `<div class="inline-actions"><label class="btn btn-secondary btn-sm">Upload<input type="file" hidden data-award-document-file data-award-document-id="${escapeAwardRecommendationHtml(row.id)}"></label><button class="btn btn-secondary btn-sm" type="button">${row.fileName ? 'View' : 'View'}</button><button class="btn btn-secondary btn-sm" type="button" data-award-document-remove data-award-document-id="${escapeAwardRecommendationHtml(row.id)}">Remove</button></div>`
                                             ]))}</tbody>
                                         </table>
                                     </div>
-                                    ${!requiredDocumentsApproved ? '<div class="evaluation-notice warning">Contract blocked: required pre-contract documents are missing, pending, or not approved.</div>' : ''}
+                                    ${!requiredDocumentsApproved ? '<div class="evaluation-notice warning">Contract blocked: required buyer pre-contract documents are missing or not uploaded.</div>' : ''}
                                 </section>
 
-                                <section class="journey-panel ${activeStepIndex === 7 ? 'active' : ''}" id="award-step-draft-contract" data-award-step-panel data-award-step-id="draft-contract">
+                                <section class="journey-panel ${activeStepIndex === 6 ? 'active' : ''}" id="award-step-draft-contract" data-award-step-panel data-award-step-id="draft-contract">
                                     <div class="panel-heading">
-                                        <div><span class="section-kicker">Step 8</span><h2>Draft Contract</h2></div>
+                                        <div><span class="section-kicker">Step 7</span><h2>Draft Contract</h2></div>
                                         ${renderAwardRecommendationBadge(blockers.some(item => !item.complete) ? 'Blocked' : 'Ready')}
                                     </div>
-                                    <div class="evaluation-notice ${blockers.some(item => !item.complete) ? 'warning' : 'success'}">Contract negotiation opens only after award approval, notice controls, standstill/complaint handling, supplier acceptance, and document approval are satisfied.</div>
+                                    <div class="evaluation-notice ${blockers.some(item => !item.complete) ? 'warning' : 'success'}">Contract negotiation opens only after award confirmation, Communication Center notices, standstill/complaint handling, supplier acceptance, and buyer document upload are satisfied.</div>
                                     <div class="award-blocker-list draft-contract-unlock">
                                         <strong>Contract can be generated only when:</strong>
                                         <ul>${blockers.map(item => renderAwardCheck(item.label, item.complete)).join('')}</ul>
                                     </div>
                                     <div class="award-source-grid">
                                         <article><strong>From tender</strong><span>Title, reference, procurement type, scope, BOQ, and specifications.</span></article>
-                                        <article><strong>From award</strong><span>Selected supplier, amount, conditions, award date, and approved reason.</span></article>
-                                        <article><strong>From supplier</strong><span>Legal name, registration details, bank details, and authorized signatory.</span></article>
+                                        <article><strong>From award</strong><span>Selected supplier, amount, conditions, award date, and recorded reason.</span></article>
+                                        <article><strong>From supplier</strong><span>Supplier response status and contract review path.</span></article>
                                         <article><strong>From contract settings</strong><span>Start date, duration, payment terms, security, penalties, and dispute resolution.</span></article>
                                     </div>
                                     <div class="inline-actions">
@@ -555,7 +683,7 @@ function renderAwardRecommendation() {
 function initializeAwardRecommendation() {
     const wizard = document.querySelector('[data-award-wizard]');
     const form = document.querySelector('[data-award-validation-form]');
-    const button = document.querySelector('[data-award-approval-button]');
+    const button = document.querySelector('[data-award-confirm-button]');
 
     if (wizard && wizard.dataset.ready !== 'true') {
         wizard.dataset.ready = 'true';

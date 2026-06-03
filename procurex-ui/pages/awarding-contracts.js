@@ -33,7 +33,7 @@ function formatAwardingContractsStepLabel(step = '') {
         'draft-contract': 'Draft Contract',
         'terms-clauses': 'Terms & Clauses',
         'contract-negotiation': 'Negotiation',
-        'final-agreement': 'Final Approval',
+        'final-agreement': 'Final Confirmation',
         signature: 'Signing',
         execution: 'Active Contract'
     };
@@ -69,7 +69,7 @@ function getContractActionTab(row = {}) {
 
 function getUrgentPriority(row = {}) {
     const text = `${row.status || ''} ${row.requiredAction || ''} ${row.dueDate || ''}`;
-    if (/blocked|overdue|signature|required|pending approval/i.test(text)) return 'High';
+    if (/blocked|overdue|signature|required|pending buyer review/i.test(text)) return 'High';
     if (/today|review|awaiting|pending|due/i.test(text)) return 'Medium';
     return 'Low';
 }
@@ -156,8 +156,8 @@ function buildAwardingContractsUrgentRows(lifecycle, pendingAwarding, awardedToU
             role: 'Buyer',
             otherParty: execution.supplier,
             status: row.status,
-            requiredAction: row.matchStatus && Object.values(row.matchStatus).every(Boolean) ? 'Approve invoice' : 'Resolve 3-way match',
-            dueDate: 'Finance review',
+            requiredAction: row.matchStatus && Object.values(row.matchStatus).every(Boolean) ? 'Review invoice' : 'Resolve 3-way match',
+            dueDate: 'Buyer review',
             nav: 'post-award-tracking',
             routeSearch: getPostAwardSearch('active', 'payments')
         }));
@@ -236,7 +236,7 @@ function renderAwardingContracts() {
         { label: 'My Urgent Actions', value: urgentRows.length, detail: 'All buyer and supplier actions needing attention', tab: 'my-urgent-actions', trend: '!' },
         { label: 'Awarding in Progress', value: pendingAwarding.length, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress', trend: 'Up' },
         { label: 'Awards Received', value: awardedToUs.length, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received', trend: 'Next' },
-        { label: 'Contracts in Progress', value: pendingActions.length, detail: 'Drafting, review, negotiation, approval, and signing actions', tab: 'contracts-in-progress', trend: 'Due' },
+        { label: 'Contracts in Progress', value: pendingActions.length, detail: 'Drafting, review, negotiation, confirmation, and signing actions', tab: 'contracts-in-progress', trend: 'Due' },
         { label: 'Active Contracts', value: activeContracts.length, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts', trend: 'Live' },
         { label: 'Closed Contracts', value: closedContracts.length, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts', trend: 'Done' }
     ];
@@ -244,7 +244,7 @@ function renderAwardingContracts() {
         { label: 'My Urgent Actions', value: urgentRows.length, detail: 'All buyer and supplier actions needing attention', tab: 'my-urgent-actions', trend: '!' },
         { label: 'Awarding in Progress', value: pendingAwarding.length, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress', trend: '↗' },
         { label: 'Awards Received', value: awardedToUs.length, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received', trend: '→' },
-        { label: 'Contracts in Progress', value: pendingActions.length, detail: 'Drafting, review, negotiation, approval, and signing actions', tab: 'contracts-in-progress', trend: '↘' },
+        { label: 'Contracts in Progress', value: pendingActions.length, detail: 'Drafting, review, negotiation, confirmation, and signing actions', tab: 'contracts-in-progress', trend: '↘' },
         { label: 'Active Contracts', value: activeContracts.length, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts', trend: '→' },
         { label: 'Closed Contracts', value: closedContracts.length, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts', trend: '→' }
     ];

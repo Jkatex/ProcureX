@@ -1,7 +1,12 @@
-import { ChangeEvent, FormEvent, MouseEvent, useEffect, useRef } from 'react';
+import { ChangeEvent, FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useAppDispatch } from '@/app/store';
+import { assumeUser } from '@/features/auth/slice';
 import i18nInstance from '@/i18n';
+import { demoUsers } from '@/shared/data/fixtures';
+import type { SessionUser } from '@/shared/types/domain';
 import { LanguageSwitcher } from '../LanguageSwitcher';
 
 type ProcurexStaticPageProps = {
@@ -818,11 +823,488 @@ function captureAwardContractSelection(target: HTMLElement) {
   }
 }
 
+const languageHeaderTargets = [
+  '.app-topbar-actions',
+  '.welcome-nav-actions-v2',
+  '.about-nav-actions',
+  '.privacy-nav-actions',
+  '.terms-nav-actions',
+  '.contact-nav-actions',
+  '.nav-actions',
+  '.px-nav-links',
+  '.px-topbar-inner',
+  '.px-public-nav-inner',
+  '.section-header',
+  '.ekyc-header',
+  '.table-header',
+  '.dashboard-compact-header',
+  '.planning-editor-header',
+  '.evaluation-builder-header',
+  '.records-detail-header',
+  '.tracking-header'
+];
+
+const languageMountSelector = '[data-procurex-language-mount="true"]';
+
+function createLanguageHost(ownerDocument: Document, className: string) {
+  const host = ownerDocument.createElement('div');
+  host.className = className;
+  host.dataset.procurexLanguageMount = 'true';
+  return host;
+}
+
+function insertLanguageHost(root: HTMLElement, ownerDocument: Document) {
+  const authHeader = root.querySelector<HTMLElement>('.register-header-inner-new');
+  if (authHeader) {
+    const host = createLanguageHost(ownerDocument, 'procurex-language-inline procurex-language-inline--auth');
+    const authLink = authHeader.querySelector<HTMLElement>('.login-link-new');
+    authHeader.insertBefore(host, authLink || null);
+    return host;
+  }
+
+  const headerTarget = languageHeaderTargets
+    .map((selector) => root.querySelector<HTMLElement>(selector))
+    .find((target): target is HTMLElement => Boolean(target));
+
+  if (headerTarget) {
+    const host = createLanguageHost(ownerDocument, 'procurex-language-inline');
+    headerTarget.appendChild(host);
+    return host;
+  }
+
+  const fallbackHost = createLanguageHost(ownerDocument, 'procurex-language-fallback');
+  root.insertBefore(fallbackHost, root.firstChild);
+  return fallbackHost;
+}
+
+function createStaticHtmlWithLanguageMount(html: string) {
+  if (typeof DOMParser === 'undefined') {
+    return `<div class="procurex-language-fallback" data-procurex-language-mount="true"></div>${html}`;
+  }
+
+  const parser = new DOMParser();
+  const documentFragment = parser.parseFromString(`<div id="procurex-static-html-root">${html}</div>`, 'text/html');
+  const root = documentFragment.getElementById('procurex-static-html-root');
+  if (!root) return html;
+
+  root.querySelectorAll(languageMountSelector).forEach((host) => host.remove());
+  insertLanguageHost(root, documentFragment);
+  return root.innerHTML;
+}
+
+function prepareLanguageSwitcherMount(root: HTMLElement) {
+  return root.querySelector<HTMLElement>(languageMountSelector) || insertLanguageHost(root, document);
+}
+
+type AuthDemoAccount = {
+  email: string;
+  password: string;
+  displayName: string;
+  accountType: 'USER' | 'ADMIN';
+  isNewUser?: boolean;
+};
+
+type RegistrationDraft = {
+  email: string;
+  phone: string;
+};
+
+type StoredRegisteredAccount = RegistrationDraft & {
+  password: string;
+  displayName: string;
+  createdAt: string;
+};
+
+const authStorageKeys = {
+  registrationDraft: 'procurex.registrationDraft',
+  pendingAccount: 'procurex.pendingAccount',
+  registeredAccounts: 'procurex.registeredAccounts'
+};
+
+const authDemoAccounts: AuthDemoAccount[] = [
+  {
+    email: 'newuser@procurex.test',
+    password: 'Newuser1!',
+    displayName: 'New User Account',
+    accountType: 'USER',
+    isNewUser: true
+  },
+  {
+    email: 'company@procurex.test',
+    password: 'Procure1!',
+    displayName: 'Kilimanjaro Supplies Limited',
+    accountType: 'USER'
+  },
+  {
+    email: 'business@procurex.test',
+    password: 'Procure1!',
+    displayName: 'Zahra Omari Business Services',
+    accountType: 'USER'
+  },
+  {
+    email: 'individual@procurex.test',
+    password: 'Procure1!',
+    displayName: 'Asha Mwinyi',
+    accountType: 'USER'
+  },
+  {
+    email: 'user@company.tz',
+    password: 'Procure1!',
+    displayName: 'Kilimanjaro Supplies Limited',
+    accountType: 'USER'
+  },
+  {
+    email: 'admin@procurex.tz',
+    password: 'Admin123!',
+    displayName: 'Admin User',
+    accountType: 'ADMIN'
+  }
+];
+
+function safeReadJson<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ? (JSON.parse(value) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeWriteJson(key: string, value: unknown) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Auth remains usable for the current render even when localStorage is disabled.
+  }
+}
+
+function getStoredRegisteredAccounts() {
+  return safeReadJson<StoredRegisteredAccount[]>(authStorageKeys.registeredAccounts, []);
+}
+
+function saveRegisteredAccount(account: StoredRegisteredAccount) {
+  const normalizedEmail = account.email.toLowerCase();
+  const accounts = getStoredRegisteredAccounts().filter((item) => item.email.toLowerCase() !== normalizedEmail);
+  safeWriteJson(authStorageKeys.registeredAccounts, [...accounts, account]);
+  safeWriteJson(authStorageKeys.pendingAccount, account);
+}
+
+function findAuthAccount(email: string, password: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const registeredAccount = getStoredRegisteredAccounts().find((account) => account.email.toLowerCase() === normalizedEmail);
+
+  if (registeredAccount && registeredAccount.password === password) {
+    return {
+      email: registeredAccount.email,
+      password: registeredAccount.password,
+      displayName: registeredAccount.displayName,
+      accountType: 'USER',
+      isNewUser: true
+    } satisfies AuthDemoAccount;
+  }
+
+  return authDemoAccounts.find(
+    (account) => account.email.toLowerCase() === normalizedEmail && account.password === password
+  );
+}
+
+function getSavedAuthEmail() {
+  const pendingAccount = safeReadJson<Partial<StoredRegisteredAccount>>(authStorageKeys.pendingAccount, {});
+  const registrationDraft = safeReadJson<Partial<RegistrationDraft>>(authStorageKeys.registrationDraft, {});
+  return pendingAccount.email || registrationDraft.email || '';
+}
+
+function accountToSessionUser(account: AuthDemoAccount): SessionUser {
+  if (account.accountType === 'ADMIN') return { ...demoUsers.admin, email: account.email, displayName: account.displayName };
+
+  return {
+    ...demoUsers.user,
+    id: account.isNewUser ? `new-user-${account.email}` : demoUsers.user.id,
+    email: account.email,
+    displayName: account.displayName,
+    organization: account.displayName,
+    verificationStatus: account.isNewUser ? 'NOT_STARTED' : 'APPROVED'
+  };
+}
+
+function setAuthFormStatus(form: HTMLFormElement, message: string, isSuccess = false) {
+  const status =
+    form.querySelector<HTMLElement>('[data-form-status]') ||
+    form.querySelector<HTMLElement>('.form-status') ||
+    form.querySelector<HTMLElement>('.form-error-new') ||
+    form.querySelector<HTMLElement>('.form-error');
+
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle('success', isSuccess);
+}
+
+function setRegisterStep(root: HTMLElement, step: number) {
+  root.querySelectorAll<HTMLElement>('.register-screen-new[data-screen]').forEach((screen) => {
+    const screenStep = Number(screen.dataset.screen || '1');
+    screen.classList.toggle('active', screenStep === step);
+  });
+
+  root.querySelectorAll<HTMLElement>('.progress-step-new[data-step]').forEach((progressStep) => {
+    const progressIndex = Number(progressStep.dataset.step || '1');
+    progressStep.classList.toggle('active', progressIndex === Math.min(step, 4));
+    progressStep.classList.toggle('completed', progressIndex < Math.min(step, 4));
+  });
+
+  const draft = safeReadJson<Partial<RegistrationDraft>>(authStorageKeys.registrationDraft, {});
+  const phoneDisplay = root.querySelector<HTMLElement>('#phone-display');
+  const emailDisplay = root.querySelector<HTMLElement>('#email-display');
+  if (phoneDisplay) phoneDisplay.textContent = draft.phone || '';
+  if (emailDisplay) emailDisplay.textContent = draft.email || '';
+  scrollPageToTop();
+}
+
+function getPasswordChecks(password: string) {
+  return {
+    length: password.length >= 8 && password.length <= 12,
+    uppercase: /[A-Z]/.test(password),
+    number: /\d/.test(password),
+    special: /[^A-Za-z0-9]/.test(password)
+  };
+}
+
+function updatePasswordState(root: HTMLElement) {
+  const passwordInput = root.querySelector<HTMLInputElement>('.password-input-new');
+  const confirmInput = root.querySelector<HTMLInputElement>('.confirm-password-new');
+  const createButton = root.querySelector<HTMLButtonElement>('.btn-create-new');
+  const termsInput = root.querySelector<HTMLInputElement>('#terms-accept-new');
+  const password = passwordInput?.value || '';
+  const checks = getPasswordChecks(password);
+  const passed = Object.values(checks).filter(Boolean).length;
+  const strengthFill = root.querySelector<HTMLElement>('.strength-fill-new');
+  const strengthText = root.querySelector<HTMLElement>('.strength-text-new strong');
+  const labels = ['Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+
+  root.querySelectorAll<HTMLElement>('[data-requirement]').forEach((item) => {
+    const requirement = item.dataset.requirement as keyof ReturnType<typeof getPasswordChecks>;
+    const isMet = Boolean(checks[requirement]);
+    item.classList.toggle('met', isMet);
+    const icon = item.querySelector<HTMLElement>('.requirement-icon-new');
+    if (icon) icon.textContent = isMet ? 'OK' : 'o';
+  });
+
+  if (strengthFill) strengthFill.style.width = `${(passed / 4) * 100}%`;
+  if (strengthText) strengthText.textContent = labels[passed];
+  if (createButton) {
+    createButton.disabled = passed < 4 || password !== (confirmInput?.value || '') || !termsInput?.checked;
+  }
+}
+
+function updateOtpState(root: HTMLElement) {
+  const otpInputs = Array.from(root.querySelectorAll<HTMLInputElement>('.otp-input-new'));
+  const verifyButton = root.querySelector<HTMLButtonElement>('[data-action="register-step2"] .btn-continue-new');
+  if (verifyButton) verifyButton.disabled = otpInputs.map((input) => input.value).join('').length !== otpInputs.length;
+}
+
+function togglePasswordVisibility(button: HTMLElement) {
+  const wrapper = button.closest('.password-input-wrapper-new');
+  const input = wrapper?.querySelector<HTMLInputElement>('input');
+  if (!input) return;
+
+  const showPassword = input.type === 'password';
+  input.type = showPassword ? 'text' : 'password';
+  button.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+}
+
+function toggleConfirmControl(button: HTMLElement, root: HTMLElement) {
+  const control = button.closest<HTMLElement>('[data-confirm-control]');
+  const input = control?.querySelector<HTMLInputElement>('.confirm-action-input');
+  if (!input) return;
+
+  input.checked = !input.checked;
+  button.setAttribute('aria-pressed', String(input.checked));
+  control?.classList.toggle('confirmed', input.checked);
+  updatePasswordState(root);
+}
+
+function initializeAuthPage(root: HTMLElement, pageKey: string) {
+  if (pageKey === 'sign-in') {
+    const emailInput = root.querySelector<HTMLInputElement>('[data-action="sign-in"] input[name="email"]');
+    if (emailInput && !emailInput.value) emailInput.value = getSavedAuthEmail();
+  }
+
+  if (pageKey === 'register') {
+    const draft = safeReadJson<Partial<RegistrationDraft>>(authStorageKeys.registrationDraft, {});
+    const emailInput = root.querySelector<HTMLInputElement>('[data-action="register-step1"] input[name="email"]');
+    const phoneInput = root.querySelector<HTMLInputElement>('[data-action="register-step1"] input[name="phone"]');
+    if (emailInput && draft.email) emailInput.value = draft.email;
+    if (phoneInput && draft.phone) phoneInput.value = draft.phone;
+    setRegisterStep(root, 1);
+    updateOtpState(root);
+    updatePasswordState(root);
+  }
+}
+
+function handleAuthClick(target: HTMLElement, root: HTMLElement) {
+  const demoAccountButton = target.closest<HTMLButtonElement>('[data-demo-email]');
+  const fillSignupButton = target.closest<HTMLButtonElement>('[data-fill-signup]');
+  const passwordToggle = target.closest<HTMLButtonElement>('.password-toggle-new');
+  const confirmToggle = target.closest<HTMLButtonElement>('[data-confirm-toggle]');
+  const continueToPassword = target.closest<HTMLButtonElement>('.btn-continue-to-password-new');
+  const resendLink = target.closest<HTMLButtonElement>('.btn-resend-link-new');
+  const openEmail = target.closest<HTMLButtonElement>('.btn-open-email-new');
+
+  if (demoAccountButton) {
+    const form = demoAccountButton.closest('.procurex-react-page')?.querySelector<HTMLFormElement>('[data-action="sign-in"]');
+    const emailInput = form?.querySelector<HTMLInputElement>('input[name="email"]');
+    const passwordInput = form?.querySelector<HTMLInputElement>('input[name="password"]');
+    if (emailInput) emailInput.value = demoAccountButton.dataset.demoEmail || '';
+    if (passwordInput) passwordInput.value = demoAccountButton.dataset.demoPassword || '';
+    return true;
+  }
+
+  if (fillSignupButton) {
+    const form = root.querySelector<HTMLFormElement>('[data-action="register-step1"]');
+    const emailInput = form?.querySelector<HTMLInputElement>('input[name="email"]');
+    const phoneInput = form?.querySelector<HTMLInputElement>('input[name="phone"]');
+    if (emailInput) emailInput.value = `new-user-${Date.now()}@procurex.test`;
+    if (phoneInput) phoneInput.value = '+255 712 345 678';
+    return true;
+  }
+
+  if (passwordToggle) {
+    togglePasswordVisibility(passwordToggle);
+    return true;
+  }
+
+  if (confirmToggle) {
+    toggleConfirmControl(confirmToggle, root);
+    return true;
+  }
+
+  if (continueToPassword) {
+    setRegisterStep(root, 4);
+    return true;
+  }
+
+  if (resendLink) {
+    window.alert('Activation link resent in this frontend demo.');
+    return true;
+  }
+
+  if (openEmail) {
+    window.alert('Open your email app, then continue to password setup in this frontend demo.');
+    return true;
+  }
+
+  return false;
+}
+
+function handleAuthInput(target: HTMLElement, root: HTMLElement) {
+  const otpInput = target.closest<HTMLInputElement>('.otp-input-new');
+  const passwordField = target.closest<HTMLInputElement>('.password-input-new, .confirm-password-new');
+
+  if (otpInput) {
+    otpInput.value = otpInput.value.replace(/\D/g, '').slice(0, 1);
+    if (otpInput.value) {
+      const otpInputs = Array.from(root.querySelectorAll<HTMLInputElement>('.otp-input-new'));
+      otpInputs[otpInputs.indexOf(otpInput) + 1]?.focus();
+    }
+    updateOtpState(root);
+    return true;
+  }
+
+  if (passwordField) {
+    updatePasswordState(root);
+    return true;
+  }
+
+  return false;
+}
+
+function handleRegisterSubmit(form: HTMLFormElement, root: HTMLElement) {
+  const action = form.getAttribute('data-action');
+
+  if (action === 'register-step1') {
+    const formData = new FormData(form);
+    const draft = {
+      email: String(formData.get('email') || '').trim(),
+      phone: String(formData.get('phone') || '').trim()
+    };
+
+    if (!draft.email || !draft.phone) {
+      setAuthFormStatus(form, 'Enter an email address and mobile number.');
+      return true;
+    }
+
+    safeWriteJson(authStorageKeys.registrationDraft, draft);
+    setRegisterStep(root, 2);
+    return true;
+  }
+
+  if (action === 'register-step2') {
+    const code = Array.from(root.querySelectorAll<HTMLInputElement>('.otp-input-new'))
+      .map((input) => input.value)
+      .join('');
+
+    if (code.length !== 6) {
+      setAuthFormStatus(form, 'Enter the 6-digit verification code.');
+      return true;
+    }
+
+    setRegisterStep(root, 3);
+    return true;
+  }
+
+  if (action === 'register-step4') {
+    const draft = safeReadJson<RegistrationDraft | null>(authStorageKeys.registrationDraft, null);
+    const formData = new FormData(form);
+    const password = String(formData.get('password') || '');
+    const confirmPassword = String(formData.get('confirmPassword') || '');
+    const termsAccepted = Boolean(formData.get('termsAccepted'));
+    const checks = getPasswordChecks(password);
+
+    if (!draft?.email || !draft.phone) {
+      setAuthFormStatus(form, 'Start with account info before creating a password.');
+      setRegisterStep(root, 1);
+      return true;
+    }
+
+    if (!Object.values(checks).every(Boolean)) {
+      setAuthFormStatus(form, 'Password must satisfy all requirements.');
+      return true;
+    }
+
+    if (password !== confirmPassword) {
+      setAuthFormStatus(form, 'Passwords must match.');
+      return true;
+    }
+
+    if (!termsAccepted) {
+      setAuthFormStatus(form, 'Confirm agreement before creating the account.');
+      return true;
+    }
+
+    saveRegisteredAccount({
+      ...draft,
+      password,
+      displayName: draft.email.split('@')[0].replace(/[.-]/g, ' '),
+      createdAt: new Date().toISOString()
+    });
+    setRegisterStep(root, 5);
+    return true;
+  }
+
+  return false;
+}
+
 export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [languageMount, setLanguageMount] = useState<HTMLElement | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const { i18n } = useTranslation();
+  const staticHtml = useMemo(() => createStaticHtmlWithLanguageMount(html), [html]);
   const staticPageInstanceKey = pageKey === 'bid-evaluation' ? `${pageKey}:${location.key}` : pageKey;
 
   useEffect(() => {
@@ -832,13 +1314,16 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     if (root) {
       if (pageKey === 'bid-evaluation') clearEvaluationEntrySelection();
       initializeStaticPage(root, i18n.language, pageKey, location.search);
+      initializeAuthPage(root, pageKey);
+      setLanguageMount(prepareLanguageSwitcherMount(root));
       if (pageKey === 'bid-evaluation') scrollPageToTop();
     }
 
     return () => {
       delete document.body.dataset.procurexReactPage;
+      setLanguageMount(null);
     };
-  }, [pageKey, html, i18n.language, location.key, location.search]);
+  }, [pageKey, staticHtml, i18n.language, location.key, location.search]);
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
@@ -879,6 +1364,11 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     const procurementPlanningTender = target.closest<HTMLElement>('[data-plan-tender]');
     const procurementPlanningStatusNavigate = target.closest<HTMLElement>('[data-status-navigate]');
     const createTenderWizardStep = target.closest<HTMLElement>('[data-wizard-step-index], [data-wizard-prev], [data-wizard-next]');
+
+    if ((pageKey === 'register' || pageKey === 'sign-in') && rootRef.current && handleAuthClick(target, rootRef.current)) {
+      event.preventDefault();
+      return;
+    }
 
     if (planningAnchor && rootRef.current && activatePlanningAnchor(rootRef.current, planningAnchor)) {
       event.preventDefault();
@@ -1066,7 +1556,8 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
       captureAwardContractSelection(navTarget);
       if (page === 'bid-evaluation') clearEvaluationEntrySelection();
       if (pageKey === 'bid-evaluation' && page === 'bid-evaluation' && rootRef.current) {
-        resetStaticPage(rootRef.current, html, i18n.language, pageKey, location.search);
+        resetStaticPage(rootRef.current, staticHtml, i18n.language, pageKey, location.search);
+        setLanguageMount(prepareLanguageSwitcherMount(rootRef.current));
       }
       navigate(routeWithSearch(pageToRoute[page] || '/', routeSearch));
       return;
@@ -1075,7 +1566,8 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     if (evaluationReset && rootRef.current) {
       event.preventDefault();
       clearEvaluationEntrySelection();
-      resetStaticPage(rootRef.current, html, i18n.language, pageKey, location.search);
+      resetStaticPage(rootRef.current, staticHtml, i18n.language, pageKey, location.search);
+      setLanguageMount(prepareLanguageSwitcherMount(rootRef.current));
       return;
     }
 
@@ -1193,6 +1685,34 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
       return;
     }
 
+    if (action === 'sign-in') {
+      const formData = new FormData(form);
+      const email = String(formData.get('email') || '').trim();
+      const password = String(formData.get('password') || '');
+      const account = findAuthAccount(email, password);
+
+      if (!account) {
+        setAuthFormStatus(form, 'Use a mock account or a frontend account you created.');
+        return;
+      }
+
+      const sessionUser = accountToSessionUser(account);
+      dispatch(assumeUser(sessionUser));
+
+      if (account.accountType === 'ADMIN') {
+        navigate('/admin');
+      } else if (account.isNewUser) {
+        navigate('/identity/verification');
+      } else {
+        navigate('/dashboard');
+      }
+      return;
+    }
+
+    if (action?.startsWith('register-step') && rootRef.current && handleRegisterSubmit(form, rootRef.current)) {
+      return;
+    }
+
     if (action === 'register') {
       navigate('/identity/verification');
       return;
@@ -1207,6 +1727,10 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     const yearFilter = target.closest<HTMLSelectElement>('[data-planning-year-filter]');
     const uploadInput = target.closest<HTMLInputElement>('[data-plan-upload-input]');
     const planningInput = target.closest<HTMLElement>('[data-procurement-plan-form] input, [data-procurement-plan-form] select, [data-procurement-plan-form] textarea');
+
+    if ((pageKey === 'register' || pageKey === 'sign-in') && rootRef.current && handleAuthInput(target, rootRef.current)) {
+      return;
+    }
 
     if (yearFilter && rootRef.current) {
       filterProcurementPlanningYear(yearFilter, rootRef.current);
@@ -1225,6 +1749,11 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
 
   function handleInput(event: FormEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
+
+    if ((pageKey === 'register' || pageKey === 'sign-in') && rootRef.current && handleAuthInput(target, rootRef.current)) {
+      return;
+    }
+
     const wizard = target.closest<HTMLElement>('[data-create-tender-wizard]');
     if (!wizard || wizard.dataset.planningAmendmentWarningShown === 'true') return;
     const panel = target.closest<HTMLElement>('.journey-panel');
@@ -1236,9 +1765,7 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
 
   return (
     <>
-      <div className="procurex-floating-language">
-        <LanguageSwitcher />
-      </div>
+      {languageMount ? createPortal(<LanguageSwitcher />, languageMount) : null}
       <div
         key={staticPageInstanceKey}
         ref={rootRef}
@@ -1250,7 +1777,7 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
         onChange={handleChange}
         onInput={handleInput}
         onSubmit={handleSubmit}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: staticHtml }}
       />
     </>
   );

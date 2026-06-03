@@ -238,7 +238,7 @@ function renderPostAwardTracking() {
                                             <td>${formatPostAwardMoney(row.amount, execution.currency)}</td>
                                             <td>${renderPostAwardBadge(row.status)}</td>
                                             <td>${renderMatchStatus(row.matchStatus)}</td>
-                                            <td><button class="btn btn-secondary btn-sm" type="button" ${approve && !matchOk ? 'disabled aria-disabled="true" title="Resolve 3-way match before approval"' : ''}>${approve ? 'Approve' : 'View'}</button></td>
+                                            <td><button class="btn btn-secondary btn-sm" type="button" ${approve && !matchOk ? 'disabled aria-disabled="true" title="Resolve 3-way match before buyer payment review"' : ''}>${approve ? 'Review' : 'View'}</button></td>
                                         </tr>
                                     `;
                                 })

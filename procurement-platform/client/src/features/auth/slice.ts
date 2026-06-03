@@ -10,8 +10,8 @@ type AuthState = {
 };
 
 const initialState: AuthState = {
-  user: demoUsers.user,
-  isAuthenticated: true,
+  user: null,
+  isAuthenticated: false,
   status: 'idle'
 };
 

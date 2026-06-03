@@ -37,7 +37,7 @@ function formatContractDraftStepLabel(step = '') {
     const labels = {
         'evaluation-result': 'Evaluation Results',
         'award-decision': 'Award Decision',
-        approval: 'Approval',
+        approval: 'Award Confirmation',
         'award-notification': 'Notices',
         'standstill-period': 'Standstill & Complaints',
         'supplier-acceptance': 'Supplier Acceptance',
@@ -45,7 +45,7 @@ function formatContractDraftStepLabel(step = '') {
         'draft-contract': 'Draft Contract',
         'terms-clauses': 'Terms & Clauses',
         'contract-negotiation': 'Negotiation',
-        'final-agreement': 'Final Approval',
+        'final-agreement': 'Final Confirmation',
         signature: 'Signing',
         execution: 'Active Contract'
     };

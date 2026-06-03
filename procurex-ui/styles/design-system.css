@@ -24285,7 +24285,10 @@ textarea:focus-visible,
 .post-award-workspace {
     display: grid;
     align-content: start;
-    gap: 24px;
+    gap: 26px;
+    width: 100%;
+    max-width: 1320px;
+    margin: 0 auto;
 }
 
 .awarding-contracts-page .award-hero-panel,
@@ -24296,9 +24299,14 @@ textarea:focus-visible,
     padding: 32px;
     border: 1px solid rgba(0, 128, 128, 0.16);
     border-radius: var(--radius-xl);
-    background:
-        linear-gradient(90deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.94) 58%, rgba(245, 250, 252, 0.9)),
-        var(--card-bg);
+    background-color: var(--px-blue-wash);
+    background-image:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 54%, rgba(245, 250, 252, 0.74) 74%, rgba(245, 250, 252, 0.38) 100%),
+        var(--px-hero-image, var(--px-visual-contract));
+    background-position: center, right center;
+    background-repeat: no-repeat;
+    background-size: cover, min(460px, 42%) 100%;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
 }
 
 .awarding-contracts-page .award-hero-panel h1,
@@ -24359,18 +24367,15 @@ textarea:focus-visible,
 }
 
 .awarding-contracts-page .awarding-summary-grid {
-    grid-template-columns: repeat(6, minmax(138px, 1fr));
-    gap: 10px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: thin;
+    grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+    gap: 12px;
 }
 
 .awarding-contracts-page .awarding-summary-card {
-    gap: 5px;
+    gap: 7px;
     min-width: 0;
-    min-height: 108px;
-    padding: 12px;
+    min-height: 132px;
+    padding: 16px;
     border-radius: var(--radius-lg);
 }
 
@@ -24431,6 +24436,8 @@ textarea:focus-visible,
 
 .award-wizard-shell {
     grid-template-columns: minmax(220px, 250px) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
 }
 
 .award-step-progress {
@@ -24608,9 +24615,23 @@ textarea:focus-visible,
 }
 
 .awarding-tab-content .tab-content[style*="block"],
+.awarding-tab-content .tab-content--visible,
 .contract-workspace-tab-content .tab-content[style*="block"],
+.contract-workspace-tab-content .tab-content--visible,
 .post-award-tab-content .tab-content[style*="block"] {
     display: grid !important;
+    gap: 18px;
+}
+
+.post-award-tab-content .tab-content--visible {
+    display: grid !important;
+    gap: 18px;
+}
+
+.awarding-tab-content,
+.contract-workspace-tab-content,
+.post-award-tab-content {
+    display: grid;
     gap: 18px;
 }
 
@@ -24654,14 +24675,19 @@ textarea:focus-visible,
 .post-award-progress-card,
 .contract-signature-card,
 .contract-chat-panel {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
     padding: 16px;
+    border: 1px solid var(--border-soft);
     border-radius: var(--radius-lg);
+    background: var(--surface-soft);
 }
 
 .award-page .evaluation-panel,
 .post-award-page .evaluation-panel {
     display: grid;
-    gap: 18px;
+    gap: 20px;
     padding: 24px;
 }
 
@@ -24737,7 +24763,7 @@ textarea:focus-visible,
     }
 
     .awarding-contracts-page .awarding-summary-grid {
-        grid-template-columns: repeat(6, minmax(138px, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .award-wizard-main {
@@ -24767,7 +24793,7 @@ textarea:focus-visible,
     }
 
     .awarding-contracts-page .awarding-summary-grid {
-        grid-template-columns: repeat(6, minmax(138px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .award-draft-strip {
@@ -24835,11 +24861,11 @@ textarea:focus-visible,
     }
 
     .awarding-contracts-page .awarding-summary-grid {
-        grid-template-columns: repeat(6, minmax(136px, 1fr));
+        grid-template-columns: 1fr;
     }
 
     .awarding-contracts-page .awarding-summary-card {
-        min-width: 136px;
+        min-width: 0;
     }
 
     .awarding-summary-card {

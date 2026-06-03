@@ -4915,7 +4915,7 @@ const mockData = {
         summary: [
             { label: 'Awarding in Progress', value: 3, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress' },
             { label: 'Awards Received', value: 3, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received' },
-            { label: 'Contracts in Progress', value: 4, detail: 'Drafting, review, negotiation, approval, and signing actions', tab: 'contracts-in-progress' },
+            { label: 'Contracts in Progress', value: 4, detail: 'Drafting, review, negotiation, confirmation, and signing actions', tab: 'contracts-in-progress' },
             { label: 'Active Contracts', value: 2, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts' },
             { label: 'Closed Contracts', value: 2, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts' }
         ],
@@ -4939,7 +4939,7 @@ const mockData = {
                 procurementType: 'Goods',
                 evaluationStatus: 'Completed',
                 recommendedSupplier: 'Kijani Office Supplies',
-                awardStatus: 'Award Approved',
+                awardStatus: 'Award Confirmed',
                 contractStatus: 'Awaiting Contract Generation',
                 action: 'Generate Contract',
                 nav: 'contract-negotiation'
@@ -5026,11 +5026,11 @@ const mockData = {
             awardAmount: 4670000000,
             currency: 'TZS',
             reason: 'Best evaluated responsive bid with strong methodology, corrected price, and confirmed mobilization plan.',
-            approval: {
-                approver: 'Authorized Representative',
+            confirmation: {
+                confirmedBy: 'Buyer authority',
                 date: '2026-06-30',
-                note: 'Award package reviewed against final evaluation report and conflict declaration.',
-                status: 'Approved'
+                note: 'Award package confirmed against final evaluation report and conflict declaration.',
+                status: 'Confirmed'
             },
             notices: [
                 { type: 'Notice of Intention to Award', recipient: 'All bidders', status: 'Sent', deadline: '2026-07-14' },
@@ -5065,14 +5065,14 @@ const mockData = {
                 { title: 'Contract Price', text: 'Total contract value is TZS 4,670,000,000 based on the final evaluated bid price.', category: 'Price', lock: 'Locked', status: 'Agreed', comments: 1, requestedChange: 'Only formal arithmetic or tax clarification may be recorded.' },
                 { title: 'Scope of Works', text: 'Construct and hand over rural health centers according to the tender scope, drawings, BOQ, and accepted methodology.', category: 'Scope', lock: 'Locked', status: 'Agreed', comments: 1, requestedChange: 'Main scope cannot be materially changed.' },
                 { title: 'Delivery Schedule', text: 'Milestones run from mobilization to final handover over a 90 day period.', category: 'Delivery', lock: 'Negotiable', status: 'Countered', comments: 3, requestedChange: 'Supplier requested 21 days for first milestone; buyer countered 18 days.' },
-                { title: 'Payment Terms', text: 'Payment follows accepted milestones, interim certificates, inspection, and invoice approval.', category: 'Payment', lock: 'Negotiable', status: 'Pending Buyer Review', comments: 2, requestedChange: 'Supplier requested 30% advance; buyer reviewing retention and security conditions.' },
+                { title: 'Payment Terms', text: 'Payment follows accepted milestones, interim certificates, inspection, and buyer payment review.', category: 'Payment', lock: 'Negotiable', status: 'Pending Buyer Review', comments: 2, requestedChange: 'Supplier requested 30% advance; buyer reviewing retention and security conditions.' },
                 { title: 'Inspection and Acceptance', text: 'Buyer inspection, completion certificates, and correction of defects are required before milestone acceptance.', category: 'Acceptance', lock: 'Negotiable', status: 'Agreed', comments: 1, requestedChange: 'Inspection notice period clarified to 3 business days.' },
-                { title: 'Performance Security', text: 'Supplier submits performance security equal to 10% of contract value before effectiveness.', category: 'Security', lock: 'Negotiable', status: 'Pending Supplier Document', comments: 1, requestedChange: 'Submission deadline requested within 7 days after signing.' },
+                { title: 'Performance Security', text: 'Buyer records the required security template, value, validity, and submission deadline before contract effectiveness.', category: 'Security', lock: 'Negotiable', status: 'Pending Buyer Document', comments: 1, requestedChange: 'Submission deadline requested within 7 days after signing.' },
                 { title: 'Dispute Resolution', text: 'Disputes are first handled through contract notices, then escalation and formal resolution.', category: 'Clause', lock: 'Negotiable', status: 'Agreed', comments: 0, requestedChange: 'Clause wording accepted.' }
             ],
             negotiationRequests: [
                 { clause: 'Delivery Schedule', requestBy: 'Supplier', request: 'Extend first milestone from 14 to 21 days due to imported equipment clearance.', status: 'Countered', buyerResponse: 'Counter-proposed 18 days to protect semester opening deadline.' },
-                { clause: 'Payment Terms', requestBy: 'Supplier', request: 'Add 30% advance payment against performance security.', status: 'Pending Buyer Review', buyerResponse: 'Finance and budget verification in progress.' },
+                { clause: 'Payment Terms', requestBy: 'Supplier', request: 'Add 30% advance payment against performance security.', status: 'Pending Buyer Review', buyerResponse: 'Buyer verification of retention, security, and budget conditions is in progress.' },
                 { clause: 'Inspection and Acceptance', requestBy: 'Supplier', request: 'Clarify inspection response time after milestone submission.', status: 'Accepted', buyerResponse: 'Inspection response set to 3 business days.' },
                 { clause: 'Warranty / Defects Liability', requestBy: 'Buyer', request: 'Defects liability must remain 12 months from completion certificate.', status: 'Accepted', buyerResponse: 'Supplier accepted without change.' }
             ],
@@ -5084,16 +5084,16 @@ const mockData = {
             ],
             documents: [
                 { name: 'Draft Contract v1.2', type: 'Contract Draft', status: 'Current', owner: 'Buyer' },
-                { name: 'Performance Security Undertaking', type: 'Pre-contract Requirement', status: 'Pending Upload', owner: 'Supplier' },
-                { name: 'Tax Clearance', type: 'Supplier Document', status: 'Verified', owner: 'Supplier' },
-                { name: 'Award Approval Memo', type: 'Award Record', status: 'Locked', owner: 'Buyer' }
+                { name: 'Performance Security Requirement', type: 'Pre-contract Document', status: 'Pending Buyer Upload', owner: 'Buyer' },
+                { name: 'Tax Compliance Record', type: 'Buyer Checklist', status: 'Verified', owner: 'Buyer' },
+                { name: 'Award Confirmation Record', type: 'Award Record', status: 'Locked', owner: 'Buyer' }
             ],
             signatures: [
                 { party: 'Supplier', representative: 'Managing Director', status: 'Ready after terms lock', timestamp: 'Pending' },
                 { party: 'Buyer', representative: 'Authorized Representative', status: 'Countersign after supplier', timestamp: 'Pending' }
             ],
             activityLog: [
-                { time: '2026-06-30 09:15', actor: 'Buyer', event: 'Award decision approved', status: 'Complete' },
+                { time: '2026-06-30 09:15', actor: 'Buyer', event: 'Award decision confirmed', status: 'Complete' },
                 { time: '2026-07-01 09:00', actor: 'Buyer', event: 'Draft contract generated', status: 'Complete' },
                 { time: '2026-07-02 11:15', actor: 'Supplier', event: 'Requested clause changes', status: 'Change Requested' },
                 { time: '2026-07-02 14:20', actor: 'Buyer', event: 'Counter-proposal sent', status: 'Counter-Proposal Sent' },
@@ -5123,7 +5123,7 @@ const mockData = {
             ],
             invoices: [
                 { invoice: 'INV-2026-001', milestone: 'Mobilization', amount: 467000000, status: 'Paid', match: 'PO, certificate, and invoice align.', matchStatus: { po: true, certificate: true, invoice: true } },
-                { invoice: 'INV-2026-002', milestone: 'MEP Installations', amount: 1868000000, status: 'Pending Approval', match: 'Inspection accepted after original due date; finance review required.', matchStatus: { po: true, certificate: false, invoice: true } },
+                { invoice: 'INV-2026-002', milestone: 'MEP Installations', amount: 1868000000, status: 'Pending Buyer Review', match: 'Inspection accepted after original due date; buyer payment review required.', matchStatus: { po: true, certificate: false, invoice: true } },
                 { invoice: 'INV-2026-003', milestone: 'Final Handover', amount: 2335000000, status: 'Blocked', match: 'No completion certificate yet.', matchStatus: { po: true, certificate: false, invoice: false } }
             ],
             issues: [
@@ -5976,30 +5976,82 @@ function formatAwardContractIsoDate(value) {
 function buildRequiredDocuments(tender = {}) {
     const typeId = normalizeAwardContractType(tender);
     const common = [
-        { name: 'Tax Clearance', type: 'Tax Clearance', owner: 'Supplier', status: 'Pending Upload' },
-        { name: 'Bank Details', type: 'Bank Details', owner: 'Supplier', status: 'Pending Upload' },
-        { name: 'Authorized Signatory Details', type: 'Signed Authorization', owner: 'Supplier', status: 'Pending Upload' }
+        { id: 'buyer-tax-compliance-record', name: 'Tax Compliance Record', type: 'Buyer Checklist', owner: 'Buyer', required: true, status: 'Pending Buyer Upload', fileName: '' },
+        { id: 'buyer-bank-payment-note', name: 'Payment Details Confirmation', type: 'Buyer Checklist', owner: 'Buyer', required: true, status: 'Pending Buyer Upload', fileName: '' },
+        { id: 'buyer-signatory-record', name: 'Authorized Signatory Record', type: 'Contract Attachment', owner: 'Buyer', required: true, status: 'Pending Buyer Upload', fileName: '' }
     ];
     const byType = {
         goods: [
-            { name: 'Updated Delivery Schedule', type: 'Delivery Schedule', owner: 'Supplier', status: 'Pending Upload' },
-            { name: 'Warranty Certificate Template', type: 'Technical Attachment', owner: 'Supplier', status: 'Pending Upload' }
+            { id: 'buyer-delivery-schedule-template', name: 'Delivery Schedule Template', type: 'Delivery Schedule', owner: 'Buyer', required: true, status: 'Pending Buyer Upload', fileName: '' },
+            { id: 'buyer-warranty-requirement', name: 'Warranty Requirement Record', type: 'Technical Attachment', owner: 'Buyer', required: false, status: 'Pending Buyer Upload', fileName: '' }
         ],
         works: [
-            { name: 'Performance Security', type: 'Performance Security', owner: 'Supplier', status: 'Pending Upload' },
-            { name: 'Insurance Certificate', type: 'Insurance Certificate', owner: 'Supplier', status: 'Pending Upload' },
-            { name: 'Work Program', type: 'Work Program', owner: 'Supplier', status: 'Pending Upload' }
+            { id: 'buyer-performance-security-requirement', name: 'Performance Security Requirement', type: 'Performance Security', owner: 'Buyer', required: true, status: 'Pending Buyer Upload', fileName: '' },
+            { id: 'buyer-insurance-requirement', name: 'Insurance Requirement Record', type: 'Insurance Requirement', owner: 'Buyer', required: false, status: 'Pending Buyer Upload', fileName: '' },
+            { id: 'buyer-work-program-template', name: 'Work Program Template', type: 'Work Program', owner: 'Buyer', required: false, status: 'Pending Buyer Upload', fileName: '' }
         ],
         services: [
-            { name: 'Service Delivery Plan', type: 'Technical Attachment', owner: 'Supplier', status: 'Pending Upload' },
-            { name: 'SLA Reporting Template', type: 'Contract Attachment', owner: 'Supplier', status: 'Pending Upload' }
+            { id: 'buyer-service-delivery-template', name: 'Service Delivery Plan Template', type: 'Technical Attachment', owner: 'Buyer', required: true, status: 'Pending Buyer Upload', fileName: '' },
+            { id: 'buyer-sla-reporting-template', name: 'SLA Reporting Template', type: 'Contract Attachment', owner: 'Buyer', required: false, status: 'Pending Buyer Upload', fileName: '' }
         ],
         consultancy: [
-            { name: 'Key Expert Availability Confirmation', type: 'Technical Attachment', owner: 'Supplier', status: 'Pending Upload' },
-            { name: 'Work Plan and Deliverables Schedule', type: 'Delivery Schedule', owner: 'Supplier', status: 'Pending Upload' }
+            { id: 'buyer-expert-availability-record', name: 'Key Expert Availability Record', type: 'Technical Attachment', owner: 'Buyer', required: true, status: 'Pending Buyer Upload', fileName: '' },
+            { id: 'buyer-work-plan-template', name: 'Work Plan and Deliverables Template', type: 'Delivery Schedule', owner: 'Buyer', required: false, status: 'Pending Buyer Upload', fileName: '' }
         ]
     };
     return [...(byType[typeId] || byType.works), ...common];
+}
+
+function buildAwardNoticeRows(tender = {}, supplier = 'Recommended supplier') {
+    const tenderId = getAwardContractTenderId(tender);
+    const reference = tender.reference || tender.id || tender.tenderReference || tenderId;
+    return [
+        {
+            id: 'award-notification-selected-supplier',
+            type: 'Award Notification',
+            recipient: supplier,
+            recipientScope: 'Selected supplier',
+            recipientId: 'supplier',
+            status: 'Ready for Communication Center',
+            deadline: '',
+            subject: `Award Notification - ${reference}`,
+            body: `Your company has been selected for award for ${tender.title || reference}. Please review and respond through ProcureX.`
+        },
+        {
+            id: 'unsuccessful-bidder-notice',
+            type: 'Unsuccessful Bidder Notice',
+            recipient: 'Unsuccessful bidders',
+            recipientScope: 'Unsuccessful bidders',
+            recipientId: '',
+            status: 'Ready for Communication Center',
+            deadline: '',
+            subject: `Tender Result Notice - ${reference}`,
+            body: `The buyer has completed evaluation for ${tender.title || reference}. This notice shares the tender result and available next steps.`
+        },
+        {
+            id: 'standstill-intention-notice',
+            type: 'Notice of Intention and Standstill',
+            recipient: 'All bidders',
+            recipientScope: 'All bidders',
+            recipientId: '',
+            status: 'Ready for Communication Center',
+            deadline: '',
+            subject: `Notice of Intention to Award - ${reference}`,
+            body: `The buyer intends to award ${tender.title || reference}. Any complaint must be submitted before the buyer-set standstill deadline.`
+        }
+    ];
+}
+
+function buildAwardStandstill(tender = {}, fallbackAward = {}) {
+    return {
+        required: true,
+        startDate: fallbackAward.standstillStart || '',
+        endDate: fallbackAward.standstillEnd || '',
+        durationDays: 14,
+        complaintDeadline: fallbackAward.standstillEnd || '',
+        complaints: [],
+        status: 'Buyer configured'
+    };
 }
 
 function buildTypeSpecificClauses(tender = {}) {
@@ -6094,11 +6146,12 @@ function createAwardContractDraftFromTender(tender = getSelectedAwardContractTen
             reason: fallback.award?.reason || 'Supplier had the highest evaluated score and met all technical and financial requirements.',
             conditions: 'Supplier must submit required pre-contract documents before signing.',
             negotiationRequired: 'Yes',
-            approver: 'Authorized Representative',
+            confirmedBy: 'Buyer authority',
             coiDeclared: false,
             basedOnEvaluation: false,
+            fairTreatmentConfirmed: false,
             coiDeclaredBy: '',
-            approvalConfirmed: false
+            confirmed: false
         },
         notification: {
             noticeType: 'Notice of Intention to Award',
@@ -6111,12 +6164,19 @@ function createAwardContractDraftFromTender(tender = getSelectedAwardContractTen
             debriefOption: 'Allow debrief requests',
             complaintDeadline: fallback.award?.standstillEnd || ''
         },
+        notices: buildAwardNoticeRows(tender, supplier),
+        standstill: buildAwardStandstill(tender, fallback.award || {}),
         supplierResponse: {
             decision: '',
             message: '',
             reason: '',
             respondedAt: '',
             status: tender.createdByCurrentUser === false ? 'Awaiting Acceptance' : 'Not Required'
+        },
+        fallbackDecision: {
+            action: '',
+            status: 'Available if selected supplier declines',
+            decidedAt: ''
         },
         contract: {
             contractId: fallbackContract.contractId || `CTR-${reference}`,
@@ -6165,8 +6225,11 @@ function loadAwardContractDraft(tenderId, tender = null) {
                 hasRestorableDraft: true,
                 awardDecision: { ...baseDraft.awardDecision, ...(sanitized.awardDecision || {}) },
                 notification: { ...baseDraft.notification, ...(sanitized.notification || {}) },
+                standstill: { ...baseDraft.standstill, ...(sanitized.standstill || {}) },
                 supplierResponse: { ...baseDraft.supplierResponse, ...(sanitized.supplierResponse || {}) },
+                fallbackDecision: { ...baseDraft.fallbackDecision, ...(sanitized.fallbackDecision || {}) },
                 contract: { ...baseDraft.contract, ...(sanitized.contract || {}) },
+                notices: sanitized.notices?.length ? sanitized.notices : buildAwardNoticeRows(selectedTender, sanitized.awardDecision?.selectedSupplier || baseDraft.supplier),
                 clauses: sanitized.clauses?.length ? sanitized.clauses : buildTypeSpecificClauses(selectedTender),
                 documents: sanitized.documents?.length ? sanitized.documents : buildRequiredDocuments(selectedTender)
             };
@@ -6185,7 +6248,9 @@ function saveAwardContractDraft(tenderId, patch = {}) {
         ...sanitizeAwardContractDraftObject(patch),
         awardDecision: { ...(current.awardDecision || {}), ...(sanitizeAwardContractDraftObject(patch.awardDecision || {})) },
         notification: { ...(current.notification || {}), ...(sanitizeAwardContractDraftObject(patch.notification || {})) },
+        standstill: { ...(current.standstill || {}), ...(sanitizeAwardContractDraftObject(patch.standstill || {})) },
         supplierResponse: { ...(current.supplierResponse || {}), ...(sanitizeAwardContractDraftObject(patch.supplierResponse || {})) },
+        fallbackDecision: { ...(current.fallbackDecision || {}), ...(sanitizeAwardContractDraftObject(patch.fallbackDecision || {})) },
         contract: { ...(current.contract || {}), ...(sanitizeAwardContractDraftObject(patch.contract || {})) },
         lastEditedAt: new Date().toISOString(),
         savedAt: new Date().toISOString(),

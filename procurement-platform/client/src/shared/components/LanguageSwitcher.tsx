@@ -17,7 +17,19 @@ export function LanguageSwitcher() {
       value={language}
       size="small"
       onChange={(event) => void handleChange(event.target.value as SupportedLanguage)}
-      sx={{ minWidth: 124, background: '#fff' }}
+      renderValue={(value) => (value === 'sw' ? 'SW' : 'EN')}
+      sx={{
+        minWidth: 74,
+        background: '#fff',
+        '& .MuiSelect-select': {
+          minHeight: 'auto',
+          py: 0.75,
+          pr: '28px !important',
+          pl: 1.25,
+          fontSize: '0.82rem',
+          fontWeight: 800
+        }
+      }}
     >
       <MenuItem value="en">{t('english')}</MenuItem>
       <MenuItem value="sw">{t('swahili')}</MenuItem>

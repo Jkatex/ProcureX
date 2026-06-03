@@ -21,13 +21,13 @@ function renderAwardResponseQueueNavLink(label, queue, active = false) {
     return `<li><a href="#" data-award-guard-navigate data-navigate="awarding-contracts" data-route-search="queue=${escapeAwardResponseHtml(queue)}" class="${active ? 'active' : ''}">${escapeAwardResponseHtml(label)}</a></li>`;
 }
 
-function getAwardResponseDocuments(row = {}) {
-    return row.requiredDocuments || [
-        { name: 'Performance Security', owner: 'Supplier', status: row.contractStatus === 'Not Started' ? 'Pending Upload' : 'Pending Review' },
-        { name: 'Insurance Certificate', owner: 'Supplier', status: 'Pending Upload' },
-        { name: 'Tax Clearance', owner: 'Supplier', status: 'Pending Upload' },
-        { name: 'Authorized Signatory Details', owner: 'Supplier', status: 'Pending Upload' }
-    ];
+function getAwardResponseDocuments(row = {}, draft = {}) {
+    return draft.documents?.length ? draft.documents : (row.requiredDocuments || [
+        { name: 'Performance Security Requirement', owner: 'Buyer', status: row.contractStatus === 'Not Started' ? 'Pending Buyer Upload' : 'Provided' },
+        { name: 'Insurance Requirement Record', owner: 'Buyer', status: 'Pending Buyer Upload' },
+        { name: 'Payment Details Confirmation', owner: 'Buyer', status: 'Provided' },
+        { name: 'Authorized Signatory Record', owner: 'Buyer', status: 'Provided' }
+    ]);
 }
 
 function getAwardResponseHistory(row = {}) {
@@ -101,17 +101,17 @@ function renderAwardResponsePanel(row = {}, index = 0) {
 
             <section class="procurement-panel evaluation-panel">
                 <div class="panel-heading">
-                    <div><span class="section-kicker">Pre-contract documents</span><h2>Required supplier evidence</h2></div>
-                    ${renderAwardResponseBadge('Supplier owned')}
+                    <div><span class="section-kicker">Pre-contract documents</span><h2>Buyer-provided document set</h2></div>
+                    ${renderAwardResponseBadge('Buyer managed')}
                 </div>
                 ${renderAwardResponseTable(
                     ['Document', 'Owner', 'Status', 'Action'],
-                    getAwardResponseDocuments(row).map(documentRow => `
+                    getAwardResponseDocuments(row, draft).map(documentRow => `
                         <tr>
                             <td><strong>${escapeAwardResponseHtml(documentRow.name)}</strong></td>
-                            <td>${escapeAwardResponseHtml(documentRow.owner)}</td>
+                            <td>${escapeAwardResponseHtml(documentRow.owner || 'Buyer')}</td>
                             <td>${renderAwardResponseBadge(documentRow.status)}</td>
-                            <td><button class="btn btn-secondary btn-sm" type="button">${/pending upload/i.test(documentRow.status || '') ? 'Upload' : 'View'}</button></td>
+                            <td><button class="btn btn-secondary btn-sm" type="button">${/provided|uploaded|verified|current|locked/i.test(documentRow.status || '') ? 'View' : 'Download'}</button></td>
                         </tr>
                     `)
                 )}
@@ -221,7 +221,7 @@ function initializeAwardResponse() {
             if (typeof saveAwardContractDraft === 'function') {
                 saveAwardContractDraft(awardId, {
                     currentStep: action === 'accept' ? 'pre-contract-documents' : 'supplier-acceptance',
-                    requiredAction: action === 'accept' ? 'Upload Pre-Contract Documents' : 'Await Buyer Response',
+                    requiredAction: action === 'accept' ? 'Review Buyer Documents' : 'Await Buyer Response',
                     supplierResponse: {
                         decision: action,
                         message,
