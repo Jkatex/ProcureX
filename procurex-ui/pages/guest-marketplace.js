@@ -123,7 +123,7 @@ function renderGuestMarketplace() {
                         <option value="">All tender types</option>
                         <option>Goods</option>
                         <option>Works</option>
-                        <option>Services</option>
+                        <option>Non Consultancy</option>
                         <option>Consultancy</option>
                     </select>
                     <select class="form-input" data-marketplace-budget>
