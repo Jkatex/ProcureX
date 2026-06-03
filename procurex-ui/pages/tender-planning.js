@@ -212,7 +212,8 @@ function renderProcurementPlanningStatusButton(record) {
     const meta = getProcurementPlanningStatusMeta(record.status);
     const label = meta.label || record.status;
     if (!meta.page || /^not open$/i.test(label)) {
-        return `<span class="planning-status-label ${getProcurementPlanningBadgeClass(record.status)}">${escapeProcurementPlanningHtml(label)}</span>`;
+        const badgeClass = /^not open$/i.test(label) ? 'badge-info' : getProcurementPlanningBadgeClass(record.status);
+        return `<span class="planning-status-label ${badgeClass}">${escapeProcurementPlanningHtml(label)}</span>`;
     }
     return `
         <button class="btn btn-secondary btn-sm planning-status-button ${getProcurementPlanningBadgeClass(record.status)}" type="button" data-status-navigate="${escapeProcurementPlanningHtml(meta.page)}">
@@ -752,13 +753,14 @@ function initializeTenderPlanning() {
         if (target.closest('[data-plan-add-column]')) {
             event.preventDefault();
             const id = `custom-${Date.now()}`;
+            const label = 'New Column';
             const head = root.querySelector('[data-plan-create-head]');
             const actionHead = head?.querySelector('th:last-child');
-            actionHead?.insertAdjacentHTML('beforebegin', `<th data-column-id="${escapeProcurementPlanningHtml(id)}" data-custom-column="true"><input class="form-input planning-column-title-input" data-plan-column-title-input type="text" value="" placeholder="Column title"><button class="planning-column-remove" type="button" data-plan-remove-column="${escapeProcurementPlanningHtml(id)}">Remove</button></th>`);
+            actionHead?.insertAdjacentHTML('beforebegin', `<th data-column-id="${escapeProcurementPlanningHtml(id)}" data-custom-column="true"><span data-plan-column-label>${escapeProcurementPlanningHtml(label)}</span><button class="planning-column-remove" type="button" data-plan-remove-column="${escapeProcurementPlanningHtml(id)}" aria-label="Remove ${escapeProcurementPlanningHtml(label)} column">Remove Column</button></th>`);
             root.querySelectorAll('[data-plan-create-row]').forEach(row => {
                 row.querySelector('td:last-child')?.insertAdjacentHTML('beforebegin', `<td data-column-id="${escapeProcurementPlanningHtml(id)}" data-custom-column="true"><input class="form-input" type="text" name="${escapeProcurementPlanningHtml(id)}"></td>`);
             });
-            head?.querySelector(`[data-column-id="${CSS.escape(id)}"] [data-plan-column-title-input]`)?.focus();
+            head?.querySelector(`[data-column-id="${CSS.escape(id)}"] [data-plan-column-label]`)?.scrollIntoView({ block: 'nearest', inline: 'center' });
             editorDirty = true;
             return;
         }
@@ -766,7 +768,9 @@ function initializeTenderPlanning() {
         if (removeColumn) {
             event.preventDefault();
             const id = removeColumn.getAttribute('data-plan-remove-column');
-            root.querySelectorAll(`[data-column-id="${CSS.escape(id)}"]`).forEach(cell => cell.remove());
+            root.querySelectorAll('[data-column-id]').forEach(cell => {
+                if (cell.getAttribute('data-column-id') === id) cell.remove();
+            });
             editorDirty = true;
             return;
         }

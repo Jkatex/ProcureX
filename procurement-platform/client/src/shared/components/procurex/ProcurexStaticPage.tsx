@@ -975,10 +975,11 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     if (procurementPlanningAddColumn && rootRef.current) {
       event.preventDefault();
       const id = `custom-${Date.now()}`;
+      const label = 'New Column';
       const head = rootRef.current.querySelector<HTMLElement>('[data-plan-create-head]');
       head?.querySelector('th:last-child')?.insertAdjacentHTML(
         'beforebegin',
-        `<th data-column-id="${id}" data-custom-column="true"><input class="form-input planning-column-title-input" data-plan-column-title-input type="text" value="" placeholder="Column title"><button class="planning-column-remove" type="button" data-plan-remove-column="${id}">Remove</button></th>`
+        `<th data-column-id="${id}" data-custom-column="true"><span data-plan-column-label>${label}</span><button class="planning-column-remove" type="button" data-plan-remove-column="${id}" aria-label="Remove ${label} column">Remove Column</button></th>`
       );
       rootRef.current.querySelectorAll<HTMLElement>('[data-plan-create-row]').forEach((row) => {
         row.querySelector('td:last-child')?.insertAdjacentHTML(
@@ -986,7 +987,10 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
           `<td data-column-id="${id}" data-custom-column="true"><input class="form-input" type="text" name="${id}"></td>`
         );
       });
-      head?.querySelector<HTMLInputElement>(`[data-column-id="${CSS.escape(id)}"] [data-plan-column-title-input]`)?.focus();
+      head?.querySelector<HTMLElement>(`[data-column-id="${CSS.escape(id)}"] [data-plan-column-label]`)?.scrollIntoView({
+        block: 'nearest',
+        inline: 'center'
+      });
       rootRef.current.dataset.planningDirty = 'true';
       return;
     }
@@ -994,7 +998,9 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     if (procurementPlanningRemoveColumn && rootRef.current) {
       event.preventDefault();
       const id = procurementPlanningRemoveColumn.getAttribute('data-plan-remove-column') || '';
-      rootRef.current.querySelectorAll<HTMLElement>(`[data-column-id="${CSS.escape(id)}"]`).forEach((cell) => cell.remove());
+      rootRef.current.querySelectorAll<HTMLElement>('[data-column-id]').forEach((cell) => {
+        if (cell.getAttribute('data-column-id') === id) cell.remove();
+      });
       rootRef.current.dataset.planningDirty = 'true';
       return;
     }
