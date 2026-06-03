@@ -721,7 +721,12 @@ const mockData = {
                         { position: 'Electrical Supervisor', minimumEducation: 'Professional Qualification', minimumYearsExperience: 6, cvRequired: true, mandatory: true },
                         { position: 'Site Safety Officer', minimumEducation: 'Diploma', minimumYearsExperience: 4, cvRequired: true, mandatory: true }
                     ],
-                    bankStatementsRequired: false
+                    bankStatementsRequired: true,
+                    bankStatementPeriod: 'Submit bank statements covering the last 6 months and audited financial statements for the last 2 years.',
+                    financialRequirementRows: [
+                        { requirementType: 'Average Annual Turnover', minimumValue: 1800000000, currency: 'TZS', period: 'Last 3 Years', evidenceRequired: ['Audited accounts'], mandatory: true },
+                        { requirementType: 'Access to Credit', minimumValue: 400000000, currency: 'TZS', period: 'Current', evidenceRequired: ['Bank letter', 'Credit facility letter'], mandatory: true }
+                    ]
                 },
                 lists: {
                     mandatoryDeclarations: [

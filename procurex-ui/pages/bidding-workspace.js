@@ -1386,16 +1386,29 @@ function getBidWorkspaceFinancialCapacityRows(tender = {}) {
         fields.financialCapacityCards,
         fields.financialRequirementRows
     ].flatMap(normalizeBidWorkspaceArray);
-    if (candidates.length) return candidates;
+
     if (normalizeBidWorkspaceFlag(fields.bankStatementsRequired)) {
-        return [{
+        candidates.push({
             requirementType: 'Bank Statement Requirement',
             period: fields.bankStatementPeriod || 'Buyer-specified period',
             evidenceRequired: ['Bank statement'],
             mandatory: true
-        }];
+        });
     }
-    return [];
+
+    const seen = new Set();
+    return candidates.filter(row => {
+        if (!isBidWorkspaceMeaningfulValue(row)) return false;
+        const item = typeof row === 'string' ? { requirement: row } : row;
+        const key = [
+            getBidWorkspaceFinancialRequirementTitle(item),
+            getBidWorkspaceFinancialRequirementMinimumPeriod(item),
+            getBidWorkspaceFinancialRequirementEvidence(item)
+        ].join('::').toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }
 
 function formatBidWorkspaceFinancialRequirementAmount(row = {}) {
@@ -1429,21 +1442,21 @@ function getBidWorkspaceFinancialRequirementMinimumPeriod(row = {}) {
 
 function renderBidWorkspaceFinancialCapacityMatrix(tender = {}, draft = {}, prefix = 'financial-capacity') {
     const rows = getBidWorkspaceFinancialCapacityRows(tender);
-    if (!rows.length) return '';
     const consultancyPolicy = getBidWorkspaceTypeId(tender) === 'consultancy';
     const requiredCount = rows.filter(row => consultancyPolicy ? isConsultancyBidRequired(row) : row?.mandatory !== false).length;
+    const optionalCount = Math.max(rows.length - requiredCount, 0);
     return `
-        <section class="bid-dynamic-group financial-capacity-matrix">
+        <section class="bid-dynamic-group financial-capacity-matrix financial-statements-requirements">
             <div class="bid-dynamic-group-heading">
                 <div>
-                    <h3>Financial capacity response matrix</h3>
-                    <p>Respond to each buyer financial capacity threshold with your value and supporting evidence.</p>
+                    <h3>Financial statements and capacity requirements</h3>
+                    <p>Respond to the financial requirements configured by the buyer and upload the requested statements or supporting evidence.</p>
                 </div>
-                <span class="badge ${requiredCount ? 'badge-warning' : 'badge-info'}">${requiredCount} mandatory / ${Math.max(rows.length - requiredCount, 0)} optional</span>
+                <span class="badge ${requiredCount ? 'badge-warning' : 'badge-info'}">${rows.length ? `${requiredCount} mandatory / ${optionalCount} optional` : 'Not configured'}</span>
             </div>
-            <div class="data-table">
+            ${rows.length ? `<div class="data-table">
                 <table>
-                    <thead><tr><th>Buyer Requirement</th><th>Minimum / Period</th><th>Your Response</th><th>Evidence Note</th><th>Upload</th></tr></thead>
+                    <thead><tr><th>Buyer Requirement</th><th>Minimum / Period</th><th>Evidence Required</th><th>Your Response</th><th>Evidence Note</th><th>Upload</th></tr></thead>
                     <tbody>
                         ${rows.map((row, index) => {
                             const item = typeof row === 'string' ? { requirement: row } : row;
@@ -1455,8 +1468,9 @@ function renderBidWorkspaceFinancialCapacityMatrix(tender = {}, draft = {}, pref
                                 : 'Upload financial evidence';
                             return `
                                 <tr>
-                                    <td><strong>${escapeBidWorkspaceHtml(getBidWorkspaceFinancialRequirementTitle(item, index))}</strong><small>${escapeBidWorkspaceHtml(evidence)}</small></td>
+                                    <td><strong>${escapeBidWorkspaceHtml(getBidWorkspaceFinancialRequirementTitle(item, index))}</strong><small>${required ? 'Mandatory' : 'Optional'}</small></td>
                                     <td>${escapeBidWorkspaceHtml(getBidWorkspaceFinancialRequirementMinimumPeriod(item))}</td>
+                                    <td>${escapeBidWorkspaceHtml(evidence)}</td>
                                     <td><textarea class="form-input" rows="2" data-bid-response="${baseId}-value" ${required ? 'data-bid-workflow-required-response="true"' : ''} placeholder="Enter amount or response">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-value`))}</textarea></td>
                                     <td><textarea class="form-input" rows="2" data-bid-response="${baseId}-note">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-note`))}</textarea></td>
                                     <td>${renderBidWorkspaceUploadControl(`${baseId}-upload`, draft, uploadLabel, '.pdf,.doc,.docx,.xls,.xlsx', required)}</td>
@@ -1465,7 +1479,7 @@ function renderBidWorkspaceFinancialCapacityMatrix(tender = {}, draft = {}, pref
                         }).join('')}
                     </tbody>
                 </table>
-            </div>
+            </div>` : '<div class="scope-empty">No financial statement requirements were configured for this tender.</div>'}
         </section>
     `;
 }
