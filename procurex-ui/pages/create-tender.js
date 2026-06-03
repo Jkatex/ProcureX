@@ -3729,13 +3729,21 @@ function publishCreateTenderToMarketplace(wizard) {
     const now = new Date();
     const tenderId = `TP-${now.getFullYear()}-${String(now.getTime()).slice(-6)}`;
     const owner = typeof getProcurexCurrentAccount === 'function' ? getProcurexCurrentAccount() : {};
+    let plannedTender = null;
+    try {
+        plannedTender = JSON.parse(localStorage.getItem('procurex.planning.selectedTenderPlan') || 'null');
+    } catch (error) {
+        plannedTender = window.procurexPlannedTender || null;
+    }
+    const plannedOpeningTime = plannedTender?.openingDate ? Date.parse(`${plannedTender.openingDate}T00:00:00`) : null;
+    const isScheduledFromPlan = Number.isFinite(plannedOpeningTime) && plannedOpeningTime > Date.now();
     const publishedTender = {
         id: tenderId,
         title,
         type: selectedType.label,
         procurementTypeId: profile.id,
-        status: 'Pending Admin Review',
-        complianceStatus: 'Awaiting publication review',
+        status: isScheduledFromPlan ? 'Scheduled Publication' : 'Pending Admin Review',
+        complianceStatus: isScheduledFromPlan ? `Held until opening date ${formatCreateTenderDate(plannedTender.openingDate)}` : 'Awaiting publication review',
         budget,
         closingDate,
         organization: owner.organization || mockData.users?.buyer?.organization || 'Buyer organization',
@@ -3767,6 +3775,9 @@ function publishCreateTenderToMarketplace(wizard) {
         ownerOrganization: owner.organization || owner.displayName || '',
         ownerEntityType: owner.entityType || 'company',
         publishedAt: now.toISOString(),
+        plannedOpeningDate: plannedTender?.openingDate || '',
+        publicationHoldUntil: plannedTender?.openingDate || '',
+        scheduledFromPlan: isScheduledFromPlan,
         boqItems,
         commercialItems: boqItems,
         commercialModel: profile.commercialName,
@@ -7126,11 +7137,14 @@ function initializeCreateTenderWizard() {
             if (result.completed) {
                 const publishedTender = publishCreateTenderToMarketplace(wizard);
                 if (publishedTender) {
+                    const scheduledFromPlan = Boolean(publishedTender.scheduledFromPlan);
                     window.addProcurexCommunicationItem?.({
                         kind: 'notification',
                         category: 'Tender Publication',
-                        subject: 'Tender Published Successfully',
-                        body: `Your tender ${publishedTender.title} has passed evaluation and has been published to the marketplace.`,
+                        subject: scheduledFromPlan ? 'Tender Scheduled Successfully' : 'Tender Published Successfully',
+                        body: scheduledFromPlan
+                            ? `Your tender ${publishedTender.title} has passed evaluation and is scheduled for marketplace publication on ${formatCreateTenderDate(publishedTender.publicationHoldUntil)}.`
+                            : `Your tender ${publishedTender.title} has passed evaluation and has been published to the marketplace.`,
                         senderType: 'System',
                         senderName: 'ProcureX System',
                         recipientType: 'Buyer',
@@ -7145,30 +7159,34 @@ function initializeCreateTenderWizard() {
                         actionPage: 'tender-details',
                         audience: ['buyer', 'all']
                     });
-                    window.addProcurexCommunicationItem?.({
-                        kind: 'notification',
-                        category: publishedTender.method === createTenderClosedMethod ? 'Supplier Invitation' : 'Tender Publication',
-                        subject: publishedTender.method === createTenderClosedMethod ? 'New Tender Invitation' : 'New Tender Invitation',
-                        body: publishedTender.method === createTenderClosedMethod
-                            ? `You have been invited to participate in tender ${publishedTender.id}: ${publishedTender.title}.`
-                            : `A new tender matching your profile is available: ${publishedTender.id}: ${publishedTender.title}.`,
-                        senderType: 'System',
-                        senderName: 'ProcureX System',
-                        recipientType: 'Supplier',
-                        recipientName: 'Eligible suppliers',
-                        tenderId: publishedTender.id,
-                        tenderReference: publishedTender.id,
-                        tenderTitle: publishedTender.title,
-                        priority: 'Normal',
-                        status: 'Unread',
-                        read: false,
-                        actionRequired: true,
-                        actionLabel: 'Start Submission',
-                        actionPage: 'bidding-workspace',
-                        audience: ['supplier', 'all']
-                    });
-                    alert(`Tender passed evaluation and has been published to the marketplace.\n\nTender: ${publishedTender.title}`);
-                    window.app?.navigateTo('marketplace');
+                    if (!scheduledFromPlan) {
+                        window.addProcurexCommunicationItem?.({
+                            kind: 'notification',
+                            category: publishedTender.method === createTenderClosedMethod ? 'Supplier Invitation' : 'Tender Publication',
+                            subject: publishedTender.method === createTenderClosedMethod ? 'New Tender Invitation' : 'New Tender Invitation',
+                            body: publishedTender.method === createTenderClosedMethod
+                                ? `You have been invited to participate in tender ${publishedTender.id}: ${publishedTender.title}.`
+                                : `A new tender matching your profile is available: ${publishedTender.id}: ${publishedTender.title}.`,
+                            senderType: 'System',
+                            senderName: 'ProcureX System',
+                            recipientType: 'Supplier',
+                            recipientName: 'Eligible suppliers',
+                            tenderId: publishedTender.id,
+                            tenderReference: publishedTender.id,
+                            tenderTitle: publishedTender.title,
+                            priority: 'Normal',
+                            status: 'Unread',
+                            read: false,
+                            actionRequired: true,
+                            actionLabel: 'Start Submission',
+                            actionPage: 'bidding-workspace',
+                            audience: ['supplier', 'all']
+                        });
+                    }
+                    alert(scheduledFromPlan
+                        ? `Tender passed evaluation and is scheduled for publication on ${formatCreateTenderDate(publishedTender.publicationHoldUntil)}.\n\nTender: ${publishedTender.title}`
+                        : `Tender passed evaluation and has been published to the marketplace.\n\nTender: ${publishedTender.title}`);
+                    window.app?.navigateTo(scheduledFromPlan ? 'workspace-dashboard' : 'marketplace');
                 }
                 return;
             }

@@ -30613,3 +30613,468 @@ body[data-page="tender-planning"] .tender-planning-content {
         padding: 18px;
     }
 }
+
+/* Procurement planning worksheet refresh */
+.planning-primary-actions {
+    align-items: center;
+}
+
+.planning-action-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.planning-action-button svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.planning-create-panel,
+.planning-upload-section {
+    scroll-margin-top: 112px;
+    margin-bottom: 14px;
+}
+
+.planning-year-input,
+.planning-year-filter {
+    min-width: 180px;
+}
+
+.planning-year-filter {
+    align-self: end;
+}
+
+.procurement-plan-sheet-table,
+.procurement-plan-create-table {
+    overflow-x: visible;
+}
+
+.procurement-plan-sheet-table table,
+.procurement-plan-create-table table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.procurement-plan-sheet-table th,
+.procurement-plan-sheet-table td,
+.procurement-plan-create-table th,
+.procurement-plan-create-table td {
+    padding: 9px 7px;
+    vertical-align: top;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.procurement-plan-sheet-table th,
+.procurement-plan-create-table th {
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+.procurement-plan-sheet-table td {
+    font-size: 12px;
+    line-height: 1.32;
+}
+
+.procurement-plan-sheet-table th:nth-child(1),
+.procurement-plan-sheet-table td:nth-child(1) {
+    width: 9%;
+}
+
+.procurement-plan-sheet-table th:nth-child(2),
+.procurement-plan-sheet-table td:nth-child(2) {
+    width: 18%;
+}
+
+.procurement-plan-sheet-table th:nth-child(3),
+.procurement-plan-sheet-table td:nth-child(3),
+.procurement-plan-sheet-table th:nth-child(4),
+.procurement-plan-sheet-table td:nth-child(4),
+.procurement-plan-sheet-table th:nth-child(5),
+.procurement-plan-sheet-table td:nth-child(5),
+.procurement-plan-sheet-table th:nth-child(6),
+.procurement-plan-sheet-table td:nth-child(6),
+.procurement-plan-sheet-table th:nth-child(11),
+.procurement-plan-sheet-table td:nth-child(11) {
+    width: 8%;
+}
+
+.procurement-plan-sheet-table th:nth-child(7),
+.procurement-plan-sheet-table td:nth-child(7),
+.procurement-plan-sheet-table th:nth-child(8),
+.procurement-plan-sheet-table td:nth-child(8),
+.procurement-plan-sheet-table th:nth-child(9),
+.procurement-plan-sheet-table td:nth-child(9),
+.procurement-plan-sheet-table th:nth-child(10),
+.procurement-plan-sheet-table td:nth-child(10) {
+    width: 5%;
+    text-align: center;
+}
+
+.procurement-plan-sheet-table th:nth-child(12),
+.procurement-plan-sheet-table td:nth-child(12) {
+    width: 12%;
+}
+
+.procurement-plan-sheet-table th:nth-child(13),
+.procurement-plan-sheet-table td:nth-child(13) {
+    width: 6%;
+}
+
+.procurement-plan-create-table th:nth-child(1),
+.procurement-plan-create-table td:nth-child(1),
+.procurement-plan-create-table th:nth-child(2),
+.procurement-plan-create-table td:nth-child(2) {
+    width: 10%;
+}
+
+.procurement-plan-create-table th:nth-child(3),
+.procurement-plan-create-table td:nth-child(3) {
+    width: 22%;
+}
+
+.procurement-plan-create-table th:nth-child(4),
+.procurement-plan-create-table td:nth-child(4),
+.procurement-plan-create-table th:nth-child(5),
+.procurement-plan-create-table td:nth-child(5),
+.procurement-plan-create-table th:nth-child(6),
+.procurement-plan-create-table td:nth-child(6),
+.procurement-plan-create-table th:nth-child(7),
+.procurement-plan-create-table td:nth-child(7) {
+    width: 9%;
+}
+
+.procurement-plan-create-table th:nth-child(8),
+.procurement-plan-create-table td:nth-child(8),
+.procurement-plan-create-table th:nth-child(9),
+.procurement-plan-create-table td:nth-child(9),
+.procurement-plan-create-table th:nth-child(10),
+.procurement-plan-create-table td:nth-child(10),
+.procurement-plan-create-table th:nth-child(11),
+.procurement-plan-create-table td:nth-child(11) {
+    width: 5%;
+}
+
+.procurement-plan-create-table th:nth-child(12),
+.procurement-plan-create-table td:nth-child(12) {
+    width: 8%;
+}
+
+.procurement-plan-create-table .form-input {
+    min-width: 0;
+    width: 100%;
+    padding: 8px 7px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.procurement-plan-create-table textarea.form-input {
+    min-height: 54px;
+    resize: vertical;
+}
+
+.planning-quarter-mark,
+.planning-quarter-empty {
+    display: inline-grid;
+    min-width: 32px;
+    min-height: 24px;
+    place-items: center;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.planning-quarter-mark {
+    background: rgba(0, 128, 128, 0.1);
+    color: var(--planning-teal);
+}
+
+.planning-quarter-empty {
+    color: var(--planning-muted);
+}
+
+.planning-empty-row {
+    padding: 26px !important;
+    color: var(--planning-muted);
+    text-align: center;
+    font-weight: 800;
+}
+
+.planning-upload-section .procurement-plan-upload-box em {
+    margin-top: 8px;
+    color: var(--planning-teal);
+    font-style: normal;
+    font-weight: 800;
+}
+
+@media (max-width: 1240px) {
+    .procurement-plan-sheet-table table,
+    .procurement-plan-sheet-table thead,
+    .procurement-plan-sheet-table tbody,
+    .procurement-plan-sheet-table tr,
+    .procurement-plan-sheet-table th,
+    .procurement-plan-sheet-table td {
+        display: block;
+    }
+
+    .procurement-plan-sheet-table thead {
+        display: none;
+    }
+
+    .procurement-plan-sheet-table tr {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        border: 1px solid var(--planning-line);
+        border-radius: 8px;
+        background: var(--card-bg);
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .procurement-plan-sheet-table td {
+        display: grid;
+        gap: 4px;
+        border: 0;
+        padding: 0;
+        text-align: left !important;
+    }
+
+    .procurement-plan-sheet-table td::before {
+        color: var(--planning-muted);
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .procurement-plan-sheet-table td:nth-child(1)::before { content: "Code / Vote"; }
+    .procurement-plan-sheet-table td:nth-child(2)::before { content: "Procurement Item"; }
+    .procurement-plan-sheet-table td:nth-child(3)::before { content: "Category"; }
+    .procurement-plan-sheet-table td:nth-child(4)::before { content: "Method"; }
+    .procurement-plan-sheet-table td:nth-child(5)::before { content: "Package"; }
+    .procurement-plan-sheet-table td:nth-child(6)::before { content: "Budget"; }
+    .procurement-plan-sheet-table td:nth-child(7)::before { content: "Q1"; }
+    .procurement-plan-sheet-table td:nth-child(8)::before { content: "Q2"; }
+    .procurement-plan-sheet-table td:nth-child(9)::before { content: "Q3"; }
+    .procurement-plan-sheet-table td:nth-child(10)::before { content: "Q4"; }
+    .procurement-plan-sheet-table td:nth-child(11)::before { content: "Status"; }
+    .procurement-plan-sheet-table td:nth-child(12)::before { content: "Remarks"; }
+    .procurement-plan-sheet-table td:nth-child(13)::before { content: "Action"; }
+
+    .procurement-plan-create-table {
+        overflow-x: auto;
+    }
+
+    .procurement-plan-create-table table {
+        min-width: 1120px;
+    }
+}
+
+@media (max-width: 700px) {
+    .planning-primary-actions,
+    .planning-primary-actions .btn,
+    .planning-year-filter {
+        width: 100%;
+    }
+
+    .procurement-plan-sheet-table tr {
+        grid-template-columns: 1fr;
+    }
+}
+
+.planning-register-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.planning-register-actions .btn svg,
+.planning-editor-header .btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.procurement-plan-quick-table table {
+    min-width: 980px;
+}
+
+.procurement-plan-quick-table th:nth-child(1),
+.procurement-plan-quick-table td:nth-child(1) {
+    width: 28%;
+}
+
+.procurement-plan-quick-table th:nth-child(2),
+.procurement-plan-quick-table td:nth-child(2),
+.procurement-plan-quick-table th:nth-child(3),
+.procurement-plan-quick-table td:nth-child(3) {
+    width: 11%;
+}
+
+.procurement-plan-quick-table th:nth-child(4),
+.procurement-plan-quick-table td:nth-child(4),
+.procurement-plan-quick-table th:nth-child(5),
+.procurement-plan-quick-table td:nth-child(5),
+.procurement-plan-quick-table th:nth-child(6),
+.procurement-plan-quick-table td:nth-child(6),
+.procurement-plan-quick-table th:nth-child(7),
+.procurement-plan-quick-table td:nth-child(7) {
+    width: 12%;
+}
+
+.procurement-plan-quick-table th:nth-child(8),
+.procurement-plan-quick-table td:nth-child(8) {
+    width: 14%;
+}
+
+.planning-status-button {
+    border: 0;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.planning-status-button:disabled {
+    cursor: default;
+    opacity: 0.75;
+}
+
+.planning-editor-page {
+    width: 100%;
+}
+
+.planning-editor-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 18px;
+    padding: 22px;
+    border: 1px solid var(--planning-line);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.planning-editor-header h1 {
+    margin: 4px 0 6px;
+    font-size: clamp(1.6rem, 2vw, 2.2rem);
+    color: var(--planning-ink);
+}
+
+.planning-editor-header p {
+    margin: 0;
+    color: var(--planning-muted);
+}
+
+.planning-editor-settings {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+    gap: 14px;
+    align-items: end;
+    margin-bottom: 18px;
+}
+
+.planning-editor-tools {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.planning-editor-table {
+    max-height: calc(100vh - 260px);
+}
+
+.planning-editor-table table {
+    min-width: 1500px;
+}
+
+.planning-editor-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fbfc;
+}
+
+.planning-full-plan {
+    margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+    .planning-editor-header,
+    .planning-editor-settings {
+        grid-template-columns: 1fr;
+    }
+
+    .planning-editor-header .btn,
+    .planning-register-actions .btn,
+    .planning-register-actions .planning-field {
+        width: 100%;
+    }
+
+    .planning-editor-tools {
+        justify-content: stretch;
+    }
+
+    .planning-editor-tools .btn {
+        flex: 1 1 140px;
+    }
+
+    .procurement-plan-quick-table table,
+    .procurement-plan-quick-table thead,
+    .procurement-plan-quick-table tbody,
+    .procurement-plan-quick-table tr,
+    .procurement-plan-quick-table th,
+    .procurement-plan-quick-table td {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .procurement-plan-quick-table thead {
+        display: none;
+    }
+
+    .procurement-plan-quick-table tr {
+        padding: 12px;
+        border: 1px solid var(--planning-line);
+        border-radius: 8px;
+        background: #ffffff;
+        margin-bottom: 10px;
+    }
+
+    .procurement-plan-quick-table td {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 10px 0;
+        border: 0;
+    }
+
+    .procurement-plan-quick-table td::before {
+        font-weight: 700;
+        color: var(--planning-muted);
+    }
+
+    .procurement-plan-quick-table td:nth-child(1)::before { content: "Tender"; }
+    .procurement-plan-quick-table td:nth-child(2)::before { content: "Opening"; }
+    .procurement-plan-quick-table td:nth-child(3)::before { content: "Closing"; }
+    .procurement-plan-quick-table td:nth-child(4)::before { content: "Category"; }
+    .procurement-plan-quick-table td:nth-child(5)::before { content: "Budget"; }
+    .procurement-plan-quick-table td:nth-child(6)::before { content: "Method"; }
+    .procurement-plan-quick-table td:nth-child(7)::before { content: "Status"; }
+    .procurement-plan-quick-table td:nth-child(8)::before { content: "Plan"; }
+}

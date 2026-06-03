@@ -1,4 +1,4 @@
-import { FormEvent, MouseEvent, useEffect, useRef } from 'react';
+import { ChangeEvent, FormEvent, MouseEvent, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import i18nInstance from '@/i18n';
@@ -354,6 +354,116 @@ function scrollProcurementPlanningTarget(button: HTMLElement, root: HTMLElement)
   element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function setProcurementPlanningMode(button: HTMLElement, root: HTMLElement) {
+  const mode = button.getAttribute('data-planning-mode');
+  const front = root.querySelector<HTMLElement>('[data-planning-front]');
+  const editor = root.querySelector<HTMLElement>('[data-planning-editor]');
+  const uploadPanel = root.querySelector<HTMLElement>('#planning-upload');
+
+  if (!mode) return;
+
+  if (editor && front && mode === 'create') {
+    front.hidden = true;
+    editor.hidden = false;
+    editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+
+  const createPanel = root.querySelector<HTMLElement>('#planning-create');
+  if (createPanel && uploadPanel) {
+    createPanel.hidden = mode !== 'create';
+    uploadPanel.hidden = mode !== 'upload';
+  }
+
+  const target = mode === 'upload' ? uploadPanel : createPanel;
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (mode === 'upload') {
+    uploadPanel?.removeAttribute('hidden');
+    uploadPanel?.querySelector<HTMLInputElement>('[data-plan-upload-input]')?.click();
+  }
+}
+
+function closeProcurementPlanningEditor(root: HTMLElement) {
+  const front = root.querySelector<HTMLElement>('[data-planning-front]');
+  const editor = root.querySelector<HTMLElement>('[data-planning-editor]');
+  if (!front || !editor) return;
+  if (root.dataset.planningDirty === 'true' && !window.confirm('Leave this plan without saving changes?')) return;
+  root.dataset.planningDirty = 'false';
+  editor.hidden = true;
+  front.hidden = false;
+  front.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function downloadProcurementPlanningText(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function collectProcurementPlanningTableCsv(root: HTMLElement) {
+  const rows = Array.from(root.querySelectorAll<HTMLTableRowElement>('[data-planning-year-table] tr:not([hidden])'));
+  return rows.map((row) =>
+    Array.from(row.querySelectorAll('th, td'))
+      .map((cell) => `"${(cell.textContent || '').trim().replace(/"/g, '""')}"`)
+      .join(',')
+  ).join('\n');
+}
+
+function addProcurementPlanningRow(root: HTMLElement) {
+  const body = root.querySelector<HTMLElement>('[data-plan-create-body]');
+  const lastRow = body?.querySelector<HTMLTableRowElement>('[data-plan-create-row]:last-child');
+  if (!body || !lastRow) return;
+
+  const nextRow = lastRow.cloneNode(true) as HTMLTableRowElement;
+  nextRow.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach((field) => {
+    field.value = '';
+  });
+  nextRow.querySelector<HTMLInputElement>('input[name="appCode"]')?.focus();
+  body.appendChild(nextRow);
+  root.dataset.planningDirty = 'true';
+}
+
+function filterProcurementPlanningYear(select: HTMLSelectElement, root: HTMLElement) {
+  const selectedYear = select.value;
+  const rows = root.querySelectorAll<HTMLTableRowElement>('[data-financial-year]');
+  let visibleCount = 0;
+
+  rows.forEach((row) => {
+    const isVisible = row.getAttribute('data-financial-year') === selectedYear;
+    row.hidden = !isVisible;
+    if (isVisible) visibleCount += 1;
+  });
+
+  const currentYear = root.querySelector<HTMLElement>('[data-planning-current-year]');
+  if (currentYear) currentYear.textContent = selectedYear;
+
+  root.querySelectorAll<HTMLElement>('.planning-kpi-card').forEach((card) => {
+    if (card.textContent?.includes('Financial Year')) {
+      const value = card.querySelector('strong');
+      if (value) value.textContent = selectedYear;
+    }
+    if (card.textContent?.includes('Plan Lines')) {
+      const value = card.querySelector('strong');
+      if (value) value.textContent = String(visibleCount);
+    }
+  });
+}
+
+function updateProcurementPlanningUploadStatus(input: HTMLInputElement, root: HTMLElement) {
+  const status = root.querySelector<HTMLElement>('[data-plan-upload-status]');
+  const file = input.files?.[0];
+  if (status) {
+    status.textContent = file ? `${file.name} selected. Import parsing can be connected to the backend or Excel parser.` : 'No file selected.';
+  }
+}
+
 function scrollPageToTop() {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
@@ -370,7 +480,31 @@ function scrollPageToTop() {
 function initializeStaticPage(root: HTMLElement, language: string) {
   normalizeAppDrawer(root);
   syncInitialTabs(root);
+  applyPlanningDraftToCreateTender(root);
   applyStaticTranslations(root, language);
+}
+
+function applyPlanningDraftToCreateTender(root: HTMLElement) {
+  const wizard = root.querySelector<HTMLElement>('[data-create-tender-wizard]');
+  if (!wizard) return;
+
+  try {
+    const plannedTender = JSON.parse(window.localStorage.getItem('procurex.planning.selectedTenderPlan') || 'null') as
+      | { title?: string; openingDate?: string; closingDate?: string; fundingSource?: string }
+      | null;
+    if (!plannedTender) return;
+
+    const titleInput = wizard.querySelector<HTMLInputElement>('[data-tender-title]');
+    if (titleInput && plannedTender.title) titleInput.value = plannedTender.title;
+    wizard.querySelectorAll<HTMLInputElement>('[data-milestone-row-proxy="milestone-opening"], [data-milestone-row="milestone-opening"] [data-milestone-field="date"]').forEach((input) => {
+      if (plannedTender.openingDate) input.value = plannedTender.openingDate;
+    });
+    wizard.querySelectorAll<HTMLInputElement>('[data-milestone-row-proxy="milestone-closing"], [data-milestone-row="milestone-closing"] [data-milestone-field="date"]').forEach((input) => {
+      if (plannedTender.closingDate) input.value = plannedTender.closingDate;
+    });
+  } catch {
+    // Bad localStorage content should never block rendering the static prototype page.
+  }
 }
 
 function resetStaticPage(root: HTMLElement, html: string, language: string) {
@@ -417,6 +551,18 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     const procurementPlanOpen = target.closest<HTMLElement>('[data-plan-open]');
     const procurementPlanClose = target.closest<HTMLElement>('[data-plan-close]');
     const procurementPlanningScroll = target.closest<HTMLElement>('[data-planning-scroll]');
+    const procurementPlanningMode = target.closest<HTMLElement>('[data-planning-mode]');
+    const procurementPlanningAddRow = target.closest<HTMLElement>('[data-plan-add-row]');
+    const procurementPlanningEditorBack = target.closest<HTMLElement>('[data-plan-editor-back]');
+    const procurementPlanningTemplateDownload = target.closest<HTMLElement>('[data-plan-template-download]');
+    const procurementPlanningDownload = target.closest<HTMLElement>('[data-plan-download]');
+    const procurementPlanningViewFull = target.closest<HTMLElement>('[data-plan-view-full]');
+    const procurementPlanningFullClose = target.closest<HTMLElement>('[data-plan-full-close]');
+    const procurementPlanningRemoveRow = target.closest<HTMLElement>('[data-plan-remove-row]');
+    const procurementPlanningAddColumn = target.closest<HTMLElement>('[data-plan-add-column]');
+    const procurementPlanningRemoveColumn = target.closest<HTMLElement>('[data-plan-remove-column]');
+    const procurementPlanningTender = target.closest<HTMLElement>('[data-plan-tender]');
+    const procurementPlanningStatusNavigate = target.closest<HTMLElement>('[data-status-navigate]');
 
     if (planningAnchor && rootRef.current && activatePlanningAnchor(rootRef.current, planningAnchor)) {
       event.preventDefault();
@@ -444,6 +590,110 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     if (procurementPlanningScroll && rootRef.current) {
       event.preventDefault();
       scrollProcurementPlanningTarget(procurementPlanningScroll, rootRef.current);
+      return;
+    }
+
+    if (procurementPlanningMode && rootRef.current) {
+      event.preventDefault();
+      setProcurementPlanningMode(procurementPlanningMode, rootRef.current);
+      return;
+    }
+
+    if (procurementPlanningAddRow && rootRef.current) {
+      event.preventDefault();
+      addProcurementPlanningRow(rootRef.current);
+      return;
+    }
+
+    if (procurementPlanningEditorBack && rootRef.current) {
+      event.preventDefault();
+      closeProcurementPlanningEditor(rootRef.current);
+      return;
+    }
+
+    if (procurementPlanningTemplateDownload) {
+      event.preventDefault();
+      downloadProcurementPlanningText(
+        'procurex-plan-template.csv',
+        'Tender Title,Opening Date,Closing Date,Category,Budget,Procurement Method,Source of Funds,Expected Completion Date,Status,Q1,Q2,Q3,Q4,Notes\nConstruction of community water wells,2026-08-01,2026-08-30,Works,480000000,Open Tender,Development budget,2026-12-15,Draft planning,Design,Tender,Award,Contract,'
+      );
+      return;
+    }
+
+    if (procurementPlanningDownload && rootRef.current) {
+      event.preventDefault();
+      downloadProcurementPlanningText('procurex-plan.csv', collectProcurementPlanningTableCsv(rootRef.current));
+      return;
+    }
+
+    if (procurementPlanningViewFull && rootRef.current) {
+      event.preventDefault();
+      const fullView = rootRef.current.querySelector<HTMLElement>('[data-plan-full-view]');
+      fullView?.removeAttribute('hidden');
+      fullView?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    if (procurementPlanningFullClose && rootRef.current) {
+      event.preventDefault();
+      rootRef.current.querySelector<HTMLElement>('[data-plan-full-view]')?.setAttribute('hidden', '');
+      return;
+    }
+
+    if (procurementPlanningRemoveRow) {
+      event.preventDefault();
+      procurementPlanningRemoveRow.closest('[data-plan-create-row]')?.remove();
+      if (rootRef.current) rootRef.current.dataset.planningDirty = 'true';
+      return;
+    }
+
+    if (procurementPlanningAddColumn && rootRef.current) {
+      event.preventDefault();
+      const label = window.prompt('Column name');
+      if (!label) return;
+      const id = `custom-${Date.now()}`;
+      const head = rootRef.current.querySelector<HTMLElement>('[data-plan-create-head]');
+      head?.querySelector('th:nth-last-child(2)')?.insertAdjacentHTML(
+        'beforebegin',
+        `<th data-column-id="${id}" data-custom-column="true">${label}</th>`
+      );
+      rootRef.current.querySelectorAll<HTMLElement>('[data-plan-create-row]').forEach((row) => {
+        row.querySelector('td:nth-last-child(2)')?.insertAdjacentHTML(
+          'beforebegin',
+          `<td data-column-id="${id}" data-custom-column="true"><input class="form-input" name="${id}"></td>`
+        );
+      });
+      rootRef.current.dataset.planningDirty = 'true';
+      return;
+    }
+
+    if (procurementPlanningRemoveColumn && rootRef.current) {
+      event.preventDefault();
+      const customHeads = rootRef.current.querySelectorAll<HTMLElement>('[data-plan-create-head] [data-custom-column="true"]');
+      const last = customHeads[customHeads.length - 1];
+      if (!last) {
+        window.alert('Only custom columns can be removed.');
+        return;
+      }
+      const id = last.getAttribute('data-column-id') || '';
+      rootRef.current.querySelectorAll<HTMLElement>(`[data-column-id="${CSS.escape(id)}"]`).forEach((cell) => cell.remove());
+      rootRef.current.dataset.planningDirty = 'true';
+      return;
+    }
+
+    if (procurementPlanningTender) {
+      event.preventDefault();
+      const row = procurementPlanningTender.closest('tr');
+      const title = row?.querySelector('td strong')?.textContent?.trim() || '';
+      window.localStorage.setItem('procurex.planning.selectedTenderPlan', JSON.stringify({ title }));
+      navigate(pageToRoute['create-tender']);
+      return;
+    }
+
+    if (procurementPlanningStatusNavigate) {
+      event.preventDefault();
+      const page = procurementPlanningStatusNavigate.getAttribute('data-status-navigate') || 'workspace-dashboard';
+      navigate(pageToRoute[page] || '/dashboard');
       return;
     }
 
@@ -518,6 +768,15 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
 
     event.preventDefault();
 
+    if (form.matches('[data-procurement-plan-form]') && rootRef.current) {
+      rootRef.current.dataset.planningDirty = 'false';
+      const status = form.querySelector<HTMLElement>('[data-plan-form-status], .form-status');
+      status?.classList.add('success');
+      if (status) status.textContent = 'Plan saved in this frontend demo.';
+      closeProcurementPlanningEditor(rootRef.current);
+      return;
+    }
+
     const action = form.getAttribute('data-action');
     const status =
       form.querySelector<HTMLElement>('[data-form-status]') ||
@@ -539,6 +798,27 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
     if (status) status.textContent = 'Saved in this frontend demo.';
   }
 
+  function handleChange(event: ChangeEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    const yearFilter = target.closest<HTMLSelectElement>('[data-planning-year-filter]');
+    const uploadInput = target.closest<HTMLInputElement>('[data-plan-upload-input]');
+    const planningInput = target.closest<HTMLElement>('[data-procurement-plan-form] input, [data-procurement-plan-form] select, [data-procurement-plan-form] textarea');
+
+    if (yearFilter && rootRef.current) {
+      filterProcurementPlanningYear(yearFilter, rootRef.current);
+      return;
+    }
+
+    if (uploadInput && rootRef.current) {
+      updateProcurementPlanningUploadStatus(uploadInput, rootRef.current);
+      return;
+    }
+
+    if (planningInput && rootRef.current) {
+      rootRef.current.dataset.planningDirty = 'true';
+    }
+  }
+
   return (
     <>
       <div className="procurex-floating-language">
@@ -552,6 +832,7 @@ export function ProcurexStaticPage({ pageKey, html }: ProcurexStaticPageProps) {
         tabIndex={-1}
         className="procurex-react-page"
         onClick={handleClick}
+        onChange={handleChange}
         onSubmit={handleSubmit}
         dangerouslySetInnerHTML={{ __html: html }}
       />

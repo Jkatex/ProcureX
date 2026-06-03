@@ -1,192 +1,102 @@
-const procurementPlanningStorageKey = 'procurex.procurementPlans.v1';
+const procurementPlanningStorageKey = 'procurex.procurementPlans.v4';
+const procurementPlanningSelectedTenderKey = 'procurex.planning.selectedTenderPlan';
+const procurementPlanningCreateTenderDraftKey = 'procurex.createTender.v2.savedDraft';
+const procurementPlanningMilestoneKey = 'procurex.createTender.v2.milestones';
+
+const procurementPlanningDefaultColumns = [
+    { id: 'tenderTitle', label: 'Tender Title', type: 'text' },
+    { id: 'openingDate', label: 'Opening Date', type: 'date' },
+    { id: 'closingDate', label: 'Closing Date', type: 'date' },
+    { id: 'category', label: 'Category', type: 'select', options: ['Goods', 'Works', 'Services', 'Consultancy'] },
+    { id: 'budget', label: 'Budget', type: 'number' },
+    { id: 'procurementMethod', label: 'Procurement Method', type: 'select', options: ['Open Tender', 'Invited Tender', 'RFQ', 'Framework', 'Single Source'] },
+    { id: 'sourceOfFunds', label: 'Source of Funds', type: 'select', options: ['Government of Tanzania', 'Own Source', 'Donor Funded', 'Development Partner', 'Loan', 'Grant', 'Other'] },
+    { id: 'expectedCompletionDate', label: 'Expected Completion Date', type: 'date' }
+];
+
+const procurementPlanningStatuses = [
+    { value: 'Inactive', page: '', tone: 'info' },
+    { value: 'Draft planning', page: 'create-tender', tone: 'warning' },
+    { value: 'Opened', page: 'marketplace', tone: 'success' },
+    { value: 'In evaluation', page: 'bid-evaluation', tone: 'warning' },
+    { value: 'Contract management', page: 'contract-negotiation', tone: 'info' },
+    { value: 'Awarded', page: 'awarding-contracts', tone: 'success' },
+    { value: 'Finished', page: 'records-history', tone: 'success' }
+];
+
+const procurementPlanningPeriodPresets = {
+    quarter: { label: 'Quarter plan', count: 4, prefix: 'Q' },
+    half: { label: 'Half-year plan', count: 2, prefix: 'H' },
+    annual: { label: 'Annual plan', count: 1, prefix: 'Annual' },
+    custom: { label: 'Custom execution periods', count: 4, prefix: 'Phase' }
+};
 
 const procurementPlanningSeedRecords = [
     {
-        id: 'app-2026-014',
+        id: 'plan-2026-well',
         financialYear: '2026/2027',
-        appCode: 'APP-2026-014',
-        department: 'Health Services',
-        itemDescription: 'Supply and installation of hospital theatre equipment',
-        procurementCategory: 'Goods',
-        tenderNumber: 'PX-GDS-2026-014',
-        lotNumber: 'LOT-01',
-        procurementMethod: 'NCT',
-        procurementCycle: 'First Cycle',
-        estimatedBudget: 480000000,
-        fundingSource: 'Development budget',
-        budgetStatus: 'Confirmed',
-        status: 'Ready for Tender',
-        readiness: 92,
-        owner: 'Amina Yusuf',
-        priority: 'High',
-        schedule: {
-            tenderInvitation: '2026-08-01',
-            tenderClosingOpening: '2026-08-30',
-            noticeOfIntention: '2026-09-12',
-            vettingRatification: '2026-09-20',
-            notificationOfAward: '2026-09-25',
-            contractSigning: '2026-10-04'
-        },
-        documents: [
-            { type: 'APP Template', name: 'APP-2026-014 template.xlsx', status: 'Accepted' },
-            { type: 'Needs Assessment', name: 'Health needs assessment.pdf', status: 'Accepted' },
-            { type: 'Specifications / TOR', name: 'Theatre equipment TOR.docx', status: 'Review' },
-            { type: 'Budget Confirmation', name: 'Finance confirmation.pdf', status: 'Accepted' },
-            { type: 'Approval Memo', name: 'Approval memo.pdf', status: 'Accepted' }
-        ],
-        approvalSteps: [
-            { role: 'Requester', actor: 'Amina Yusuf', status: 'Approved', date: '2026-06-12' },
-            { role: 'Finance Review', actor: 'Fatma Mhando', status: 'Approved', date: '2026-06-17' },
-            { role: 'Procurement Review', actor: 'Head of Procurement', status: 'Approved', date: '2026-06-20' },
-            { role: 'Tender Board', actor: 'Board Secretary', status: 'Approved', date: '2026-06-25' }
-        ],
-        activityHistory: [
-            'APP item created by Health Services',
-            'Budget confirmed by Finance',
-            'Procurement review completed',
-            'Ready for tender creation'
-        ]
+        tenderTitle: 'Construction of community water wells',
+        openingDate: '2026-08-01',
+        closingDate: '2026-08-30',
+        category: 'Works',
+        budget: 480000000,
+        procurementMethod: 'Open Tender',
+        sourceOfFunds: 'Development budget',
+        expectedCompletionDate: '2026-12-15',
+        status: 'Draft planning',
+        planState: 'Planning begun',
+        periodValues: { Q1: 'Design', Q2: 'Tender', Q3: 'Award', Q4: 'Contract' },
+        notes: 'Specifications cleared for tender creation'
     },
     {
-        id: 'app-2026-021',
+        id: 'plan-2026-fleet',
         financialYear: '2026/2027',
-        appCode: 'APP-2026-021',
-        department: 'Operations',
-        itemDescription: 'Fleet maintenance framework agreement',
-        procurementCategory: 'Services',
-        tenderNumber: 'PX-SRV-2026-021',
-        lotNumber: 'LOT-02',
+        tenderTitle: 'Fleet maintenance framework agreement',
+        openingDate: '2026-07-20',
+        closingDate: '2026-08-12',
+        category: 'Services',
+        budget: 125000000,
         procurementMethod: 'Framework',
-        procurementCycle: 'First Cycle',
-        estimatedBudget: 125000000,
-        fundingSource: 'Operational budget',
-        budgetStatus: 'Shortfall',
-        status: 'Returned',
-        readiness: 54,
-        owner: 'John Mrema',
-        priority: 'Medium',
-        schedule: {
-            tenderInvitation: '2026-07-20',
-            tenderClosingOpening: '2026-08-12',
-            noticeOfIntention: '2026-08-25',
-            vettingRatification: '2026-09-03',
-            notificationOfAward: '2026-09-09',
-            contractSigning: '2026-09-18'
-        },
-        documents: [
-            { type: 'APP Template', name: 'Fleet APP worksheet.xlsx', status: 'Accepted' },
-            { type: 'Needs Assessment', name: 'Fleet service need.pdf', status: 'Accepted' },
-            { type: 'Budget Confirmation', name: 'Finance shortfall note.pdf', status: 'Returned' },
-            { type: 'Market Survey', name: 'Garage supplier survey.xlsx', status: 'Pending' }
-        ],
-        approvalSteps: [
-            { role: 'Requester', actor: 'John Mrema', status: 'Submitted', date: '2026-06-08' },
-            { role: 'Finance Review', actor: 'Fatma Mhando', status: 'Returned', date: '2026-06-15' },
-            { role: 'Procurement Review', actor: 'Head of Procurement', status: 'Waiting', date: '' },
-            { role: 'Tender Board', actor: 'Board Secretary', status: 'Waiting', date: '' }
-        ],
-        activityHistory: [
-            'Framework item captured',
-            'Finance identified TZS 28M shortfall',
-            'Returned for funding action'
-        ]
+        sourceOfFunds: 'Operational budget',
+        expectedCompletionDate: '2026-09-18',
+        status: 'Inactive',
+        planState: 'Not started',
+        periodValues: { Q1: 'Plan', Q2: 'Tender', Q3: 'Review', Q4: '' },
+        notes: 'Funding shortfall under finance review'
     },
     {
-        id: 'app-2026-027',
+        id: 'plan-2026-renovation',
         financialYear: '2026/2027',
-        appCode: 'APP-2026-027',
-        department: 'Infrastructure',
-        itemDescription: 'Ward renovation works',
-        procurementCategory: 'Works',
-        tenderNumber: 'PX-WRK-2026-027',
-        lotNumber: 'LOT-01',
-        procurementMethod: 'NCT',
-        procurementCycle: 'Second Cycle',
-        estimatedBudget: 760000000,
-        fundingSource: 'Capital projects',
-        budgetStatus: 'Confirmed',
-        status: 'Procurement Review',
-        readiness: 79,
-        owner: 'Daniel Komba',
-        priority: 'High',
-        schedule: {
-            tenderInvitation: '2026-09-04',
-            tenderClosingOpening: '2026-10-03',
-            noticeOfIntention: '2026-10-18',
-            vettingRatification: '2026-10-30',
-            notificationOfAward: '2026-11-05',
-            contractSigning: '2026-11-14'
-        },
-        documents: [
-            { type: 'APP Template', name: 'Infrastructure APP item.xlsx', status: 'Accepted' },
-            { type: 'Specifications / TOR', name: 'Ward renovation BOQ.docx', status: 'Review' },
-            { type: 'Budget Confirmation', name: 'Capital projects confirmation.pdf', status: 'Accepted' },
-            { type: 'Board Minutes', name: 'Tender board extract.pdf', status: 'Missing' }
-        ],
-        approvalSteps: [
-            { role: 'Requester', actor: 'Daniel Komba', status: 'Approved', date: '2026-06-21' },
-            { role: 'Finance Review', actor: 'Fatma Mhando', status: 'Approved', date: '2026-06-24' },
-            { role: 'Procurement Review', actor: 'Head of Procurement', status: 'Pending', date: '2026-06-27' },
-            { role: 'Tender Board', actor: 'Board Secretary', status: 'Waiting', date: '' }
-        ],
-        activityHistory: [
-            'Works package captured',
-            'Budget confirmed',
-            'Procurement review in progress'
-        ]
+        tenderTitle: 'Ward renovation works',
+        openingDate: '2026-09-04',
+        closingDate: '2026-10-03',
+        category: 'Works',
+        budget: 760000000,
+        procurementMethod: 'Open Tender',
+        sourceOfFunds: 'Capital projects',
+        expectedCompletionDate: '2027-01-20',
+        status: 'In evaluation',
+        planState: 'Planning ended',
+        periodValues: { Q1: '', Q2: 'Plan', Q3: 'Tender', Q4: 'Award' },
+        notes: 'Board minutes pending'
     },
     {
-        id: 'app-2026-032',
-        financialYear: '2026/2027',
-        appCode: 'APP-2026-032',
-        department: 'ICT',
-        itemDescription: 'ICT helpdesk support services',
-        procurementCategory: 'Services',
-        tenderNumber: 'PX-SRV-2026-032',
-        lotNumber: 'LOT-01',
+        id: 'plan-2025-helpdesk',
+        financialYear: '2025/2026',
+        tenderTitle: 'ICT helpdesk support services',
+        openingDate: '2025-08-10',
+        closingDate: '2025-08-24',
+        category: 'Services',
+        budget: 94000000,
         procurementMethod: 'RFQ',
-        procurementCycle: 'Second Cycle',
-        estimatedBudget: 94000000,
-        fundingSource: 'Operational budget',
-        budgetStatus: 'Pending',
-        status: 'Draft',
-        readiness: 36,
-        owner: 'Neema Paul',
-        priority: 'Medium',
-        schedule: {
-            tenderInvitation: '2026-10-10',
-            tenderClosingOpening: '2026-10-24',
-            noticeOfIntention: '2026-11-02',
-            vettingRatification: '2026-11-09',
-            notificationOfAward: '2026-11-13',
-            contractSigning: '2026-11-21'
-        },
-        documents: [
-            { type: 'APP Template', name: 'ICT APP draft.xlsx', status: 'Draft' },
-            { type: 'Needs Assessment', name: 'ICT support need.docx', status: 'Draft' },
-            { type: 'Specifications / TOR', name: 'Helpdesk TOR.docx', status: 'Missing' }
-        ],
-        approvalSteps: [
-            { role: 'Requester', actor: 'Neema Paul', status: 'Draft', date: '' },
-            { role: 'Finance Review', actor: 'Finance Officer', status: 'Waiting', date: '' },
-            { role: 'Procurement Review', actor: 'Head of Procurement', status: 'Waiting', date: '' },
-            { role: 'Tender Board', actor: 'Board Secretary', status: 'Waiting', date: '' }
-        ],
-        activityHistory: [
-            'Draft APP item started',
-            'Needs assessment in progress'
-        ]
+        sourceOfFunds: 'Operational budget',
+        expectedCompletionDate: '2025-09-21',
+        status: 'Finished',
+        planState: 'Done',
+        periodValues: { Q1: 'Plan', Q2: 'Tender', Q3: 'Award', Q4: 'Close' },
+        notes: 'Contract issued and archived'
     }
 ];
-
-const procurementPlanningScheduleLabels = {
-    tenderInvitation: 'Tender invitation',
-    tenderClosingOpening: 'Tender closing/opening',
-    noticeOfIntention: 'Notice of intention to award',
-    vettingRatification: 'Vetting/ratification',
-    notificationOfAward: 'Notification of award',
-    contractSigning: 'Contract signing'
-};
 
 function escapeProcurementPlanningHtml(value = '') {
     return String(value)
@@ -207,15 +117,11 @@ function getProcurementPlanningRecords() {
 }
 
 function saveProcurementPlanningRecords(records) {
-    try {
-        localStorage.setItem(procurementPlanningStorageKey, JSON.stringify(records));
-    } catch (error) {
-        window.procurexProcurementPlanningRecords = records;
-    }
+    localStorage.setItem(procurementPlanningStorageKey, JSON.stringify(records));
 }
 
 function formatProcurementPlanningMoney(value) {
-    const amount = Number(value || 0);
+    const amount = Number(String(value || '0').replace(/[^0-9.]/g, '')) || 0;
     if (amount >= 1000000000) return `TZS ${(amount / 1000000000).toFixed(1)}B`;
     if (amount >= 1000000) return `TZS ${(amount / 1000000).toFixed(0)}M`;
     return `TZS ${amount.toLocaleString()}`;
@@ -223,40 +129,100 @@ function formatProcurementPlanningMoney(value) {
 
 function formatProcurementPlanningDate(value) {
     if (!value) return 'Not set';
-    const date = new Date(value);
+    const date = new Date(`${value}T00:00:00`);
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function normalizeProcurementPlanningRecord(record = {}, index = 0) {
+    const legacyTitle = record.tenderTitle || record.itemDescription || 'Untitled tender';
+    const legacyOpening = record.openingDate || record.schedule?.tenderInvitation || '';
+    const legacyClosing = record.closingDate || record.schedule?.tenderClosingOpening || '';
+    const id = record.id || `plan-${Date.now()}-${index}`;
+    return {
+        id,
+        financialYear: String(record.financialYear || '2026/2027'),
+        tenderTitle: String(legacyTitle),
+        openingDate: String(legacyOpening),
+        closingDate: String(legacyClosing),
+        category: String(record.category || record.procurementCategory || 'Goods'),
+        budget: Number(record.budget || record.estimatedBudget || 0),
+        procurementMethod: String(record.procurementMethod || 'Open Tender'),
+        sourceOfFunds: String(record.sourceOfFunds || record.fundingSource || 'Approved budget'),
+        expectedCompletionDate: String(record.expectedCompletionDate || record.schedule?.contractSigning || ''),
+        status: String(record.status || 'Inactive'),
+        planState: String(record.planState || (/complete|finished/i.test(record.status || '') ? 'Done' : 'Not started')),
+        periodValues: {
+            Q1: record.periodValues?.Q1 ?? record.q1 ?? '',
+            Q2: record.periodValues?.Q2 ?? record.q2 ?? '',
+            Q3: record.periodValues?.Q3 ?? record.q3 ?? '',
+            Q4: record.periodValues?.Q4 ?? record.q4 ?? ''
+        },
+        customValues: record.customValues || {},
+        notes: String(record.notes || record.remarks || '')
+    };
+}
+
+function getProcurementPlanningYears(records) {
+    return [...new Set(records.map(record => record.financialYear).filter(Boolean))].sort().reverse();
+}
+
+function getProcurementPlanningStatusMeta(status = '') {
+    return procurementPlanningStatuses.find(item => item.value.toLowerCase() === String(status).toLowerCase())
+        || procurementPlanningStatuses[0];
+}
+
 function getProcurementPlanningBadgeClass(status = '') {
-    const normalized = status.toLowerCase();
-    if (normalized.includes('approved') || normalized.includes('accepted') || normalized.includes('ready') || normalized.includes('confirmed')) return 'badge-success';
-    if (normalized.includes('returned') || normalized.includes('rejected') || normalized.includes('missing') || normalized.includes('shortfall')) return 'badge-error';
-    if (normalized.includes('review') || normalized.includes('pending') || normalized.includes('submitted') || normalized.includes('waiting')) return 'badge-warning';
-    return 'badge-info';
+    const meta = getProcurementPlanningStatusMeta(status);
+    return meta.tone === 'success' ? 'badge-success' : meta.tone === 'warning' ? 'badge-warning' : 'badge-info';
 }
 
-function getProcurementPlanningNextMilestone(record) {
-    const milestone = Object.entries(record.schedule || {})
-        .find(([, value]) => value && new Date(value) >= new Date('2026-06-03'));
-    if (!milestone) return 'Schedule complete';
-    return `${procurementPlanningScheduleLabels[milestone[0]]}: ${formatProcurementPlanningDate(milestone[1])}`;
+function getProcurementPlanningPeriods(planType, customCount) {
+    const preset = procurementPlanningPeriodPresets[planType] || procurementPlanningPeriodPresets.quarter;
+    const count = Math.max(1, Math.min(12, Number(customCount || preset.count) || preset.count));
+    if (planType === 'annual') return ['Annual'];
+    return Array.from({ length: count }, (_, index) => `${preset.prefix}${index + 1}`);
 }
 
-function renderProcurementPlanningSummary(records) {
-    const totalValue = records.reduce((sum, item) => sum + Number(item.estimatedBudget || 0), 0);
-    const approved = records.filter(item => /approved|ready/i.test(item.status)).length;
-    const pendingApprovals = records.filter(item => /review|submitted|pending/i.test(item.status)).length;
-    const delayed = records.filter(item => /returned|rejected|shortfall/i.test(`${item.status} ${item.budgetStatus}`)).length;
-    const documents = records.reduce((sum, item) => sum + (item.documents || []).length, 0);
-
+function getProcurementPlanningTemplateCsv() {
     return [
-        ['APP Items', records.length, 'Captured for active financial years', 'info'],
-        ['Approved / Ready', approved, 'Can move toward tender creation', 'success'],
-        ['Pending Approvals', pendingApprovals, 'Finance, procurement, or board action', 'warning'],
-        ['Delayed', delayed, 'Returned items or funding blockers', 'warning'],
-        ['Documents', documents, 'Evidence files linked to APP records', 'info'],
-        ['Planned Value', formatProcurementPlanningMoney(totalValue), 'Total estimated procurement value', 'success']
+        ['Tender Title', 'Opening Date', 'Closing Date', 'Category', 'Budget', 'Procurement Method', 'Source of Funds', 'Expected Completion Date', 'Status', 'Q1', 'Q2', 'Q3', 'Q4', 'Notes'].join(','),
+        ['Construction of community water wells', '2026-08-01', '2026-08-30', 'Works', '480000000', 'Open Tender', 'Development budget', '2026-12-15', 'Draft planning', 'Design', 'Tender', 'Award', 'Contract', ''].join(',')
+    ].join('\n');
+}
+
+function downloadProcurementPlanningCsv(filename, csv) {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function renderProcurementPlanningActionIcon(kind) {
+    const icons = {
+        upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
+        download: '<path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/>',
+        view: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>',
+        back: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+        create: '<path d="M12 5v14"/><path d="M5 12h14"/>'
+    };
+    return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[kind] || icons.create}</svg>`;
+}
+
+function renderProcurementPlanningSummary(records, selectedYear) {
+    const yearRecords = records.filter(item => item.financialYear === selectedYear);
+    const totalValue = yearRecords.reduce((sum, item) => sum + Number(item.budget || 0), 0);
+    const active = yearRecords.filter(item => !/inactive|finished/i.test(item.status)).length;
+    return [
+        ['Financial Year', selectedYear, 'Active plan view', 'info'],
+        ['Plan Lines', yearRecords.length, 'Items in selected year', 'info'],
+        ['Active Work', active, 'Items linked to a procurement stage', 'success'],
+        ['Planned Value', formatProcurementPlanningMoney(totalValue), 'Estimated procurement value', 'success']
     ].map(([label, value, note, tone]) => `
         <article class="planning-kpi-card ${tone}">
             <span>${escapeProcurementPlanningHtml(label)}</span>
@@ -266,250 +232,211 @@ function renderProcurementPlanningSummary(records) {
     `).join('');
 }
 
-function renderProcurementPlanningRow(record) {
+function renderProcurementPlanningStatusButton(record) {
+    const meta = getProcurementPlanningStatusMeta(record.status);
+    const disabled = !meta.page;
     return `
-        <tr>
-            <td>
-                <strong>${escapeProcurementPlanningHtml(record.itemDescription)}</strong>
-                <span>${escapeProcurementPlanningHtml(record.appCode)} / ${escapeProcurementPlanningHtml(record.department)}</span>
-            </td>
-            <td>${escapeProcurementPlanningHtml(record.financialYear)}</td>
-            <td>${escapeProcurementPlanningHtml(record.procurementCategory)}</td>
+        <button class="planning-status-button badge ${getProcurementPlanningBadgeClass(record.status)}" type="button" ${disabled ? 'disabled' : `data-status-navigate="${escapeProcurementPlanningHtml(meta.page)}"`}>
+            ${escapeProcurementPlanningHtml(record.status)}
+        </button>
+    `;
+}
+
+function renderProcurementPlanningRow(record) {
+    const done = /done|finished/i.test(`${record.planState} ${record.status}`);
+    return `
+        <tr data-financial-year="${escapeProcurementPlanningHtml(record.financialYear)}">
+            <td><strong>${escapeProcurementPlanningHtml(record.tenderTitle)}</strong><span>${escapeProcurementPlanningHtml(record.sourceOfFunds)}</span></td>
+            <td>${escapeProcurementPlanningHtml(formatProcurementPlanningDate(record.openingDate))}</td>
+            <td>${escapeProcurementPlanningHtml(formatProcurementPlanningDate(record.closingDate))}</td>
+            <td>${escapeProcurementPlanningHtml(record.category)}</td>
+            <td>${escapeProcurementPlanningHtml(formatProcurementPlanningMoney(record.budget))}</td>
             <td>${escapeProcurementPlanningHtml(record.procurementMethod)}</td>
-            <td>${escapeProcurementPlanningHtml(getProcurementPlanningNextMilestone(record))}</td>
-            <td><span class="badge ${getProcurementPlanningBadgeClass(record.status)}">${escapeProcurementPlanningHtml(record.status)}</span></td>
-            <td><span class="planning-readiness-pill">${Number(record.readiness || 0)}%</span></td>
-            <td><button class="btn btn-primary btn-sm" type="button" data-plan-open="${escapeProcurementPlanningHtml(record.id)}">View</button></td>
+            <td>${renderProcurementPlanningStatusButton(record)}</td>
+            <td>
+                <div class="planning-table-actions">
+                    <button class="btn btn-primary btn-sm" type="button" data-plan-tender="${escapeProcurementPlanningHtml(record.id)}">${done ? 'View' : record.planState === 'Not started' ? 'Plan' : 'Amend'}</button>
+                    <button class="btn btn-secondary btn-sm" type="button" data-plan-open="${escapeProcurementPlanningHtml(record.id)}">Details</button>
+                </div>
+            </td>
         </tr>
     `;
 }
 
-function renderProcurementPlanningTimeline(records) {
-    return records.map(record => `
-        <article class="planning-timeline-card">
-            <div class="planning-timeline-head">
-                <div>
-                    <span class="section-kicker">${escapeProcurementPlanningHtml(record.appCode)}</span>
-                    <h3>${escapeProcurementPlanningHtml(record.itemDescription)}</h3>
-                </div>
-                <span class="badge ${getProcurementPlanningBadgeClass(record.status)}">${escapeProcurementPlanningHtml(record.status)}</span>
-            </div>
-            <div class="planning-milestone-grid">
-                ${Object.entries(procurementPlanningScheduleLabels).map(([key, label]) => `
-                    <div>
-                        <span>${escapeProcurementPlanningHtml(label)}</span>
-                        <strong>${escapeProcurementPlanningHtml(formatProcurementPlanningDate(record.schedule?.[key]))}</strong>
-                    </div>
-                `).join('')}
-            </div>
-        </article>
-    `).join('');
-}
-
-function renderProcurementPlanningDocuments(records) {
-    const documents = records.flatMap(record => (record.documents || []).map(document => ({ ...document, appCode: record.appCode, item: record.itemDescription })));
-    return documents.map(document => `
-        <article class="planning-upload-tile planning-document-register-card">
-            <div>
-                <strong>${escapeProcurementPlanningHtml(document.type)}</strong>
-                <span>${escapeProcurementPlanningHtml(document.name)}</span>
-                <em>${escapeProcurementPlanningHtml(document.appCode)} / ${escapeProcurementPlanningHtml(document.item)}</em>
-            </div>
-            <span class="badge ${getProcurementPlanningBadgeClass(document.status)}">${escapeProcurementPlanningHtml(document.status)}</span>
-            <input type="file" aria-label="Attach ${escapeProcurementPlanningHtml(document.type)}">
-        </article>
-    `).join('');
-}
-
-function renderProcurementPlanningApprovals(records) {
-    return records.map(record => `
-        <article class="planning-approval-card">
-            <div class="planning-timeline-head">
-                <div>
-                    <span class="section-kicker">${escapeProcurementPlanningHtml(record.appCode)}</span>
-                    <h3>${escapeProcurementPlanningHtml(record.itemDescription)}</h3>
-                </div>
-                <span class="badge ${getProcurementPlanningBadgeClass(record.status)}">${escapeProcurementPlanningHtml(record.status)}</span>
-            </div>
-            <div class="planning-approval-steps">
-                ${(record.approvalSteps || []).map(step => `
-                    <div>
-                        <span>${escapeProcurementPlanningHtml(step.role)}</span>
-                        <strong>${escapeProcurementPlanningHtml(step.actor)}</strong>
-                        <em class="${getProcurementPlanningBadgeClass(step.status)}">${escapeProcurementPlanningHtml(step.status)}${step.date ? ` / ${escapeProcurementPlanningHtml(formatProcurementPlanningDate(step.date))}` : ''}</em>
-                    </div>
-                `).join('')}
-            </div>
-        </article>
-    `).join('');
-}
-
-function renderProcurementPlanningForm() {
+function renderProcurementPlanningTable(records, selectedYear) {
+    const yearRecords = records.filter(record => record.financialYear === selectedYear);
+    const rows = yearRecords.length
+        ? yearRecords.map(renderProcurementPlanningRow).join('')
+        : `<tr><td colspan="8" class="planning-empty-row">No plan lines found for ${escapeProcurementPlanningHtml(selectedYear)}.</td></tr>`;
     return `
-        <form class="app-planning-form procurement-plan-form" data-procurement-plan-form novalidate>
-            <section class="procurement-panel evaluation-panel app-form-section">
-                <div class="panel-heading">
-                    <div>
-                        <span class="section-kicker">Create APP item</span>
-                        <h2>Annual Procurement Plan format</h2>
-                        <p class="panel-note">Capture the fields required before tender preparation while keeping the saved register compact.</p>
-                    </div>
-                    <span class="badge badge-info">Draft</span>
-                </div>
-                <div class="app-form-grid">
-                    <label class="planning-field"><span>Financial Year</span><input class="form-input" name="financialYear" value="2026/2027"></label>
-                    <label class="planning-field"><span>APP Code</span><input class="form-input" name="appCode" value="APP-2026-040"></label>
-                    <label class="planning-field"><span>Department / Requesting Unit</span><input class="form-input" name="department" value="Procurement Unit"></label>
-                    <label class="planning-field"><span>Procurement Category</span><select class="form-input" name="procurementCategory"><option>Goods</option><option>Works</option><option>Services</option><option>Consultancy</option></select></label>
-                    <label class="planning-field planning-field-wide"><span>Procurement Item Description</span><textarea class="form-input" name="itemDescription" rows="3">Office furniture and fit-out services</textarea></label>
-                    <label class="planning-field"><span>Tender Number</span><input class="form-input" name="tenderNumber" value="PX-GDS-2026-040"></label>
-                    <label class="planning-field"><span>Lot Number</span><input class="form-input" name="lotNumber" value="LOT-01"></label>
-                    <label class="planning-field"><span>Procurement Method</span><select class="form-input" name="procurementMethod"><option>NCT</option><option>RFQ</option><option>Framework</option><option>Single Source</option><option>International Tendering</option></select></label>
-                    <label class="planning-field"><span>Procurement Cycle</span><select class="form-input" name="procurementCycle"><option>First Cycle</option><option>Second Cycle</option><option>Third Cycle</option></select></label>
-                    <label class="planning-field"><span>Estimated Budget</span><input class="form-input" name="estimatedBudget" value="210000000"></label>
-                    <label class="planning-field"><span>Funding Source</span><input class="form-input" name="fundingSource" value="Operational budget"></label>
-                    <label class="planning-field"><span>Budget Status</span><select class="form-input" name="budgetStatus"><option>Pending</option><option>Confirmed</option><option>Shortfall</option></select></label>
-                    <label class="planning-field"><span>Status</span><select class="form-input" name="status"><option>Draft</option><option>Submitted</option><option>Finance Review</option><option>Procurement Review</option><option>Approved</option><option>Returned</option><option>Rejected</option><option>Ready for Tender</option></select></label>
-                </div>
-                <div class="app-form-grid app-date-grid procurement-plan-date-grid">
-                    ${Object.entries(procurementPlanningScheduleLabels).map(([key, label], index) => `
-                        <label class="planning-field">
-                            <span>${escapeProcurementPlanningHtml(label)}</span>
-                            <input class="form-input" type="date" name="${key}" value="2026-${String(8 + Math.floor(index / 2)).padStart(2, '0')}-${String(1 + (index * 7) % 25).padStart(2, '0')}">
-                        </label>
-                    `).join('')}
-                </div>
-                <div class="app-action-bar">
-                    <button class="btn btn-primary" type="submit">Save APP Item</button>
-                    <button class="btn btn-secondary" type="button" data-planning-scroll="documents">Upload Documents</button>
-                    <button class="btn btn-secondary" type="button" data-planning-scroll="approvals">Route Approval</button>
-                </div>
-                <div class="form-status app-form-status" data-plan-form-status aria-live="polite"></div>
-            </section>
-        </form>
+        <div class="data-table planning-records-table procurement-plan-table procurement-plan-quick-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tender</th>
+                        <th>Opening</th>
+                        <th>Closing</th>
+                        <th>Category</th>
+                        <th>Budget</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Plan</th>
+                    </tr>
+                </thead>
+                <tbody data-planning-table-body>${rows}</tbody>
+            </table>
+        </div>
     `;
 }
 
-function renderTenderPlanning() {
-    const records = getProcurementPlanningRecords();
-    const averageReadiness = Math.round(records.reduce((sum, item) => sum + Number(item.readiness || 0), 0) / Math.max(records.length, 1));
-
+function renderProcurementPlanningFullPlan(records, selectedYear) {
+    const yearRecords = records.filter(record => record.financialYear === selectedYear);
+    const rows = yearRecords.map(record => `
+        <tr>
+            ${procurementPlanningDefaultColumns.map(column => `
+                <td>${escapeProcurementPlanningHtml(column.id === 'budget' ? formatProcurementPlanningMoney(record[column.id]) : column.type === 'date' ? formatProcurementPlanningDate(record[column.id]) : record[column.id])}</td>
+            `).join('')}
+            <td>${escapeProcurementPlanningHtml(record.status)}</td>
+            <td>${escapeProcurementPlanningHtml(record.planState)}</td>
+            <td>${escapeProcurementPlanningHtml(record.periodValues?.Q1 || '')}</td>
+            <td>${escapeProcurementPlanningHtml(record.periodValues?.Q2 || '')}</td>
+            <td>${escapeProcurementPlanningHtml(record.periodValues?.Q3 || '')}</td>
+            <td>${escapeProcurementPlanningHtml(record.periodValues?.Q4 || '')}</td>
+            <td>${escapeProcurementPlanningHtml(record.notes || '')}</td>
+        </tr>
+    `).join('');
     return `
-        <div class="main-layout tender-planning-page procurement-planning-control app-planning-control procurement-planning-app">
-            <main class="main-content tender-planning-content">
-                <nav class="planning-tabs" aria-label="Procurement planning workspace sections">
-                    <a href="#planning-dashboard" class="active">Dashboard</a>
-                    <a href="#planning-register">Plan Register</a>
-                    <a href="#planning-form">New APP Item</a>
-                    <a href="#planning-documents">Documents</a>
-                    <a href="#planning-approvals">Approvals</a>
-                </nav>
+        <section class="procurement-panel evaluation-panel planning-full-plan" data-plan-full-view hidden>
+            <div class="panel-heading">
+                <div>
+                    <span class="section-kicker">Full plan</span>
+                    <h2>${escapeProcurementPlanningHtml(selectedYear)} annual procurement plan</h2>
+                </div>
+                <button class="btn btn-secondary btn-sm" type="button" data-plan-full-close>Close</button>
+            </div>
+            <div class="data-table procurement-plan-create-table">
+                <table>
+                    <thead>
+                        <tr>
+                            ${procurementPlanningDefaultColumns.map(column => `<th>${escapeProcurementPlanningHtml(column.label)}</th>`).join('')}
+                            <th>Status</th><th>Plan State</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows || '<tr><td colspan="15" class="planning-empty-row">No records.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </section>
+    `;
+}
 
-                <section class="planning-dashboard-header app-planning-hero" id="planning-dashboard">
+function renderProcurementPlanningInput(column, value = '') {
+    if (column.type === 'select') {
+        return `<select class="form-input" name="${escapeProcurementPlanningHtml(column.id)}">${(column.options || []).map(option => `<option ${option === value ? 'selected' : ''}>${escapeProcurementPlanningHtml(option)}</option>`).join('')}</select>`;
+    }
+    return `<input class="form-input" type="${column.type === 'number' ? 'number' : column.type === 'date' ? 'date' : 'text'}" name="${escapeProcurementPlanningHtml(column.id)}" value="${escapeProcurementPlanningHtml(value)}">`;
+}
+
+function renderProcurementPlanningFormRow(index, columns, periods) {
+    const defaults = index === 0 ? {
+        tenderTitle: 'Construction of community water wells',
+        openingDate: '2026-08-01',
+        closingDate: '2026-08-30',
+        category: 'Works',
+        budget: '480000000',
+        procurementMethod: 'Open Tender',
+        sourceOfFunds: 'Development budget',
+        expectedCompletionDate: '2026-12-15'
+    } : {};
+    return `
+        <tr data-plan-create-row>
+            ${columns.map(column => `<td data-column-id="${escapeProcurementPlanningHtml(column.id)}">${renderProcurementPlanningInput(column, defaults[column.id] || '')}</td>`).join('')}
+            <td>
+                <select class="form-input" name="status">
+                    ${procurementPlanningStatuses.map(item => `<option ${item.value === 'Draft planning' ? 'selected' : ''}>${escapeProcurementPlanningHtml(item.value)}</option>`).join('')}
+                </select>
+            </td>
+            ${periods.map(period => `<td data-period-cell="${escapeProcurementPlanningHtml(period)}"><input class="form-input" name="period:${escapeProcurementPlanningHtml(period)}" value="${index === 0 ? period : ''}"></td>`).join('')}
+            <td><input class="form-input" name="notes" value="${index === 0 ? 'Draft line' : ''}" placeholder="Notes"></td>
+            <td><button class="boq-row-action icon-delete-btn" type="button" data-plan-remove-row aria-label="Remove row" title="Remove row">x</button></td>
+        </tr>
+    `;
+}
+
+function renderProcurementPlanningCreateSection(selectedYear) {
+    const columns = procurementPlanningDefaultColumns;
+    const periods = getProcurementPlanningPeriods('quarter', 4);
+    return `
+        <section class="planning-editor-page" data-planning-editor hidden>
+            <form class="procurement-plan-create-form" data-procurement-plan-form novalidate>
+                <div class="planning-editor-header">
+                    <button class="btn btn-secondary planning-action-button" type="button" data-plan-editor-back>${renderProcurementPlanningActionIcon('back')}<span>Back</span></button>
                     <div>
-                        <span class="section-kicker">Annual Procurement Plan</span>
-                        <h1>Procurement Planning</h1>
-                        <p>Create annual procurement plans by financial year, track APP items through funding and approvals, and keep tender schedule dates visible before handoff.</p>
-                        <div class="inline-actions">
-                            <button class="btn btn-primary" type="button" data-planning-scroll="planning-form">New APP Item</button>
-                            <button class="btn btn-secondary" type="button" data-planning-scroll="documents">Upload Document</button>
-                            <button class="btn btn-secondary" type="button">Export APP Report</button>
-                        </div>
+                        <span class="section-kicker">Create plan</span>
+                        <h1>Procurement Plan Worksheet</h1>
+                        <p>Choose the plan period, add plan rows, and customize columns before saving the annual procurement plan.</p>
                     </div>
-                    <article class="planning-readiness-summary">
-                        <span>Portfolio readiness</span>
-                        <strong>${averageReadiness}%</strong>
-                        <div class="planning-readiness-meter" aria-hidden="true"><i style="width: ${averageReadiness}%"></i></div>
-                        <em>${records.filter(item => /ready|approved/i.test(item.status)).length} APP items are approved or ready for tender preparation.</em>
-                    </article>
-                </section>
-
-                <section class="planning-kpi-grid app-planning-kpis" aria-label="Procurement planning summary">
-                    ${renderProcurementPlanningSummary(records)}
-                </section>
-
-                <section class="procurement-panel evaluation-panel planning-control-panel" id="planning-register">
-                    <div class="panel-heading">
-                        <div>
-                            <span class="section-kicker">Plan register</span>
-                            <h2>Annual Procurement Plan items</h2>
-                            <p class="panel-note">Key columns stay visible here. Open a drawer for tender numbers, lot details, full schedule dates, documents, approvals, and history.</p>
-                        </div>
-                        <div class="procurement-planning-segmented" role="tablist" aria-label="Planning views">
-                            <button class="active" type="button" data-planning-view="table">Table</button>
-                            <button type="button" data-planning-view="timeline">Timeline</button>
-                            <button type="button" data-planning-view="documents">Documents</button>
-                            <button type="button" data-planning-view="approvals">Approvals</button>
-                        </div>
+                    <button class="btn btn-primary" type="submit">Save Plan</button>
+                </div>
+                <div class="procurement-panel planning-editor-settings">
+                    <label class="planning-field">
+                        <span>Financial Year</span>
+                        <input class="form-input" name="financialYear" value="${escapeProcurementPlanningHtml(selectedYear)}">
+                    </label>
+                    <label class="planning-field">
+                        <span>Plan Type</span>
+                        <select class="form-input" name="planType" data-plan-type>
+                            ${Object.entries(procurementPlanningPeriodPresets).map(([key, preset]) => `<option value="${key}" ${key === 'quarter' ? 'selected' : ''}>${escapeProcurementPlanningHtml(preset.label)}</option>`).join('')}
+                        </select>
+                    </label>
+                    <label class="planning-field">
+                        <span>Execution Periods</span>
+                        <input class="form-input" name="periodCount" type="number" min="1" max="12" value="4" data-period-count>
+                    </label>
+                    <div class="planning-editor-tools">
+                        <button class="btn btn-secondary btn-sm" type="button" data-plan-add-row>Add Row</button>
+                        <button class="btn btn-secondary btn-sm" type="button" data-plan-add-column>Add Column</button>
+                        <button class="btn btn-secondary btn-sm" type="button" data-plan-remove-column>Remove Column</button>
                     </div>
+                </div>
+                <div class="data-table procurement-plan-create-table planning-editor-table">
+                    <table>
+                        <thead><tr data-plan-create-head>
+                            ${columns.map(column => `<th data-column-id="${escapeProcurementPlanningHtml(column.id)}">${escapeProcurementPlanningHtml(column.label)}</th>`).join('')}
+                            <th>Status</th>
+                            ${periods.map(period => `<th data-period-head="${escapeProcurementPlanningHtml(period)}">${escapeProcurementPlanningHtml(period)}</th>`).join('')}
+                            <th>Notes</th><th></th>
+                        </tr></thead>
+                        <tbody data-plan-create-body>
+                            ${[0, 1, 2].map(index => renderProcurementPlanningFormRow(index, columns, periods)).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="form-status app-form-status" data-plan-form-status aria-live="polite"></div>
+            </form>
+        </section>
+    `;
+}
 
-                    <div class="planning-filter-bar app-record-filter">
-                        <label>Search <input class="form-input" placeholder="APP item, tender number, department" data-planning-search></label>
-                        <label>Financial Year <select class="form-input"><option>2026/2027</option><option>2025/2026</option></select></label>
-                        <label>Status <select class="form-input"><option>All statuses</option><option>Draft</option><option>Submitted</option><option>Finance Review</option><option>Procurement Review</option><option>Approved</option><option>Returned</option><option>Rejected</option><option>Ready for Tender</option></select></label>
-                        <button class="btn btn-secondary btn-sm" type="button">Apply filters</button>
-                    </div>
-
-                    <div class="planning-view-panel active" data-planning-panel="table">
-                        <div class="data-table planning-records-table procurement-plan-table">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Item</th>
-                                        <th>Financial Year</th>
-                                        <th>Category</th>
-                                        <th>Method</th>
-                                        <th>Next Milestone</th>
-                                        <th>Status</th>
-                                        <th>Readiness</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody data-planning-table-body>
-                                    ${records.map(renderProcurementPlanningRow).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="planning-view-panel" data-planning-panel="timeline">
-                        <div class="planning-timeline-list">${renderProcurementPlanningTimeline(records)}</div>
-                    </div>
-
-                    <div class="planning-view-panel" data-planning-panel="documents" id="planning-documents">
-                        <div class="planning-upload-box app-upload-panel procurement-plan-upload-box">
-                            <div>
-                                <strong>Upload APP supporting documents</strong>
-                                <span>APP template, needs assessment, specifications/TOR, budget confirmation, market survey, approval memo, and board minutes.</span>
-                            </div>
-                            <input type="file" multiple aria-label="Upload procurement planning documents">
-                        </div>
-                        <div class="app-upload-grid procurement-document-grid">${renderProcurementPlanningDocuments(records)}</div>
-                    </div>
-
-                    <div class="planning-view-panel" data-planning-panel="approvals" id="planning-approvals">
-                        <div class="planning-approval-list">${renderProcurementPlanningApprovals(records)}</div>
-                    </div>
-                </section>
-
-                <section id="planning-form">
-                    ${renderProcurementPlanningForm()}
-                </section>
-
-                <aside class="procurement-plan-drawer" data-plan-drawer aria-hidden="true" aria-label="Procurement plan details">
-                    <div class="procurement-plan-drawer-backdrop" data-plan-close></div>
-                    <div class="procurement-plan-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="plan-drawer-title">
-                        <button class="procurement-plan-drawer-close" type="button" data-plan-close aria-label="Close details">x</button>
-                        <div data-plan-drawer-content></div>
-                        ${records.map(record => `
-                            <template data-plan-template="${escapeProcurementPlanningHtml(record.id)}">
-                                ${renderProcurementPlanDrawer(record)}
-                            </template>
-                        `).join('')}
-                    </div>
-                </aside>
-            </main>
-        </div>
+function renderProcurementPlanningUploadSection() {
+    return `
+        <section class="procurement-panel evaluation-panel planning-upload-section" id="planning-upload" hidden>
+            <div class="panel-heading">
+                <div>
+                    <span class="section-kicker">Upload plan</span>
+                    <h2>Import Excel plan</h2>
+                    <p class="panel-note">Upload an Excel or CSV plan using the same worksheet-style columns as the downloadable template.</p>
+                </div>
+                <span class="badge badge-info">Excel / CSV</span>
+            </div>
+            <div class="planning-upload-box procurement-plan-upload-box">
+                <div>
+                    <strong>Select annual procurement plan file</strong>
+                    <span>Expected columns include tender title, dates, category, budget, method, source of funds, completion date, status, periods, and notes.</span>
+                    <em data-plan-upload-status>No file selected.</em>
+                </div>
+                <input type="file" accept=".xls,.xlsx,.csv" data-plan-upload-input aria-label="Upload annual procurement plan Excel file">
+            </div>
+        </section>
     `;
 }
 
@@ -517,61 +444,95 @@ function renderProcurementPlanDrawer(record) {
     if (!record) return '';
     return `
         <div class="procurement-plan-drawer-content">
-            <span class="section-kicker">${escapeProcurementPlanningHtml(record.appCode)} / ${escapeProcurementPlanningHtml(record.financialYear)}</span>
-            <h2 id="plan-drawer-title">${escapeProcurementPlanningHtml(record.itemDescription)}</h2>
+            <span class="section-kicker">${escapeProcurementPlanningHtml(record.financialYear)}</span>
+            <h2 id="plan-drawer-title">${escapeProcurementPlanningHtml(record.tenderTitle)}</h2>
             <div class="procurement-plan-drawer-status">
                 <span class="badge ${getProcurementPlanningBadgeClass(record.status)}">${escapeProcurementPlanningHtml(record.status)}</span>
-                <span class="planning-readiness-pill">${Number(record.readiness || 0)}%</span>
+                <span class="planning-readiness-pill">${escapeProcurementPlanningHtml(record.planState)}</span>
             </div>
-
             <section>
                 <h3>Plan Details</h3>
                 <div class="planning-detail-grid procurement-plan-detail-grid">
-                    <div><span>Department</span><strong>${escapeProcurementPlanningHtml(record.department)}</strong></div>
-                    <div><span>Category</span><strong>${escapeProcurementPlanningHtml(record.procurementCategory)}</strong></div>
-                    <div><span>Tender Number</span><strong>${escapeProcurementPlanningHtml(record.tenderNumber)}</strong></div>
-                    <div><span>Lot Number</span><strong>${escapeProcurementPlanningHtml(record.lotNumber)}</strong></div>
+                    <div><span>Opening Date</span><strong>${escapeProcurementPlanningHtml(formatProcurementPlanningDate(record.openingDate))}</strong></div>
+                    <div><span>Closing Date</span><strong>${escapeProcurementPlanningHtml(formatProcurementPlanningDate(record.closingDate))}</strong></div>
+                    <div><span>Category</span><strong>${escapeProcurementPlanningHtml(record.category)}</strong></div>
+                    <div><span>Budget</span><strong>${escapeProcurementPlanningHtml(formatProcurementPlanningMoney(record.budget))}</strong></div>
                     <div><span>Method</span><strong>${escapeProcurementPlanningHtml(record.procurementMethod)}</strong></div>
-                    <div><span>Cycle</span><strong>${escapeProcurementPlanningHtml(record.procurementCycle)}</strong></div>
-                    <div><span>Budget</span><strong>${escapeProcurementPlanningHtml(formatProcurementPlanningMoney(record.estimatedBudget))}</strong></div>
-                    <div><span>Funding Source</span><strong>${escapeProcurementPlanningHtml(record.fundingSource)}</strong></div>
-                    <div><span>Budget Status</span><strong>${escapeProcurementPlanningHtml(record.budgetStatus)}</strong></div>
+                    <div><span>Source of Funds</span><strong>${escapeProcurementPlanningHtml(record.sourceOfFunds)}</strong></div>
+                    <div><span>Expected Completion</span><strong>${escapeProcurementPlanningHtml(formatProcurementPlanningDate(record.expectedCompletionDate))}</strong></div>
+                    <div><span>Notes</span><strong>${escapeProcurementPlanningHtml(record.notes || '')}</strong></div>
                 </div>
             </section>
-
             <section>
-                <h3>Schedule Dates</h3>
+                <h3>Execution Periods</h3>
                 <div class="procurement-plan-drawer-list">
-                    ${Object.entries(procurementPlanningScheduleLabels).map(([key, label]) => `
-                        <div><span>${escapeProcurementPlanningHtml(label)}</span><strong>${escapeProcurementPlanningHtml(formatProcurementPlanningDate(record.schedule?.[key]))}</strong></div>
-                    `).join('')}
+                    ${Object.entries(record.periodValues || {}).map(([key, value]) => `<div><span>${escapeProcurementPlanningHtml(key)}</span><strong>${escapeProcurementPlanningHtml(value || 'Not planned')}</strong></div>`).join('')}
                 </div>
             </section>
+        </div>
+    `;
+}
 
-            <section>
-                <h3>Documents</h3>
-                <div class="procurement-plan-drawer-list">
-                    ${(record.documents || []).map(document => `
-                        <div><span>${escapeProcurementPlanningHtml(document.type)}</span><strong>${escapeProcurementPlanningHtml(document.name)}</strong><em>${escapeProcurementPlanningHtml(document.status)}</em></div>
-                    `).join('')}
+function renderTenderPlanning() {
+    const records = getProcurementPlanningRecords().map(normalizeProcurementPlanningRecord);
+    const years = getProcurementPlanningYears(records);
+    const selectedYear = years[0] || '2026/2027';
+    return `
+        <div class="main-layout tender-planning-page procurement-planning-control app-planning-control procurement-planning-app">
+            <main class="main-content tender-planning-content">
+                <div data-planning-front>
+                    <section class="planning-dashboard-header app-planning-hero" id="planning-dashboard">
+                        <div>
+                            <span class="section-kicker">Annual Procurement Plan</span>
+                            <h1>Procurement Planning</h1>
+                            <p>Create, upload, view, and download procurement plans. Use the Plan action to finish tender requirements before publication.</p>
+                            <div class="inline-actions planning-primary-actions">
+                                <button class="btn btn-primary planning-action-button" type="button" data-planning-mode="create">${renderProcurementPlanningActionIcon('create')}<span>Create Plan</span></button>
+                                <button class="btn btn-secondary planning-action-button" type="button" data-planning-mode="upload">${renderProcurementPlanningActionIcon('upload')}<span>Upload Plan</span></button>
+                                <button class="btn btn-secondary planning-action-button" type="button" data-plan-template-download>${renderProcurementPlanningActionIcon('download')}<span>Download Template</span></button>
+                            </div>
+                        </div>
+                        <article class="planning-readiness-summary">
+                            <span>Current year</span>
+                            <strong data-planning-current-year>${escapeProcurementPlanningHtml(selectedYear)}</strong>
+                            <em>${records.filter(record => record.financialYear === selectedYear).length} plan lines in the selected year.</em>
+                        </article>
+                    </section>
+                    ${renderProcurementPlanningUploadSection()}
+                    <section class="planning-kpi-grid app-planning-kpis" data-planning-summary aria-label="Procurement planning summary">
+                        ${renderProcurementPlanningSummary(records, selectedYear)}
+                    </section>
+                    <section class="procurement-panel evaluation-panel planning-control-panel" id="planning-register">
+                        <div class="panel-heading">
+                            <div>
+                                <span class="section-kicker">Plan by year</span>
+                                <h2>Quick procurement plan view</h2>
+                                <p class="panel-note">The front table shows essential columns only. Use View Plan for the full worksheet.</p>
+                            </div>
+                            <div class="planning-register-actions">
+                                <label class="planning-field planning-year-filter">
+                                    <span>Filter Year</span>
+                                    <select class="form-input" data-planning-year-filter>
+                                        ${years.map(year => `<option ${year === selectedYear ? 'selected' : ''}>${escapeProcurementPlanningHtml(year)}</option>`).join('')}
+                                    </select>
+                                </label>
+                                <button class="btn btn-secondary btn-sm" type="button" data-plan-view-full>${renderProcurementPlanningActionIcon('view')}<span>View Plan</span></button>
+                                <button class="btn btn-secondary btn-sm" type="button" data-plan-download>${renderProcurementPlanningActionIcon('download')}<span>Download Plan</span></button>
+                            </div>
+                        </div>
+                        <div data-planning-year-table>${renderProcurementPlanningTable(records, selectedYear)}</div>
+                    </section>
+                    <div data-planning-full-slot>${renderProcurementPlanningFullPlan(records, selectedYear)}</div>
                 </div>
-            </section>
-
-            <section>
-                <h3>Approval Workflow</h3>
-                <div class="procurement-plan-drawer-list">
-                    ${(record.approvalSteps || []).map(step => `
-                        <div><span>${escapeProcurementPlanningHtml(step.role)}</span><strong>${escapeProcurementPlanningHtml(step.actor)}</strong><em>${escapeProcurementPlanningHtml(step.status)}${step.date ? ` / ${escapeProcurementPlanningHtml(formatProcurementPlanningDate(step.date))}` : ''}</em></div>
-                    `).join('')}
-                </div>
-            </section>
-
-            <section>
-                <h3>Status History</h3>
-                <div class="procurement-plan-history">
-                    ${(record.activityHistory || []).map(item => `<span>${escapeProcurementPlanningHtml(item)}</span>`).join('')}
-                </div>
-            </section>
+                ${renderProcurementPlanningCreateSection(selectedYear)}
+                <aside class="procurement-plan-drawer" data-plan-drawer aria-hidden="true" aria-label="Procurement plan details">
+                    <div class="procurement-plan-drawer-backdrop" data-plan-close></div>
+                    <div class="procurement-plan-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="plan-drawer-title">
+                        <button class="procurement-plan-drawer-close" type="button" data-plan-close aria-label="Close details">x</button>
+                        <div data-plan-drawer-content></div>
+                    </div>
+                </aside>
+            </main>
         </div>
     `;
 }
@@ -581,107 +542,298 @@ function initializeTenderPlanning() {
     if (!root || root.dataset.ready === 'true') return;
     root.dataset.ready = 'true';
 
-    const records = getProcurementPlanningRecords();
+    let records = getProcurementPlanningRecords().map(normalizeProcurementPlanningRecord);
+    let editorDirty = false;
+    const front = root.querySelector('[data-planning-front]');
+    const editor = root.querySelector('[data-planning-editor]');
+    const yearFilter = root.querySelector('[data-planning-year-filter]');
+    const tableSlot = root.querySelector('[data-planning-year-table]');
+    const summarySlot = root.querySelector('[data-planning-summary]');
+    const currentYear = root.querySelector('[data-planning-current-year]');
+    const fullSlot = root.querySelector('[data-planning-full-slot]');
+    const uploadPanel = root.querySelector('#planning-upload');
     const drawer = root.querySelector('[data-plan-drawer]');
     const drawerContent = root.querySelector('[data-plan-drawer-content]');
+
+    const selectedYear = () => yearFilter?.value || getProcurementPlanningYears(records)[0] || '2026/2027';
+
+    const refreshYearView = () => {
+        const year = selectedYear();
+        if (tableSlot) tableSlot.innerHTML = renderProcurementPlanningTable(records, year);
+        if (summarySlot) summarySlot.innerHTML = renderProcurementPlanningSummary(records, year);
+        if (currentYear) currentYear.textContent = year;
+        if (fullSlot) fullSlot.innerHTML = renderProcurementPlanningFullPlan(records, year);
+    };
+
+    const setEditorOpen = (isOpen) => {
+        if (front) front.hidden = isOpen;
+        if (editor) editor.hidden = !isOpen;
+        (isOpen ? editor : front)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const closeEditor = () => {
+        if (editorDirty && !confirm('Save changes before leaving this plan? Press OK to stay and save, or Cancel to leave without saving.')) {
+            editorDirty = false;
+            setEditorOpen(false);
+            return;
+        }
+        if (!editorDirty) setEditorOpen(false);
+    };
+
+    const collectPlanCsv = () => {
+        const yearRecords = records.filter(record => record.financialYear === selectedYear());
+        const header = ['Tender Title', 'Opening Date', 'Closing Date', 'Category', 'Budget', 'Procurement Method', 'Source of Funds', 'Expected Completion Date', 'Status', 'Plan State', 'Q1', 'Q2', 'Q3', 'Q4', 'Notes'];
+        const rows = yearRecords.map(record => [
+            record.tenderTitle, record.openingDate, record.closingDate, record.category, record.budget, record.procurementMethod, record.sourceOfFunds, record.expectedCompletionDate, record.status, record.planState,
+            record.periodValues?.Q1 || '', record.periodValues?.Q2 || '', record.periodValues?.Q3 || '', record.periodValues?.Q4 || '', record.notes || ''
+        ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(','));
+        return [header.join(','), ...rows].join('\n');
+    };
 
     const openDrawer = (recordId) => {
         const record = records.find(item => item.id === recordId);
         if (!record || !drawer || !drawerContent) return;
-        const template = root.querySelector(`template[data-plan-template="${CSS.escape(recordId)}"]`);
-        drawerContent.innerHTML = template?.innerHTML || renderProcurementPlanDrawer(record);
+        drawerContent.innerHTML = renderProcurementPlanDrawer(record);
         drawer.classList.add('open');
         drawer.setAttribute('aria-hidden', 'false');
     };
 
-    const closeDrawer = () => {
-        if (!drawer) return;
-        drawer.classList.remove('open');
-        drawer.setAttribute('aria-hidden', 'true');
+    const openTenderPlanner = (recordId) => {
+        const record = records.find(item => item.id === recordId);
+        if (!record) return;
+        const plannedTender = {
+            planId: record.id,
+            title: record.tenderTitle,
+            openingDate: record.openingDate,
+            closingDate: record.closingDate,
+            category: record.category,
+            procurementMethod: record.procurementMethod,
+            fundingSource: record.sourceOfFunds,
+            budget: record.budget,
+            expectedCompletionDate: record.expectedCompletionDate,
+            publicationHoldUntil: record.openingDate,
+            status: record.status
+        };
+        localStorage.setItem(procurementPlanningSelectedTenderKey, JSON.stringify(plannedTender));
+        try {
+            const existing = JSON.parse(localStorage.getItem(procurementPlanningCreateTenderDraftKey) || '{}');
+            existing.mainDetails = {
+                ...(existing.mainDetails || {}),
+                title: record.tenderTitle,
+                category: record.category,
+                categories: [record.category],
+                method: record.procurementMethod === 'Invited Tender' ? 'Invited Tender' : 'Open Tender',
+                fundingSource: record.sourceOfFunds,
+                status: /finished|done/i.test(`${record.status} ${record.planState}`) ? 'Planning done' : 'Planning draft',
+                budget: record.budget
+            };
+            localStorage.setItem(procurementPlanningCreateTenderDraftKey, JSON.stringify(existing));
+            const milestones = [
+                { id: 'milestone-publication', name: 'Publication', date: record.openingDate },
+                { id: 'milestone-clarification', name: 'Clarification deadline', date: record.closingDate },
+                { id: 'milestone-closing', name: 'Bid closing', date: record.closingDate },
+                { id: 'milestone-opening', name: 'Bid opening', date: record.openingDate },
+                { id: 'milestone-evaluation', name: 'Evaluation complete', date: '' },
+                { id: 'milestone-award', name: 'Award target', date: record.expectedCompletionDate }
+            ];
+            localStorage.setItem(procurementPlanningMilestoneKey, JSON.stringify(milestones));
+        } catch (error) {
+            window.procurexPlannedTender = plannedTender;
+        }
+        window.app?.navigateTo('create-tender');
     };
 
-    root.querySelectorAll('[data-plan-open]').forEach(button => {
-        button.addEventListener('click', () => openDrawer(button.getAttribute('data-plan-open')));
-    });
-
-    root.querySelectorAll('[data-plan-close]').forEach(button => {
-        button.addEventListener('click', closeDrawer);
-    });
-
-    root.querySelectorAll('[data-planning-view]').forEach(button => {
-        button.addEventListener('click', () => {
-            const view = button.getAttribute('data-planning-view');
-            root.querySelectorAll('[data-planning-view]').forEach(item => item.classList.toggle('active', item === button));
-            root.querySelectorAll('[data-planning-panel]').forEach(panel => {
-                panel.classList.toggle('active', panel.getAttribute('data-planning-panel') === view);
-            });
-        });
-    });
-
-    root.querySelectorAll('[data-planning-scroll]').forEach(button => {
-        button.addEventListener('click', () => {
-            const target = button.getAttribute('data-planning-scroll');
-            const element = root.querySelector(`#${target}`) || root.querySelector(`[data-planning-panel="${target}"]`);
-            if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-    });
-
-    const search = root.querySelector('[data-planning-search]');
-    const rows = Array.from(root.querySelectorAll('[data-planning-table-body] tr'));
-    if (search) {
-        search.addEventListener('input', () => {
-            const term = search.value.trim().toLowerCase();
-            rows.forEach(row => row.hidden = term && !row.textContent.toLowerCase().includes(term));
-        });
-    }
-
-    const form = root.querySelector('[data-procurement-plan-form]');
-    if (form) {
-        form.addEventListener('submit', (event) => {
+    root.addEventListener('click', (event) => {
+        const target = event.target;
+        if (target.closest('[data-planning-mode="create"]')) {
             event.preventDefault();
-            const data = new FormData(form);
-            const appCode = String(data.get('appCode') || `APP-${Date.now()}`);
-            const newRecord = {
-                id: appCode.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-                financialYear: String(data.get('financialYear') || '2026/2027'),
-                appCode,
-                department: String(data.get('department') || 'Procurement Unit'),
-                itemDescription: String(data.get('itemDescription') || 'Untitled procurement item'),
-                procurementCategory: String(data.get('procurementCategory') || 'Goods'),
-                tenderNumber: String(data.get('tenderNumber') || ''),
-                lotNumber: String(data.get('lotNumber') || ''),
-                procurementMethod: String(data.get('procurementMethod') || 'NCT'),
-                procurementCycle: String(data.get('procurementCycle') || 'First Cycle'),
-                estimatedBudget: Number(String(data.get('estimatedBudget') || '0').replace(/[^0-9.]/g, '')) || 0,
-                fundingSource: String(data.get('fundingSource') || ''),
-                budgetStatus: String(data.get('budgetStatus') || 'Pending'),
-                status: String(data.get('status') || 'Draft'),
-                readiness: 28,
-                owner: 'Current user',
-                priority: 'Medium',
-                schedule: Object.keys(procurementPlanningScheduleLabels).reduce((schedule, key) => ({ ...schedule, [key]: String(data.get(key) || '') }), {}),
-                documents: [
-                    { type: 'APP Template', name: 'Awaiting upload', status: 'Draft' },
-                    { type: 'Needs Assessment', name: 'Awaiting upload', status: 'Missing' },
-                    { type: 'Budget Confirmation', name: 'Awaiting upload', status: 'Pending' }
-                ],
-                approvalSteps: [
-                    { role: 'Requester', actor: 'Current user', status: 'Draft', date: '' },
-                    { role: 'Finance Review', actor: 'Finance Officer', status: 'Waiting', date: '' },
-                    { role: 'Procurement Review', actor: 'Head of Procurement', status: 'Waiting', date: '' },
-                    { role: 'Tender Board', actor: 'Board Secretary', status: 'Waiting', date: '' }
-                ],
-                activityHistory: ['APP item captured in prototype']
-            };
-            saveProcurementPlanningRecords([newRecord, ...records.filter(record => record.id !== newRecord.id)]);
-            const status = root.querySelector('[data-plan-form-status]');
-            if (status) {
-                status.textContent = 'APP item saved in this browser prototype.';
-                status.classList.add('success');
+            setEditorOpen(true);
+            return;
+        }
+        if (target.closest('[data-planning-mode="upload"]')) {
+            event.preventDefault();
+            if (uploadPanel) uploadPanel.hidden = false;
+            uploadPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            root.querySelector('[data-plan-upload-input]')?.click();
+            return;
+        }
+        if (target.closest('[data-plan-template-download]')) {
+            event.preventDefault();
+            downloadProcurementPlanningCsv('procurex-plan-template.csv', getProcurementPlanningTemplateCsv());
+            return;
+        }
+        if (target.closest('[data-plan-download]')) {
+            event.preventDefault();
+            downloadProcurementPlanningCsv(`procurex-plan-${selectedYear().replace('/', '-')}.csv`, collectPlanCsv());
+            return;
+        }
+        if (target.closest('[data-plan-view-full]')) {
+            event.preventDefault();
+            root.querySelector('[data-plan-full-view]')?.removeAttribute('hidden');
+            root.querySelector('[data-plan-full-view]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        if (target.closest('[data-plan-full-close]')) {
+            event.preventDefault();
+            root.querySelector('[data-plan-full-view]')?.setAttribute('hidden', '');
+            return;
+        }
+        const openButton = target.closest('[data-plan-open]');
+        if (openButton) {
+            event.preventDefault();
+            openDrawer(openButton.getAttribute('data-plan-open'));
+            return;
+        }
+        const tenderButton = target.closest('[data-plan-tender]');
+        if (tenderButton) {
+            event.preventDefault();
+            openTenderPlanner(tenderButton.getAttribute('data-plan-tender'));
+            return;
+        }
+        const statusButton = target.closest('[data-status-navigate]');
+        if (statusButton) {
+            event.preventDefault();
+            window.app?.navigateTo(statusButton.getAttribute('data-status-navigate'));
+            return;
+        }
+        if (target.closest('[data-plan-close]')) {
+            event.preventDefault();
+            drawer?.classList.remove('open');
+            drawer?.setAttribute('aria-hidden', 'true');
+            return;
+        }
+        if (target.closest('[data-plan-editor-back]')) {
+            event.preventDefault();
+            closeEditor();
+            return;
+        }
+        if (target.closest('[data-plan-add-row]')) {
+            event.preventDefault();
+            const form = root.querySelector('[data-procurement-plan-form]');
+            const columns = Array.from(root.querySelectorAll('[data-plan-create-head] [data-column-id]')).map(cell => ({
+                id: cell.getAttribute('data-column-id'),
+                label: cell.textContent.trim(),
+                type: procurementPlanningDefaultColumns.find(column => column.id === cell.getAttribute('data-column-id'))?.type || 'text',
+                options: procurementPlanningDefaultColumns.find(column => column.id === cell.getAttribute('data-column-id'))?.options
+            }));
+            const periods = getProcurementPlanningPeriods(form?.planType?.value, form?.periodCount?.value);
+            root.querySelector('[data-plan-create-body]')?.insertAdjacentHTML('beforeend', renderProcurementPlanningFormRow(root.querySelectorAll('[data-plan-create-row]').length, columns, periods));
+            editorDirty = true;
+            return;
+        }
+        if (target.closest('[data-plan-remove-row]')) {
+            event.preventDefault();
+            target.closest('[data-plan-create-row]')?.remove();
+            editorDirty = true;
+            return;
+        }
+        if (target.closest('[data-plan-add-column]')) {
+            event.preventDefault();
+            const label = prompt('Column name');
+            if (!label) return;
+            const id = `custom-${Date.now()}`;
+            const head = root.querySelector('[data-plan-create-head]');
+            const notesHead = head?.querySelector('th:nth-last-child(2)');
+            notesHead?.insertAdjacentHTML('beforebegin', `<th data-column-id="${escapeProcurementPlanningHtml(id)}" data-custom-column="true">${escapeProcurementPlanningHtml(label)}</th>`);
+            root.querySelectorAll('[data-plan-create-row]').forEach(row => {
+                row.querySelector('td:nth-last-child(2)')?.insertAdjacentHTML('beforebegin', `<td data-column-id="${escapeProcurementPlanningHtml(id)}" data-custom-column="true"><input class="form-input" name="${escapeProcurementPlanningHtml(id)}"></td>`);
+            });
+            editorDirty = true;
+            return;
+        }
+        if (target.closest('[data-plan-remove-column]')) {
+            event.preventDefault();
+            const customHeads = root.querySelectorAll('[data-plan-create-head] [data-custom-column="true"]');
+            const last = customHeads[customHeads.length - 1];
+            if (!last) {
+                alert('Only custom columns can be removed.');
+                return;
             }
-            window.setTimeout(() => window.app?.renderPage(), 450);
-        });
-    }
+            const id = last.getAttribute('data-column-id');
+            root.querySelectorAll(`[data-column-id="${CSS.escape(id)}"]`).forEach(cell => cell.remove());
+            editorDirty = true;
+        }
+    });
+
+    root.addEventListener('change', (event) => {
+        if (event.target.matches('[data-planning-year-filter]')) {
+            refreshYearView();
+            return;
+        }
+        if (event.target.matches('[data-plan-upload-input]')) {
+            const file = event.target.files?.[0];
+            const status = root.querySelector('[data-plan-upload-status]');
+            if (status) status.textContent = file ? `${file.name} selected. Import parsing can be connected to the backend or Excel parser.` : 'No file selected.';
+            return;
+        }
+        if (event.target.matches('[data-plan-type], [data-period-count]')) {
+            editorDirty = true;
+        }
+    });
+
+    root.addEventListener('input', (event) => {
+        if (event.target.closest('[data-procurement-plan-form]')) editorDirty = true;
+    });
+
+    root.querySelector('[data-procurement-plan-form]')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const year = String(new FormData(form).get('financialYear') || selectedYear());
+        const periods = getProcurementPlanningPeriods(form.planType?.value, form.periodCount?.value);
+        const rows = Array.from(root.querySelectorAll('[data-plan-create-row]'));
+        const newRecords = rows.map((row, index) => {
+            const data = new FormData();
+            row.querySelectorAll('input, textarea, select').forEach(input => data.set(input.name, input.value));
+            const customValues = {};
+            row.querySelectorAll('[data-custom-column] input').forEach(input => { customValues[input.name] = input.value; });
+            const periodValues = {};
+            periods.forEach(period => { periodValues[period] = data.get(`period:${period}`) || ''; });
+            return normalizeProcurementPlanningRecord({
+                id: `plan-${Date.now()}-${index}`,
+                financialYear: year,
+                tenderTitle: data.get('tenderTitle'),
+                openingDate: data.get('openingDate'),
+                closingDate: data.get('closingDate'),
+                category: data.get('category'),
+                budget: data.get('budget'),
+                procurementMethod: data.get('procurementMethod'),
+                sourceOfFunds: data.get('sourceOfFunds'),
+                expectedCompletionDate: data.get('expectedCompletionDate'),
+                status: data.get('status') || 'Draft planning',
+                planState: 'Planning begun',
+                periodValues,
+                customValues,
+                notes: data.get('notes')
+            }, index);
+        }).filter(record => record.tenderTitle && record.tenderTitle !== 'Untitled tender');
+
+        if (!newRecords.length) {
+            const status = root.querySelector('[data-plan-form-status]');
+            if (status) status.textContent = 'Add at least one tender title before saving.';
+            return;
+        }
+
+        records = [...newRecords, ...records.filter(record => record.financialYear !== year)];
+        saveProcurementPlanningRecords(records);
+        if (yearFilter && !Array.from(yearFilter.options).some(option => option.value === year)) {
+            yearFilter.insertAdjacentHTML('afterbegin', `<option>${escapeProcurementPlanningHtml(year)}</option>`);
+        }
+        if (yearFilter) yearFilter.value = year;
+        refreshYearView();
+        editorDirty = false;
+        const status = root.querySelector('[data-plan-form-status]');
+        if (status) {
+            status.textContent = `${newRecords.length} plan row${newRecords.length === 1 ? '' : 's'} saved.`;
+            status.classList.add('success');
+        }
+        setEditorOpen(false);
+    });
+
+    window.addEventListener('beforeunload', (event) => {
+        if (!editorDirty) return;
+        event.preventDefault();
+        event.returnValue = '';
+    });
 }
 
 window.renderTenderPlanning = renderTenderPlanning;
