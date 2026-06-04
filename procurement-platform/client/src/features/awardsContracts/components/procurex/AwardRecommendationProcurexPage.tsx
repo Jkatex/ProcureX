@@ -258,18 +258,6 @@ export function AwardRecommendationProcurexPage() {
                   </div>
                 </div>
 
-                <aside className="award-status-panel" aria-label="Award workflow status">
-                  <div>
-                    <span className="section-kicker">Status panel</span>
-                    <h3>Contract blocked</h3>
-                    <p>{step.status}</p>
-                  </div>
-                  <div className="award-status-grid">
-                    <article><span>Current status</span><strong><StatusBadge value={step.status} /></strong></article>
-                    <article><span>Next action</span><strong><span>Complete approval</span></strong></article>
-                    <article><span>Contract status</span><strong><StatusBadge value="Blocked" /></strong></article>
-                  </div>
-                </aside>
               </div>
             </div>
           </section>

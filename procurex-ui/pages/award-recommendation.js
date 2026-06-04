@@ -671,7 +671,6 @@ function renderAwardRecommendation() {
                                     <button class="btn btn-primary" type="button" data-award-next>Continue</button>
                                 </div>
                             </div>
-                            ${renderAwardStatusPanel(statusItems, blockers)}
                         </div>
                     </div>
                 </section>
