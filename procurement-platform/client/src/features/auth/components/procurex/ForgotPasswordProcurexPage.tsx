@@ -1,8 +1,9 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '@/features/auth/api';
-import { apiErrorMessage } from '@/shared/api/errors';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import { AuthAlert, authAlert, authAlertFromError, type AuthAlertMessage } from './AuthAlert';
+import { TurnstileWidget } from './TurnstileWidget';
 
 type ResetStep = 'request' | 'reset' | 'complete';
 
@@ -13,6 +14,17 @@ function passwordChecks(password: string) {
     number: /\d/.test(password),
     special: /[^A-Za-z0-9]/.test(password)
   };
+}
+
+function secondsUntil(value: string, now: number) {
+  if (!value) return 0;
+  return Math.max(0, Math.ceil((new Date(value).getTime() - now) / 1000));
+}
+
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return minutes > 0 ? `${minutes}:${String(remainingSeconds).padStart(2, '0')}` : `${remainingSeconds}s`;
 }
 
 export function ForgotPasswordProcurexPage() {
@@ -26,28 +38,74 @@ export function ForgotPasswordProcurexPage() {
   const [code, setCode] = useState(initialCode);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState('');
+  const [resendAvailableAt, setResendAvailableAt] = useState('');
+  const [message, setMessage] = useState<AuthAlertMessage | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const checks = useMemo(() => passwordChecks(password), [password]);
   const passwordReady = Object.values(checks).every(Boolean) && password === confirmPassword;
+  const resendSeconds = secondsUntil(resendAvailableAt, now);
 
   useBodyPageMetadata('forgot-password');
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  function resetSecurityCheck() {
+    setTurnstileToken('');
+    setTurnstileResetKey((value) => value + 1);
+  }
+
+  function requireSecurityCheck() {
+    if (turnstileToken) return true;
+    setMessage(authAlert('Complete the security check before continuing.', 'error'));
+    return false;
+  }
+
   async function requestReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!requireSecurityCheck()) return;
     setLoading(true);
-    setMessage('');
+    setMessage(null);
 
     try {
-      const response = await authApi.forgotPassword({ email });
-      setMessage(response.message);
+      const response = await authApi.forgotPassword({ email: email.trim(), turnstileToken });
+      setMessage(authAlert(response.message, 'info'));
       if (response.challengeId) {
         setChallengeId(response.challengeId);
+        setResendAvailableAt(response.resendAvailableAt ?? '');
         setStep('reset');
       }
     } catch (error) {
-      setMessage(apiErrorMessage(error, 'Could not request password reset.'));
+      setMessage(authAlertFromError(error, 'forgot-password'));
     } finally {
+      resetSecurityCheck();
+      setLoading(false);
+    }
+  }
+
+  async function resendResetCode() {
+    if (!challengeId || resendSeconds > 0) return;
+    if (!requireSecurityCheck()) return;
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const response = await authApi.resendResetCode({ challengeId, turnstileToken });
+      if (response.challengeId) {
+        setChallengeId(response.challengeId);
+        setResendAvailableAt(response.resendAvailableAt ?? '');
+      }
+      setCode('');
+      setMessage(authAlert(response.message, 'info'));
+    } catch (error) {
+      setMessage(authAlertFromError(error, 'resend-reset'));
+    } finally {
+      resetSecurityCheck();
       setLoading(false);
     }
   }
@@ -55,24 +113,26 @@ export function ForgotPasswordProcurexPage() {
   async function submitReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!challengeId || !code.trim()) {
-      setMessage('Open the reset link from your email or enter the reset code provided to you.');
+      setMessage(authAlert('Open the reset link from your email or enter the reset code provided to you.', 'error'));
       return;
     }
     if (!passwordReady) {
-      setMessage('Complete all password requirements and confirm both passwords match.');
+      setMessage(authAlert('Complete all password requirements and confirm both passwords match.', 'error'));
       return;
     }
+    if (!requireSecurityCheck()) return;
 
     setLoading(true);
-    setMessage('');
+    setMessage(null);
 
     try {
-      await authApi.resetPassword({ challengeId, code: code.trim(), password });
+      await authApi.resetPassword({ challengeId, code: code.trim(), password, turnstileToken });
       setStep('complete');
-      setMessage('Your password has been updated.');
+      setMessage(authAlert('Your password has been updated.', 'success'));
     } catch (error) {
-      setMessage(apiErrorMessage(error, 'Could not reset password.'));
+      setMessage(authAlertFromError(error, 'reset-password'));
     } finally {
+      resetSecurityCheck();
       setLoading(false);
     }
   }
@@ -104,10 +164,11 @@ export function ForgotPasswordProcurexPage() {
                 </div>
                 <form className="screen-form-new" onSubmit={(event) => void requestReset(event)}>
                   <div className="form-group-new">
-                    <label className="form-label-new">Email Address *</label>
-                    <input className="form-input-new" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                    <label className="form-label-new" htmlFor="forgot-email">Email Address *</label>
+                    <input id="forgot-email" className="form-input-new" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
                   </div>
-                  <button className="btn-continue-new" type="submit" disabled={loading}>
+                  <TurnstileWidget action="forgot_password" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                  <button className="btn-continue-new" type="submit" disabled={loading || !turnstileToken}>
                     {loading ? 'Sending...' : 'Send Reset Instructions'}
                   </button>
                 </form>
@@ -122,12 +183,17 @@ export function ForgotPasswordProcurexPage() {
                 </div>
                 <form className="screen-form-new" onSubmit={(event) => void submitReset(event)}>
                   <div className="form-group-new">
-                    <label className="form-label-new">Reset Code *</label>
-                    <input className="form-input-new" value={code} onChange={(event) => setCode(event.target.value)} required />
+                    <label className="form-label-new" htmlFor="reset-code">Reset Code *</label>
+                    <input id="reset-code" className="form-input-new" value={code} onChange={(event) => setCode(event.target.value)} required />
+                    {resendAvailableAt ? (
+                      <span className="form-hint-new">
+                        {resendSeconds > 0 ? `Resend available in ${formatCountdown(resendSeconds)}.` : 'Resend is available.'}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="form-group-new">
-                    <label className="form-label-new">New Password *</label>
-                    <input className="form-input-new password-input-new" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                    <label className="form-label-new" htmlFor="reset-password">New Password *</label>
+                    <input id="reset-password" className="form-input-new password-input-new" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
                     <ul className="password-requirements-new">
                       <li className={checks.length ? 'met' : ''}>8 or more characters</li>
                       <li className={checks.uppercase ? 'met' : ''}>Uppercase letter</li>
@@ -136,11 +202,15 @@ export function ForgotPasswordProcurexPage() {
                     </ul>
                   </div>
                   <div className="form-group-new">
-                    <label className="form-label-new">Confirm New Password *</label>
-                    <input className="form-input-new" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
+                    <label className="form-label-new" htmlFor="reset-confirm-password">Confirm New Password *</label>
+                    <input id="reset-confirm-password" className="form-input-new" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
                   </div>
-                  <button className="btn-continue-new" type="submit" disabled={loading || !passwordReady}>
+                  <TurnstileWidget action="reset_password" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                  <button className="btn-continue-new" type="submit" disabled={loading || !passwordReady || !turnstileToken}>
                     {loading ? 'Updating...' : 'Update Password'}
+                  </button>
+                  <button className="btn-resend-new" type="button" disabled={loading || resendSeconds > 0 || !turnstileToken} onClick={() => void resendResetCode()}>
+                    Resend Reset Code
                   </button>
                 </form>
               </div>
@@ -159,7 +229,7 @@ export function ForgotPasswordProcurexPage() {
               </div>
             ) : null}
 
-            {message ? <p className="form-error-new">{message}</p> : null}
+            <AuthAlert message={message} />
           </div>
         </div>
         <div className="auth-image-panel" aria-hidden="true">

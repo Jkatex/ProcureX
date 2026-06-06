@@ -9,7 +9,9 @@ vi.mock('@/features/auth/api', () => ({
   authApi: {
     startRegistration: vi.fn(),
     verifyOtp: vi.fn(),
+    resendOtp: vi.fn(),
     activateEmail: vi.fn(),
+    resendActivation: vi.fn(),
     setPassword: vi.fn()
   }
 }));
@@ -18,8 +20,20 @@ vi.mock('@/features/public/hooks', () => ({
   useCurrentLegalVersions: vi.fn()
 }));
 
+vi.mock('./TurnstileWidget', () => ({
+  TurnstileWidget: ({ onVerify }: { onVerify: (token: string) => void }) => (
+    <button type="button" onClick={() => onVerify('turnstile-token')}>
+      Complete security check
+    </button>
+  )
+}));
+
 const mockedAuthApi = vi.mocked(authApi);
 const mockedUseCurrentLegalVersions = vi.mocked(useCurrentLegalVersions);
+
+function apiError(status: number, message: string) {
+  return { response: { status, data: { message } }, message };
+}
 
 function fillVisibleInput(type: string, value: string, index = 0) {
   const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(`input[type="${type}"], input:not([type])`)).filter(
@@ -32,7 +46,9 @@ describe('RegisterProcurexPage', () => {
   beforeEach(() => {
     mockedAuthApi.startRegistration.mockReset();
     mockedAuthApi.verifyOtp.mockReset();
+    mockedAuthApi.resendOtp.mockReset();
     mockedAuthApi.activateEmail.mockReset();
+    mockedAuthApi.resendActivation.mockReset();
     mockedAuthApi.setPassword.mockReset();
     mockedUseCurrentLegalVersions.mockReturnValue({
       data: {
@@ -83,10 +99,14 @@ describe('RegisterProcurexPage', () => {
 
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="email"]')!, { target: { value: 'legal@example.test' } });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="tel"]')!, { target: { value: '+255700000004' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await screen.findByRole('heading', { name: 'Verify Your Number' });
+    expect(mockedAuthApi.startRegistration).toHaveBeenCalledWith({ email: 'legal@example.test', phone: '+255700000004', turnstileToken: 'turnstile-token' });
+    expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled();
     fillVisibleInput('text', '123456');
+    expect(screen.getByRole('button', { name: 'Verify' })).not.toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
     await screen.findByRole('heading', { name: 'Activate Your Email' });
@@ -94,9 +114,11 @@ describe('RegisterProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Password Setup' }));
 
     await screen.findByRole('heading', { name: 'Create Your Password' });
+    expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
     const passwordInputs = document.querySelectorAll<HTMLInputElement>('input[type="password"]');
     fireEvent.change(passwordInputs[0], { target: { value: 'Strong123!' } });
     fireEvent.change(passwordInputs[1], { target: { value: 'Strong123!' } });
+    expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
     fireEvent.click(screen.getByRole('checkbox'));
 
     expect(screen.getByRole('link', { name: 'Terms and Conditions' })).toHaveAttribute('href', '/terms');
@@ -113,5 +135,70 @@ describe('RegisterProcurexPage', () => {
         privacyVersionId: 'privacy-version-id'
       })
     );
+  });
+
+  it('does not expose mock sign-up shortcuts', () => {
+    render(
+      <MemoryRouter>
+        <RegisterProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(document.querySelector('.mock-fill-btn')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Join Us' })).toBeInTheDocument();
+  });
+
+  it('blocks registration submit until the security check is complete', async () => {
+    render(
+      <MemoryRouter>
+        <RegisterProcurexPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="email"]')!, { target: { value: 'secure@example.test' } });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="tel"]')!, { target: { value: '+255700000004' } });
+    fireEvent.submit(document.querySelector('form')!);
+
+    expect(await screen.findByText('Complete the security check before continuing.')).toBeInTheDocument();
+    expect(mockedAuthApi.startRegistration).not.toHaveBeenCalled();
+  });
+
+  it('shows a delivery unavailable alert when SMS cannot be sent', async () => {
+    mockedAuthApi.startRegistration.mockRejectedValueOnce(apiError(502, 'Could not send verification SMS. Please try again later.'));
+
+    render(
+      <MemoryRouter>
+        <RegisterProcurexPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="email"]')!, { target: { value: 'delivery@example.test' } });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="tel"]')!, { target: { value: '+255700000004' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('SMS verification is not available right now. Please try again later.');
+  });
+
+  it('shows an incorrect OTP alert with the correct tone', async () => {
+    mockedAuthApi.startRegistration.mockResolvedValueOnce({ user: {}, challengeId: 'otp-challenge', expiresAt: '2026-06-06T00:00:00.000Z' } as never);
+    mockedAuthApi.verifyOtp.mockRejectedValueOnce(apiError(400, 'OTP code is incorrect.'));
+
+    render(
+      <MemoryRouter>
+        <RegisterProcurexPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="email"]')!, { target: { value: 'otp@example.test' } });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="tel"]')!, { target: { value: '+255700000004' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    await screen.findByRole('heading', { name: 'Verify Your Number' });
+    fillVisibleInput('text', '123456');
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Verification code is incorrect.');
   });
 });

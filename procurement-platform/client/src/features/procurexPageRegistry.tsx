@@ -9,7 +9,6 @@ import { ContactProcurexPage } from '@/features/public/components/procurex/Conta
 import { GuestMarketplaceProcurexPage } from '@/features/public/components/procurex/GuestMarketplaceProcurexPage';
 import { RegisterProcurexPage } from '@/features/auth/components/procurex/RegisterProcurexPage';
 import { SignInProcurexPage } from '@/features/auth/components/procurex/SignInProcurexPage';
-import { RoleSelectionProcurexPage } from '@/features/auth/components/procurex/RoleSelectionProcurexPage';
 import { IdentityVerificationProcurexPage } from '@/features/identity/components/procurex/IdentityVerificationProcurexPage';
 import { AccountProfileProcurexPage } from '@/features/identity/components/procurex/AccountProfileProcurexPage';
 import { AppLauncherProcurexPage } from '@/features/workspace/components/procurex/AppLauncherProcurexPage';
@@ -47,7 +46,6 @@ export const procurexPageRegistry = {
   'guest-marketplace': GuestMarketplaceProcurexPage,
   'register': RegisterProcurexPage,
   'sign-in': SignInProcurexPage,
-  'role-selection': RoleSelectionProcurexPage,
   'identity-verification': IdentityVerificationProcurexPage,
   'account-profile': AccountProfileProcurexPage,
   'app-launcher': AppLauncherProcurexPage,

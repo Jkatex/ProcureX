@@ -21,7 +21,7 @@ function adminPage(pageKey: ProcurexPageKey) {
   return <AdminRoute>{page(pageKey)}</AdminRoute>;
 }
 
-export const router = createBrowserRouter([
+export const routes = [
   { path: '/', element: <HomeOrLegacyPage /> },
   { path: '/legacy', element: <LegacyPageRedirect /> },
 
@@ -33,7 +33,7 @@ export const router = createBrowserRouter([
   { path: '/register', element: page('register') },
   { path: '/sign-in', element: page('sign-in') },
   { path: '/forgot-password', element: <ForgotPasswordProcurexPage /> },
-  { path: '/role-selection', element: page('role-selection') },
+  { path: '/role-selection', element: <Navigate to="/register" replace /> },
 
   { path: '/apps', element: verifiedPage('app-launcher') },
   { path: '/dashboard', element: verifiedPage('workspace-dashboard') },
@@ -72,4 +72,6 @@ export const router = createBrowserRouter([
   { path: '/supplier-dashboard', element: <Navigate to="/dashboard" replace /> },
   { path: '/procurement-dashboard', element: <Navigate to="/dashboard" replace /> },
   { path: '*', element: <Navigate to="/" replace /> }
-]);
+];
+
+export const router = createBrowserRouter(routes);

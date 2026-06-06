@@ -63,6 +63,13 @@ export class ModuleRepository {
     });
   }
 
+  findUserByPhone(phone: string) {
+    return this.db.user.findFirst({
+      where: { phone },
+      include: userInclude
+    });
+  }
+
   findUserById(id: string) {
     return this.db.user.findUnique({
       where: { id },
@@ -128,6 +135,29 @@ export class ModuleRepository {
     return this.db.identityChallenge.update({
       where: { id },
       data: { attempts: { increment: 1 } }
+    });
+  }
+
+  updateChallenge(id: string, data: Prisma.IdentityChallengeUpdateInput) {
+    return this.db.identityChallenge.update({
+      where: { id },
+      data
+    });
+  }
+
+  replacePendingChallenges(input: { userId?: string | null; purpose: string; target: string; exceptId?: string }) {
+    return this.db.identityChallenge.updateMany({
+      where: {
+        userId: input.userId ?? undefined,
+        purpose: input.purpose,
+        target: input.target,
+        status: 'PENDING',
+        ...(input.exceptId ? { id: { not: input.exceptId } } : {})
+      },
+      data: {
+        status: 'REPLACED',
+        consumedAt: new Date()
+      }
     });
   }
 
@@ -231,6 +261,13 @@ export class ModuleRepository {
     });
   }
 
+  revokeSessionsForUser(userId: string) {
+    return this.db.session.updateMany({
+      where: { userId, status: 'ACTIVE' },
+      data: { status: 'REVOKED' }
+    });
+  }
+
   findRegistryRecord(source: string, registryNumber: string) {
     return this.db.registryRecord.findUnique({
       where: {
@@ -238,39 +275,6 @@ export class ModuleRepository {
           source,
           registryNumber
         }
-      }
-    });
-  }
-
-  upsertDevRegistryRecord(input: {
-    source: string;
-    registryNumber: string;
-    entityType: string;
-    name: string;
-    payload?: Prisma.InputJsonObject;
-  }) {
-    return this.db.registryRecord.upsert({
-      where: {
-        source_registryNumber: {
-          source: input.source,
-          registryNumber: input.registryNumber
-        }
-      },
-      update: {
-        entityType: input.entityType,
-        name: input.name,
-        status: 'MATCHED',
-        confidence: 100,
-        payload: input.payload ?? {}
-      },
-      create: {
-        source: input.source,
-        registryNumber: input.registryNumber,
-        entityType: input.entityType,
-        name: input.name,
-        status: 'MATCHED',
-        confidence: 100,
-        payload: input.payload ?? {}
       }
     });
   }

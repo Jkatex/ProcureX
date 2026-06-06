@@ -1,11 +1,35 @@
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
+import helmet from 'helmet';
 import { registeredModules } from './modules/index.js';
+import { securityConfig, validateProductionSecurityConfig } from './security/config.js';
+
+function requestError(message: string, status = 403) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = status;
+  return error;
+}
 
 export function createApp() {
-  const app = express();
+  validateProductionSecurityConfig();
 
-  app.use(cors());
+  const app = express();
+  const config = securityConfig();
+  const allowedOrigins = config.corsOrigins.length > 0 ? config.corsOrigins : config.localCorsOrigins;
+
+  app.set('trust proxy', 1);
+  app.use(helmet());
+  app.use(
+    cors({
+      origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(requestError('CORS origin is not allowed.', 403));
+      }
+    })
+  );
   app.use(express.json({ limit: '2mb' }));
 
   app.get('/health', (_req, res) => {
@@ -36,4 +60,3 @@ export function createApp() {
 
   return app;
 }
-

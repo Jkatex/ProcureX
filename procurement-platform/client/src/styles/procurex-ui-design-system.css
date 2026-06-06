@@ -14716,6 +14716,21 @@ ul.closure-checklist {
     display: block;
 }
 
+.form-message-new {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.form-message-new.success {
+    color: var(--success);
+}
+
+.form-message-new.error {
+    color: var(--error);
+}
+
 .form-hint-new {
     font-size: 12px;
     color: var(--text-muted);

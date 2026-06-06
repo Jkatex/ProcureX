@@ -10,14 +10,22 @@ const passwordSchema = z
   .regex(/\d/, 'Password must include a number.')
   .regex(/[^A-Za-z0-9]/, 'Password must include a special character.');
 
+const turnstileTokenSchema = z.string().min(1).max(4096);
+
 export const startRegistrationSchema = z.object({
   email: z.string().email(),
-  phone: z.string().min(7).max(32)
+  phone: z.string().min(7).max(32),
+  turnstileToken: turnstileTokenSchema
 });
 
 export const verifyOtpSchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().regex(/^\d{6}$/)
+});
+
+export const resendChallengeSchema = z.object({
+  challengeId: z.string().uuid(),
+  turnstileToken: turnstileTokenSchema
 });
 
 export const activateEmailSchema = z.object({
@@ -36,17 +44,20 @@ export const setPasswordSchema = z.object({
 
 export const signInSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1)
+  password: z.string().min(1),
+  turnstileToken: turnstileTokenSchema
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email()
+  email: z.string().email(),
+  turnstileToken: turnstileTokenSchema
 });
 
 export const resetPasswordSchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().min(6).max(24),
-  password: passwordSchema
+  password: passwordSchema,
+  turnstileToken: turnstileTokenSchema
 });
 
 export const registryLookupSchema = z.object({

@@ -3,12 +3,6 @@ import { apiErrorMessage } from '@/shared/api/errors';
 import { clearStoredAuthToken, getStoredAuthToken, storeAuthToken } from '@/shared/api/authToken';
 import type { SessionUser } from '@/shared/types/domain';
 import { authApi, type AuthSessionResponse } from './api';
-import {
-  clearDemoSession,
-  demoAuthToken,
-  startDashboardDemoSession as startStoredDashboardDemoSession,
-  startDemoSession as startStoredDemoSession
-} from './demoAuth';
 
 type AuthState = {
   user: SessionUser | null;
@@ -30,7 +24,7 @@ const initialState: AuthState = {
   error: null
 };
 
-export const signInWithCredentials = createAsyncThunk<AuthSessionResponse, { email: string; password: string }, { rejectValue: string }>(
+export const signInWithCredentials = createAsyncThunk<AuthSessionResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }>(
   'auth/signInWithCredentials',
   async (input, { rejectWithValue }) => {
     try {
@@ -57,25 +51,7 @@ const authSlice = createSlice({
       state.expiresAt = null;
       state.isAuthenticated = false;
       state.status = 'idle';
-      clearDemoSession();
-    },
-    startDemoSession(state) {
-      const user = startStoredDemoSession();
-      state.user = user;
-      state.token = demoAuthToken;
-      state.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      state.isAuthenticated = true;
-      state.status = 'succeeded';
-      state.error = null;
-    },
-    startDashboardDemoSession(state) {
-      const user = startStoredDashboardDemoSession();
-      state.user = user;
-      state.token = demoAuthToken;
-      state.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      state.isAuthenticated = true;
-      state.status = 'succeeded';
-      state.error = null;
+      clearStoredAuthToken();
     },
     assumeUser(state, action: PayloadAction<SessionUser>) {
       state.user = action.payload;
@@ -134,5 +110,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { assumeUser, setSessionUser, signOut, startDemoSession, startDashboardDemoSession } = authSlice.actions;
+export const { assumeUser, setSessionUser, signOut } = authSlice.actions;
 export default authSlice.reducer;

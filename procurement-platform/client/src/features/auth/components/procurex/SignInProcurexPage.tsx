@@ -1,9 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
-import { signInWithCredentials, startDashboardDemoSession } from '@/features/auth/slice';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { signInWithCredentials } from '@/features/auth/slice';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import { AuthAlert, authAlert, authAlertFromError, type AuthAlertMessage } from './AuthAlert';
+import { TurnstileWidget } from './TurnstileWidget';
 
 type LocationState = {
   from?: {
@@ -24,9 +25,10 @@ export function SignInProcurexPage() {
   const authStatus = useAppSelector((state) => state.auth.status);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [alert, setAlert] = useState<AuthAlertMessage | null>(null);
   const loading = authStatus === 'loading';
   const locationState = location.state as LocationState | null;
 
@@ -34,20 +36,22 @@ export function SignInProcurexPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('');
+    if (loading) return;
+    setAlert(null);
+    if (!turnstileToken) {
+      setAlert(authAlert('Complete the security check before signing in.', 'error'));
+      return;
+    }
 
     try {
-      const session = await dispatch(signInWithCredentials({ email, password })).unwrap();
+      const session = await dispatch(signInWithCredentials({ email: email.trim(), password, turnstileToken })).unwrap();
       const intendedPath = locationState?.from?.pathname;
       navigate(destinationFor(session.user, intendedPath), { replace: true });
     } catch (caughtError) {
-      setError(apiErrorMessage(caughtError, 'Sign-in failed. Check the email and password.'));
+      setAlert(authAlertFromError(caughtError, 'sign-in'));
+      setTurnstileToken('');
+      setTurnstileResetKey((value) => value + 1);
     }
-  }
-
-  function useDashboardDemoAccount() {
-    dispatch(startDashboardDemoSession());
-    navigate('/dashboard');
   }
 
   return (
@@ -76,8 +80,9 @@ export function SignInProcurexPage() {
 
             <form className="screen-form-new" onSubmit={(event) => void submit(event)}>
               <div className="form-group-new">
-                <label className="form-label-new">Email Address *</label>
+                <label className="form-label-new" htmlFor="sign-in-email">Email Address *</label>
                 <input
+                  id="sign-in-email"
                   className="form-input-new"
                   type="email"
                   value={email}
@@ -88,9 +93,10 @@ export function SignInProcurexPage() {
               </div>
 
               <div className="form-group-new">
-                <label className="form-label-new">Password *</label>
+                <label className="form-label-new" htmlFor="sign-in-password">Password *</label>
                 <div className="password-input-wrapper-new">
                   <input
+                    id="sign-in-password"
                     className="form-input-new"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -110,28 +116,23 @@ export function SignInProcurexPage() {
               </div>
 
               <div className="auth-row">
-                <label className="auth-check">
-                  <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} />
-                  <span>Remember me</span>
-                </label>
                 <button className="link-new" type="button" onClick={() => navigate('/forgot-password')}>
                   Forgot password?
                 </button>
               </div>
 
-              {error ? <p className="form-error-new">{error}</p> : null}
+              <AuthAlert message={alert} />
 
-              <button type="submit" className="btn-continue-new" disabled={loading}>
+              <TurnstileWidget action="sign_in" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+
+              <button type="submit" className="btn-continue-new" disabled={loading || !turnstileToken}>
                 {loading ? 'Signing in...' : 'Sign In'}
               </button>
 
-              <button type="button" className="btn btn-secondary" onClick={useDashboardDemoAccount}>
-                Enter dashboard demo
-              </button>
             </form>
 
             <div className="auth-note">
-              Your account opens the workspace allowed by its verification status. Use a demo account when the local backend is offline.
+              Your account opens the workspace allowed by its verification status.
             </div>
           </div>
         </div>

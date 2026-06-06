@@ -9,6 +9,7 @@ import {
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ModuleRepository, type SessionWithUser, type UserWithDefaultOrg, type VerificationWithUser } from './repository.js';
+import { ProductionIdentityNotifications, type DeliveryReceipt, type IdentityNotificationProvider } from './notifications.js';
 import {
   moduleDefinition,
   type AdminVerificationDto,
@@ -23,9 +24,12 @@ const scrypt = promisify(scryptCallback);
 const phoneOtpPurpose = 'PHONE_OTP';
 const emailActivationPurpose = 'EMAIL_ACTIVATION';
 const passwordResetPurpose = 'PASSWORD_RESET';
-const devOtpCode = '000000';
-const devActivationCode = '00000000';
 const sessionDays = 7;
+const maxChallengeAttempts = 5;
+const phoneOtpMinutes = 10;
+const activationMinutes = 60;
+const passwordResetMinutes = 30;
+const resendCooldownSeconds = 30;
 
 type RegistrationStartInput = {
   email: string;
@@ -62,14 +66,24 @@ type RegistryLookupInput = {
   registryNumber: string;
 };
 
+type AuthAuditContext = {
+  ipAddress?: string;
+  userAgent?: string;
+};
+
+type AuthAuditInput = AuthAuditContext & {
+  userId?: string | null;
+  ownerOrgId?: string | null;
+  entityRef?: string | null;
+  severity?: AuditSeverity;
+  target?: string;
+  details?: Record<string, unknown>;
+};
+
 function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
   return error;
-}
-
-function identityDevBypassEnabled() {
-  return process.env.IDENTITY_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
 }
 
 function normalizeEmail(email: string) {
@@ -77,7 +91,31 @@ function normalizeEmail(email: string) {
 }
 
 function normalizePhone(phone: string) {
-  return phone.trim().replace(/\s+/g, ' ');
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, '');
+
+  if (!digits) return trimmed;
+  if (trimmed.startsWith('+')) return `+${digits}`;
+  if (digits.startsWith('255')) return `+${digits}`;
+  if (digits.startsWith('0') && digits.length === 10) return `+255${digits.slice(1)}`;
+  if (/^[67]\d{8}$/.test(digits)) return `+255${digits}`;
+  return `+${digits}`;
+}
+
+function assertValidE164Phone(phone: string) {
+  if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+    throw requestError('Phone number must use a valid international format.', 400);
+  }
+}
+
+function challengeResendAvailableAt(createdAt: Date, seconds = 30) {
+  return new Date(createdAt.getTime() + seconds * 1000).toISOString();
+}
+
+function assertResendAvailable(createdAt: Date) {
+  if (createdAt.getTime() + resendCooldownSeconds * 1000 > Date.now()) {
+    throw requestError('Please wait before requesting another code.', 429);
+  }
 }
 
 function displayNameFromEmail(email: string) {
@@ -123,6 +161,14 @@ function metadataObject(value: unknown): Record<string, unknown> {
 
 function inputJson(value: Record<string, unknown>): Prisma.InputJsonObject {
   return value as Prisma.InputJsonObject;
+}
+
+function deliveryMetadata(receipt: DeliveryReceipt) {
+  return {
+    provider: receipt.provider,
+    messageId: receipt.messageId,
+    deliveredAt: new Date().toISOString()
+  };
 }
 
 function toSessionUser(user: UserWithDefaultOrg): SessionUserDto {
@@ -204,13 +250,11 @@ function registryPayload(record: {
   };
 }
 
-function devRegistryName(input: RegistryLookupInput, registryNumber: string) {
-  const label = input.entityType === 'individual' ? 'Individual' : input.entityType === 'company' ? 'Company' : 'Business';
-  return `${label} ${registryNumber}`;
-}
-
 export class ModuleService {
-  constructor(private readonly repository = new ModuleRepository()) {}
+  constructor(
+    private readonly repository = new ModuleRepository(),
+    private readonly notifications: IdentityNotificationProvider = new ProductionIdentityNotifications()
+  ) {}
 
   async status(): Promise<ModuleStatus> {
     await this.repository.health();
@@ -221,13 +265,37 @@ export class ModuleService {
     };
   }
 
-  async startRegistration(input: RegistrationStartInput) {
+  async recordAuthEvent(event: string, input: AuthAuditInput = {}) {
+    await this.repository.createAuditEvent({
+      actorUserId: input.userId ?? undefined,
+      ownerOrgId: input.ownerOrgId ?? undefined,
+      event,
+      entityType: 'identity_auth',
+      entityRef: input.entityRef ?? undefined,
+      severity: input.severity ?? AuditSeverity.INFO,
+      payload: inputJson({
+        ...(input.details ?? {}),
+        ...(input.target ? { targetHash: sha256(input.target) } : {}),
+        ...(input.ipAddress ? { ipHash: sha256(input.ipAddress) } : {}),
+        ...(input.userAgent ? { userAgentHash: sha256(input.userAgent) } : {})
+      })
+    });
+  }
+
+  async startRegistration(input: RegistrationStartInput, audit?: AuthAuditContext) {
     const email = normalizeEmail(input.email);
     const phone = normalizePhone(input.phone);
+    assertValidE164Phone(phone);
+
     const existing = await this.repository.findUserByEmail(email);
 
     if (existing?.passwordHash) {
       throw requestError('An account already exists for this email.', 409);
+    }
+
+    const existingPhoneUser = await this.repository.findUserByPhone(phone);
+    if (existingPhoneUser && existingPhoneUser.id !== existing?.id) {
+      throw requestError('An account already exists for this phone number.', 409);
     }
 
     const user = await this.repository.upsertRegistrationUser({
@@ -235,24 +303,182 @@ export class ModuleService {
       phone,
       displayName: existing?.displayName ?? displayNameFromEmail(email)
     });
-    const code = randomCode();
-    const challenge = await this.repository.createChallenge({
+    const challenge = await this.createPhoneOtpChallenge(user.id, phone, email, audit);
+    await this.recordAuthEvent('identity.auth.registration_started', {
+      ...audit,
       userId: user.id,
-      purpose: phoneOtpPurpose,
-      target: phone,
-      codeHash: sha256(code),
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-      metadata: { email }
+      entityRef: challenge.id,
+      target: email,
+      details: { phoneHash: sha256(phone) }
     });
 
     return {
       user: toSessionUser(user),
       challengeId: challenge.id,
-      expiresAt: challenge.expiresAt.toISOString()
+      expiresAt: challenge.expiresAt.toISOString(),
+      resendAvailableAt: challengeResendAvailableAt(challenge.createdAt, resendCooldownSeconds),
+      maxAttempts: maxChallengeAttempts
     };
   }
 
-  async verifyOtp(challengeId: string, code: string) {
+  private async createPhoneOtpChallenge(userId: string, phone: string, email: string, audit?: AuthAuditContext) {
+    await this.repository.replacePendingChallenges({ userId, purpose: phoneOtpPurpose, target: phone });
+    const code = randomCode();
+    const challenge = await this.repository.createChallenge({
+      userId,
+      purpose: phoneOtpPurpose,
+      target: phone,
+      codeHash: sha256(code),
+      expiresAt: new Date(Date.now() + phoneOtpMinutes * 60 * 1000),
+      metadata: { email, delivery: { channel: 'sms', status: 'pending' } }
+    });
+
+    try {
+      const receipt = await this.notifications.sendPhoneOtp({ to: phone, code, expiresInMinutes: phoneOtpMinutes });
+      await this.repository.updateChallenge(challenge.id, {
+        metadata: inputJson({
+          ...metadataObject(challenge.metadata),
+          delivery: {
+            channel: 'sms',
+            status: 'sent',
+            ...deliveryMetadata(receipt)
+          }
+        })
+      });
+      await this.recordAuthEvent('identity.auth.phone_otp_delivery_succeeded', {
+        ...audit,
+        userId,
+        entityRef: challenge.id,
+        target: phone,
+        details: { provider: receipt.provider, messageId: receipt.messageId }
+      });
+    } catch (error) {
+      await this.markChallengeDeliveryFailed(challenge.id, challenge.metadata, error);
+      await this.recordAuthEvent('identity.auth.phone_otp_delivery_failed', {
+        ...audit,
+        userId,
+        entityRef: challenge.id,
+        target: phone,
+        severity: AuditSeverity.ERROR
+      });
+      throw requestError('Could not send verification SMS. Please try again later.', 502);
+    }
+
+    return challenge;
+  }
+
+  async resendOtp(challengeId: string, audit?: AuthAuditContext) {
+    const existing = await this.repository.findChallenge(challengeId);
+    if (!existing || existing.purpose !== phoneOtpPurpose) {
+      throw requestError('OTP challenge was not found.', 404);
+    }
+    if (existing.status !== 'PENDING' || existing.expiresAt < new Date()) {
+      throw requestError('OTP challenge is no longer valid.', 410);
+    }
+    if (!existing.user) throw requestError('OTP challenge is not linked to a user.', 400);
+    assertResendAvailable(existing.createdAt);
+
+    await this.repository.updateChallenge(existing.id, { status: 'REPLACED', consumedAt: new Date() });
+    const next = await this.createPhoneOtpChallenge(existing.user.id, existing.target, existing.user.email, audit);
+    await this.recordAuthEvent('identity.auth.phone_otp_resent', {
+      ...audit,
+      userId: existing.user.id,
+      entityRef: next.id,
+      target: existing.target,
+      details: { previousChallengeId: existing.id }
+    });
+    return {
+      challengeId: next.id,
+      expiresAt: next.expiresAt.toISOString(),
+      resendAvailableAt: challengeResendAvailableAt(next.createdAt, resendCooldownSeconds),
+      maxAttempts: maxChallengeAttempts
+    };
+  }
+
+  private async createActivationChallenge(userId: string, email: string, metadata: Record<string, unknown>, audit?: AuthAuditContext) {
+    await this.repository.replacePendingChallenges({ userId, purpose: emailActivationPurpose, target: email });
+    const activationCode = randomToken(8);
+    const activation = await this.repository.createChallenge({
+      userId,
+      purpose: emailActivationPurpose,
+      target: email,
+      codeHash: sha256(activationCode),
+      expiresAt: new Date(Date.now() + activationMinutes * 60 * 1000),
+      metadata: {
+        ...metadata,
+        delivery: { channel: 'email', status: 'pending' }
+      }
+    });
+
+    try {
+      const receipt = await this.notifications.sendEmailActivation({
+        to: email,
+        code: activationCode,
+        expiresInMinutes: activationMinutes
+      });
+      await this.repository.updateChallenge(activation.id, {
+        metadata: inputJson({
+          ...metadataObject(activation.metadata),
+          delivery: {
+            channel: 'email',
+            status: 'sent',
+            ...deliveryMetadata(receipt)
+          }
+        })
+      });
+      await this.recordAuthEvent('identity.auth.email_activation_delivery_succeeded', {
+        ...audit,
+        userId,
+        entityRef: activation.id,
+        target: email,
+        details: { provider: receipt.provider, messageId: receipt.messageId }
+      });
+    } catch (error) {
+      await this.markChallengeDeliveryFailed(activation.id, activation.metadata, error);
+      await this.recordAuthEvent('identity.auth.email_activation_delivery_failed', {
+        ...audit,
+        userId,
+        entityRef: activation.id,
+        target: email,
+        severity: AuditSeverity.ERROR
+      });
+      throw requestError('Could not send activation email. Please try again later.', 502);
+    }
+
+    return activation;
+  }
+
+  async resendActivation(challengeId: string, audit?: AuthAuditContext) {
+    const existing = await this.repository.findChallenge(challengeId);
+    if (!existing || existing.purpose !== emailActivationPurpose) {
+      throw requestError('Activation challenge was not found.', 404);
+    }
+    if (existing.status !== 'PENDING' || existing.expiresAt < new Date()) {
+      throw requestError('Activation challenge is no longer valid.', 410);
+    }
+    if (!existing.user) throw requestError('Activation challenge is not linked to a user.', 400);
+    assertResendAvailable(existing.createdAt);
+
+    await this.repository.updateChallenge(existing.id, { status: 'REPLACED', consumedAt: new Date() });
+    const next = await this.createActivationChallenge(existing.user.id, existing.user.email, {
+      ...metadataObject(existing.metadata),
+      previousChallengeId: existing.id
+    }, audit);
+    await this.recordAuthEvent('identity.auth.email_activation_resent', {
+      ...audit,
+      userId: existing.user.id,
+      entityRef: next.id,
+      target: existing.user.email,
+      details: { previousChallengeId: existing.id }
+    });
+    return {
+      activationChallengeId: next.id,
+      expiresAt: next.expiresAt.toISOString(),
+      resendAvailableAt: challengeResendAvailableAt(next.createdAt, resendCooldownSeconds)
+    };
+  }
+
+  async verifyOtp(challengeId: string, code: string, audit?: AuthAuditContext) {
     const challenge = await this.repository.findChallenge(challengeId);
     if (!challenge || challenge.purpose !== phoneOtpPurpose) {
       throw requestError('OTP challenge was not found.', 404);
@@ -260,9 +486,18 @@ export class ModuleService {
     if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) {
       throw requestError('OTP challenge is no longer valid.', 410);
     }
-    const usingDevBypassCode = identityDevBypassEnabled() && code === devOtpCode;
-    if (!usingDevBypassCode && challenge.codeHash !== sha256(code)) {
+    if (challenge.attempts >= maxChallengeAttempts) {
+      throw requestError('Too many OTP attempts. Please request a new code.', 429);
+    }
+    if (challenge.codeHash !== sha256(code)) {
       await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.auth.phone_otp_failed_attempt', {
+        ...audit,
+        userId: challenge.userId,
+        entityRef: challenge.id,
+        target: challenge.target,
+        severity: AuditSeverity.WARNING
+      });
       throw requestError('OTP code is incorrect.', 400);
     }
     if (!challenge.user) throw requestError('OTP challenge is not linked to a user.', 400);
@@ -280,24 +515,23 @@ export class ModuleService {
       })
     });
 
-    const activationCode = randomToken(8);
-    const activation = await this.repository.createChallenge({
+    await this.recordAuthEvent('identity.auth.phone_otp_verified', {
+      ...audit,
       userId: user.id,
-      purpose: emailActivationPurpose,
-      target: user.email,
-      codeHash: sha256(activationCode),
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      metadata: { phoneChallengeId: challenge.id }
+      entityRef: challenge.id,
+      target: challenge.target
     });
+
+    const activation = await this.createActivationChallenge(user.id, user.email, { phoneChallengeId: challenge.id }, audit);
 
     return {
       activationChallengeId: activation.id,
       expiresAt: activation.expiresAt.toISOString(),
-      ...(identityDevBypassEnabled() ? { devBypass: true } : {})
+      resendAvailableAt: challengeResendAvailableAt(activation.createdAt, resendCooldownSeconds)
     };
   }
 
-  async activateEmail(challengeId: string, code: string) {
+  async activateEmail(challengeId: string, code: string, audit?: AuthAuditContext) {
     const challenge = await this.repository.findChallenge(challengeId);
     if (!challenge || challenge.purpose !== emailActivationPurpose) {
       throw requestError('Activation challenge was not found.', 404);
@@ -305,9 +539,18 @@ export class ModuleService {
     if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) {
       throw requestError('Activation challenge is no longer valid.', 410);
     }
-    const usingDevBypassCode = identityDevBypassEnabled() && code === devActivationCode;
-    if (!usingDevBypassCode && challenge.codeHash !== sha256(code)) {
+    if (challenge.attempts >= maxChallengeAttempts) {
+      throw requestError('Too many activation attempts. Please request a new activation email.', 429);
+    }
+    if (challenge.codeHash !== sha256(code)) {
       await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.auth.email_activation_failed_attempt', {
+        ...audit,
+        userId: challenge.userId,
+        entityRef: challenge.id,
+        target: challenge.target,
+        severity: AuditSeverity.WARNING
+      });
       throw requestError('Activation code is incorrect.', 400);
     }
     if (!challenge.user) throw requestError('Activation challenge is not linked to a user.', 400);
@@ -325,13 +568,21 @@ export class ModuleService {
       })
     });
 
+    await this.recordAuthEvent('identity.auth.email_activated', {
+      ...audit,
+      userId: user.id,
+      entityRef: challenge.id,
+      target: user.email
+    });
+
     return { user: toSessionUser(updated) };
   }
 
-  async setPassword(emailInput: string, password: string, legalAcceptance?: LegalAcceptanceInput) {
+  async setPassword(emailInput: string, password: string, legalAcceptance?: LegalAcceptanceInput, audit?: AuthAuditContext) {
     const email = normalizeEmail(emailInput);
     const user = await this.repository.findUserByEmail(email);
     if (!user) throw requestError('Account was not found.', 404);
+    if (!legalAcceptance) throw requestError('Terms and privacy acceptance is required.', 400);
 
     const metadata = metadataObject(user.metadata);
     if (!metadata.phoneVerified || !metadata.emailVerified) {
@@ -341,7 +592,12 @@ export class ModuleService {
     const passwordHash = await hashPassword(password);
     const updated = await this.repository.updateUser(user.id, { passwordHash });
     await this.repository.upsertPasswordAccount(updated.id, updated.email);
-    if (legalAcceptance) await this.recordLegalAcceptance(updated.id, legalAcceptance);
+    await this.recordLegalAcceptance(updated.id, legalAcceptance);
+    await this.recordAuthEvent('identity.auth.password_set', {
+      ...audit,
+      userId: updated.id,
+      target: updated.email
+    });
 
     return { user: toSessionUser(updated) };
   }
@@ -382,10 +638,16 @@ export class ModuleService {
     });
   }
 
-  async signIn(emailInput: string, password: string): Promise<AuthSessionDto> {
+  async signIn(emailInput: string, password: string, audit?: AuthAuditContext): Promise<AuthSessionDto> {
     const email = normalizeEmail(emailInput);
     const user = await this.repository.findUserByEmail(email);
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
+      await this.recordAuthEvent('identity.auth.sign_in_failed', {
+        ...audit,
+        userId: user?.id,
+        target: email,
+        severity: AuditSeverity.WARNING
+      });
       throw requestError('Invalid email or password.', 401);
     }
 
@@ -398,6 +660,14 @@ export class ModuleService {
       expiresAt
     });
 
+    await this.recordAuthEvent('identity.auth.sign_in_succeeded', {
+      ...audit,
+      userId: user.id,
+      ownerOrgId: user.memberships[0]?.organization.id,
+      entityRef: session.id,
+      target: email
+    });
+
     return {
       token,
       user: toSessionUserFromSession(session),
@@ -405,39 +675,135 @@ export class ModuleService {
     };
   }
 
-  async forgotPassword(emailInput: string) {
+  async forgotPassword(emailInput: string, audit?: AuthAuditContext) {
     const email = normalizeEmail(emailInput);
     const user = await this.repository.findUserByEmail(email);
 
     if (!user?.passwordHash) {
+      await this.recordAuthEvent('identity.auth.password_reset_requested', {
+        ...audit,
+        target: email,
+        details: { accountFound: false }
+      });
       return {
         ok: true,
         message: 'If an account exists for this email, password reset instructions have been sent.'
       };
     }
 
-    const code = randomCode();
-    const challenge = await this.repository.createChallenge({
+    await this.recordAuthEvent('identity.auth.password_reset_requested', {
+      ...audit,
       userId: user.id,
-      purpose: passwordResetPurpose,
       target: email,
-      codeHash: sha256(code),
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-      metadata: {
-        email,
-        delivery: 'email'
-      }
+      details: { accountFound: true }
     });
+    const challenge = await this.createPasswordResetChallenge(user.id, email, audit);
 
     return {
       ok: true,
       message: 'If an account exists for this email, password reset instructions have been sent.',
       challengeId: challenge.id,
-      expiresAt: challenge.expiresAt.toISOString()
+      expiresAt: challenge.expiresAt.toISOString(),
+      resendAvailableAt: challengeResendAvailableAt(challenge.createdAt, resendCooldownSeconds)
     };
   }
 
-  async resetPassword(challengeId: string, code: string, password: string) {
+  private async createPasswordResetChallenge(userId: string, email: string, audit?: AuthAuditContext) {
+    await this.repository.replacePendingChallenges({ userId, purpose: passwordResetPurpose, target: email });
+    const code = randomCode();
+    const challenge = await this.repository.createChallenge({
+      userId,
+      purpose: passwordResetPurpose,
+      target: email,
+      codeHash: sha256(code),
+      expiresAt: new Date(Date.now() + passwordResetMinutes * 60 * 1000),
+      metadata: {
+        email,
+        delivery: { channel: 'email', status: 'pending' }
+      }
+    });
+
+    try {
+      const receipt = await this.notifications.sendPasswordReset({ to: email, code, expiresInMinutes: passwordResetMinutes });
+      await this.repository.updateChallenge(challenge.id, {
+        metadata: inputJson({
+          ...metadataObject(challenge.metadata),
+          delivery: {
+            channel: 'email',
+            status: 'sent',
+            ...deliveryMetadata(receipt)
+          }
+        })
+      });
+      await this.recordAuthEvent('identity.auth.password_reset_delivery_succeeded', {
+        ...audit,
+        userId,
+        entityRef: challenge.id,
+        target: email,
+        details: { provider: receipt.provider, messageId: receipt.messageId }
+      });
+    } catch (error) {
+      await this.markChallengeDeliveryFailed(challenge.id, challenge.metadata, error);
+      await this.recordAuthEvent('identity.auth.password_reset_delivery_failed', {
+        ...audit,
+        userId,
+        entityRef: challenge.id,
+        target: email,
+        severity: AuditSeverity.ERROR
+      });
+      throw requestError('Could not send password reset email. Please try again later.', 502);
+    }
+
+    return challenge;
+  }
+
+  async resendResetCode(challengeId: string, audit?: AuthAuditContext) {
+    const existing = await this.repository.findChallenge(challengeId);
+    if (!existing || existing.purpose !== passwordResetPurpose) {
+      throw requestError('Password reset request was not found.', 404);
+    }
+    if (existing.status !== 'PENDING' || existing.expiresAt < new Date()) {
+      throw requestError('Password reset request is no longer valid.', 410);
+    }
+    if (!existing.user) throw requestError('Password reset request is not linked to a user.', 400);
+    assertResendAvailable(existing.createdAt);
+
+    await this.repository.updateChallenge(existing.id, { status: 'REPLACED', consumedAt: new Date() });
+    const next = await this.createPasswordResetChallenge(existing.user.id, existing.target, audit);
+    await this.recordAuthEvent('identity.auth.password_reset_resent', {
+      ...audit,
+      userId: existing.user.id,
+      entityRef: next.id,
+      target: existing.target,
+      details: { previousChallengeId: existing.id }
+    });
+    return {
+      ok: true,
+      message: 'If an account exists for this email, password reset instructions have been sent.',
+      challengeId: next.id,
+      expiresAt: next.expiresAt.toISOString(),
+      resendAvailableAt: challengeResendAvailableAt(next.createdAt, resendCooldownSeconds)
+    };
+  }
+
+  private async markChallengeDeliveryFailed(challengeId: string, metadata: unknown, error: unknown) {
+    const existingDelivery = metadataObject(metadataObject(metadata).delivery);
+    await this.repository.updateChallenge(challengeId, {
+      status: 'DELIVERY_FAILED',
+      consumedAt: new Date(),
+      metadata: inputJson({
+        ...metadataObject(metadata),
+        delivery: {
+          ...existingDelivery,
+          status: 'failed',
+          failedAt: new Date().toISOString(),
+          error: error instanceof Error ? error.message : 'Delivery failed.'
+        }
+      })
+    });
+  }
+
+  async resetPassword(challengeId: string, code: string, password: string, audit?: AuthAuditContext) {
     const challenge = await this.repository.findChallenge(challengeId);
     if (!challenge || challenge.purpose !== passwordResetPurpose) {
       throw requestError('Password reset request was not found.', 404);
@@ -445,8 +811,18 @@ export class ModuleService {
     if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) {
       throw requestError('Password reset request is no longer valid.', 410);
     }
+    if (challenge.attempts >= maxChallengeAttempts) {
+      throw requestError('Too many password reset attempts. Please request a new code.', 429);
+    }
     if (challenge.codeHash !== sha256(code)) {
       await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.auth.password_reset_failed_attempt', {
+        ...audit,
+        userId: challenge.userId,
+        entityRef: challenge.id,
+        target: challenge.target,
+        severity: AuditSeverity.WARNING
+      });
       throw requestError('Password reset code is incorrect.', 400);
     }
     if (!challenge.user) throw requestError('Password reset request is not linked to a user.', 400);
@@ -458,6 +834,13 @@ export class ModuleService {
     const passwordHash = await hashPassword(password);
     const updated = await this.repository.updateUser(user.id, { passwordHash });
     await this.repository.upsertPasswordAccount(updated.id, updated.email);
+    await this.repository.revokeSessionsForUser(updated.id);
+    await this.recordAuthEvent('identity.auth.password_reset_succeeded', {
+      ...audit,
+      userId: updated.id,
+      entityRef: challenge.id,
+      target: updated.email
+    });
 
     return {
       ok: true,
@@ -474,8 +857,16 @@ export class ModuleService {
     };
   }
 
-  async signOut(token: string) {
-    await this.repository.revokeSession(sha256(token));
+  async signOut(token: string, audit?: AuthAuditContext) {
+    const tokenHash = sha256(token);
+    const session = await this.repository.findActiveSession(tokenHash);
+    await this.repository.revokeSession(tokenHash);
+    await this.recordAuthEvent('identity.auth.sign_out', {
+      ...audit,
+      userId: session?.user.id,
+      ownerOrgId: session?.organization?.id,
+      entityRef: session?.id
+    });
     return { ok: true };
   }
 
@@ -495,19 +886,9 @@ export class ModuleService {
   async registryLookup(input: RegistryLookupInput) {
     const source = registrySourceFor(input);
     const registryNumber = input.registryNumber.trim();
-    let record = await this.repository.findRegistryRecord(source, registryNumber);
+    const record = await this.repository.findRegistryRecord(source, registryNumber);
 
-    if (!record && identityDevBypassEnabled()) {
-      record = await this.repository.upsertDevRegistryRecord({
-        source,
-        registryNumber,
-        entityType: input.entityType,
-        name: devRegistryName(input, registryNumber),
-        payload: {}
-      });
-    }
-
-    if (!record || (!identityDevBypassEnabled() && record.entityType !== input.entityType)) {
+    if (!record || record.entityType !== input.entityType) {
       throw requestError('No matching registry record was found.', 404);
     }
 
@@ -583,14 +964,13 @@ export class ModuleService {
       registryNumber: registry.registryNumber
     });
 
-    const devBypass = identityDevBypassEnabled();
     const reviewReasons: string[] = [];
-    if (!devBypass && !userMetadata.phoneVerified) reviewReasons.push('Phone number is not verified.');
-    if (!devBypass && !userMetadata.emailVerified) reviewReasons.push('Email address is not activated.');
+    if (!userMetadata.phoneVerified) reviewReasons.push('Phone number is not verified.');
+    if (!userMetadata.emailVerified) reviewReasons.push('Email address is not activated.');
     if (!input.registryVerified) reviewReasons.push('Registry information was not confirmed.');
-    if (!devBypass && (registry.status !== 'MATCHED' || registry.confidence < 90)) reviewReasons.push('Registry confidence requires admin review.');
+    if (registry.status !== 'MATCHED' || registry.confidence < 90) reviewReasons.push('Registry confidence requires admin review.');
     if (!input.signatureConsent) reviewReasons.push('Digital signature consent is missing.');
-    if (!devBypass && duplicateCount > 0) reviewReasons.push('Another approved account already uses this registry number.');
+    if (duplicateCount > 0) reviewReasons.push('Another approved account already uses this registry number.');
 
     const autoApproved = reviewReasons.length === 0;
     const status = autoApproved ? VerificationStatus.APPROVED : VerificationStatus.PENDING;
@@ -610,7 +990,6 @@ export class ModuleService {
       verifiedName: registry.name,
       reviewReasons,
       autoApproved,
-      ...(devBypass ? { devBypass: true } : {}),
       submittedAt: new Date().toISOString()
     });
 
