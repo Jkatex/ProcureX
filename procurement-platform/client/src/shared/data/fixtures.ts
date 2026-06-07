@@ -2,9 +2,9 @@ import type { AdminMetric, Bid, MessageItem, RecordItem, SessionUser, Tender, Ti
 
 export const demoUsers: Record<'user' | 'admin', SessionUser> = {
   user: {
-    id: 'user-company-1',
-    displayName: 'Kilimanjaro Supplies Limited',
-    email: 'user@company.tz',
+    id: 'demo-user-1',
+    displayName: 'Demo Verified User',
+    email: 'demo@procurex.tz',
     accountType: 'USER',
     organization: 'Kilimanjaro Supplies Limited',
     capabilities: ['BUYER', 'SUPPLIER'],

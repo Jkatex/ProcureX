@@ -2,8 +2,8 @@ import { ChangeEvent, FormEvent, MouseEvent, useEffect, useLayoutEffect, useMemo
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '@/app/store';
-import { assumeUser } from '@/features/auth/slice';
+import { useAppDispatch, useAppSelector } from '@/app/store';
+import { assumeUser, signOut } from '@/features/auth/slice';
 import i18nInstance from '@/i18n';
 import { demoUsers } from '@/shared/data/fixtures';
 import type { SessionUser } from '@/shared/types/domain';
@@ -100,7 +100,7 @@ const appDrawerHtml = `
       </span>
       <strong>ProcureX Apps</strong>
     </div>
-    <span>Company account tools</span>
+    <span>ProcureX account tools</span>
   </div>
   <button class="app-menu-card app-menu-iam" type="button" data-navigate="account-profile">
     <span class="app-menu-icon">
@@ -159,6 +159,24 @@ const appDrawerHtml = `
     <span><strong>Records and History</strong><em>Past tenders, bids, awards</em></span>
   </button>
 `;
+
+function sessionInitials(user?: SessionUser | null) {
+  const parts = String(user?.displayName || 'ProcureX user')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (parts[0]?.[0] || 'P').toUpperCase() + (parts.length > 1 ? (parts[1]?.[0] || '').toUpperCase() : '');
+}
+
+function personalizeStaticChrome(root: HTMLElement, user?: SessionUser | null) {
+  root.querySelectorAll<HTMLElement>('.profile-button span').forEach((node) => {
+    node.textContent = sessionInitials(user);
+  });
+
+  root.querySelectorAll<HTMLElement>('.app-menu-header > span').forEach((node) => {
+    node.textContent = user?.organization || 'ProcureX account tools';
+  });
+}
 
 function translateStaticText(text: string, language: string) {
   if (language !== 'sw') return text;
@@ -1104,34 +1122,9 @@ const authStorageKeys = {
 
 const authDemoAccounts: AuthDemoAccount[] = [
   {
-    email: 'newuser@procurex.test',
-    password: 'Newuser1!',
-    displayName: 'New User Account',
-    accountType: 'USER',
-    isNewUser: true
-  },
-  {
-    email: 'company@procurex.test',
-    password: 'Procure1!',
-    displayName: 'Kilimanjaro Supplies Limited',
-    accountType: 'USER'
-  },
-  {
-    email: 'business@procurex.test',
-    password: 'Procure1!',
-    displayName: 'Zahra Omari Business Services',
-    accountType: 'USER'
-  },
-  {
-    email: 'individual@procurex.test',
-    password: 'Procure1!',
-    displayName: 'Asha Mwinyi',
-    accountType: 'USER'
-  },
-  {
-    email: 'user@company.tz',
-    password: 'Procure1!',
-    displayName: 'Kilimanjaro Supplies Limited',
+    email: 'demo@procurex.tz',
+    password: 'Demo123!',
+    displayName: 'Demo Verified User',
     accountType: 'USER'
   },
   {
@@ -1176,18 +1169,6 @@ function saveRegisteredAccount(account: StoredRegisteredAccount) {
 
 function findAuthAccount(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
-  const registeredAccount = getStoredRegisteredAccounts().find((account) => account.email.toLowerCase() === normalizedEmail);
-
-  if (registeredAccount && registeredAccount.password === password) {
-    return {
-      email: registeredAccount.email,
-      password: registeredAccount.password,
-      displayName: registeredAccount.displayName,
-      accountType: 'USER',
-      isNewUser: true
-    } satisfies AuthDemoAccount;
-  }
-
   return authDemoAccounts.find(
     (account) => account.email.toLowerCase() === normalizedEmail && account.password === password
   );
@@ -1204,11 +1185,11 @@ function accountToSessionUser(account: AuthDemoAccount): SessionUser {
 
   return {
     ...demoUsers.user,
-    id: account.isNewUser ? `new-user-${account.email}` : demoUsers.user.id,
+    id: demoUsers.user.id,
     email: account.email,
     displayName: account.displayName,
     organization: account.displayName,
-    verificationStatus: account.isNewUser ? 'NOT_STARTED' : 'APPROVED'
+    verificationStatus: 'APPROVED'
   };
 }
 
@@ -1347,8 +1328,8 @@ function handleAuthClick(target: HTMLElement, root: HTMLElement) {
     const form = root.querySelector<HTMLFormElement>('[data-action="register-step1"]');
     const emailInput = form?.querySelector<HTMLInputElement>('input[name="email"]');
     const phoneInput = form?.querySelector<HTMLInputElement>('input[name="phone"]');
-    if (emailInput) emailInput.value = `new-user-${Date.now()}@procurex.test`;
-    if (phoneInput) phoneInput.value = '+255 712 345 678';
+    if (emailInput) emailInput.value = '';
+    if (phoneInput) phoneInput.value = '';
     return true;
   }
 
@@ -1484,6 +1465,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
   const { i18n } = useTranslation();
   const renderLanguage =
     i18n.language === 'sw' || i18nInstance.language === 'sw' || i18nInstance.resolvedLanguage === 'sw' ? 'sw' : 'en';
@@ -1511,6 +1493,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       root.dataset.procurexRouteSearch = location.search;
       if (pageKey === 'bid-evaluation') clearEvaluationEntrySelection();
       initializeStaticPage(root, i18n.language, pageKey, location.search);
+      personalizeStaticChrome(root, user);
       syncMarketplaceRouteTab(root);
       initializeAuthPage(root, pageKey);
       setLanguageMount(prepareLanguageSwitcherMount(root));
@@ -1520,16 +1503,17 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     return () => {
       delete document.body.dataset.procurexReactPage;
     };
-  }, [pageKey, staticHtml, i18n.language, location.key, location.pathname, location.search]);
+  }, [pageKey, staticHtml, i18n.language, location.key, location.pathname, location.search, user]);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root || !languageMount) return;
 
     initializeStaticPage(root, i18n.language, pageKey, location.search);
+    personalizeStaticChrome(root, user);
     initializeAuthPage(root, pageKey);
     if (pageKey === 'bid-evaluation') scrollPageToTop();
-  }, [pageKey, staticHtml, i18n.language, location.key, location.search, languageMount]);
+  }, [pageKey, staticHtml, i18n.language, location.key, location.search, languageMount, user]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -1808,6 +1792,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
 
       captureAwardContractSelection(navTarget);
       if (page === 'bid-evaluation') clearEvaluationEntrySelection();
+      if (page === 'sign-in') dispatch(signOut());
       if (pageKey === 'bid-evaluation' && page === 'bid-evaluation' && rootRef.current) {
         resetStaticPage(rootRef.current, staticHtml, i18n.language, pageKey, location.search);
         setLanguageMount(prepareLanguageSwitcherMount(rootRef.current));

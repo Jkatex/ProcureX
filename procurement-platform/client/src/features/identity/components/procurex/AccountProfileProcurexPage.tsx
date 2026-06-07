@@ -429,7 +429,7 @@ export function AccountProfileProcurexPage() {
               </span>
               <strong>ProcureX Apps</strong>
             </div>
-            <span>Company account tools</span>
+            <span>{user?.organization ?? 'ProcureX account tools'}</span>
           </div>
 
           {appDrawerItems.map((item) => (
@@ -538,7 +538,7 @@ export function AccountProfileProcurexPage() {
             <section className={`iam-profile-section ${activeTab === 'account' ? 'active' : ''}`}>
               <div className="iam-section-heading">
                 <div>
-                  <span className="section-kicker">Account holder</span>
+                  <span className="section-kicker">Account</span>
                   <h2>Account information</h2>
                 </div>
                 <span className="badge badge-info">Editable</span>

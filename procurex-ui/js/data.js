@@ -33,34 +33,10 @@ function createMockProductSpecificationTemplate(customColumns = [], rows = [], o
 }
 
 const procurexSeedOwnerProfiles = {
-    company: {
-        userId: 'usr-company-kilimanjaro',
-        email: 'company@procurex.test',
-        displayName: 'Kilimanjaro Supplies Limited',
-        organization: 'Kilimanjaro Supplies Limited',
-        entityType: 'company',
-        canCreateTender: true
-    },
-    business: {
-        userId: 'usr-business-zahra',
-        email: 'business@procurex.test',
-        displayName: 'Zahra Omari Business Services',
-        organization: 'Zahra Omari Business Services',
-        entityType: 'business',
-        canCreateTender: true
-    },
-    individual: {
-        userId: 'usr-individual-asha',
-        email: 'individual@procurex.test',
-        displayName: 'Asha Mwinyi',
-        organization: 'Asha Mwinyi',
-        entityType: 'individual',
-        canCreateTender: false
-    },
-    legacyCompany: {
-        userId: 'usr-company-legacy',
-        email: 'user@company.tz',
-        displayName: 'Kilimanjaro Supplies Limited',
+    demo: {
+        userId: 'usr-demo-platform',
+        email: 'demo@procurex.tz',
+        displayName: 'Demo Verified User',
         organization: 'Kilimanjaro Supplies Limited',
         entityType: 'company',
         canCreateTender: true
@@ -68,11 +44,11 @@ const procurexSeedOwnerProfiles = {
 };
 
 const procurexSeedTenderOwnerMap = {
-    'PX-WRK-2026-001': procurexSeedOwnerProfiles.company,
-    'PX-WRK-2026-002': procurexSeedOwnerProfiles.company,
-    'PX-GDS-2026-002': procurexSeedOwnerProfiles.business,
-    'PX-SVC-2026-003': procurexSeedOwnerProfiles.business,
-    'PX-CNS-2026-001': procurexSeedOwnerProfiles.legacyCompany
+    'PX-WRK-2026-001': procurexSeedOwnerProfiles.demo,
+    'PX-WRK-2026-002': procurexSeedOwnerProfiles.demo,
+    'PX-GDS-2026-002': procurexSeedOwnerProfiles.demo,
+    'PX-SVC-2026-003': procurexSeedOwnerProfiles.demo,
+    'PX-CNS-2026-001': procurexSeedOwnerProfiles.demo
 };
 
 function getProcurexCurrentAccount() {
@@ -280,78 +256,23 @@ const mockData = {
     eKycRegistryRecord: null,
     mockAuth: {
         signupExample: {
-            email: 'newuser@procurex.test',
-            phone: '+255 712 345 678',
-            password: 'Newuser1!'
+            email: 'demo@procurex.tz',
+            phone: '+255 713 333 444',
+            password: 'Demo123!'
         },
         accounts: [
             {
-                email: 'newuser@procurex.test',
-                phone: '+255 712 345 678',
-                password: 'Newuser1!',
-                userId: 'usr-new-demo',
-                role: null,
-                accountType: 'new user',
-                entityType: 'individual',
-                isNewUser: true,
-                ekycCompleted: false,
-                canCreateTender: false,
-                displayName: 'New User Account'
-            },
-            {
-                email: 'company@procurex.test',
-                phone: '+255 713 111 222',
-                password: 'Procure1!',
-                userId: 'usr-company-kilimanjaro',
+                email: 'demo@procurex.tz',
+                phone: '+255 713 333 444',
+                password: 'Demo123!',
+                userId: 'usr-demo-platform',
                 role: null,
                 accountType: 'user',
                 entityType: 'company',
                 isNewUser: false,
                 ekycCompleted: true,
                 canCreateTender: true,
-                displayName: 'Kilimanjaro Supplies Limited',
-                organization: 'Kilimanjaro Supplies Limited'
-            },
-            {
-                email: 'business@procurex.test',
-                phone: '+255 714 222 333',
-                password: 'Procure1!',
-                userId: 'usr-business-zahra',
-                role: null,
-                accountType: 'user',
-                entityType: 'business',
-                isNewUser: false,
-                ekycCompleted: true,
-                canCreateTender: true,
-                displayName: 'Zahra Omari Business Services',
-                organization: 'Zahra Omari Business Services'
-            },
-            {
-                email: 'individual@procurex.test',
-                phone: '+255 714 333 444',
-                password: 'Procure1!',
-                userId: 'usr-individual-asha',
-                role: null,
-                accountType: 'user',
-                entityType: 'individual',
-                isNewUser: false,
-                ekycCompleted: true,
-                canCreateTender: false,
-                displayName: 'Asha Mwinyi',
-                organization: 'Asha Mwinyi'
-            },
-            {
-                email: 'user@company.tz',
-                phone: '+255 713 111 222',
-                password: 'Procure1!',
-                userId: 'usr-company-legacy',
-                role: null,
-                accountType: 'user',
-                entityType: 'company',
-                isNewUser: false,
-                ekycCompleted: true,
-                canCreateTender: true,
-                displayName: 'Kilimanjaro Supplies Limited',
+                displayName: 'Demo Verified User',
                 organization: 'Kilimanjaro Supplies Limited'
             },
             {

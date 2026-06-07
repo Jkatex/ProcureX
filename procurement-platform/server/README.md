@@ -9,6 +9,7 @@ npm run db:validate
 npm run db:generate
 npm run db:migrate
 npm run db:seed:twice
+npm run db:cleanup:demo-admin
 npm run verify:rls
 npm test
 ```
@@ -29,4 +30,3 @@ npm test
 - Buyer and supplier behavior is stored as `OrganizationCapabilityName.BUYER` and `OrganizationCapabilityName.SUPPLIER`.
 - Evaluator, approver, auditor, and observer behavior is represented by workflow assignments, not login roles.
 - Platform admin inspection is account-type based and is blocked from changing evaluation scores by RLS.
-

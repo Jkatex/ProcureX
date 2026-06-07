@@ -1,16 +1,21 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { store } from '@/app/store';
+import { signOut } from '@/features/auth/slice';
 import { TenderPlanningProcurexPage } from './TenderPlanningProcurexPage';
 
 function renderPlanningPage(initialEntries = ['/tender-planning']) {
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
-      <Routes>
-        <Route path="/tender-planning" element={<TenderPlanningProcurexPage />} />
-        <Route path="/procurement/create-tender" element={<div>Create tender route</div>} />
-        <Route path="/evaluation" element={<div>Evaluation route</div>} />
-      </Routes>
-    </MemoryRouter>
+    <Provider store={store}>
+      <MemoryRouter initialEntries={initialEntries}>
+        <Routes>
+          <Route path="/tender-planning" element={<TenderPlanningProcurexPage />} />
+          <Route path="/procurement/create-tender" element={<div>Create tender route</div>} />
+          <Route path="/evaluation" element={<div>Evaluation route</div>} />
+        </Routes>
+      </MemoryRouter>
+    </Provider>
   );
 }
 
@@ -39,6 +44,7 @@ function seedPlanningRecords() {
 describe('TenderPlanningProcurexPage', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    store.dispatch(signOut());
     Element.prototype.scrollIntoView = vi.fn();
   });
 

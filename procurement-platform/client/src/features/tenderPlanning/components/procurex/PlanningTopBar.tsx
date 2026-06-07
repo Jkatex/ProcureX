@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAppDispatch, useAppSelector } from '@/app/store';
+import { signOut } from '@/features/auth/slice';
 import { AppMenuIcon } from './icons';
 
 type PlanningTopBarProps = {
@@ -58,9 +60,20 @@ const appMenuItems = [
   }
 ] as const;
 
+function initials(name?: string | null) {
+  const parts = String(name || 'ProcureX user')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (parts[0]?.[0] || 'P').toUpperCase() + (parts.length > 1 ? (parts[1]?.[0] || '').toUpperCase() : '');
+}
+
 export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: PlanningTopBarProps) {
+  const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
   const [openMenu, setOpenMenu] = useState<'apps' | 'profile' | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
+  const organizationLabel = user?.organization || (user?.accountType === 'ADMIN' ? 'Platform admin tools' : 'ProcureX account tools');
 
   useEffect(() => {
     function handleDocumentClick(event: PointerEvent) {
@@ -74,6 +87,12 @@ export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: P
   function navigate(pageKey: string) {
     setOpenMenu(null);
     onNavigate(pageKey);
+  }
+
+  function logout() {
+    setOpenMenu(null);
+    dispatch(signOut());
+    onNavigate('sign-in');
   }
 
   return (
@@ -118,9 +137,9 @@ export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: P
             data-profile-menu-toggle
             aria-label="Open profile menu"
             aria-expanded={openMenu === 'profile'}
-            onClick={() => setOpenMenu((current) => (current === 'profile' ? null : 'profile'))}
+          onClick={() => setOpenMenu((current) => (current === 'profile' ? null : 'profile'))}
           >
-            <span>AU</span>
+            <span>{initials(user?.displayName)}</span>
           </button>
         </div>
       </div>
@@ -133,7 +152,7 @@ export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: P
             </span>
             <strong>ProcureX Apps</strong>
           </div>
-          <span>Company account tools</span>
+          <span>{organizationLabel}</span>
         </div>
         {appMenuItems.map((item) => (
           <button
@@ -161,7 +180,7 @@ export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: P
         </button>
         <button type="button">Help</button>
         <button type="button">Language</button>
-        <button type="button" data-navigate="sign-in" onClick={() => navigate('sign-in')}>
+        <button type="button" data-navigate="sign-in" onClick={logout}>
           Logout
         </button>
       </div>

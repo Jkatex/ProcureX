@@ -1,6 +1,8 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from '@/app/store';
+import { signOut } from '@/features/auth/slice';
 import type { AwardQueueId, BadgeTone } from '../../types';
 import { awardQueueLabels } from '../../fixtures';
 
@@ -42,6 +44,14 @@ const appMenuItems = [
   ['app-menu-contracts', 'records-history', 'Records and History', 'Past tenders, bids, awards']
 ] as const;
 
+function initials(name?: string | null) {
+  const parts = String(name || 'ProcureX user')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (parts[0]?.[0] || 'P').toUpperCase() + (parts.length > 1 ? (parts[1]?.[0] || '').toUpperCase() : '');
+}
+
 export function routeWithSearch(path: string, routeSearch = '') {
   if (!routeSearch) return path;
   return `${path}?${routeSearch.replace(/^\?/, '')}`;
@@ -69,7 +79,10 @@ export function StatusBadge({ value, tone }: { value: string; tone?: BadgeTone }
 
 export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
   const [openMenu, setOpenMenu] = useState<'apps' | 'profile' | null>(null);
+  const organizationLabel = user?.organization || 'ProcureX account tools';
 
   useEffect(() => {
     document.body.dataset.page = pageKey;
@@ -97,6 +110,7 @@ export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
       event.preventDefault();
       const page = navTarget.getAttribute('data-navigate') || 'workspace-dashboard';
       const routeSearch = navTarget.getAttribute('data-route-search') || '';
+      if (page === 'sign-in') dispatch(signOut());
       navigate(routeWithSearch(routeByPage[page] || '/', routeSearch));
     }
   }
@@ -141,7 +155,7 @@ export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
               aria-label="Open profile menu"
               aria-expanded={openMenu === 'profile'}
             >
-              <span>AU</span>
+              <span>{initials(user?.displayName)}</span>
             </button>
           </div>
         </div>
@@ -154,7 +168,7 @@ export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
               </span>
               <strong>ProcureX Apps</strong>
             </div>
-            <span>Company account tools</span>
+            <span>{organizationLabel}</span>
           </div>
           {appMenuItems.map(([className, nav, title, note]) => (
             <button className={`app-menu-card ${className}`} type="button" data-navigate={nav} key={nav}>

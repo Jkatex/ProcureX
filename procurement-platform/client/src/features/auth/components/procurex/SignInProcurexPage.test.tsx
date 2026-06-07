@@ -7,6 +7,7 @@ import i18n from '@/i18n';
 import { authApi } from '@/features/auth/api';
 import { signOut } from '@/features/auth/slice';
 import { store } from '@/app/store';
+import { demoUsers } from '@/shared/data/fixtures';
 import { SignInProcurexPage } from './SignInProcurexPage';
 
 vi.mock('@/features/auth/api', () => ({
@@ -128,8 +129,13 @@ describe('SignInProcurexPage', () => {
     expect(mockedAuthApi.signIn).not.toHaveBeenCalled();
   });
 
-  it('signs in the local demo account without the backend after Turnstile and routes to the dashboard', async () => {
+  it('signs in the local demo account through the backend after Turnstile and routes to the dashboard', async () => {
     vi.stubEnv('VITE_DEMO_SIGN_IN_ENABLED', 'true');
+    mockedAuthApi.signIn.mockResolvedValueOnce({
+      token: 'demo-token',
+      expiresAt: '2026-06-13T00:00:00.000Z',
+      user: demoUsers.user
+    });
 
     renderSignIn();
 
@@ -137,11 +143,17 @@ describe('SignInProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Sign in as demo user/i }));
 
     await screen.findByText('User dashboard');
-    expect(mockedAuthApi.signIn).not.toHaveBeenCalled();
+    expect(mockedAuthApi.signIn).toHaveBeenCalledWith({ email: 'demo@procurex.tz', password: 'Demo123!', turnstileToken: 'turnstile-token' });
+    expect(window.localStorage.getItem('procurex.authToken')).toBe('demo-token');
   });
 
-  it('accepts typed demo credentials without the backend when local demo sign-in is enabled', async () => {
+  it('accepts typed demo credentials through the backend when local demo sign-in is enabled', async () => {
     vi.stubEnv('VITE_DEMO_SIGN_IN_ENABLED', 'true');
+    mockedAuthApi.signIn.mockResolvedValueOnce({
+      token: 'typed-demo-token',
+      expiresAt: '2026-06-13T00:00:00.000Z',
+      user: demoUsers.user
+    });
 
     renderSignIn();
 
@@ -151,7 +163,8 @@ describe('SignInProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
     await screen.findByText('Apps');
-    expect(mockedAuthApi.signIn).not.toHaveBeenCalled();
+    expect(mockedAuthApi.signIn).toHaveBeenCalledWith({ email: 'demo@procurex.tz', password: 'Demo123!', turnstileToken: 'turnstile-token' });
+    expect(window.localStorage.getItem('procurex.authToken')).toBe('typed-demo-token');
   });
 
   it('shows the language switcher and translates sign-in copy to Swahili', async () => {
