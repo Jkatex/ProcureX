@@ -1,0 +1,1678 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProcureX System Implementation Report</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5d677a;
+      --rule: #d8dde8;
+      --paper: #ffffff;
+      --soft: #f4f7fb;
+      --accent: #0f766e;
+      --accent-dark: #0f4f49;
+      --code: #eef2f7;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #e8edf5;
+      font: 12pt/1.62 Georgia, "Times New Roman", serif;
+    }
+
+    .page {
+      width: min(100%, 960px);
+      margin: 24px auto;
+      padding: 48px 64px;
+      background: var(--paper);
+      box-shadow: 0 18px 48px rgba(23, 32, 51, 0.14);
+    }
+
+    .title-page {
+      min-height: 900px;
+      display: grid;
+      align-content: center;
+      border: 1px solid var(--rule);
+      padding: 72px;
+      margin-bottom: 40px;
+      background:
+        linear-gradient(180deg, rgba(15, 118, 110, 0.08), transparent 38%),
+        var(--paper);
+    }
+
+    .label {
+      margin: 0 0 12px;
+      color: var(--accent-dark);
+      font: 700 10pt/1.3 Arial, Helvetica, sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.22;
+      color: var(--ink);
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 32pt;
+    }
+
+    h2 {
+      margin: 36px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--rule);
+      font-size: 20pt;
+    }
+
+    h3 {
+      margin: 24px 0 8px;
+      color: var(--accent-dark);
+      font-size: 14pt;
+    }
+
+    h4 {
+      margin: 18px 0 6px;
+      font-size: 11.5pt;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    a {
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    ul,
+    ol {
+      margin: 8px 0 16px 24px;
+      padding: 0;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    code,
+    pre {
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    code {
+      padding: 1px 4px;
+      background: var(--code);
+      border-radius: 3px;
+      font-size: 10.5pt;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      margin: 10px 0 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--rule);
+      background: var(--soft);
+      color: #1f2937;
+      font-size: 9.5pt;
+      line-height: 1.45;
+    }
+
+    table {
+      width: 100%;
+      margin: 14px 0 20px;
+      border-collapse: collapse;
+      font-size: 10.5pt;
+    }
+
+    th,
+    td {
+      padding: 9px 10px;
+      border: 1px solid var(--rule);
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--soft);
+      text-align: left;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .meta {
+      width: 100%;
+      margin-top: 32px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+    }
+
+    .meta td:first-child {
+      width: 32%;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .summary-box {
+      margin: 18px 0 24px;
+      padding: 16px 18px;
+      border-left: 5px solid var(--accent);
+      background: var(--soft);
+    }
+
+    .journey-card {
+      margin: 22px 0 30px;
+      padding: 18px;
+      border: 1px solid var(--rule);
+      background: #fbfcff;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .journey-card h4 {
+      margin-top: 0;
+      color: var(--accent-dark);
+    }
+
+    .journey-card figure {
+      margin-bottom: 14px;
+    }
+
+    .journey-table {
+      margin: 12px 0 0;
+      font-size: 9.8pt;
+    }
+
+    .journey-table th {
+      width: 23%;
+    }
+
+    .journey-note {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.8pt;
+    }
+
+    .toc {
+      margin: 0 0 34px;
+      padding: 16px 20px;
+      border: 1px solid var(--rule);
+      background: var(--soft);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .toc ol {
+      margin-bottom: 0;
+      columns: 2;
+      column-gap: 34px;
+    }
+
+    .section {
+      break-before: page;
+      page-break-before: always;
+    }
+
+    .section:first-of-type {
+      break-before: auto;
+      page-break-before: auto;
+    }
+
+    .figure-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin: 16px 0 22px;
+    }
+
+    figure {
+      margin: 18px 0 26px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .figure-grid figure {
+      margin: 0;
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      max-height: 620px;
+      object-fit: contain;
+      border: 1px solid var(--rule);
+      background: #ffffff;
+    }
+
+    figcaption {
+      margin-top: 7px;
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+      line-height: 1.45;
+    }
+
+    .wide img {
+      max-height: 720px;
+    }
+
+    .note {
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+    }
+
+    .no-break {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        margin: 0;
+        padding: 26px 18px;
+        box-shadow: none;
+      }
+
+      .title-page {
+        min-height: auto;
+        padding: 38px 24px;
+      }
+
+      h1 {
+        font-size: 25pt;
+      }
+
+      .toc ol,
+      .figure-grid {
+        columns: 1;
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @page {
+      size: A4;
+      margin: 16mm 14mm;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        font-size: 10.5pt;
+      }
+
+      .page {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+
+      .title-page {
+        min-height: 250mm;
+        padding: 22mm;
+      }
+
+      h1 {
+        font-size: 28pt;
+      }
+
+      h2 {
+        font-size: 17pt;
+      }
+
+      a {
+        color: var(--ink);
+      }
+
+      .toc {
+        break-after: page;
+        page-break-after: always;
+      }
+
+      .figure-grid {
+        gap: 12px;
+      }
+
+      img {
+        max-height: 185mm;
+      }
+
+      .figure-grid img {
+        max-height: 95mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="title-page">
+      <p class="label">Implementation Report</p>
+      <h1>ProcureX Procurement Platform</h1>
+      <p>
+        A formal implementation report describing the architecture, user
+        workflows, frontend implementation, backend modules, database model,
+        security foundation, testing approach, and visual evidence from the
+        ProcureX reference interface.
+      </p>
+
+      <table class="meta" aria-label="Report metadata">
+        <tr>
+          <td>System</td>
+          <td>ProcureX Procurement Platform</td>
+        </tr>
+        <tr>
+          <td>Repository</td>
+          <td><code>procurement-platform</code></td>
+        </tr>
+        <tr>
+          <td>Reference UI</td>
+          <td><code>../procurex-ui</code></td>
+        </tr>
+        <tr>
+          <td>Prepared for</td>
+          <td>Implementation review, academic presentation, and project reporting</td>
+        </tr>
+        <tr>
+          <td>Prepared on</td>
+          <td>June 6, 2026</td>
+        </tr>
+      </table>
+    </section>
+
+    <section id="toc">
+      <h2>Table of Contents</h2>
+      <nav class="toc" aria-label="Table of contents">
+        <ol>
+          <li><a href="#abstract">Abstract</a></li>
+          <li><a href="#introduction">Introduction</a></li>
+          <li><a href="#objectives">Objectives</a></li>
+          <li><a href="#methodology">Methodology</a></li>
+          <li><a href="#architecture">System Architecture</a></li>
+          <li><a href="#frontend">Frontend Implementation</a></li>
+          <li><a href="#backend">Backend Implementation</a></li>
+          <li><a href="#database-security">Database And Security</a></li>
+          <li><a href="#workflows">Workflow Implementation</a></li>
+          <li><a href="#user-journeys">Deep User Journey Implementation</a></li>
+          <li><a href="#testing">Testing And Validation</a></li>
+          <li><a href="#conclusion">Conclusion And Recommendations</a></li>
+          <li><a href="#references">References And Figures Used</a></li>
+        </ol>
+      </nav>
+    </section>
+
+    <section id="abstract" class="section">
+      <h2>1. Abstract</h2>
+      <p>
+        ProcureX is a modular procurement platform designed to support the full
+        lifecycle of public and private procurement operations. The system
+        includes public marketplace discovery, account registration, company
+        verification, tender planning, tender publication, supplier bidding, bid
+        evaluation, award recommendation, contract negotiation, post-award
+        tracking, communication, records management, and platform compliance
+        administration.
+      </p>
+      <p>
+        The implementation uses a production monorepo named
+        <code>procurement-platform</code>. The frontend is implemented with
+        React, Vite, Material UI, Redux Toolkit, React Router, i18next, and
+        supporting shared UI utilities. The backend is implemented with
+        TypeScript, Express, Prisma, modular API boundaries, and row-level
+        security foundations. The original <code>procurex-ui</code> prototype is
+        retained as the visual and workflow reference, while the production
+        React client owns the operational implementation.
+      </p>
+      <div class="summary-box">
+        <strong>Documentation note:</strong> This report is a documentation
+        deliverable only. It does not introduce public API changes, database
+        schema changes, or application behavior changes.
+      </div>
+    </section>
+
+    <section id="introduction" class="section">
+      <h2>2. Introduction</h2>
+      <p>
+        Procurement systems require strong traceability, controlled access,
+        structured workflows, and clear collaboration between buyers, suppliers,
+        evaluators, approvers, and administrators. ProcureX addresses these
+        needs by organizing procurement activity around companies and workflow
+        assignments rather than treating buyer and supplier as simple login
+        roles.
+      </p>
+      <p>
+        The system separates presentation reference from production execution.
+        The prototype in <code>../procurex-ui</code> captures the intended user
+        experience, while <code>procurement-platform/client</code> implements the
+        production interface. This separation allows the project to preserve the
+        design intent while progressively adding authentication, routing,
+        state management, localization, API integration, tests, and database
+        enforcement.
+      </p>
+
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/reference/welcome.png" alt="ProcureX public welcome screen">
+        <figcaption>Figure 1. Public welcome screen introducing ProcureX and its procurement platform experience.</figcaption>
+      </figure>
+    </section>
+
+    <section id="objectives" class="section">
+      <h2>3. Objectives</h2>
+      <p>
+        The implementation objectives were defined around system completeness,
+        maintainability, and future production readiness.
+      </p>
+      <ol>
+        <li>Implement a production workspace that reflects the ProcureX reference user interface.</li>
+        <li>Provide a modular backend where each procurement domain has a clear API boundary.</li>
+        <li>Model identity, organizations, buyer and supplier capabilities, tenders, bids, evaluation, awards, contracts, records, and compliance data.</li>
+        <li>Separate account type from procurement capability so a company can act as buyer, supplier, or both.</li>
+        <li>Prepare row-level security foundations for organization-aware data access.</li>
+        <li>Support screenshot-based UI parity validation between the reference prototype and the production React client.</li>
+        <li>Provide tests and scripts that support local development, validation, database setup, and future enhancement.</li>
+      </ol>
+    </section>
+
+    <section id="methodology" class="section">
+      <h2>4. Methodology</h2>
+      <p>
+        The development approach used a reference-driven migration methodology.
+        The original static ProcureX interface remained the product and visual
+        source of truth. Production implementation then translated that
+        reference into React pages, guarded routes, domain modules, database
+        models, and repeatable tests.
+      </p>
+
+      <h3>4.1 Reference UI Method</h3>
+      <p>
+        UI parity is maintained by capturing screenshots from both the static
+        prototype and the production React target. This makes design drift
+        visible and gives the team concrete evidence for report, review, and
+        validation work.
+      </p>
+
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/reference/guest-marketplace.png" alt="Guest marketplace reference screen">
+        <figcaption>Figure 2. Guest marketplace screen used as a reference for public opportunity discovery.</figcaption>
+      </figure>
+
+      <h3>4.2 Modular Development Method</h3>
+      <p>
+        Backend modules follow a consistent structure:
+      </p>
+      <pre>routes.ts -> controller.ts -> service.ts -> repository.ts -> validators.ts -> types.ts</pre>
+      <p>
+        This pattern keeps HTTP transport, business behavior, persistence,
+        validation, and contracts separated. It also gives future developers a
+        predictable place to add new behavior.
+      </p>
+    </section>
+
+    <section id="architecture" class="section">
+      <h2>5. System Architecture</h2>
+      <p>
+        ProcureX is implemented as a monorepo with separate workspaces for the
+        frontend client, backend server, and shared contracts. The architecture
+        supports independent growth of user interface features, API modules,
+        database models, and future intelligence services.
+      </p>
+
+      <pre>procurement-platform/
+|-- client/       React, Vite, routing, state, UI implementation
+|-- server/       Express APIs, Prisma, modules, database access, tests
+|-- shared/       Shared enums and contracts
+|-- ml-service/   Reserved for future Python intelligence workloads
+|-- docs/         Architecture, database, report, UI parity assets
+|-- scripts/      Page generation and screenshot capture scripts
+`-- package.json  Workspace scripts</pre>
+
+      <h3>5.1 Architectural Principles</h3>
+      <ul>
+        <li>The reference UI is not served directly by production.</li>
+        <li>The React client owns production user interaction and route behavior.</li>
+        <li>The Express server owns API routing, module registration, and backend orchestration.</li>
+        <li>The Prisma schema is the source of database model truth.</li>
+        <li>Organization-aware security is enforced through identity rules and RLS foundations.</li>
+      </ul>
+
+      <h3>5.2 Workspace Surface</h3>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/app-launcher.png" alt="ProcureX application launcher">
+          <figcaption>Figure 3. App launcher showing ProcureX module access from a unified workspace.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/workspace-dashboard.png" alt="ProcureX workspace dashboard">
+          <figcaption>Figure 4. Workspace dashboard summarizing operational procurement activity.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="frontend" class="section">
+      <h2>6. Frontend Implementation</h2>
+      <p>
+        The production client is implemented as a React 19 and Vite application.
+        It uses Material UI for UI foundations, Redux Toolkit for feature state,
+        React Router for navigation, i18next for localization, Axios for API
+        calls, and Recharts for chart visualizations.
+      </p>
+
+      <h3>6.1 Feature Organization</h3>
+      <p>
+        Frontend features are grouped by procurement domain. Each feature can
+        contain pages, API helpers, hooks, fixtures, state slices, and
+        ProcureX-derived components.
+      </p>
+      <table>
+        <tr>
+          <th>Area</th>
+          <th>Implementation Role</th>
+        </tr>
+        <tr>
+          <td><code>src/app</code></td>
+          <td>Application shell, providers, router, route guards, and redirects.</td>
+        </tr>
+        <tr>
+          <td><code>src/features</code></td>
+          <td>Domain features such as procurement, bidding, awards, identity, records, communication, admin, public, and workspace.</td>
+        </tr>
+        <tr>
+          <td><code>src/shared</code></td>
+          <td>Reusable components, API utilities, hooks, types, and formatting helpers.</td>
+        </tr>
+        <tr>
+          <td><code>src/i18n</code></td>
+          <td>English and Swahili localization resources.</td>
+        </tr>
+        <tr>
+          <td><code>src/styles</code></td>
+          <td>Global styles, tokens, MUI theme configuration, and prototype compatibility styles.</td>
+        </tr>
+      </table>
+
+      <h3>6.2 Routing And Guards</h3>
+      <p>
+        The router uses a ProcureX page registry to render pages by stable page
+        keys. Public pages are available without authentication, operational
+        pages require authenticated and verified users, and admin pages require
+        administrator access.
+      </p>
+      <pre>/sign-in                         Public authentication route
+/identity/verification           Authenticated identity route
+/dashboard                       Verified workspace route
+/procurement/create-tender       Verified procurement route
+/admin                           Admin-only platform route</pre>
+
+      <h3>6.3 Public And Authentication Screens</h3>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/about-procurex.png" alt="About ProcureX screen">
+          <figcaption>Figure 5. About page explaining the platform purpose and positioning.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/contact.png" alt="Contact page">
+          <figcaption>Figure 6. Contact page for public communication and platform inquiry.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/privacy-policy.png" alt="Privacy policy page">
+          <figcaption>Figure 7. Privacy policy page supporting trust and compliance expectations.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/terms-and-conditions.png" alt="Terms and conditions page">
+          <figcaption>Figure 8. Terms and conditions page defining user obligations and platform rules.</figcaption>
+        </figure>
+      </div>
+
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/register.png" alt="Registration screen">
+          <figcaption>Figure 9. Registration screen for creating a ProcureX account.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/sign-in.png" alt="Sign-in screen">
+          <figcaption>Figure 10. Sign-in screen for authenticated platform access.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/role-selection.png" alt="Role selection screen">
+          <figcaption>Figure 11. Role selection screen guiding the user toward the relevant account journey.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/iam-verification.png" alt="Identity verification screen">
+          <figcaption>Figure 12. Identity verification screen for company and user validation.</figcaption>
+        </figure>
+      </div>
+
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/reference/verification-status.png" alt="Verification status screen">
+        <figcaption>Figure 13. Verification status screen showing the state of identity and company review.</figcaption>
+      </figure>
+    </section>
+
+    <section id="backend" class="section">
+      <h2>7. Backend Implementation</h2>
+      <p>
+        The backend is a TypeScript Express application. It centralizes HTTP app
+        creation, module registration, JSON parsing, CORS configuration, health
+        reporting, 404 handling, and error handling.
+      </p>
+
+      <h3>7.1 Module Pattern</h3>
+      <p>
+        Each module uses the same implementation pattern so behavior remains
+        consistent across procurement domains.
+      </p>
+      <table>
+        <tr>
+          <th>File</th>
+          <th>Responsibility</th>
+        </tr>
+        <tr>
+          <td><code>routes.ts</code></td>
+          <td>Defines HTTP endpoints and maps them to controller handlers.</td>
+        </tr>
+        <tr>
+          <td><code>controller.ts</code></td>
+          <td>Handles request and response concerns.</td>
+        </tr>
+        <tr>
+          <td><code>service.ts</code></td>
+          <td>Owns business behavior and orchestration.</td>
+        </tr>
+        <tr>
+          <td><code>repository.ts</code></td>
+          <td>Owns persistence and external data access.</td>
+        </tr>
+        <tr>
+          <td><code>validators.ts</code></td>
+          <td>Owns request validation.</td>
+        </tr>
+        <tr>
+          <td><code>types.ts</code></td>
+          <td>Owns module-local contracts and metadata.</td>
+        </tr>
+      </table>
+
+      <h3>7.2 Registered API Modules</h3>
+      <p>
+        API modules are registered through the backend module index and mounted
+        under stable base paths.
+      </p>
+      <pre>/api/identity
+/api/organization
+/api/procurement
+/api/bidding
+/api/evaluation
+/api/award-contract
+/api/financial
+/api/compliance-admin
+/api/communication
+/api/records
+/api/intelligence
+/api/integration
+/api/documents</pre>
+
+      <h3>7.3 Identity API Example</h3>
+      <p>
+        Identity is the most complete route surface because it controls account
+        creation, authentication, session lookup, verification, profile updates,
+        and admin verification review.
+      </p>
+      <pre>POST /api/identity/registration/start
+POST /api/identity/registration/verify-otp
+POST /api/identity/registration/activate-email
+POST /api/identity/registration/set-password
+POST /api/identity/auth/sign-in
+GET  /api/identity/session
+POST /api/identity/verification/submit
+POST /api/identity/admin/verifications/:id/decision</pre>
+    </section>
+
+    <section id="database-security" class="section">
+      <h2>8. Database And Security Implementation</h2>
+      <p>
+        The database layer uses Prisma as the application model and migration
+        source. The schema models identity, organizations, verification,
+        tenders, bids, evaluation, award recommendations, approvals, contracts,
+        purchase orders, invoices, documents, audit events, compliance cases,
+        risk signals, communication items, records, market intelligence, and
+        integration records.
+      </p>
+
+      <h3>8.1 Core Data Rules</h3>
+      <ul>
+        <li>Accounts are only <code>USER</code> or <code>ADMIN</code>.</li>
+        <li>A normal user belongs to a company through <code>OrganizationMember</code>.</li>
+        <li>A company can act as buyer, supplier, or both through <code>OrganizationCapability</code>.</li>
+        <li>Tender ownership uses <code>buyerOrgId</code>.</li>
+        <li>Bid ownership uses both <code>buyerOrgId</code> and <code>supplierOrgId</code>.</li>
+        <li>Evaluation permissions use workflow assignments and RLS-aware access.</li>
+      </ul>
+
+      <h3>8.2 Row-Level Security</h3>
+      <p>
+        Row-level security protects procurement data by applying database access
+        rules that respect current account and organization context. RLS SQL
+        lives under <code>server/prisma/sql/rls/</code>, and the server database
+        utilities live under <code>server/src/db/</code>.
+      </p>
+      <pre>server/prisma/schema.prisma
+server/prisma/sql/rls/001_app_context.sql
+server/prisma/sql/rls/002_enable_rls.sql
+server/src/db/context.ts
+server/src/db/prisma.ts</pre>
+
+      <h3>8.3 Product Security Model</h3>
+      <p>
+        The most important security decision is that buyer and supplier are not
+        account types. They are organization capabilities. This makes it possible
+        for the same company to buy, supply, or do both while still keeping
+        platform administrators separate from procurement operators.
+      </p>
+    </section>
+
+    <section id="workflows" class="section">
+      <h2>9. Module-By-Module Workflow Implementation</h2>
+      <p>
+        ProcureX is organized by workflow modules. Each workflow has a visible
+        user interface and a backend/data model boundary that supports future
+        production behavior.
+      </p>
+
+      <h3>9.1 Procurement Lifecycle</h3>
+      <p>
+        Procurement covers opportunity discovery, tender creation, tender
+        publication, tender details, tender documents, supplier tender views,
+        and procurement guidance.
+      </p>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/supplier-marketplace.png" alt="Supplier marketplace">
+          <figcaption>Figure 14. Supplier marketplace for discovering procurement opportunities.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/create-tender.png" alt="Create tender screen">
+          <figcaption>Figure 15. Create tender screen for buyer-side tender preparation.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/tender-publication.png" alt="Tender publication screen">
+          <figcaption>Figure 16. Tender publication screen for preparing opportunities for supplier visibility.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/tender-details.png" alt="Tender details screen">
+          <figcaption>Figure 17. Tender details screen showing structured tender information.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/tender-document.png" alt="Tender document screen">
+          <figcaption>Figure 18. Tender document screen for document access and review.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/supplier-tender-detail.png" alt="Supplier tender detail screen">
+          <figcaption>Figure 19. Supplier tender detail screen for opportunity review before bidding.</figcaption>
+        </figure>
+      </div>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/reference/supplier-journey.png" alt="Supplier journey screen">
+        <figcaption>Figure 20. Supplier journey screen explaining the supplier procurement process.</figcaption>
+      </figure>
+
+      <h3>9.2 Bidding And Evaluation</h3>
+      <p>
+        Bidding supports supplier response preparation, bid versions, documents,
+        responses, and receipts. Evaluation supports scoring workspaces,
+        criteria, evaluator assignments, stages, and award recommendation
+        handoff.
+      </p>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/bidding-workspace.png" alt="Bidding workspace">
+          <figcaption>Figure 21. Bidding workspace for supplier-side bid preparation and tracking.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/bid-evaluation.png" alt="Bid evaluation screen">
+          <figcaption>Figure 22. Bid evaluation screen for structured scoring and review activity.</figcaption>
+        </figure>
+      </div>
+
+      <h3>9.3 Awards And Contracts</h3>
+      <p>
+        Awards and contracts convert evaluation outcomes into recommendations,
+        approvals, contract versions, purchase orders, invoices, and post-award
+        tracking.
+      </p>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/awarding-contracts.png" alt="Awarding contracts screen">
+          <figcaption>Figure 23. Awarding and contracts dashboard for post-evaluation decisions.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/award-recommendation.png" alt="Award recommendation screen">
+          <figcaption>Figure 24. Award recommendation screen for approval-ready procurement outcomes.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/contract-negotiation.png" alt="Contract negotiation screen">
+          <figcaption>Figure 25. Contract negotiation screen for buyer and supplier agreement activity.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/post-award-tracking.png" alt="Post-award tracking screen">
+          <figcaption>Figure 26. Post-award tracking screen for contract and delivery follow-up.</figcaption>
+        </figure>
+      </div>
+
+      <h3>9.4 Communication And Records</h3>
+      <p>
+        Communication and records support collaboration and traceability. They
+        preserve procurement messages, attachments, record entries, and audit
+        evidence.
+      </p>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/communication-center.png" alt="Communication center screen">
+          <figcaption>Figure 27. Communication center for procurement-related messages and updates.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/records-history.png" alt="Records history screen">
+          <figcaption>Figure 28. Records history screen supporting traceability and audit review.</figcaption>
+        </figure>
+      </div>
+
+      <h3>9.5 Administration And Compliance</h3>
+      <p>
+        Administration supports platform oversight. Admin accounts handle
+        verification, compliance review, user management, audit review, analytics,
+        and search. Admin is a platform compliance role and is separate from
+        buyer or supplier operation.
+      </p>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-dashboard.png" alt="Admin dashboard screen">
+          <figcaption>Figure 29. Admin dashboard for platform-level operational oversight.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-search.png" alt="Admin search screen">
+          <figcaption>Figure 30. Admin search screen for platform-wide discovery and investigation.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-users.png" alt="Admin users screen">
+          <figcaption>Figure 31. Admin users screen for account and organization review.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-compliance.png" alt="Admin compliance screen">
+          <figcaption>Figure 32. Admin compliance screen for risk and compliance case handling.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-analytics.png" alt="Admin analytics screen">
+          <figcaption>Figure 33. Admin analytics screen for platform measurement and reporting.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-audit.png" alt="Admin audit screen">
+          <figcaption>Figure 34. Admin audit screen for reviewing platform events and traceability.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="user-journeys" class="section">
+      <h2>10. Deep User Journey Implementation</h2>
+      <p>
+        This section explains how users move through ProcureX from first contact
+        to completed procurement activity. Each journey stage links a visible
+        screen from the ProcureX reference UI to the implementation behind it.
+        The screenshots are visual evidence from <code>procurex-ui</code>; the
+        production implementation is owned by the React client, route guards,
+        backend modules, Prisma data model, and RLS-aware access foundation.
+      </p>
+
+      <h3>10.1 Public Discovery Journey</h3>
+      <p>
+        The public journey is the entry point for visitors who have not yet
+        authenticated. Its purpose is to build confidence, explain the platform,
+        expose marketplace value, and move the visitor toward registration,
+        sign-in, or contact.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Visitor Lands On ProcureX</h4>
+        <figure class="wide">
+          <img src="ui-parity/screenshots/desktop/reference/welcome.png" alt="Welcome journey screen">
+          <figcaption>Figure 35. Welcome screen used as the first public entry point into ProcureX.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Understand what ProcureX is and decide whether the platform is relevant for procurement work.</td></tr>
+          <tr><th>Screen Used</th><td>The welcome page introduces the procurement platform and gives users a clear first impression of the product.</td></tr>
+          <tr><th>Actions Available</th><td>The visitor can navigate to public information pages, explore opportunities, register, sign in, or contact the platform team.</td></tr>
+          <tr><th>System Behavior</th><td>The React public route renders without requiring a session. The public page is mapped through the ProcureX page registry and uses the reference UI wording and layout.</td></tr>
+          <tr><th>Data Or Module</th><td>Public frontend module, static page assets, shared public shell, and route mapping.</td></tr>
+          <tr><th>Next Step</th><td>The visitor proceeds to learn about ProcureX, inspect the guest marketplace, or begin registration.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: Visitor Reviews Platform Information</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/about-procurex.png" alt="About ProcureX journey screen">
+          <figcaption>Figure 36. About ProcureX screen explaining the platform purpose and operating context.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Learn the purpose of the platform before creating an account or participating in procurement.</td></tr>
+          <tr><th>Screen Used</th><td>The About ProcureX page provides product background and positions the platform as a structured procurement workspace.</td></tr>
+          <tr><th>Actions Available</th><td>The visitor can continue exploring, return to marketplace discovery, contact the platform, or move toward onboarding.</td></tr>
+          <tr><th>System Behavior</th><td>The page remains public and does not depend on authentication. It is implemented as a production React page derived from the reference UI.</td></tr>
+          <tr><th>Data Or Module</th><td>Public frontend feature, static content, route registry, and public navigation.</td></tr>
+          <tr><th>Next Step</th><td>The visitor usually proceeds to guest marketplace review or account registration.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 3: Visitor Explores Public Opportunities</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/guest-marketplace.png" alt="Guest marketplace journey screen">
+          <figcaption>Figure 37. Guest marketplace screen for public procurement opportunity discovery.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Preview procurement opportunities and understand why registration is useful.</td></tr>
+          <tr><th>Screen Used</th><td>The guest marketplace gives a controlled public view of procurement opportunity discovery.</td></tr>
+          <tr><th>Actions Available</th><td>The visitor can inspect opportunity summaries, compare marketplace value, and decide to register or sign in for full participation.</td></tr>
+          <tr><th>System Behavior</th><td>The public route exposes marketplace context without granting access to protected bidding or tender management workflows.</td></tr>
+          <tr><th>Data Or Module</th><td>Public feature, procurement marketplace UI, future procurement API boundary, and opportunity fixture/reference content.</td></tr>
+          <tr><th>Next Step</th><td>A supplier or buyer candidate starts onboarding through role selection and registration.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 4: Visitor Requests Help Or Clarification</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/contact.png" alt="Contact journey screen">
+          <figcaption>Figure 38. Contact screen for public support, inquiry, and onboarding communication.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Ask questions before joining, request support, or initiate a formal platform inquiry.</td></tr>
+          <tr><th>Screen Used</th><td>The contact page provides a public communication point outside the authenticated workspace.</td></tr>
+          <tr><th>Actions Available</th><td>The visitor can review contact options and use the page as a bridge to platform support or onboarding.</td></tr>
+          <tr><th>System Behavior</th><td>The public route remains outside protected workflow modules while preparing the path for future communication API integration.</td></tr>
+          <tr><th>Data Or Module</th><td>Public frontend feature and future communication module boundary.</td></tr>
+          <tr><th>Next Step</th><td>The visitor either contacts the platform team or returns to registration.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 5: Visitor Reviews Trust And Legal Pages</h4>
+        <div class="figure-grid">
+          <figure>
+            <img src="ui-parity/screenshots/desktop/reference/privacy-policy.png" alt="Privacy policy journey screen">
+            <figcaption>Figure 39. Privacy policy screen supporting trust and data-handling transparency.</figcaption>
+          </figure>
+          <figure>
+            <img src="ui-parity/screenshots/desktop/reference/terms-and-conditions.png" alt="Terms and conditions journey screen">
+            <figcaption>Figure 40. Terms and conditions screen describing rules for platform use.</figcaption>
+          </figure>
+        </div>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Understand privacy, legal obligations, and platform expectations before creating an account.</td></tr>
+          <tr><th>Screen Used</th><td>Privacy Policy and Terms and Conditions pages provide formal trust and compliance information.</td></tr>
+          <tr><th>Actions Available</th><td>The user can read policy information, return to public discovery, or proceed with registration.</td></tr>
+          <tr><th>System Behavior</th><td>These pages are public routes and are implemented as static reference-derived React pages.</td></tr>
+          <tr><th>Data Or Module</th><td>Public feature and compliance-oriented documentation content.</td></tr>
+          <tr><th>Next Step</th><td>The user continues to role selection or registration after reviewing policy terms.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.2 Registration And Identity Journey</h3>
+      <p>
+        The onboarding journey converts a public visitor into an authenticated
+        platform user. It captures account intent, registration details,
+        authentication, verification, and profile status.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: User Selects Their Entry Path</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/role-selection.png" alt="Role selection journey screen">
+          <figcaption>Figure 41. Role selection screen used to direct the user into the appropriate onboarding path.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Choose the most relevant path for joining ProcureX based on intended platform use.</td></tr>
+          <tr><th>Screen Used</th><td>The role selection page gives the user a guided pre-registration decision point.</td></tr>
+          <tr><th>Actions Available</th><td>The user can indicate buyer, supplier, or related participation intent and continue into registration.</td></tr>
+          <tr><th>System Behavior</th><td>The frontend treats this as a public navigation step. The deeper product rule remains that account type is not buyer or supplier; organization capabilities represent those behaviors later.</td></tr>
+          <tr><th>Data Or Module</th><td>Auth frontend feature, route registry, shared identity rules, and organization capability model.</td></tr>
+          <tr><th>Next Step</th><td>The user opens the registration form and starts account creation.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: User Creates An Account</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/register.png" alt="Register journey screen">
+          <figcaption>Figure 42. Registration screen for starting ProcureX account creation.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Create a ProcureX identity that can later be connected to an organization.</td></tr>
+          <tr><th>Screen Used</th><td>The registration page collects the information required to start onboarding.</td></tr>
+          <tr><th>Actions Available</th><td>The user enters registration details, submits the form, and moves into verification and account activation steps.</td></tr>
+          <tr><th>System Behavior</th><td>The identity API supports registration start, OTP verification, email activation, and password setup. The frontend keeps the visible onboarding flow aligned with the reference UI.</td></tr>
+          <tr><th>Data Or Module</th><td><code>/api/identity</code>, User, Account, Session, IdentityChallenge, and verification-related models.</td></tr>
+          <tr><th>Next Step</th><td>The user signs in or completes identity verification depending on account state.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 3: User Signs In</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/sign-in.png" alt="Sign-in journey screen">
+          <figcaption>Figure 43. Sign-in screen for authenticated platform access.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Authenticate and enter the protected ProcureX application surface.</td></tr>
+          <tr><th>Screen Used</th><td>The sign-in page accepts credentials and starts the authenticated session.</td></tr>
+          <tr><th>Actions Available</th><td>The user can sign in, recover a forgotten password, or return to registration if they do not have an account.</td></tr>
+          <tr><th>System Behavior</th><td>The identity backend validates credentials and the frontend stores session state through the configured auth token flow. Route guards then decide where the user may navigate.</td></tr>
+          <tr><th>Data Or Module</th><td>Auth frontend feature, identity backend, Account, Session, auth token utility, and route guards.</td></tr>
+          <tr><th>Next Step</th><td>The user proceeds to verification if not approved, or to the workspace if verified.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 4: User Completes Identity And Company Verification</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/iam-verification.png" alt="Identity verification journey screen">
+          <figcaption>Figure 44. Identity verification screen for company and user validation.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Submit required profile, registry, and verification information so the organization can participate in protected procurement workflows.</td></tr>
+          <tr><th>Screen Used</th><td>The identity verification screen supports verification draft, registry lookup, and final submission behavior.</td></tr>
+          <tr><th>Actions Available</th><td>The user can review company data, save verification details, submit documents, and send the profile for admin review.</td></tr>
+          <tr><th>System Behavior</th><td>The identity module stores verification profile and document state. Admin users later review and approve or reject the verification request.</td></tr>
+          <tr><th>Data Or Module</th><td>VerificationProfile, VerificationDocument, Organization, OrganizationMember, identity routes, and admin verification routes.</td></tr>
+          <tr><th>Next Step</th><td>The user monitors verification status until the organization is approved for protected workflows.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 5: User Tracks Verification Status</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/verification-status.png" alt="Verification status journey screen">
+          <figcaption>Figure 45. Verification status screen showing account and organization review progress.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Know whether the account and organization can access the operational ProcureX workspace.</td></tr>
+          <tr><th>Screen Used</th><td>The verification status page shows the current profile and approval state.</td></tr>
+          <tr><th>Actions Available</th><td>The user can review profile state, update details where allowed, and wait for or respond to admin review.</td></tr>
+          <tr><th>System Behavior</th><td>Route guards allow identity/profile access before full verification but protect operational modules until verification requirements are satisfied.</td></tr>
+          <tr><th>Data Or Module</th><td>Identity frontend, verification APIs, ProtectedRoute, verification status model, and account profile state.</td></tr>
+          <tr><th>Next Step</th><td>Once approved, the user enters the app launcher and workspace dashboard.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.3 Workspace Entry Journey</h3>
+      <p>
+        The workspace journey begins after authentication and verification. It
+        gives the organization user a single place to choose modules and monitor
+        procurement work.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Verified User Opens The App Launcher</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/app-launcher.png" alt="App launcher journey screen">
+          <figcaption>Figure 46. App launcher screen organizing access to ProcureX modules.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Choose the module needed for the current procurement task.</td></tr>
+          <tr><th>Screen Used</th><td>The app launcher presents the system as a set of operational applications.</td></tr>
+          <tr><th>Actions Available</th><td>The user can open dashboard, procurement, bidding, evaluation, awards, communication, records, or permitted admin areas.</td></tr>
+          <tr><th>System Behavior</th><td>The route is protected and requires verification. The frontend determines visible navigation from available route surfaces and session context.</td></tr>
+          <tr><th>Data Or Module</th><td>Workspace feature, app router, ProtectedRoute, session endpoint, and organization capability rules.</td></tr>
+          <tr><th>Next Step</th><td>The user opens the dashboard or jumps directly to the required workflow module.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: Verified User Reviews Workspace Dashboard</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/workspace-dashboard.png" alt="Workspace dashboard journey screen">
+          <figcaption>Figure 47. Workspace dashboard summarizing procurement activity and next work items.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Understand current procurement activity and select the next task.</td></tr>
+          <tr><th>Screen Used</th><td>The dashboard acts as a command center for buyer, supplier, and workflow users.</td></tr>
+          <tr><th>Actions Available</th><td>The user can review status cards, navigate to active tenders, inspect tasks, and open workflow modules.</td></tr>
+          <tr><th>System Behavior</th><td>The React workspace feature renders a verified page and can combine fixture, API, and future live data into operational summaries.</td></tr>
+          <tr><th>Data Or Module</th><td>Workspace feature, shared dashboard components, session data, procurement data, bidding data, evaluation state, and records indicators.</td></tr>
+          <tr><th>Next Step</th><td>The user continues into buyer procurement, supplier participation, evaluation, awards, communication, or records.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.4 Buyer Procurement Journey</h3>
+      <p>
+        The buyer journey moves from market awareness to tender creation,
+        publication, detail review, and document management. Buyer behavior is
+        connected to organization capability, not to a separate buyer login role.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Buyer Reviews Marketplace Context</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/supplier-marketplace.png" alt="Marketplace buyer journey screen">
+          <figcaption>Figure 48. Marketplace screen showing procurement opportunity context and supplier-facing discovery.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Understand active opportunities and market context before creating or managing tenders.</td></tr>
+          <tr><th>Screen Used</th><td>The marketplace screen shows procurement opportunities and supports both discovery and tender context.</td></tr>
+          <tr><th>Actions Available</th><td>The buyer can inspect opportunity structure, navigate to tender creation, or review existing tender-related surfaces.</td></tr>
+          <tr><th>System Behavior</th><td>The protected procurement route renders only for verified users. Access can later be refined using organization capabilities and RLS policies.</td></tr>
+          <tr><th>Data Or Module</th><td>Procurement frontend feature, procurement backend, Tender model, OrganizationCapability, and route guards.</td></tr>
+          <tr><th>Next Step</th><td>The buyer opens the create tender workflow.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: Buyer Creates A Tender</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/create-tender.png" alt="Create tender buyer journey screen">
+          <figcaption>Figure 49. Create tender screen for buyer-side tender setup.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Define the procurement need, tender details, requirements, commercial items, dates, and documentation expectations.</td></tr>
+          <tr><th>Screen Used</th><td>The create tender screen provides the buyer-facing entry point for building a structured tender.</td></tr>
+          <tr><th>Actions Available</th><td>The buyer can enter tender information, organize requirements, prepare documents, and move toward publication readiness.</td></tr>
+          <tr><th>System Behavior</th><td>The frontend captures the visible workflow while the procurement module boundary is responsible for tender persistence and validation as behavior is expanded.</td></tr>
+          <tr><th>Data Or Module</th><td>Tender, TenderRequirement, TenderMilestone, TenderCommercialItem, TenderDocument, procurement service, and validators.</td></tr>
+          <tr><th>Next Step</th><td>The buyer prepares the tender for publication.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 3: Buyer Publishes The Tender</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/tender-publication.png" alt="Tender publication buyer journey screen">
+          <figcaption>Figure 50. Tender publication screen for moving a tender toward supplier visibility.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Review the tender and make it available to eligible suppliers.</td></tr>
+          <tr><th>Screen Used</th><td>The tender publication screen represents the transition from draft preparation to published opportunity.</td></tr>
+          <tr><th>Actions Available</th><td>The buyer can review publication fields, confirm readiness, and progress the tender to the next lifecycle state.</td></tr>
+          <tr><th>System Behavior</th><td>The procurement module owns tender status transitions and visibility rules. The database tracks tender status and ownership by buyer organization.</td></tr>
+          <tr><th>Data Or Module</th><td>TenderStatus, Visibility, ProcurementMethod, Tender, buyerOrgId, and procurement API boundary.</td></tr>
+          <tr><th>Next Step</th><td>Suppliers discover the tender and begin reviewing details.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 4: Buyer Reviews Tender Details</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/tender-details.png" alt="Tender details buyer journey screen">
+          <figcaption>Figure 51. Tender details screen showing the structured tender record.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Inspect the tender as a complete operational record before or after publication.</td></tr>
+          <tr><th>Screen Used</th><td>The tender details screen presents tender metadata, sections, status, and related workflow context.</td></tr>
+          <tr><th>Actions Available</th><td>The buyer can review details, navigate to documents, monitor status, and prepare for bidding and evaluation phases.</td></tr>
+          <tr><th>System Behavior</th><td>The frontend displays tender state and route context. The backend procurement module is the boundary for retrieving and updating tender data.</td></tr>
+          <tr><th>Data Or Module</th><td>Tender, TenderCategory, TenderRequirement, TenderMilestone, and procurement route state.</td></tr>
+          <tr><th>Next Step</th><td>The buyer manages tender documents or monitors supplier response activity.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 5: Buyer Manages Tender Documents</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/tender-document.png" alt="Tender document buyer journey screen">
+          <figcaption>Figure 52. Tender document screen for document access and procurement evidence management.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Attach, review, and organize procurement documents that suppliers and evaluators need.</td></tr>
+          <tr><th>Screen Used</th><td>The tender document screen presents documents as part of the tender package.</td></tr>
+          <tr><th>Actions Available</th><td>The buyer can review document details, prepare document availability, and support later audit or evaluation needs.</td></tr>
+          <tr><th>System Behavior</th><td>The documents and procurement modules separate document object handling from tender lifecycle state.</td></tr>
+          <tr><th>Data Or Module</th><td>TenderDocument, DocumentObject, documents module, procurement module, and records/audit linkage.</td></tr>
+          <tr><th>Next Step</th><td>The published tender moves into supplier review and bidding.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.5 Supplier Participation Journey</h3>
+      <p>
+        The supplier journey moves from understanding the process to discovering
+        opportunities, reviewing tender details, and preparing a bid response.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Supplier Learns The Participation Process</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/supplier-journey.png" alt="Supplier journey process screen">
+          <figcaption>Figure 53. Supplier journey screen explaining how suppliers participate in ProcureX.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Understand how to participate in tenders and what steps are required before submitting bids.</td></tr>
+          <tr><th>Screen Used</th><td>The supplier journey page explains the procurement guide and supplier process.</td></tr>
+          <tr><th>Actions Available</th><td>The supplier can review process guidance and move into marketplace discovery or tender review.</td></tr>
+          <tr><th>System Behavior</th><td>The protected procurement guide route gives verified users process orientation before operational action.</td></tr>
+          <tr><th>Data Or Module</th><td>Procurement guide page, procurement frontend feature, route guards, and organization capability context.</td></tr>
+          <tr><th>Next Step</th><td>The supplier opens the marketplace to find suitable opportunities.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: Supplier Discovers Opportunities</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/supplier-marketplace.png" alt="Supplier marketplace participation screen">
+          <figcaption>Figure 54. Supplier marketplace screen for discovering available tenders.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Find tenders that match supplier services, sector, capability, or eligibility.</td></tr>
+          <tr><th>Screen Used</th><td>The supplier marketplace displays procurement opportunities for consideration.</td></tr>
+          <tr><th>Actions Available</th><td>The supplier can scan opportunities, inspect summaries, filter conceptually by fit, and open tender details.</td></tr>
+          <tr><th>System Behavior</th><td>The procurement frontend renders marketplace information under a verified route. Future supplier matching can be layered through intelligence APIs.</td></tr>
+          <tr><th>Data Or Module</th><td>Procurement module, Tender, SupplierProfile, SupplierMatchSignal, and intelligence module boundary.</td></tr>
+          <tr><th>Next Step</th><td>The supplier opens a tender detail page for deeper review.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 3: Supplier Reviews Tender Detail</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/supplier-tender-detail.png" alt="Supplier tender detail journey screen">
+          <figcaption>Figure 55. Supplier tender detail screen used before bid preparation.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Understand tender requirements, deadlines, documents, and whether to participate.</td></tr>
+          <tr><th>Screen Used</th><td>The supplier tender detail screen presents opportunity information from the supplier perspective.</td></tr>
+          <tr><th>Actions Available</th><td>The supplier can review eligibility, inspect documents, assess requirements, and decide whether to start a bid.</td></tr>
+          <tr><th>System Behavior</th><td>The procurement route displays tender context while access rules protect tender details according to publication and organization permissions.</td></tr>
+          <tr><th>Data Or Module</th><td>Tender, TenderDocument, TenderRequirement, supplier organization context, procurement API, and RLS policies.</td></tr>
+          <tr><th>Next Step</th><td>The supplier opens the bidding workspace to prepare a submission.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 4: Supplier Prepares A Bid</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/bidding-workspace.png" alt="Bidding workspace supplier journey screen">
+          <figcaption>Figure 56. Bidding workspace for supplier-side response preparation and tracking.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Prepare, organize, and submit a compliant response to a tender.</td></tr>
+          <tr><th>Screen Used</th><td>The bidding workspace gives suppliers a dedicated operational surface for bid work.</td></tr>
+          <tr><th>Actions Available</th><td>The supplier can manage bid versions, documents, responses, status, and submission readiness.</td></tr>
+          <tr><th>System Behavior</th><td>The bidding module owns bid state and links bids to both buyer and supplier organizations. This supports access control from both sides of the procurement transaction.</td></tr>
+          <tr><th>Data Or Module</th><td>Bid, BidVersion, BidDocument, BidResponse, BidReceipt, buyerOrgId, supplierOrgId, and bidding API boundary.</td></tr>
+          <tr><th>Next Step</th><td>Submitted bids proceed to evaluation.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.6 Evaluator Journey</h3>
+      <p>
+        Evaluation is the transition from supplier submission to structured
+        procurement decision. Evaluators review bid responses, score criteria,
+        and support award recommendations.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Evaluator Reviews And Scores Bids</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/bid-evaluation.png" alt="Bid evaluation journey screen">
+          <figcaption>Figure 57. Bid evaluation screen for structured review, scoring, and recommendation preparation.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Evaluate bids fairly against criteria and prepare a defensible decision record.</td></tr>
+          <tr><th>Screen Used</th><td>The bid evaluation screen organizes evaluation work, scoring, stages, and review context.</td></tr>
+          <tr><th>Actions Available</th><td>The evaluator can review suppliers, compare bid responses, apply scores, inspect criteria, and contribute to evaluation outcomes.</td></tr>
+          <tr><th>System Behavior</th><td>Evaluation permissions are based on workflow assignments, not broad account roles. The evaluation module controls workspace status, criteria, score records, and stage transitions.</td></tr>
+          <tr><th>Data Or Module</th><td>EvaluationWorkspace, WorkflowAssignment, EvaluationCriterion, EvaluationScore, EvaluationStage, and evaluation API boundary.</td></tr>
+          <tr><th>Next Step</th><td>Evaluation results are moved into award recommendation and approval review.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.7 Approver And Award Reviewer Journey</h3>
+      <p>
+        The award reviewer journey converts evaluation output into formal
+        recommendation, approval, and contract readiness.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Reviewer Opens Awarding Workspace</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/awarding-contracts.png" alt="Awarding contracts reviewer journey screen">
+          <figcaption>Figure 58. Awarding and contracts workspace for post-evaluation review.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Review procurement outcomes after evaluation and understand award readiness.</td></tr>
+          <tr><th>Screen Used</th><td>The awarding and contracts screen centralizes post-evaluation decisions.</td></tr>
+          <tr><th>Actions Available</th><td>The reviewer can inspect recommendations, approval state, contract status, and post-award activity.</td></tr>
+          <tr><th>System Behavior</th><td>The award-contract module links evaluation results to recommendation and contract records. Route guards keep this workflow inside verified access.</td></tr>
+          <tr><th>Data Or Module</th><td>AwardRecommendation, ApprovalStep, Contract, ContractVersion, PurchaseOrder, Invoice, and award-contract API boundary.</td></tr>
+          <tr><th>Next Step</th><td>The reviewer opens the recommendation page for approval-focused review.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: Reviewer Examines Award Recommendation</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/award-recommendation.png" alt="Award recommendation reviewer journey screen">
+          <figcaption>Figure 59. Award recommendation screen showing approval-ready procurement decision information.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Validate the recommended supplier, evaluation basis, and approval readiness.</td></tr>
+          <tr><th>Screen Used</th><td>The award recommendation screen presents the decision package for review.</td></tr>
+          <tr><th>Actions Available</th><td>The reviewer can inspect recommendation details, review approval steps, and prepare the recommendation for decision.</td></tr>
+          <tr><th>System Behavior</th><td>The backend stores recommendation status and approval steps so the decision can be audited later.</td></tr>
+          <tr><th>Data Or Module</th><td>AwardRecommendation, RecommendationStatus, ApprovalStep, ApprovalStatus, evaluation linkage, and audit events.</td></tr>
+          <tr><th>Next Step</th><td>Approved awards proceed into contract negotiation.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.8 Contract Participant Journey</h3>
+      <p>
+        Contract participants work after award approval. Their focus is
+        negotiation, version review, signature readiness, delivery tracking, and
+        invoice or purchase order follow-up.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Participant Negotiates Contract Terms</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/contract-negotiation.png" alt="Contract negotiation participant journey screen">
+          <figcaption>Figure 60. Contract negotiation screen for buyer and supplier agreement activity.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Move from award decision to agreed contract terms.</td></tr>
+          <tr><th>Screen Used</th><td>The contract negotiation screen supports discussion, review, and negotiation of contract terms.</td></tr>
+          <tr><th>Actions Available</th><td>Participants can review contract details, inspect negotiation context, and progress agreement activity.</td></tr>
+          <tr><th>System Behavior</th><td>The award-contract module maintains contract records and versions so agreement history can be retained.</td></tr>
+          <tr><th>Data Or Module</th><td>Contract, ContractVersion, ContractStatus, SignatureStatus, CommunicationItem, and award-contract API boundary.</td></tr>
+          <tr><th>Next Step</th><td>The contract moves into execution and post-award tracking.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: Participant Tracks Post-Award Delivery</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/post-award-tracking.png" alt="Post-award tracking participant journey screen">
+          <figcaption>Figure 61. Post-award tracking screen for delivery, purchase order, and invoice follow-up.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Track contract execution after the award has been made.</td></tr>
+          <tr><th>Screen Used</th><td>The post-award tracking screen monitors contract progress, fulfillment, and operational follow-up.</td></tr>
+          <tr><th>Actions Available</th><td>Participants can review purchase orders, invoice status, delivery progress, and contract activity.</td></tr>
+          <tr><th>System Behavior</th><td>The financial and award-contract modules model purchase orders and invoices while records and audit events preserve traceability.</td></tr>
+          <tr><th>Data Or Module</th><td>PurchaseOrder, Invoice, InvoiceStatus, Contract, RecordEntry, AuditEvent, and financial API boundary.</td></tr>
+          <tr><th>Next Step</th><td>Users communicate updates or review records as delivery continues.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.9 Communication And Records Journey</h3>
+      <p>
+        Communication and records support collaboration, transparency, and
+        auditability across the full procurement lifecycle.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: User Communicates About Procurement Work</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/communication-center.png" alt="Communication center journey screen">
+          <figcaption>Figure 62. Communication center for procurement messages, updates, and collaboration.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Send or review structured communication related to procurement activity.</td></tr>
+          <tr><th>Screen Used</th><td>The communication center organizes workflow-related messages and updates.</td></tr>
+          <tr><th>Actions Available</th><td>The user can review messages, inspect priorities, follow conversation context, and coordinate with other participants.</td></tr>
+          <tr><th>System Behavior</th><td>The communication module stores message records and attachments so important updates can be connected to procurement workflows.</td></tr>
+          <tr><th>Data Or Module</th><td>CommunicationItem, CommunicationAttachment, CommunicationKind, CommunicationPriority, and communication API boundary.</td></tr>
+          <tr><th>Next Step</th><td>The user proceeds with workflow action or records review based on the communication outcome.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: User Reviews Records And History</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/records-history.png" alt="Records history journey screen">
+          <figcaption>Figure 63. Records history screen for traceability and audit-oriented review.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Confirm what happened, when it happened, and which workflow record supports the decision.</td></tr>
+          <tr><th>Screen Used</th><td>The records history screen provides an auditable view of procurement activity.</td></tr>
+          <tr><th>Actions Available</th><td>The user can review record entries, inspect historical events, and use the history for accountability.</td></tr>
+          <tr><th>System Behavior</th><td>The records and audit models preserve workflow evidence across tender, bid, evaluation, award, contract, and communication activity.</td></tr>
+          <tr><th>Data Or Module</th><td>RecordEntry, AuditEvent, records API boundary, compliance admin linkage, and RLS access context.</td></tr>
+          <tr><th>Next Step</th><td>The user uses the record for operational follow-up, compliance review, or audit evidence.</td></tr>
+        </table>
+      </article>
+
+      <h3>10.10 Platform Administrator Journey</h3>
+      <p>
+        Admin users operate the compliance and oversight surface. They are not
+        buyer or supplier users. Their journey focuses on verification review,
+        platform search, user oversight, compliance cases, analytics, and audit.
+      </p>
+
+      <article class="journey-card">
+        <h4>Stage 1: Admin Opens Platform Dashboard</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-dashboard.png" alt="Admin dashboard journey screen">
+          <figcaption>Figure 64. Admin dashboard for platform compliance and operational oversight.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Monitor platform health, verification activity, compliance state, and operational indicators.</td></tr>
+          <tr><th>Screen Used</th><td>The admin dashboard gives administrators a consolidated oversight surface.</td></tr>
+          <tr><th>Actions Available</th><td>The admin can move to search, users, compliance, analytics, or audit workflows.</td></tr>
+          <tr><th>System Behavior</th><td>The route is wrapped by AdminRoute, which separates platform administration from normal user workflows.</td></tr>
+          <tr><th>Data Or Module</th><td>Admin frontend feature, compliance-admin backend, identity admin routes, session account type, and audit models.</td></tr>
+          <tr><th>Next Step</th><td>The admin investigates specific users, records, cases, or activity trends.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 2: Admin Searches Across The Platform</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-search.png" alt="Admin search journey screen">
+          <figcaption>Figure 65. Admin search screen for platform-wide discovery and investigation.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Find users, organizations, tenders, records, or compliance items that need attention.</td></tr>
+          <tr><th>Screen Used</th><td>The admin search page supports investigative discovery across platform data.</td></tr>
+          <tr><th>Actions Available</th><td>The admin can search, inspect results, and navigate into the relevant admin workflow.</td></tr>
+          <tr><th>System Behavior</th><td>Admin-only access protects search behavior while backend modules provide domain boundaries for the records being searched.</td></tr>
+          <tr><th>Data Or Module</th><td>Compliance-admin feature, identity module, procurement records, audit events, and integration-ready search boundaries.</td></tr>
+          <tr><th>Next Step</th><td>The admin opens user management, compliance, or audit detail depending on findings.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 3: Admin Reviews Users And Organizations</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-users.png" alt="Admin users journey screen">
+          <figcaption>Figure 66. Admin users screen for account, user, and organization review.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Review account status, organization verification, and user-related platform state.</td></tr>
+          <tr><th>Screen Used</th><td>The admin users screen provides a management and review surface for platform identities.</td></tr>
+          <tr><th>Actions Available</th><td>The admin can inspect users, review organizations, and support verification or compliance decisions.</td></tr>
+          <tr><th>System Behavior</th><td>Identity admin endpoints support listing verification requests and making verification decisions.</td></tr>
+          <tr><th>Data Or Module</th><td>User, Account, Organization, OrganizationMember, VerificationProfile, VerificationDocument, and identity admin routes.</td></tr>
+          <tr><th>Next Step</th><td>The admin resolves verification items or escalates compliance concerns.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 4: Admin Handles Compliance Cases</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-compliance.png" alt="Admin compliance journey screen">
+          <figcaption>Figure 67. Admin compliance screen for risk and case management.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Monitor risk signals, review compliance cases, and support platform governance.</td></tr>
+          <tr><th>Screen Used</th><td>The admin compliance screen presents compliance workload and case handling context.</td></tr>
+          <tr><th>Actions Available</th><td>The admin can review cases, inspect risk indicators, and track administrative actions.</td></tr>
+          <tr><th>System Behavior</th><td>The compliance-admin module owns compliance case status, risk signals, and admin action boundaries.</td></tr>
+          <tr><th>Data Or Module</th><td>ComplianceCase, ComplianceCaseStatus, RiskSignal, AdminAction, AuditEvent, and compliance-admin API boundary.</td></tr>
+          <tr><th>Next Step</th><td>The admin moves to analytics for trends or audit for event-level review.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 5: Admin Reviews Analytics</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-analytics.png" alt="Admin analytics journey screen">
+          <figcaption>Figure 68. Admin analytics screen for measuring platform activity and performance.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Understand platform trends, activity volumes, compliance indicators, and procurement performance signals.</td></tr>
+          <tr><th>Screen Used</th><td>The admin analytics page provides a measurement-oriented view of platform activity.</td></tr>
+          <tr><th>Actions Available</th><td>The admin can inspect charts, compare indicators, and identify areas requiring operational follow-up.</td></tr>
+          <tr><th>System Behavior</th><td>The frontend uses charting components while backend module boundaries prepare analytics and intelligence expansion.</td></tr>
+          <tr><th>Data Or Module</th><td>Admin analytics feature, compliance-admin module, intelligence module, MarketSnapshot, PriceBenchmark, and RiskSignal.</td></tr>
+          <tr><th>Next Step</th><td>The admin investigates specific anomalies or reviews audit events.</td></tr>
+        </table>
+      </article>
+
+      <article class="journey-card">
+        <h4>Stage 6: Admin Reviews Audit Evidence</h4>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-audit.png" alt="Admin audit journey screen">
+          <figcaption>Figure 69. Admin audit screen for reviewing platform activity and traceability evidence.</figcaption>
+        </figure>
+        <table class="journey-table">
+          <tr><th>User Goal</th><td>Verify platform activity and support accountability during review or investigation.</td></tr>
+          <tr><th>Screen Used</th><td>The admin audit screen exposes event and audit-oriented evidence.</td></tr>
+          <tr><th>Actions Available</th><td>The admin can inspect audit activity, review severity, and connect events to users, organizations, or procurement records.</td></tr>
+          <tr><th>System Behavior</th><td>The audit model records system events and can be connected to compliance, records, identity, and procurement workflows.</td></tr>
+          <tr><th>Data Or Module</th><td>AuditEvent, AuditSeverity, AdminAction, RecordEntry, compliance-admin module, and records module.</td></tr>
+          <tr><th>Next Step</th><td>The admin closes the review, opens a compliance case, or continues investigation.</td></tr>
+        </table>
+      </article>
+
+      <p class="journey-note">
+        Across all journeys, route guards and session state determine whether a
+        screen is public, authenticated, verified, or admin-only. The backend
+        module structure gives every journey a stable API boundary, while Prisma
+        and RLS foundations prepare the system for organization-aware production
+        access control.
+      </p>
+    </section>
+
+    <section id="testing" class="section">
+      <h2>11. Testing And Validation</h2>
+      <p>
+        The platform includes test coverage and validation scripts across server,
+        client, database, and UI parity concerns.
+      </p>
+
+      <h3>11.1 Automated Testing</h3>
+      <p>
+        The root test command runs server and client tests:
+      </p>
+      <pre>npm test</pre>
+      <p>
+        Current coverage includes backend app tests, module validation tests,
+        identity development bypass tests, React route guard tests, page smoke
+        tests, shared component tests, ProcureX static page tests, language
+        layout checks, and awards and contracts flow tests.
+      </p>
+
+      <h3>11.2 Database Validation</h3>
+      <p>
+        Database validation and setup scripts support local development and RLS
+        verification:
+      </p>
+      <pre>npm run db:validate
+npm run db:migrate
+npm run db:seed:twice
+npm --workspace server run verify:rls</pre>
+
+      <h3>11.3 Screenshot Validation</h3>
+      <p>
+        The UI parity capture script validates that the production React target
+        can be compared against the reference prototype. Screenshots are captured
+        for desktop and mobile viewports.
+      </p>
+      <pre>npm run dev:client
+npm --workspace client run ui:parity:screenshots</pre>
+    </section>
+
+    <section id="conclusion" class="section">
+      <h2>12. Conclusion And Recommendations</h2>
+      <p>
+        The ProcureX implementation establishes a strong foundation for a
+        production procurement platform. It combines a visual reference workflow,
+        production React pages, modular Express APIs, Prisma database modeling,
+        and organization-aware access rules. The design allows the product to
+        preserve the experience of the original prototype while moving toward a
+        maintainable and secure application architecture.
+      </p>
+
+      <h3>12.1 Conclusion</h3>
+      <p>
+        The implementation successfully models the major procurement lifecycle
+        areas: public discovery, onboarding, verification, procurement planning,
+        tender management, bidding, evaluation, awards, contracts,
+        communication, records, and administration. The separation of account
+        type from organization capability is especially important because it
+        supports realistic procurement operations where companies may act as
+        buyers, suppliers, or both.
+      </p>
+
+      <h3>12.2 Recommendations</h3>
+      <ol>
+        <li>Continue converting prototype-derived screens into richer production React workflows where backend APIs are ready.</li>
+        <li>Expand module tests as each domain moves from skeleton status to business behavior.</li>
+        <li>Keep UI parity screenshots updated during design or layout changes.</li>
+        <li>Strengthen RLS verification as more sensitive procurement records become active.</li>
+        <li>Introduce the future intelligence service only after stable integration contracts are defined.</li>
+      </ol>
+    </section>
+
+    <section id="references" class="section">
+      <h2>13. References And Figures Used</h2>
+      <p>
+        This report was prepared from the implementation guide, repository
+        structure, UI parity assets, backend module structure, Prisma database
+        foundation, and screenshot capture workflow in the ProcureX workspace.
+      </p>
+
+      <h3>13.1 Repository References</h3>
+      <ul>
+        <li><code>procurement-platform/docs/architecture.md</code> - system implementation guide.</li>
+        <li><code>procurement-platform/docs/database.md</code> - database foundation notes.</li>
+        <li><code>procurement-platform/docs/ui-parity/README.md</code> - UI parity workflow.</li>
+        <li><code>procurement-platform/docs/ui-parity/routes.json</code> - prototype and React route mapping.</li>
+        <li><code>procurement-platform/scripts/capture-ui-parity.mjs</code> - screenshot capture script.</li>
+        <li><code>procurement-platform/server/src/modules/index.ts</code> - backend module registration.</li>
+        <li><code>procurement-platform/client/src/app/router.tsx</code> - production client routing.</li>
+        <li><code>procurement-platform/server/prisma/schema.prisma</code> - database schema model.</li>
+      </ul>
+
+      <h3>13.2 Figure Asset References</h3>
+      <p>
+        All screenshots are reference UI assets from:
+      </p>
+      <pre>docs/ui-parity/screenshots/desktop/reference/</pre>
+      <p class="note">
+        Figures used: welcome, guest-marketplace, about-procurex, contact,
+        privacy-policy, terms-and-conditions, register, sign-in,
+        role-selection, iam-verification, verification-status, app-launcher,
+        workspace-dashboard, supplier-marketplace, create-tender,
+        tender-publication, tender-details, tender-document,
+        supplier-tender-detail, supplier-journey, bidding-workspace,
+        bid-evaluation, awarding-contracts, award-recommendation,
+        contract-negotiation, post-award-tracking, communication-center,
+        records-history, admin-dashboard, admin-search, admin-users,
+        admin-compliance, admin-analytics, and admin-audit.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

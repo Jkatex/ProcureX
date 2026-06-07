@@ -1,9 +1,756 @@
-/* This file is generated from the ProcureX design prototype. Do not edit by hand. */
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from '@/app/store';
+import { setSessionUser, signOut } from '@/features/auth/slice';
+import { identityApi } from '@/features/identity/api';
+import type { VerificationProfile } from '@/features/identity/types';
+import { apiErrorMessage } from '@/shared/api/errors';
+import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 
-import { ProcurexStaticPage } from '@/shared/components/procurex/ProcurexStaticPage';
+type ProfileTab = 'overview' | 'account' | 'entity' | 'classification' | 'documents' | 'settings' | 'system';
 
-const html = "\n            <header class=\"app-topbar\">\n                <div class=\"app-topbar-left\">\n                    <button class=\"app-brand-button\" type=\"button\" data-navigate=\"workspace-dashboard\">\n                        \n        <span class=\"platform-logo\">\n            <img class=\"platform-logo-image\" src=\"/assets/logo.svg\" alt=\"ProcureX\">\n        </span>\n    \n                        <span>Registration and Verification</span>\n                    </button>\n                </div>\n\n                <div class=\"app-topbar-actions\">\n                      <button class=\"icon-menu-btn\" type=\"button\" data-app-menu-toggle aria-label=\"Open apps\" aria-expanded=\"false\">\n                        <span></span><span></span><span></span>\n                        <span></span><span></span><span></span>\n                        <span></span><span></span><span></span>\n                    </button>\n                    <div class=\"profile-menu-wrap\">\n                        <button class=\"profile-button\" type=\"button\" data-profile-menu-toggle aria-label=\"Open profile menu\" aria-expanded=\"false\">\n                            <span>AU</span>\n                        </button>\n                    </div>\n                </div>\n\n                <div class=\"app-drawer-menu\" data-app-menu>\n                    <div class=\"app-menu-header\">\n                        <div class=\"app-menu-brand\">\n                            \n        <span class=\"platform-logo platform-logo-sm\">\n            <img class=\"platform-logo-image\" src=\"/assets/logo.svg\" alt=\"ProcureX\">\n        </span>\n    \n                            <strong>ProcureX Apps</strong>\n                        </div>\n                        <span>Company account tools</span>\n                    </div>\n                    \n            <button class=\"app-menu-card app-menu-iam\" data-navigate=\"account-profile\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M20 21a8 8 0 0 0-16 0\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/><path d=\"M16 11l2 2 4-4\"/>\n            </svg>\n        </span>\n                <span><strong>Registration and Verification</strong><em>Account and identity verification</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-procurement\" data-navigate=\"tender-planning\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M4 4h16v16H4z\"/><path d=\"M8 8h8\"/><path d=\"M8 12h8\"/><path d=\"M8 16h5\"/>\n            </svg>\n        </span>\n                <span><strong>Procurement Planning</strong><em>APP, SPP, budgets, approvals</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-procurement\" data-navigate=\"marketplace\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M3 9h18l-2-5H5z\"/><path d=\"M5 9v11h14V9\"/><path d=\"M9 13h6\"/><path d=\"M9 17h4\"/>\n            </svg>\n        </span>\n                <span><strong>Procurement</strong><em>Marketplace, create tender, bid</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-communication\" data-navigate=\"communication-center\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z\"/><path d=\"M8 9h8\"/><path d=\"M8 13h5\"/>\n            </svg>\n        </span>\n                <span><strong>Communication Center</strong><em>Messages, clarifications, alerts</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-evaluation\" data-navigate=\"bid-evaluation\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M9 11l2 2 4-4\"/><path d=\"M8 4h8\"/><path d=\"M8 20h8\"/><path d=\"M5 7h14v10H5z\"/>\n            </svg>\n        </span>\n                <span><strong>Evaluation</strong><em>Evaluate bids on your tenders</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-awarding\" data-navigate=\"awarding-contracts\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M8.5 11.5L7 21l5-3 5 3-1.5-9.5\"/><path d=\"M10.5 8l1 1 2-2\"/>\n            </svg>\n        </span>\n                <span><strong>Awarding and Contract</strong><em>Awards, negotiations, signatures</em></span>\n            </button>\n            <button class=\"app-menu-card app-menu-contracts\" data-navigate=\"records-history\">\n                <span class=\"app-menu-icon\">\n            <svg class=\"app-menu-svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                <path d=\"M8 3h8l3 3v15H5V3z\"/><path d=\"M15 3v4h4\"/><path d=\"M8 12h8\"/><path d=\"M8 16h6\"/>\n            </svg>\n        </span>\n                <span><strong>Records and History</strong><em>Past tenders, bids, awards</em></span>\n            </button>\n        \n                </div>\n\n                <div class=\"profile-menu\" data-profile-menu>\n                    <button type=\"button\" data-navigate=\"account-profile\">Profile</button>\n                    <button type=\"button\" data-navigate=\"communication-center\">Messages</button>\n                    <button type=\"button\">Help</button>\n                    <button type=\"button\">Language</button>\n                    <button type=\"button\" data-navigate=\"sign-in\">Logout</button>\n                </div>\n            </header>\n        \n        <div class=\"main-layout\">\n            <div class=\"main-content\">\n                <form class=\"iam-profile-page\" data-iam-profile-form>\n                    <section class=\"iam-profile-hero\">\n                        <div>\n                            <span class=\"badge badge-warning\">Identity verification pending</span>\n                            <h1>Account Profile Workspace</h1>\n                            <p>Individual profile details can be completed over time. ProcureX keeps verification data read-only while allowing account, classification, documents, financial, capacity, and procurement settings to be updated as needed.</p>\n                            <div class=\"iam-hero-actions\">\n                                <button class=\"btn btn-primary\" type=\"button\" data-iam-save-profile>Save Draft</button>\n                                <button class=\"btn btn-secondary\" type=\"button\" data-navigate=\"identity-verification\">Update Identity Verification</button>\n                            </div>\n                            <small class=\"iam-save-status\" data-iam-save-status>Draft changes stay available during this ProcureX session.</small>\n                        </div>\n                        <div class=\"iam-profile-score\">\n                            <div class=\"iam-score-copy\">\n                                <span>Profile completion</span>\n                                <strong data-iam-completion-percent>12%</strong>\n                                <div class=\"progress-bar\"><div class=\"progress-fill\" data-iam-completion-fill style=\"width: 12%;\"></div></div>\n                                <small data-iam-completion-copy>2 of 17 required entity fields complete</small>\n                            </div>\n                        </div>\n                    </section>\n\n                    <nav class=\"iam-profile-tabs\" aria-label=\"account profile sections\">\n                        <button type=\"button\" class=\"active\" data-iam-tab=\"overview\">Overview</button><button type=\"button\" class=\"\" data-iam-tab=\"account\">Account</button><button type=\"button\" class=\"\" data-iam-tab=\"entity\">Individual</button><button type=\"button\" class=\"\" data-iam-tab=\"classification\">Classification</button><button type=\"button\" class=\"\" data-iam-tab=\"contacts\">Contacts</button><button type=\"button\" class=\"\" data-iam-tab=\"documents\">Documents</button><button type=\"button\" class=\"\" data-iam-tab=\"financial\">Financial</button><button type=\"button\" class=\"\" data-iam-tab=\"capacity\">Capacity</button><button type=\"button\" class=\"\" data-iam-tab=\"settings\">Settings</button><button type=\"button\" class=\"\" data-iam-tab=\"system\">System</button>\n                    </nav>\n\n                    <section class=\"iam-profile-section active\" data-iam-panel=\"overview\">\n                        <div class=\"iam-section-heading\">\n                            <div><span class=\"section-kicker\">Overview</span><h2>Individual verification record</h2></div>\n                            <span class=\"badge badge-info\">individual</span>\n                        </div>\n                        <div class=\"iam-overview-grid\">\n                            \n        <div class=\"iam-readonly-row\">\n            <span>Applicant type</span>\n            <strong>Individual</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Verified name</span>\n            <strong>Existing user account</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Registry source</span>\n            <strong>TRA / BRELA</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Registry reference</span>\n            <strong>Stored on account</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Digital signature</span>\n            <strong>Stored digital signature</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Profile status</span>\n            <strong>12% complete</strong>\n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"account\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Account Holder</span><h2>Account Information</h2></div><span class=\"badge badge-warning\">1/4 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Full Name *</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"fullName\" data-iam-section=\"account\" data-iam-field=\"fullName\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Email Address *</label>\n            <input class=\"form-input\" type=\"email\" value=\"\" name=\"emailAddress\" data-iam-section=\"account\" data-iam-field=\"emailAddress\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Phone Number *</label>\n            <input class=\"form-input\" type=\"tel\" value=\"\" name=\"phoneNumber\" data-iam-section=\"account\" data-iam-field=\"phoneNumber\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Password</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"passwordNote\" data-iam-section=\"account\" data-iam-field=\"passwordNote\" data-iam-entity=\"all\" readonly placeholder=\"Managed during sign-in and registration\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Profile Photo</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"profilePhoto\">\n                <input type=\"hidden\" name=\"profilePhoto\" data-iam-section=\"account\" data-iam-field=\"profilePhoto\" data-iam-entity=\"all\" value=\"\">\n                <small data-iam-upload-name=\"profilePhoto\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Country *</label>\n            \n            <select class=\"form-input\" name=\"country\" data-iam-section=\"account\" data-iam-field=\"country\" data-iam-entity=\"all\" data-iam-required=\"true\">\n                <option value=\"\">Select</option>\n                <option value=\"Tanzania\" selected>Tanzania</option><option value=\"Kenya\" >Kenya</option><option value=\"Uganda\" >Uganda</option><option value=\"Rwanda\" >Rwanda</option><option value=\"Burundi\" >Burundi</option><option value=\"South Africa\" >South Africa</option><option value=\"United Arab Emirates\" >United Arab Emirates</option>\n            </select>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Preferred Language</label>\n            \n            <select class=\"form-input\" name=\"preferredLanguage\" data-iam-section=\"account\" data-iam-field=\"preferredLanguage\" data-iam-entity=\"all\">\n                <option value=\"\">Select</option>\n                <option value=\"English\" selected>English</option><option value=\"Swahili\" >Swahili</option><option value=\"French\" >French</option><option value=\"Arabic\" >Arabic</option>\n            </select>\n        \n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"entity\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Legal identity</span><h2>Individual Information</h2></div><span class=\"badge badge-warning\">1/6 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"individual\">\n            <label class=\"form-label\">Professional / Display Name *</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"individualDisplayName\" data-iam-section=\"entity\" data-iam-field=\"individualDisplayName\" data-iam-entity=\"individual\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"individual\">\n            <label class=\"form-label\">Professional Title</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"professionalTitle\" data-iam-section=\"entity\" data-iam-field=\"professionalTitle\" data-iam-entity=\"individual\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"individual\">\n            <label class=\"form-label\">National ID / Passport</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"nationalId\" data-iam-section=\"entity\" data-iam-field=\"nationalId\" data-iam-entity=\"individual\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Company / Business Name</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"companyName\" data-iam-section=\"entity\" data-iam-field=\"companyName\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Trading Name</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"tradingName\" data-iam-section=\"entity\" data-iam-field=\"tradingName\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Company Type</label>\n            \n            <select class=\"form-input\" name=\"companyType\" data-iam-section=\"entity\" data-iam-field=\"companyType\" data-iam-entity=\"organization\">\n                <option value=\"\">Select</option>\n                <option value=\"Private limited company\" >Private limited company</option><option value=\"Public company\" >Public company</option><option value=\"Partnership\" >Partnership</option><option value=\"NGO\" >NGO</option><option value=\"Government agency\" >Government agency</option><option value=\"Sole proprietorship\" >Sole proprietorship</option>\n            </select>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Registration Number</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"registrationNumber\" data-iam-section=\"entity\" data-iam-field=\"registrationNumber\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">TIN Number *</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"tinNumber\" data-iam-section=\"entity\" data-iam-field=\"tinNumber\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">VAT Number</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"vatNumber\" data-iam-section=\"entity\" data-iam-field=\"vatNumber\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Year Established</label>\n            <input class=\"form-input\" type=\"number\" value=\"\" name=\"yearEstablished\" data-iam-section=\"entity\" data-iam-field=\"yearEstablished\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Number of Employees</label>\n            <input class=\"form-input\" type=\"number\" value=\"\" name=\"numberOfEmployees\" data-iam-section=\"entity\" data-iam-field=\"numberOfEmployees\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Website</label>\n            <input class=\"form-input\" type=\"url\" value=\"\" name=\"website\" data-iam-section=\"entity\" data-iam-field=\"website\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Company Logo</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"companyLogo\">\n                <input type=\"hidden\" name=\"companyLogo\" data-iam-section=\"entity\" data-iam-field=\"companyLogo\" data-iam-entity=\"organization\" value=\"\">\n                <small data-iam-upload-name=\"companyLogo\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field wide\" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Professional Description *</label>\n            <textarea class=\"form-input\" rows=\"3\" name=\"businessDescription\" data-iam-section=\"entity\" data-iam-field=\"businessDescription\" data-iam-entity=\"all\" data-iam-required=\"true\"></textarea>\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Physical Address *</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"physicalAddress\" data-iam-section=\"entity\" data-iam-field=\"physicalAddress\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Postal Address</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"postalAddress\" data-iam-section=\"entity\" data-iam-field=\"postalAddress\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Entity Country *</label>\n            \n            <select class=\"form-input\" name=\"entityCountry\" data-iam-section=\"entity\" data-iam-field=\"entityCountry\" data-iam-entity=\"all\" data-iam-required=\"true\">\n                <option value=\"\">Select</option>\n                <option value=\"Tanzania\" selected>Tanzania</option><option value=\"Kenya\" >Kenya</option><option value=\"Uganda\" >Uganda</option><option value=\"Rwanda\" >Rwanda</option><option value=\"Burundi\" >Burundi</option><option value=\"South Africa\" >South Africa</option><option value=\"United Arab Emirates\" >United Arab Emirates</option>\n            </select>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Region / District *</label>\n            \n            <select class=\"form-input\" name=\"regionDistrict\" data-iam-section=\"entity\" data-iam-field=\"regionDistrict\" data-iam-entity=\"all\" data-iam-required=\"true\">\n                <option value=\"\">Select</option>\n                <option value=\"Dar es Salaam\" >Dar es Salaam</option><option value=\"Arusha\" >Arusha</option><option value=\"Dodoma\" >Dodoma</option><option value=\"Mwanza\" >Mwanza</option><option value=\"Mbeya\" >Mbeya</option><option value=\"Morogoro\" >Morogoro</option><option value=\"Tanga\" >Tanga</option><option value=\"Zanzibar\" >Zanzibar</option><option value=\"Nationwide\" >Nationwide</option>\n            </select>\n        \n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"classification\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Procurement Categories</span><h2>Business Classification</h2></div><span class=\"badge badge-warning\">0/3 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Industry *</label>\n            \n            <select class=\"form-input\" name=\"industry\" data-iam-section=\"classification\" data-iam-field=\"industry\" data-iam-entity=\"all\" data-iam-required=\"true\">\n                <option value=\"\">Select</option>\n                <option value=\"Construction\" >Construction</option><option value=\"Health\" >Health</option><option value=\"ICT\" >ICT</option><option value=\"Education\" >Education</option><option value=\"Transport\" >Transport</option><option value=\"Manufacturing\" >Manufacturing</option><option value=\"Agriculture\" >Agriculture</option><option value=\"Consulting\" >Consulting</option><option value=\"Supplies\" >Supplies</option>\n            </select>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Procurement Categories *</label>\n            \n            <div class=\"iam-multi-list\" role=\"group\" aria-label=\"Procurement Categories\">\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Goods\" >\n                        <span>Goods</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Works\" >\n                        <span>Works</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Non Consultancy\" >\n                        <span>Non Consultancy</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Consultancy\" >\n                        <span>Consultancy</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Medical Supplies\" >\n                        <span>Medical Supplies</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"ICT Equipment\" >\n                        <span>ICT Equipment</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Construction Works\" >\n                        <span>Construction Works</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Office Supplies\" >\n                        <span>Office Supplies</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"procurementCategories\" data-iam-section=\"classification\" data-iam-field=\"procurementCategories\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"Vehicle Maintenance\" >\n                        <span>Vehicle Maintenance</span>\n                    </label>\n                \n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Goods Offered</label>\n            <textarea class=\"form-input\" rows=\"3\" name=\"goodsOffered\" data-iam-section=\"classification\" data-iam-field=\"goodsOffered\" data-iam-entity=\"all\"></textarea>\n            <small class=\"form-hint\">Separate tags with commas.</small>\n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Services Offered</label>\n            <textarea class=\"form-input\" rows=\"3\" name=\"servicesOffered\" data-iam-section=\"classification\" data-iam-field=\"servicesOffered\" data-iam-entity=\"all\"></textarea>\n            <small class=\"form-hint\">Separate tags with commas.</small>\n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Works Capability</label>\n            <textarea class=\"form-input\" rows=\"3\" name=\"worksCapability\" data-iam-section=\"classification\" data-iam-field=\"worksCapability\" data-iam-entity=\"organization\"></textarea>\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Consultancy Areas</label>\n            <textarea class=\"form-input\" rows=\"3\" name=\"consultancyAreas\" data-iam-section=\"classification\" data-iam-field=\"consultancyAreas\" data-iam-entity=\"all\"></textarea>\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Business Size</label>\n            \n            <select class=\"form-input\" name=\"businessSize\" data-iam-section=\"classification\" data-iam-field=\"businessSize\" data-iam-entity=\"organization\">\n                <option value=\"\">Select</option>\n                <option value=\"Micro\" >Micro</option><option value=\"Small\" >Small</option><option value=\"Medium\" >Medium</option><option value=\"Large\" >Large</option><option value=\"Enterprise\" >Enterprise</option>\n            </select>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Local or International *</label>\n            \n            <select class=\"form-input\" name=\"localInternational\" data-iam-section=\"classification\" data-iam-field=\"localInternational\" data-iam-entity=\"all\" data-iam-required=\"true\">\n                <option value=\"\">Select</option>\n                <option value=\"Local\" >Local</option><option value=\"International\" >International</option><option value=\"Both\" >Both</option>\n            </select>\n        \n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"contacts\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Procurement communication</span><h2>Contact Information</h2></div><span class=\"badge badge-warning\">0/3 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Contact Person *</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"contactPerson\" data-iam-section=\"contacts\" data-iam-field=\"contactPerson\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Position</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"position\" data-iam-section=\"contacts\" data-iam-field=\"position\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Official Email *</label>\n            <input class=\"form-input\" type=\"email\" value=\"\" name=\"officialEmail\" data-iam-section=\"contacts\" data-iam-field=\"officialEmail\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Official Phone Number *</label>\n            <input class=\"form-input\" type=\"tel\" value=\"\" name=\"officialPhone\" data-iam-section=\"contacts\" data-iam-field=\"officialPhone\" data-iam-entity=\"all\" data-iam-required=\"true\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Alternative Phone</label>\n            <input class=\"form-input\" type=\"tel\" value=\"\" name=\"alternativePhone\" data-iam-section=\"contacts\" data-iam-field=\"alternativePhone\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Support Email</label>\n            <input class=\"form-input\" type=\"email\" value=\"\" name=\"supportEmail\" data-iam-section=\"contacts\" data-iam-field=\"supportEmail\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"documents\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Reusable documents</span><h2>Legal and Compliance Documents</h2></div><span class=\"badge badge-warning\">0/1 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Certificate of Incorporation</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"certificateOfIncorporation\">\n                <input type=\"hidden\" name=\"certificateOfIncorporation\" data-iam-section=\"documents\" data-iam-field=\"certificateOfIncorporation\" data-iam-entity=\"organization\" value=\"\">\n                <small data-iam-upload-name=\"certificateOfIncorporation\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Business License</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"businessLicense\">\n                <input type=\"hidden\" name=\"businessLicense\" data-iam-section=\"documents\" data-iam-field=\"businessLicense\" data-iam-entity=\"organization\" value=\"\">\n                <small data-iam-upload-name=\"businessLicense\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">TIN Certificate *</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"tinCertificate\">\n                <input type=\"hidden\" name=\"tinCertificate\" data-iam-section=\"documents\" data-iam-field=\"tinCertificate\" data-iam-entity=\"all\" data-iam-required=\"true\" value=\"\">\n                <small data-iam-upload-name=\"tinCertificate\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">VAT Certificate</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"vatCertificate\">\n                <input type=\"hidden\" name=\"vatCertificate\" data-iam-section=\"documents\" data-iam-field=\"vatCertificate\" data-iam-entity=\"organization\" value=\"\">\n                <small data-iam-upload-name=\"vatCertificate\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Tax Clearance Certificate</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"taxClearanceCertificate\">\n                <input type=\"hidden\" name=\"taxClearanceCertificate\" data-iam-section=\"documents\" data-iam-field=\"taxClearanceCertificate\" data-iam-entity=\"all\" value=\"\">\n                <small data-iam-upload-name=\"taxClearanceCertificate\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Professional Licenses</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"professionalLicenses\">\n                <input type=\"hidden\" name=\"professionalLicenses\" data-iam-section=\"documents\" data-iam-field=\"professionalLicenses\" data-iam-entity=\"all\" value=\"\">\n                <small data-iam-upload-name=\"professionalLicenses\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Insurance Documents</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"insuranceDocuments\">\n                <input type=\"hidden\" name=\"insuranceDocuments\" data-iam-section=\"documents\" data-iam-field=\"insuranceDocuments\" data-iam-entity=\"organization\" value=\"\">\n                <small data-iam-upload-name=\"insuranceDocuments\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Compliance Certificates</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"complianceCertificates\">\n                <input type=\"hidden\" name=\"complianceCertificates\" data-iam-section=\"documents\" data-iam-field=\"complianceCertificates\" data-iam-entity=\"all\" value=\"\">\n                <small data-iam-upload-name=\"complianceCertificates\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Company / Professional Profile PDF</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"companyProfilePdf\">\n                <input type=\"hidden\" name=\"companyProfilePdf\" data-iam-section=\"documents\" data-iam-field=\"companyProfilePdf\" data-iam-entity=\"all\" value=\"\">\n                <small data-iam-upload-name=\"companyProfilePdf\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Organization Stamp</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"organizationStamp\">\n                <input type=\"hidden\" name=\"organizationStamp\" data-iam-section=\"documents\" data-iam-field=\"organizationStamp\" data-iam-entity=\"organization\" value=\"\">\n                <small data-iam-upload-name=\"organizationStamp\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"financial\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Financial Qualification</span><h2>Financial Information</h2></div><span class=\"badge badge-success\">0/0 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Bank Name</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"bankName\" data-iam-section=\"financial\" data-iam-field=\"bankName\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Account Name</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"accountName\" data-iam-section=\"financial\" data-iam-field=\"accountName\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Account Number</label>\n            <input class=\"form-input\" type=\"text\" value=\"\" name=\"accountNumber\" data-iam-section=\"financial\" data-iam-field=\"accountNumber\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Annual Turnover</label>\n            <input class=\"form-input\" type=\"number\" value=\"\" name=\"annualTurnover\" data-iam-section=\"financial\" data-iam-field=\"annualTurnover\" data-iam-entity=\"organization\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Audited Financial Statements</label>\n            \n            <div class=\"iam-upload-control\">\n                <input class=\"form-input\" type=\"file\" data-iam-upload-input=\"auditedFinancialStatements\">\n                <input type=\"hidden\" name=\"auditedFinancialStatements\" data-iam-section=\"financial\" data-iam-field=\"auditedFinancialStatements\" data-iam-entity=\"organization\" value=\"\">\n                <small data-iam-upload-name=\"auditedFinancialStatements\">No file selected yet.</small>\n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Financial Capacity Range</label>\n            \n            <select class=\"form-input\" name=\"financialCapacityRange\" data-iam-section=\"financial\" data-iam-field=\"financialCapacityRange\" data-iam-entity=\"all\">\n                <option value=\"\">Select</option>\n                <option value=\"Below TZS 100M\" >Below TZS 100M</option><option value=\"TZS 100M - 500M\" >TZS 100M - 500M</option><option value=\"TZS 500M - 1B\" >TZS 500M - 1B</option><option value=\"TZS 1B - 5B\" >TZS 1B - 5B</option><option value=\"Above TZS 5B\" >Above TZS 5B</option>\n            </select>\n        \n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"capacity\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Experience and Capacity</span><h2>Experience and Technical Capacity</h2></div><span class=\"badge badge-success\">0/0 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Years of Experience</label>\n            <input class=\"form-input\" type=\"number\" value=\"\" name=\"yearsOfExperience\" data-iam-section=\"capacity\" data-iam-field=\"yearsOfExperience\" data-iam-entity=\"all\">\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field wide\" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Past Projects</label>\n            <textarea class=\"form-input\" rows=\"4\" name=\"pastProjects\" data-iam-section=\"capacity\" data-iam-field=\"pastProjects\" data-iam-entity=\"all\"></textarea>\n            <small class=\"form-hint\">One project per line.</small>\n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field wide\" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Client References</label>\n            <textarea class=\"form-input\" rows=\"4\" name=\"clientReferences\" data-iam-section=\"capacity\" data-iam-field=\"clientReferences\" data-iam-entity=\"all\"></textarea>\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field wide\" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Technical Staff</label>\n            <textarea class=\"form-input\" rows=\"4\" name=\"technicalStaff\" data-iam-section=\"capacity\" data-iam-field=\"technicalStaff\" data-iam-entity=\"organization\"></textarea>\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field wide\" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Key Personnel</label>\n            <textarea class=\"form-input\" rows=\"4\" name=\"keyPersonnel\" data-iam-section=\"capacity\" data-iam-field=\"keyPersonnel\" data-iam-entity=\"all\"></textarea>\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field wide\" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Equipment List</label>\n            <textarea class=\"form-input\" rows=\"4\" name=\"equipmentList\" data-iam-section=\"capacity\" data-iam-field=\"equipmentList\" data-iam-entity=\"organization\"></textarea>\n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field wide\" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Certifications</label>\n            <textarea class=\"form-input\" rows=\"4\" name=\"certifications\" data-iam-section=\"capacity\" data-iam-field=\"certifications\" data-iam-entity=\"all\"></textarea>\n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"settings\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">Notification Preferences</span><h2>Procurement Operation Settings</h2></div><span class=\"badge badge-success\">0/0 required</span></div>\n                        <div class=\"iam-form-grid\">\n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"organization\">\n            <label class=\"form-label\">Can Create Tender</label>\n            \n            <label class=\"iam-toggle\">\n                <input type=\"checkbox\" name=\"canCreateTender\" data-iam-section=\"settings\" data-iam-field=\"canCreateTender\" data-iam-entity=\"organization\" >\n                <span></span>\n                <em>Optional</em>\n            </label>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Can Submit Bid</label>\n            \n            <label class=\"iam-toggle\">\n                <input type=\"checkbox\" name=\"canSubmitBid\" data-iam-section=\"settings\" data-iam-field=\"canSubmitBid\" data-iam-entity=\"all\" checked>\n                <span></span>\n                <em>Enabled</em>\n            </label>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Preferred Tender Categories</label>\n            \n            <div class=\"iam-multi-list\" role=\"group\" aria-label=\"Preferred Tender Categories\">\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Goods\" >\n                        <span>Goods</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Works\" >\n                        <span>Works</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Non Consultancy\" >\n                        <span>Non Consultancy</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Consultancy\" >\n                        <span>Consultancy</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Medical Supplies\" >\n                        <span>Medical Supplies</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"ICT Equipment\" >\n                        <span>ICT Equipment</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Construction Works\" >\n                        <span>Construction Works</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Office Supplies\" >\n                        <span>Office Supplies</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"preferredTenderCategories\" data-iam-section=\"settings\" data-iam-field=\"preferredTenderCategories\" data-iam-entity=\"all\" value=\"Vehicle Maintenance\" >\n                        <span>Vehicle Maintenance</span>\n                    </label>\n                \n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Regions of Operation</label>\n            \n            <div class=\"iam-multi-list\" role=\"group\" aria-label=\"Regions of Operation\">\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Dar es Salaam\" >\n                        <span>Dar es Salaam</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Arusha\" >\n                        <span>Arusha</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Dodoma\" >\n                        <span>Dodoma</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Mwanza\" >\n                        <span>Mwanza</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Mbeya\" >\n                        <span>Mbeya</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Morogoro\" >\n                        <span>Morogoro</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Tanga\" >\n                        <span>Tanga</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Zanzibar\" >\n                        <span>Zanzibar</span>\n                    </label>\n                \n                    <label class=\"iam-multi-option\">\n                        <input type=\"checkbox\" name=\"regionsOfOperation\" data-iam-section=\"settings\" data-iam-field=\"regionsOfOperation\" data-iam-entity=\"all\" value=\"Nationwide\" >\n                        <span>Nationwide</span>\n                    </label>\n                \n            </div>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Notification Preferences</label>\n            \n            <label class=\"iam-toggle\">\n                <input type=\"checkbox\" name=\"notificationsEnabled\" data-iam-section=\"settings\" data-iam-field=\"notificationsEnabled\" data-iam-entity=\"all\" checked>\n                <span></span>\n                <em>Enabled</em>\n            </label>\n        \n            \n        </div>\n    \n                            \n        <div class=\"form-group iam-profile-field \" data-iam-field-wrap data-iam-entity=\"all\">\n            <label class=\"form-label\">Auto-Match Tenders</label>\n            \n            <label class=\"iam-toggle\">\n                <input type=\"checkbox\" name=\"autoMatchTenders\" data-iam-section=\"settings\" data-iam-field=\"autoMatchTenders\" data-iam-entity=\"all\" checked>\n                <span></span>\n                <em>Enabled</em>\n            </label>\n        \n            \n        </div>\n    \n                        </div>\n                    </section>\n\n                    <section class=\"iam-profile-section\" data-iam-panel=\"system\">\n                        <div class=\"iam-section-heading\"><div><span class=\"section-kicker\">System Verification Record</span><h2>Verification and System Information</h2></div><span class=\"badge badge-info\">System generated</span></div>\n                        <div class=\"iam-overview-grid\">\n                            \n        <div class=\"iam-readonly-row\">\n            <span>Verification Status</span>\n            <strong>Pending</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>KYC Status</span>\n            <strong>not_started</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Verification Score</span>\n            <strong>12/100 profile score</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Verified Badge</span>\n            <strong>Pending identity verification</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Verification Notes</span>\n            <strong>Complete Identity Verification first.</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Company ID</span>\n            <strong>VER-DEMO</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>User ID</span>\n            <strong>USR-DEMO</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Registration Date</span>\n            <strong>2026-06-03</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Tender History</span>\n            <strong>Tracked by procurement modules</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Submitted Bids</span>\n            <strong>Tracked by bid workspace</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Awarded Contracts</span>\n            <strong>Tracked by contract modules</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Activity Logs</span>\n            <strong>Available in audit views</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Audit Trail</span>\n            <strong>System maintained</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Login History</span>\n            <strong>System maintained</strong>\n        </div>\n    \n        <div class=\"iam-readonly-row\">\n            <span>Document Expiry Tracker</span>\n            <strong>Pending document dates</strong>\n        </div>\n    \n                        </div>\n                    </section>\n                </form>\n            </div>\n        </div>\n    ";
+type ProfileForm = {
+  fullName: string;
+  emailAddress: string;
+  phoneNumber: string;
+  country: string;
+  preferredLanguage: string;
+  displayName: string;
+  professionalTitle: string;
+  companyName: string;
+  tradingName: string;
+  tinNumber: string;
+  registrationNumber: string;
+  businessCategory: string;
+  procurementRole: string;
+  preferredTenderCategories: string[];
+  regionsOfOperation: string[];
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  canCreateTender: boolean;
+  canSubmitBid: boolean;
+  notificationsEnabled: boolean;
+  autoMatchTenders: boolean;
+};
+
+type DocumentForm = {
+  businessRegistration: string;
+  taxCertificate: string;
+  identityDocument: string;
+  bankDocument: string;
+};
+
+const tabs: Array<{ key: ProfileTab; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'account', label: 'Account' },
+  { key: 'entity', label: 'Entity' },
+  { key: 'classification', label: 'Classification' },
+  { key: 'documents', label: 'Documents' },
+  { key: 'settings', label: 'Settings' },
+  { key: 'system', label: 'System' }
+];
+
+const tenderCategories = ['Goods', 'Works', 'Non Consultancy', 'Consultancy', 'Medical Supplies', 'ICT Equipment', 'Construction Works', 'Office Supplies'];
+const regions = ['Dar es Salaam', 'Arusha', 'Dodoma', 'Mwanza', 'Mbeya', 'Morogoro', 'Tanga', 'Zanzibar', 'Nationwide'];
+
+const appDrawerItems = [
+  {
+    className: 'app-menu-iam',
+    label: 'Registration and Verification',
+    description: 'Account and identity verification',
+    route: '/identity/profile',
+    icon: 'user'
+  },
+  {
+    className: 'app-menu-procurement',
+    label: 'Procurement Planning',
+    description: 'APP, SPP, budgets, approvals',
+    route: '/tender-planning',
+    icon: 'plan'
+  },
+  {
+    className: 'app-menu-procurement',
+    label: 'Procurement',
+    description: 'Marketplace, create tender, bid',
+    route: '/procurement/marketplace',
+    icon: 'market'
+  },
+  {
+    className: 'app-menu-communication',
+    label: 'Communication Center',
+    description: 'Messages, clarifications, alerts',
+    route: '/communication',
+    icon: 'message'
+  },
+  {
+    className: 'app-menu-evaluation',
+    label: 'Evaluation',
+    description: 'Evaluate bids on your tenders',
+    route: '/evaluation',
+    icon: 'check'
+  },
+  {
+    className: 'app-menu-awarding',
+    label: 'Awarding and Contract',
+    description: 'Awards, negotiations, signatures',
+    route: '/awards-contracts',
+    icon: 'award'
+  },
+  {
+    className: 'app-menu-contracts',
+    label: 'Records and History',
+    description: 'Past tenders, bids, awards',
+    route: '/records',
+    icon: 'record'
+  }
+] as const;
+
+const defaultProfile: ProfileForm = {
+  fullName: '',
+  emailAddress: '',
+  phoneNumber: '',
+  country: 'Tanzania',
+  preferredLanguage: 'English',
+  displayName: '',
+  professionalTitle: '',
+  companyName: '',
+  tradingName: '',
+  tinNumber: '',
+  registrationNumber: '',
+  businessCategory: '',
+  procurementRole: 'Buyer and Supplier',
+  preferredTenderCategories: [],
+  regionsOfOperation: ['Nationwide'],
+  bankName: '',
+  accountName: '',
+  accountNumber: '',
+  canCreateTender: true,
+  canSubmitBid: true,
+  notificationsEnabled: true,
+  autoMatchTenders: true
+};
+
+const defaultDocuments: DocumentForm = {
+  businessRegistration: '',
+  taxCertificate: '',
+  identityDocument: '',
+  bankDocument: ''
+};
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function stringValue(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function booleanValue(value: unknown, fallback: boolean) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function stringArrayValue(value: unknown, fallback: string[]) {
+  return Array.isArray(value) ? value.map(String) : fallback;
+}
+
+function statusBadge(status?: string) {
+  if (status === 'APPROVED') return 'badge badge-success';
+  if (status === 'REJECTED' || status === 'EXPIRED') return 'badge badge-error';
+  if (status === 'PENDING') return 'badge badge-warning';
+  return 'badge badge-info';
+}
+
+function initials(name?: string) {
+  return (name || 'ProcureX User')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
+
+function appDrawerIcon(icon: (typeof appDrawerItems)[number]['icon']) {
+  if (icon === 'plan') {
+    return (
+      <>
+        <path d="M4 4h16v16H4z" />
+        <path d="M8 8h8" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
+      </>
+    );
+  }
+  if (icon === 'market') {
+    return (
+      <>
+        <path d="M3 9h18l-2-5H5z" />
+        <path d="M5 9v11h14V9" />
+        <path d="M9 13h6" />
+        <path d="M9 17h4" />
+      </>
+    );
+  }
+  if (icon === 'message') {
+    return (
+      <>
+        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+        <path d="M8 9h8" />
+        <path d="M8 13h5" />
+      </>
+    );
+  }
+  if (icon === 'check') {
+    return (
+      <>
+        <path d="M9 11l2 2 4-4" />
+        <path d="M8 4h8" />
+        <path d="M8 20h8" />
+        <path d="M5 7h14v10H5z" />
+      </>
+    );
+  }
+  if (icon === 'award') {
+    return (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M8.5 11.5L7 21l5-3 5 3-1.5-9.5" />
+        <path d="M10.5 8l1 1 2-2" />
+      </>
+    );
+  }
+  if (icon === 'record') {
+    return (
+      <>
+        <path d="M8 3h8l3 3v15H5V3z" />
+        <path d="M15 3v4h4" />
+        <path d="M8 12h8" />
+        <path d="M8 16h6" />
+      </>
+    );
+  }
+  return (
+    <>
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="7" r="4" />
+      <path d="M16 11l2 2 4-4" />
+    </>
+  );
+}
+
+function reviewReasons(profile: VerificationProfile | null) {
+  const reasons = objectValue(profile?.payload).reviewReasons;
+  return Array.isArray(reasons) ? reasons.map(String) : [];
+}
 
 export function AccountProfileProcurexPage() {
-  return <ProcurexStaticPage pageKey="account-profile" html={html} />;
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const user = useAppSelector((state) => state.auth.user);
+  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [verification, setVerification] = useState<VerificationProfile | null>(null);
+  const [profile, setProfile] = useState<ProfileForm>(defaultProfile);
+  const [documents, setDocuments] = useState<DocumentForm>(defaultDocuments);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [appMenuOpen, setAppMenuOpen] = useState(false);
+
+  useBodyPageMetadata('verification-status');
+
+  const payload = useMemo(() => objectValue(verification?.payload), [verification]);
+  const registryRecord = objectValue(payload.registryRecord);
+  const reasons = reviewReasons(verification);
+  const requiredValues = [
+    profile.fullName,
+    profile.emailAddress,
+    profile.phoneNumber,
+    profile.country,
+    profile.displayName || profile.companyName,
+    profile.tinNumber || verification?.registryNumber,
+    profile.businessCategory,
+    profile.procurementRole
+  ];
+  const completedRequired = requiredValues.filter((value) => String(value ?? '').trim()).length;
+  const completion = Math.round((completedRequired / requiredValues.length) * 100);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfile() {
+      setLoading(true);
+      setStatusMessage('');
+
+      try {
+        const response = await identityApi.getVerificationMe();
+        if (!active) return;
+        const savedProfile = objectValue(response.verification?.payload.profile);
+        const savedDocuments = Array.isArray(response.verification?.payload.documents) ? response.verification?.payload.documents : [];
+        const registry = objectValue(response.verification?.payload.registryRecord);
+
+        dispatch(setSessionUser(response.user));
+        setVerification(response.verification);
+        setProfile({
+          ...defaultProfile,
+          fullName: stringValue(savedProfile.fullName, response.user.displayName),
+          emailAddress: stringValue(savedProfile.emailAddress, response.user.email),
+          phoneNumber: stringValue(savedProfile.phoneNumber, response.user.phone ?? ''),
+          country: stringValue(savedProfile.country, 'Tanzania'),
+          preferredLanguage: stringValue(savedProfile.preferredLanguage, 'English'),
+          displayName: stringValue(savedProfile.displayName, stringValue(registry.name, response.user.displayName)),
+          professionalTitle: stringValue(savedProfile.professionalTitle),
+          companyName: stringValue(savedProfile.companyName, response.user.organization ?? stringValue(registry.name)),
+          tradingName: stringValue(savedProfile.tradingName),
+          tinNumber: stringValue(savedProfile.tinNumber, response.verification?.registrySource === 'TRA' ? response.verification.registryNumber ?? '' : ''),
+          registrationNumber: stringValue(savedProfile.registrationNumber, response.verification?.registrySource === 'BRELA' ? response.verification.registryNumber ?? '' : ''),
+          businessCategory: stringValue(savedProfile.businessCategory),
+          procurementRole: stringValue(savedProfile.procurementRole, 'Buyer and Supplier'),
+          preferredTenderCategories: stringArrayValue(savedProfile.preferredTenderCategories, defaultProfile.preferredTenderCategories),
+          regionsOfOperation: stringArrayValue(savedProfile.regionsOfOperation, defaultProfile.regionsOfOperation),
+          bankName: stringValue(savedProfile.bankName),
+          accountName: stringValue(savedProfile.accountName),
+          accountNumber: stringValue(savedProfile.accountNumber),
+          canCreateTender: booleanValue(savedProfile.canCreateTender, true),
+          canSubmitBid: booleanValue(savedProfile.canSubmitBid, true),
+          notificationsEnabled: booleanValue(savedProfile.notificationsEnabled, true),
+          autoMatchTenders: booleanValue(savedProfile.autoMatchTenders, true)
+        });
+        setDocuments({
+          ...defaultDocuments,
+          ...savedDocuments.reduce<Record<string, string>>((accumulator, document) => {
+            const item = objectValue(document);
+            if (typeof item.type === 'string' && typeof item.name === 'string') accumulator[item.type] = item.name;
+            return accumulator;
+          }, {})
+        });
+      } catch (error) {
+        if (active) setStatusMessage(apiErrorMessage(error, 'Could not load account profile.'));
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadProfile();
+    return () => {
+      active = false;
+    };
+  }, [dispatch]);
+
+  function updateProfileField<Key extends keyof ProfileForm>(field: Key, value: ProfileForm[Key]) {
+    setProfile((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateDocument(field: keyof DocumentForm, event: ChangeEvent<HTMLInputElement>) {
+    const fileName = event.target.files?.[0]?.name ?? '';
+    setDocuments((current) => ({ ...current, [field]: fileName }));
+  }
+
+  function toggleListValue(field: 'preferredTenderCategories' | 'regionsOfOperation', value: string) {
+    setProfile((current) => {
+      const selected = new Set(current[field]);
+      if (selected.has(value)) selected.delete(value);
+      else selected.add(value);
+      return { ...current, [field]: Array.from(selected) };
+    });
+  }
+
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setStatusMessage('');
+
+    try {
+      const saved = await identityApi.updateProfile({
+        profile,
+        documents: Object.entries(documents)
+          .filter(([, name]) => name)
+          .map(([type, name]) => ({
+            type,
+            name,
+            status: 'captured'
+          }))
+      });
+      setVerification(saved);
+      setStatusMessage('Profile saved to the verification database record.');
+    } catch (error) {
+      setStatusMessage(apiErrorMessage(error, 'Could not save profile.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <header className="app-topbar">
+        <div className="app-topbar-left">
+          <button className="app-brand-button" type="button" onClick={() => navigate('/apps')}>
+            <span className="platform-logo">
+              <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
+            </span>
+            <span>Registration and Verification</span>
+          </button>
+        </div>
+
+        <div className="app-topbar-actions">
+          <button
+            className="icon-menu-btn"
+            type="button"
+            aria-label="Open apps"
+            aria-expanded={appMenuOpen}
+            onClick={() => setAppMenuOpen((open) => !open)}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <button
+            className="profile-button"
+            type="button"
+            aria-label="Sign out"
+            onClick={() => {
+              dispatch(signOut());
+              navigate('/sign-in');
+            }}
+          >
+            <span>{initials(user?.displayName)}</span>
+          </button>
+        </div>
+
+        <div className={`app-drawer-menu ${appMenuOpen ? 'open' : ''}`}>
+          <div className="app-menu-header">
+            <div className="app-menu-brand">
+              <span className="platform-logo platform-logo-sm">
+                <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
+              </span>
+              <strong>ProcureX Apps</strong>
+            </div>
+            <span>Company account tools</span>
+          </div>
+
+          {appDrawerItems.map((item) => (
+            <button
+              className={`app-menu-card ${item.className}`}
+              type="button"
+              key={item.label}
+              onClick={() => {
+                setAppMenuOpen(false);
+                navigate(item.route);
+              }}
+            >
+              <span className="app-menu-icon">
+                <svg className="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {appDrawerIcon(item.icon)}
+                </svg>
+              </span>
+              <span>
+                <strong>{item.label}</strong>
+                <em>{item.description}</em>
+              </span>
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <div className="main-layout">
+        <div className="main-content">
+          <form className="iam-profile-page" onSubmit={(event) => void saveProfile(event)}>
+            <section className="iam-profile-hero">
+              <div>
+                <span className={statusBadge(user?.verificationStatus)}>{user?.verificationStatus ?? 'NOT_STARTED'}</span>
+                <h1>Account Profile Workspace</h1>
+                <p>Account, registry, documents, and procurement preferences are stored against the verification profile for the current signed-in user.</p>
+                <div className="iam-hero-actions">
+                  <button className="btn btn-primary" type="submit" disabled={loading}>
+                    {loading ? 'Saving...' : 'Save Profile'}
+                  </button>
+                  <button className="btn btn-secondary" type="button" onClick={() => navigate('/identity/verification')}>
+                    Update Identity Verification
+                  </button>
+                </div>
+                <small className={`iam-save-status ${statusMessage.includes('saved') ? 'saved' : ''}`}>
+                  {statusMessage || 'Changes are written to the database-backed profile payload.'}
+                </small>
+              </div>
+              <div className="iam-profile-score">
+                <div className="iam-score-copy">
+                  <span>Profile completion</span>
+                  <strong>{completion}%</strong>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${completion}%` }} />
+                  </div>
+                  <small>
+                    {completedRequired} of {requiredValues.length} required profile fields complete
+                  </small>
+                </div>
+              </div>
+            </section>
+
+            <nav className="iam-profile-tabs" aria-label="account profile sections">
+              {tabs.map((tab) => (
+                <button className={activeTab === tab.key ? 'active' : ''} key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}>
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <section className={`iam-profile-section ${activeTab === 'overview' ? 'active' : ''}`}>
+              <div className="iam-section-heading">
+                <div>
+                  <span className="section-kicker">Overview</span>
+                  <h2>Verification record</h2>
+                </div>
+                <span className={statusBadge(verification?.status)}>{verification?.status ?? 'No profile yet'}</span>
+              </div>
+              <div className="iam-overview-grid">
+                <div className="iam-readonly-row">
+                  <span>Verified name</span>
+                  <strong>{stringValue(registryRecord.name, profile.displayName || user?.displayName)}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Registry source</span>
+                  <strong>{verification?.registrySource ?? stringValue(payload.registrySource, 'Pending')}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Registry reference</span>
+                  <strong>{verification?.registryNumber ?? stringValue(payload.registryNumber, 'Pending')}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Digital signature</span>
+                  <strong>{stringValue(payload.signatureName, 'Pending signature')}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Organization</span>
+                  <strong>{user?.organization ?? profile.companyName ?? 'Pending verification'}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Last updated</span>
+                  <strong>{verification?.updatedAt ? new Date(verification.updatedAt).toLocaleString() : 'Not saved yet'}</strong>
+                </div>
+              </div>
+              {reasons.length ? <div className="auth-note">Admin review reasons: {reasons.join(' ')}</div> : null}
+            </section>
+
+            <section className={`iam-profile-section ${activeTab === 'account' ? 'active' : ''}`}>
+              <div className="iam-section-heading">
+                <div>
+                  <span className="section-kicker">Account holder</span>
+                  <h2>Account information</h2>
+                </div>
+                <span className="badge badge-info">Editable</span>
+              </div>
+              <div className="iam-form-grid">
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Full Name *</span>
+                  <input className="form-input" value={profile.fullName} onChange={(event) => updateProfileField('fullName', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Email Address *</span>
+                  <input className="form-input" type="email" value={profile.emailAddress} onChange={(event) => updateProfileField('emailAddress', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Phone Number *</span>
+                  <input className="form-input" type="tel" value={profile.phoneNumber} onChange={(event) => updateProfileField('phoneNumber', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Country *</span>
+                  <select className="form-input" value={profile.country} onChange={(event) => updateProfileField('country', event.target.value)}>
+                    {['Tanzania', 'Kenya', 'Uganda', 'Rwanda', 'Burundi', 'South Africa', 'United Arab Emirates'].map((country) => (
+                      <option value={country} key={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Preferred Language</span>
+                  <select className="form-input" value={profile.preferredLanguage} onChange={(event) => updateProfileField('preferredLanguage', event.target.value)}>
+                    {['English', 'Swahili', 'French', 'Arabic'].map((language) => (
+                      <option value={language} key={language}>
+                        {language}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section className={`iam-profile-section ${activeTab === 'entity' ? 'active' : ''}`}>
+              <div className="iam-section-heading">
+                <div>
+                  <span className="section-kicker">Legal identity</span>
+                  <h2>Entity information</h2>
+                </div>
+                <span className="badge badge-info">{stringValue(payload.entityType, 'Account')}</span>
+              </div>
+              <div className="iam-form-grid">
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Display / Legal Name *</span>
+                  <input className="form-input" value={profile.displayName} onChange={(event) => updateProfileField('displayName', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Professional Title</span>
+                  <input className="form-input" value={profile.professionalTitle} onChange={(event) => updateProfileField('professionalTitle', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Company / Business Name</span>
+                  <input className="form-input" value={profile.companyName} onChange={(event) => updateProfileField('companyName', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Trading Name</span>
+                  <input className="form-input" value={profile.tradingName} onChange={(event) => updateProfileField('tradingName', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">TIN Number *</span>
+                  <input className="form-input" value={profile.tinNumber} onChange={(event) => updateProfileField('tinNumber', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Registration Number</span>
+                  <input className="form-input" value={profile.registrationNumber} onChange={(event) => updateProfileField('registrationNumber', event.target.value)} />
+                </label>
+              </div>
+            </section>
+
+            <section className={`iam-profile-section ${activeTab === 'classification' ? 'active' : ''}`}>
+              <div className="iam-section-heading">
+                <div>
+                  <span className="section-kicker">Classification</span>
+                  <h2>Procurement profile</h2>
+                </div>
+                <span className="badge badge-info">Matching</span>
+              </div>
+              <div className="iam-form-grid">
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Business Category *</span>
+                  <input className="form-input" value={profile.businessCategory} onChange={(event) => updateProfileField('businessCategory', event.target.value)} />
+                </label>
+                <label className="form-group iam-profile-field">
+                  <span className="form-label">Procurement Role *</span>
+                  <select className="form-input" value={profile.procurementRole} onChange={(event) => updateProfileField('procurementRole', event.target.value)}>
+                    <option>Buyer and Supplier</option>
+                    <option>Supplier</option>
+                    <option>Buyer</option>
+                  </select>
+                </label>
+                <div className="form-group iam-profile-field wide">
+                  <span className="form-label">Preferred Tender Categories</span>
+                  <div className="iam-multi-list" role="group" aria-label="Preferred Tender Categories">
+                    {tenderCategories.map((category) => (
+                      <label className="iam-multi-option" key={category}>
+                        <input type="checkbox" checked={profile.preferredTenderCategories.includes(category)} onChange={() => toggleListValue('preferredTenderCategories', category)} />
+                        <span>{category}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="form-group iam-profile-field wide">
+                  <span className="form-label">Regions of Operation</span>
+                  <div className="iam-multi-list" role="group" aria-label="Regions of Operation">
+                    {regions.map((region) => (
+                      <label className="iam-multi-option" key={region}>
+                        <input type="checkbox" checked={profile.regionsOfOperation.includes(region)} onChange={() => toggleListValue('regionsOfOperation', region)} />
+                        <span>{region}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className={`iam-profile-section ${activeTab === 'documents' ? 'active' : ''}`}>
+              <div className="iam-section-heading">
+                <div>
+                  <span className="section-kicker">Documents</span>
+                  <h2>Verification evidence</h2>
+                </div>
+                <span className="badge badge-info">Captured names</span>
+              </div>
+              <div className="iam-form-grid">
+                {Object.entries(documents).map(([key, value]) => (
+                  <label className="form-group iam-profile-field" key={key}>
+                    <span className="form-label">{key.replace(/([A-Z])/g, ' $1')}</span>
+                    <div className="iam-upload-control">
+                      <input className="form-input" type="file" onChange={(event) => updateDocument(key as keyof DocumentForm, event)} />
+                      <small>{value || 'No file selected yet.'}</small>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className={`iam-profile-section ${activeTab === 'settings' ? 'active' : ''}`}>
+              <div className="iam-section-heading">
+                <div>
+                  <span className="section-kicker">Settings</span>
+                  <h2>Procurement operation settings</h2>
+                </div>
+                <span className="badge badge-info">Preferences</span>
+              </div>
+              <div className="iam-form-grid">
+                {[
+                  ['canCreateTender', 'Can Create Tender'],
+                  ['canSubmitBid', 'Can Submit Bid'],
+                  ['notificationsEnabled', 'Notifications Enabled'],
+                  ['autoMatchTenders', 'Auto-Match Tenders']
+                ].map(([field, label]) => (
+                  <label className="form-group iam-profile-field" key={field}>
+                    <span className="form-label">{label}</span>
+                    <span className="iam-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(profile[field as keyof ProfileForm])}
+                        onChange={(event) => updateProfileField(field as keyof ProfileForm, event.target.checked as never)}
+                      />
+                      <span></span>
+                      <em>{Boolean(profile[field as keyof ProfileForm]) ? 'Enabled' : 'Disabled'}</em>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section className={`iam-profile-section ${activeTab === 'system' ? 'active' : ''}`}>
+              <div className="iam-section-heading">
+                <div>
+                  <span className="section-kicker">System verification record</span>
+                  <h2>Verification and audit information</h2>
+                </div>
+                <span className="badge badge-info">System generated</span>
+              </div>
+              <div className="iam-overview-grid">
+                <div className="iam-readonly-row">
+                  <span>User ID</span>
+                  <strong>{user?.id ?? 'Pending'}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Verification ID</span>
+                  <strong>{verification?.id ?? 'Pending'}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Session organization</span>
+                  <strong>{user?.organization ?? 'Not assigned yet'}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Capabilities</span>
+                  <strong>{user?.capabilities.length ? user.capabilities.join(', ') : 'Pending approval'}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Admin decision</span>
+                  <strong>{stringValue(payload.adminDecision, 'No admin decision yet')}</strong>
+                </div>
+                <div className="iam-readonly-row">
+                  <span>Admin note</span>
+                  <strong>{stringValue(payload.adminDecisionNote, 'No note')}</strong>
+                </div>
+              </div>
+            </section>
+          </form>
+        </div>
+      </div>
+    </>
+  );
 }

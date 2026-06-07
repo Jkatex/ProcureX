@@ -11,9 +11,11 @@ import { createModuleRouter as createRecordsRouter, moduleDefinition as recordsD
 import { createModuleRouter as createIntelligenceRouter, moduleDefinition as intelligenceDefinition } from './intelligence/index.js';
 import { createModuleRouter as createIntegrationRouter, moduleDefinition as integrationDefinition } from './integration/index.js';
 import { createModuleRouter as createDocumentsRouter, moduleDefinition as documentsDefinition } from './documents/index.js';
+import { createModuleRouter as createPublicRouter, moduleDefinition as publicDefinition } from './public/index.js';
 import type { RegisteredModule } from './module-contract.js';
 
 export const registeredModules: RegisteredModule[] = [
+  { ...publicDefinition, basePath: '/api/public', router: createPublicRouter() },
   { ...identityDefinition, basePath: '/api/identity', router: createIdentityRouter() },
   { ...organizationDefinition, basePath: '/api/organization', router: createOrganizationRouter() },
   { ...procurementDefinition, basePath: '/api/procurement', router: createProcurementRouter() },
@@ -28,4 +30,3 @@ export const registeredModules: RegisteredModule[] = [
   { ...integrationDefinition, basePath: '/api/integration', router: createIntegrationRouter() },
   { ...documentsDefinition, basePath: '/api/documents', router: createDocumentsRouter() }
 ];
-

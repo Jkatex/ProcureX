@@ -6,7 +6,7 @@ export function createModuleRouter() {
   const controller = new ModuleController();
 
   router.get('/', controller.status);
+  router.get('/public/welcome', controller.publicWelcome);
 
   return router;
 }
-

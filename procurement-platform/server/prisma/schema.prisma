@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["identity", "organization", "procurement", "bidding", "evaluation", "contract", "financial", "compliance", "communication", "documents", "records", "intelligence", "integration"]
+  schemas  = ["identity", "organization", "procurement", "bidding", "evaluation", "contract", "financial", "compliance", "communication", "documents", "records", "intelligence", "integration", "content"]
 }
 
 enum AccountType {
@@ -32,6 +32,22 @@ enum SessionStatus {
   EXPIRED
 
   @@schema("identity")
+}
+
+enum PublicPageKey {
+  ABOUT_PROCUREX
+  PRIVACY_POLICY
+  TERMS_AND_CONDITIONS
+
+  @@schema("content")
+}
+
+enum PublicPageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+
+  @@schema("content")
 }
 
 enum OrganizationKind {
@@ -315,9 +331,13 @@ model User {
   updatedAt            DateTime                @updatedAt @map("updated_at")
   accounts             Account[]
   sessions             Session[]
+  policyAcceptances    UserPolicyAcceptance[]
   mfaFactors           MfaFactor[]
+  identityChallenges   IdentityChallenge[]
   memberships          OrganizationMember[]
   verificationProfiles VerificationProfile[]
+  verificationHistory  VerificationProfileHistory[]
+  digitalSignatures    DigitalSignature[]
   uploadedDocuments    DocumentObject[]        @relation("DocumentUploader")
   ownedTenders         Tender[]                @relation("TenderOwner")
   submittedBids        Bid[]                   @relation("BidSubmitter")
@@ -343,6 +363,27 @@ model Account {
   @@unique([provider, providerUserId])
   @@index([userId])
   @@map("accounts")
+  @@schema("identity")
+}
+
+model UserPolicyAcceptance {
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String            @map("user_id") @db.Uuid
+  termsVersionId   String            @map("terms_version_id") @db.Uuid
+  privacyVersionId String            @map("privacy_version_id") @db.Uuid
+  acceptedAt       DateTime          @default(now()) @map("accepted_at")
+  source           String            @default("registration")
+  ipAddress        String?           @map("ip_address")
+  userAgent        String?           @map("user_agent")
+  payload          Json              @default("{}")
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  termsVersion     PublicPageVersion @relation("TermsPolicyAcceptances", fields: [termsVersionId], references: [id], onDelete: Restrict)
+  privacyVersion   PublicPageVersion @relation("PrivacyPolicyAcceptances", fields: [privacyVersionId], references: [id], onDelete: Restrict)
+
+  @@index([userId, acceptedAt])
+  @@index([termsVersionId])
+  @@index([privacyVersionId])
+  @@map("user_policy_acceptances")
   @@schema("identity")
 }
 
@@ -377,6 +418,26 @@ model MfaFactor {
   @@schema("identity")
 }
 
+model IdentityChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String?   @map("user_id") @db.Uuid
+  purpose    String
+  target     String
+  codeHash   String    @map("code_hash")
+  status     String    @default("PENDING")
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  metadata   Json      @default("{}")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, status])
+  @@index([target, purpose, status])
+  @@map("identity_challenges")
+  @@schema("identity")
+}
+
 model VerificationProfile {
   id             String             @id @default(uuid()) @db.Uuid
   userId         String             @map("user_id") @db.Uuid
@@ -390,10 +451,61 @@ model VerificationProfile {
   user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   documents      VerificationDocument[]
+  digitalSignatures DigitalSignature[]
+  history       VerificationProfileHistory[]
 
   @@index([userId])
   @@index([organizationId, status])
   @@map("verification_profiles")
+  @@schema("identity")
+}
+
+model VerificationProfileHistory {
+  id                    String              @id @default(uuid()) @db.Uuid
+  verificationProfileId String              @map("verification_profile_id") @db.Uuid
+  userId                String              @map("user_id") @db.Uuid
+  organizationId        String?             @map("organization_id") @db.Uuid
+  status                VerificationStatus
+  registrySource        String?             @map("registry_source")
+  registryNumber        String?             @map("registry_number")
+  event                 String
+  payload               Json                @default("{}")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  verificationProfile   VerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization          Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([verificationProfileId, createdAt])
+  @@index([userId, createdAt])
+  @@map("verification_profile_history")
+  @@schema("identity")
+}
+
+model DigitalSignature {
+  id                    String              @id @default(uuid()) @db.Uuid
+  verificationProfileId String              @map("verification_profile_id") @db.Uuid
+  userId                String              @map("user_id") @db.Uuid
+  organizationId        String?             @map("organization_id") @db.Uuid
+  signerName            String              @map("signer_name")
+  signerTitle           String?             @map("signer_title")
+  consentVersion        String              @map("consent_version")
+  consentTitle          String              @map("consent_title")
+  canonicalPayloadHash  String              @map("canonical_payload_hash")
+  signatureHash         String              @map("signature_hash")
+  status                String              @default("SIGNED")
+  signedAt              DateTime            @default(now()) @map("signed_at")
+  metadata              Json                @default("{}")
+  providerMetadata      Json                @default("{}") @map("provider_metadata")
+  blockchainMetadata    Json                @default("{}") @map("blockchain_metadata")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  verificationProfile   VerificationProfile @relation(fields: [verificationProfileId], references: [id], onDelete: Cascade)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization          Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([verificationProfileId, signedAt])
+  @@index([userId, signedAt])
+  @@index([signatureHash])
+  @@map("digital_signatures")
   @@schema("identity")
 }
 
@@ -428,6 +540,8 @@ model Organization {
   supplierProfile      SupplierProfile?
   sessions             Session[]
   verificationProfiles VerificationProfile[]
+  verificationHistory  VerificationProfileHistory[]
+  digitalSignatures    DigitalSignature[]
   documents            DocumentObject[]
   tendersAsBuyer       Tender[]                  @relation("TenderBuyerOrg")
   bidsAsBuyer          Bid[]                     @relation("BidBuyerOrg")
@@ -1133,6 +1247,28 @@ model ModuleRegistry {
   @@schema("intelligence")
 }
 
+model PublicPageVersion {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  pageKey            PublicPageKey          @map("page_key")
+  version            String
+  status             PublicPageStatus       @default(DRAFT)
+  title              String
+  summary            String?
+  content            Json                   @default("{}")
+  contentHash        String                 @map("content_hash")
+  effectiveAt        DateTime               @map("effective_at")
+  publishedAt        DateTime?              @map("published_at")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  termsAcceptances   UserPolicyAcceptance[] @relation("TermsPolicyAcceptances")
+  privacyAcceptances UserPolicyAcceptance[] @relation("PrivacyPolicyAcceptances")
+
+  @@unique([pageKey, version])
+  @@index([pageKey, status, effectiveAt])
+  @@map("public_page_versions")
+  @@schema("content")
+}
+
 model ExternalSystem {
   id          String   @id @default(uuid()) @db.Uuid
   ownerOrgId  String?  @map("owner_org_id") @db.Uuid
@@ -1145,6 +1281,24 @@ model ExternalSystem {
 
   @@index([ownerOrgId, systemType])
   @@map("external_systems")
+  @@schema("integration")
+}
+
+model RegistryRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  source         String
+  registryNumber String   @map("registry_number")
+  entityType     String   @map("entity_type")
+  name           String
+  status         String   @default("MATCHED")
+  confidence     Int      @default(95)
+  payload        Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([source, registryNumber])
+  @@index([source, entityType])
+  @@map("registry_records")
   @@schema("integration")
 }
 

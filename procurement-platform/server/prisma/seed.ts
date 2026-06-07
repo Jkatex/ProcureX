@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { createHash, createHmac, randomBytes, scrypt as scryptCallback } from 'node:crypto';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
   AccountType,
@@ -18,6 +20,8 @@ import {
   OrganizationCapabilityName,
   OrganizationKind,
   ProcurementMethod,
+  PublicPageKey,
+  PublicPageStatus,
   RecommendationStatus,
   TenderStatus,
   TenderType,
@@ -31,8 +35,16 @@ import { withDbContext } from '../src/db/context.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uiDataPath = path.resolve(__dirname, '../../../procurex-ui/js/data.js');
+const clientPublicPagesPath = path.resolve(__dirname, '../../client/src/features/public/components/procurex');
 
 type AnyRecord = Record<string, any>;
+const scrypt = promisify(scryptCallback);
+
+async function hashSeedPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const derived = (await scrypt(password, salt, 64)) as Buffer;
+  return `scrypt:${salt}:${derived.toString('hex')}`;
+}
 
 function loadUiMockData(): AnyRecord {
   const source = fs.readFileSync(uiDataPath, 'utf8');
@@ -40,6 +52,71 @@ function loadUiMockData(): AnyRecord {
   vm.createContext(sandbox);
   vm.runInContext(source, sandbox, { filename: uiDataPath });
   return sandbox.window.mockData;
+}
+
+function sha256Seed(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function canonicalJsonSeed(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJsonSeed(item)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJsonSeed(item)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function signatureHashSeed(value: string): string {
+  return createHmac('sha256', process.env.SIGNATURE_HASH_SECRET || 'seed-demo-signature-secret').update(value).digest('hex');
+}
+
+function extractClientPageHtml(fileName: string): string {
+  const source = fs.readFileSync(path.join(clientPublicPagesPath, fileName), 'utf8');
+  const match = source.match(/const html = ("(?:\\.|[^"\\])*");/);
+  if (!match) throw new Error(`Could not find generated HTML in ${fileName}`);
+  return JSON.parse(match[1]);
+}
+
+function publicPageSeedData() {
+  const effectiveAt = new Date('2026-06-06T00:00:00.000Z');
+  const pages = [
+    {
+      pageKey: PublicPageKey.ABOUT_PROCUREX,
+      fileName: 'AboutProcurexPage.tsx',
+      title: 'About ProcureX',
+      summary: 'ProcureX is a digital procurement platform for tendering, bidding, evaluation, awards, contracts, and records.'
+    },
+    {
+      pageKey: PublicPageKey.PRIVACY_POLICY,
+      fileName: 'PrivacyPolicyProcurexPage.tsx',
+      title: 'Privacy Policy',
+      summary: 'How ProcureX collects, uses, stores, protects, and shares procurement platform information.'
+    },
+    {
+      pageKey: PublicPageKey.TERMS_AND_CONDITIONS,
+      fileName: 'TermsAndConditionsProcurexPage.tsx',
+      title: 'Terms and Conditions',
+      summary: 'Rules, responsibilities, rights, and limitations for using the ProcureX procurement platform.'
+    }
+  ];
+
+  return pages.map((page) => {
+    const html = extractClientPageHtml(page.fileName);
+    return {
+      pageKey: page.pageKey,
+      version: '2026.06.06',
+      status: PublicPageStatus.PUBLISHED,
+      title: page.title,
+      summary: page.summary,
+      content: { html },
+      contentHash: sha256Seed(html),
+      effectiveAt,
+      publishedAt: effectiveAt
+    };
+  });
 }
 
 function parseDate(value?: string | Date | null): Date | undefined {
@@ -207,33 +284,153 @@ async function main() {
 
     const adminUser = await db.user.upsert({
       where: { email: 'admin@procurex.tz' },
-      update: { displayName: 'Admin User', accountType: AccountType.ADMIN, verificationStatus: VerificationStatus.APPROVED },
+      update: {
+        displayName: 'Admin User',
+        accountType: AccountType.ADMIN,
+        verificationStatus: VerificationStatus.APPROVED,
+        passwordHash: await hashSeedPassword('Admin123!'),
+        metadata: { phoneVerified: true, emailVerified: true }
+      },
       create: {
         email: 'admin@procurex.tz',
         phone: '+255 715 555 666',
         displayName: 'Admin User',
         accountType: AccountType.ADMIN,
-        verificationStatus: VerificationStatus.APPROVED
+        verificationStatus: VerificationStatus.APPROVED,
+        passwordHash: await hashSeedPassword('Admin123!'),
+        metadata: { phoneVerified: true, emailVerified: true }
       }
     });
 
     const companyUser = await db.user.upsert({
       where: { email: 'user@company.tz' },
-      update: { displayName: mockData.users?.current?.name ?? 'Kilimanjaro Supplies Limited', accountType: AccountType.USER, verificationStatus: VerificationStatus.APPROVED },
+      update: {
+        displayName: mockData.users?.current?.name ?? 'Kilimanjaro Supplies Limited',
+        accountType: AccountType.USER,
+        verificationStatus: VerificationStatus.APPROVED,
+        passwordHash: await hashSeedPassword('Procure1!'),
+        metadata: { phoneVerified: true, emailVerified: true }
+      },
       create: {
         email: 'user@company.tz',
         phone: '+255 713 111 222',
         displayName: mockData.users?.current?.name ?? 'Kilimanjaro Supplies Limited',
         accountType: AccountType.USER,
-        verificationStatus: VerificationStatus.APPROVED
+        verificationStatus: VerificationStatus.APPROVED,
+        passwordHash: await hashSeedPassword('Procure1!'),
+        metadata: { phoneVerified: true, emailVerified: true }
       }
     });
 
-    for (const user of [adminUser, companyUser]) {
+    const demoUser = await db.user.upsert({
+      where: { email: 'demo@procurex.tz' },
+      update: {
+        displayName: 'Demo Verified User',
+        accountType: AccountType.USER,
+        verificationStatus: VerificationStatus.APPROVED,
+        passwordHash: await hashSeedPassword('Demo123!'),
+        metadata: {
+          phoneVerified: true,
+          emailVerified: true,
+          entityType: 'company',
+          registrySource: 'BRELA',
+          registryNumber: '123456789',
+          verifiedName: 'Kilimanjaro Supplies Limited',
+          demoAccount: true
+        }
+      },
+      create: {
+        email: 'demo@procurex.tz',
+        phone: '+255 713 333 444',
+        displayName: 'Demo Verified User',
+        accountType: AccountType.USER,
+        verificationStatus: VerificationStatus.APPROVED,
+        passwordHash: await hashSeedPassword('Demo123!'),
+        metadata: {
+          phoneVerified: true,
+          emailVerified: true,
+          entityType: 'company',
+          registrySource: 'BRELA',
+          registryNumber: '123456789',
+          verifiedName: 'Kilimanjaro Supplies Limited',
+          demoAccount: true
+        }
+      }
+    });
+
+    for (const user of [adminUser, companyUser, demoUser]) {
       await db.account.upsert({
         where: { provider_providerUserId: { provider: 'password', providerUserId: user.email } },
         update: { accountType: user.accountType },
         create: { userId: user.id, provider: 'password', providerUserId: user.email, accountType: user.accountType }
+      });
+    }
+
+    const registryRecords = [
+      {
+        source: 'TRA',
+        registryNumber: '123-456-789',
+        entityType: 'individual',
+        name: 'Mariam Saidi Nyoni',
+        payload: {
+          tin: '123-456-789',
+          email: 'mariam.nyoni@example.co.tz',
+          mobileNumber: '0718 462 390',
+          physicalAddress: 'Plot 24, Mbezi Beach, Dar es Salaam',
+          postalAddress: 'P.O. Box 20418',
+          taxRegion: 'DSM',
+          registeredOn: '2022-05-18',
+          summaryRows: [
+            ['Name', 'Mariam Saidi Nyoni'],
+            ['Taxpayer Identification Number', '123-456-789'],
+            ['Status', 'CER'],
+            ['Location', 'Dar es Salaam, Tanzania']
+          ]
+        }
+      },
+      {
+        source: 'BRELA',
+        registryNumber: '123456789',
+        entityType: 'company',
+        name: 'Kilimanjaro Supplies Limited',
+        payload: {
+          registrationNumber: '123456789',
+          companyType: 'Private limited company',
+          registeredOn: '2021-02-12',
+          location: 'Arusha, Tanzania',
+          summaryRows: [
+            ['Company name', 'Kilimanjaro Supplies Limited'],
+            ['BRELA number', '123456789'],
+            ['Status', 'Active'],
+            ['Location', 'Arusha, Tanzania']
+          ]
+        }
+      },
+      {
+        source: 'BRELA',
+        registryNumber: 'BN-123456',
+        entityType: 'business',
+        name: 'Zahra Omari Business Services',
+        payload: {
+          businessNumber: 'BN-123456',
+          registrationMethod: 'BRELA business name',
+          registeredOn: '2023-09-04',
+          location: 'Dodoma, Tanzania',
+          summaryRows: [
+            ['Business name', 'Zahra Omari Business Services'],
+            ['Business number', 'BN-123456'],
+            ['Status', 'Active'],
+            ['Location', 'Dodoma, Tanzania']
+          ]
+        }
+      }
+    ];
+
+    for (const record of registryRecords) {
+      await db.registryRecord.upsert({
+        where: { source_registryNumber: { source: record.source, registryNumber: record.registryNumber } },
+        update: record,
+        create: record
       });
     }
 
@@ -246,6 +443,155 @@ async function main() {
       where: { organizationId_userId: { organizationId: companyOrg.id, userId: companyUser.id } },
       update: { status: 'ACTIVE', isDefault: true },
       create: { organizationId: companyOrg.id, userId: companyUser.id, status: 'ACTIVE', title: 'Company operator' }
+    });
+    await db.organizationMember.upsert({
+      where: { organizationId_userId: { organizationId: companyOrg.id, userId: demoUser.id } },
+      update: { status: 'ACTIVE', isDefault: true },
+      create: { organizationId: companyOrg.id, userId: demoUser.id, status: 'ACTIVE', isDefault: true, title: 'Demo verified operator' }
+    });
+
+    const demoRegistryRecord = await db.registryRecord.findUnique({
+      where: { source_registryNumber: { source: 'BRELA', registryNumber: '123456789' } }
+    });
+    if (!demoRegistryRecord) throw new Error('Seeded BRELA registry record was not found for demo account.');
+
+    const demoProfileId = '00000000-0000-4000-8000-000000000101';
+    const demoSignatureId = '00000000-0000-4000-8000-000000000102';
+    const demoHistoryId = '00000000-0000-4000-8000-000000000103';
+    const demoSignedAt = new Date('2026-06-06T00:00:00.000Z');
+    const demoConsentVersion = '2026.06.06';
+    const demoConsentTitle = 'ProcureX identity verification signature consent';
+    const demoSignedPayload = {
+      verificationProfileId: demoProfileId,
+      userId: demoUser.id,
+      registrySource: demoRegistryRecord.source,
+      registryNumber: demoRegistryRecord.registryNumber,
+      registryRecordId: demoRegistryRecord.id,
+      entityType: 'company',
+      signerName: 'Demo Verified User',
+      signerTitle: 'Authorized Signatory',
+      consentVersion: demoConsentVersion,
+      consentTitle: demoConsentTitle,
+      signedAt: demoSignedAt.toISOString()
+    };
+    const demoCanonicalPayloadHash = sha256Seed(canonicalJsonSeed(demoSignedPayload));
+    const demoSignatureHash = signatureHashSeed(`${demoCanonicalPayloadHash}:${demoUser.id}:${demoProfileId}`);
+    const demoRegistryPayload = {
+      id: demoRegistryRecord.id,
+      source: demoRegistryRecord.source,
+      registryNumber: demoRegistryRecord.registryNumber,
+      entityType: demoRegistryRecord.entityType,
+      name: demoRegistryRecord.name,
+      status: demoRegistryRecord.status,
+      confidence: demoRegistryRecord.confidence,
+      payload: demoRegistryRecord.payload
+    };
+    const demoVerificationPayload = {
+      entityType: 'company',
+      businessRegistrationSource: 'brela',
+      registrySource: demoRegistryRecord.source,
+      registryNumber: demoRegistryRecord.registryNumber,
+      registryVerified: true,
+      registryRecordId: demoRegistryRecord.id,
+      signatureName: 'Demo Verified User',
+      signatureTitle: 'Authorized Signatory',
+      signatureConsent: true,
+      signatureConsentVersion: demoConsentVersion,
+      signatureConsentTitle: demoConsentTitle,
+      registryRecord: demoRegistryPayload,
+      verifiedName: demoRegistryRecord.name,
+      reviewReasons: [],
+      autoApproved: true,
+      submittedAt: demoSignedAt.toISOString(),
+      digitalSignature: {
+        id: demoSignatureId,
+        status: 'SIGNED',
+        signedAt: demoSignedAt.toISOString(),
+        canonicalPayloadHash: demoCanonicalPayloadHash,
+        consentVersion: demoConsentVersion,
+        consentTitle: demoConsentTitle,
+        blockchainAnchorStatus: 'PENDING_IMPLEMENTATION'
+      }
+    };
+    await db.verificationProfile.upsert({
+      where: { id: demoProfileId },
+      update: {
+        userId: demoUser.id,
+        organizationId: companyOrg.id,
+        status: VerificationStatus.APPROVED,
+        registrySource: demoRegistryRecord.source,
+        registryNumber: demoRegistryRecord.registryNumber,
+        payload: demoVerificationPayload
+      },
+      create: {
+        id: demoProfileId,
+        userId: demoUser.id,
+        organizationId: companyOrg.id,
+        status: VerificationStatus.APPROVED,
+        registrySource: demoRegistryRecord.source,
+        registryNumber: demoRegistryRecord.registryNumber,
+        payload: demoVerificationPayload
+      }
+    });
+    await db.digitalSignature.upsert({
+      where: { id: demoSignatureId },
+      update: {
+        verificationProfileId: demoProfileId,
+        userId: demoUser.id,
+        organizationId: companyOrg.id,
+        signerName: 'Demo Verified User',
+        signerTitle: 'Authorized Signatory',
+        consentVersion: demoConsentVersion,
+        consentTitle: demoConsentTitle,
+        canonicalPayloadHash: demoCanonicalPayloadHash,
+        signatureHash: demoSignatureHash,
+        status: 'SIGNED',
+        signedAt: demoSignedAt,
+        metadata: { seeded: true, demoAccount: true },
+        providerMetadata: { provider: 'procurex-seed-secure-hash-v1' },
+        blockchainMetadata: { anchorStatus: 'PENDING_IMPLEMENTATION' }
+      },
+      create: {
+        id: demoSignatureId,
+        verificationProfileId: demoProfileId,
+        userId: demoUser.id,
+        organizationId: companyOrg.id,
+        signerName: 'Demo Verified User',
+        signerTitle: 'Authorized Signatory',
+        consentVersion: demoConsentVersion,
+        consentTitle: demoConsentTitle,
+        canonicalPayloadHash: demoCanonicalPayloadHash,
+        signatureHash: demoSignatureHash,
+        status: 'SIGNED',
+        signedAt: demoSignedAt,
+        metadata: { seeded: true, demoAccount: true },
+        providerMetadata: { provider: 'procurex-seed-secure-hash-v1' },
+        blockchainMetadata: { anchorStatus: 'PENDING_IMPLEMENTATION' }
+      }
+    });
+    await db.verificationProfileHistory.upsert({
+      where: { id: demoHistoryId },
+      update: {
+        verificationProfileId: demoProfileId,
+        userId: demoUser.id,
+        organizationId: companyOrg.id,
+        status: VerificationStatus.APPROVED,
+        registrySource: demoRegistryRecord.source,
+        registryNumber: demoRegistryRecord.registryNumber,
+        event: 'seed_demo_verified',
+        payload: demoVerificationPayload
+      },
+      create: {
+        id: demoHistoryId,
+        verificationProfileId: demoProfileId,
+        userId: demoUser.id,
+        organizationId: companyOrg.id,
+        status: VerificationStatus.APPROVED,
+        registrySource: demoRegistryRecord.source,
+        registryNumber: demoRegistryRecord.registryNumber,
+        event: 'seed_demo_verified',
+        payload: demoVerificationPayload
+      }
     });
 
     const externalBuyer = await db.organization.upsert({
@@ -550,13 +896,56 @@ async function main() {
       }
     });
 
-    for (const module of ['identity', 'organization', 'procurement', 'bidding', 'evaluation', 'award-contract', 'financial', 'compliance-admin', 'communication', 'records', 'intelligence', 'integration', 'documents']) {
+    for (const module of ['public', 'identity', 'organization', 'procurement', 'bidding', 'evaluation', 'award-contract', 'financial', 'compliance-admin', 'communication', 'records', 'intelligence', 'integration', 'documents']) {
       await db.moduleRegistry.upsert({
         where: { name: module },
         update: { status: 'Available', version: '0.1.0', payload: { seeded: true } },
         create: { name: module, status: 'Available', version: '0.1.0', payload: { seeded: true } }
       });
     }
+
+    for (const page of publicPageSeedData()) {
+      await db.publicPageVersion.upsert({
+        where: { pageKey_version: { pageKey: page.pageKey, version: page.version } },
+        update: page,
+        create: page
+      });
+    }
+
+    const demoTermsVersion = await db.publicPageVersion.findUnique({
+      where: { pageKey_version: { pageKey: PublicPageKey.TERMS_AND_CONDITIONS, version: '2026.06.06' } }
+    });
+    const demoPrivacyVersion = await db.publicPageVersion.findUnique({
+      where: { pageKey_version: { pageKey: PublicPageKey.PRIVACY_POLICY, version: '2026.06.06' } }
+    });
+    if (!demoTermsVersion || !demoPrivacyVersion) throw new Error('Seeded legal page versions were not found for demo account.');
+
+    await db.userPolicyAcceptance.upsert({
+      where: { id: '00000000-0000-4000-8000-000000000104' },
+      update: {
+        userId: demoUser.id,
+        termsVersionId: demoTermsVersion.id,
+        privacyVersionId: demoPrivacyVersion.id,
+        source: 'seed-demo',
+        payload: {
+          seeded: true,
+          termsVersion: demoTermsVersion.version,
+          privacyVersion: demoPrivacyVersion.version
+        }
+      },
+      create: {
+        id: '00000000-0000-4000-8000-000000000104',
+        userId: demoUser.id,
+        termsVersionId: demoTermsVersion.id,
+        privacyVersionId: demoPrivacyVersion.id,
+        source: 'seed-demo',
+        payload: {
+          seeded: true,
+          termsVersion: demoTermsVersion.version,
+          privacyVersion: demoPrivacyVersion.version
+        }
+      }
+    });
   }, prisma);
 }
 
@@ -570,4 +959,3 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-

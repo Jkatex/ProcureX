@@ -18,6 +18,19 @@ const viewports = [
   { name: 'mobile', width: 390, height: 1000 }
 ];
 
+const mockSession = {
+  user: {
+    id: 'ui-parity-admin',
+    displayName: 'Admin User',
+    email: 'admin@procurex.test',
+    accountType: 'ADMIN',
+    organization: 'ProcureX UI Parity',
+    capabilities: ['BUYER', 'SUPPLIER'],
+    verificationStatus: 'APPROVED'
+  },
+  expiresAt: '2099-01-01T00:00:00.000Z'
+};
+
 async function captureUrl(context, url, outputPath) {
   let lastError;
 
@@ -63,6 +76,16 @@ const browser = await chromium.launch({
 try {
   for (const viewport of viewports) {
     const context = await browser.newContext({ viewport });
+    await context.addInitScript(() => {
+      window.localStorage.setItem('procurex.authToken', 'ui-parity-token');
+    });
+    await context.route('http://localhost:4000/api/identity/session', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockSession)
+      });
+    });
     for (const route of routes) {
       const referenceUrl = `${referenceBase}?page=${encodeURIComponent(route.prototypePage)}`;
       const targetUrl = `${targetBase}${route.reactPath}`;

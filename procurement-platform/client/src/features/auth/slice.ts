@@ -1,20 +1,45 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { mockApi } from '@/shared/api/mockApi';
+import { apiErrorMessage } from '@/shared/api/errors';
+import { clearStoredAuthToken, getStoredAuthToken, storeAuthToken } from '@/shared/api/authToken';
 import type { SessionUser } from '@/shared/types/domain';
+import { authApi, type AuthSessionResponse } from './api';
 
 type AuthState = {
   user: SessionUser | null;
+  token: string | null;
+  expiresAt: string | null;
   isAuthenticated: boolean;
   status: 'idle' | 'loading' | 'succeeded' | 'failed';
+  error: string | null;
 };
+
+const initialToken = getStoredAuthToken();
 
 const initialState: AuthState = {
   user: null,
+  token: initialToken,
+  expiresAt: null,
   isAuthenticated: false,
-  status: 'idle'
+  status: initialToken ? 'loading' : 'idle',
+  error: null
 };
 
-export const signInWithEmail = createAsyncThunk('auth/signInWithEmail', async (email: string) => mockApi.signIn(email));
+export const signInWithCredentials = createAsyncThunk<AuthSessionResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }>(
+  'auth/signInWithCredentials',
+  async (input, { rejectWithValue }) => {
+    try {
+      return await authApi.signIn(input);
+    } catch (error) {
+      return rejectWithValue(apiErrorMessage(error, 'Sign-in failed.'));
+    }
+  }
+);
+
+export const hydrateAuthSession = createAsyncThunk('auth/hydrateAuthSession', async () => authApi.getSession());
+
+export const signOutSession = createAsyncThunk('auth/signOutSession', async () => {
+  await authApi.signOut();
+});
 
 const authSlice = createSlice({
   name: 'auth',
@@ -22,28 +47,68 @@ const authSlice = createSlice({
   reducers: {
     signOut(state) {
       state.user = null;
+      state.token = null;
+      state.expiresAt = null;
       state.isAuthenticated = false;
+      state.status = 'idle';
+      clearStoredAuthToken();
     },
     assumeUser(state, action: PayloadAction<SessionUser>) {
       state.user = action.payload;
       state.isAuthenticated = true;
+      state.status = 'succeeded';
+    },
+    setSessionUser(state, action: PayloadAction<SessionUser>) {
+      state.user = action.payload;
+      state.isAuthenticated = true;
+      state.status = 'succeeded';
     }
   },
   extraReducers: (builder) => {
     builder
-      .addCase(signInWithEmail.pending, (state) => {
+      .addCase(signInWithCredentials.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(signInWithCredentials.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.expiresAt = action.payload.expiresAt;
+        state.isAuthenticated = true;
+        storeAuthToken(action.payload.token);
+      })
+      .addCase(signInWithCredentials.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload ?? action.error.message ?? 'Sign-in failed.';
+      })
+      .addCase(hydrateAuthSession.pending, (state) => {
         state.status = 'loading';
       })
-      .addCase(signInWithEmail.fulfilled, (state, action) => {
+      .addCase(hydrateAuthSession.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.user = action.payload;
+        state.user = action.payload.user;
+        state.expiresAt = action.payload.expiresAt;
         state.isAuthenticated = true;
       })
-      .addCase(signInWithEmail.rejected, (state) => {
-        state.status = 'failed';
+      .addCase(hydrateAuthSession.rejected, (state) => {
+        state.status = 'idle';
+        state.user = null;
+        state.token = null;
+        state.expiresAt = null;
+        state.isAuthenticated = false;
+        clearStoredAuthToken();
+      })
+      .addCase(signOutSession.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.expiresAt = null;
+        state.isAuthenticated = false;
+        state.status = 'idle';
+        clearStoredAuthToken();
       });
   }
 });
 
-export const { assumeUser, signOut } = authSlice.actions;
+export const { assumeUser, setSessionUser, signOut } = authSlice.actions;
 export default authSlice.reducer;

@@ -140,8 +140,3 @@ Third-party service failures
 (email, SMS)
 Medium Implement fallback providers; queue-based
 retry
-
-there are many corrections to be made on database creation as you can seee like the roles are admin and users as user can act as both supplier or buyer other amny implementation now i need you to study how procurex ui was made or created and use it to create the database and other diectory or folders for other develepment purpose we are proceeding..... please make corrections on database logics and its creatioon while observing aan dfocusing most on how procurex ui was created
-
- 
-now maybe lets plan and discuss how to issue this cant we create a folder or directory for each component that could be easy to draft out the database frotend and backend see againn the implementation path on the environment setup step and see how we could create these folders

@@ -95,6 +95,18 @@ const pages = [
   ['admin', 'admin-audit', 'AdminAuditProcurexPage']
 ];
 
+const handAuthoredPages = new Set([
+  'welcome',
+  'about-procurex',
+  'privacy-policy',
+  'terms-and-conditions',
+  'awarding-contracts',
+  'award-recommendation',
+  'award-response',
+  'contract-negotiation',
+  'post-award-tracking'
+]);
+
 function createDomStub() {
   const classList = {
     add() {},
@@ -545,7 +557,9 @@ for (const [feature, page, componentName] of pages) {
   await mkdir(dir, { recursive: true });
   const html = renderPage(page);
   collectStaticStrings(html);
-  await writeFile(path.join(dir, `${componentName}.tsx`), componentSource(page, componentName, html));
+  if (!handAuthoredPages.has(page)) {
+    await writeFile(path.join(dir, `${componentName}.tsx`), componentSource(page, componentName, html));
+  }
   registryImports.push(`import { ${componentName} } from '@/features/${feature}/components/procurex/${componentName}';`);
   registryEntries.push(`  '${page}': ${componentName}`);
   routeEntries.push(`  '${page}': '${componentName}'`);

@@ -1,9 +1,378 @@
-/* This file is generated from the ProcureX design prototype. Do not edit by hand. */
+import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
+import { LanguageSwitcher } from '@/shared/components/LanguageSwitcher';
+import { useWelcomeLandingData } from '../../hooks';
 
-import { ProcurexStaticPage } from '@/shared/components/procurex/ProcurexStaticPage';
+type IconProps = {
+  children: ReactNode;
+  className?: string;
+};
 
-const html = "\n        <div class=\"landing-page welcome-page-v2\">\n            <header class=\"landing-nav welcome-nav-v2\">\n                <div class=\"landing-nav-inner container\">\n                    <a class=\"brand welcome-brand-v2\" href=\"#\" data-navigate=\"welcome\" aria-label=\"ProcureX home\">\n                        \n        <span class=\"platform-logo\">\n            <img class=\"platform-logo-image\" src=\"/assets/logo.svg\" alt=\"ProcureX\">\n        </span>\n    \n                        <span class=\"brand-text\">ProcureX</span>\n                    </a>\n                    <nav class=\"landing-nav-links welcome-nav-links-v2\" aria-label=\"Welcome navigation\">\n                        <a class=\"active\" href=\"#\" data-navigate=\"guest-marketplace\">Browse Open Tenders</a>\n                        <a href=\"#how-it-works\">How It Works</a>\n                        <a href=\"#\" data-navigate=\"about-procurex\">About</a>\n                        <a href=\"#help-center\">Help Center</a>\n                    </nav>\n                    <div class=\"welcome-nav-actions-v2\">\n                        <a href=\"#\" data-navigate=\"sign-in\">Sign In</a>\n                        <button class=\"btn btn-primary\" type=\"button\" data-navigate=\"register\">Get Started</button>\n                    </div>\n                </div>\n            </header>\n\n            <main class=\"welcome-hero-v2\">\n                <div class=\"container welcome-hero-grid-v2\">\n                    <section class=\"welcome-hero-copy-v2 animate-fade-in\">\n                        <span class=\"eyebrow\">Welcome to ProcureX</span>\n                        <h1>Buy. Supply. Connect. Grow.</h1>\n                        <p>ProcureX is a modern e-procurement marketplace built to make procurement simple, fair, secure, and accessible for everyone.</p>\n                        <p>Create tenders, discover tenders, and build a procurement record today.</p>\n                        <div class=\"hero-actions\">\n                            <button class=\"btn btn-primary\" type=\"button\" data-navigate=\"register\">Get Started</button>\n                            <button class=\"btn btn-secondary\" type=\"button\" data-navigate=\"guest-marketplace\">Browse Open Tenders</button>\n                        </div>\n                        <div class=\"welcome-proof-v2\" aria-label=\"Trusted business proof\">\n                            <span class=\"welcome-proof-avatars-v2\" aria-hidden=\"true\">\n                                <i></i><i></i><i></i>\n                            </span>\n                            <span>Used by 2,000+ participants</span>\n                        </div>\n                    </section>\n\n                    <section class=\"welcome-product-stage-v2 animate-fade-in delay-1\" aria-label=\"ProcureX marketplace preview\">\n                        <div class=\"welcome-product-window-v2\">\n                            <div class=\"welcome-product-top-v2\">\n                                <span>\n        <svg class=\"welcome-product-mark-v2\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"M7 7h10v10H7z\"/><path d=\"M9 9h6v6H9z\"/>\n        </svg>\n     ProcureX Marketplace</span>\n                                <em>Active workspace</em>\n                            </div>\n                            <div class=\"welcome-product-metrics-v2\">\n                                <article>\n                                    \n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"M12 8v8\"/><path d=\"M8 12h8\"/><circle cx=\"12\" cy=\"12\" r=\"9\"/>\n        </svg>\n    \n                                    <strong>Create tender</strong>\n                                    <span>Post goods, services, or consultancy.</span>\n                                </article>\n                                <article>\n                                    \n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/>\n        </svg>\n    \n                                    <strong>Discover tenders</strong>\n                                    <span>Find open tenders and bidding.</span>\n                                </article>\n                            </div>\n                            <div class=\"welcome-product-rate-v2\">\n                                <div>\n                                    <span>Verified Profile</span>\n                                    <strong>98.4% Completion Rate</strong>\n                                </div>\n                                <button class=\"btn btn-primary\" type=\"button\" data-navigate=\"register\">View Profile</button>\n                            </div>\n                            <figure class=\"welcome-product-photo-v2\">\n                                <img src=\"/assets/welcome/procurement-meeting.webp\" alt=\"Procurement team reviewing documents in a meeting\" loading=\"eager\">\n                            </figure>\n                        </div>\n                    </section>\n                </div>\n            </main>\n\n            <section id=\"how-it-works\" class=\"welcome-section-v2 welcome-steps-section-v2\">\n                <div class=\"container\">\n                    <div class=\"section-header welcome-centered-v2\">\n                        <span class=\"section-label\">Streamlined workflow</span>\n                        <h2>Four steps to procurement success</h2>\n                    </div>\n                    <div class=\"welcome-steps-grid-v2\">\n                        \n                            <article class=\"welcome-step-v2\">\n                                <span class=\"welcome-step-icon-v2\">\n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"M12 8v8\"/><path d=\"M8 12h8\"/><circle cx=\"12\" cy=\"12\" r=\"9\"/>\n        </svg>\n    </span>\n                                <h3>Create Tender</h3>\n                                <p>Post goods, services, or consultancy needs to your registered participants.</p>\n                            </article>\n                        \n                            <article class=\"welcome-step-v2\">\n                                <span class=\"welcome-step-icon-v2\">\n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/>\n        </svg>\n    </span>\n                                <h3>Discover Tenders</h3>\n                                <p>Browse active procurement requests and find the perfect match for your business capabilities.</p>\n                            </article>\n                        \n                            <article class=\"welcome-step-v2\">\n                                <span class=\"welcome-step-icon-v2\">\n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"m5 12 14-7-7 14-2-5z\"/>\n        </svg>\n    </span>\n                                <h3>Submit Bid</h3>\n                                <p>Prepare and submit professional proposals through our secure and transparent bidding engine.</p>\n                            </article>\n                        \n                            <article class=\"welcome-step-v2\">\n                                <span class=\"welcome-step-icon-v2\">\n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\"2\"/><path d=\"M9 8h6\"/><path d=\"M9 12h6\"/><path d=\"M9 16h4\"/>\n        </svg>\n    </span>\n                                <h3>Track Records</h3>\n                                <p>Maintain a clear audit trail of all messages, clarifications, awards, and historical data.</p>\n                            </article>\n                        \n                    </div>\n                </div>\n            </section>\n\n            <section id=\"about-procurex\" class=\"welcome-section-v2 welcome-gateway-section-v2\">\n                <div class=\"container\">\n                    <div class=\"section-header welcome-centered-v2\">\n                        <h2>Your procurement gateway for tendering</h2>\n                        <p>ProcureX connects businesses, procuring entities, and tenderers in one secure, digital-first marketplace.</p>\n                    </div>\n                    <div class=\"welcome-gateway-grid-v2\">\n                        <figure class=\"welcome-story-image-v2\">\n                            <img src=\"/assets/welcome/opportunity-signing.webp\" alt=\"Procurement documents prepared for review and signing\" loading=\"lazy\">\n                            <figcaption>\n                                <span>From request to decision,</span>\n                                <strong>every step has a place.</strong>\n                                <small>Centralize your entire procurement workflow. From initial RFP to final contract awarding, keep all data in a single source of truth.</small>\n                            </figcaption>\n                        </figure>\n                        <div class=\"welcome-assurance-stack-v2\">\n                            <article>\n                                \n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"M4 7h16v10H4z\"/><path d=\"M8 21h8\"/><path d=\"M12 17v4\"/>\n        </svg>\n    \n                                <div>\n                                    <h3>No scattered communication</h3>\n                                    <p>Messages, clarification requests, and alerts stay in the system so critical data is never lost in email threads.</p>\n                                </div>\n                            </article>\n                            <article>\n                                \n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>\n        </svg>\n    \n                                <div>\n                                    <h3>No hidden tenders</h3>\n                                    <p>Discover open tenders and service needs in one organized place, ensuring fair competition for all verified partners.</p>\n                                </div>\n                            </article>\n                        </div>\n                    </div>\n                </div>\n            </section>\n\n            <section class=\"welcome-dark-band-v2\">\n                <div class=\"container\">\n                    <div class=\"section-header welcome-centered-v2\">\n                        <h2>A smarter marketplace for everyone</h2>\n                        <p>ProcureX creates a shared space where businesses can meet and work together efficiently, whether they are procuring entities, tenderers, or specialized professionals.</p>\n                    </div>\n                    <div class=\"welcome-market-grid-v2\">\n                        \n                            <article class=\"welcome-market-card-v2\">\n                                <div class=\"welcome-market-thumb-v2\">\n                                    <img src=\"/assets/welcome/business-collaboration.webp\" alt=\"\" loading=\"lazy\" aria-hidden=\"true\">\n                                </div>\n                                <span class=\"welcome-market-icon-v2\">\n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"M12 3a6 6 0 0 0-6 6c0 4 6 12 6 12s6-8 6-12a6 6 0 0 0-6-6Z\"/><circle cx=\"12\" cy=\"9\" r=\"2\"/>\n        </svg>\n    </span>\n                                <h3>Tenders</h3>\n                                <p>Access a global stream of verified procurement requests that match your specific industry and scale.</p>\n                                <ul>\n                                    <li>Verified tender details</li><li>Direct procuring entity interaction</li>\n                                </ul>\n                            </article>\n                        \n                            <article class=\"welcome-market-card-v2\">\n                                <div class=\"welcome-market-thumb-v2\">\n                                    <img src=\"/assets/welcome/contract-review.webp\" alt=\"\" loading=\"lazy\" aria-hidden=\"true\">\n                                </div>\n                                <span class=\"welcome-market-icon-v2\">\n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <path d=\"M7 11a4 4 0 1 1 8 0\"/><path d=\"M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2\"/><path d=\"M21 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>\n        </svg>\n    </span>\n                                <h3>Relationships</h3>\n                                <p>Build long-term partnerships through our transparent profile and performance tracking system.</p>\n                                <ul>\n                                    <li>Performance ratings</li><li>Repeat business alerts</li>\n                                </ul>\n                            </article>\n                        \n                            <article class=\"welcome-market-card-v2\">\n                                <div class=\"welcome-market-thumb-v2\">\n                                    <img src=\"/assets/welcome/procurement-meeting.webp\" alt=\"\" loading=\"lazy\" aria-hidden=\"true\">\n                                </div>\n                                <span class=\"welcome-market-icon-v2\">\n        <svg class=\"welcome-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.1\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n            <rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M8 8h8\"/><path d=\"M8 12h8\"/><path d=\"M8 16h5\"/>\n        </svg>\n    </span>\n                                <h3>Records</h3>\n                                <p>Maintain a robust, immutable record of every transaction, bid, and contract for compliance and audit.</p>\n                                <ul>\n                                    <li>Immutable audit trails</li><li>Data-driven insights</li>\n                                </ul>\n                            </article>\n                        \n                    </div>\n                </div>\n            </section>\n\n            <section class=\"welcome-cta-section-v2\">\n                <div class=\"container\">\n                    <div class=\"welcome-cta-panel-v2\">\n                        <div>\n                            <h2>Join ProcureX today.</h2>\n                            <p>Start your procurement journey with one simple account. Create tenders, submit bids, and grow your business today.</p>\n                        </div>\n                        <div class=\"cta-actions\">\n                            <button class=\"btn btn-primary\" type=\"button\" data-navigate=\"register\">Get Started Now</button>\n                        </div>\n                    </div>\n                </div>\n            </section>\n\n            <footer id=\"help-center\" class=\"welcome-footer-v2\">\n                <div class=\"container\">\n                    <div>\n                        <strong>ProcureX</strong>\n                        <p>2026 ProcureX. All rights reserved. Connecting businesses, tenderers, and professionals through smarter procurement.</p>\n                    </div>\n                    <nav aria-label=\"Company links\">\n                        <h3>Company</h3>\n                        <a href=\"#\" data-navigate=\"about-procurex\">About ProcureX</a>\n                        <a href=\"#\" data-navigate=\"privacy-policy\">Privacy Policy</a>\n                        <a href=\"#\" data-navigate=\"terms-and-conditions\">Terms and Conditions</a>\n                    </nav>\n                    <nav aria-label=\"Platform links\">\n                        <h3>Platform</h3>\n                        <a href=\"#\" data-navigate=\"guest-marketplace\">Browse Open Tenders</a>\n                        <a href=\"#help-center\">System Status</a>\n                    </nav>\n                    <nav aria-label=\"Support links\">\n                        <h3>Support</h3>\n                        <a href=\"#\" data-navigate=\"contact\">Help Center</a>\n                        <a href=\"#\" data-navigate=\"contact\">Contact Support</a>\n                    </nav>\n                </div>\n            </footer>\n        </div>\n    ";
+type NavigateButtonProps = {
+  children: ReactNode;
+  className: string;
+  to: string;
+};
+
+function NavigateButton({ children, className, to }: NavigateButtonProps) {
+  const navigate = useNavigate();
+  return (
+    <button className={className} type="button" onClick={() => navigate(to)}>
+      {children}
+    </button>
+  );
+}
+
+function WelcomeIcon({ children, className = 'welcome-icon' }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+function PlatformLogo() {
+  return (
+    <span className="platform-logo">
+      <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
+    </span>
+  );
+}
+
+type WelcomeStepCopy = {
+  title: string;
+  text: string;
+};
+
+type WelcomeMarketCardCopy = {
+  title: string;
+  text: string;
+  points: string[];
+};
+
+type WelcomeAssuranceCopy = {
+  title: string;
+  text: string;
+};
+
+const stepIcons = [
+  {
+    icon: (
+      <>
+        <path d="M12 8v8" />
+        <path d="M8 12h8" />
+        <circle cx="12" cy="12" r="9" />
+      </>
+    ),
+  },
+  {
+    icon: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" />
+      </>
+    ),
+  },
+  {
+    icon: <path d="m5 12 14-7-7 14-2-5z" />
+  },
+  {
+    icon: (
+      <>
+        <rect x="5" y="4" width="14" height="16" rx="2" />
+        <path d="M9 8h6" />
+        <path d="M9 12h6" />
+        <path d="M9 16h4" />
+      </>
+    ),
+  }
+];
+
+const marketCardVisuals = [
+  {
+    image: 'business-collaboration.webp',
+    icon: (
+      <>
+        <path d="M12 3a6 6 0 0 0-6 6c0 4 6 12 6 12s6-8 6-12a6 6 0 0 0-6-6Z" />
+        <circle cx="12" cy="9" r="2" />
+      </>
+    )
+  },
+  {
+    image: 'contract-review.webp',
+    icon: (
+      <>
+        <path d="M7 11a4 4 0 1 1 8 0" />
+        <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+        <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </>
+    )
+  },
+  {
+    image: 'procurement-meeting.webp',
+    icon: (
+      <>
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path d="M8 8h8" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
+      </>
+    )
+  }
+];
 
 export function WelcomeProcurexPage() {
-  return <ProcurexStaticPage pageKey="welcome" html={html} />;
+  const { t } = useTranslation();
+  const { data, status } = useWelcomeLandingData();
+  const featuredTender = data.featuredTenders[0];
+  const completionRate = t('welcomeLanding.preview.completionRate', { rate: data.stats.verifiedProfileCompletionRate.toFixed(1) });
+  const steps = t('welcomeLanding.steps', { returnObjects: true }) as WelcomeStepCopy[];
+  const marketCards = t('welcomeLanding.marketCards', { returnObjects: true }) as WelcomeMarketCardCopy[];
+  const assuranceItems = t('welcomeLanding.gateway.assurance', { returnObjects: true }) as WelcomeAssuranceCopy[];
+
+  return (
+    <div className="landing-page welcome-page-v2" data-welcome-status={status}>
+      <header className="landing-nav welcome-nav-v2">
+        <div className="landing-nav-inner container">
+          <Link className="brand welcome-brand-v2" to="/" aria-label={t('welcomeLanding.brandHome')}>
+            <PlatformLogo />
+            <span className="brand-text">ProcureX</span>
+          </Link>
+          <nav className="landing-nav-links welcome-nav-links-v2" aria-label={t('welcomeLanding.navAria')}>
+            <Link className="active" to="/guest-marketplace">
+              {t('welcomeLanding.nav.browseTenders')}
+            </Link>
+            <a href="#how-it-works">{t('welcomeLanding.nav.howItWorks')}</a>
+            <Link to="/about">{t('welcomeLanding.nav.about')}</Link>
+            <a href="#help-center">{t('welcomeLanding.nav.helpCenter')}</a>
+          </nav>
+          <div className="welcome-nav-actions-v2">
+            <span className="procurex-language-inline procurex-language-inline--welcome">
+              <LanguageSwitcher />
+            </span>
+            <Link to="/sign-in">{t('actions.signIn')}</Link>
+            <NavigateButton className="btn btn-primary" to="/register">
+              {t('welcomeLanding.hero.primaryCta')}
+            </NavigateButton>
+          </div>
+        </div>
+      </header>
+
+      <main className="welcome-hero-v2">
+        <div className="container welcome-hero-grid-v2">
+          <section className="welcome-hero-copy-v2 animate-fade-in">
+            <span className="eyebrow">{t('welcomeLanding.hero.eyebrow')}</span>
+            <h1>{t('welcomeLanding.hero.title')}</h1>
+            <p>{t('welcomeLanding.hero.body')}</p>
+            <p>{t('welcomeLanding.hero.support')}</p>
+            <div className="hero-actions">
+              <NavigateButton className="btn btn-primary" to="/register">
+                {t('welcomeLanding.hero.primaryCta')}
+              </NavigateButton>
+              <NavigateButton className="btn btn-secondary" to="/guest-marketplace">
+                {t('welcomeLanding.hero.secondaryCta')}
+              </NavigateButton>
+            </div>
+            <div className="welcome-proof-v2" aria-label={t('welcomeLanding.proofAria')}>
+              <span className="welcome-proof-avatars-v2" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>{data.stats.participantLabel}</span>
+            </div>
+          </section>
+
+          <section className="welcome-product-stage-v2 animate-fade-in delay-1" aria-label={t('welcomeLanding.productStageAria')}>
+            <div className="welcome-product-window-v2">
+              <div className="welcome-product-top-v2">
+                <span>
+                  <WelcomeIcon className="welcome-product-mark-v2">
+                    <path d="M7 7h10v10H7z" />
+                    <path d="M9 9h6v6H9z" />
+                  </WelcomeIcon>{' '}
+                  {t('welcomeLanding.preview.title')}
+                </span>
+                <em>{data.stats.activeWorkspaceLabel}</em>
+              </div>
+              <div className="welcome-product-metrics-v2">
+                <article>
+                  <WelcomeIcon>
+                    <path d="M12 8v8" />
+                    <path d="M8 12h8" />
+                    <circle cx="12" cy="12" r="9" />
+                  </WelcomeIcon>
+                  <strong>{t('welcomeLanding.preview.createTender')}</strong>
+                  <span>{t('welcomeLanding.preview.openTenders', { count: data.stats.openTenderCount })}</span>
+                </article>
+                <article>
+                  <WelcomeIcon>
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" />
+                  </WelcomeIcon>
+                  <strong>{featuredTender.reference}</strong>
+                  <span>{featuredTender.title}</span>
+                </article>
+              </div>
+              <div className="welcome-product-rate-v2">
+                <div>
+                  <span>{t('welcomeLanding.preview.verifiedProfile')}</span>
+                  <strong>{completionRate}</strong>
+                </div>
+                <NavigateButton className="btn btn-primary" to="/register">
+                  {t('welcomeLanding.preview.viewProfile')}
+                </NavigateButton>
+              </div>
+              <figure className="welcome-product-photo-v2">
+                <img src="/assets/welcome/procurement-meeting.webp" alt={t('welcomeLanding.preview.photoAlt')} loading="eager" />
+              </figure>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <section id="how-it-works" className="welcome-section-v2 welcome-steps-section-v2">
+        <div className="container">
+          <div className="section-header welcome-centered-v2">
+            <span className="section-label">{t('welcomeLanding.sections.workflowLabel')}</span>
+            <h2>{t('welcomeLanding.sections.workflowTitle')}</h2>
+          </div>
+          <div className="welcome-steps-grid-v2">
+            {steps.map((step, index) => (
+              <article className="welcome-step-v2" key={step.title}>
+                <span className="welcome-step-icon-v2">
+                  <WelcomeIcon>{stepIcons[index]?.icon}</WelcomeIcon>
+                </span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="about-procurex" className="welcome-section-v2 welcome-gateway-section-v2">
+        <div className="container">
+          <div className="section-header welcome-centered-v2">
+            <h2>{t('welcomeLanding.sections.gatewayTitle')}</h2>
+            <p>{t('welcomeLanding.sections.gatewayBody')}</p>
+          </div>
+          <div className="welcome-gateway-grid-v2">
+            <figure className="welcome-story-image-v2">
+              <img src="/assets/welcome/opportunity-signing.webp" alt={t('welcomeLanding.gateway.imageAlt')} loading="lazy" />
+              <figcaption>
+                <span>{t('welcomeLanding.gateway.captionLead')}</span>
+                <strong>{t('welcomeLanding.gateway.captionStrong')}</strong>
+                <small>{t('welcomeLanding.gateway.captionText')}</small>
+              </figcaption>
+            </figure>
+            <div className="welcome-assurance-stack-v2">
+              <article>
+                <WelcomeIcon>
+                  <path d="M4 7h16v10H4z" />
+                  <path d="M8 21h8" />
+                  <path d="M12 17v4" />
+                </WelcomeIcon>
+                <div>
+                  <h3>{assuranceItems[0]?.title}</h3>
+                  <p>{assuranceItems[0]?.text}</p>
+                </div>
+              </article>
+              <article>
+                <WelcomeIcon>
+                  <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </WelcomeIcon>
+                <div>
+                  <h3>{assuranceItems[1]?.title}</h3>
+                  <p>{assuranceItems[1]?.text}</p>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="welcome-dark-band-v2">
+        <div className="container">
+          <div className="section-header welcome-centered-v2">
+            <h2>{t('welcomeLanding.sections.marketTitle')}</h2>
+            <p>{t('welcomeLanding.sections.marketBody')}</p>
+          </div>
+          <div className="welcome-market-grid-v2">
+            {marketCards.map((card, index) => (
+              <article className="welcome-market-card-v2" key={card.title}>
+                <div className="welcome-market-thumb-v2">
+                  <img src={`/assets/welcome/${marketCardVisuals[index]?.image}`} alt="" loading="lazy" aria-hidden="true" />
+                </div>
+                <span className="welcome-market-icon-v2">
+                  <WelcomeIcon>{marketCardVisuals[index]?.icon}</WelcomeIcon>
+                </span>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+                <ul>
+                  {card.points.map((point) => (
+                    <li key={point}>{point}</li>
+                  ))}
+                  {index === 0 && <li>{featuredTender.buyerName}</li>}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="welcome-cta-section-v2">
+        <div className="container">
+          <div className="welcome-cta-panel-v2">
+            <div>
+              <h2>{t('welcomeLanding.cta.title')}</h2>
+              <p>{t('welcomeLanding.cta.body')}</p>
+            </div>
+            <div className="cta-actions">
+              <NavigateButton className="btn btn-primary" to="/register">
+                {t('welcomeLanding.cta.button')}
+              </NavigateButton>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer id="help-center" className="welcome-footer-v2">
+        <div className="container">
+          <div>
+            <strong>ProcureX</strong>
+            <p>{t('welcomeLanding.footer.copyright')}</p>
+          </div>
+          <nav aria-label={t('welcomeLanding.footer.companyAria')}>
+            <h3>{t('welcomeLanding.footer.company')}</h3>
+            <Link to="/about">{t('welcomeLanding.footer.about')}</Link>
+            <Link to="/privacy">{t('welcomeLanding.footer.privacy')}</Link>
+            <Link to="/terms">{t('welcomeLanding.footer.terms')}</Link>
+          </nav>
+          <nav aria-label={t('welcomeLanding.footer.platformAria')}>
+            <h3>{t('welcomeLanding.footer.platform')}</h3>
+            <Link to="/guest-marketplace">{t('welcomeLanding.nav.browseTenders')}</Link>
+            <a href="#help-center">{t('welcomeLanding.footer.systemStatus')}</a>
+          </nav>
+          <nav aria-label={t('welcomeLanding.footer.supportAria')}>
+            <h3>{t('welcomeLanding.footer.support')}</h3>
+            <Link to="/contact">{t('welcomeLanding.footer.helpCenter')}</Link>
+            <Link to="/contact">{t('welcomeLanding.footer.contactSupport')}</Link>
+          </nav>
+        </div>
+      </footer>
+    </div>
+  );
 }

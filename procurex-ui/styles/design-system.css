@@ -11085,6 +11085,10 @@ ul.closure-checklist {
     display: block;
 }
 
+.tender-wizard-page #wizard-step-3 {
+    overflow: visible;
+}
+
 .tender-wizard-page .panel-heading {
     align-items: center;
     margin-bottom: 24px;
@@ -12144,11 +12148,19 @@ ul.closure-checklist {
     padding: 8px 12px;
 }
 
+.tender-wizard-page .license-requirements-panel {
+    position: relative;
+    z-index: 40;
+    overflow: visible;
+}
+
 .tender-wizard-page .license-add-picker {
     position: relative;
+    z-index: 50;
     display: grid;
     gap: 8px;
     max-width: 620px;
+    overflow: visible;
 }
 
 .tender-wizard-page .license-add-picker[hidden],
@@ -12158,11 +12170,13 @@ ul.closure-checklist {
 
 .tender-wizard-page .license-picker {
     position: relative;
+    z-index: 50;
+    overflow: visible;
 }
 
 .tender-wizard-page .license-results {
     position: absolute;
-    z-index: 18;
+    z-index: 120;
     top: calc(100% + 6px);
     left: 0;
     right: 0;
@@ -24454,7 +24468,7 @@ textarea:focus-visible,
 
 .award-wizard-main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    grid-template-columns: minmax(0, 1fr);
     gap: 20px;
     align-items: start;
 }

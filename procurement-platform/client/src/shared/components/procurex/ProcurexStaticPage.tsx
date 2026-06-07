@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -37,6 +37,10 @@ const pageToRoute: Record<string, string> = {
   'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'supplier-marketplace': '/procurement/marketplace',
+  'my-tenders': '/procurement/my-tenders',
+  'my-tender': '/procurement/my-tenders',
+  'my-bids': '/procurement/my-bids',
+  'my-bid': '/procurement/my-bids',
   'create-tender': '/procurement/create-tender',
   'tender-publication': '/procurement/tender-publication',
   'tender-details': '/procurement/tender-details',
@@ -168,6 +172,11 @@ function preserveWhitespace(original: string, translated: string) {
   return `${leading}${translated}${trailing}`;
 }
 
+function cssEscape(value: string) {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(value);
+  return value.replace(/["\\]/g, (char) => `\\${char}`);
+}
+
 function shouldTranslateNode(node: Text) {
   const parent = node.parentElement;
   if (!parent) return false;
@@ -176,7 +185,8 @@ function shouldTranslateNode(node: Text) {
 }
 
 function applyStaticTranslations(root: HTMLElement, language: string) {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const showText = root.ownerDocument.defaultView?.NodeFilter?.SHOW_TEXT ?? 4;
+  const walker = root.ownerDocument.createTreeWalker(root, showText);
   const textNodes: Text[] = [];
 
   while (walker.nextNode()) {
@@ -272,6 +282,138 @@ function setSupplierTab(tab: HTMLElement) {
   });
 }
 
+function setMarketplaceTab(tab: HTMLElement) {
+  const target = tab.getAttribute('data-marketplace-tab');
+  const marketplaceRoot = tab.closest<HTMLElement>('[data-marketplace-root]');
+  if (!target || !marketplaceRoot) return;
+
+  marketplaceRoot.querySelectorAll<HTMLElement>('[data-marketplace-tab]').forEach((button) => {
+    const isActive = button.getAttribute('data-marketplace-tab') === target;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', String(isActive));
+  });
+
+  marketplaceRoot.querySelectorAll<HTMLElement>('[data-marketplace-tab-panel]').forEach((panel) => {
+    panel.style.display = panel.getAttribute('data-marketplace-tab-panel') === target ? 'grid' : 'none';
+  });
+}
+
+function getMarketplaceRouteTabFromLocation(pathname: string, search: string) {
+  if (pathname.endsWith('/procurement/my-tenders')) return 'my-tenders';
+  if (pathname.endsWith('/procurement/my-bids')) return 'my-bids';
+
+  const tab = new URLSearchParams(search).get('tab') || '';
+  return ['marketplace', 'my-tenders', 'my-bids'].includes(tab) ? tab : '';
+}
+
+function getMarketplaceRouteTab(marketplaceRoot: HTMLElement) {
+  const routeRoot = marketplaceRoot.closest<HTMLElement>('.procurex-react-page');
+  const pathname = routeRoot?.dataset.procurexRoutePath || (typeof window === 'undefined' ? '' : window.location.pathname);
+  const search = routeRoot?.dataset.procurexRouteSearch || (typeof window === 'undefined' ? '' : window.location.search);
+  return getMarketplaceRouteTabFromLocation(pathname, search);
+}
+
+function createMarketplaceRouteHtml(html: string, pathname: string, search: string) {
+  const routeTab = getMarketplaceRouteTabFromLocation(pathname, search);
+  if (!routeTab || typeof DOMParser === 'undefined') return html;
+
+  const document = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const wrapper = document.body.firstElementChild;
+  const marketplaceRoot = wrapper?.querySelector<HTMLElement>('[data-marketplace-root]');
+  if (!wrapper || !marketplaceRoot) return html;
+
+  marketplaceRoot.querySelectorAll<HTMLElement>('[data-marketplace-tab]').forEach((button) => {
+    const isActive = button.getAttribute('data-marketplace-tab') === routeTab;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-selected', String(isActive));
+  });
+
+  marketplaceRoot.querySelectorAll<HTMLElement>('[data-marketplace-tab-panel]').forEach((panel) => {
+    panel.style.display = panel.getAttribute('data-marketplace-tab-panel') === routeTab ? 'grid' : 'none';
+  });
+
+  return wrapper.innerHTML;
+}
+
+function createTranslatedStaticHtml(html: string, language: string) {
+  if (language !== 'sw' || typeof DOMParser === 'undefined') return html;
+
+  const document = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const wrapper = document.body.firstElementChild as HTMLElement | null;
+  if (!wrapper) return html;
+
+  applyStaticTranslations(wrapper, language);
+  return wrapper.innerHTML;
+}
+
+function applyMarketplaceFilters(marketplaceRoot: HTMLElement) {
+  const rows = Array.from(marketplaceRoot.querySelectorAll<HTMLElement>('[data-marketplace-row]'));
+  const count = marketplaceRoot.querySelector<HTMLElement>('[data-marketplace-count]');
+  const search = marketplaceRoot.querySelector<HTMLInputElement>('[data-marketplace-search]');
+  const type = marketplaceRoot.querySelector<HTMLSelectElement>('[data-marketplace-type]');
+  const budget = marketplaceRoot.querySelector<HTMLSelectElement>('[data-marketplace-budget]');
+  const status = marketplaceRoot.querySelector<HTMLSelectElement>('[data-marketplace-status]');
+  const sort = marketplaceRoot.querySelector<HTMLSelectElement>('[data-marketplace-sort]');
+  const list = marketplaceRoot.querySelector<HTMLElement>('[data-marketplace-list]');
+
+  const query = (search?.value || '').trim().toLowerCase();
+  const activeType = type?.value || '';
+  const activeBudget = budget?.value || '';
+  const activeStatus = status?.value || '';
+
+  const visibleRows = rows.filter((row) => {
+    const matchesQuery = !query || (row.dataset.search || '').includes(query);
+    const matchesType = !activeType || row.dataset.type === activeType;
+    const matchesBudget = !activeBudget || row.dataset.budgetBand === activeBudget;
+    const matchesStatus = !activeStatus || row.dataset.status === activeStatus;
+    return matchesQuery && matchesType && matchesBudget && matchesStatus;
+  });
+
+  visibleRows.sort((a, b) => {
+    if (sort?.value === 'budget-desc') return Number(b.dataset.budget || 0) - Number(a.dataset.budget || 0);
+    if (sort?.value === 'budget-asc') return Number(a.dataset.budget || 0) - Number(b.dataset.budget || 0);
+    if (sort?.value === 'newest') return Date.parse(b.dataset.created || '0') - Date.parse(a.dataset.created || '0');
+    return Date.parse(a.dataset.closing || '0') - Date.parse(b.dataset.closing || '0');
+  });
+
+  rows.forEach((row) => {
+    row.hidden = !visibleRows.includes(row);
+  });
+  visibleRows.forEach((row) => list?.appendChild(row));
+  if (count) count.textContent = `${visibleRows.length} matching`;
+}
+
+function initializeMarketplace(root: HTMLElement) {
+  const marketplaceRoot = root.querySelector<HTMLElement>('[data-marketplace-root]');
+  if (!marketplaceRoot) return;
+
+  const routeTab = getMarketplaceRouteTab(marketplaceRoot);
+  const routeTabButton = routeTab
+    ? Array.from(marketplaceRoot.querySelectorAll<HTMLElement>('[data-marketplace-tab]')).find(
+        (tab) => tab.getAttribute('data-marketplace-tab') === routeTab
+      )
+    : null;
+  const activeTab =
+    routeTabButton ||
+    marketplaceRoot.querySelector<HTMLElement>('[data-marketplace-tab].active') ||
+    marketplaceRoot.querySelector<HTMLElement>('[data-marketplace-tab]');
+  if (activeTab) setMarketplaceTab(activeTab);
+  applyMarketplaceFilters(marketplaceRoot);
+}
+
+function syncMarketplaceRouteTab(root: HTMLElement) {
+  const marketplaceRoot = root.querySelector<HTMLElement>('[data-marketplace-root]');
+  if (!marketplaceRoot) return;
+
+  const routeTab = getMarketplaceRouteTab(marketplaceRoot);
+  if (!routeTab) return;
+
+  const tab = Array.from(marketplaceRoot.querySelectorAll<HTMLElement>('[data-marketplace-tab]')).find(
+    (item) => item.getAttribute('data-marketplace-tab') === routeTab
+  );
+  if (tab) setMarketplaceTab(tab);
+}
+
 function setNamedPanelTab(button: HTMLElement, buttonAttribute: string, panelAttribute: string) {
   const target = button.getAttribute(buttonAttribute);
   const scope = button.closest<HTMLElement>('.procurex-react-page');
@@ -291,14 +433,16 @@ function setNamedPanelTab(button: HTMLElement, buttonAttribute: string, panelAtt
 }
 
 function activateTabByName(root: HTMLElement, target: string) {
-  const tab = root.querySelector<HTMLElement>(`.tab[data-tab="${CSS.escape(target)}"]`);
+  const tab = root.querySelector<HTMLElement>(`.tab[data-tab="${cssEscape(target)}"]`);
   if (tab) setActiveTab(tab);
 }
 
 function setAwardingQueueTab(tab: HTMLElement) {
   const target = tab.getAttribute('data-tab');
   const tabGroup = tab.closest<HTMLElement>('.awarding-contract-tabs');
-  const tabContent = tabGroup?.nextElementSibling;
+  const tabContent =
+    tabGroup?.closest<HTMLElement>('.awarding-tabs-panel, .award-response-page, .post-award-page')?.querySelector<HTMLElement>('.awarding-tab-content') ??
+    tabGroup?.nextElementSibling;
   const scope = tab.closest<HTMLElement>('.procurex-react-page');
 
   if (!target || !tabGroup) return;
@@ -322,7 +466,7 @@ function setAwardingQueueTab(tab: HTMLElement) {
 
 function activateAwardingQueueTabByName(root: HTMLElement, target: string) {
   const tab = root.querySelector<HTMLElement>(
-    `.awarding-contract-tabs .supplier-detail-tab[data-tab="${CSS.escape(target)}"]`
+    `.awarding-contract-tabs .supplier-detail-tab[data-tab="${cssEscape(target)}"]`
   );
   if (tab) setAwardingQueueTab(tab);
 }
@@ -362,7 +506,7 @@ function applyRouteSearchState(root: HTMLElement, pageKey: string, search: strin
     const view = params.get('view') || 'front';
     const planId = params.get('plan') || '';
     if (view === 'detail' && planId) {
-      const button = root.querySelector<HTMLElement>(`[data-plan-details="${CSS.escape(planId)}"]`);
+      const button = root.querySelector<HTMLElement>(`[data-plan-details="${cssEscape(planId)}"]`);
       if (button) setProcurementPlanningDetailFromButton(button, root);
     }
     setProcurementPlanningRoute(root, view);
@@ -455,7 +599,7 @@ function activatePlanningAnchor(root: HTMLElement, link: HTMLAnchorElement) {
   const href = link.getAttribute('href');
   if (!href?.startsWith('#') || href.length < 2) return false;
 
-  const panel = root.querySelector<HTMLElement>(`#${CSS.escape(href.slice(1))}`);
+  const panel = root.querySelector<HTMLElement>(`#${cssEscape(href.slice(1))}`);
   if (!panel) return false;
 
   const tabName = panel.getAttribute('data-tab');
@@ -493,7 +637,7 @@ function openProcurementPlanDrawer(button: HTMLElement, root: HTMLElement) {
   const drawer = root.querySelector<HTMLElement>('[data-plan-drawer]');
   const content = root.querySelector<HTMLElement>('[data-plan-drawer-content]');
   const template = recordId
-    ? root.querySelector<HTMLTemplateElement>(`template[data-plan-template="${CSS.escape(recordId)}"]`)
+    ? root.querySelector<HTMLTemplateElement>(`template[data-plan-template="${cssEscape(recordId)}"]`)
     : null;
 
   if (!drawer || !content || !template) return;
@@ -513,7 +657,7 @@ function scrollProcurementPlanningTarget(button: HTMLElement, root: HTMLElement)
   const target = button.getAttribute('data-planning-scroll');
   if (!target) return;
 
-  const element = root.querySelector<HTMLElement>(`#${CSS.escape(target)}`) || root.querySelector<HTMLElement>(`[data-planning-panel="${CSS.escape(target)}"]`);
+  const element = root.querySelector<HTMLElement>(`#${cssEscape(target)}`) || root.querySelector<HTMLElement>(`[data-planning-panel="${cssEscape(target)}"]`);
   element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -708,12 +852,16 @@ function scrollPageToTop() {
 }
 
 function initializeStaticPage(root: HTMLElement, language: string, pageKey: string, search: string) {
+  const activeLanguage =
+    language === 'sw' || i18nInstance.language === 'sw' || i18nInstance.resolvedLanguage === 'sw' ? 'sw' : 'en';
+
   normalizeAppDrawer(root);
   syncInitialTabs(root);
   syncAwardWizards(root);
   applyRouteSearchState(root, pageKey, search);
+  initializeMarketplace(root);
   applyPlanningDraftToCreateTender(root);
-  applyStaticTranslations(root, language);
+  applyStaticTranslations(root, activeLanguage);
 }
 
 function setCreateTenderWizardStep(wizard: HTMLElement, requestedIndex: number) {
@@ -1337,16 +1485,33 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { i18n } = useTranslation();
-  const staticHtml = useMemo(() => createStaticHtmlWithLanguageMount(html), [html]);
-  const staticPageInstanceKey = pageKey === 'bid-evaluation' ? `${pageKey}:${location.key}` : pageKey;
+  const renderLanguage =
+    i18n.language === 'sw' || i18nInstance.language === 'sw' || i18nInstance.resolvedLanguage === 'sw' ? 'sw' : 'en';
+  const baseStaticHtml = useMemo(() => createStaticHtmlWithLanguageMount(html), [html]);
+  const staticHtml = useMemo(() => {
+    const routeStaticHtml =
+      pageKey === 'marketplace'
+        ? createMarketplaceRouteHtml(baseStaticHtml, location.pathname, location.search)
+        : baseStaticHtml;
+    return createTranslatedStaticHtml(routeStaticHtml, renderLanguage);
+  }, [baseStaticHtml, location.pathname, location.search, pageKey, renderLanguage]);
+  const staticPageInstanceKey =
+    pageKey === 'bid-evaluation'
+      ? `${pageKey}:${location.key}`
+      : pageKey === 'marketplace'
+        ? `${pageKey}:${location.pathname}:${location.search}`
+        : pageKey;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.body.dataset.page = pageKey;
     document.body.dataset.procurexReactPage = 'true';
     const root = rootRef.current;
     if (root) {
+      root.dataset.procurexRoutePath = location.pathname;
+      root.dataset.procurexRouteSearch = location.search;
       if (pageKey === 'bid-evaluation') clearEvaluationEntrySelection();
       initializeStaticPage(root, i18n.language, pageKey, location.search);
+      syncMarketplaceRouteTab(root);
       initializeAuthPage(root, pageKey);
       setLanguageMount(prepareLanguageSwitcherMount(root));
       if (pageKey === 'bid-evaluation') scrollPageToTop();
@@ -1354,9 +1519,8 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
 
     return () => {
       delete document.body.dataset.procurexReactPage;
-      setLanguageMount(null);
     };
-  }, [pageKey, staticHtml, i18n.language, location.key, location.search]);
+  }, [pageKey, staticHtml, i18n.language, location.key, location.pathname, location.search]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -1412,9 +1576,39 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     const procurementPlanningTender = target.closest<HTMLElement>('[data-plan-tender]');
     const procurementPlanningStatusNavigate = target.closest<HTMLElement>('[data-status-navigate]');
     const createTenderWizardStep = target.closest<HTMLElement>('[data-wizard-step-index], [data-wizard-prev], [data-wizard-next]');
+    const marketplaceTab = target.closest<HTMLElement>('[data-marketplace-tab]');
+    const marketplaceCategory = target.closest<HTMLElement>('[data-marketplace-category]');
+    const marketplaceSave = target.closest<HTMLButtonElement>('[data-marketplace-save]');
 
     if ((pageKey === 'register' || pageKey === 'sign-in') && rootRef.current && handleAuthClick(target, rootRef.current)) {
       event.preventDefault();
+      return;
+    }
+
+    if (marketplaceTab) {
+      event.preventDefault();
+      setMarketplaceTab(marketplaceTab);
+      const marketplaceTabRoute = pageToRoute[marketplaceTab.getAttribute('data-marketplace-tab') || 'marketplace'];
+      if (marketplaceTabRoute && marketplaceTabRoute !== location.pathname) {
+        navigate(marketplaceTabRoute);
+      }
+      return;
+    }
+
+    if (marketplaceCategory && rootRef.current) {
+      event.preventDefault();
+      const marketplaceRoot = marketplaceCategory.closest<HTMLElement>('[data-marketplace-root]');
+      const type = marketplaceRoot?.querySelector<HTMLSelectElement>('[data-marketplace-type]');
+      if (marketplaceRoot && type) {
+        type.value = marketplaceCategory.getAttribute('data-marketplace-category') || '';
+        applyMarketplaceFilters(marketplaceRoot);
+      }
+      return;
+    }
+
+    if (marketplaceSave) {
+      event.preventDefault();
+      marketplaceSave.textContent = marketplaceSave.textContent === 'Saved' ? 'Save' : 'Saved';
       return;
     }
 
@@ -1525,7 +1719,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
           `<td data-column-id="${id}" data-custom-column="true"><input class="form-input" type="text" name="${id}"></td>`
         );
       });
-      head?.querySelector<HTMLElement>(`[data-column-id="${CSS.escape(id)}"] [data-plan-column-label]`)?.scrollIntoView({
+      head?.querySelector<HTMLElement>(`[data-column-id="${cssEscape(id)}"] [data-plan-column-label]`)?.scrollIntoView({
         block: 'nearest',
         inline: 'center'
       });
@@ -1653,7 +1847,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     if (supplierJump && rootRef.current) {
       event.preventDefault();
       const section = rootRef.current.querySelector<HTMLElement>(
-        `[data-supplier-document-section="${CSS.escape(supplierJump.getAttribute('data-supplier-jump-target') ?? '')}"]`
+        `[data-supplier-document-section="${cssEscape(supplierJump.getAttribute('data-supplier-jump-target') ?? '')}"]`
       );
       section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
@@ -1786,8 +1980,17 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     const yearFilter = target.closest<HTMLSelectElement>('[data-planning-year-filter]');
     const uploadInput = target.closest<HTMLInputElement>('[data-plan-upload-input]');
     const planningInput = target.closest<HTMLElement>('[data-procurement-plan-form] input, [data-procurement-plan-form] select, [data-procurement-plan-form] textarea');
+    const marketplaceFilter = target.closest<HTMLElement>(
+      '[data-marketplace-search], [data-marketplace-type], [data-marketplace-budget], [data-marketplace-status], [data-marketplace-sort]'
+    );
 
     if ((pageKey === 'register' || pageKey === 'sign-in') && rootRef.current && handleAuthInput(target, rootRef.current)) {
+      return;
+    }
+
+    if (marketplaceFilter) {
+      const marketplaceRoot = marketplaceFilter.closest<HTMLElement>('[data-marketplace-root]');
+      if (marketplaceRoot) applyMarketplaceFilters(marketplaceRoot);
       return;
     }
 
@@ -1810,6 +2013,13 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     const target = event.target as HTMLElement;
 
     if ((pageKey === 'register' || pageKey === 'sign-in') && rootRef.current && handleAuthInput(target, rootRef.current)) {
+      return;
+    }
+
+    const marketplaceSearch = target.closest<HTMLElement>('[data-marketplace-search]');
+    const marketplaceRoot = marketplaceSearch?.closest<HTMLElement>('[data-marketplace-root]');
+    if (marketplaceRoot) {
+      applyMarketplaceFilters(marketplaceRoot);
       return;
     }
 

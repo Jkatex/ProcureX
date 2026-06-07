@@ -6,10 +6,11 @@ export type SessionUser = {
   id: string;
   displayName: string;
   email: string;
+  phone?: string | null;
   accountType: AccountType;
   organization: string;
   capabilities: OrganizationCapability[];
-  verificationStatus: 'NOT_STARTED' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  verificationStatus: 'NOT_STARTED' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 };
 
 export type Tender = {

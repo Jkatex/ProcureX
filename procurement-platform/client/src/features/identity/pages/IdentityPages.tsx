@@ -18,10 +18,10 @@ export function IdentityVerificationPage() {
           <StatusBadge value={`Step ${step} of 4`} />
           <h3>Registry verification</h3>
           <div className="px-form-grid">
-            <TextField label="TIN" defaultValue="123-456-789" />
-            <TextField label="BRELA registration" defaultValue="BRELA-2022-8841" />
-            <TextField label="Authorized signatory" defaultValue="Amina Hassan" />
-            <TextField label="Capability request" defaultValue="Buyer and Supplier" />
+            <TextField label="TIN" placeholder="Enter TIN" />
+            <TextField label="BRELA registration" placeholder="Enter BRELA registration" />
+            <TextField label="Authorized signatory" placeholder="Enter authorized signatory" />
+            <TextField label="Capability request" placeholder="Enter requested capabilities" />
           </div>
           <div className="px-actions">
             <Button variant="contained" onClick={() => dispatch(nextVerificationStep())}>

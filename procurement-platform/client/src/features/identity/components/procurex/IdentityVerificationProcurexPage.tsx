@@ -1,9 +1,530 @@
-/* This file is generated from the ProcureX design prototype. Do not edit by hand. */
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from '@/app/store';
+import { setSessionUser } from '@/features/auth/slice';
+import { identityApi } from '@/features/identity/api';
+import type { BusinessRegistrationSource, EntityType, RegistryRecord, VerificationSubmitResult } from '@/features/identity/types';
+import { apiErrorMessage } from '@/shared/api/errors';
+import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 
-import { ProcurexStaticPage } from '@/shared/components/procurex/ProcurexStaticPage';
+type EkycStep = 1 | 2 | 3 | 4;
 
-const html = "\n        <div class=\"ekyc-page\">\n            <div class=\"ekyc-shell\">\n                <aside class=\"ekyc-side\">\n                    <div class=\"ekyc-brand\" data-navigate=\"welcome\">\n                        \n        <span class=\"platform-logo\">\n            <img class=\"platform-logo-image\" src=\"/assets/logo.svg\" alt=\"ProcureX\">\n        </span>\n    \n                        <div>\n                            <strong>ProcureX</strong>\n                            <span>Registration</span>\n                        </div>\n                    </div>\n\n                    <div class=\"ekyc-side-status\">\n                        <span class=\"badge badge-warning\">Identity verification required</span>\n                        <h2>Verify the account before dashboard access.</h2>\n                        <p>New users choose whether they are an individual, company, or business, verify registry information, and create a digital signature before opening the app launcher.</p>\n                    </div>\n\n                    <ol class=\"ekyc-steps\" data-ekyc-steps>\n                        <li class=\"active\" data-step-indicator=\"1\"><span>1</span>Applicant type</li>\n                        <li class=\"\" data-step-indicator=\"2\"><span>2</span>Registry lookup</li>\n                        <li data-step-indicator=\"3\"><span>3</span>Digital signature</li>\n                        <li data-step-indicator=\"4\"><span>4</span>Complete</li>\n                    </ol>\n                </aside>\n\n                <main class=\"ekyc-main\">\n                    <div class=\"ekyc-header\">\n                        <div>\n                            <span class=\"section-kicker\">Account registration</span>\n                            <h1>Identity verification flow</h1>\n                            <p>Start with applicant type, fetch TRA or BRELA details for review, create a digital signature, then continue to the app launcher.</p>\n                        </div>\n                        <span class=\"badge badge-info\">Demo flow</span>\n                    </div>\n\n                    <form class=\"ekyc-form\" data-action=\"complete-ekyc\" data-ekyc-mode=\"onboarding\" data-registry-fetched=\"\" novalidate>\n                        <section class=\"ekyc-section ekyc-step-panel active\" data-ekyc-step=\"1\">\n                            <div class=\"ekyc-section-heading\">\n                                <span class=\"ekyc-step-badge\">1</span>\n                                <div>\n                                    <h2>Select applicant type</h2>\n                                    <p>Choose the card that matches how this account should be verified.</p>\n                                </div>\n                            </div>\n\n                            <div class=\"ekyc-role-grid three\">\n                                <label class=\"ekyc-role-card selected\" data-applicant-card>\n                                    <input type=\"radio\" name=\"entityType\" value=\"individual\" checked>\n                                    <span class=\"ekyc-role-icon\">\n                                        <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">\n                                            <path d=\"M20 21a8 8 0 0 0-16 0\"/>\n                                            <circle cx=\"12\" cy=\"7\" r=\"4\"/>\n                                        </svg>\n                                    </span>\n                                    <strong>Individual</strong>\n                                    <small>Use TIN number. ProcureX will fetch TRA details for user review.</small>\n                                </label>\n\n                                <label class=\"ekyc-role-card \" data-applicant-card>\n                                    <input type=\"radio\" name=\"entityType\" value=\"company\" >\n                                    <span class=\"ekyc-role-icon\">\n                                        <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">\n                                            <path d=\"M3 21h18\"/>\n                                            <path d=\"M5 21V7l8-4v18\"/>\n                                            <path d=\"M19 21V11l-6-4\"/>\n                                            <path d=\"M9 9h1M9 13h1M9 17h1\"/>\n                                        </svg>\n                                    </span>\n                                    <strong>Company</strong>\n                                    <small>Use a BRELA company number and verify company registry details.</small>\n                                </label>\n\n                                <label class=\"ekyc-role-card \" data-applicant-card>\n                                    <input type=\"radio\" name=\"entityType\" value=\"business\" >\n                                    <span class=\"ekyc-role-icon\">\n                                        <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">\n                                            <path d=\"M4 21V9l8-6 8 6v12\"/>\n                                            <path d=\"M9 21v-7h6v7\"/>\n                                            <path d=\"M8 10h.01M16 10h.01\"/>\n                                        </svg>\n                                    </span>\n                                    <strong>Business</strong>\n                                    <small>Choose whether the business is registered by local government with TIN or by BRELA.</small>\n                                </label>\n                            </div>\n\n                            <div class=\"ekyc-step-actions\">\n                                <button type=\"button\" class=\"btn btn-primary\" data-ekyc-next>Continue</button>\n                            </div>\n                        </section>\n\n                        <section class=\"ekyc-section ekyc-step-panel \" data-ekyc-step=\"2\">\n                            <div class=\"ekyc-section-heading\">\n                                <span class=\"ekyc-step-badge\">2</span>\n                                <div>\n                                    <h2 data-registry-title>Enter TIN number</h2>\n                                    <p data-registry-copy>TRA details will be fetched for the individual and shown here for confirmation.</p>\n                                </div>\n                            </div>\n\n                            <div class=\"ekyc-grid two\">\n                                <div class=\"business-registry-fields span-2 ekyc-hidden\">\n                                    <label class=\"form-label-new\">Business registration source *</label>\n                                    <div class=\"ekyc-role-grid compact\">\n                                        <label class=\"ekyc-role-card selected\">\n                                            <input type=\"radio\" name=\"businessRegistrationSource\" value=\"tin\" checked>\n                                            <span class=\"ekyc-role-icon\">\n                                                <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">\n                                                    <path d=\"M4 4h16v16H4z\"/>\n                                                    <path d=\"M8 9h8M8 13h8M8 17h5\"/>\n                                                </svg>\n                                            </span>\n                                            <strong>Local Government / TIN</strong>\n                                            <small>Use the registered TIN number for a business registered by local government.</small>\n                                        </label>\n\n                                        <label class=\"ekyc-role-card \">\n                                            <input type=\"radio\" name=\"businessRegistrationSource\" value=\"brela\" >\n                                            <span class=\"ekyc-role-icon\">\n                                                <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">\n                                                    <path d=\"M3 21h18\"/>\n                                                    <path d=\"M6 21V7h8v14\"/>\n                                                    <path d=\"M14 11h4v10\"/>\n                                                </svg>\n                                            </span>\n                                            <strong>BRELA Number</strong>\n                                            <small>Use the BRELA business number when the business is registered by BRELA.</small>\n                                        </label>\n                                    </div>\n                                </div>\n\n                                <div class=\"form-group-new individual-fields\">\n                                    <label class=\"form-label-new\">TIN number *</label>\n                                    <input type=\"text\" class=\"form-input-new\" name=\"tinNumber\" value=\"\" data-verified-value=\"\" placeholder=\"Example: 123-456-789\" autocomplete=\"off\">\n                                    <span class=\"form-hint-new\">Source: Tanzania Revenue Authority.</span>\n                                    <span class=\"form-error-new\"></span>\n                                </div>\n\n                                <div class=\"form-group-new company-fields ekyc-hidden\">\n                                    <label class=\"form-label-new\">BRELA company number *</label>\n                                    <input type=\"text\" class=\"form-input-new\" name=\"brelaNumber\" value=\"\" data-verified-value=\"\" placeholder=\"Example: 123456789\" autocomplete=\"off\">\n                                    <span class=\"form-hint-new\">Source: BRELA company registry.</span>\n                                    <span class=\"form-error-new\"></span>\n                                </div>\n\n                                <div class=\"form-group-new business-fields ekyc-hidden\">\n                                    <label class=\"form-label-new\">BRELA business number *</label>\n                                    <input type=\"text\" class=\"form-input-new\" name=\"businessNumber\" value=\"\" data-verified-value=\"\" placeholder=\"Example: BN-123456\" autocomplete=\"off\">\n                                    <span class=\"form-hint-new\">Source: BRELA business name registry.</span>\n                                    <span class=\"form-error-new\"></span>\n                                </div>\n\n                                <div class=\"ekyc-fetch-panel\">\n                                    <span class=\"badge badge-info\" data-registry-source>TRA lookup</span>\n                                    <p data-registry-hint>The lookup is mocked in this UI. Click fetch to show the TRA record the user must verify.</p>\n                                    <button type=\"button\" class=\"btn btn-secondary\" data-fetch-registry>Fetch and review</button>\n                                </div>\n                            </div>\n\n                            <div class=\"registry-review ekyc-hidden\" data-registry-review>\n                                <div class=\"registry-review-header\">\n                                    <div>\n                                        <span class=\"section-kicker\" data-registry-kicker>Fetched information</span>\n                                        <h3 data-registry-name>Waiting for lookup</h3>\n                                    </div>\n                                    <span class=\"badge badge-success\">Matched</span>\n                                </div>\n                                <div class=\"registry-summary\" data-registry-summary></div>\n                                <div class=\"confirm-action\" data-confirm-control>\n                                    <input type=\"checkbox\" class=\"confirm-action-input\" name=\"registryVerified\" >\n                                    <button type=\"button\" class=\"confirm-action-button\" data-confirm-toggle aria-pressed=\"false\">\n                                        <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                                            <path d=\"M20 6L9 17l-5-5\"/>\n                                        </svg>\n                                        <span>Confirm registry information</span>\n                                    </button>\n                                    <p class=\"confirm-action-note\" data-confirm-note>\n                                        Confirm that the fetched TRA or BRELA details have been reviewed and match the applicant.\n                                    </p>\n                                </div>\n                            </div>\n\n                            <div class=\"ekyc-step-actions split\">\n                                <button type=\"button\" class=\"btn btn-secondary\" data-ekyc-prev>Back</button>\n                                <button type=\"button\" class=\"btn btn-primary\" data-ekyc-next>Continue</button>\n                            </div>\n                        </section>\n\n                        <section class=\"ekyc-section ekyc-step-panel\" data-ekyc-step=\"3\">\n                            <div class=\"ekyc-section-heading\">\n                                <span class=\"ekyc-step-badge\">3</span>\n                                <div>\n                                    <h2>Create digital signature</h2>\n                                    <p>This typed signature represents the verified user in this demo. Later implementation will anchor the digital signature with blockchain records.</p>\n                                </div>\n                            </div>\n\n                            <div class=\"signature-panel\">\n                                <div class=\"ekyc-grid two\">\n                                    <div class=\"form-group-new\">\n                                        <label class=\"form-label-new\">Signer full name *</label>\n                                        <input type=\"text\" class=\"form-input-new\" name=\"signatureName\" value=\"\" data-verified-value=\"\" placeholder=\"Full legal name\">\n                                        <span class=\"form-error-new\"></span>\n                                    </div>\n\n                                    <div class=\"form-group-new\">\n                                        <label class=\"form-label-new\">Signer title</label>\n                                        <input type=\"text\" class=\"form-input-new\" name=\"signatureTitle\" value=\"\" data-verified-value=\"\" placeholder=\"Owner, director, officer\">\n                                    </div>\n                                </div>\n\n                                <div class=\"signature-preview\" id=\"signature-preview\">\n                                    <span>Typed signature preview</span>\n                                </div>\n\n                                <div class=\"confirm-action\" data-confirm-control>\n                                    <input type=\"checkbox\" class=\"confirm-action-input\" name=\"signatureConsent\" >\n                                    <button type=\"button\" class=\"confirm-action-button\" data-confirm-toggle aria-pressed=\"false\">\n                                        <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n                                            <path d=\"M20 6L9 17l-5-5\"/>\n                                        </svg>\n                                        <span>Confirm digital signature</span>\n                                    </button>\n                                    <p class=\"confirm-action-note\" data-confirm-note>\n                                        Confirm that this digital signature is authorized for this ProcureX account and may later be anchored on blockchain.\n                                    </p>\n                                </div>\n                            </div>\n\n                            <div class=\"ekyc-step-actions split\">\n                                <button type=\"button\" class=\"btn btn-secondary\" data-ekyc-prev>Back</button>\n                                <button type=\"button\" class=\"btn btn-primary\" data-ekyc-next>Review completion</button>\n                            </div>\n                        </section>\n\n                        <section class=\"ekyc-section ekyc-step-panel\" data-ekyc-step=\"4\">\n                            <div class=\"ekyc-complete\">\n                                <span class=\"ekyc-complete-icon\">OK</span>\n                                <span class=\"section-kicker\">Ready for dashboard</span>\n                                <h2>Identity verification complete</h2>\n                                <p>The onboarding record is ready. Completing this demo will mark the account as verified and open the ProcureX app launcher.</p>\n\n                                <div class=\"registry-summary complete-summary\" data-ekyc-complete-summary>\n                                    <div><span>Applicant type</span><strong>Individual</strong></div>\n                                    <div><span>Registry source</span><strong>TRA</strong></div>\n                                    <div><span>Signature</span><strong>Prepared</strong></div>\n                                    <div><span>Blockchain anchor</span><strong>Pending implementation</strong></div>\n                                </div>\n                            </div>\n\n                            <div class=\"ekyc-step-actions split\">\n                                <button type=\"button\" class=\"btn btn-secondary\" data-ekyc-prev>Back</button>\n                                <button type=\"submit\" class=\"btn btn-primary\">Complete and open apps</button>\n                            </div>\n                        </section>\n                    </form>\n                </main>\n            </div>\n        </div>\n    ";
+const applicantCards: Array<{
+  type: EntityType;
+  title: string;
+  copy: string;
+}> = [
+  {
+    type: 'individual',
+    title: 'Individual',
+    copy: 'Use a TIN number. ProcureX fetches TRA details for user review.'
+  },
+  {
+    type: 'company',
+    title: 'Company',
+    copy: 'Use a BRELA company number and verify company registry details.'
+  },
+  {
+    type: 'business',
+    title: 'Business',
+    copy: 'Choose local government/TIN or BRELA business registration.'
+  }
+];
+
+const signatureConsentVersion = '2026.06.06';
+const signatureConsentTitle = 'ProcureX identity verification signature consent';
+
+function sourceFor(entityType: EntityType, businessRegistrationSource: BusinessRegistrationSource) {
+  if (entityType === 'company') return 'BRELA';
+  if (entityType === 'business' && businessRegistrationSource === 'brela') return 'BRELA';
+  return 'TRA';
+}
+
+function registryLabel(entityType: EntityType, businessRegistrationSource: BusinessRegistrationSource) {
+  if (entityType === 'company') return 'BRELA company number';
+  if (entityType === 'business' && businessRegistrationSource === 'brela') return 'BRELA business number';
+  return 'TIN number';
+}
+
+function registryPlaceholder(entityType: EntityType, businessRegistrationSource: BusinessRegistrationSource) {
+  return `Enter ${registryLabel(entityType, businessRegistrationSource)}`;
+}
+
+function payloadRows(record: RegistryRecord) {
+  return Object.entries(record.payload).filter(([, value]) => value !== null && value !== undefined && value !== '');
+}
+
+function stringValue(value: unknown) {
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value);
+  return String(value);
+}
+
+function friendlyIdentityMessage(error: unknown, fallback: string) {
+  const axiosError = error as { response?: { status?: number; data?: { message?: string } }; message?: string };
+  const status = axiosError.response?.status;
+  const serverMessage = axiosError.response?.data?.message || axiosError.message || '';
+
+  if (status === 404) return 'No matching official registry record was found. Check the number and applicant type, then try again.';
+  if (status === 409 && /duplicate|already uses/i.test(serverMessage)) {
+    return 'This registry number is already linked to an approved ProcureX account. The verification will need admin review.';
+  }
+  if (status === 409) return serverMessage || 'The registry record must be fetched and confirmed before submitting.';
+  if (status === 502) return 'The registry service is not available right now. Please try again later.';
+
+  return apiErrorMessage(error, fallback);
+}
 
 export function IdentityVerificationProcurexPage() {
-  return <ProcurexStaticPage pageKey="identity-verification" html={html} />;
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const authUser = useAppSelector((state) => state.auth.user);
+  const [step, setStep] = useState<EkycStep>(1);
+  const [entityType, setEntityType] = useState<EntityType>('individual');
+  const [businessRegistrationSource, setBusinessRegistrationSource] = useState<BusinessRegistrationSource>('tin');
+  const [registryNumber, setRegistryNumber] = useState('');
+  const [registryRecord, setRegistryRecord] = useState<RegistryRecord | null>(null);
+  const [registryVerified, setRegistryVerified] = useState(false);
+  const [signatureName, setSignatureName] = useState('');
+  const [signatureTitle, setSignatureTitle] = useState('');
+  const [signatureConsent, setSignatureConsent] = useState(false);
+  const [result, setResult] = useState<VerificationSubmitResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useBodyPageMetadata('iam-verification');
+
+  const registrySource = useMemo(() => sourceFor(entityType, businessRegistrationSource), [businessRegistrationSource, entityType]);
+  const canContinueRegistry = Boolean(registryRecord && registryVerified && registryRecord.registryNumber === registryNumber.trim());
+  const canSubmit = canContinueRegistry && signatureName.trim().length > 1 && signatureConsent;
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadVerification() {
+      try {
+        const response = await identityApi.getVerificationMe();
+        if (!active) return;
+        dispatch(setSessionUser(response.user));
+        const payload = response.verification?.payload ?? {};
+        const savedEntity = payload.entityType === 'company' || payload.entityType === 'business' || payload.entityType === 'individual' ? payload.entityType : undefined;
+        const savedSource = payload.businessRegistrationSource === 'brela' || payload.businessRegistrationSource === 'tin' ? payload.businessRegistrationSource : undefined;
+        const savedRecord = payload.registryRecord && typeof payload.registryRecord === 'object' ? (payload.registryRecord as RegistryRecord) : null;
+
+        if (savedEntity) setEntityType(savedEntity);
+        if (savedSource) setBusinessRegistrationSource(savedSource);
+        if (typeof payload.registryNumber === 'string') setRegistryNumber(payload.registryNumber);
+        if (typeof payload.registryVerified === 'boolean') setRegistryVerified(payload.registryVerified);
+        if (typeof payload.signatureName === 'string') setSignatureName(payload.signatureName);
+        if (typeof payload.signatureTitle === 'string') setSignatureTitle(payload.signatureTitle);
+        if (typeof payload.signatureConsent === 'boolean') setSignatureConsent(payload.signatureConsent);
+        if (savedRecord?.id) setRegistryRecord(savedRecord);
+      } catch (error) {
+        if (active) setMessage(apiErrorMessage(error, 'Could not load your verification profile.'));
+      }
+    }
+
+    void loadVerification();
+    return () => {
+      active = false;
+    };
+  }, [dispatch]);
+
+  function chooseEntity(nextType: EntityType) {
+    const nextSource: BusinessRegistrationSource = nextType === 'business' ? 'brela' : 'tin';
+    setEntityType(nextType);
+    setBusinessRegistrationSource(nextSource);
+    setRegistryNumber('');
+    setRegistryRecord(null);
+    setRegistryVerified(false);
+    setMessage('');
+  }
+
+  function chooseBusinessSource(nextSource: BusinessRegistrationSource) {
+    setBusinessRegistrationSource(nextSource);
+    setRegistryNumber('');
+    setRegistryRecord(null);
+    setRegistryVerified(false);
+    setMessage('');
+  }
+
+  async function saveDraft(nextStep: EkycStep) {
+    setLoading(true);
+    setMessage('');
+
+    try {
+      await identityApi.saveVerificationDraft({
+        entityType,
+        businessRegistrationSource,
+        registrySource,
+        registryNumber: registryNumber.trim(),
+        registryVerified,
+        registryRecordId: registryRecord?.id,
+        signatureName,
+        signatureTitle,
+        signatureConsent,
+        signatureConsentVersion,
+        signatureConsentTitle
+      });
+      if (authUser && authUser.verificationStatus === 'NOT_STARTED') {
+        dispatch(setSessionUser({ ...authUser, verificationStatus: 'DRAFT' }));
+      }
+      setStep(nextStep);
+    } catch (error) {
+      setMessage(apiErrorMessage(error, 'Could not save the verification draft.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchRegistry() {
+    setLoading(true);
+    setMessage('');
+    setRegistryRecord(null);
+    setRegistryVerified(false);
+
+    try {
+      const record = await identityApi.lookupRegistry({
+        entityType,
+        businessRegistrationSource,
+        registryNumber: registryNumber.trim()
+      });
+      setRegistryRecord(record);
+      setRegistryNumber(record.registryNumber);
+      setSignatureName((current) => current || record.name);
+      setMessage(`${record.source} record fetched. Review and confirm the details.`);
+    } catch (error) {
+      setMessage(friendlyIdentityMessage(error, 'No matching registry record was found.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitVerification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!registryRecord || !canSubmit) {
+      setMessage('Complete registry confirmation and digital signature before submitting.');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const submitted = await identityApi.submitVerification({
+        entityType,
+        businessRegistrationSource,
+        registrySource: registryRecord.source,
+        registryNumber: registryRecord.registryNumber,
+        registryVerified: true,
+        registryRecordId: registryRecord.id,
+        signatureName: signatureName.trim(),
+        signatureTitle: signatureTitle.trim(),
+        signatureConsent: true,
+        signatureConsentVersion,
+        signatureConsentTitle,
+        profile: {
+          displayName: registryRecord.name,
+          country: 'Tanzania',
+          preferredLanguage: 'English'
+        },
+        documents: [
+          {
+            type: 'registry',
+            source: registryRecord.source,
+            registryNumber: registryRecord.registryNumber,
+            status: 'fetched'
+          }
+        ]
+      });
+      dispatch(setSessionUser(submitted.user));
+      setResult(submitted);
+      setStep(4);
+    } catch (error) {
+      setMessage(friendlyIdentityMessage(error, 'Could not submit verification.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="ekyc-page">
+      <div className="ekyc-shell">
+        <aside className="ekyc-side">
+          <button className="ekyc-brand" type="button" onClick={() => navigate('/')}>
+            <span className="platform-logo">
+              <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
+            </span>
+            <div>
+              <strong>ProcureX</strong>
+              <span>Registration</span>
+            </div>
+          </button>
+
+          <div className="ekyc-side-status">
+            <span className={authUser?.verificationStatus === 'APPROVED' ? 'badge badge-success' : 'badge badge-warning'}>
+              {authUser?.verificationStatus === 'APPROVED' ? 'Identity verified' : 'Identity verification required'}
+            </span>
+            <h2>Verify the account before dashboard access.</h2>
+            <p>Choose applicant type, verify TRA or BRELA registry information, and create a secure digital signature record for the account.</p>
+          </div>
+
+          <ol className="ekyc-steps">
+            {['Applicant type', 'Registry lookup', 'Digital signature', 'Complete'].map((label, index) => {
+              const itemStep = (index + 1) as EkycStep;
+              return (
+                <li className={`${step === itemStep ? 'active' : ''} ${step > itemStep ? 'completed' : ''}`} key={label}>
+                  <span>{itemStep}</span>
+                  {label}
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
+
+        <main className="ekyc-main">
+          <div className="ekyc-header">
+            <div>
+              <span className="section-kicker">Account registration</span>
+              <h1>Identity verification flow</h1>
+              <p>Registry data, consent, and signature hashes are saved to the verification profile and decide whether the account can access ProcureX apps immediately.</p>
+            </div>
+            <span className="badge badge-info">{authUser?.displayName ?? 'Current account'}</span>
+          </div>
+
+          <form className="ekyc-form" onSubmit={(event) => void submitVerification(event)}>
+            <section className={`ekyc-section ekyc-step-panel ${step === 1 ? 'active' : ''}`}>
+              <div className="ekyc-section-heading">
+                <span className="ekyc-step-badge">1</span>
+                <div>
+                  <h2>Select applicant type</h2>
+                  <p>Choose the card that matches how this account should be verified.</p>
+                </div>
+              </div>
+
+              <div className="ekyc-role-grid three">
+                {applicantCards.map((card) => (
+                  <label className={`ekyc-role-card ${entityType === card.type ? 'selected' : ''}`} key={card.type}>
+                    <input type="radio" name="entityType" value={card.type} checked={entityType === card.type} onChange={() => chooseEntity(card.type)} />
+                    <span className="ekyc-role-icon">{card.type.slice(0, 1).toUpperCase()}</span>
+                    <strong>{card.title}</strong>
+                    <small>{card.copy}</small>
+                  </label>
+                ))}
+              </div>
+
+              <div className="ekyc-step-actions">
+                <button type="button" className="btn btn-primary" disabled={loading} onClick={() => void saveDraft(2)}>
+                  Continue
+                </button>
+              </div>
+            </section>
+
+            <section className={`ekyc-section ekyc-step-panel ${step === 2 ? 'active' : ''}`}>
+              <div className="ekyc-section-heading">
+                <span className="ekyc-step-badge">2</span>
+                <div>
+                  <h2>Enter {registryLabel(entityType, businessRegistrationSource)}</h2>
+                  <p>{registrySource} details will be fetched and shown here for confirmation.</p>
+                </div>
+              </div>
+
+              <div className="ekyc-grid two">
+                {entityType === 'business' ? (
+                  <div className="business-registry-fields span-2">
+                    <label className="form-label-new">Business registration source *</label>
+                    <div className="ekyc-role-grid compact">
+                      {(['tin', 'brela'] as BusinessRegistrationSource[]).map((source) => (
+                        <label className={`ekyc-role-card ${businessRegistrationSource === source ? 'selected' : ''}`} key={source}>
+                          <input
+                            type="radio"
+                            name="businessRegistrationSource"
+                            value={source}
+                            checked={businessRegistrationSource === source}
+                            onChange={() => chooseBusinessSource(source)}
+                          />
+                          <span className="ekyc-role-icon">{source === 'tin' ? 'TIN' : 'BRELA'}</span>
+                          <strong>{source === 'tin' ? 'Local Government / TIN' : 'BRELA Number'}</strong>
+                          <small>{source === 'tin' ? 'Use a TIN number for locally registered business.' : 'Use the BRELA business number.'}</small>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="form-group-new">
+                  <label className="form-label-new">{registryLabel(entityType, businessRegistrationSource)} *</label>
+                  <input
+                    className="form-input-new"
+                    type="text"
+                    value={registryNumber}
+                    placeholder={registryPlaceholder(entityType, businessRegistrationSource)}
+                    onChange={(event) => {
+                      setRegistryNumber(event.target.value);
+                      setRegistryRecord(null);
+                      setRegistryVerified(false);
+                    }}
+                    autoComplete="off"
+                  />
+                  <span className="form-hint-new">Enter the identifier exactly as shown on the official registry record.</span>
+                </div>
+
+                <div className="ekyc-fetch-panel">
+                  <span className="badge badge-info">{registrySource} lookup</span>
+                  <p>The lookup checks the registry database and returns the matching official record for review.</p>
+                  <button type="button" className="btn btn-secondary" disabled={loading || registryNumber.trim().length < 3} onClick={() => void fetchRegistry()}>
+                    {loading ? 'Fetching...' : 'Fetch and review'}
+                  </button>
+                </div>
+              </div>
+
+              {registryRecord ? (
+                <div className="registry-review">
+                  <div className="registry-review-header">
+                    <div>
+                      <span className="section-kicker">Fetched information</span>
+                      <h3>{registryRecord.name}</h3>
+                    </div>
+                    <span className={registryRecord.status === 'MATCHED' ? 'badge badge-success' : 'badge badge-warning'}>{registryRecord.status}</span>
+                  </div>
+                  <div className="registry-summary">
+                    <div>
+                      <span>Source</span>
+                      <strong>{registryRecord.source}</strong>
+                    </div>
+                    <div>
+                      <span>Registry number</span>
+                      <strong>{registryRecord.registryNumber}</strong>
+                    </div>
+                    <div>
+                      <span>Confidence</span>
+                      <strong>{registryRecord.confidence}%</strong>
+                    </div>
+                    {payloadRows(registryRecord).map(([key, value]) => (
+                      <div key={key}>
+                        <span>{key.replace(/([A-Z])/g, ' $1')}</span>
+                        <strong>{stringValue(value)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <label className={`confirm-action ${registryVerified ? 'confirmed' : ''}`}>
+                    <input className="confirm-action-input" type="checkbox" checked={registryVerified} onChange={(event) => setRegistryVerified(event.target.checked)} />
+                    <span>Confirm registry information</span>
+                  </label>
+                </div>
+              ) : null}
+
+              <div className="ekyc-step-actions split">
+                <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>
+                  Back
+                </button>
+                <button type="button" className="btn btn-primary" disabled={loading || !canContinueRegistry} onClick={() => void saveDraft(3)}>
+                  Continue
+                </button>
+              </div>
+            </section>
+
+            <section className={`ekyc-section ekyc-step-panel ${step === 3 ? 'active' : ''}`}>
+              <div className="ekyc-section-heading">
+                <span className="ekyc-step-badge">3</span>
+                <div>
+                  <h2>Create digital signature</h2>
+                  <p>The signer name and consent are sealed into a server-generated signature hash with audit metadata for ProcureX actions.</p>
+                </div>
+              </div>
+
+              <div className="signature-panel">
+                <div className="ekyc-grid two">
+                  <div className="form-group-new">
+                    <label className="form-label-new">Signer full name *</label>
+                    <input className="form-input-new" type="text" value={signatureName} onChange={(event) => setSignatureName(event.target.value)} />
+                  </div>
+
+                  <div className="form-group-new">
+                    <label className="form-label-new">Signer title</label>
+                    <input className="form-input-new" type="text" value={signatureTitle} placeholder="Owner, director, officer" onChange={(event) => setSignatureTitle(event.target.value)} />
+                  </div>
+                </div>
+
+                <div className="signature-preview">{signatureName.trim() || 'Typed signature preview'}</div>
+
+                <label className={`confirm-action ${signatureConsent ? 'confirmed' : ''}`}>
+                  <input className="confirm-action-input" type="checkbox" checked={signatureConsent} onChange={(event) => setSignatureConsent(event.target.checked)} />
+                  <span>Confirm digital signature consent</span>
+                </label>
+                <p className="form-hint-new">{signatureConsentTitle} v{signatureConsentVersion}</p>
+              </div>
+
+              <div className="ekyc-step-actions split">
+                <button type="button" className="btn btn-secondary" onClick={() => setStep(2)}>
+                  Back
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={loading || !canSubmit}>
+                  {loading ? 'Submitting...' : 'Submit verification'}
+                </button>
+              </div>
+            </section>
+
+            <section className={`ekyc-section ekyc-step-panel ${step === 4 ? 'active' : ''}`}>
+              <div className="ekyc-complete">
+                <span className="ekyc-complete-icon">{result?.user.verificationStatus === 'APPROVED' ? 'OK' : '!'}</span>
+                <span className="section-kicker">Verification submitted</span>
+                <h2>{result?.autoApproved ? 'Identity verification approved' : 'Verification is pending admin review'}</h2>
+                <p>
+                  {result?.autoApproved
+                    ? 'The registry match and signature passed the approval checks. ProcureX apps are now available.'
+                    : 'The account record was saved and routed to platform admin for a decision.'}
+                </p>
+
+                <div className="registry-summary complete-summary">
+                  <div>
+                    <span>Applicant type</span>
+                    <strong>{entityType}</strong>
+                  </div>
+                  <div>
+                    <span>Registry source</span>
+                    <strong>{registryRecord?.source ?? registrySource}</strong>
+                  </div>
+                  <div>
+                    <span>Verified name</span>
+                    <strong>{registryRecord?.name ?? 'Pending'}</strong>
+                  </div>
+                  <div>
+                    <span>Status</span>
+                    <strong>{result?.user.verificationStatus ?? authUser?.verificationStatus ?? 'DRAFT'}</strong>
+                  </div>
+                  {result?.verification.payload.digitalSignature &&
+                  typeof result.verification.payload.digitalSignature === 'object' &&
+                  'status' in result.verification.payload.digitalSignature ? (
+                    <div>
+                      <span>Digital signature</span>
+                      <strong>{String(result.verification.payload.digitalSignature.status)}</strong>
+                    </div>
+                  ) : null}
+                </div>
+
+                {result?.reviewReasons.length ? (
+                  <div className="auth-note">
+                    <strong>Review reasons:</strong> {result.reviewReasons.join(' ')}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="ekyc-step-actions split">
+                <button type="button" className="btn btn-secondary" onClick={() => navigate('/identity/profile')}>
+                  Open profile
+                </button>
+                <button type="button" className="btn btn-primary" disabled={result?.user.verificationStatus !== 'APPROVED'} onClick={() => navigate('/dashboard')}>
+                  Open dashboard
+                </button>
+              </div>
+            </section>
+          </form>
+
+          {message ? <p className="auth-note">{message}</p> : null}
+        </main>
+      </div>
+    </div>
+  );
 }

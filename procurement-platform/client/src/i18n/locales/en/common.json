@@ -176,6 +176,303 @@
       "subtitle": "Inspect system-wide actions, actors, entities, timestamps, severity, and evidence references."
     }
   },
+  "welcomeLanding": {
+    "brandHome": "ProcureX home",
+    "navAria": "Welcome navigation",
+    "proofAria": "Trusted business proof",
+    "productStageAria": "ProcureX marketplace preview",
+    "nav": {
+      "browseTenders": "Browse Open Tenders",
+      "howItWorks": "How It Works",
+      "about": "About",
+      "helpCenter": "Help Center"
+    },
+    "hero": {
+      "eyebrow": "Welcome to ProcureX",
+      "title": "Buy. Supply. Connect. Grow.",
+      "body": "ProcureX is a modern e-procurement marketplace built to make procurement simple, fair, secure, and accessible for everyone.",
+      "support": "Create tenders, discover tenders, and build a procurement record today.",
+      "primaryCta": "Get Started",
+      "secondaryCta": "Browse Open Tenders"
+    },
+    "preview": {
+      "title": "ProcureX Marketplace",
+      "createTender": "Create tender",
+      "openTenders": "{{count}} open tenders visible now.",
+      "verifiedProfile": "Verified Profile",
+      "completionRate": "{{rate}}% Completion Rate",
+      "viewProfile": "View Profile",
+      "photoAlt": "Procurement team reviewing documents in a meeting"
+    },
+    "sections": {
+      "workflowLabel": "Streamlined workflow",
+      "workflowTitle": "Four steps to procurement success",
+      "gatewayTitle": "Your procurement gateway for tendering",
+      "gatewayBody": "ProcureX connects businesses, procuring entities, and tenderers in one secure, digital-first marketplace.",
+      "marketTitle": "A smarter marketplace for everyone",
+      "marketBody": "ProcureX creates a shared space where businesses can meet and work together efficiently, whether they are procuring entities, tenderers, or specialized professionals."
+    },
+    "steps": [
+      {
+        "title": "Create Tender",
+        "text": "Post goods, services, or consultancy needs to your registered participants."
+      },
+      {
+        "title": "Discover Tenders",
+        "text": "Browse active procurement requests and find the perfect match for your business capabilities."
+      },
+      {
+        "title": "Submit Bid",
+        "text": "Prepare and submit professional proposals through our secure and transparent bidding engine."
+      },
+      {
+        "title": "Track Records",
+        "text": "Maintain a clear audit trail of all messages, clarifications, awards, and historical data."
+      }
+    ],
+    "gateway": {
+      "imageAlt": "Procurement documents prepared for review and signing",
+      "captionLead": "From request to decision,",
+      "captionStrong": "every step has a place.",
+      "captionText": "Centralize your entire procurement workflow. From initial RFP to final contract awarding, keep all data in a single source of truth.",
+      "assurance": [
+        {
+          "title": "No scattered communication",
+          "text": "Messages, clarification requests, and alerts stay in the system so critical data is never lost in email threads."
+        },
+        {
+          "title": "No hidden tenders",
+          "text": "Discover open tenders and service needs in one organized place, ensuring fair competition for all verified partners."
+        }
+      ]
+    },
+    "marketCards": [
+      {
+        "title": "Tenders",
+        "text": "Access a global stream of verified procurement requests that match your specific industry and scale.",
+        "points": ["Verified tender details", "Direct procuring entity interaction"]
+      },
+      {
+        "title": "Relationships",
+        "text": "Build long-term partnerships through our transparent profile and performance tracking system.",
+        "points": ["Performance ratings", "Repeat business alerts"]
+      },
+      {
+        "title": "Records",
+        "text": "Maintain a robust, immutable record of every transaction, bid, and contract for compliance and audit.",
+        "points": ["Immutable audit trails", "Data-driven insights"]
+      }
+    ],
+    "cta": {
+      "title": "Join ProcureX today.",
+      "body": "Start your procurement journey with one simple account. Create tenders, submit bids, and grow your business today.",
+      "button": "Get Started Now"
+    },
+    "footer": {
+      "copyright": "2026 ProcureX. All rights reserved. Connecting businesses, tenderers, and professionals through smarter procurement.",
+      "companyAria": "Company links",
+      "company": "Company",
+      "about": "About ProcureX",
+      "privacy": "Privacy Policy",
+      "terms": "Terms and Conditions",
+      "platformAria": "Platform links",
+      "platform": "Platform",
+      "systemStatus": "System Status",
+      "supportAria": "Support links",
+      "support": "Support",
+      "helpCenter": "Help Center",
+      "contactSupport": "Contact Support"
+    }
+  },
+  "auth": {
+    "alerts": {
+      "networkUnavailable": "The authentication service is not available. Check your connection and try again.",
+      "serverUnavailable": "The authentication service is not available. Please try again later.",
+      "rateLimitWait": "Please wait before requesting another code.",
+      "rateLimit": "Too many attempts. Please wait and try again.",
+      "securityFailed": "Security check failed or expired. Complete the security check and try again.",
+      "invalidCredentials": "Invalid email or password.",
+      "sessionInvalid": "Your session is invalid or expired. Please sign in again.",
+      "requestExpired": "This request has expired. Start again and try once more.",
+      "deliveryUnavailable": "Delivery is not available right now. Please try again later.",
+      "actionUnavailable": "This account action is not available with the current information.",
+      "authActionNotFound": "The requested auth action was not found.",
+      "requestFailed": "Request failed. Please try again.",
+      "delivery": {
+        "smsUnavailable": "SMS verification is not available right now. Please try again later.",
+        "activationUnavailable": "Email activation is not available right now. Please try again later.",
+        "resetUnavailable": "Password reset email is not available right now. Please try again later."
+      },
+      "expired": {
+        "otp": "That verification code has expired. Request a new code and try again.",
+        "activation": "That activation code has expired. Request a new activation email and try again.",
+        "reset": "That reset code has expired. Request a new reset code and try again."
+      },
+      "conflict": {
+        "phone": "An account already exists for this phone number.",
+        "email": "An account already exists for this email.",
+        "passwordGate": "Verify your phone and email before creating a password."
+      },
+      "notFound": {
+        "registration": "Account information was not found. Start registration again.",
+        "otp": "Verification request was not found. Request a new code.",
+        "activation": "Activation request was not found. Request a new activation email.",
+        "reset": "Password reset request was not found. Request a new reset code."
+      },
+      "badInput": {
+        "otp": "Verification code is incorrect.",
+        "activation": "Activation code is incorrect.",
+        "reset": "Password reset code is incorrect.",
+        "phone": "Enter a valid phone number in international format.",
+        "password": "Enter a stronger password that meets all requirements."
+      },
+      "fallback": {
+        "signIn": "Sign-in failed. Check the email and password.",
+        "registration": "Could not start registration.",
+        "forgotPassword": "Could not request password reset.",
+        "resetPassword": "Could not reset password."
+      }
+    },
+    "security": {
+      "complete": "Complete security check",
+      "missing": "Complete the security check before continuing.",
+      "missingSignIn": "Complete the security check before signing in.",
+      "notConfigured": "Security check is not configured.",
+      "ariaLabel": "Security check"
+    },
+    "register": {
+      "headerSignIn": "Already have an account? Sign in",
+      "progress": ["Account Info", "Verify Contact", "Activate", "Password"],
+      "done": "Done",
+      "ok": "OK",
+      "account": {
+        "title": "Join Us",
+        "subtitle": "Create an account",
+        "email": "Email Address *",
+        "emailPlaceholder": "you@company.com",
+        "emailHint": "Your sign-in email and activation address.",
+        "phone": "Mobile Number *",
+        "phonePlaceholder": "+255 XXX XXX XXX",
+        "phoneHint": "Used for one-time verification codes."
+      },
+      "otp": {
+        "title": "Verify Your Number",
+        "subtitle": "Enter the 6-digit code sent to",
+        "label": "Verification Code *",
+        "digitAria": "Verification code digit {{index}}",
+        "expiresIn": "Code expires in",
+        "expired": "Code expired",
+        "resendIn": "Resend available in",
+        "resendAvailable": "Resend is available",
+        "resend": "Resend Code",
+        "verify": "Verify"
+      },
+      "activation": {
+        "title": "Activate Your Email",
+        "subtitle": "An activation code was sent to",
+        "sentTitle": "Email Sent Successfully",
+        "sentBody": "Your account is activated after email confirmation, then you can create your password.",
+        "label": "Activation Code *",
+        "expiresIn": "Activation expires in {{time}}.",
+        "openEmail": "Open Email App",
+        "resend": "Resend activation email",
+        "continue": "Continue to Password Setup"
+      },
+      "password": {
+        "title": "Create Your Password",
+        "subtitle": "This password is required on the sign-in screen.",
+        "label": "Password *",
+        "placeholder": "Enter strong password",
+        "confirmLabel": "Confirm Password *",
+        "confirmPlaceholder": "Re-enter your password",
+        "show": "Show password",
+        "hide": "Hide password",
+        "showConfirm": "Show password confirmation",
+        "hideConfirm": "Hide password confirmation",
+        "strength": "Strength:",
+        "strengthLabels": {
+          "strong": "Strong",
+          "good": "Good",
+          "fair": "Fair",
+          "weak": "Weak"
+        },
+        "requirements": ["8 or more characters", "Uppercase letter", "Number", "Special character"],
+        "confirmAgreement": "Confirm agreement",
+        "agreementNoteStart": "Confirm that you accept the",
+        "agreementAnd": "and",
+        "terms": "Terms and Conditions",
+        "privacy": "Privacy Policy",
+        "create": "Create Account"
+      },
+      "success": {
+        "title": "Account Created",
+        "body": "Your login credentials are ready. Sign in to continue with identity verification.",
+        "nextTitle": "Next step: Sign in",
+        "nextBody": "After sign-in, new users complete identity verification before entering the platform."
+      },
+      "messages": {
+        "otpResent": "A new verification code has been sent.",
+        "activationResent": "A new activation email has been sent.",
+        "passwordRequirements": "Complete all password requirements and confirm agreement."
+      }
+    },
+    "signIn": {
+      "headerCreate": "Create an account",
+      "title": "Welcome Back",
+      "subtitle": "Sign in",
+      "email": "Email Address *",
+      "emailPlaceholder": "you@company.com",
+      "password": "Password *",
+      "passwordPlaceholder": "Enter your password",
+      "show": "Show",
+      "hide": "Hide",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+        "forgot": "Forgot password?",
+        "submit": "Sign In",
+        "submitting": "Signing in...",
+        "demo": {
+          "title": "Demo account",
+          "body": "Use the seeded verified user for local walkthroughs.",
+          "button": "Sign in as demo user",
+          "securityHint": "Complete the security check first"
+        },
+        "note": "Your account opens the workspace allowed by its verification status."
+      },
+    "forgotPassword": {
+      "headerBack": "Back to sign in",
+      "request": {
+        "title": "Reset Password",
+        "subtitle": "Enter your account email to receive reset instructions.",
+        "email": "Email Address *",
+        "submit": "Send Reset Instructions",
+        "submitting": "Sending..."
+      },
+      "reset": {
+        "title": "Create New Password",
+        "subtitle": "Enter the reset code from your email and choose a new password.",
+        "code": "Reset Code *",
+        "resendIn": "Resend available in {{time}}.",
+        "resendAvailable": "Resend is available.",
+        "password": "New Password *",
+        "confirmPassword": "Confirm New Password *",
+        "submit": "Update Password",
+        "submitting": "Updating...",
+        "resend": "Resend Reset Code"
+      },
+      "complete": {
+        "title": "Password Updated",
+        "body": "You can now sign in with your new password."
+      },
+      "messages": {
+        "resetRequested": "If an account exists for this email, password reset instructions have been sent.",
+        "resetResent": "If the reset request is still active, a new reset code has been sent.",
+        "missingCode": "Open the reset link from your email or enter the reset code provided to you.",
+        "passwordRequirements": "Complete all password requirements and confirm both passwords match.",
+        "updated": "Your password has been updated."
+      }
+    }
+  },
   "status": {
     "open": "Open",
     "draft": "Draft",

@@ -176,6 +176,303 @@
       "subtitle": "Chunguza vitendo vya mfumo, watendaji, vitu, muda, ukubwa wa tukio, na rejea za ushahidi."
     }
   },
+  "welcomeLanding": {
+    "brandHome": "Nyumbani ProcureX",
+    "navAria": "Urambazaji wa ukurasa wa karibu",
+    "proofAria": "Uthibitisho wa biashara unaoaminika",
+    "productStageAria": "Muonekano wa soko la ProcureX",
+    "nav": {
+      "browseTenders": "Tazama Zabuni Zilizo Wazi",
+      "howItWorks": "Jinsi Inavyofanya Kazi",
+      "about": "Kuhusu",
+      "helpCenter": "Kituo cha Msaada"
+    },
+    "hero": {
+      "eyebrow": "Karibu ProcureX",
+      "title": "Nunua. Toa Huduma. Unganika. Kua.",
+      "body": "ProcureX ni soko la kisasa la ununuzi mtandaoni lililojengwa kufanya ununuzi uwe rahisi, wa haki, salama, na unaopatikana kwa wote.",
+      "support": "Tengeneza zabuni, gundua zabuni, na jenga kumbukumbu ya ununuzi leo.",
+      "primaryCta": "Anza Sasa",
+      "secondaryCta": "Tazama Zabuni Zilizo Wazi"
+    },
+    "preview": {
+      "title": "Soko la ProcureX",
+      "createTender": "Tengeneza zabuni",
+      "openTenders": "Zabuni {{count}} zilizo wazi zinaonekana sasa.",
+      "verifiedProfile": "Wasifu Uliothibitishwa",
+      "completionRate": "Kiwango cha Kukamilisha {{rate}}%",
+      "viewProfile": "Tazama Wasifu",
+      "photoAlt": "Timu ya ununuzi ikihakiki nyaraka kwenye kikao"
+    },
+    "sections": {
+      "workflowLabel": "Mtiririko rahisi",
+      "workflowTitle": "Hatua nne za mafanikio ya ununuzi",
+      "gatewayTitle": "Lango lako la ununuzi kwa zabuni",
+      "gatewayBody": "ProcureX inaunganisha biashara, taasisi nunuzi, na wazabuni katika soko moja salama la kidijitali.",
+      "marketTitle": "Soko bora kwa kila mtu",
+      "marketBody": "ProcureX hutengeneza eneo la pamoja ambapo biashara hukutana na kufanya kazi kwa ufanisi, iwe ni taasisi nunuzi, wazabuni, au wataalamu maalumu."
+    },
+    "steps": [
+      {
+        "title": "Tengeneza Zabuni",
+        "text": "Chapisha mahitaji ya bidhaa, huduma, au ushauri kwa washiriki wako waliosajiliwa."
+      },
+      {
+        "title": "Gundua Zabuni",
+        "text": "Tazama maombi hai ya ununuzi na upate yanayolingana na uwezo wa biashara yako."
+      },
+      {
+        "title": "Wasilisha Zabuni",
+        "text": "Andaa na wasilisha mapendekezo ya kitaalamu kupitia mfumo wetu salama na wazi wa zabuni."
+      },
+      {
+        "title": "Fuatilia Kumbukumbu",
+        "text": "Tunza historia ya ukaguzi ya ujumbe, ufafanuzi, tuzo, na taarifa zote muhimu."
+      }
+    ],
+    "gateway": {
+      "imageAlt": "Nyaraka za ununuzi zilizoandaliwa kwa ukaguzi na saini",
+      "captionLead": "Kutoka ombi hadi uamuzi,",
+      "captionStrong": "kila hatua ina mahali pake.",
+      "captionText": "Weka mtiririko wote wa ununuzi sehemu moja. Kuanzia RFP ya awali hadi utoaji wa mkataba, weka taarifa zote kwenye chanzo kimoja cha ukweli.",
+      "assurance": [
+        {
+          "title": "Hakuna mawasiliano yaliyotawanyika",
+          "text": "Ujumbe, maombi ya ufafanuzi, na tahadhari hubaki kwenye mfumo ili taarifa muhimu zisipotee kwenye minyororo ya barua pepe."
+        },
+        {
+          "title": "Hakuna zabuni zilizofichwa",
+          "text": "Gundua zabuni zilizo wazi na mahitaji ya huduma sehemu moja iliyopangwa, kwa ushindani wa haki kwa washirika waliothibitishwa."
+        }
+      ]
+    },
+    "marketCards": [
+      {
+        "title": "Zabuni",
+        "text": "Fikia mkondo wa maombi ya ununuzi yaliyothibitishwa yanayolingana na sekta na ukubwa wa biashara yako.",
+        "points": ["Taarifa za zabuni zilizothibitishwa", "Mawasiliano ya moja kwa moja na taasisi nunuzi"]
+      },
+      {
+        "title": "Mahusiano",
+        "text": "Jenga ushirikiano wa muda mrefu kupitia wasifu wazi na mfumo wa kufuatilia utendaji.",
+        "points": ["Viwango vya utendaji", "Tahadhari za biashara ya kurudia"]
+      },
+      {
+        "title": "Kumbukumbu",
+        "text": "Tunza rekodi thabiti isiyobadilika ya kila shughuli, zabuni, na mkataba kwa uzingatiaji na ukaguzi.",
+        "points": ["Historia ya ukaguzi isiyobadilika", "Maarifa yanayotokana na data"]
+      }
+    ],
+    "cta": {
+      "title": "Jiunge na ProcureX leo.",
+      "body": "Anza safari yako ya ununuzi kwa akaunti moja rahisi. Tengeneza zabuni, wasilisha zabuni, na kukuza biashara yako leo.",
+      "button": "Anza Sasa"
+    },
+    "footer": {
+      "copyright": "2026 ProcureX. Haki zote zimehifadhiwa. Tunaunganisha biashara, wazabuni, na wataalamu kupitia ununuzi bora.",
+      "companyAria": "Viungo vya kampuni",
+      "company": "Kampuni",
+      "about": "Kuhusu ProcureX",
+      "privacy": "Sera ya Faragha",
+      "terms": "Vigezo na Masharti",
+      "platformAria": "Viungo vya jukwaa",
+      "platform": "Jukwaa",
+      "systemStatus": "Hali ya Mfumo",
+      "supportAria": "Viungo vya msaada",
+      "support": "Msaada",
+      "helpCenter": "Kituo cha Msaada",
+      "contactSupport": "Wasiliana na Msaada"
+    }
+  },
+  "auth": {
+    "alerts": {
+      "networkUnavailable": "Huduma ya uthibitishaji haipatikani. Kagua muunganisho wako kisha ujaribu tena.",
+      "serverUnavailable": "Huduma ya uthibitishaji haipatikani kwa sasa. Tafadhali jaribu tena baadaye.",
+      "rateLimitWait": "Tafadhali subiri kabla ya kuomba msimbo mwingine.",
+      "rateLimit": "Majaribio ni mengi. Tafadhali subiri kisha ujaribu tena.",
+      "securityFailed": "Ukaguzi wa usalama umeshindikana au umeisha muda. Kamilisha ukaguzi wa usalama kisha ujaribu tena.",
+      "invalidCredentials": "Barua pepe au nenosiri si sahihi.",
+      "sessionInvalid": "Kikao chako si halali au kimeisha muda. Tafadhali ingia tena.",
+      "requestExpired": "Ombi hili limeisha muda. Anza upya kisha ujaribu tena.",
+      "deliveryUnavailable": "Uwasilishaji haupatikani kwa sasa. Tafadhali jaribu tena baadaye.",
+      "actionUnavailable": "Kitendo hiki cha akaunti hakipatikani kwa taarifa hizi.",
+      "authActionNotFound": "Kitendo cha uthibitishaji kilichoombwa hakikupatikana.",
+      "requestFailed": "Ombi limeshindwa. Tafadhali jaribu tena.",
+      "delivery": {
+        "smsUnavailable": "Uthibitishaji kwa SMS haupatikani kwa sasa. Tafadhali jaribu tena baadaye.",
+        "activationUnavailable": "Uanzishaji wa barua pepe haupatikani kwa sasa. Tafadhali jaribu tena baadaye.",
+        "resetUnavailable": "Barua pepe ya kuweka upya nenosiri haipatikani kwa sasa. Tafadhali jaribu tena baadaye."
+      },
+      "expired": {
+        "otp": "Msimbo huo wa uthibitishaji umeisha muda. Omba msimbo mpya kisha ujaribu tena.",
+        "activation": "Msimbo huo wa uanzishaji umeisha muda. Omba barua pepe mpya ya uanzishaji kisha ujaribu tena.",
+        "reset": "Msimbo huo wa kuweka upya umeisha muda. Omba msimbo mpya kisha ujaribu tena."
+      },
+      "conflict": {
+        "phone": "Akaunti tayari ipo kwa namba hii ya simu.",
+        "email": "Akaunti tayari ipo kwa barua pepe hii.",
+        "passwordGate": "Thibitisha simu na barua pepe kabla ya kutengeneza nenosiri."
+      },
+      "notFound": {
+        "registration": "Taarifa za akaunti hazikupatikana. Anza usajili tena.",
+        "otp": "Ombi la uthibitishaji halikupatikana. Omba msimbo mpya.",
+        "activation": "Ombi la uanzishaji halikupatikana. Omba barua pepe mpya ya uanzishaji.",
+        "reset": "Ombi la kuweka upya nenosiri halikupatikana. Omba msimbo mpya."
+      },
+      "badInput": {
+        "otp": "Msimbo wa uthibitishaji si sahihi.",
+        "activation": "Msimbo wa uanzishaji si sahihi.",
+        "reset": "Msimbo wa kuweka upya nenosiri si sahihi.",
+        "phone": "Weka namba sahihi ya simu kwa muundo wa kimataifa.",
+        "password": "Weka nenosiri imara zaidi linalokidhi mahitaji yote."
+      },
+      "fallback": {
+        "signIn": "Kuingia kumeshindikana. Kagua barua pepe na nenosiri.",
+        "registration": "Imeshindikana kuanza usajili.",
+        "forgotPassword": "Imeshindikana kuomba kuweka upya nenosiri.",
+        "resetPassword": "Imeshindikana kuweka upya nenosiri."
+      }
+    },
+    "security": {
+      "complete": "Kamilisha ukaguzi wa usalama",
+      "missing": "Kamilisha ukaguzi wa usalama kabla ya kuendelea.",
+      "missingSignIn": "Kamilisha ukaguzi wa usalama kabla ya kuingia.",
+      "notConfigured": "Ukaguzi wa usalama haujasanidiwa.",
+      "ariaLabel": "Ukaguzi wa usalama"
+    },
+    "register": {
+      "headerSignIn": "Tayari una akaunti? Ingia",
+      "progress": ["Taarifa za Akaunti", "Thibitisha Mawasiliano", "Anzisha", "Nenosiri"],
+      "done": "Tayari",
+      "ok": "Sawa",
+      "account": {
+        "title": "Jiunge Nasi",
+        "subtitle": "Fungua akaunti",
+        "email": "Barua Pepe *",
+        "emailPlaceholder": "wewe@kampuni.co.tz",
+        "emailHint": "Barua pepe yako ya kuingia na uanzishaji.",
+        "phone": "Namba ya Simu *",
+        "phonePlaceholder": "+255 XXX XXX XXX",
+        "phoneHint": "Inatumika kwa misimbo ya uthibitishaji ya mara moja."
+      },
+      "otp": {
+        "title": "Thibitisha Namba Yako",
+        "subtitle": "Weka msimbo wa tarakimu 6 uliotumwa kwa",
+        "label": "Msimbo wa Uthibitishaji *",
+        "digitAria": "Tarakimu ya {{index}} ya msimbo wa uthibitishaji",
+        "expiresIn": "Msimbo unaisha baada ya",
+        "expired": "Msimbo umeisha muda",
+        "resendIn": "Kutuma upya kutapatikana baada ya",
+        "resendAvailable": "Kutuma upya kunapatikana",
+        "resend": "Tuma Msimbo Upya",
+        "verify": "Thibitisha"
+      },
+      "activation": {
+        "title": "Anzisha Barua Pepe Yako",
+        "subtitle": "Msimbo wa uanzishaji umetumwa kwa",
+        "sentTitle": "Barua Pepe Imetumwa",
+        "sentBody": "Akaunti yako itawezeshwa baada ya kuthibitisha barua pepe, kisha utaweza kutengeneza nenosiri.",
+        "label": "Msimbo wa Uanzishaji *",
+        "expiresIn": "Uanzishaji unaisha baada ya {{time}}.",
+        "openEmail": "Fungua Programu ya Barua Pepe",
+        "resend": "Tuma barua pepe ya uanzishaji upya",
+        "continue": "Endelea Kutengeneza Nenosiri"
+      },
+      "password": {
+        "title": "Tengeneza Nenosiri Lako",
+        "subtitle": "Nenosiri hili linahitajika kwenye skrini ya kuingia.",
+        "label": "Nenosiri *",
+        "placeholder": "Weka nenosiri imara",
+        "confirmLabel": "Thibitisha Nenosiri *",
+        "confirmPlaceholder": "Weka tena nenosiri lako",
+        "show": "Onyesha nenosiri",
+        "hide": "Ficha nenosiri",
+        "showConfirm": "Onyesha uthibitisho wa nenosiri",
+        "hideConfirm": "Ficha uthibitisho wa nenosiri",
+        "strength": "Uimara:",
+        "strengthLabels": {
+          "strong": "Imara sana",
+          "good": "Nzuri",
+          "fair": "Wastani",
+          "weak": "Dhaifu"
+        },
+        "requirements": ["Herufi 8 au zaidi", "Herufi kubwa", "Namba", "Alama maalumu"],
+        "confirmAgreement": "Thibitisha makubaliano",
+        "agreementNoteStart": "Thibitisha kuwa unakubali",
+        "agreementAnd": "na",
+        "terms": "Vigezo na Masharti",
+        "privacy": "Sera ya Faragha",
+        "create": "Fungua Akaunti"
+      },
+      "success": {
+        "title": "Akaunti Imefunguliwa",
+        "body": "Taarifa zako za kuingia ziko tayari. Ingia ili kuendelea na uthibitishaji wa utambulisho.",
+        "nextTitle": "Hatua inayofuata: Ingia",
+        "nextBody": "Baada ya kuingia, watumiaji wapya hukamilisha uthibitishaji wa utambulisho kabla ya kuingia kwenye jukwaa."
+      },
+      "messages": {
+        "otpResent": "Msimbo mpya wa uthibitishaji umetumwa.",
+        "activationResent": "Barua pepe mpya ya uanzishaji imetumwa.",
+        "passwordRequirements": "Kamilisha mahitaji yote ya nenosiri na thibitisha makubaliano."
+      }
+    },
+    "signIn": {
+      "headerCreate": "Fungua akaunti",
+      "title": "Karibu Tena",
+      "subtitle": "Ingia",
+      "email": "Barua Pepe *",
+      "emailPlaceholder": "wewe@kampuni.co.tz",
+      "password": "Nenosiri *",
+      "passwordPlaceholder": "Weka nenosiri lako",
+      "show": "Onyesha",
+      "hide": "Ficha",
+      "showPassword": "Onyesha nenosiri",
+      "hidePassword": "Ficha nenosiri",
+        "forgot": "Umesahau nenosiri?",
+        "submit": "Ingia",
+        "submitting": "Inaingia...",
+        "demo": {
+          "title": "Akaunti ya onyesho",
+          "body": "Tumia mtumiaji aliyethibitishwa wa seed kwa majaribio ya ndani.",
+          "button": "Ingia kama mtumiaji wa onyesho",
+          "securityHint": "Kamilisha ukaguzi wa usalama kwanza"
+        },
+        "note": "Akaunti yako hufungua eneo la kazi linaloruhusiwa na hali yake ya uthibitishaji."
+      },
+    "forgotPassword": {
+      "headerBack": "Rudi kuingia",
+      "request": {
+        "title": "Weka Upya Nenosiri",
+        "subtitle": "Weka barua pepe ya akaunti yako ili upokee maelekezo ya kuweka upya.",
+        "email": "Barua Pepe *",
+        "submit": "Tuma Maelekezo ya Kuweka Upya",
+        "submitting": "Inatuma..."
+      },
+      "reset": {
+        "title": "Tengeneza Nenosiri Jipya",
+        "subtitle": "Weka msimbo wa kuweka upya kutoka kwenye barua pepe yako na uchague nenosiri jipya.",
+        "code": "Msimbo wa Kuweka Upya *",
+        "resendIn": "Kutuma upya kutapatikana baada ya {{time}}.",
+        "resendAvailable": "Kutuma upya kunapatikana.",
+        "password": "Nenosiri Jipya *",
+        "confirmPassword": "Thibitisha Nenosiri Jipya *",
+        "submit": "Sasisha Nenosiri",
+        "submitting": "Inasasisha...",
+        "resend": "Tuma Msimbo Upya"
+      },
+      "complete": {
+        "title": "Nenosiri Limesasishwa",
+        "body": "Sasa unaweza kuingia kwa nenosiri lako jipya."
+      },
+      "messages": {
+        "resetRequested": "Ikiwa akaunti ipo kwa barua pepe hii, maelekezo ya kuweka upya nenosiri yametumwa.",
+        "resetResent": "Ikiwa ombi la kuweka upya bado linafanya kazi, msimbo mpya umetumwa.",
+        "missingCode": "Fungua kiungo cha kuweka upya kutoka kwenye barua pepe yako au weka msimbo uliotumwa kwako.",
+        "passwordRequirements": "Kamilisha mahitaji yote ya nenosiri na hakikisha manenosiri yote mawili yanafanana.",
+        "updated": "Nenosiri lako limesasishwa."
+      }
+    }
+  },
   "status": {
     "open": "Wazi",
     "draft": "Rasimu",

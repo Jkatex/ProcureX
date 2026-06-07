@@ -1,12 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import '@/i18n';
 import { store } from '@/app/store';
+import '@/i18n';
+import { summaryCards } from './fixtures';
 import { AwardingContractsProcurexPage } from './components/procurex/AwardingContractsProcurexPage';
+import { AwardRecommendationProcurexPage } from './components/procurex/AwardRecommendationProcurexPage';
 import { AwardResponseProcurexPage } from './components/procurex/AwardResponseProcurexPage';
+import { ContractNegotiationProcurexPage } from './components/procurex/ContractNegotiationProcurexPage';
 import { PostAwardTrackingProcurexPage } from './components/procurex/PostAwardTrackingProcurexPage';
 
 function LocationProbe() {
@@ -25,32 +28,62 @@ function renderFlow(page: ReactNode, initialEntry: string) {
   );
 }
 
-describe('awards and contracts first-run flow', () => {
-  it('explains that awarding starts after evaluation', () => {
-    renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
+describe('awards and contracts empty lifecycle flow', () => {
+  it('opens the requested dashboard queue from the URL with an empty state', async () => {
+    const { container } = renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts?queue=awards-received');
 
-    expect(screen.getByRole('heading', { name: 'No awards or contracts are in progress yet.' })).toBeInTheDocument();
-    expect(screen.getByText('Awarding is a secondary app')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Awards Received' })).toHaveClass('active'));
+
+    const panel = container.querySelector<HTMLElement>('[data-tab="awards-received"].tab-content--visible');
+    expect(panel).toBeInTheDocument();
+    expect(within(panel!).getByText('No supplier awards have been received yet.')).toBeInTheDocument();
   });
 
-  it('routes users upstream to create the tender source', async () => {
+  it('updates dashboard queue URLs from summary cards and side navigation', async () => {
     const user = userEvent.setup();
+    const { container } = renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
+
+    await user.click(screen.getByRole('button', { name: 'Go to Closed Contracts tab' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/awards-contracts?queue=closed-contracts'));
+    expect(screen.getByRole('tab', { name: 'Closed Contracts' })).toHaveClass('active');
+
+    const sideNavAwardsReceived = container.querySelector<HTMLElement>(
+      '.sidebar-nav [data-awarding-tab-jump="awards-received"]'
+    );
+    expect(sideNavAwardsReceived).toBeInTheDocument();
+    await user.click(sideNavAwardsReceived!);
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/awards-contracts?queue=awards-received'));
+    expect(screen.getByRole('tab', { name: 'Awards Received' })).toHaveClass('active');
+  });
+
+  it('renders dashboard summary counts as zero', async () => {
     renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
 
-    await user.click(screen.getAllByRole('button', { name: 'Create tender' })[0]);
-
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/create-tender'));
+    for (const card of summaryCards) {
+      const summary = screen.getByRole('button', { name: `Go to ${card.label} tab` });
+      expect(within(summary).getByText('0')).toBeInTheDocument();
+    }
   });
 
-  it('shows an empty supplier award response when no award exists', () => {
-    renderFlow(<AwardResponseProcurexPage />, '/awards-contracts/award-response?award=supplier-award-2');
+  it('shows an empty urgent actions queue', async () => {
+    const { container } = renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts?queue=my-urgent-actions');
+    const panel = container.querySelector<HTMLElement>('[data-tab="my-urgent-actions"].tab-content--visible');
 
-    expect(screen.getByRole('heading', { name: 'No award notice has been received yet.' })).toBeInTheDocument();
+    await waitFor(() => expect(panel).toBeInTheDocument());
+    expect(within(panel!).getByText('No urgent award or contract actions yet.')).toBeInTheDocument();
   });
 
-  it('shows an empty post-award tracker until a contract is signed', () => {
-    renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award?mode=closed&contract=closed-contract-2&tab=closure');
+  it('renders empty child workspaces without selected records', async () => {
+    renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation');
+    expect(screen.getByText('No evaluation result is ready for awarding.')).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: 'No active contract is ready for post-award tracking.' })).toBeInTheDocument();
+    renderFlow(<AwardResponseProcurexPage />, '/awards-contracts/award-response');
+    expect(screen.getAllByText('No award selected').length).toBeGreaterThan(0);
+
+    renderFlow(<ContractNegotiationProcurexPage />, '/awards-contracts/negotiation');
+    expect(screen.getByText('No contract is in progress.')).toBeInTheDocument();
+
+    renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award');
+    expect(screen.getByText('No post-award records are available yet.')).toBeInTheDocument();
   });
 });

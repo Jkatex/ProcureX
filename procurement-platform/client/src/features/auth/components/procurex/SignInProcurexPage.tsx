@@ -1,9 +1,203 @@
-/* This file is generated from the ProcureX design prototype. Do not edit by hand. */
+import { FormEvent, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
+import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
+import { useAppDispatch, useAppSelector } from '@/app/store';
+import { assumeUser, signInWithCredentials } from '@/features/auth/slice';
+import { LanguageSwitcher } from '@/shared/components/LanguageSwitcher';
+import { demoUsers } from '@/shared/data/fixtures';
+import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import { AuthAlert, authAlert, authAlertFromError, type AuthAlertMessage } from './AuthAlert';
+import { TurnstileWidget } from './TurnstileWidget';
 
-import { ProcurexStaticPage } from '@/shared/components/procurex/ProcurexStaticPage';
+type LocationState = {
+  from?: {
+    pathname?: string;
+  };
+};
 
-const html = "\n        <div class=\"register-page-new auth-page\">\n            <header class=\"register-header-new\">\n                <div class=\"register-header-inner-new\">\n                    <div class=\"brand-new\" data-navigate=\"welcome\">\n                        \n        <span class=\"platform-logo\">\n            <img class=\"platform-logo-image\" src=\"/assets/logo.svg\" alt=\"ProcureX\">\n        </span>\n    \n                        <span class=\"brand-text-new\">ProcureX</span>\n                    </div>\n                    <a href=\"#\" data-navigate=\"register\" class=\"login-link-new\">Create an account</a>\n                </div>\n            </header>\n\n            <div class=\"register-container-new\">\n                <div class=\"register-card-new auth-card\">\n                    <div class=\"screens-container-new\">\n                        <div class=\"screen-header-new\">\n                            <h2>Welcome Back</h2>\n                            <p>Sign in</p>\n                        </div>\n\n                        <form class=\"screen-form-new\" data-action=\"sign-in\">\n                            <div class=\"form-group-new\">\n                                <label class=\"form-label-new\">Email Address *</label>\n                                <input type=\"email\" class=\"form-input-new\" name=\"email\" value=\"\" placeholder=\"you@company.com\" required>\n                                <span class=\"form-error-new\"></span>\n                            </div>\n\n                            <div class=\"form-group-new\">\n                                <label class=\"form-label-new\">Password *</label>\n                                <div class=\"password-input-wrapper-new\">\n                                    <input type=\"password\" class=\"form-input-new\" name=\"password\" placeholder=\"Enter your password\" required>\n                                    <button type=\"button\" class=\"password-toggle-new\" aria-label=\"Show password\">\n                                        <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">\n                                            <path d=\"M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\"/>\n                                            <circle cx=\"12\" cy=\"12\" r=\"3\"/>\n                                        </svg>\n                                    </button>\n                                </div>\n                                <span class=\"form-error-new\"></span>\n                            </div>\n\n                            <div class=\"auth-row\">\n                                <label class=\"auth-check\">\n                                    <input type=\"checkbox\" name=\"remember\">\n                                    <span>Remember me</span>\n                                </label>\n                                <a href=\"#\" class=\"link-new\">Forgot password?</a>\n                            </div>\n\n                            <button type=\"submit\" class=\"btn-continue-new\">\n                                Sign In\n                                <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">\n                                    <path d=\"M5 12h14M12 5l7 7-7 7\"/>\n                                </svg>\n                            </button>\n                        </form>\n\n                        <div class=\"auth-note\">\n                            New users continue to identity verification. Existing users enter the platform. Admin opens the admin dashboard.\n                        </div>\n\n                        <div class=\"demo-credentials\">\n                            <h3>Mock sign-in data</h3>\n                            \n                                <button type=\"button\" class=\"demo-account\" data-demo-email=\"newuser@procurex.test\" data-demo-password=\"Newuser1!\">\n                                    <span>\n                                        <strong>New User Account</strong>\n                                        <small>new user</small>\n                                    </span>\n                                    <code>newuser@procurex.test</code>\n                                </button>\n                            \n                                <button type=\"button\" class=\"demo-account\" data-demo-email=\"company@procurex.test\" data-demo-password=\"Procure1!\">\n                                    <span>\n                                        <strong>Kilimanjaro Supplies Limited</strong>\n                                        <small>existing user</small>\n                                    </span>\n                                    <code>company@procurex.test</code>\n                                </button>\n                            \n                                <button type=\"button\" class=\"demo-account\" data-demo-email=\"business@procurex.test\" data-demo-password=\"Procure1!\">\n                                    <span>\n                                        <strong>Zahra Omari Business Services</strong>\n                                        <small>existing user</small>\n                                    </span>\n                                    <code>business@procurex.test</code>\n                                </button>\n                            \n                                <button type=\"button\" class=\"demo-account\" data-demo-email=\"individual@procurex.test\" data-demo-password=\"Procure1!\">\n                                    <span>\n                                        <strong>Asha Mwinyi</strong>\n                                        <small>existing user</small>\n                                    </span>\n                                    <code>individual@procurex.test</code>\n                                </button>\n                            \n                                <button type=\"button\" class=\"demo-account\" data-demo-email=\"user@company.tz\" data-demo-password=\"Procure1!\">\n                                    <span>\n                                        <strong>Kilimanjaro Supplies Limited</strong>\n                                        <small>existing user</small>\n                                    </span>\n                                    <code>user@company.tz</code>\n                                </button>\n                            \n                                <button type=\"button\" class=\"demo-account\" data-demo-email=\"admin@procurex.tz\" data-demo-password=\"Admin123!\">\n                                    <span>\n                                        <strong>Admin User</strong>\n                                        <small>admin</small>\n                                    </span>\n                                    <code>admin@procurex.tz</code>\n                                </button>\n                            \n                        </div>\n                    </div>\n                </div>\n                <div class=\"auth-image-panel\" aria-hidden=\"true\">\n                    \n        <dotlottie-player class=\"procurex-lottie auth-image-lottie\" src=\"/assets/ProcureX.json\" background=\"transparent\" speed=\"1\" loop autoplay aria-label=\"ProcureX auth animation\"></dotlottie-player>\n    \n                </div>\n            </div>\n        </div>\n    ";
+function destinationFor(user: { accountType: string; verificationStatus: string }, intendedPath?: string) {
+  if (user.accountType === 'ADMIN') return '/admin';
+  if (user.verificationStatus !== 'APPROVED') return '/identity/verification';
+  return intendedPath && intendedPath !== '/sign-in' ? intendedPath : '/apps';
+}
+
+function demoSignInConfig() {
+  return {
+    enabled: import.meta.env.MODE === 'development' || import.meta.env.VITE_DEMO_SIGN_IN_ENABLED === 'true',
+    email: import.meta.env.VITE_DEMO_USER_EMAIL || 'demo@procurex.tz',
+    password: import.meta.env.VITE_DEMO_USER_PASSWORD || 'Demo123!'
+  };
+}
 
 export function SignInProcurexPage() {
-  return <ProcurexStaticPage pageKey="sign-in" html={html} />;
+  const { t } = useTranslation();
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const authStatus = useAppSelector((state) => state.auth.status);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [alert, setAlert] = useState<AuthAlertMessage | null>(null);
+  const loading = authStatus === 'loading';
+  const locationState = location.state as LocationState | null;
+  const demoSignIn = demoSignInConfig();
+
+  useBodyPageMetadata('sign-in');
+
+  function isDemoCredentialAttempt(emailValue: string, passwordValue: string) {
+    return (
+      demoSignIn.enabled &&
+      emailValue.trim().toLowerCase() === demoSignIn.email.toLowerCase() &&
+      passwordValue === demoSignIn.password
+    );
+  }
+
+  async function signIn(emailValue: string, passwordValue: string, destinationOverride?: string) {
+    if (loading) return;
+    setAlert(null);
+    if (!turnstileToken) {
+      setAlert(authAlert('auth.security.missingSignIn', 'error'));
+      return;
+    }
+
+    if (isDemoCredentialAttempt(emailValue, passwordValue)) {
+      dispatch(assumeUser(demoUsers.user));
+      navigate(destinationOverride ?? destinationFor(demoUsers.user, locationState?.from?.pathname), { replace: true });
+      return;
+    }
+
+    try {
+      const session = await dispatch(signInWithCredentials({ email: emailValue.trim(), password: passwordValue, turnstileToken })).unwrap();
+      const intendedPath = locationState?.from?.pathname;
+      navigate(destinationOverride ?? destinationFor(session.user, intendedPath), { replace: true });
+    } catch (caughtError) {
+      setAlert(authAlertFromError(caughtError, 'sign-in'));
+      setTurnstileToken('');
+      setTurnstileResetKey((value) => value + 1);
+    }
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await signIn(email, password);
+  }
+
+  async function submitDemoSignIn() {
+    setEmail(demoSignIn.email);
+    setPassword(demoSignIn.password);
+    await signIn(demoSignIn.email, demoSignIn.password, '/dashboard');
+  }
+
+  return (
+    <div className="register-page-new auth-page">
+      <header className="register-header-new">
+        <div className="register-header-inner-new">
+          <button className="brand-new" type="button" onClick={() => navigate('/')}>
+            <span className="platform-logo">
+              <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
+            </span>
+            <span className="brand-text-new">ProcureX</span>
+          </button>
+          <div className="auth-header-actions-new">
+            <span className="procurex-language-inline procurex-language-inline--auth">
+              <LanguageSwitcher />
+            </span>
+            <button className="login-link-new" type="button" onClick={() => navigate('/register')}>
+              {t('auth.signIn.headerCreate')}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="register-container-new">
+        <div className="register-card-new auth-card">
+          <div className="screens-container-new">
+            <div className="screen-header-new">
+              <h2>{t('auth.signIn.title')}</h2>
+              <p>{t('auth.signIn.subtitle')}</p>
+            </div>
+
+            <form className="screen-form-new" onSubmit={(event) => void submit(event)}>
+              <div className="form-group-new">
+                <label className="form-label-new" htmlFor="sign-in-email">{t('auth.signIn.email')}</label>
+                <input
+                  id="sign-in-email"
+                  className="form-input-new"
+                  type="email"
+                  value={email}
+                  placeholder={t('auth.signIn.emailPlaceholder')}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group-new">
+                <label className="form-label-new" htmlFor="sign-in-password">{t('auth.signIn.password')}</label>
+                <div className="password-input-wrapper-new">
+                  <input
+                    id="sign-in-password"
+                    className="form-input-new"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    placeholder={t('auth.signIn.passwordPlaceholder')}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-new"
+                    aria-label={showPassword ? t('auth.signIn.hidePassword') : t('auth.signIn.showPassword')}
+                    onClick={() => setShowPassword((value) => !value)}
+                  >
+                    {showPassword ? t('auth.signIn.hide') : t('auth.signIn.show')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="auth-row">
+                <button className="link-new" type="button" onClick={() => navigate('/forgot-password')}>
+                  {t('auth.signIn.forgot')}
+                </button>
+              </div>
+
+              <AuthAlert message={alert} />
+
+              <TurnstileWidget action="sign_in" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+
+              <button type="submit" className="btn-continue-new" disabled={loading || !turnstileToken}>
+                {loading ? t('auth.signIn.submitting') : t('auth.signIn.submit')}
+              </button>
+
+            </form>
+
+            {demoSignIn.enabled ? (
+              <div className="demo-credentials demo-credentials--auth demo-credentials--icon-only">
+                <button
+                  className="demo-account demo-account--compact demo-account--icon-only"
+                  type="button"
+                  aria-label={t('auth.signIn.demo.button')}
+                  title={t('auth.signIn.demo.securityHint')}
+                  disabled={loading || !turnstileToken}
+                  onClick={() => void submitDemoSignIn()}
+                >
+                  <LoginRoundedIcon fontSize="small" aria-hidden="true" />
+                </button>
+              </div>
+            ) : null}
+
+            <div className="auth-note">
+              {t('auth.signIn.note')}
+            </div>
+          </div>
+        </div>
+        <div className="auth-image-panel" aria-hidden="true">
+          <dotlottie-player className="procurex-lottie auth-image-lottie" src="/assets/ProcureX.json" background="transparent" speed="1" loop autoplay />
+        </div>
+      </div>
+    </div>
+  );
 }

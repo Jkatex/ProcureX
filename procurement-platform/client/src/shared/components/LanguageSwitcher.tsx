@@ -14,6 +14,8 @@ export function LanguageSwitcher() {
   return (
     <Select
       aria-label={t('language')}
+      inputProps={{ 'aria-label': t('language') }}
+      SelectDisplayProps={{ 'aria-label': t('language') }}
       value={language}
       size="small"
       onChange={(event) => void handleChange(event.target.value as SupportedLanguage)}

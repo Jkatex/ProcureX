@@ -4857,7 +4857,7 @@ function renderCreateTender() {
         ['03', 'Tender Requirements', `${requirementSummary.title}, licenses`],
         ['04', 'Evaluation Criteria and Weights', 'Criteria, weights, pass marks'],
         ['05', 'Review Tender', 'All entries'],
-        ['06', 'Review', 'Submit for system review']
+        ['06', 'Tender Review and Publication', 'Submit for system review']
     ];
 
     return `
