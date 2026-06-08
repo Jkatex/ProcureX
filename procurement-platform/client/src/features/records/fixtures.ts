@@ -1,1 +1,1 @@
-export { records as recordsFixtures } from '@/shared/data/fixtures';
+export const recordsFixtures = [] as const;

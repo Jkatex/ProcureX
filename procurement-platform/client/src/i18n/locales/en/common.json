@@ -577,6 +577,168 @@
       "load": "Evaluation data could not be loaded. The workspace will remain empty until the database is available."
     }
   },
+  "recordsApp": {
+    "shell": {
+      "title": "Records and History",
+      "sidebarTitle": "Records and History",
+      "sidebarNote": "Archive and evidence trail"
+    },
+    "nav": {
+      "createTender": "Create Tender"
+    },
+    "hero": {
+      "badge": "Supplier procurement records",
+      "title": "Records and History",
+      "subtitle": "View past procurement activities, tender records, bid history, contract records, reports, and compliance evidence from your platform activity.",
+      "emptyTitle": "Records will build automatically.",
+      "emptyBody": "Use procurement apps normally; the archive will collect the evidence trail as work happens."
+    },
+    "stats": {
+      "ariaLabel": "Records and History dashboard statistics",
+      "tenderRecords": "Tender records",
+      "bidRecords": "Bid records",
+      "contractRecords": "Contracts",
+      "evidenceFiles": "Evidence files",
+      "recordedValue": "Recorded value"
+    },
+    "tabs": {
+      "ariaLabel": "Records and History tabs",
+      "records": "Procurement Records",
+      "charts": "Charts & Insights"
+    },
+    "records": {
+      "kicker": "Search and filter",
+      "title": "Procurement records archive",
+      "countBadge": "{{count}} records",
+      "emptyTitle": "No procurement records yet.",
+      "emptyBody": "Records will appear here when tenders, bids, clarifications, evaluations, awards, contracts, and post-award activities are created.",
+      "pagination": "Page {{page}} of {{totalPages}}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Search by reference, title, buyer, supplier",
+      "recordType": "Record type",
+      "status": "Status",
+      "category": "Category",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "apply": "Apply filters",
+      "applyShort": "Apply",
+      "reset": "Reset",
+      "allRecordTypes": "All record types",
+      "allStatuses": "All statuses",
+      "allCategories": "All categories"
+    },
+    "exports": {
+      "csv": "Export CSV",
+      "pdf": "Export PDF",
+      "chartsPdf": "Export Charts Report",
+      "exporting": "Exporting",
+      "disabledNote": "Exports are disabled until real procurement records are available.",
+      "disabledTooltip": "Export is available after at least one real procurement record exists."
+    },
+    "table": {
+      "date": "Date",
+      "record": "Procurement Record",
+      "type": "Type",
+      "status": "Status",
+      "value": "Value",
+      "evidence": "Evidence",
+      "action": "Action"
+    },
+    "charts": {
+      "kicker": "Charts & Insights",
+      "title": "Procurement activity analysis",
+      "subtitle": "Visualize trends, participation, values, compliance, and award performance from your procurement records.",
+      "emptyTitle": "No chart data yet.",
+      "emptyBody": "Charts will appear when procurement activity records are available.",
+      "noDataBadge": "No data",
+      "dataPoints": "{{count}} data points",
+      "cancelled": "Cancelled",
+      "cards": {
+        "tendersByStatus": "Tenders by Status",
+        "recordsByMonth": "Procurement Records by Month",
+        "contractValueByCategory": "Contract Value by Category",
+        "supplierParticipation": "Supplier Participation",
+        "awardVsCancellationTrend": "Award vs Cancellation Trend",
+        "complianceCompletionSummary": "Compliance Completion Summary"
+      }
+    },
+    "insights": {
+      "mostActiveCategory": "Most Active Category",
+      "highestValueRecord": "Highest Value Record",
+      "bestSupplierParticipation": "Best Supplier Participation",
+      "complianceCompletion": "Compliance Completion",
+      "awardSuccessRate": "Award Success Rate",
+      "averageTenderDuration": "Average Tender Duration",
+      "linkedRecords": "{{count}} linked records",
+      "days": "{{count}} days"
+    },
+    "actions": {
+      "kicker": "Record sources",
+      "title": "Create the first record source",
+      "createTender": "Create Tender",
+      "viewMarketplace": "View Marketplace",
+      "createPlan": "Create Plan"
+    },
+    "labels": {
+      "notAvailable": "Not available",
+      "noEvidence": "No evidence"
+    },
+    "types": {
+      "TENDER": "Tender",
+      "BID": "Bid",
+      "EVALUATION": "Evaluation",
+      "AWARD": "Award",
+      "CONTRACT": "Contract",
+      "DOCUMENT": "Evidence file",
+      "COMMUNICATION": "Communication",
+      "COMPLIANCE": "Compliance",
+      "ARCHIVE": "Archive"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "REVIEW": "Review",
+      "PUBLISHED": "Published",
+      "OPEN": "Open",
+      "CLOSED": "Closed",
+      "EVALUATION": "Evaluation",
+      "AWARDED": "Awarded",
+      "CANCELLED": "Cancelled",
+      "SUBMITTED": "Submitted",
+      "WITHDRAWN": "Withdrawn",
+      "OPENED": "Opened",
+      "UNDER_EVALUATION": "Under evaluation",
+      "DISQUALIFIED": "Disqualified",
+      "LOST": "Lost",
+      "NOT_STARTED": "Not started",
+      "IN_PROGRESS": "In progress",
+      "LOCKED": "Locked",
+      "COMPLETED": "Completed",
+      "RETURNED": "Returned",
+      "RECOMMENDED": "Recommended",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "NEGOTIATION": "Negotiation",
+      "SIGNATURE_PENDING": "Signature pending",
+      "ACTIVE": "Active",
+      "TERMINATED": "Terminated",
+      "UPLOADED": "Uploaded",
+      "VERIFIED": "Verified",
+      "INVESTIGATION": "Investigation",
+      "FALSE_POSITIVE": "False positive",
+      "RESOLVED": "Resolved",
+      "ESCALATED": "Escalated",
+      "UNREAD": "Unread",
+      "READ": "Read",
+      "ARCHIVED": "Archived"
+    },
+    "errors": {
+      "load": "Records data could not be loaded. The workspace will remain empty until the database is available."
+    }
+  },
   "common": {
     "budget": "Budget",
     "status": "Status",

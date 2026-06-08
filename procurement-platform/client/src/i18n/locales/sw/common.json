@@ -577,6 +577,168 @@
       "load": "Data ya tathmini haikuweza kupakiwa. Eneo hili litabaki tupu hadi kanzidata ipatikane."
     }
   },
+  "recordsApp": {
+    "shell": {
+      "title": "Kumbukumbu na Historia",
+      "sidebarTitle": "Kumbukumbu na Historia",
+      "sidebarNote": "Jalada na ushahidi wa shughuli"
+    },
+    "nav": {
+      "createTender": "Tengeneza Zabuni"
+    },
+    "hero": {
+      "badge": "Kumbukumbu za manunuzi za mzabuni",
+      "title": "Kumbukumbu na Historia",
+      "subtitle": "Tazama shughuli za manunuzi zilizopita, kumbukumbu za zabuni, historia ya zabuni za wazabuni, mikataba, ripoti, na ushahidi wa uzingatiaji kutokana na shughuli za jukwaa.",
+      "emptyTitle": "Kumbukumbu zitajengwa kiotomatiki.",
+      "emptyBody": "Tumia programu za manunuzi kawaida; jalada litakusanya ushahidi kadri kazi inavyofanyika."
+    },
+    "stats": {
+      "ariaLabel": "Takwimu za Kumbukumbu na Historia",
+      "tenderRecords": "Kumbukumbu za zabuni",
+      "bidRecords": "Kumbukumbu za zabuni za wazabuni",
+      "contractRecords": "Mikataba",
+      "evidenceFiles": "Mafaili ya ushahidi",
+      "recordedValue": "Thamani iliyorekodiwa"
+    },
+    "tabs": {
+      "ariaLabel": "Vichupo vya Kumbukumbu na Historia",
+      "records": "Kumbukumbu za Manunuzi",
+      "charts": "Chati na Maarifa"
+    },
+    "records": {
+      "kicker": "Tafuta na chuja",
+      "title": "Jalada la kumbukumbu za manunuzi",
+      "countBadge": "Kumbukumbu {{count}}",
+      "emptyTitle": "Bado hakuna kumbukumbu za manunuzi.",
+      "emptyBody": "Kumbukumbu zitaonekana hapa zabuni, zabuni za wazabuni, ufafanuzi, tathmini, tuzo, mikataba, na shughuli za baada ya tuzo zitakapoundwa.",
+      "pagination": "Ukurasa {{page}} kati ya {{totalPages}}",
+      "previous": "Iliyotangulia",
+      "next": "Inayofuata"
+    },
+    "filters": {
+      "search": "Tafuta",
+      "searchPlaceholder": "Tafuta kwa rejea, kichwa, mnunuzi, mzabuni",
+      "recordType": "Aina ya kumbukumbu",
+      "status": "Hali",
+      "category": "Kundi",
+      "startDate": "Tarehe ya kuanza",
+      "endDate": "Tarehe ya mwisho",
+      "apply": "Tumia vichujio",
+      "applyShort": "Tumia",
+      "reset": "Weka upya",
+      "allRecordTypes": "Aina zote za kumbukumbu",
+      "allStatuses": "Hali zote",
+      "allCategories": "Makundi yote"
+    },
+    "exports": {
+      "csv": "Hamisha CSV",
+      "pdf": "Hamisha PDF",
+      "chartsPdf": "Hamisha Ripoti ya Chati",
+      "exporting": "Inahamisha",
+      "disabledNote": "Uhamishaji umezimwa hadi kumbukumbu halisi za manunuzi zipatikane.",
+      "disabledTooltip": "Uhamishaji utapatikana baada ya angalau kumbukumbu moja halisi ya manunuzi kuwepo."
+    },
+    "table": {
+      "date": "Tarehe",
+      "record": "Kumbukumbu ya Manunuzi",
+      "type": "Aina",
+      "status": "Hali",
+      "value": "Thamani",
+      "evidence": "Ushahidi",
+      "action": "Kitendo"
+    },
+    "charts": {
+      "kicker": "Chati na Maarifa",
+      "title": "Uchambuzi wa shughuli za manunuzi",
+      "subtitle": "Angalia mwenendo, ushiriki, thamani, uzingatiaji, na matokeo ya tuzo kutoka kumbukumbu zako za manunuzi.",
+      "emptyTitle": "Bado hakuna data ya chati.",
+      "emptyBody": "Chati zitaonekana shughuli za manunuzi zitakapopatikana.",
+      "noDataBadge": "Hakuna data",
+      "dataPoints": "Vipengele {{count}} vya data",
+      "cancelled": "Imefutwa",
+      "cards": {
+        "tendersByStatus": "Zabuni kwa Hali",
+        "recordsByMonth": "Kumbukumbu za Manunuzi kwa Mwezi",
+        "contractValueByCategory": "Thamani ya Mikataba kwa Kundi",
+        "supplierParticipation": "Ushiriki wa Wazabuni",
+        "awardVsCancellationTrend": "Mwenendo wa Tuzo dhidi ya Kufutwa",
+        "complianceCompletionSummary": "Muhtasari wa Kukamilika kwa Uzingatiaji"
+      }
+    },
+    "insights": {
+      "mostActiveCategory": "Kundi Lenye Shughuli Nyingi",
+      "highestValueRecord": "Kumbukumbu Yenye Thamani Kubwa",
+      "bestSupplierParticipation": "Ushiriki Bora wa Mzabuni",
+      "complianceCompletion": "Kukamilika kwa Uzingatiaji",
+      "awardSuccessRate": "Kiwango cha Mafanikio ya Tuzo",
+      "averageTenderDuration": "Muda Wastani wa Zabuni",
+      "linkedRecords": "Kumbukumbu {{count}} zilizounganishwa",
+      "days": "Siku {{count}}"
+    },
+    "actions": {
+      "kicker": "Vyanzo vya kumbukumbu",
+      "title": "Tengeneza chanzo cha kwanza cha kumbukumbu",
+      "createTender": "Tengeneza Zabuni",
+      "viewMarketplace": "Tazama Soko",
+      "createPlan": "Tengeneza Mpango"
+    },
+    "labels": {
+      "notAvailable": "Haipatikani",
+      "noEvidence": "Hakuna ushahidi"
+    },
+    "types": {
+      "TENDER": "Zabuni",
+      "BID": "Zabuni ya mzabuni",
+      "EVALUATION": "Tathmini",
+      "AWARD": "Tuzo",
+      "CONTRACT": "Mkataba",
+      "DOCUMENT": "Faili la ushahidi",
+      "COMMUNICATION": "Mawasiliano",
+      "COMPLIANCE": "Uzingatiaji",
+      "ARCHIVE": "Jalada"
+    },
+    "status": {
+      "DRAFT": "Rasimu",
+      "REVIEW": "Mapitio",
+      "PUBLISHED": "Imechapishwa",
+      "OPEN": "Wazi",
+      "CLOSED": "Imefungwa",
+      "EVALUATION": "Tathmini",
+      "AWARDED": "Imetolewa",
+      "CANCELLED": "Imefutwa",
+      "SUBMITTED": "Imewasilishwa",
+      "WITHDRAWN": "Imeondolewa",
+      "OPENED": "Imefunguliwa",
+      "UNDER_EVALUATION": "Chini ya tathmini",
+      "DISQUALIFIED": "Imeondolewa sifa",
+      "LOST": "Haikushinda",
+      "NOT_STARTED": "Haijaanza",
+      "IN_PROGRESS": "Inaendelea",
+      "LOCKED": "Imefungwa",
+      "COMPLETED": "Imekamilika",
+      "RETURNED": "Imerudishwa",
+      "RECOMMENDED": "Imependekezwa",
+      "APPROVED": "Imeidhinishwa",
+      "REJECTED": "Imekataliwa",
+      "NEGOTIATION": "Majadiliano",
+      "SIGNATURE_PENDING": "Inasubiri sahihi",
+      "ACTIVE": "Hai",
+      "TERMINATED": "Imesitishwa",
+      "UPLOADED": "Imepakiwa",
+      "VERIFIED": "Imethibitishwa",
+      "INVESTIGATION": "Uchunguzi",
+      "FALSE_POSITIVE": "Si kosa halisi",
+      "RESOLVED": "Imetatuliwa",
+      "ESCALATED": "Imepelekwa juu",
+      "UNREAD": "Haijasomwa",
+      "READ": "Imesomwa",
+      "ARCHIVED": "Imehifadhiwa"
+    },
+    "errors": {
+      "load": "Taarifa za kumbukumbu hazikuweza kupakiwa. Nafasi hii itabaki tupu hadi hifadhidata itakapopatikana."
+    }
+  },
   "common": {
     "budget": "Bajeti",
     "status": "Hali",

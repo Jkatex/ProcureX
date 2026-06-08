@@ -25,7 +25,8 @@ describe('ProcureX server skeleton', () => {
 
   it('mounts each module status route', async () => {
     for (const module of registeredModules) {
-      const response = await request(createApp()).get(module.basePath).expect(200);
+      const statusPath = module.key === 'records' ? `${module.basePath}/status` : module.basePath;
+      const response = await request(createApp()).get(statusPath).expect(200);
 
       expect(response.body.key).toBe(module.key);
       expect(response.body.status).toBe('ready');

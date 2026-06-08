@@ -5,7 +5,13 @@ export function createModuleRouter() {
   const router = Router();
   const controller = new ModuleController();
 
-  router.get('/', controller.status);
+  router.get('/status', controller.status);
+  router.get('/dashboard', controller.dashboard);
+  router.get('/charts', controller.charts);
+  router.get('/insights', controller.insights);
+  router.get('/export/csv', controller.exportCsv);
+  router.get('/export/pdf', controller.exportPdf);
+  router.get('/', controller.records);
 
   return router;
 }

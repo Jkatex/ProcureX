@@ -1,5 +1,5 @@
-import { FirstRunAppPage } from '@/features/workspace/components/procurex/FirstRunAppPage';
+import { RecordsHistoryProcurexPage } from '@/features/records/components/procurex/RecordsHistoryProcurexPage';
 
 export function RecordsHistoryPage() {
-  return <FirstRunAppPage page="records-history" />;
+  return <RecordsHistoryProcurexPage />;
 }
