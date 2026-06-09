@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { PageHeader, Timeline } from '@/shared/components';
 import { procurementTimeline } from '@/shared/data/fixtures';
 import { FirstRunAppPage } from '@/features/workspace/components/procurex/FirstRunAppPage';
+import { MarketplaceProcurexPage } from '../components/procurex/MarketplaceProcurexPage';
 import { CreateTenderWizardShell } from '../components/TenderWorkspaceComponents';
 
 export function ProcurementGuidePage() {
@@ -15,7 +16,7 @@ export function ProcurementGuidePage() {
 }
 
 export function MarketplacePage() {
-  return <FirstRunAppPage page="marketplace" />;
+  return <MarketplaceProcurexPage />;
 }
 
 export function CreateTenderPage() {

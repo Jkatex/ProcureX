@@ -29,7 +29,7 @@ describe('page smoke tests', () => {
 
   it('renders marketplace data', () => {
     renderPage(<MarketplacePage />);
-    expect(screen.getByRole('heading', { name: 'No published tenders yet.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Marketplace' })).toBeInTheDocument();
   });
 
   it('renders the admin dashboard', () => {

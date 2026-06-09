@@ -1,16 +1,28 @@
-import { Button, MenuItem, TextField } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import type { Tender } from '@/shared/types/domain';
-import { StatusBadge } from '@/shared/components';
-import { useLocaleFormat } from '@/shared/hooks/useLocaleFormat';
+import type { ReactElement } from 'react';
+import type { MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../types';
 
-type MarketplaceFiltersProps = {
+export type MarketplaceTabId = 'marketplace' | 'my-tenders' | 'my-bids';
+
+type MarketplaceFiltersValue = {
   query: string;
   type: string;
   budget: string;
   status: string;
   sort: string;
+};
+
+type MarketplaceHeroProps = {
+  organization: string;
+  canCreateTender: boolean;
+};
+
+type MarketplaceTabsProps = {
+  activeTab: MarketplaceTabId;
+  onTabChange: (tab: MarketplaceTabId) => void;
+};
+
+type MarketplaceFiltersProps = MarketplaceFiltersValue & {
   onQueryChange: (value: string) => void;
   onTypeChange: (value: string) => void;
   onBudgetChange: (value: string) => void;
@@ -18,21 +30,95 @@ type MarketplaceFiltersProps = {
   onSortChange: (value: string) => void;
 };
 
-export function MarketplaceHero() {
-  const { t } = useTranslation();
+type TenderListPanelProps = {
+  tenders: MarketplaceTenderRow[];
+  savedTenderIds: Set<string>;
+  onToggleSaved: (tenderId: string) => void;
+};
+
+type TenderRowCardProps = {
+  tender: MarketplaceTenderRow;
+  isSaved: boolean;
+  onToggleSaved: (tenderId: string) => void;
+};
+
+export function MarketplaceHero({ organization, canCreateTender }: MarketplaceHeroProps) {
   return (
     <section className="procurement-market-hero">
       <div>
-        <span className="section-kicker">{t('pages.marketplace.title')}</span>
-        <h1>{t('nav.marketplace')}</h1>
-        <p>{t('pages.marketplace.subtitle')}</p>
+        <span className="section-kicker">Tender Marketplace</span>
+        <h1>Marketplace</h1>
+        <p>Search open tenders, manage tenders created by {organization}, and track bid drafts and submitted bid records.</p>
       </div>
       <div className="procurement-market-actions">
-        <Button component={Link} to="/procurement/create-tender" variant="contained" className="btn btn-primary">
-          {t('pages.createTender.title')}
-        </Button>
+        {canCreateTender ? (
+          <Link className="btn btn-primary" to="/procurement/create-tender">
+            Create Tender
+          </Link>
+        ) : (
+          <span className="badge badge-info">Individual account</span>
+        )}
       </div>
     </section>
+  );
+}
+
+export function MarketplaceSummary({
+  tenders,
+  myTenders,
+  myBids
+}: {
+  tenders: MarketplaceTenderRow[];
+  myTenders: MyTenderRow[];
+  myBids: MyBidRow[];
+}) {
+  const openCount = tenders.filter((tender) => tender.status === 'OPEN').length;
+  const totalBudget = tenders.reduce((sum, tender) => sum + tender.budget, 0);
+
+  return (
+    <section className="procurement-market-summary">
+      <div className="kpi-card">
+        <div className="kpi-value">{openCount}</div>
+        <div className="kpi-label">Open tenders</div>
+      </div>
+      <div className="kpi-card">
+        <div className="kpi-value">{myTenders.length}</div>
+        <div className="kpi-label">My tenders</div>
+      </div>
+      <div className="kpi-card">
+        <div className="kpi-value">{myBids.length}</div>
+        <div className="kpi-label">My bids</div>
+      </div>
+      <div className="kpi-card">
+        <div className="kpi-value">TZS {(totalBudget / 1000000000).toFixed(1)}B</div>
+        <div className="kpi-label">Total budget value</div>
+      </div>
+    </section>
+  );
+}
+
+export function MarketplaceTabs({ activeTab, onTabChange }: MarketplaceTabsProps) {
+  const tabs: Array<{ id: MarketplaceTabId; label: string }> = [
+    { id: 'marketplace', label: 'Marketplace' },
+    { id: 'my-tenders', label: 'My Tenders' },
+    { id: 'my-bids', label: 'My Bids' }
+  ];
+
+  return (
+    <div className="supplier-detail-tabs marketplace-tabs" role="tablist" aria-label="Marketplace sections">
+      {tabs.map((tab) => (
+        <button
+          className={`supplier-detail-tab ${tab.id === activeTab ? 'active' : ''}`}
+          type="button"
+          role="tab"
+          aria-selected={tab.id === activeTab}
+          key={tab.id}
+          onClick={() => onTabChange(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -48,49 +134,50 @@ export function MarketplaceFilters({
   onStatusChange,
   onSortChange
 }: MarketplaceFiltersProps) {
-  const { t } = useTranslation();
-
   return (
-    <section className="procurement-search-panel" aria-label={t('common.filters')}>
+    <section className="procurement-search-panel" aria-label="Marketplace filters">
       <div className="market-search-field">
-        <TextField
+        <input
+          className="form-input"
+          type="search"
+          aria-label="Search title, buyer, reference, sector, location"
+          placeholder="Search title, buyer, reference, sector, location"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search title, buyer, reference, sector, location"
-          fullWidth
         />
       </div>
-      <TextField select value={type} onChange={(event) => onTypeChange(event.target.value)} label="Type">
-        <MenuItem value="">All tender types</MenuItem>
-        <MenuItem value="GOODS">Goods</MenuItem>
-        <MenuItem value="WORKS">Works</MenuItem>
-        <MenuItem value="SERVICE">Services</MenuItem>
-        <MenuItem value="CONSULTANCY">Consultancy</MenuItem>
-      </TextField>
-      <TextField select value={budget} onChange={(event) => onBudgetChange(event.target.value)} label={t('common.budget')}>
-        <MenuItem value="">All budgets</MenuItem>
-        <MenuItem value="under-hundred-million">Under TZS 100M</MenuItem>
-        <MenuItem value="hundred-million-plus">TZS 100M to 1B</MenuItem>
-        <MenuItem value="billion-plus">TZS 1B+</MenuItem>
-      </TextField>
-      <TextField select value={status} onChange={(event) => onStatusChange(event.target.value)} label={t('common.status')}>
-        <MenuItem value="">All statuses</MenuItem>
-        <MenuItem value="OPEN">{t('status.open')}</MenuItem>
-        <MenuItem value="PUBLISHED">{t('status.published')}</MenuItem>
-        <MenuItem value="EVALUATION">Evaluation</MenuItem>
-        <MenuItem value="AWARDED">Awarded</MenuItem>
-      </TextField>
-      <TextField select value={sort} onChange={(event) => onSortChange(event.target.value)} label="Sort">
-        <MenuItem value="deadline">Sort by deadline</MenuItem>
-        <MenuItem value="newest">Newest</MenuItem>
-        <MenuItem value="budget-desc">Budget high to low</MenuItem>
-        <MenuItem value="budget-asc">Budget low to high</MenuItem>
-      </TextField>
+      <select className="form-input" aria-label="Type" value={type} onChange={(event) => onTypeChange(event.target.value)}>
+        <option value="">All tender types</option>
+        <option value="GOODS">Goods</option>
+        <option value="WORKS">Works</option>
+        <option value="SERVICE">Services</option>
+        <option value="CONSULTANCY">Consultancy</option>
+      </select>
+      <select className="form-input" aria-label="Budget" value={budget} onChange={(event) => onBudgetChange(event.target.value)}>
+        <option value="">All budgets</option>
+        <option value="under-hundred-million">Under TZS 100M</option>
+        <option value="hundred-million-plus">TZS 100M to 1B</option>
+        <option value="billion-plus">TZS 1B+</option>
+      </select>
+      <select className="form-input" aria-label="Status" value={status} onChange={(event) => onStatusChange(event.target.value)}>
+        <option value="">All statuses</option>
+        <option value="OPEN">Open</option>
+        <option value="PUBLISHED">Published</option>
+        <option value="EVALUATION">Evaluation</option>
+        <option value="AWARDED">Awarded</option>
+        <option value="CLOSED">Closed</option>
+      </select>
+      <select className="form-input" aria-label="Sort" value={sort} onChange={(event) => onSortChange(event.target.value)}>
+        <option value="deadline">Sort by deadline</option>
+        <option value="newest">Newest</option>
+        <option value="budget-desc">Budget high to low</option>
+        <option value="budget-asc">Budget low to high</option>
+      </select>
     </section>
   );
 }
 
-export function MarketplaceCategoryGrid({ tenders, onSelectType }: { tenders: Tender[]; onSelectType: (type: string) => void }) {
+export function MarketplaceCategoryGrid({ tenders, onSelectType }: { tenders: MarketplaceTenderRow[]; onSelectType: (type: string) => void }) {
   const counts = tenders.reduce<Record<string, number>>((acc, tender) => {
     acc[tender.type] = (acc[tender.type] ?? 0) + 1;
     return acc;
@@ -100,31 +187,17 @@ export function MarketplaceCategoryGrid({ tenders, onSelectType }: { tenders: Te
     <section className="marketplace-category-grid" aria-label="Browse categories">
       {Object.entries(counts).map(([category, count]) => (
         <button className="marketplace-category-card" type="button" key={category} onClick={() => onSelectType(category)}>
-          <strong>{category}</strong>
-          <span>{count} {count === 1 ? 'tender' : 'tenders'}</span>
+          <strong>{formatTenderType(category)}</strong>
+          <span>
+            {count} {count === 1 ? 'tender' : 'tenders'}
+          </span>
         </button>
       ))}
     </section>
   );
 }
 
-export function MarketplaceSummary({ tenders }: { tenders: Tender[] }) {
-  const draftBids = 0;
-  const openCount = tenders.filter((tender) => tender.status === 'OPEN').length;
-  const closingSoon = tenders.filter((tender) => getDaysRemaining(tender) <= 14).length;
-  const totalBudget = tenders.reduce((sum, tender) => sum + tender.budget, 0);
-
-  return (
-    <section className="procurement-market-summary">
-      <div className="kpi-card"><div className="kpi-value">{openCount}</div><div className="kpi-label">Open tenders</div></div>
-      <div className="kpi-card"><div className="kpi-value">{draftBids}</div><div className="kpi-label">Draft bids</div></div>
-      <div className="kpi-card"><div className="kpi-value">{closingSoon}</div><div className="kpi-label">Closing soon</div></div>
-      <div className="kpi-card"><div className="kpi-value">TZS {(totalBudget / 1000000000).toFixed(1)}B</div><div className="kpi-label">Total budget value</div></div>
-    </section>
-  );
-}
-
-export function TenderListPanel({ tenders }: { tenders: Tender[] }) {
+export function TenderListPanel({ tenders, savedTenderIds, onToggleSaved }: TenderListPanelProps) {
   return (
     <section className="procurement-list-panel">
       <div className="panel-heading">
@@ -136,50 +209,201 @@ export function TenderListPanel({ tenders }: { tenders: Tender[] }) {
       </div>
       <div className="procurement-tender-list market-list">
         {tenders.length ? (
-          tenders.map((tender) => <TenderRowCard key={tender.id} tender={tender} />)
+          tenders.map((tender) => (
+            <TenderRowCard key={tender.id} tender={tender} isSaved={savedTenderIds.has(tender.id)} onToggleSaved={onToggleSaved} />
+          ))
         ) : (
-          <div className="scope-empty">No published tenders yet. Create and publish a tender to start marketplace activity.</div>
+          <div className="scope-empty">No active marketplace tenders right now. Create a tender to start a compliant procurement.</div>
         )}
       </div>
     </section>
   );
 }
 
-function TenderRowCard({ tender }: { tender: Tender }) {
-  const { t } = useTranslation();
-  const format = useLocaleFormat();
-  const daysRemaining = getDaysRemaining(tender);
-  const detailUrl = tender.createdByCurrentUser ? '/procurement/tender-details' : '/procurement/supplier-tender-detail';
+export function MarketplaceSection<T>({
+  title,
+  kicker,
+  rows,
+  empty,
+  renderRow
+}: {
+  title: string;
+  kicker: string;
+  rows: T[];
+  empty: string;
+  renderRow: (row: T) => ReactElement;
+}) {
+  return (
+    <section className="procurement-list-panel marketplace-work-section">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">{kicker}</span>
+          <h2>{title}</h2>
+        </div>
+        <span className="badge badge-info">
+          {rows.length} record{rows.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="procurement-tender-list market-list">{rows.length ? rows.map(renderRow) : <div className="scope-empty">{empty}</div>}</div>
+    </section>
+  );
+}
+
+export function MyTenderRowCard({ row }: { row: MyTenderRow }) {
+  const tender = row.tender;
 
   return (
-    <article className={`procurement-tender-row market-row ${tender.createdByCurrentUser ? 'is-owned' : ''}`}>
+    <article className="procurement-tender-row market-row is-owned">
       <div>
         <div className="tender-row-title">
-          <strong>{tender.title}</strong>
-          <span className="badge badge-info">{tender.reference}</span>
-          <StatusBadge value={tender.status} />
-          {tender.createdByCurrentUser ? <span className="badge badge-info">Posted by you</span> : null}
+          <strong>{row.title}</strong>
+          <span className={`badge ${statusBadgeClass(row.status)}`}>{row.status}</span>
+          <span className="badge badge-info">Created by you</span>
         </div>
-        <p>{tender.organization} / {tender.type} / {t('common.budget')}: {format.money(tender.budget, tender.currency)}</p>
-        <span>{tender.description}</span>
+        <p>
+          {formatTenderType(row.type)} / {tender?.organization || 'Your organization'}
+        </p>
+        <span>{tender?.description || 'Tender record owned by the current user.'}</span>
         <div className="market-row-meta">
-          <em>{tender.location}</em>
-          <em>{daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</em>
+          <em>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</em>
+          <em>Updated {formatDate(row.lastActivity)}</em>
         </div>
       </div>
       <div className="tender-row-actions">
-        <Button variant="outlined" className="btn btn-secondary">Save</Button>
-        <Button component={Link} to={detailUrl} variant="outlined" className="btn btn-secondary">View Tender</Button>
-        <Button component={Link} to="/bidding" variant="contained" className="btn btn-primary" disabled={tender.createdByCurrentUser || tender.status !== 'OPEN'}>
-          {tender.createdByCurrentUser ? 'Your Tender' : 'Bid'}
-        </Button>
+        <Link className="btn btn-primary" to={row.nav}>
+          {row.actionLabel}
+        </Link>
       </div>
     </article>
   );
 }
 
-function getDaysRemaining(tender: Tender) {
-  const closingTime = Date.parse(`${tender.closingDate}T23:59:59`);
-  if (!Number.isFinite(closingTime)) return 0;
+export function MyBidRowCard({ row }: { row: MyBidRow }) {
+  return (
+    <article className="procurement-tender-row market-row">
+      <div>
+        <div className="tender-row-title">
+          <strong>{row.title}</strong>
+          <span className={`badge ${row.section === 'submitted' ? 'badge-success' : 'badge-warning'}`}>{row.status}</span>
+          {row.receiptHash ? <span className="badge badge-info">{row.receiptHash}</span> : null}
+        </div>
+        <p>
+          {row.tender.organization} / {formatTenderType(row.tender.type)}
+          {row.amount ? ` / ${row.amount}` : ''}
+        </p>
+        <span>{row.section === 'submitted' ? 'Submitted bid package is sealed and recorded.' : 'Draft bid submission saved for completion.'}</span>
+        <div className="market-row-meta">
+          <em>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</em>
+          <em>Updated {formatDate(row.lastActivity)}</em>
+        </div>
+      </div>
+      <div className="tender-row-actions">
+        <Link className="btn btn-primary" to={row.nav}>
+          {row.actionLabel}
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function TenderRowCard({ tender, isSaved, onToggleSaved }: TenderRowCardProps) {
+  const owned = Boolean(tender.createdByCurrentUser);
+  const canBid = tender.status === 'OPEN' && !owned && !tender.hasSubmittedBid;
+  const daysRemaining = getDaysRemaining(tender.closingDate);
+  const detailUrl = owned ? '/procurement/tender-details' : '/procurement/supplier-tender-detail';
+  const bidLabel = tender.hasSubmittedBid ? 'Already Bid' : tender.hasDraftBid ? 'Continue Bid' : 'Bid';
+
+  return (
+    <article className={`procurement-tender-row market-row ${owned ? 'is-owned' : ''}`}>
+      <div>
+        <div className="tender-row-title">
+          <strong>{tender.title}</strong>
+          <span className="badge badge-info">{tender.reference}</span>
+          <span className={`badge ${statusBadgeClass(tender.status)}`}>{formatStatus(tender.status)}</span>
+          {owned ? <span className="badge badge-info">Created by you</span> : null}
+          {tender.hasSubmittedBid ? <span className="badge badge-success">You already bid</span> : null}
+          {tender.hasDraftBid && !tender.hasSubmittedBid ? <span className="badge badge-warning">Draft bid saved</span> : null}
+        </div>
+        <p>
+          {tender.organization} / {formatTenderType(tender.type)} / Budget: {tender.currency} {tender.budget.toLocaleString()}
+        </p>
+        <span>{tender.description}</span>
+        <div className="market-row-meta">
+          <em>{tender.location}</em>
+          <em>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</em>
+        </div>
+      </div>
+      <div className="tender-row-actions">
+        <button className="btn btn-secondary" type="button" onClick={() => onToggleSaved(tender.id)}>
+          {isSaved ? 'Saved' : 'Save'}
+        </button>
+        <Link className={owned ? 'btn btn-primary' : 'btn btn-secondary'} to={detailUrl}>
+          {owned ? 'View My Tender' : 'View Tender'}
+        </Link>
+        {!owned ? (
+          canBid ? (
+            <Link className="btn btn-primary" to={tender.hasDraftBid ? '/bidding' : detailUrl}>
+              {bidLabel}
+            </Link>
+          ) : (
+            <button className="btn btn-primary" type="button" disabled>
+              {bidLabel}
+            </button>
+          )
+        ) : (
+          <button className="btn btn-primary" type="button" disabled>
+            Your Tender
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+export function getBudgetBand(value: number) {
+  if (value >= 1000000000) return 'billion-plus';
+  if (value >= 100000000) return 'hundred-million-plus';
+  return 'under-hundred-million';
+}
+
+export function searchableTenderText(tender: MarketplaceTenderRow) {
+  return [tender.id, tender.reference, tender.title, tender.organization, tender.type, tender.categories.join(' '), tender.description, tender.location]
+    .join(' ')
+    .toLowerCase();
+}
+
+export function formatTenderType(value: string) {
+  const labels: Record<string, string> = {
+    GOODS: 'Goods',
+    WORKS: 'Works',
+    SERVICE: 'Services',
+    CONSULTANCY: 'Consultancy'
+  };
+  return labels[value] || value;
+}
+
+function formatStatus(value: string) {
+  return value
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function statusBadgeClass(value: string) {
+  if (/open|published|posted/i.test(value)) return 'badge-success';
+  if (/draft|pending|evaluation|review/i.test(value)) return 'badge-warning';
+  return 'badge-info';
+}
+
+function getDaysRemaining(closingDate: string) {
+  const closingTime = Date.parse(`${closingDate}T23:59:59`);
+  if (!Number.isFinite(closingTime)) return null;
   return Math.ceil((closingTime - Date.now()) / 86400000);
+}
+
+function formatDate(value: string) {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return value;
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed);
 }
