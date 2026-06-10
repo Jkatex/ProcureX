@@ -10,6 +10,8 @@ export function createModuleRouter() {
   router.get('/records', controller.records);
   router.get('/drafts', controller.drafts);
   router.get('/ready', controller.ready);
+  router.get('/tenders/:tenderId/workspace', controller.workspace);
+  router.put('/tenders/:tenderId/workspace', controller.saveWorkspace);
 
   return router;
 }

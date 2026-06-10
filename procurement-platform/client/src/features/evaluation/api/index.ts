@@ -4,7 +4,9 @@ import type {
   EvaluationDraftsResponse,
   EvaluationRecordsQuery,
   EvaluationRecordsResponse,
-  ReadyEvaluationResponse
+  EvaluationWorkspace,
+  ReadyEvaluationResponse,
+  SaveEvaluationWorkspaceInput
 } from '@/features/evaluation/types';
 
 export const evaluationApi = {
@@ -24,6 +26,14 @@ export const evaluationApi = {
   },
   async listReady() {
     const response = await apiClient.get<ReadyEvaluationResponse>('/api/evaluations/ready');
+    return response.data;
+  },
+  async getWorkspace(tenderId: string) {
+    const response = await apiClient.get<EvaluationWorkspace>(`/api/evaluations/tenders/${tenderId}/workspace`);
+    return response.data;
+  },
+  async saveWorkspace(tenderId: string, payload: SaveEvaluationWorkspaceInput) {
+    const response = await apiClient.put<EvaluationWorkspace>(`/api/evaluations/tenders/${tenderId}/workspace`, payload);
     return response.data;
   }
 };

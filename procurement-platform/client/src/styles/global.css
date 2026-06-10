@@ -511,6 +511,215 @@ img {
   font-weight: 750;
 }
 
+.evaluation-p5-workspace {
+  gap: 18px;
+}
+
+.evaluation-p5-heading {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.evaluation-p5-heading p {
+  margin: 6px 0 0;
+  color: #536579;
+  font-size: 14px;
+}
+
+.evaluation-p5-actions {
+  justify-content: flex-end;
+}
+
+.evaluation-p5-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #445569;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.evaluation-p5-complete input {
+  width: 16px;
+  height: 16px;
+  accent-color: #008080;
+}
+
+.evaluation-p5-note {
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 128, 128, 0.16);
+  border-radius: 8px;
+  background: #f0fdfa;
+  color: #006d6d;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.evaluation-p5-stat-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 0;
+  background: transparent;
+}
+
+.evaluation-p5-stat-grid .evaluation-empty-stat-card {
+  min-height: 112px;
+  box-shadow: none;
+}
+
+.evaluation-p5-stat-grid .evaluation-empty-stat-card strong {
+  overflow-wrap: anywhere;
+  font-size: 26px;
+}
+
+.evaluation-p5-tabs,
+.evaluation-p5-bid-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.evaluation-p5-tabs {
+  padding: 8px;
+  border: 1px solid rgba(13, 31, 50, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.evaluation-p5-tabs button,
+.evaluation-p5-bid-selector button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #445569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.evaluation-p5-tabs button {
+  min-height: 42px;
+  padding: 10px 14px;
+}
+
+.evaluation-p5-tabs button.active,
+.evaluation-p5-tabs button:hover,
+.evaluation-p5-bid-selector button.active,
+.evaluation-p5-bid-selector button:hover {
+  border-color: rgba(0, 128, 128, 0.18);
+  background: rgba(0, 128, 128, 0.09);
+  color: #008080;
+}
+
+.evaluation-p5-tab-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.evaluation-p5-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.evaluation-p5-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.evaluation-p5-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(13, 31, 50, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.evaluation-p5-card h3,
+.evaluation-p5-submission h4 {
+  margin: 0;
+  color: #0d1f32;
+}
+
+.evaluation-p5-audit-list {
+  display: grid;
+  gap: 8px;
+}
+
+.evaluation-p5-audit-list div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.evaluation-p5-audit-list span,
+.evaluation-p5-muted,
+.evaluation-p5-submission p,
+.evaluation-p5-submission li span {
+  color: #536579;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.evaluation-p5-submission {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 0.45fr);
+  gap: 16px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.evaluation-p5-submission ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.evaluation-p5-submission li {
+  min-width: 0;
+}
+
+.evaluation-p5-submission li strong,
+.evaluation-p5-submission li span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.evaluation-p5-bid-selector {
+  margin-bottom: 4px;
+}
+
+.evaluation-p5-bid-selector button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-color: rgba(13, 31, 50, 0.1);
+  background: #ffffff;
+}
+
+.evaluation-p5-comment {
+  min-width: 220px;
+  min-height: 76px;
+  resize: vertical;
+}
+
+.evaluation-p5-field-error {
+  display: block;
+  margin-top: 6px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.evaluation-p5-workspace .form-input.is-invalid {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1);
+}
+
 @media (max-width: 1080px) {
   .evaluation-empty-hero.evaluation-hero-panel,
   .evaluation-empty-section-grid {
@@ -519,6 +728,12 @@ img {
 
   .evaluation-empty-stat-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .evaluation-p5-stat-grid,
+  .evaluation-p5-grid.two-col,
+  .evaluation-p5-submission {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -539,6 +754,14 @@ img {
 
   .evaluation-empty-actions,
   .evaluation-empty-actions .btn {
+    width: 100%;
+  }
+
+  .evaluation-p5-heading,
+  .evaluation-p5-actions,
+  .evaluation-p5-actions .btn,
+  .evaluation-p5-tabs button,
+  .evaluation-p5-bid-selector button {
     width: 100%;
   }
 }

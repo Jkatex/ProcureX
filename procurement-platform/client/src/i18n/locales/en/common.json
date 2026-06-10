@@ -542,11 +542,13 @@
       "progress": "Progress",
       "submittedBids": "Submitted bids",
       "updated": "Updated",
-      "closingDate": "Closing date"
+      "closingDate": "Closing date",
+      "action": "Action"
     },
     "labels": {
       "notStarted": "Not started",
-      "notScheduled": "Not scheduled"
+      "notScheduled": "Not scheduled",
+      "notAvailable": "Not available"
     },
     "status": {
       "NOT_STARTED": "Not started",
@@ -572,6 +574,74 @@
       "COMPARISON": "Comparison",
       "REPORT": "Report",
       "RECOMMENDATION": "Recommendation"
+    },
+    "p5": {
+      "kicker": "P5 Evaluation and Scoring",
+      "summary": "Evaluation workspace summary",
+      "open": "Open evaluation",
+      "close": "Close",
+      "save": "Save evaluation",
+      "saving": "Saving...",
+      "loading": "Loading evaluation workspace...",
+      "markComplete": "Mark complete when all bids are evaluated",
+      "totalSubmitted": "Total bids submitted",
+      "evaluationStatus": "Evaluation status",
+      "evaluatedBids": "Evaluated bids",
+      "pendingBids": "Pending evaluation",
+      "recommendedBidder": "Recommended bidder",
+      "criteriaTitle": "Tender-linked evaluation criteria",
+      "auditTitle": "Audit trail",
+      "evaluatedBy": "Evaluated by",
+      "lastUpdatedBy": "Last updated by",
+      "lastSaved": "Last saved",
+      "criterion": "Criterion",
+      "category": "Category",
+      "weight": "Weight",
+      "maxScore": "Maximum score",
+      "evaluatorScore": "Evaluator score",
+      "comment": "Comment",
+      "bidder": "Bidder",
+      "documents": "Documents",
+      "financialAmount": "Financial amount",
+      "eligibility": "Eligibility",
+      "openSubmission": "Open submission",
+      "hideSubmission": "Hide submission",
+      "submittedDocuments": "Submitted documents",
+      "technicalResponse": "Technical response",
+      "noDocuments": "No submitted documents available.",
+      "noResponses": "No technical responses available.",
+      "financialScore": "Financial score",
+      "technicalScore": "Technical score",
+      "totalScore": "Total score",
+      "rank": "Rank",
+      "decision": "Decision",
+      "evaluated": "Evaluated",
+      "emptySubmittedBids": "No submitted bids available for evaluation yet.",
+      "emptyCriteria": "No evaluation criteria available. Define criteria during tender creation so evaluators can score bids against the published tender requirements.",
+      "emptyFinancial": "No bid prices or BOQ totals are available yet. Simple financial comparison will appear when submitted bids include real amounts.",
+      "emptyRanking": "No evaluated bidders yet. Ranking will appear after evaluator scores are saved or entered.",
+      "emptyAudit": "No evaluation audit events yet.",
+      "tabs": {
+        "ariaLabel": "P5 evaluation workspace tabs",
+        "overview": "Overview",
+        "bidReview": "Bid Review",
+        "technical": "Technical Scoring",
+        "financial": "Financial Review",
+        "ranking": "Ranking",
+        "decision": "Decision / Recommendation"
+      },
+      "decisions": {
+        "PENDING": "Pending",
+        "PASSED": "Passed",
+        "FAILED": "Failed",
+        "NEEDS_CLARIFICATION": "Needs Clarification",
+        "RECOMMENDED": "Recommended"
+      },
+      "errors": {
+        "load": "Evaluation workspace could not be loaded.",
+        "save": "Evaluation workspace could not be saved.",
+        "scoreMax": "Score exceeds maximum."
+      }
     },
     "errors": {
       "load": "Evaluation data could not be loaded. The workspace will remain empty until the database is available."

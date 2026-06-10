@@ -542,11 +542,13 @@
       "progress": "Maendeleo",
       "submittedBids": "Zabuni zilizowasilishwa",
       "updated": "Imesasishwa",
-      "closingDate": "Tarehe ya kufungwa"
+      "closingDate": "Tarehe ya kufungwa",
+      "action": "Kitendo"
     },
     "labels": {
       "notStarted": "Haijaanza",
-      "notScheduled": "Haijapangwa"
+      "notScheduled": "Haijapangwa",
+      "notAvailable": "Haipatikani"
     },
     "status": {
       "NOT_STARTED": "Haijaanza",
@@ -572,6 +574,74 @@
       "COMPARISON": "Ulinganisho",
       "REPORT": "Ripoti",
       "RECOMMENDATION": "Pendekezo"
+    },
+    "p5": {
+      "kicker": "P5 Tathmini na Uwekaji Alama",
+      "summary": "Muhtasari wa eneo la tathmini",
+      "open": "Fungua tathmini",
+      "close": "Funga",
+      "save": "Hifadhi tathmini",
+      "saving": "Inahifadhi...",
+      "loading": "Inapakia eneo la tathmini...",
+      "markComplete": "Weka imekamilika baada ya zabuni zote kutathminiwa",
+      "totalSubmitted": "Jumla ya zabuni zilizowasilishwa",
+      "evaluationStatus": "Hali ya tathmini",
+      "evaluatedBids": "Zabuni zilizotathminiwa",
+      "pendingBids": "Zinazosubiri tathmini",
+      "recommendedBidder": "Mzabuni aliyependekezwa",
+      "criteriaTitle": "Vigezo vya tathmini vya zabuni",
+      "auditTitle": "Historia ya ukaguzi",
+      "evaluatedBy": "Imetathminiwa na",
+      "lastUpdatedBy": "Imesasishwa na",
+      "lastSaved": "Mara ya mwisho kuhifadhiwa",
+      "criterion": "Kigezo",
+      "category": "Kategoria",
+      "weight": "Uzito",
+      "maxScore": "Alama ya juu",
+      "evaluatorScore": "Alama ya mtathmini",
+      "comment": "Maoni",
+      "bidder": "Mzabuni",
+      "documents": "Nyaraka",
+      "financialAmount": "Kiasi cha fedha",
+      "eligibility": "Sifa",
+      "openSubmission": "Fungua wasilisho",
+      "hideSubmission": "Ficha wasilisho",
+      "submittedDocuments": "Nyaraka zilizowasilishwa",
+      "technicalResponse": "Jibu la kiufundi",
+      "noDocuments": "Hakuna nyaraka zilizowasilishwa.",
+      "noResponses": "Hakuna majibu ya kiufundi.",
+      "financialScore": "Alama ya kifedha",
+      "technicalScore": "Alama ya kiufundi",
+      "totalScore": "Jumla ya alama",
+      "rank": "Nafasi",
+      "decision": "Uamuzi",
+      "evaluated": "Imetathminiwa",
+      "emptySubmittedBids": "Hakuna zabuni zilizowasilishwa zinazopatikana kwa tathmini bado.",
+      "emptyCriteria": "Hakuna vigezo vya tathmini. Bainisha vigezo wakati wa kutengeneza zabuni ili watathmini waweze kuweka alama kulingana na mahitaji yaliyochapishwa.",
+      "emptyFinancial": "Hakuna bei za zabuni au jumla za BOQ bado. Ulinganisho rahisi wa fedha utaonekana zabuni zilizowasilishwa zikiwa na kiasi halisi.",
+      "emptyRanking": "Hakuna wazabuni waliotathminiwa bado. Nafasi zitaonekana baada ya alama kuwekwa au kuhifadhiwa.",
+      "emptyAudit": "Hakuna matukio ya ukaguzi wa tathmini bado.",
+      "tabs": {
+        "ariaLabel": "Vichupo vya eneo la tathmini ya P5",
+        "overview": "Muhtasari",
+        "bidReview": "Ukaguzi wa Zabuni",
+        "technical": "Alama za Kiufundi",
+        "financial": "Ukaguzi wa Fedha",
+        "ranking": "Nafasi",
+        "decision": "Uamuzi / Pendekezo"
+      },
+      "decisions": {
+        "PENDING": "Inasubiri",
+        "PASSED": "Imefaulu",
+        "FAILED": "Imeshindwa",
+        "NEEDS_CLARIFICATION": "Inahitaji Ufafanuzi",
+        "RECOMMENDED": "Imependekezwa"
+      },
+      "errors": {
+        "load": "Eneo la tathmini halikuweza kupakiwa.",
+        "save": "Eneo la tathmini halikuweza kuhifadhiwa.",
+        "scoreMax": "Alama imezidi kiwango cha juu."
+      }
     },
     "errors": {
       "load": "Data ya tathmini haikuweza kupakiwa. Eneo hili litabaki tupu hadi kanzidata ipatikane."

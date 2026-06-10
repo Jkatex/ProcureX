@@ -78,3 +78,138 @@ export type EvaluationRecordsQuery = {
   status: EvaluationStatus | 'all';
   type: TenderType | 'all';
 };
+
+export type EvaluationDecisionStatus =
+  | 'PENDING'
+  | 'PASSED'
+  | 'FAILED'
+  | 'NEEDS_CLARIFICATION'
+  | 'RECOMMENDED';
+
+export type EvaluationRequestContext = {
+  userId?: string;
+  organizationId?: string;
+};
+
+export type EvaluationWorkspaceTenderDto = {
+  id: string;
+  reference: string;
+  title: string;
+  buyerName: string;
+  procurementType: string;
+  status: string;
+  closingDate: string | null;
+  currency: string;
+};
+
+export type EvaluationWorkspaceSummaryDto = {
+  submittedBidCount: number;
+  evaluatedBidCount: number;
+  pendingEvaluationCount: number;
+  evaluationStatus: string;
+  recommendedBidder: {
+    bidId: string;
+    supplierName: string;
+  } | null;
+  updatedAt: string | null;
+  lastSavedAt: string | null;
+};
+
+export type EvaluationWorkspaceCriterionDto = {
+  id: string;
+  name: string;
+  category: string;
+  stage: string;
+  weight: number | null;
+  maxScore: number;
+};
+
+export type EvaluationWorkspaceScoreDto = {
+  criterionId: string;
+  score: number | null;
+  comment: string;
+  evaluatorName: string | null;
+  evaluatedAt: string | null;
+};
+
+export type EvaluationWorkspaceBidDto = {
+  id: string;
+  reference: string;
+  supplierName: string;
+  status: string;
+  submittedAt: string | null;
+  documents: Array<{
+    id: string;
+    name: string;
+    documentType: string;
+    reviewStatus: string;
+  }>;
+  responses: Array<{
+    requirementKey: string;
+    response: unknown;
+  }>;
+  financialAmount: number | null;
+  currency: string;
+  eligibilityStatus: string;
+  scores: EvaluationWorkspaceScoreDto[];
+  technicalScore: number | null;
+  financialScore: number | null;
+  totalScore: number | null;
+  evaluated: boolean;
+  decisionStatus: EvaluationDecisionStatus;
+  decisionComment: string;
+  commentSummary: string;
+};
+
+export type EvaluationRankingRowDto = {
+  rank: number;
+  bidId: string;
+  bidderName: string;
+  technicalScore: number | null;
+  financialScore: number | null;
+  totalScore: number;
+  decisionStatus: EvaluationDecisionStatus;
+  commentSummary: string;
+};
+
+export type EvaluationAuditEventDto = {
+  event: string;
+  actorName: string | null;
+  createdAt: string;
+};
+
+export type EvaluationWorkspaceDto = {
+  tender: EvaluationWorkspaceTenderDto | null;
+  availability: {
+    isReady: boolean;
+    reason: string | null;
+  };
+  summary: EvaluationWorkspaceSummaryDto;
+  criteria: EvaluationWorkspaceCriterionDto[];
+  bids: EvaluationWorkspaceBidDto[];
+  rankings: EvaluationRankingRowDto[];
+  audit: {
+    evaluatedBy: string | null;
+    lastUpdatedBy: string | null;
+    events: EvaluationAuditEventDto[];
+  };
+};
+
+export type EvaluationScoreInput = {
+  bidId: string;
+  criterionId: string;
+  score: number;
+  comment: string;
+};
+
+export type EvaluationDecisionInput = {
+  bidId: string;
+  status: EvaluationDecisionStatus;
+  comment: string;
+};
+
+export type SaveEvaluationWorkspaceInput = {
+  scores: EvaluationScoreInput[];
+  decisions: EvaluationDecisionInput[];
+  complete: boolean;
+};
