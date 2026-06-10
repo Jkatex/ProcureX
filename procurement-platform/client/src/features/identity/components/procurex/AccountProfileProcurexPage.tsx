@@ -706,7 +706,7 @@ export function AccountProfileProcurexPage() {
                         onChange={(event) => updateProfileField(field as keyof ProfileForm, event.target.checked as never)}
                       />
                       <span></span>
-                      <em>{Boolean(profile[field as keyof ProfileForm]) ? 'Enabled' : 'Disabled'}</em>
+                      <em>{profile[field as keyof ProfileForm] ? 'Enabled' : 'Disabled'}</em>
                     </span>
                   </label>
                 ))}

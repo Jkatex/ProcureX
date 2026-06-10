@@ -259,13 +259,13 @@ export function RecordsHistoryProcurexPage() {
 
             {activeTab === 'records' ? (
               <section className="records-tab-panel">
-                <section className="journey-panel records-filter-panel">
-                  <div className="panel-heading">
-                    <div>
+                <section className="journey-panel records-filter-panel records-archive-filter-panel">
+                  <div className="panel-heading records-archive-heading">
+                    <div className="records-archive-heading-title">
                       <span className="section-kicker">{t('recordsApp.records.kicker')}</span>
                       <h2>{t('recordsApp.records.title')}</h2>
                     </div>
-                    <div className="records-heading-actions">
+                    <div className="records-heading-actions records-archive-heading-actions">
                       <span className="badge badge-info">{t('recordsApp.records.countBadge', { count: totalRecords })}</span>
                       <span className="records-disabled-export-wrap" title={totalRecords === 0 ? t('recordsApp.exports.disabledTooltip') : ''}>
                         <button
@@ -292,7 +292,7 @@ export function RecordsHistoryProcurexPage() {
                     </div>
                   </div>
 
-                  <div className="records-filter-grid records-empty-filter-grid">
+                  <div className="records-filter-grid records-empty-filter-grid records-archive-filter-grid">
                     <label className="records-empty-field records-filter-search">
                       <span>{t('recordsApp.filters.search')}</span>
                       <span className="records-empty-input-shell">
