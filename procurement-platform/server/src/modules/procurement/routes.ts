@@ -7,6 +7,14 @@ export function createModuleRouter() {
 
   router.get('/', controller.status);
   router.get('/public/welcome', controller.publicWelcome);
+  router.get('/planning', controller.planning);
+  router.get('/planning/summary', controller.planningSummary);
+  router.post('/planning/annual-plan', controller.saveAnnualPlan);
+  router.get('/planning/plans/:planId', controller.getPlan);
+  router.put('/planning/plans/:planId', controller.updatePlan);
+  router.post('/planning/plans/:planId/lines', controller.createPlanLine);
+  router.patch('/planning/lines/:lineId', controller.updatePlanLine);
+  router.delete('/planning/lines/:lineId', controller.deletePlanLine);
 
   return router;
 }

@@ -1,5 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { tenderPlanningApi } from '../../api';
 import { pageToRoute } from '../../data';
 import type { PlanningRouteView, ProcurementPlanningRecord } from '../../types';
 import {
@@ -8,6 +9,7 @@ import {
   downloadProcurementPlanningCsv,
   getProcurementPlanningTemplateCsv,
   getProcurementPlanningYears,
+  normalizeProcurementPlanningRecord,
   readProcurementPlanningRecords,
   saveProcurementPlanningRecords,
   writeSelectedTenderPlan
@@ -44,6 +46,29 @@ export function TenderPlanningProcurexPage() {
   const detailRecord = records.find((record) => record.id === detailPlanId) || records.find((record) => record.financialYear === selectedYear);
 
   useEffect(() => {
+    let active = true;
+
+    async function hydratePlanningRecords() {
+      try {
+        const response = await tenderPlanningApi.listPlans({ pageSize: 100 });
+        if (!active) return;
+        const backendRecords = response.records.map(normalizeProcurementPlanningRecord);
+        setRecords(backendRecords);
+        saveProcurementPlanningRecords(backendRecords);
+        setSelectedYear(getProcurementPlanningYears(backendRecords)[0] || '2026/2027');
+      } catch {
+        // Local planning stays usable when the API is unavailable.
+      }
+    }
+
+    void hydratePlanningRecords();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const previousPage = document.body.dataset.page;
     document.body.dataset.page = 'tender-planning';
     return () => {
@@ -76,6 +101,7 @@ export function TenderPlanningProcurexPage() {
     setRecords((currentRecords) => {
       const nextRecords = [uploadedRecord, ...currentRecords];
       saveProcurementPlanningRecords(nextRecords);
+      void persistYearPlan(selectedYear, nextRecords.filter((record) => record.financialYear === selectedYear));
       return nextRecords;
     });
     event.target.value = '';
@@ -86,10 +112,33 @@ export function TenderPlanningProcurexPage() {
     setRecords((currentRecords) => {
       const nextRecords = [...newRecords, ...currentRecords.filter((record) => record.financialYear !== financialYear)];
       saveProcurementPlanningRecords(nextRecords);
+      void persistYearPlan(financialYear, newRecords);
       return nextRecords;
     });
     setSelectedYear(financialYear);
     openPlanningView('front');
+  }
+
+  async function persistYearPlan(financialYear: string, yearRecords: ProcurementPlanningRecord[]) {
+    if (!yearRecords.length) return;
+
+    try {
+      const savedPlan = await tenderPlanningApi.saveAnnualPlan({
+        financialYear,
+        name: `${financialYear} annual procurement plan`,
+        source: 'react-planning-app',
+        metadata: { source: 'tender-planning-page' },
+        lines: yearRecords
+      });
+      const savedRecords = savedPlan.lines.map(normalizeProcurementPlanningRecord);
+      setRecords((currentRecords) => {
+        const nextRecords = [...savedRecords, ...currentRecords.filter((record) => record.financialYear !== financialYear)];
+        saveProcurementPlanningRecords(nextRecords);
+        return nextRecords;
+      });
+    } catch {
+      // LocalStorage already captured the user's work; the next save can retry.
+    }
   }
 
   function handlePlanTender(recordId: string) {

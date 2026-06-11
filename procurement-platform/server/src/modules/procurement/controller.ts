@@ -1,6 +1,22 @@
 import type { RequestHandler } from 'express';
 import { ModuleService } from './service.js';
-import { moduleStatusQuerySchema, publicWelcomeQuerySchema } from './validators.js';
+import {
+  moduleStatusQuerySchema,
+  patchPlanLineBodySchema,
+  planLineBodySchema,
+  planLineParamsSchema,
+  planParamsSchema,
+  planningQuerySchema,
+  publicWelcomeQuerySchema,
+  saveAnnualPlanBodySchema,
+  updatePlanBodySchema
+} from './validators.js';
+
+function requestError(message: string, status = 400) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = status;
+  return error;
+}
 
 export class ModuleController {
   constructor(private readonly service = new ModuleService()) {}
@@ -18,6 +34,102 @@ export class ModuleController {
     try {
       publicWelcomeQuerySchema.parse(req.query);
       res.json(await this.service.publicWelcome());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  planning: RequestHandler = async (req, res, next) => {
+    try {
+      const query = planningQuerySchema.safeParse(req.query);
+      if (!query.success) throw requestError('Invalid procurement planning query parameters.');
+      res.json(await this.service.planning(query.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  planningSummary: RequestHandler = async (req, res, next) => {
+    try {
+      const query = planningQuerySchema.safeParse(req.query);
+      if (!query.success) throw requestError('Invalid procurement planning summary query parameters.');
+      res.json(await this.service.planningSummary(query.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  saveAnnualPlan: RequestHandler = async (req, res, next) => {
+    try {
+      const body = saveAnnualPlanBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid annual procurement plan payload.');
+      res.status(201).json(await this.service.saveAnnualPlan(body.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getPlan: RequestHandler = async (req, res, next) => {
+    try {
+      const params = planParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid procurement plan id.');
+      const plan = await this.service.getPlan(params.data.planId);
+      if (!plan) throw requestError('Procurement plan was not found.', 404);
+      res.json(plan);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updatePlan: RequestHandler = async (req, res, next) => {
+    try {
+      const params = planParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid procurement plan id.');
+      const body = updatePlanBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid procurement plan update payload.');
+      const plan = await this.service.updatePlan(params.data.planId, body.data);
+      if (!plan) throw requestError('Procurement plan was not found.', 404);
+      res.json(plan);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createPlanLine: RequestHandler = async (req, res, next) => {
+    try {
+      const params = planParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid procurement plan id.');
+      const body = planLineBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid procurement plan line payload.');
+      const line = await this.service.createPlanLine(params.data.planId, body.data);
+      if (!line) throw requestError('Procurement plan was not found.', 404);
+      res.status(201).json(line);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updatePlanLine: RequestHandler = async (req, res, next) => {
+    try {
+      const params = planLineParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid procurement plan line id.');
+      const body = patchPlanLineBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid procurement plan line update payload.');
+      const line = await this.service.updatePlanLine(params.data.lineId, body.data);
+      if (!line) throw requestError('Procurement plan line was not found.', 404);
+      res.json(line);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deletePlanLine: RequestHandler = async (req, res, next) => {
+    try {
+      const params = planLineParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid procurement plan line id.');
+      const line = await this.service.deletePlanLine(params.data.lineId);
+      if (!line) throw requestError('Procurement plan line was not found.', 404);
+      res.json(line);
     } catch (error) {
       next(error);
     }

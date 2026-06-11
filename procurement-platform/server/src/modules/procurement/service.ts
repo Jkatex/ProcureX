@@ -1,5 +1,18 @@
 import { ModuleRepository } from './repository.js';
-import { moduleDefinition, type ModuleStatus, type PublicWelcomePayload, type PublicWelcomeTender } from './types.js';
+import {
+  moduleDefinition,
+  type ModuleStatus,
+  type ProcurementPlanDto,
+  type ProcurementPlanLineDto,
+  type ProcurementPlanLineInput,
+  type ProcurementPlanLinePatchInput,
+  type ProcurementPlanningListDto,
+  type ProcurementPlanningQuery,
+  type PublicWelcomePayload,
+  type PublicWelcomeTender,
+  type SaveAnnualPlanInput,
+  type UpdateProcurementPlanInput
+} from './types.js';
 
 export class ModuleService {
   constructor(private readonly repository = new ModuleRepository()) {}
@@ -19,6 +32,44 @@ export class ModuleService {
     } catch {
       return defaultWelcomePayload;
     }
+  }
+
+  async planning(query: ProcurementPlanningQuery): Promise<ProcurementPlanningListDto> {
+    try {
+      return await this.repository.listPlans(query);
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return emptyPlanningList(query);
+      throw error;
+    }
+  }
+
+  async planningSummary(query: ProcurementPlanningQuery) {
+    const data = await this.planning({ ...query, page: 1, pageSize: 1 });
+    return data.summary;
+  }
+
+  async getPlan(planId: string): Promise<ProcurementPlanDto | null> {
+    return this.repository.getPlan(planId);
+  }
+
+  async saveAnnualPlan(input: SaveAnnualPlanInput): Promise<ProcurementPlanDto> {
+    return this.repository.saveAnnualPlan(input);
+  }
+
+  async updatePlan(planId: string, input: UpdateProcurementPlanInput): Promise<ProcurementPlanDto | null> {
+    return this.repository.updatePlan(planId, input);
+  }
+
+  async createPlanLine(planId: string, input: ProcurementPlanLineInput): Promise<ProcurementPlanLineDto | null> {
+    return this.repository.createPlanLine(planId, input);
+  }
+
+  async updatePlanLine(lineId: string, input: ProcurementPlanLinePatchInput): Promise<ProcurementPlanLineDto | null> {
+    return this.repository.updatePlanLine(lineId, input);
+  }
+
+  async deletePlanLine(lineId: string): Promise<ProcurementPlanLineDto | null> {
+    return this.repository.deletePlanLine(lineId);
   }
 
   private mapWelcomeData(data: WelcomeRepositoryData): PublicWelcomePayload {
@@ -95,3 +146,33 @@ const defaultWelcomePayload: PublicWelcomePayload = {
     }
   ]
 };
+
+function emptyPlanningList(query: ProcurementPlanningQuery): ProcurementPlanningListDto {
+  return {
+    plans: [],
+    records: [],
+    summary: {
+      financialYear: query.financialYear || null,
+      years: query.financialYear ? [query.financialYear] : [],
+      totalPlans: 0,
+      totalLines: 0,
+      totalBudget: 0,
+      byStatus: [],
+      byCategory: []
+    },
+    totalPlans: 0,
+    page: query.page,
+    pageSize: query.pageSize,
+    totalPages: 1
+  };
+}
+
+function isDatabaseUnavailable(error: unknown) {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : '';
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+
+  return code === 'P1001' || code === 'P2024' || message.includes("can't reach database") || message.includes('database_url');
+}

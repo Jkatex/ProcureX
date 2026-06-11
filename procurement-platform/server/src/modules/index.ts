@@ -7,6 +7,7 @@ import { createModuleRouter as createAwardContractRouter, moduleDefinition as aw
 import { createModuleRouter as createFinancialRouter, moduleDefinition as financialDefinition } from './financial/index.js';
 import { createModuleRouter as createComplianceAdminRouter, moduleDefinition as complianceAdminDefinition } from './compliance-admin/index.js';
 import { createModuleRouter as createCommunicationRouter, moduleDefinition as communicationDefinition } from './communication/index.js';
+import { createModuleRouter as createDashboardRouter, moduleDefinition as dashboardDefinition } from './dashboard/index.js';
 import { createModuleRouter as createRecordsRouter, moduleDefinition as recordsDefinition } from './records/index.js';
 import { createModuleRouter as createIntelligenceRouter, moduleDefinition as intelligenceDefinition } from './intelligence/index.js';
 import { createModuleRouter as createIntegrationRouter, moduleDefinition as integrationDefinition } from './integration/index.js';
@@ -25,6 +26,7 @@ export const registeredModules: RegisteredModule[] = [
   { ...financialDefinition, basePath: '/api/financial', router: createFinancialRouter() },
   { ...complianceAdminDefinition, basePath: '/api/compliance-admin', router: createComplianceAdminRouter() },
   { ...communicationDefinition, basePath: '/api/communication', router: createCommunicationRouter() },
+  { ...dashboardDefinition, basePath: '/api/dashboard', router: createDashboardRouter() },
   { ...recordsDefinition, basePath: '/api/records', router: createRecordsRouter() },
   { ...intelligenceDefinition, basePath: '/api/intelligence', router: createIntelligenceRouter() },
   { ...integrationDefinition, basePath: '/api/integration', router: createIntegrationRouter() },

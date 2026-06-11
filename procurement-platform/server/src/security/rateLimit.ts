@@ -76,8 +76,17 @@ async function auditRateLimit(req: Parameters<RequestHandler>[0], limiterName: s
   }
 }
 
-export function resetAuthRateLimitState() {
+export async function resetAuthRateLimitState() {
   memoryStore.clear();
+  if (!redisClient) return;
+
+  try {
+    if (redisClient.status === 'wait') await redisClient.connect();
+    const keys = await redisClient.keys('auth:rate:*');
+    if (keys.length > 0) await redisClient.del(...keys);
+  } catch {
+    // Test and local reset helpers should not fail when Redis is unavailable.
+  }
 }
 
 export function createAuthRateLimit(name: string): RequestHandler {

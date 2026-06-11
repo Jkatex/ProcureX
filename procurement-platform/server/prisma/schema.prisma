@@ -544,6 +544,7 @@ model Organization {
   digitalSignatures    DigitalSignature[]
   documents            DocumentObject[]
   tendersAsBuyer       Tender[]                  @relation("TenderBuyerOrg")
+  procurementPlans     ProcurementPlan[]         @relation("ProcurementPlanOwnerOrg")
   bidsAsBuyer          Bid[]                     @relation("BidBuyerOrg")
   bidsAsSupplier       Bid[]                     @relation("BidSupplierOrg")
   evaluationWorkspaces EvaluationWorkspace[]     @relation("EvaluationBuyerOrg")
@@ -670,10 +671,61 @@ model Tender {
   contracts       Contract[]
   riskSignals     RiskSignal[]
   supplierMatches SupplierMatchSignal[]
+  planningLines   ProcurementPlanLine[]          @relation("ProcurementPlanLineTender")
 
   @@index([buyerOrgId, status])
   @@index([status, type, closingDate])
   @@map("tenders")
+  @@schema("procurement")
+}
+
+model ProcurementPlan {
+  id            String                 @id @default(uuid()) @db.Uuid
+  ownerOrgId    String                 @map("owner_org_id") @db.Uuid
+  financialYear String                 @map("financial_year")
+  name          String
+  status        String                 @default("DRAFT")
+  source        String                 @default("manual")
+  currency      String                 @default("TZS")
+  metadata      Json                   @default("{}")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+  ownerOrg      Organization           @relation("ProcurementPlanOwnerOrg", fields: [ownerOrgId], references: [id], onDelete: Cascade)
+  lines         ProcurementPlanLine[]
+
+  @@unique([ownerOrgId, financialYear, name])
+  @@index([ownerOrgId, financialYear])
+  @@map("procurement_plans")
+  @@schema("procurement")
+}
+
+model ProcurementPlanLine {
+  id                     String           @id @default(uuid()) @db.Uuid
+  planId                 String           @map("plan_id") @db.Uuid
+  tenderId               String?          @map("tender_id") @db.Uuid
+  tenderTitle            String           @map("tender_title")
+  openingDate            DateTime?        @map("opening_date")
+  closingDate            DateTime?        @map("closing_date")
+  category               String
+  budget                 Decimal?         @db.Decimal(18, 2)
+  procurementMethod      String           @map("procurement_method")
+  sourceOfFunds          String           @map("source_of_funds")
+  expectedCompletionDate DateTime?        @map("expected_completion_date")
+  status                 String           @default("Draft planning")
+  planState              String           @default("Not started") @map("plan_state")
+  notes                  String?
+  customValues           Json             @default("{}") @map("custom_values")
+  metadata               Json             @default("{}")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+  plan                   ProcurementPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  tender                 Tender?          @relation("ProcurementPlanLineTender", fields: [tenderId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@index([tenderId])
+  @@index([category])
+  @@index([status])
+  @@map("procurement_plan_lines")
   @@schema("procurement")
 }
 

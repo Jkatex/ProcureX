@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { store } from '@/app/store';
 import { signOut } from '@/features/auth/slice';
+import { tenderPlanningApi } from '../../api';
 import { TenderPlanningProcurexPage } from './TenderPlanningProcurexPage';
 
 function renderPlanningPage(initialEntries = ['/tender-planning']) {
@@ -44,6 +45,9 @@ function seedPlanningRecords() {
 describe('TenderPlanningProcurexPage', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.restoreAllMocks();
+    vi.spyOn(tenderPlanningApi, 'listPlans').mockRejectedValue(new Error('Planning API unavailable in component tests.'));
+    vi.spyOn(tenderPlanningApi, 'saveAnnualPlan').mockRejectedValue(new Error('Planning API unavailable in component tests.'));
     store.dispatch(signOut());
     Element.prototype.scrollIntoView = vi.fn();
   });
@@ -92,6 +96,34 @@ describe('TenderPlanningProcurexPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Fleet maintenance framework agreement' })).toBeInTheDocument();
     expect(screen.getAllByText('Funding approved by finance').length).toBeGreaterThan(0);
+  });
+
+  it('replaces stale local records when the backend is reachable and empty', async () => {
+    seedPlanningRecords();
+    vi.mocked(tenderPlanningApi.listPlans).mockResolvedValue({
+      plans: [],
+      records: [],
+      summary: {
+        financialYear: null,
+        years: [],
+        totalPlans: 0,
+        totalLines: 0,
+        totalBudget: 0,
+        byStatus: [],
+        byCategory: []
+      },
+      totalPlans: 0,
+      page: 1,
+      pageSize: 100,
+      totalPages: 1
+    });
+
+    renderPlanningPage();
+
+    await waitFor(() => {
+      expect(screen.queryByText('Fleet maintenance framework agreement')).not.toBeInTheDocument();
+    });
+    expect(window.localStorage.getItem('procurex.procurementPlans.v4')).toBe('[]');
   });
 
   it('saves a created plan into the annual plan table', () => {

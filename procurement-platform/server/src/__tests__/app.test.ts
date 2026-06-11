@@ -5,8 +5,8 @@ import { registeredModules } from '../modules/index.js';
 import { resetAuthRateLimitState } from '../security/rateLimit.js';
 
 describe('ProcureX server skeleton', () => {
-  beforeEach(() => {
-    resetAuthRateLimitState();
+  beforeEach(async () => {
+    await resetAuthRateLimitState();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     delete process.env.AUTH_RATE_LIMIT_MAX;

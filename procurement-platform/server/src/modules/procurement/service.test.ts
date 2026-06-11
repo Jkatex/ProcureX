@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleService } from './service.js';
+import { planLineBodySchema, planningQuerySchema, saveAnnualPlanBodySchema } from './validators.js';
+import type { ProcurementPlanningQuery } from './types.js';
 
 function createServiceWithRepository(repositoryData: any) {
   return new ModuleService({
@@ -82,6 +84,128 @@ describe('procurement public welcome service', () => {
         openTenderCount: 12
       },
       featuredTenders: [{ reference: 'PX-OPEN-2026' }]
+    });
+  });
+});
+
+describe('procurement planning service', () => {
+  it('normalizes planning query defaults', () => {
+    expect(planningQuerySchema.parse({})).toEqual({
+      organizationId: '',
+      financialYear: '',
+      search: '',
+      status: '',
+      category: '',
+      page: 1,
+      pageSize: 20,
+      sortBy: 'date',
+      sortDirection: 'desc'
+    });
+  });
+
+  it('validates annual procurement plan payloads', () => {
+    expect(
+      saveAnnualPlanBodySchema.parse({
+        financialYear: '2026/2027',
+        lines: [
+          {
+            tenderTitle: 'Fleet maintenance framework agreement',
+            category: 'Services',
+            procurementMethod: 'Open Tender',
+            openingDate: '2026-07-01',
+            closingDate: '2026-07-30',
+            sourceOfFunds: 'Operational budget',
+            budget: '125000000',
+            expectedCompletionDate: '2026-10-30',
+            notes: 'High priority'
+          }
+        ]
+      })
+    ).toMatchObject({
+      financialYear: '2026/2027',
+      status: 'DRAFT',
+      source: 'manual',
+      currency: 'TZS',
+      lines: [
+        {
+          tenderTitle: 'Fleet maintenance framework agreement',
+          budget: 125000000,
+          status: 'Draft planning',
+          planState: 'Planning begun'
+        }
+      ]
+    });
+
+    expect(() => saveAnnualPlanBodySchema.parse({ financialYear: '2026/2027', lines: [] })).toThrow();
+  });
+
+  it('rejects impossible procurement planning dates', () => {
+    const validLine = {
+      tenderTitle: 'Diagnostic equipment service contract',
+      openingDate: '2026-07-01',
+      closingDate: '2026-07-30',
+      expectedCompletionDate: '2026-10-30'
+    };
+
+    expect(() =>
+      planLineBodySchema.parse({
+        ...validLine,
+        openingDate: '2026-08-01',
+        closingDate: '2026-07-30'
+      })
+    ).toThrow();
+
+    expect(() =>
+      planLineBodySchema.parse({
+        ...validLine,
+        closingDate: '2026-11-01',
+        expectedCompletionDate: '2026-10-30'
+      })
+    ).toThrow();
+
+    expect(() =>
+      planLineBodySchema.parse({
+        ...validLine,
+        openingDate: '2026-02-31'
+      })
+    ).toThrow();
+  });
+
+  it('returns an empty planning contract when the database is unavailable', async () => {
+    const query: ProcurementPlanningQuery = {
+      organizationId: '',
+      financialYear: '2026/2027',
+      search: '',
+      status: '',
+      category: '',
+      page: 1,
+      pageSize: 20,
+      sortBy: 'date',
+      sortDirection: 'desc'
+    };
+    const service = new ModuleService({
+      health: async () => ({ ready: true }),
+      listPlans: async () => {
+        throw new Error("Can't reach database server");
+      }
+    } as any);
+
+    await expect(service.planning(query)).resolves.toEqual({
+      plans: [],
+      records: [],
+      summary: {
+        financialYear: '2026/2027',
+        years: ['2026/2027'],
+        totalPlans: 0,
+        totalLines: 0,
+        totalBudget: 0,
+        byStatus: [],
+        byCategory: []
+      },
+      totalPlans: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1
     });
   });
 });
