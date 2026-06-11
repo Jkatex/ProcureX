@@ -1,4 +1,4 @@
-import { AccountType, PublicPageKey, PublicPageStatus, VerificationStatus } from '@prisma/client';
+import { AccountType, PublicPageKey, PublicPageStatus, RiskLevel, TrustTier, VerificationStatus } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ModuleService } from '../modules/identity/service.js';
 import type { RegistryLookupRequest, RegistryProvider, RegistryProviderRecord } from '../modules/identity/registryProviders.js';
@@ -15,6 +15,8 @@ class FakeIdentityRepository {
   profiles: any[] = [];
   history: any[] = [];
   signatures: any[] = [];
+  trustHistory: any[] = [];
+  screeningChecks: any[] = [];
   id = 0;
 
   nextId(prefix: string) {
@@ -52,6 +54,7 @@ class FakeIdentityRepository {
       accountType: AccountType.USER,
       verificationStatus: VerificationStatus.NOT_STARTED,
       metadata: {},
+      screeningChecks: [],
       memberships: []
     };
     this.users.set(user.id, user);
@@ -271,11 +274,50 @@ class FakeIdentityRepository {
     const organization = {
       id: this.nextId('org'),
       name: input.organizationName,
+      supplierProfile: {
+        trustTier: TrustTier.UNVERIFIED,
+        riskLevel: RiskLevel.MEDIUM
+      },
       capabilities: [{ capability: 'BUYER' }, { capability: 'SUPPLIER' }]
     };
     const user = this.users.get(input.userId);
     user.memberships = [{ status: 'ACTIVE', isDefault: true, organization }];
     return Promise.resolve(organization);
+  }
+
+  createScreeningCheck(input: Record<string, unknown> & { userId: string }) {
+    const check = { id: this.nextId('screening'), ...input, createdAt: new Date() };
+    this.screeningChecks.push(check);
+    const user = this.users.get(input.userId);
+    if (user) {
+      user.screeningChecks = [check, ...(user.screeningChecks ?? [])];
+    }
+    return Promise.resolve(check);
+  }
+
+  latestScreeningCheckForUser(userId: string) {
+    return Promise.resolve(this.screeningChecks.filter((check) => check.userId === userId).at(-1) ?? null);
+  }
+
+  upsertSupplierTrust(input: { organizationId: string; trustTier: TrustTier; riskLevel: RiskLevel; score: number; reasons: unknown[]; userId?: string | null; verificationProfileId?: string | null }) {
+    const organization = Array.from(this.users.values())
+      .flatMap((user) => user.memberships.map((membership: any) => membership.organization))
+      .find((item) => item.id === input.organizationId);
+    if (organization) {
+      organization.supplierProfile = {
+        trustTier: input.trustTier,
+        riskLevel: input.riskLevel
+      };
+    }
+    const history = { id: this.nextId('trust'), ...input, nextTier: input.trustTier, createdAt: new Date() };
+    this.trustHistory.push(history);
+    return Promise.resolve(organization?.supplierProfile ?? null);
+  }
+
+  createTrustTierHistory(input: Record<string, unknown>) {
+    const history = { id: this.nextId('trust'), ...input, createdAt: new Date() };
+    this.trustHistory.push(history);
+    return Promise.resolve(history);
   }
 
   upsertVerificationProfile(input: Record<string, unknown>) {
@@ -702,6 +744,89 @@ describe('identity production auth', () => {
     expect(repository.history.some((entry) => entry.event === 'verification_submitted')).toBe(true);
     expect(repository.auditEvents.some((event) => event.event === 'identity.verification.signature_created')).toBe(true);
     expect(JSON.stringify(repository.signatures)).not.toContain(session.token);
+  });
+
+  it('returns computed IAM access context in sessions after trust evaluation', async () => {
+    const { repository, notifications, service } = makeService();
+    repository.registry.set('TRA:TIN-ACCESS', {
+      id: 'registry-access',
+      source: 'TRA',
+      registryNumber: 'TIN-ACCESS',
+      entityType: 'business',
+      name: 'Access Business',
+      status: 'MATCHED',
+      confidence: 100,
+      payload: {}
+    });
+    const registration = await service.startRegistration({ email: 'access@example.test', phone: '+255700000031' });
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
+    await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
+    await service.setPassword('access@example.test', 'Strong123!', legalAcceptance());
+    const session = await service.signIn('access@example.test', 'Strong123!');
+    const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-ACCESS' });
+
+    const submitted = await service.submitVerification(session.token, {
+      entityType: 'business',
+      businessRegistrationSource: 'tin',
+      registrySource: registry.source,
+      registryNumber: registry.registryNumber,
+      registryVerified: true,
+      registryRecordId: registry.id,
+      signatureName: 'Access Owner',
+      signatureConsent: true,
+      profile: { displayName: 'Access Business' },
+      documents: [{ type: 'registry', status: 'fetched' }]
+    });
+
+    expect(submitted.user.screeningStatus).toBe('CLEAR');
+    expect(submitted.user.trustTier).toBe(TrustTier.SILVER);
+    expect(submitted.user.riskLevel).toBe(RiskLevel.LOW);
+    expect(submitted.user.permissions).toEqual(expect.arrayContaining(['procurement.create', 'procurement.publish', 'bidding.submit', 'evaluation.manage']));
+    expect(submitted.user.featureGates).toMatchObject({
+      tenderCreation: true,
+      bidSubmission: true,
+      evaluationManagement: true
+    });
+    await expect(service.requirePermission(session.token, 'procurement.create')).resolves.toBeTruthy();
+  });
+
+  it('routes local sanctions/watchlist matches to admin review while temporary core gates stay open', async () => {
+    const { repository, notifications, service } = makeService();
+    repository.registry.set('TRA:TIN-BLOCKED', {
+      id: 'registry-blocked',
+      source: 'TRA',
+      registryNumber: 'TIN-BLOCKED',
+      entityType: 'business',
+      name: 'Sanctioned Supplier Limited',
+      status: 'MATCHED',
+      confidence: 100,
+      payload: {}
+    });
+    const registration = await service.startRegistration({ email: 'blocked@example.test', phone: '+255700000032' });
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
+    await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
+    await service.setPassword('blocked@example.test', 'Strong123!', legalAcceptance());
+    const session = await service.signIn('blocked@example.test', 'Strong123!');
+    const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-BLOCKED' });
+    const result = await service.submitVerification(session.token, {
+      entityType: 'business',
+      businessRegistrationSource: 'tin',
+      registrySource: registry.source,
+      registryNumber: registry.registryNumber,
+      registryVerified: true,
+      registryRecordId: registry.id,
+      signatureName: 'Blocked Owner',
+      signatureConsent: true
+    });
+
+    expect(result.autoApproved).toBe(false);
+    expect(result.user.verificationStatus).toBe(VerificationStatus.PENDING);
+    expect(result.user.screeningStatus).toBe('BLOCKED');
+    expect(result.user.permissions).toEqual(expect.arrayContaining(['procurement.create', 'procurement.publish', 'bidding.submit', 'evaluation.manage']));
+    expect(result.user.permissions).not.toContain('admin.access');
+    await expect(service.requirePermission(session.token, 'procurement.create')).resolves.toBeTruthy();
+    await expect(service.requirePermission(session.token, 'compliance.review')).rejects.toMatchObject({ status: 403 });
+    expect(result.reviewReasons.join(' ')).toMatch(/sanctions|debarment/i);
   });
 
   it('routes duplicate approved registry numbers to admin review', async () => {

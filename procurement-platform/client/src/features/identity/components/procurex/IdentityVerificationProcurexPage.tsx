@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { setSessionUser } from '@/features/auth/slice';
 import { identityApi } from '@/features/identity/api';
+import { useNotifications } from '@/features/notifications/hooks';
 import type { BusinessRegistrationSource, EntityType, RegistryRecord, VerificationSubmitResult } from '@/features/identity/types';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, notificationFromApiError } from '@/shared/api/errors';
+import { NotificationCard } from '@/shared/components/NotificationCard';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import type { CreateNotificationInput, NotificationTone } from '@/shared/types/notifications';
 
 type EkycStep = 1 | 2 | 3 | 4;
 
@@ -75,9 +78,20 @@ function friendlyIdentityMessage(error: unknown, fallback: string) {
   return apiErrorMessage(error, fallback);
 }
 
+function identityNotification(tone: NotificationTone, title: string, message: string, reason: string): CreateNotificationInput {
+  return {
+    tone,
+    title,
+    message,
+    reason,
+    dismissible: false
+  };
+}
+
 export function IdentityVerificationProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { notifySuccess } = useNotifications();
   const authUser = useAppSelector((state) => state.auth.user);
   const [step, setStep] = useState<EkycStep>(1);
   const [entityType, setEntityType] = useState<EntityType>('individual');
@@ -90,7 +104,7 @@ export function IdentityVerificationProcurexPage() {
   const [signatureConsent, setSignatureConsent] = useState(false);
   const [result, setResult] = useState<VerificationSubmitResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<CreateNotificationInput | null>(null);
 
   useBodyPageMetadata('iam-verification');
 
@@ -120,7 +134,7 @@ export function IdentityVerificationProcurexPage() {
         if (typeof payload.signatureConsent === 'boolean') setSignatureConsent(payload.signatureConsent);
         if (savedRecord?.id) setRegistryRecord(savedRecord);
       } catch (error) {
-        if (active) setMessage(apiErrorMessage(error, 'Could not load your verification profile.'));
+        if (active) setMessage(notificationFromApiError(error, { title: 'Verification profile could not load', fallback: 'Could not load your verification profile.' }));
       }
     }
 
@@ -137,7 +151,7 @@ export function IdentityVerificationProcurexPage() {
     setRegistryNumber('');
     setRegistryRecord(null);
     setRegistryVerified(false);
-    setMessage('');
+    setMessage(null);
   }
 
   function chooseBusinessSource(nextSource: BusinessRegistrationSource) {
@@ -145,12 +159,12 @@ export function IdentityVerificationProcurexPage() {
     setRegistryNumber('');
     setRegistryRecord(null);
     setRegistryVerified(false);
-    setMessage('');
+    setMessage(null);
   }
 
   async function saveDraft(nextStep: EkycStep) {
     setLoading(true);
-    setMessage('');
+    setMessage(null);
 
     try {
       await identityApi.saveVerificationDraft({
@@ -169,9 +183,12 @@ export function IdentityVerificationProcurexPage() {
       if (authUser && authUser.verificationStatus === 'NOT_STARTED') {
         dispatch(setSessionUser({ ...authUser, verificationStatus: 'DRAFT' }));
       }
+      notifySuccess('Verification draft saved', 'Your verification draft was saved.', {
+        reason: 'ProcureX saved the current identity step before moving forward.'
+      });
       setStep(nextStep);
     } catch (error) {
-      setMessage(apiErrorMessage(error, 'Could not save the verification draft.'));
+      setMessage(notificationFromApiError(error, { title: 'Verification draft not saved', fallback: 'Could not save the verification draft.' }));
     } finally {
       setLoading(false);
     }
@@ -179,7 +196,7 @@ export function IdentityVerificationProcurexPage() {
 
   async function fetchRegistry() {
     setLoading(true);
-    setMessage('');
+    setMessage(null);
     setRegistryRecord(null);
     setRegistryVerified(false);
 
@@ -192,9 +209,9 @@ export function IdentityVerificationProcurexPage() {
       setRegistryRecord(record);
       setRegistryNumber(record.registryNumber);
       setSignatureName((current) => current || record.name);
-      setMessage(`${record.source} record fetched. Review and confirm the details.`);
+      setMessage(identityNotification('info', 'Registry record found', `${record.source} record fetched. Review and confirm the details.`, 'Confirm the registry information before continuing to digital signature.'));
     } catch (error) {
-      setMessage(friendlyIdentityMessage(error, 'No matching registry record was found.'));
+      setMessage(identityNotification('error', 'Registry lookup failed', friendlyIdentityMessage(error, 'No matching registry record was found.'), 'Check the applicant type and registry number, then try again.'));
     } finally {
       setLoading(false);
     }
@@ -204,12 +221,12 @@ export function IdentityVerificationProcurexPage() {
     event.preventDefault();
 
     if (!registryRecord || !canSubmit) {
-      setMessage('Complete registry confirmation and digital signature before submitting.');
+      setMessage(identityNotification('warning', 'Verification incomplete', 'Complete registry confirmation and digital signature before submitting.', 'ProcureX needs confirmed registry data and signer consent before it can review the account.'));
       return;
     }
 
     setLoading(true);
-    setMessage('');
+    setMessage(null);
 
     try {
       const submitted = await identityApi.submitVerification({
@@ -240,9 +257,13 @@ export function IdentityVerificationProcurexPage() {
       });
       dispatch(setSessionUser(submitted.user));
       setResult(submitted);
+      notifySuccess('Verification submitted', submitted.autoApproved ? 'Identity verification was approved.' : 'Verification was routed for admin review.', {
+        reason: submitted.autoApproved ? 'Registry, screening, and signature checks passed.' : 'ProcureX saved the record and captured the review reasons for administrators.'
+      });
       setStep(4);
     } catch (error) {
-      setMessage(friendlyIdentityMessage(error, 'Could not submit verification.'));
+      const notification = notificationFromApiError(error, { title: 'Verification could not be submitted', fallback: friendlyIdentityMessage(error, 'Could not submit verification.') });
+      setMessage({ ...notification, message: friendlyIdentityMessage(error, notification.message) });
     } finally {
       setLoading(false);
     }
@@ -294,6 +315,7 @@ export function IdentityVerificationProcurexPage() {
           </div>
 
           <form className="ekyc-form" onSubmit={(event) => void submitVerification(event)}>
+            {message ? <NotificationCard notification={message} /> : null}
             <section className={`ekyc-section ekyc-step-panel ${step === 1 ? 'active' : ''}`}>
               <div className="ekyc-section-heading">
                 <span className="ekyc-step-badge">1</span>
@@ -494,6 +516,18 @@ export function IdentityVerificationProcurexPage() {
                     <span>Status</span>
                     <strong>{result?.user.verificationStatus ?? authUser?.verificationStatus ?? 'DRAFT'}</strong>
                   </div>
+                  <div>
+                    <span>Screening</span>
+                    <strong>{result?.user.screeningStatus ?? authUser?.screeningStatus ?? 'NOT_RUN'}</strong>
+                  </div>
+                  <div>
+                    <span>Trust tier</span>
+                    <strong>{result?.user.trustTier ?? authUser?.trustTier ?? 'UNVERIFIED'}</strong>
+                  </div>
+                  <div>
+                    <span>Risk level</span>
+                    <strong>{result?.user.riskLevel ?? authUser?.riskLevel ?? 'MEDIUM'}</strong>
+                  </div>
                   {result?.verification.payload.digitalSignature &&
                   typeof result.verification.payload.digitalSignature === 'object' &&
                   'status' in result.verification.payload.digitalSignature ? (
@@ -522,7 +556,6 @@ export function IdentityVerificationProcurexPage() {
             </section>
           </form>
 
-          {message ? <p className="auth-note">{message}</p> : null}
         </main>
       </div>
     </div>

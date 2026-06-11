@@ -201,6 +201,14 @@ export class ModuleController {
     }
   };
 
+  accessMe: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.accessMe(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   signOut: RequestHandler = async (req, res, next) => {
     try {
       res.json(await this.service.signOut(bearerToken(req) ?? '', this.auditContext(req)));
@@ -263,6 +271,14 @@ export class ModuleController {
     try {
       const input = adminDecisionSchema.parse(req.body);
       res.json(await this.service.decideAdminVerification(bearerToken(req), req.params.id, input.decision, input.note));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  rescreenAdminVerification: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.rescreenAdminVerification(bearerToken(req), req.params.id));
     } catch (error) {
       next(error);
     }

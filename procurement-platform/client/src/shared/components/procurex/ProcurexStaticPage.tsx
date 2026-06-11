@@ -69,6 +69,20 @@ const pageToRoute: Record<string, string> = {
 
 const evaluationSelectionStorageKeys = ['procurex.selectedEvaluationTender', 'procurex.selectedEvaluationReport'];
 
+function notifyStaticPage(title: string, message: string, reason?: string, tone: 'success' | 'info' | 'warning' | 'error' = 'info') {
+  window.dispatchEvent(
+    new CustomEvent('procurex:notify', {
+      detail: {
+        tone,
+        title,
+        message,
+        reason,
+        dismissible: true
+      }
+    })
+  );
+}
+
 type EvaluationSelectionWindow = Window & {
   procurexSelectedEvaluationTender?: string;
   procurexSelectedEvaluationReport?: string;
@@ -1349,12 +1363,12 @@ function handleAuthClick(target: HTMLElement, root: HTMLElement) {
   }
 
   if (resendLink) {
-    window.alert('Activation link resent in this frontend demo.');
+    notifyStaticPage('Activation link resent', 'Activation link resent in this frontend demo.', 'Check your email, then continue to password setup.', 'success');
     return true;
   }
 
   if (openEmail) {
-    window.alert('Open your email app, then continue to password setup in this frontend demo.');
+    notifyStaticPage('Open email app', 'Open your email app, then continue to password setup in this frontend demo.', 'The next registration step needs the activation message.', 'info');
     return true;
   }
 
@@ -2014,7 +2028,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     if (!panel || !['wizard-step-1', 'wizard-step-2'].includes(panel.id)) return;
     if (!window.localStorage.getItem('procurex.planning.selectedTenderPlan')) return;
     wizard.dataset.planningAmendmentWarningShown = 'true';
-    window.alert('These details came from the approved procurement plan. If you amend them here, make sure the difference is approved or update the plan too.');
+    notifyStaticPage('Planning handoff changed', 'These details came from the approved procurement plan.', 'If you amend them here, make sure the difference is approved or update the plan too.', 'warning');
   }
 
   return (

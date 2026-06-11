@@ -1,5 +1,8 @@
 import type { AxiosError } from 'axios';
 import { useTranslation } from 'react-i18next';
+import { NotificationCard } from '@/shared/components/NotificationCard';
+import { notificationFromApiError } from '@/shared/api/errors';
+import type { CreateNotificationInput } from '@/shared/types/notifications';
 
 export type AuthAlertTone = 'error' | 'warning' | 'info' | 'success';
 
@@ -8,6 +11,8 @@ export type AuthAlertMessage = {
   text?: string;
   tone: AuthAlertTone;
   values?: Record<string, number | string>;
+  reason?: string;
+  actionLabel?: string;
 };
 
 type ApiErrorBody = {
@@ -116,9 +121,12 @@ function toneForStatus(status?: number): AuthAlertTone {
 export function authAlertFromError(error: unknown, context: AuthErrorContext): AuthAlertMessage {
   const status = apiStatus(error);
   const content = friendlyAuthError(context, status, apiMessage(error));
+  const notification = notificationFromApiError(error, { fallback: fallbackMessage(context).key });
   return {
     ...content,
-    tone: toneForStatus(status)
+    tone: toneForStatus(status),
+    reason: notification.reason,
+    actionLabel: notification.action?.label
   };
 }
 
@@ -133,11 +141,21 @@ export function authAlertText(text: string, tone: AuthAlertTone): AuthAlertMessa
 export function AuthAlert({ message }: { message: AuthAlertMessage | null }) {
   const { t } = useTranslation();
   if (!message) return null;
-  const role = message.tone === 'success' || message.tone === 'info' ? 'status' : 'alert';
   const text = message.key ? t(message.key, message.values) : message.text;
-  return (
-    <p className={`form-message-new ${message.tone}`} role={role}>
-      {text}
-    </p>
-  );
+  const notification: CreateNotificationInput = {
+    tone: message.tone,
+    title: titleForTone(message.tone),
+    message: text ?? '',
+    reason: message.reason,
+    action: message.actionLabel ? { label: message.actionLabel } : undefined,
+    dismissible: false
+  };
+  return <NotificationCard notification={notification} />;
+}
+
+function titleForTone(tone: AuthAlertTone) {
+  if (tone === 'success') return 'Success';
+  if (tone === 'warning') return 'Needs attention';
+  if (tone === 'info') return 'Information';
+  return 'Action needed';
 }

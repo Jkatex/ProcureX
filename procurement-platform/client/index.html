@@ -7,13 +7,39 @@
       name="description"
       content="ProcureX is a digital procurement workspace for tender creation, bidding, compliance review, contracts, and records."
     />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ProcureX Procurement Platform" />
+    <meta property="og:description" content="A digital procurement workspace for verified tender creation, bidding, compliance review, contracts, and records." />
+    <meta property="og:image" content="/assets/welcome/procurement-meeting.webp" />
+    <meta property="og:site_name" content="ProcureX" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ProcureX Procurement Platform" />
+    <meta name="twitter:description" content="Create tenders, submit bids, and keep procurement records in one verified workspace." />
+    <meta name="twitter:image" content="/assets/welcome/procurement-meeting.webp" />
     <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
     <title>ProcureX Procurement Platform</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "ProcureX",
+        "url": "/",
+        "logo": "/assets/logo.svg",
+        "description": "ProcureX is a digital procurement workspace for tender creation, bidding, compliance review, contracts, and records."
+      }
+    </script>
     <script type="module" src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.mjs"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-boot-loader" aria-label="Loading ProcureX">
+        <div class="loading-animation-shell">
+          <dotlottie-player class="procurex-lottie procurex-lottie-lg" src="/assets/ProcureX.json" background="transparent" speed="1" loop autoplay></dotlottie-player>
+        </div>
+        <span>Loading ProcureX...</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

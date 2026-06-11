@@ -11,11 +11,22 @@ type ResetStep = 'request' | 'reset' | 'complete';
 
 function passwordChecks(password: string) {
   return {
-    length: password.length >= 8 && password.length <= 64,
+    length: password.length >= 8 && password.length <= 128,
     uppercase: /[A-Z]/.test(password),
     number: /\d/.test(password),
     special: /[^A-Za-z0-9]/.test(password)
   };
+}
+
+function RequirementIcon({ met }: { met: boolean }) {
+  return (
+    <span className={`requirement-icon-new ${met ? 'met' : ''}`}>
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        {met ? <path d="M16.2 5.8 8.4 13.6 4.3 9.5" /> : <circle cx="10" cy="10" r="6.5" />}
+      </svg>
+      <span className="sr-only">{met ? 'Requirement met:' : 'Requirement not met:'}</span>
+    </span>
+  );
 }
 
 function secondsUntil(value: string, now: number) {
@@ -178,6 +189,7 @@ export function ForgotPasswordProcurexPage() {
                   </div>
                   <TurnstileWidget action="forgot_password" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
                   <button className="btn-continue-new" type="submit" disabled={loading || !turnstileToken}>
+                    {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                     {loading ? t('auth.forgotPassword.request.submitting') : t('auth.forgotPassword.request.submit')}
                   </button>
                 </form>
@@ -193,7 +205,7 @@ export function ForgotPasswordProcurexPage() {
                 <form className="screen-form-new" onSubmit={(event) => void submitReset(event)}>
                   <div className="form-group-new">
                     <label className="form-label-new" htmlFor="reset-code">{t('auth.forgotPassword.reset.code')}</label>
-                    <input id="reset-code" className="form-input-new" value={code} onChange={(event) => setCode(event.target.value)} required />
+                    <input id="reset-code" className="form-input-new" value={code} autoComplete="one-time-code" onChange={(event) => setCode(event.target.value)} required />
                     {resendAvailableAt ? (
                       <span className="form-hint-new">
                         {resendSeconds > 0 ? t('auth.forgotPassword.reset.resendIn', { time: formatCountdown(resendSeconds) }) : t('auth.forgotPassword.reset.resendAvailable')}
@@ -202,20 +214,24 @@ export function ForgotPasswordProcurexPage() {
                   </div>
                   <div className="form-group-new">
                     <label className="form-label-new" htmlFor="reset-password">{t('auth.forgotPassword.reset.password')}</label>
-                    <input id="reset-password" className="form-input-new password-input-new" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                    <input id="reset-password" className={`form-input-new password-input-new ${message?.tone === 'error' && !checks.length ? 'is-invalid' : ''}`} type="password" value={password} maxLength={128} onChange={(event) => setPassword(event.target.value)} required />
                     <ul className="password-requirements-new">
-                      <li className={checks.length ? 'met' : ''}>{passwordRequirements[0]}</li>
-                      <li className={checks.uppercase ? 'met' : ''}>{passwordRequirements[1]}</li>
-                      <li className={checks.number ? 'met' : ''}>{passwordRequirements[2]}</li>
-                      <li className={checks.special ? 'met' : ''}>{passwordRequirements[3]}</li>
+                      <li className={checks.length ? 'met' : ''}><RequirementIcon met={checks.length} />{passwordRequirements[0]}</li>
+                      <li className={checks.uppercase ? 'met' : ''}><RequirementIcon met={checks.uppercase} />{passwordRequirements[1]}</li>
+                      <li className={checks.number ? 'met' : ''}><RequirementIcon met={checks.number} />{passwordRequirements[2]}</li>
+                      <li className={checks.special ? 'met' : ''}><RequirementIcon met={checks.special} />{passwordRequirements[3]}</li>
                     </ul>
                   </div>
                   <div className="form-group-new">
                     <label className="form-label-new" htmlFor="reset-confirm-password">{t('auth.forgotPassword.reset.confirmPassword')}</label>
-                    <input id="reset-confirm-password" className="form-input-new" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
+                    <input id="reset-confirm-password" className={`form-input-new ${message?.tone === 'error' && confirmPassword && password !== confirmPassword ? 'is-invalid' : ''}`} type="password" value={confirmPassword} maxLength={128} onChange={(event) => setConfirmPassword(event.target.value)} required />
                   </div>
                   <TurnstileWidget action="reset_password" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                  <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep('request')}>
+                    Back
+                  </button>
                   <button className="btn-continue-new" type="submit" disabled={loading || !passwordReady || !turnstileToken}>
+                    {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                     {loading ? t('auth.forgotPassword.reset.submitting') : t('auth.forgotPassword.reset.submit')}
                   </button>
                   <button className="btn-resend-new" type="button" disabled={loading || resendSeconds > 0 || !turnstileToken} onClick={() => void resendResetCode()}>

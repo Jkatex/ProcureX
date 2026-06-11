@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import { ModuleService } from './service.js';
+import { ModuleService as IdentityService } from '../identity/service.js';
 import { moduleStatusQuerySchema, recordsQuerySchema, saveWorkspaceBodySchema, workspaceParamsSchema } from './validators.js';
 import type { EvaluationRequestContext } from './types.js';
 
@@ -10,7 +11,7 @@ function requestError(message: string, status = 400) {
 }
 
 export class ModuleController {
-  constructor(private readonly service = new ModuleService()) {}
+  constructor(private readonly service = new ModuleService(), private readonly identityService = new IdentityService()) {}
 
   status: RequestHandler = async (req, res, next) => {
     try {
@@ -67,6 +68,7 @@ export class ModuleController {
 
   saveWorkspace: RequestHandler = async (req, res, next) => {
     try {
+      await this.identityService.requirePermission(bearerToken(req), 'evaluation.manage');
       const params = workspaceParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid evaluation workspace tender id.');
       const body = saveWorkspaceBodySchema.safeParse(req.body);
@@ -83,4 +85,10 @@ function requestContext(req: Parameters<RequestHandler>[0]): EvaluationRequestCo
   const organizationId = req.header('x-organization-id') || undefined;
   if (!userId && !organizationId) return undefined;
   return { userId, organizationId };
+}
+
+function bearerToken(req: Parameters<RequestHandler>[0]) {
+  const header = req.header('authorization') ?? '';
+  const [scheme, token] = header.split(/\s+/);
+  return scheme?.toLowerCase() === 'bearer' ? token : undefined;
 }

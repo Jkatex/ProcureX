@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { adminApi, type AdminVerification } from '@/features/admin/api';
 import { signOut } from '@/features/auth/slice';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { useNotifications } from '@/features/notifications/hooks';
+import { notificationFromApiError } from '@/shared/api/errors';
+import { NotificationCard } from '@/shared/components/NotificationCard';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import type { CreateNotificationInput } from '@/shared/types/notifications';
 import type { SessionUser } from '@/shared/types/domain';
 
 type StatusFilter = '' | SessionUser['verificationStatus'];
@@ -53,6 +56,7 @@ function adminNavClass(path: string, currentPath = '/admin/users') {
 export function AdminUsersProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { notifySuccess, notifyError } = useNotifications();
   const user = useAppSelector((state) => state.auth.user);
   const [verifications, setVerifications] = useState<AdminVerification[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -60,7 +64,7 @@ export function AdminUsersProcurexPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('PENDING');
   const [decisionNote, setDecisionNote] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<CreateNotificationInput | null>(null);
 
   useBodyPageMetadata('admin-users');
 
@@ -99,7 +103,7 @@ export function AdminUsersProcurexPage() {
 
     async function loadQueue() {
       setLoading(true);
-      setMessage('');
+      setMessage(null);
 
       try {
         const response = await adminApi.listVerifications();
@@ -107,7 +111,7 @@ export function AdminUsersProcurexPage() {
         setVerifications(response);
         setSelectedId((current) => current || response[0]?.id || '');
       } catch (error) {
-        if (active) setMessage(apiErrorMessage(error, 'Could not load verification queue.'));
+        if (active) setMessage(notificationFromApiError(error, { title: 'Verification queue could not load', fallback: 'Could not load verification queue.' }));
       } finally {
         if (active) setLoading(false);
       }
@@ -121,7 +125,7 @@ export function AdminUsersProcurexPage() {
 
   async function decide(verification: AdminVerification, decision: 'approve' | 'reject') {
     setLoading(true);
-    setMessage('');
+    setMessage(null);
 
     try {
       const updated = await adminApi.decideVerification(verification.id, {
@@ -131,9 +135,33 @@ export function AdminUsersProcurexPage() {
       setVerifications((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       setSelectedId(updated.id);
       setDecisionNote('');
-      setMessage(`Verification ${decision === 'approve' ? 'approved' : 'rejected'} for ${updated.user.displayName}.`);
+      notifySuccess(`Verification ${decision === 'approve' ? 'approved' : 'rejected'}`, `${updated.user.displayName} was ${decision === 'approve' ? 'approved' : 'rejected'}.`, {
+        reason: 'The admin decision was saved and the queue was refreshed in this session.'
+      });
     } catch (error) {
-      setMessage(apiErrorMessage(error, `Could not ${decision} verification.`));
+      const notification = notificationFromApiError(error, { title: `Could not ${decision} verification`, fallback: `Could not ${decision} verification.` });
+      setMessage(notification);
+      notifyError(notification.title, notification.message, { reason: notification.reason, action: notification.action });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function rescreen(verification: AdminVerification) {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const updated = await adminApi.rescreenVerification(verification.id);
+      setVerifications((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setSelectedId(updated.id);
+      notifySuccess('Screening rerun complete', `Screening rerun for ${updated.user.displayName}.`, {
+        reason: 'The latest screening status, trust tier, and risk level are reflected in the admin queue.'
+      });
+    } catch (error) {
+      const notification = notificationFromApiError(error, { title: 'Could not rerun screening', fallback: 'Could not rerun screening.' });
+      setMessage(notification);
+      notifyError(notification.title, notification.message, { reason: notification.reason, action: notification.action });
     } finally {
       setLoading(false);
     }
@@ -286,7 +314,7 @@ export function AdminUsersProcurexPage() {
                   ))}
                 </select>
               </div>
-              {message ? <p className="auth-note">{message}</p> : null}
+              {message ? <NotificationCard notification={message} /> : null}
             </section>
 
             <section className="admin-split-with-drawer">
@@ -324,6 +352,7 @@ export function AdminUsersProcurexPage() {
                           </td>
                           <td>
                             <span className={statusBadge(verification.status)}>{statusLabel(verification.status)}</span>
+                            <em>{verification.screeningStatus} / {verification.trustTier}</em>
                           </td>
                           <td>{new Date(verification.updatedAt).toLocaleDateString()}</td>
                           <td className="admin-table-actions">
@@ -332,6 +361,9 @@ export function AdminUsersProcurexPage() {
                             </button>
                             <button className="btn btn-secondary btn-sm" type="button" disabled={loading || verification.status !== 'PENDING'} onClick={() => void decide(verification, 'reject')}>
                               Reject
+                            </button>
+                            <button className="btn btn-secondary btn-sm" type="button" disabled={loading} onClick={() => void rescreen(verification)}>
+                              Rescreen
                             </button>
                             <button className="btn btn-primary btn-sm" type="button" disabled={loading || verification.status === 'APPROVED'} onClick={() => void decide(verification, 'approve')}>
                               Approve
@@ -379,6 +411,12 @@ export function AdminUsersProcurexPage() {
                       <dd>{stringValue(selectedPayload.signatureName, 'Pending')}</dd>
                       <dt>Capabilities</dt>
                       <dd>{selected.user.capabilities.length ? selected.user.capabilities.join(', ') : 'Assigned after approval'}</dd>
+                      <dt>Screening</dt>
+                      <dd>{selected.screeningStatus}</dd>
+                      <dt>Trust tier</dt>
+                      <dd>{selected.trustTier}</dd>
+                      <dt>Risk level</dt>
+                      <dd>{selected.riskLevel}</dd>
                     </dl>
                     {selected.reviewReasons.length ? (
                       <div className="admin-timeline compact">
@@ -404,6 +442,9 @@ export function AdminUsersProcurexPage() {
                     <div className="admin-table-actions">
                       <button className="btn btn-secondary" type="button" disabled={loading || selected.status !== 'PENDING'} onClick={() => void decide(selected, 'reject')}>
                         Reject
+                      </button>
+                      <button className="btn btn-secondary" type="button" disabled={loading} onClick={() => void rescreen(selected)}>
+                        Rescreen
                       </button>
                       <button className="btn btn-primary" type="button" disabled={loading || selected.status === 'APPROVED'} onClick={() => void decide(selected, 'approve')}>
                         Approve

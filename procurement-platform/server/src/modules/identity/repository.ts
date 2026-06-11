@@ -4,6 +4,8 @@ import {
   AuditSeverity,
   OrganizationCapabilityName,
   OrganizationKind,
+  RiskLevel,
+  TrustTier,
   PublicPageKey,
   PublicPageStatus,
   VerificationStatus,
@@ -18,12 +20,17 @@ const userInclude = {
     include: {
       organization: {
         include: {
+          supplierProfile: true,
           capabilities: {
             where: { enabled: true }
           }
         }
       }
     },
+    take: 1
+  },
+  screeningChecks: {
+    orderBy: { createdAt: 'desc' as const },
     take: 1
   }
 } satisfies Prisma.UserInclude;
@@ -36,6 +43,7 @@ const sessionInclude = {
   },
   organization: {
     include: {
+      supplierProfile: true,
       capabilities: {
         where: { enabled: true }
       }
@@ -475,7 +483,95 @@ export class ModuleRepository {
       });
     }
 
+    await this.db.supplierProfile.upsert({
+      where: { organizationId: organization.id },
+      update: {},
+      create: {
+        organizationId: organization.id,
+        trustTier: TrustTier.UNVERIFIED,
+        riskLevel: RiskLevel.MEDIUM
+      }
+    });
+
     return organization;
+  }
+
+  createScreeningCheck(input: {
+    userId: string;
+    verificationProfileId?: string | null;
+    organizationId?: string | null;
+    provider: string;
+    status: string;
+    reasons: Prisma.InputJsonArray;
+    providerMetadata: Prisma.InputJsonObject;
+  }) {
+    return this.db.screeningCheck.create({
+      data: input
+    });
+  }
+
+  latestScreeningCheckForUser(userId: string) {
+    return this.db.screeningCheck.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async upsertSupplierTrust(input: {
+    organizationId: string;
+    trustTier: TrustTier;
+    riskLevel: RiskLevel;
+    score: number;
+    reasons: Prisma.InputJsonArray;
+    userId?: string | null;
+    verificationProfileId?: string | null;
+  }) {
+    const existing = await this.db.supplierProfile.findUnique({
+      where: { organizationId: input.organizationId }
+    });
+
+    const profile = await this.db.supplierProfile.upsert({
+      where: { organizationId: input.organizationId },
+      update: {
+        trustTier: input.trustTier,
+        riskLevel: input.riskLevel
+      },
+      create: {
+        organizationId: input.organizationId,
+        trustTier: input.trustTier,
+        riskLevel: input.riskLevel
+      }
+    });
+
+    await this.db.trustTierHistory.create({
+      data: {
+        organizationId: input.organizationId,
+        userId: input.userId,
+        verificationProfileId: input.verificationProfileId,
+        previousTier: existing?.trustTier,
+        nextTier: input.trustTier,
+        riskLevel: input.riskLevel,
+        score: input.score,
+        reasons: input.reasons
+      }
+    });
+
+    return profile;
+  }
+
+  createTrustTierHistory(input: {
+    organizationId?: string | null;
+    userId?: string | null;
+    verificationProfileId?: string | null;
+    previousTier?: TrustTier | null;
+    nextTier: TrustTier;
+    riskLevel: RiskLevel;
+    score: number;
+    reasons: Prisma.InputJsonArray;
+  }) {
+    return this.db.trustTierHistory.create({
+      data: input
+    });
   }
 
   listVerificationProfiles(status?: VerificationStatus) {

@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { setSessionUser, signOut } from '@/features/auth/slice';
 import { identityApi } from '@/features/identity/api';
+import { useNotifications } from '@/features/notifications/hooks';
 import type { VerificationProfile } from '@/features/identity/types';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { notificationFromApiError } from '@/shared/api/errors';
+import { NotificationCard } from '@/shared/components/NotificationCard';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import type { CreateNotificationInput } from '@/shared/types/notifications';
 
 type ProfileTab = 'overview' | 'account' | 'entity' | 'classification' | 'documents' | 'settings' | 'system';
 
@@ -246,12 +249,13 @@ function reviewReasons(profile: VerificationProfile | null) {
 export function AccountProfileProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { notifySuccess } = useNotifications();
   const user = useAppSelector((state) => state.auth.user);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [verification, setVerification] = useState<VerificationProfile | null>(null);
   const [profile, setProfile] = useState<ProfileForm>(defaultProfile);
   const [documents, setDocuments] = useState<DocumentForm>(defaultDocuments);
-  const [statusMessage, setStatusMessage] = useState('');
+  const [statusMessage, setStatusMessage] = useState<CreateNotificationInput | null>(null);
   const [loading, setLoading] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
 
@@ -278,7 +282,7 @@ export function AccountProfileProcurexPage() {
 
     async function loadProfile() {
       setLoading(true);
-      setStatusMessage('');
+      setStatusMessage(null);
 
       try {
         const response = await identityApi.getVerificationMe();
@@ -323,7 +327,7 @@ export function AccountProfileProcurexPage() {
           }, {})
         });
       } catch (error) {
-        if (active) setStatusMessage(apiErrorMessage(error, 'Could not load account profile.'));
+        if (active) setStatusMessage(notificationFromApiError(error, { title: 'Account profile could not load', fallback: 'Could not load account profile.' }));
       } finally {
         if (active) setLoading(false);
       }
@@ -356,7 +360,7 @@ export function AccountProfileProcurexPage() {
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    setStatusMessage('');
+    setStatusMessage(null);
 
     try {
       const saved = await identityApi.updateProfile({
@@ -370,9 +374,17 @@ export function AccountProfileProcurexPage() {
           }))
       });
       setVerification(saved);
-      setStatusMessage('Profile saved to the verification database record.');
+      const notification: CreateNotificationInput = {
+        tone: 'success',
+        title: 'Profile saved',
+        message: 'Profile saved to the verification database record.',
+        reason: 'ProcureX updated the profile payload used for account verification and procurement preferences.',
+        dismissible: false
+      };
+      setStatusMessage(notification);
+      notifySuccess(notification.title, notification.message, { reason: notification.reason });
     } catch (error) {
-      setStatusMessage(apiErrorMessage(error, 'Could not save profile.'));
+      setStatusMessage(notificationFromApiError(error, { title: 'Profile could not be saved', fallback: 'Could not save profile.' }));
     } finally {
       setLoading(false);
     }
@@ -472,9 +484,11 @@ export function AccountProfileProcurexPage() {
                     Update Identity Verification
                   </button>
                 </div>
-                <small className={`iam-save-status ${statusMessage.includes('saved') ? 'saved' : ''}`}>
-                  {statusMessage || 'Changes are written to the database-backed profile payload.'}
-                </small>
+                {statusMessage ? (
+                  <NotificationCard notification={statusMessage} compact />
+                ) : (
+                  <small className="iam-save-status">Changes are written to the database-backed profile payload.</small>
+                )}
               </div>
               <div className="iam-profile-score">
                 <div className="iam-score-copy">

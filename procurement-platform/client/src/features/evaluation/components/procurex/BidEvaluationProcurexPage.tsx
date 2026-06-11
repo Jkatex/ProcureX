@@ -17,6 +17,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
 import { evaluationApi } from '@/features/evaluation/api';
+import { useNotifications } from '@/features/notifications/hooks';
+import { NotificationCard } from '@/shared/components/NotificationCard';
 import type {
   EvaluationDashboard,
   EvaluationDecisionStatus,
@@ -33,6 +35,7 @@ import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 export function BidEvaluationProcurexPage() {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
+  const { notifySuccess } = useNotifications();
   const [dashboard, setDashboard] = useState<EvaluationDashboard>(emptyDashboard);
   const [records, setRecords] = useState<EvaluationRecord[]>([]);
   const [drafts, setDrafts] = useState<EvaluationDraft[]>([]);
@@ -315,6 +318,9 @@ export function BidEvaluationProcurexPage() {
       setReadyTenders(readyData.tenders);
       setRecords(recordData.records);
       setTotalRecords(recordData.totalRecords);
+      notifySuccess(t('evaluationApp.p5.save'), 'Evaluation workspace saved.', {
+        reason: markComplete ? 'Scores and decisions were saved and the evaluation was marked complete.' : 'Scores and decisions were saved as evaluation progress.'
+      });
     } catch {
       setWorkspaceError(t('evaluationApp.p5.errors.save'));
     } finally {
@@ -376,7 +382,9 @@ export function BidEvaluationProcurexPage() {
               </div>
             </section>
 
-            {loadError ? <div className="evaluation-empty-alert" role="alert">{loadError}</div> : null}
+            {loadError ? (
+              <NotificationCard notification={{ tone: 'error', title: 'Evaluation data could not load', message: loadError, reason: 'The dashboard could not retrieve the evaluation records needed for this view.', action: { label: 'Try again' }, dismissible: false }} />
+            ) : null}
 
             {selectedTenderId || (!loading && readyTenders.length === 0 && records.length === 0 && drafts.length === 0) ? (
               <section className="evaluation-panel evaluation-empty-panel evaluation-p5-workspace" data-evaluation-p5-workspace>
@@ -403,7 +411,9 @@ export function BidEvaluationProcurexPage() {
                       </div>
                     </div>
 
-                    {workspaceError ? <div className="evaluation-empty-alert" role="alert">{workspaceError}</div> : null}
+                    {workspaceError ? (
+                      <NotificationCard notification={{ tone: 'error', title: 'Evaluation workspace issue', message: workspaceError, reason: 'Review the current evaluation data and retry the save or load action.', action: { label: 'Try again' }, dismissible: false }} />
+                    ) : null}
                     {!workspace.availability.isReady ? <div className="evaluation-p5-note">{workspace.availability.reason}</div> : null}
 
                     <section className="evaluation-empty-stat-grid evaluation-p5-stat-grid" aria-label={t('evaluationApp.p5.summary')}>

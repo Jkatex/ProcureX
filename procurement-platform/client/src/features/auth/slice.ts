@@ -11,6 +11,7 @@ type AuthState = {
   isAuthenticated: boolean;
   status: 'idle' | 'loading' | 'succeeded' | 'failed';
   error: string | null;
+  sessionExpired: boolean;
 };
 
 const initialToken = getStoredAuthToken();
@@ -21,7 +22,8 @@ const initialState: AuthState = {
   expiresAt: null,
   isAuthenticated: false,
   status: initialToken ? 'loading' : 'idle',
-  error: null
+  error: null,
+  sessionExpired: false
 };
 
 export const signInWithCredentials = createAsyncThunk<AuthSessionResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }>(
@@ -51,17 +53,20 @@ const authSlice = createSlice({
       state.expiresAt = null;
       state.isAuthenticated = false;
       state.status = 'idle';
+      state.sessionExpired = false;
       clearStoredAuthToken();
     },
     assumeUser(state, action: PayloadAction<SessionUser>) {
       state.user = action.payload;
       state.isAuthenticated = true;
       state.status = 'succeeded';
+      state.sessionExpired = false;
     },
     setSessionUser(state, action: PayloadAction<SessionUser>) {
       state.user = action.payload;
       state.isAuthenticated = true;
       state.status = 'succeeded';
+      state.sessionExpired = false;
     }
   },
   extraReducers: (builder) => {
@@ -69,6 +74,7 @@ const authSlice = createSlice({
       .addCase(signInWithCredentials.pending, (state) => {
         state.status = 'loading';
         state.error = null;
+        state.sessionExpired = false;
       })
       .addCase(signInWithCredentials.fulfilled, (state, action) => {
         state.status = 'succeeded';
@@ -76,6 +82,7 @@ const authSlice = createSlice({
         state.token = action.payload.token;
         state.expiresAt = action.payload.expiresAt;
         state.isAuthenticated = true;
+        state.sessionExpired = false;
         storeAuthToken(action.payload.token);
       })
       .addCase(signInWithCredentials.rejected, (state, action) => {
@@ -92,6 +99,7 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
       })
       .addCase(hydrateAuthSession.rejected, (state) => {
+        state.sessionExpired = Boolean(state.token);
         state.status = 'idle';
         state.user = null;
         state.token = null;
@@ -105,6 +113,7 @@ const authSlice = createSlice({
         state.expiresAt = null;
         state.isAuthenticated = false;
         state.status = 'idle';
+        state.sessionExpired = false;
         clearStoredAuthToken();
       });
   }

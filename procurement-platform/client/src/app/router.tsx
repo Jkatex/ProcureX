@@ -1,6 +1,8 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
+import type { ComponentProps, ReactNode } from 'react';
 import { ForgotPasswordProcurexPage } from '@/features/auth/components/procurex/ForgotPasswordProcurexPage';
 import { procurexPageRegistry, type ProcurexPageKey } from '@/features/procurexPageRegistry';
+import { AccountLockedProcurexPage, HelpCenterProcurexPage, NotFoundProcurexPage, SessionExpiredProcurexPage, SystemStatusProcurexPage } from '@/features/support/pages/SupportPages';
 import { LegacyPageRedirect, HomeOrLegacyPage } from './legacyRedirects';
 import { AdminRoute, ProtectedRoute } from './routeGuards';
 
@@ -9,8 +11,11 @@ function page(pageKey: ProcurexPageKey) {
   return <Page />;
 }
 
-function protectedPage(pageKey: ProcurexPageKey, options?: { requireVerified?: boolean }) {
-  return <ProtectedRoute requireVerified={options?.requireVerified}>{page(pageKey)}</ProtectedRoute>;
+function protectedPage(
+  pageKey: ProcurexPageKey,
+  options?: Omit<ComponentProps<typeof ProtectedRoute>, 'children'> & { children?: ReactNode }
+) {
+  return <ProtectedRoute {...options}>{page(pageKey)}</ProtectedRoute>;
 }
 
 function verifiedPage(pageKey: ProcurexPageKey) {
@@ -21,6 +26,22 @@ function adminPage(pageKey: ProcurexPageKey) {
   return <AdminRoute>{page(pageKey)}</AdminRoute>;
 }
 
+// Temporary development switch: keep core procurement routes auth-only while trust gates are being iterated.
+const TEMP_PROCUREMENT_CORE_GATES_ENABLED = false;
+const procurementCoreGateOptions = TEMP_PROCUREMENT_CORE_GATES_ENABLED
+  ? {
+      createTender: { requireVerified: true, requiredPermission: 'procurement.create', requiredGate: 'tenderCreation', minimumTrustTier: 'BRONZE' } as const,
+      tenderPublication: { requireVerified: true, requiredPermission: 'procurement.publish', requiredGate: 'tenderPublication', minimumTrustTier: 'BRONZE' } as const,
+      bidding: { requireVerified: true, requiredPermission: 'bidding.submit', requiredGate: 'bidSubmission', minimumTrustTier: 'BRONZE' } as const,
+      evaluation: { requireVerified: true, requiredPermission: 'evaluation.manage', requiredGate: 'evaluationManagement', minimumTrustTier: 'BRONZE' } as const
+    }
+  : {
+      createTender: undefined,
+      tenderPublication: undefined,
+      bidding: undefined,
+      evaluation: undefined
+    };
+
 export const routes = [
   { path: '/', element: <HomeOrLegacyPage /> },
   { path: '/legacy', element: <LegacyPageRedirect /> },
@@ -30,9 +51,13 @@ export const routes = [
   { path: '/privacy', element: page('privacy-policy') },
   { path: '/terms', element: page('terms-and-conditions') },
   { path: '/contact', element: page('contact') },
+  { path: '/help', element: <HelpCenterProcurexPage /> },
+  { path: '/status', element: <SystemStatusProcurexPage /> },
   { path: '/register', element: page('register') },
   { path: '/sign-in', element: page('sign-in') },
   { path: '/forgot-password', element: <ForgotPasswordProcurexPage /> },
+  { path: '/session-expired', element: <SessionExpiredProcurexPage /> },
+  { path: '/account-locked', element: <AccountLockedProcurexPage /> },
   { path: '/role-selection', element: <Navigate to="/register" replace /> },
 
   { path: '/apps', element: verifiedPage('app-launcher') },
@@ -44,13 +69,13 @@ export const routes = [
   { path: '/procurement/marketplace', element: verifiedPage('marketplace') },
   { path: '/procurement/my-tenders', element: verifiedPage('marketplace') },
   { path: '/procurement/my-bids', element: verifiedPage('marketplace') },
-  { path: '/procurement/create-tender', element: verifiedPage('create-tender') },
-  { path: '/procurement/tender-publication', element: verifiedPage('tender-publication') },
+  { path: '/procurement/create-tender', element: protectedPage('create-tender', procurementCoreGateOptions.createTender) },
+  { path: '/procurement/tender-publication', element: protectedPage('tender-publication', procurementCoreGateOptions.tenderPublication) },
   { path: '/procurement/tender-details', element: verifiedPage('tender-details') },
   { path: '/procurement/tender-document', element: verifiedPage('tender-document') },
   { path: '/procurement/supplier-tender-detail', element: verifiedPage('tender-detail') },
-  { path: '/bidding', element: verifiedPage('bidding-workspace') },
-  { path: '/evaluation', element: verifiedPage('bid-evaluation') },
+  { path: '/bidding', element: protectedPage('bidding-workspace', procurementCoreGateOptions.bidding) },
+  { path: '/evaluation', element: protectedPage('bid-evaluation', procurementCoreGateOptions.evaluation) },
   { path: '/awards-contracts', element: verifiedPage('awarding-contracts') },
   { path: '/awards-contracts/recommendation', element: verifiedPage('award-recommendation') },
   { path: '/awards-contracts/award-response', element: verifiedPage('award-response') },
@@ -71,7 +96,7 @@ export const routes = [
   { path: '/buyer-dashboard', element: <Navigate to="/dashboard" replace /> },
   { path: '/supplier-dashboard', element: <Navigate to="/dashboard" replace /> },
   { path: '/procurement-dashboard', element: <Navigate to="/dashboard" replace /> },
-  { path: '*', element: <Navigate to="/" replace /> }
+  { path: '*', element: <NotFoundProcurexPage /> }
 ];
 
 export const router = createBrowserRouter(routes);

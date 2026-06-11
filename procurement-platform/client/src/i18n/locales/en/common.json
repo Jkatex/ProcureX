@@ -396,7 +396,7 @@
           "fair": "Fair",
           "weak": "Weak"
         },
-        "requirements": ["8 or more characters", "Uppercase letter", "Number", "Special character"],
+        "requirements": ["8 to 128 characters", "Uppercase letter", "Number", "Special character"],
         "confirmAgreement": "Confirm agreement",
         "agreementNoteStart": "Confirm that you accept the",
         "agreementAnd": "and",

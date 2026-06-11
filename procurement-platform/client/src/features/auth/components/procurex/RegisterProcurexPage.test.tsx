@@ -107,6 +107,8 @@ describe('RegisterProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await screen.findByRole('heading', { name: 'Verify Your Number' });
+    expect(document.querySelector<HTMLInputElement>('.otp-input-new')!).toHaveAttribute('autocomplete', 'one-time-code');
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
     expect(mockedAuthApi.startRegistration).toHaveBeenCalledWith({ email: 'legal@example.test', phone: '+255700000004', turnstileToken: 'turnstile-token' });
     expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled();
     fillVisibleInput('text', '123456');
@@ -114,12 +116,14 @@ describe('RegisterProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
     await screen.findByRole('heading', { name: 'Activate Your Email' });
+    expect(screen.getByLabelText('Activation Code *')).toHaveAttribute('autocomplete', 'one-time-code');
     fillVisibleInput('text', '87654321');
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Password Setup' }));
 
     await screen.findByRole('heading', { name: 'Create Your Password' });
     expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();
     const passwordInputs = document.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    expect(passwordInputs[0]).toHaveAttribute('maxlength', '128');
     fireEvent.change(passwordInputs[0], { target: { value: 'Strong123!' } });
     fireEvent.change(passwordInputs[1], { target: { value: 'Strong123!' } });
     expect(screen.getByRole('button', { name: 'Create Account' })).toBeDisabled();

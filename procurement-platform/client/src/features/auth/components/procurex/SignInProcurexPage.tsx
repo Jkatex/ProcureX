@@ -1,6 +1,6 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { assumeUser, signInWithCredentials } from '@/features/auth/slice';
@@ -30,11 +30,17 @@ function demoSignInConfig() {
   };
 }
 
+function isLockedAccountError(error: unknown) {
+  const message = String(error ?? '').toLowerCase();
+  return message.includes('locked') || message.includes('suspended') || message.includes('disabled account');
+}
+
 export function SignInProcurexPage() {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const authStatus = useAppSelector((state) => state.auth.status);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,11 +48,27 @@ export function SignInProcurexPage() {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [alert, setAlert] = useState<AuthAlertMessage | null>(null);
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const submitRef = useRef<HTMLButtonElement | null>(null);
   const loading = authStatus === 'loading';
   const locationState = location.state as LocationState | null;
   const demoSignIn = demoSignInConfig();
+  const demoRequested = searchParams.get('demo') === '1';
 
   useBodyPageMetadata('sign-in');
+
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!demoSignIn.enabled) return;
+    setEmail(demoSignIn.email);
+    setPassword(demoSignIn.password);
+    if (demoRequested) {
+      window.setTimeout(() => submitRef.current?.focus(), 0);
+    }
+  }, [demoRequested, demoSignIn.email, demoSignIn.enabled, demoSignIn.password]);
 
   async function signIn(emailValue: string, passwordValue: string, destinationOverride?: string) {
     if (loading) return;
@@ -61,6 +83,10 @@ export function SignInProcurexPage() {
       const intendedPath = locationState?.from?.pathname;
       navigate(destinationOverride ?? destinationFor(session.user, intendedPath), { replace: true });
     } catch (caughtError) {
+      if (isLockedAccountError(caughtError)) {
+        navigate('/account-locked', { replace: true });
+        return;
+      }
       setAlert(authAlertFromError(caughtError, 'sign-in'));
       setTurnstileToken('');
       setTurnstileResetKey((value) => value + 1);
@@ -115,8 +141,10 @@ export function SignInProcurexPage() {
                 <label className="form-label-new" htmlFor="sign-in-email">{t('auth.signIn.email')}</label>
                 <input
                   id="sign-in-email"
-                  className="form-input-new"
+                  className={`form-input-new ${alert?.tone === 'error' ? 'is-invalid' : ''}`}
                   type="email"
+                  autoFocus
+                  ref={emailRef}
                   value={email}
                   placeholder={t('auth.signIn.emailPlaceholder')}
                   onChange={(event) => setEmail(event.target.value)}
@@ -129,7 +157,7 @@ export function SignInProcurexPage() {
                 <div className="password-input-wrapper-new">
                   <input
                     id="sign-in-password"
-                    className="form-input-new"
+                    className={`form-input-new ${alert?.tone === 'error' ? 'is-invalid' : ''}`}
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     placeholder={t('auth.signIn.passwordPlaceholder')}
@@ -155,9 +183,16 @@ export function SignInProcurexPage() {
 
               <AuthAlert message={alert} />
 
+              {demoSignIn.enabled ? (
+                <p className="auth-note auth-note--demo">
+                  Development demo credentials are filled in for this session. Complete the security check, then sign in.
+                </p>
+              ) : null}
+
               <TurnstileWidget action="sign_in" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
 
-              <button type="submit" className="btn-continue-new" disabled={loading || !turnstileToken}>
+              <button ref={submitRef} type="submit" className="btn-continue-new" disabled={loading || !turnstileToken}>
+                {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                 {loading ? t('auth.signIn.submitting') : t('auth.signIn.submit')}
               </button>
 

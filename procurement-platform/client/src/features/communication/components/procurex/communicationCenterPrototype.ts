@@ -9,6 +9,20 @@ type CommunicationAttachment = {
   dataUrl?: string;
 };
 
+function notifyCommunication(title: string, message: string, reason?: string, tone: 'success' | 'info' | 'warning' | 'error' = 'info') {
+  window.dispatchEvent(
+    new CustomEvent('procurex:notify', {
+      detail: {
+        tone,
+        title,
+        message,
+        reason,
+        dismissible: true
+      }
+    })
+  );
+}
+
 type CommunicationThreadEntry = {
   senderType?: string;
   senderName?: string;
@@ -284,7 +298,7 @@ function openCommunicationAttachment(attachment: CommunicationAttachment = {}, i
   const url = getCommunicationAttachmentBlobUrl(attachment);
   const opened = window.open(url, '_blank', 'noopener');
   if (url.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(url), 5000);
-  if (!opened) window.alert(`Allow pop-ups to open ${getCommunicationAttachmentName(attachment, index)}.`);
+  if (!opened) notifyCommunication('Attachment blocked', `Allow pop-ups to open ${getCommunicationAttachmentName(attachment, index)}.`, 'Your browser blocked the new tab for this attachment.', 'warning');
 }
 
 function downloadCommunicationAttachment(attachment: CommunicationAttachment = {}, index = 0) {
@@ -1012,7 +1026,7 @@ function handleCommunicationSubmit(event: Event, shell: HTMLElement) {
     const formData = new FormData(replyForm);
     const body = String(formData.get('body') || '').trim();
     if (!body) {
-      window.alert('Write a response before sending.');
+      notifyCommunication('Response required', 'Write a response before sending.', 'ProcureX cannot send an empty communication response.', 'warning');
       return;
     }
     const item = getCommunicationItems().find((entry) => entry.id === itemId);

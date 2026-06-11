@@ -9,6 +9,7 @@ import {
   OrganizationKind,
   PublicPageKey,
   PublicPageStatus,
+  RiskLevel,
   TrustTier,
   VerificationStatus
 } from '@prisma/client';
@@ -159,14 +160,16 @@ async function main() {
     await db.supplierProfile.upsert({
       where: { organizationId: demoOrg.id },
       update: {
-        trustTier: TrustTier.VERIFIED,
-        bidLimit: 5000000000,
+        trustTier: TrustTier.PLATINUM,
+        riskLevel: RiskLevel.LOW,
+        bidLimit: 999999999999,
         categories: []
       },
       create: {
         organizationId: demoOrg.id,
-        trustTier: TrustTier.VERIFIED,
-        bidLimit: 5000000000,
+        trustTier: TrustTier.PLATINUM,
+        riskLevel: RiskLevel.LOW,
+        bidLimit: 999999999999,
         categories: []
       }
     });
@@ -304,6 +307,8 @@ async function main() {
     const demoProfileId = '00000000-0000-4000-8000-000000000101';
     const demoSignatureId = '00000000-0000-4000-8000-000000000102';
     const demoHistoryId = '00000000-0000-4000-8000-000000000103';
+    const demoScreeningId = '00000000-0000-4000-8000-000000000104';
+    const demoTrustHistoryId = '00000000-0000-4000-8000-000000000105';
     const demoSignedAt = new Date('2026-06-06T00:00:00.000Z');
     const demoConsentVersion = '2026.06.06';
     const demoConsentTitle = 'ProcureX identity verification signature consent';
@@ -348,6 +353,12 @@ async function main() {
       verifiedName: demoRegistryRecord.name,
       reviewReasons: [],
       autoApproved: true,
+      screening: {
+        provider: 'deterministic-local-v1',
+        status: 'CLEAR',
+        reasons: [],
+        providerMetadata: { demoAccount: true, developmentBypass: true }
+      },
       submittedAt: demoSignedAt.toISOString(),
       digitalSignature: {
         id: demoSignatureId,
@@ -440,6 +451,54 @@ async function main() {
         registryNumber: demoRegistryRecord.registryNumber,
         event: 'seed_demo_verified',
         payload: demoVerificationPayload
+      }
+    });
+
+    await db.screeningCheck.upsert({
+      where: { id: demoScreeningId },
+      update: {
+        userId: demoUser.id,
+        verificationProfileId: demoProfileId,
+        organizationId: demoOrg.id,
+        provider: 'deterministic-local-v1',
+        status: 'CLEAR',
+        reasons: [],
+        providerMetadata: { demoAccount: true, developmentBypass: true }
+      },
+      create: {
+        id: demoScreeningId,
+        userId: demoUser.id,
+        verificationProfileId: demoProfileId,
+        organizationId: demoOrg.id,
+        provider: 'deterministic-local-v1',
+        status: 'CLEAR',
+        reasons: [],
+        providerMetadata: { demoAccount: true, developmentBypass: true }
+      }
+    });
+
+    await db.trustTierHistory.upsert({
+      where: { id: demoTrustHistoryId },
+      update: {
+        organizationId: demoOrg.id,
+        userId: demoUser.id,
+        verificationProfileId: demoProfileId,
+        previousTier: TrustTier.GOLD,
+        nextTier: TrustTier.PLATINUM,
+        riskLevel: RiskLevel.LOW,
+        score: 100,
+        reasons: ['Development demo account with full buyer and supplier gates enabled.']
+      },
+      create: {
+        id: demoTrustHistoryId,
+        organizationId: demoOrg.id,
+        userId: demoUser.id,
+        verificationProfileId: demoProfileId,
+        previousTier: TrustTier.GOLD,
+        nextTier: TrustTier.PLATINUM,
+        riskLevel: RiskLevel.LOW,
+        score: 100,
+        reasons: ['Development demo account with full buyer and supplier gates enabled.']
       }
     });
 

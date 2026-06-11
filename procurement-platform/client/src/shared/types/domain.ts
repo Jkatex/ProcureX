@@ -1,6 +1,6 @@
-import type { AccountType, OrganizationCapability } from '@procurex/shared';
+import type { AccountType, FeatureGateMap, PermissionName, RiskLevel, ScreeningStatus, TrustTier, OrganizationCapability } from '@procurex/shared';
 
-export type { AccountType, OrganizationCapability };
+export type { AccountType, FeatureGateMap, PermissionName, RiskLevel, ScreeningStatus, TrustTier, OrganizationCapability };
 
 export type SessionUser = {
   id: string;
@@ -9,7 +9,13 @@ export type SessionUser = {
   phone?: string | null;
   accountType: AccountType;
   organization: string;
+  organizationId?: string;
   capabilities: OrganizationCapability[];
+  permissions?: PermissionName[];
+  trustTier?: TrustTier;
+  riskLevel?: RiskLevel;
+  featureGates?: FeatureGateMap;
+  screeningStatus?: ScreeningStatus;
   verificationStatus: 'NOT_STARTED' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 };
 

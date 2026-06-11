@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LanguageSwitcher } from '@/shared/components/LanguageSwitcher';
 import { useWelcomeLandingData } from '../../hooks';
 
@@ -14,6 +14,8 @@ type NavigateButtonProps = {
   className: string;
   to: string;
 };
+
+const rawPrototypeDemoPath = '/procurex-ui/index.html?page=sign-in';
 
 function NavigateButton({ children, className, to }: NavigateButtonProps) {
   const navigate = useNavigate();
@@ -64,6 +66,44 @@ type WelcomeAssuranceCopy = {
   title: string;
   text: string;
 };
+
+type WelcomeFaq = {
+  question: string;
+  answer: string;
+};
+
+function AnimatedCounter({ value, suffix = '' }: { value: number; suffix?: string }) {
+  const [displayValue, setDisplayValue] = useState(value);
+
+  useEffect(() => {
+    const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      setDisplayValue(value);
+      return;
+    }
+
+    const start = performance.now();
+    const initial = displayValue;
+    const difference = value - initial;
+    let frame = 0;
+
+    function tick(now: number) {
+      const progress = Math.min(1, (now - start) / 850);
+      setDisplayValue(Math.round(initial + difference * progress));
+      if (progress < 1) frame = window.requestAnimationFrame(tick);
+    }
+
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [value]);
+
+  return (
+    <>
+      {displayValue.toLocaleString()}
+      {suffix}
+    </>
+  );
+}
 
 const stepIcons = [
   {
@@ -134,12 +174,41 @@ const marketCardVisuals = [
 
 export function WelcomeProcurexPage() {
   const { t } = useTranslation();
+  const location = useLocation();
   const { data, status } = useWelcomeLandingData();
+  const [menuOpen, setMenuOpen] = useState(false);
   const featuredTender = data.featuredTenders[0];
   const completionRate = t('welcomeLanding.preview.completionRate', { rate: data.stats.verifiedProfileCompletionRate.toFixed(1) });
   const steps = t('welcomeLanding.steps', { returnObjects: true }) as WelcomeStepCopy[];
   const marketCards = t('welcomeLanding.marketCards', { returnObjects: true }) as WelcomeMarketCardCopy[];
   const assuranceItems = t('welcomeLanding.gateway.assurance', { returnObjects: true }) as WelcomeAssuranceCopy[];
+  const faqs: WelcomeFaq[] = [
+    {
+      question: 'Do I need to be verified before using procurement tools?',
+      answer: 'You can browse public tenders as a guest. Tender creation, publishing, bidding, and evaluation actions require sign-in, verification, and the right access permissions.'
+    },
+    {
+      question: 'Can ProcureX support both buyers and suppliers?',
+      answer: 'Yes. An organization can request buyer, supplier, or combined capabilities during onboarding, then the workspace shows tools allowed by its approved profile.'
+    },
+    {
+      question: 'What happens to clarification messages and bid records?',
+      answer: 'ProcureX keeps tender communications, bid activity, evaluation steps, awards, and supporting documents together so teams can review a clear procurement history.'
+    }
+  ];
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMenuOpen(false);
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [menuOpen]);
+
+  function linkClass(to: string) {
+    return location.pathname === to ? 'active' : undefined;
+  }
 
   return (
     <div className="landing-page welcome-page-v2" data-welcome-status={status}>
@@ -149,13 +218,31 @@ export function WelcomeProcurexPage() {
             <PlatformLogo />
             <span className="brand-text">ProcureX</span>
           </Link>
-          <nav className="landing-nav-links welcome-nav-links-v2" aria-label={t('welcomeLanding.navAria')}>
-            <Link className="active" to="/guest-marketplace">
+          <button
+            className="welcome-menu-toggle-v2"
+            type="button"
+            aria-controls="welcome-primary-nav"
+            aria-expanded={menuOpen}
+            aria-label="Toggle navigation"
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+          <nav id="welcome-primary-nav" className={`landing-nav-links welcome-nav-links-v2 ${menuOpen ? 'is-open' : ''}`} aria-label={t('welcomeLanding.navAria')}>
+            <Link className={linkClass('/guest-marketplace')} to="/guest-marketplace" aria-current={location.pathname === '/guest-marketplace' ? 'page' : undefined} onClick={() => setMenuOpen(false)}>
               {t('welcomeLanding.nav.browseTenders')}
             </Link>
-            <a href="#how-it-works">{t('welcomeLanding.nav.howItWorks')}</a>
-            <Link to="/about">{t('welcomeLanding.nav.about')}</Link>
-            <a href="#help-center">{t('welcomeLanding.nav.helpCenter')}</a>
+            <a href="#how-it-works" onClick={() => setMenuOpen(false)}>
+              {t('welcomeLanding.nav.howItWorks')}
+            </a>
+            <Link className={linkClass('/about')} to="/about" aria-current={location.pathname === '/about' ? 'page' : undefined} onClick={() => setMenuOpen(false)}>
+              {t('welcomeLanding.nav.about')}
+            </Link>
+            <Link className={linkClass('/help')} to="/help" aria-current={location.pathname === '/help' ? 'page' : undefined} onClick={() => setMenuOpen(false)}>
+              {t('welcomeLanding.nav.helpCenter')}
+            </Link>
           </nav>
           <div className="welcome-nav-actions-v2">
             <span className="procurex-language-inline procurex-language-inline--welcome">
@@ -169,7 +256,7 @@ export function WelcomeProcurexPage() {
         </div>
       </header>
 
-      <main className="welcome-hero-v2">
+      <main id="main-content" className="welcome-hero-v2">
         <div className="container welcome-hero-grid-v2">
           <section className="welcome-hero-copy-v2 animate-fade-in">
             <span className="eyebrow">{t('welcomeLanding.hero.eyebrow')}</span>
@@ -183,15 +270,22 @@ export function WelcomeProcurexPage() {
               <NavigateButton className="btn btn-secondary" to="/guest-marketplace">
                 {t('welcomeLanding.hero.secondaryCta')}
               </NavigateButton>
+              <a className="btn btn-secondary" href={rawPrototypeDemoPath}>
+                View demo
+              </a>
             </div>
             <div className="welcome-proof-v2" aria-label={t('welcomeLanding.proofAria')}>
               <span className="welcome-proof-avatars-v2" aria-hidden="true">
-                <i />
-                <i />
-                <i />
+                <i>PE</i>
+                <i>SM</i>
+                <i>TC</i>
               </span>
               <span>{data.stats.participantLabel}</span>
             </div>
+            <a className="welcome-scroll-cue-v2" href="#how-it-works" aria-label="Scroll to how ProcureX works">
+              <span />
+              {t('welcomeLanding.nav.howItWorks')}
+            </a>
           </section>
 
           <section className="welcome-product-stage-v2 animate-fade-in delay-1" aria-label={t('welcomeLanding.productStageAria')}>
@@ -224,6 +318,15 @@ export function WelcomeProcurexPage() {
                   <strong>{featuredTender.reference}</strong>
                   <span>{featuredTender.title}</span>
                 </article>
+                <article>
+                  <WelcomeIcon>
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  </WelcomeIcon>
+                  <strong>{data.stats.participantCount.toLocaleString()}+</strong>
+                  <span>verified participants and teams</span>
+                </article>
               </div>
               <div className="welcome-product-rate-v2">
                 <div>
@@ -235,12 +338,38 @@ export function WelcomeProcurexPage() {
                 </NavigateButton>
               </div>
               <figure className="welcome-product-photo-v2">
-                <img src="/assets/welcome/procurement-meeting.webp" alt={t('welcomeLanding.preview.photoAlt')} loading="eager" />
+                <picture>
+                  <source srcSet="/assets/welcome/procurement-meeting.webp" type="image/webp" />
+                  <img src="/assets/welcome/procurement-meeting.webp" alt={t('welcomeLanding.preview.photoAlt')} width="960" height="640" loading="eager" fetchPriority="high" />
+                </picture>
               </figure>
             </div>
           </section>
         </div>
       </main>
+
+      <section className="welcome-stat-strip-v2" aria-label="ProcureX live marketplace statistics">
+        <div className="container">
+          <article>
+            <strong>
+              <AnimatedCounter value={data.stats.participantCount} suffix="+" />
+            </strong>
+            <span>participants represented</span>
+          </article>
+          <article>
+            <strong>
+              <AnimatedCounter value={data.stats.openTenderCount} />
+            </strong>
+            <span>open tenders visible</span>
+          </article>
+          <article>
+            <strong>
+              <AnimatedCounter value={Math.round(data.stats.verifiedProfileCompletionRate)} suffix="%" />
+            </strong>
+            <span>profile completion signal</span>
+          </article>
+        </div>
+      </section>
 
       <section id="how-it-works" className="welcome-section-v2 welcome-steps-section-v2">
         <div className="container">
@@ -335,6 +464,23 @@ export function WelcomeProcurexPage() {
 
       <section className="welcome-cta-section-v2">
         <div className="container">
+          <div className="welcome-faq-panel-v2" aria-labelledby="welcome-faq-title">
+            <div className="section-header welcome-centered-v2">
+              <span className="section-label">Help center</span>
+              <h2 id="welcome-faq-title">Common launch questions</h2>
+            </div>
+            <div className="launch-faq-list welcome-faq-list-v2">
+              {faqs.map((item) => (
+                <details key={item.question}>
+                  <summary>{item.question}</summary>
+                  <p>{item.answer}</p>
+                </details>
+              ))}
+            </div>
+            <Link className="welcome-faq-link-v2" to="/help">
+              Open the Help Center
+            </Link>
+          </div>
           <div className="welcome-cta-panel-v2">
             <div>
               <h2>{t('welcomeLanding.cta.title')}</h2>
@@ -344,12 +490,18 @@ export function WelcomeProcurexPage() {
               <NavigateButton className="btn btn-primary" to="/register">
                 {t('welcomeLanding.cta.button')}
               </NavigateButton>
+              <NavigateButton className="btn btn-secondary" to="/guest-marketplace">
+                {t('welcomeLanding.hero.secondaryCta')}
+              </NavigateButton>
+              <a className="btn btn-secondary" href={rawPrototypeDemoPath}>
+                View demo
+              </a>
             </div>
           </div>
         </div>
       </section>
 
-      <footer id="help-center" className="welcome-footer-v2">
+      <footer className="welcome-footer-v2">
         <div className="container">
           <div>
             <strong>ProcureX</strong>
@@ -364,11 +516,11 @@ export function WelcomeProcurexPage() {
           <nav aria-label={t('welcomeLanding.footer.platformAria')}>
             <h3>{t('welcomeLanding.footer.platform')}</h3>
             <Link to="/guest-marketplace">{t('welcomeLanding.nav.browseTenders')}</Link>
-            <a href="#help-center">{t('welcomeLanding.footer.systemStatus')}</a>
+            <Link to="/status">{t('welcomeLanding.footer.systemStatus')}</Link>
           </nav>
           <nav aria-label={t('welcomeLanding.footer.supportAria')}>
             <h3>{t('welcomeLanding.footer.support')}</h3>
-            <Link to="/contact">{t('welcomeLanding.footer.helpCenter')}</Link>
+            <Link to="/help">{t('welcomeLanding.footer.helpCenter')}</Link>
             <Link to="/contact">{t('welcomeLanding.footer.contactSupport')}</Link>
           </nav>
         </div>

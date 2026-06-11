@@ -91,6 +91,10 @@ export const authApi = {
     const response = await apiClient.get<SessionResponse>('/api/identity/session');
     return response.data;
   },
+  async getAccessMe() {
+    const response = await apiClient.get<SessionUser>('/api/identity/access/me');
+    return response.data;
+  },
   async signOut() {
     const response = await apiClient.post<{ ok: boolean }>('/api/identity/auth/sign-out');
     return response.data;

@@ -396,7 +396,7 @@
           "fair": "Wastani",
           "weak": "Dhaifu"
         },
-        "requirements": ["Herufi 8 au zaidi", "Herufi kubwa", "Namba", "Alama maalumu"],
+        "requirements": ["Herufi 8 hadi 128", "Herufi kubwa", "Namba", "Alama maalumu"],
         "confirmAgreement": "Thibitisha makubaliano",
         "agreementNoteStart": "Thibitisha kuwa unakubali",
         "agreementAnd": "na",

@@ -42,6 +42,18 @@ describe('ProcureX server skeleton', () => {
     await request(app).get('/health').set('Origin', 'https://evil.example').expect(403);
   });
 
+  it('sets an explicit CSP for app assets, API fetches, dotLottie, and Turnstile', async () => {
+    const response = await request(createApp()).get('/health').expect(200);
+    const csp = response.headers['content-security-policy'];
+
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain('https://unpkg.com');
+    expect(csp).toContain('https://challenges.cloudflare.com');
+    expect(csp).toContain("img-src 'self' data: blob:");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(csp).toContain('http://localhost:4000');
+  });
+
   it('requires a valid Turnstile token before public auth handlers run', async () => {
     process.env.TURNSTILE_SECRET_KEY = 'turnstile-secret';
     vi.stubGlobal(

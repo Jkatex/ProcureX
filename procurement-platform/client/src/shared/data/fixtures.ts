@@ -8,7 +8,20 @@ export const demoUsers: Record<'user' | 'admin', SessionUser> = {
     accountType: 'USER',
     organization: 'Kilimanjaro Supplies Limited',
     capabilities: ['BUYER', 'SUPPLIER'],
-    verificationStatus: 'APPROVED'
+    verificationStatus: 'APPROVED',
+    permissions: ['identity.verify', 'procurement.create', 'procurement.publish', 'bidding.submit', 'evaluation.manage'],
+    trustTier: 'PLATINUM',
+    riskLevel: 'LOW',
+    screeningStatus: 'CLEAR',
+    featureGates: {
+      identityVerification: false,
+      adminReview: false,
+      tenderCreation: true,
+      tenderPublication: true,
+      bidSubmission: true,
+      evaluationManagement: true,
+      complianceReview: false
+    }
   },
   admin: {
     id: 'admin-1',
@@ -17,7 +30,20 @@ export const demoUsers: Record<'user' | 'admin', SessionUser> = {
     accountType: 'ADMIN',
     organization: 'ProcureX Platform',
     capabilities: [],
-    verificationStatus: 'APPROVED'
+    verificationStatus: 'APPROVED',
+    permissions: ['identity.verify', 'identity.review', 'procurement.create', 'procurement.publish', 'bidding.submit', 'evaluation.manage', 'admin.access', 'compliance.review'],
+    trustTier: 'PLATINUM',
+    riskLevel: 'LOW',
+    screeningStatus: 'CLEAR',
+    featureGates: {
+      identityVerification: false,
+      adminReview: true,
+      tenderCreation: true,
+      tenderPublication: true,
+      bidSubmission: true,
+      evaluationManagement: true,
+      complianceReview: true
+    }
   }
 };
 

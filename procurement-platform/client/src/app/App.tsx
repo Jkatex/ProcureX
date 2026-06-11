@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { hydrateAuthSession } from '@/features/auth/slice';
+import { NotificationToastHost } from '@/features/notifications/NotificationToastHost';
+import { CookieConsentBanner } from '@/features/support/pages/SupportPages';
 import { router } from './router';
 import { useAppDispatch, useAppSelector } from './store';
 
@@ -17,5 +19,11 @@ export function App() {
     void dispatch(hydrateAuthSession());
   }, [dispatch, status, token, user]);
 
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <NotificationToastHost />
+      <CookieConsentBanner />
+    </>
+  );
 }

@@ -21,6 +21,7 @@ export function createModuleRouter() {
   router.post('/auth/resend-reset-code', publicAuthLimit, controller.resendResetCode);
   router.post('/auth/reset-password', publicAuthLimit, controller.resetPassword);
   router.get('/session', controller.getSession);
+  router.get('/access/me', controller.accessMe);
   router.post('/auth/sign-out', controller.signOut);
 
   router.get('/verification/me', controller.getVerificationMe);
@@ -31,6 +32,7 @@ export function createModuleRouter() {
 
   router.get('/admin/verifications', controller.listAdminVerifications);
   router.post('/admin/verifications/:id/decision', controller.decideAdminVerification);
+  router.post('/admin/verifications/:id/rescreen', controller.rescreenAdminVerification);
 
   return router;
 }

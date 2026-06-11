@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/app/store';
+import { useNotifications } from '@/features/notifications/hooks';
 import { createEmptyTenderDraft, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { publishSimulatedTender, saveCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
+import { NotificationCard } from '@/shared/components/NotificationCard';
 import type {
   CreateTenderConfirmationId,
   CreateTenderDraft,
@@ -103,6 +105,7 @@ type PlanningBridge = {
 export function CreateTenderProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { notifySuccess, notifyWarning } = useNotifications();
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
   const [activeStep, setActiveStep] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
@@ -241,18 +244,28 @@ export function CreateTenderProcurexPage() {
   function saveDraft() {
     if (!canSaveDraft) {
       setValidationMessage('Add a tender detail first, then you can save this draft.');
+      notifyWarning('Tender draft not ready', 'Add at least one tender detail before saving.', {
+        reason: 'ProcureX needs meaningful tender information before it can keep a session draft.'
+      });
       return;
     }
     const saved = { ...draft, status: 'DRAFT' as const, updatedAt: new Date().toISOString() };
     setDraft(saved);
     dispatch(saveCreateTenderDraft(saved));
     setStatusMessage('Draft saved for this session.');
+    notifySuccess('Tender draft saved', 'Your tender draft was saved for this session.', {
+      reason: 'You can continue editing it from My Tenders while this browser session is active.',
+      action: { label: 'Open My Tenders', to: '/procurement/my-tenders' }
+    });
     setValidationMessage('');
   }
 
   function submitTender() {
     if (!confirmationsComplete) {
       setValidationMessage('Please review and tick each publication confirmation before submitting.');
+      notifyWarning('Tender cannot be submitted yet', 'Complete all publication confirmations before submitting.', {
+        reason: 'ProcureX blocks publication until accuracy, compliance, evaluation, and publication confirmations are ticked.'
+      });
       return;
     }
     const now = new Date().toISOString();
@@ -260,6 +273,9 @@ export function CreateTenderProcurexPage() {
     const published = { ...submitted, status: 'PUBLISHED' as const, publishedAt: now };
     dispatch(submitCreateTenderForEvaluation(submitted));
     dispatch(publishSimulatedTender(published));
+    notifySuccess('Tender submitted', 'Your tender was submitted for evaluation and published to the marketplace.', {
+      reason: 'A marketplace record and My Tenders record were created for this session.'
+    });
     navigate('/procurement/my-tenders');
   }
 
@@ -299,8 +315,12 @@ export function CreateTenderProcurexPage() {
 
         <div className="wizard-workspace">
           <section className="journey-panel active">
-            {statusMessage ? <div className="scope-empty success">{statusMessage}</div> : null}
-            {validationMessage ? <div className="scope-empty error">{validationMessage}</div> : null}
+            {statusMessage ? (
+              <NotificationCard notification={{ tone: 'success', title: 'Tender updated', message: statusMessage, reason: 'This confirmation applies to the current browser session.', dismissible: false }} />
+            ) : null}
+            {validationMessage ? (
+              <NotificationCard notification={{ tone: 'error', title: 'Action needed', message: validationMessage, reason: 'Review the current tender step and complete the missing information.', dismissible: false }} />
+            ) : null}
             {planWarningFields.length ? <div className="planning-section planning-section-notice">Planning handoff fields were edited: {planWarningFields.join(', ')}.</div> : null}
 
             <div className="panel-heading">

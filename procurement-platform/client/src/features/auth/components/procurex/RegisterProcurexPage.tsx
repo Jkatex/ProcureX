@@ -12,11 +12,22 @@ type RegisterStep = 1 | 2 | 3 | 4 | 5;
 
 function passwordChecks(password: string) {
   return {
-    length: password.length >= 8 && password.length <= 64,
+    length: password.length >= 8 && password.length <= 128,
     uppercase: /[A-Z]/.test(password),
     number: /\d/.test(password),
     special: /[^A-Za-z0-9]/.test(password)
   };
+}
+
+function RequirementIcon({ met }: { met: boolean }) {
+  return (
+    <span className={`requirement-icon-new ${met ? 'met' : ''}`}>
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        {met ? <path d="M16.2 5.8 8.4 13.6 4.3 9.5" /> : <circle cx="10" cy="10" r="6.5" />}
+      </svg>
+      <span className="sr-only">{met ? 'Requirement met:' : 'Requirement not met:'}</span>
+    </span>
+  );
 }
 
 function secondsUntil(value: string, now: number) {
@@ -36,6 +47,7 @@ export function RegisterProcurexPage() {
   useBodyPageMetadata('register');
   const [step, setStep] = useState<RegisterStep>(1);
   const [email, setEmail] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState('+255');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpChallengeId, setOtpChallengeId] = useState('');
@@ -54,6 +66,7 @@ export function RegisterProcurexPage() {
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const activeScreenRef = useRef<HTMLDivElement | null>(null);
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
   const legalVersions = useCurrentLegalVersions();
   const checks = useMemo(() => passwordChecks(password), [password]);
@@ -72,6 +85,19 @@ export function RegisterProcurexPage() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    window.setTimeout(() => {
+      activeScreenRef.current?.querySelector<HTMLElement>('input, button:not([disabled])')?.focus();
+    }, 0);
+  }, [step]);
+
+  function normalizedPhone() {
+    const trimmed = phone.trim();
+    if (trimmed.startsWith('+')) return trimmed.replace(/\s+/g, '');
+    const local = trimmed.replace(/[^\d]/g, '').replace(/^0+/, '');
+    return `${phoneCountry}${local}`;
+  }
 
   function updateOtpFrom(index: number, value: string) {
     const digits = value.replace(/\D/g, '');
@@ -126,7 +152,7 @@ export function RegisterProcurexPage() {
     setLoading(true);
     setStatus(null);
     try {
-      const result = await authApi.startRegistration({ email, phone, turnstileToken });
+      const result = await authApi.startRegistration({ email, phone: normalizedPhone(), turnstileToken });
       setOtpChallengeId(result.challengeId);
       setChallengeExpiresAt(result.expiresAt);
       setResendAvailableAt(result.resendAvailableAt ?? '');
@@ -279,24 +305,34 @@ export function RegisterProcurexPage() {
 
           <div className="screens-container-new">
             {step === 1 ? (
-              <div className="register-screen-new active">
+              <div className="register-screen-new active" ref={activeScreenRef}>
                 <div className="screen-header-new">
                   <h2>{t('auth.register.account.title')}</h2>
                   <p>{t('auth.register.account.subtitle')}</p>
                 </div>
                 <form className="screen-form-new" onSubmit={submitAccountInfo}>
                   <div className="form-group-new">
-                    <label className="form-label-new">{t('auth.register.account.email')}</label>
-                    <input className="form-input-new" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t('auth.register.account.emailPlaceholder')} required />
+                    <label className="form-label-new" htmlFor="register-email">{t('auth.register.account.email')}</label>
+                    <input id="register-email" className="form-input-new" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t('auth.register.account.emailPlaceholder')} required />
                     <span className="form-hint-new">{t('auth.register.account.emailHint')}</span>
                   </div>
                   <div className="form-group-new">
-                    <label className="form-label-new">{t('auth.register.account.phone')}</label>
-                    <input className="form-input-new" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t('auth.register.account.phonePlaceholder')} required />
+                    <label className="form-label-new" htmlFor="register-phone">{t('auth.register.account.phone')}</label>
+                    <div className="phone-entry-new">
+                      <select className="form-input-new" value={phoneCountry} aria-label="Phone country code" onChange={(event) => setPhoneCountry(event.target.value)}>
+                        <option value="+255">TZ +255</option>
+                        <option value="+254">KE +254</option>
+                        <option value="+256">UG +256</option>
+                        <option value="+250">RW +250</option>
+                        <option value="+257">BI +257</option>
+                      </select>
+                      <input id="register-phone" className="form-input-new" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t('auth.register.account.phonePlaceholder')} required />
+                    </div>
                     <span className="form-hint-new">{t('auth.register.account.phoneHint')}</span>
                   </div>
                   <TurnstileWidget action="registration_start" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
                   <button className="btn-continue-new" type="submit" disabled={loading || !turnstileToken}>
+                    {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                     {t('actions.continue')}
                   </button>
                 </form>
@@ -304,18 +340,19 @@ export function RegisterProcurexPage() {
             ) : null}
 
             {step === 2 ? (
-              <div className="register-screen-new active">
+              <div className="register-screen-new active" ref={activeScreenRef}>
                 <div className="screen-header-new">
                   <h2>{t('auth.register.otp.title')}</h2>
-                  <p>{t('auth.register.otp.subtitle')} <strong>{phone}</strong></p>
+                  <p>{t('auth.register.otp.subtitle')} <strong>{normalizedPhone()}</strong></p>
                 </div>
                 <form className="screen-form-new" onSubmit={submitOtp} noValidate>
                   <div className="form-group-new">
-                    <label className="form-label-new">{t('auth.register.otp.label')}</label>
+                    <label className="form-label-new" id="register-otp-label">{t('auth.register.otp.label')}</label>
                     <div className="otp-container-new">
                       {otpDigits.map((digit, index) => (
                         <input
                           aria-label={t('auth.register.otp.digitAria', { index: index + 1 })}
+                          autoComplete={index === 0 ? 'one-time-code' : 'off'}
                           className="otp-input-new"
                           inputMode="numeric"
                           key={index}
@@ -353,10 +390,14 @@ export function RegisterProcurexPage() {
                     ) : null}
                   </div>
                   <TurnstileWidget action="registration_resend_otp" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                  <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep(1)}>
+                    Back
+                  </button>
                   <button className="btn-resend-new" type="button" disabled={loading || resendSeconds > 0 || !turnstileToken} onClick={() => void resendOtp()}>
                     {t('auth.register.otp.resend')}
                   </button>
                   <button className="btn-continue-new" type="submit" disabled={loading || !otpReady}>
+                    {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                     {t('auth.register.otp.verify')}
                   </button>
                 </form>
@@ -364,7 +405,7 @@ export function RegisterProcurexPage() {
             ) : null}
 
             {step === 3 ? (
-              <div className="register-screen-new active">
+              <div className="register-screen-new active" ref={activeScreenRef}>
                 <div className="screen-header-new">
                   <div className="success-icon-new">{t('auth.register.ok')}</div>
                   <h2>{t('auth.register.activation.title')}</h2>
@@ -379,8 +420,8 @@ export function RegisterProcurexPage() {
                 </div>
                 <form className="screen-form-new" onSubmit={submitActivation}>
                   <div className="form-group-new">
-                    <label className="form-label-new">{t('auth.register.activation.label')}</label>
-                    <input className="form-input-new" value={activationCode} onChange={(event) => setActivationCode(event.target.value)} required />
+                    <label className="form-label-new" htmlFor="register-activation-code">{t('auth.register.activation.label')}</label>
+                    <input id="register-activation-code" className="form-input-new" value={activationCode} autoComplete="one-time-code" onChange={(event) => setActivationCode(event.target.value)} required />
                     {activationExpiresAt ? <span className="form-hint-new">{t('auth.register.activation.expiresIn', { time: formatCountdown(activationSeconds) })}</span> : null}
                   </div>
                   <div className="activation-actions-new">
@@ -392,7 +433,11 @@ export function RegisterProcurexPage() {
                     </button>
                   </div>
                   <TurnstileWidget action="registration_resend_activation" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                  <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep(2)}>
+                    Back
+                  </button>
                   <button className="btn-continue-new btn-continue-to-password-new" type="submit" disabled={loading || activationCode.trim().length < 8}>
+                    {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                     {t('auth.register.activation.continue')}
                   </button>
                 </form>
@@ -400,16 +445,16 @@ export function RegisterProcurexPage() {
             ) : null}
 
             {step === 4 ? (
-              <div className="register-screen-new active">
+              <div className="register-screen-new active" ref={activeScreenRef}>
                 <div className="screen-header-new">
                   <h2>{t('auth.register.password.title')}</h2>
                   <p>{t('auth.register.password.subtitle')}</p>
                 </div>
                 <form className="screen-form-new" onSubmit={submitPassword}>
                   <div className="form-group-new">
-                    <label className="form-label-new">{t('auth.register.password.label')}</label>
+                    <label className="form-label-new" htmlFor="register-password">{t('auth.register.password.label')}</label>
                     <div className="password-input-wrapper-new">
-                      <input className="form-input-new password-input-new" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('auth.register.password.placeholder')} required />
+                      <input id="register-password" className={`form-input-new password-input-new ${status?.tone === 'error' && !checks.length ? 'is-invalid' : ''}`} type={showPassword ? 'text' : 'password'} value={password} maxLength={128} onChange={(event) => setPassword(event.target.value)} placeholder={t('auth.register.password.placeholder')} required />
                       <button className="password-toggle-new" type="button" aria-label={showPassword ? t('auth.register.password.hide') : t('auth.register.password.show')} onClick={() => setShowPassword((value) => !value)}>
                         <svg className="icon-eye-new" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -424,16 +469,16 @@ export function RegisterProcurexPage() {
                       <span className="strength-text-new">{t('auth.register.password.strength')} <strong>{t(`auth.register.password.strengthLabels.${strengthKey}`)}</strong></span>
                     </div>
                     <ul className="password-requirements-new">
-                      <li className={checks.length ? 'met' : ''}><span className="requirement-icon-new">{checks.length ? t('auth.register.ok') : 'o'}</span>{passwordRequirements[0]}</li>
-                      <li className={checks.uppercase ? 'met' : ''}><span className="requirement-icon-new">{checks.uppercase ? t('auth.register.ok') : 'o'}</span>{passwordRequirements[1]}</li>
-                      <li className={checks.number ? 'met' : ''}><span className="requirement-icon-new">{checks.number ? t('auth.register.ok') : 'o'}</span>{passwordRequirements[2]}</li>
-                      <li className={checks.special ? 'met' : ''}><span className="requirement-icon-new">{checks.special ? t('auth.register.ok') : 'o'}</span>{passwordRequirements[3]}</li>
+                      <li className={checks.length ? 'met' : ''}><RequirementIcon met={checks.length} />{passwordRequirements[0]}</li>
+                      <li className={checks.uppercase ? 'met' : ''}><RequirementIcon met={checks.uppercase} />{passwordRequirements[1]}</li>
+                      <li className={checks.number ? 'met' : ''}><RequirementIcon met={checks.number} />{passwordRequirements[2]}</li>
+                      <li className={checks.special ? 'met' : ''}><RequirementIcon met={checks.special} />{passwordRequirements[3]}</li>
                     </ul>
                   </div>
                   <div className="form-group-new">
-                    <label className="form-label-new">{t('auth.register.password.confirmLabel')}</label>
+                    <label className="form-label-new" htmlFor="register-confirm-password">{t('auth.register.password.confirmLabel')}</label>
                     <div className="password-input-wrapper-new">
-                      <input className="form-input-new confirm-password-new" type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder={t('auth.register.password.confirmPlaceholder')} required />
+                      <input id="register-confirm-password" className={`form-input-new confirm-password-new ${status?.tone === 'error' && confirmPassword && password !== confirmPassword ? 'is-invalid' : ''}`} type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} maxLength={128} onChange={(event) => setConfirmPassword(event.target.value)} placeholder={t('auth.register.password.confirmPlaceholder')} required />
                       <button className="password-toggle-new" type="button" aria-label={showConfirmPassword ? t('auth.register.password.hideConfirm') : t('auth.register.password.showConfirm')} onClick={() => setShowConfirmPassword((value) => !value)}>
                         <svg className="icon-eye-new" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -455,7 +500,11 @@ export function RegisterProcurexPage() {
                       <Link className="link-new" to="/privacy">{t('auth.register.password.privacy')}</Link>.
                     </p>
                   </div>
+                  <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep(3)}>
+                    Back
+                  </button>
                   <button className="btn-continue-new btn-create-new" type="submit" disabled={loading || !passwordReady}>
+                    {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                     {t('auth.register.password.create')}
                   </button>
                 </form>

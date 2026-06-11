@@ -338,6 +338,9 @@ model User {
   verificationProfiles VerificationProfile[]
   verificationHistory  VerificationProfileHistory[]
   digitalSignatures    DigitalSignature[]
+  screeningChecks      ScreeningCheck[]
+  trustTierHistory     TrustTierHistory[]
+  permissionOverrides  PermissionOverride[]
   uploadedDocuments    DocumentObject[]        @relation("DocumentUploader")
   ownedTenders         Tender[]                @relation("TenderOwner")
   submittedBids        Bid[]                   @relation("BidSubmitter")
@@ -452,6 +455,8 @@ model VerificationProfile {
   organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   documents      VerificationDocument[]
   digitalSignatures DigitalSignature[]
+  screeningChecks ScreeningCheck[]
+  trustTierHistory TrustTierHistory[]
   history       VerificationProfileHistory[]
 
   @@index([userId])
@@ -524,6 +529,28 @@ model VerificationDocument {
   @@schema("identity")
 }
 
+model ScreeningCheck {
+  id                    String               @id @default(uuid()) @db.Uuid
+  userId                String               @map("user_id") @db.Uuid
+  verificationProfileId String?              @map("verification_profile_id") @db.Uuid
+  organizationId        String?              @map("organization_id") @db.Uuid
+  provider              String
+  status                String
+  reasons               Json                 @default("[]")
+  providerMetadata      Json                 @default("{}") @map("provider_metadata")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verificationProfile   VerificationProfile? @relation(fields: [verificationProfileId], references: [id], onDelete: SetNull)
+  organization          Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([verificationProfileId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([status])
+  @@map("screening_checks")
+  @@schema("identity")
+}
+
 model Organization {
   id                   String                    @id @default(uuid()) @db.Uuid
   name                 String                    @unique
@@ -542,6 +569,9 @@ model Organization {
   verificationProfiles VerificationProfile[]
   verificationHistory  VerificationProfileHistory[]
   digitalSignatures    DigitalSignature[]
+  screeningChecks      ScreeningCheck[]
+  trustTierHistory     TrustTierHistory[]
+  permissionOverrides  PermissionOverride[]
   documents            DocumentObject[]
   tendersAsBuyer       Tender[]                  @relation("TenderBuyerOrg")
   bidsAsBuyer          Bid[]                     @relation("BidBuyerOrg")
@@ -633,6 +663,46 @@ model SupplierProfile {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("supplier_profiles")
+  @@schema("organization")
+}
+
+model TrustTierHistory {
+  id                    String               @id @default(uuid()) @db.Uuid
+  organizationId        String?              @map("organization_id") @db.Uuid
+  userId                String?              @map("user_id") @db.Uuid
+  verificationProfileId String?              @map("verification_profile_id") @db.Uuid
+  previousTier          TrustTier?           @map("previous_tier")
+  nextTier              TrustTier            @map("next_tier")
+  riskLevel             RiskLevel            @default(MEDIUM) @map("risk_level")
+  score                 Int
+  reasons               Json                 @default("[]")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  organization          Organization?        @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user                  User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  verificationProfile   VerificationProfile? @relation(fields: [verificationProfileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([verificationProfileId, createdAt])
+  @@map("trust_tier_history")
+  @@schema("organization")
+}
+
+model PermissionOverride {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String?       @map("user_id") @db.Uuid
+  organizationId String?       @map("organization_id") @db.Uuid
+  permission     String
+  effect         String        @default("ALLOW")
+  reason         String?
+  expiresAt      DateTime?     @map("expires_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, permission])
+  @@index([organizationId, permission])
+  @@map("permission_overrides")
   @@schema("organization")
 }
 

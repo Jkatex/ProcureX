@@ -61,7 +61,7 @@ describe('ForgotPasswordProcurexPage', () => {
 
     await screen.findByRole('heading', { name: 'Create New Password' });
     expect(mockedAuthApi.forgotPassword).toHaveBeenCalledWith({ email: 'reset@example.test', turnstileToken: 'turnstile-token' });
-    expect(screen.getByText(/password reset instructions/)).toHaveClass('form-message-new', 'info');
+    expect(screen.getByRole('status')).toHaveClass('procurex-notification-card', 'tone-info');
   });
 
   it('accepts challenge and code query parameters and resets the password', async () => {
@@ -81,7 +81,10 @@ describe('ForgotPasswordProcurexPage', () => {
     renderForgotPassword('/forgot-password?challengeId=query-challenge&code=123456');
 
     expect(screen.getByLabelText('Reset Code *')).toHaveValue('123456');
+    expect(screen.getByLabelText('Reset Code *')).toHaveAttribute('autocomplete', 'one-time-code');
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
     const passwords = screen.getAllByLabelText(/Password \*/);
+    expect(passwords[0]).toHaveAttribute('maxlength', '128');
     fireEvent.change(passwords[0], { target: { value: 'Better123!' } });
     fireEvent.change(screen.getByLabelText('Confirm New Password *'), { target: { value: 'Better123!' } });
     fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
@@ -94,7 +97,7 @@ describe('ForgotPasswordProcurexPage', () => {
       password: 'Better123!',
       turnstileToken: 'turnstile-token'
     });
-    expect(screen.getByText('Your password has been updated.')).toHaveClass('form-message-new', 'success');
+    expect(screen.getByRole('status')).toHaveClass('procurex-notification-card', 'tone-success');
   });
 
   it('resends reset codes and renders resend failures as errors', async () => {

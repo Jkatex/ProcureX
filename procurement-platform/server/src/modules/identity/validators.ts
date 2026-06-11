@@ -5,7 +5,7 @@ export const moduleStatusQuerySchema = z.object({}).passthrough();
 const passwordSchema = z
   .string()
   .min(8)
-  .max(64)
+  .max(128)
   .regex(/[A-Z]/, 'Password must include an uppercase letter.')
   .regex(/\d/, 'Password must include a number.')
   .regex(/[^A-Za-z0-9]/, 'Password must include a special character.');

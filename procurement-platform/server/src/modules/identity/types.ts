@@ -1,4 +1,5 @@
 import type { AccountType, VerificationStatus } from '@prisma/client';
+import type { FeatureGateMap, PermissionName, RiskLevel, ScreeningStatus, TrustTier } from '@procurex/shared';
 
 export const moduleDefinition = {
   key: 'identity',
@@ -23,6 +24,11 @@ export type SessionUserDto = {
   organization?: string;
   organizationId?: string;
   capabilities: string[];
+  permissions: PermissionName[];
+  trustTier: TrustTier;
+  riskLevel: RiskLevel;
+  featureGates: FeatureGateMap;
+  screeningStatus: ScreeningStatus;
 };
 
 export type AuthSessionDto = {
@@ -55,5 +61,7 @@ export type VerificationProfileDto = {
 export type AdminVerificationDto = VerificationProfileDto & {
   user: SessionUserDto;
   reviewReasons: string[];
+  screeningStatus: ScreeningStatus;
+  trustTier: TrustTier;
+  riskLevel: RiskLevel;
 };
-

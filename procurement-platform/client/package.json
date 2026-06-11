@@ -10,6 +10,7 @@
     "test": "vitest run",
     "lint": "eslint .",
     "generate:procurex-pages": "node ../scripts/generate-client-procurex-pages.mjs",
+    "sync:procurex-ui": "node ../scripts/sync-procurex-ui.mjs",
     "ui:parity:screenshots": "node ../scripts/capture-ui-parity.mjs"
   },
   "dependencies": {

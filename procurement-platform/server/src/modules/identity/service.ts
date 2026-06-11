@@ -3,14 +3,19 @@ import {
   AdminActionType,
   AuditSeverity,
   PublicPageKey,
+  RiskLevel,
+  TrustTier,
   VerificationStatus,
   type Prisma
 } from '@prisma/client';
+import type { PermissionName, ScreeningStatus } from '@procurex/shared';
+import { assertPermission, computeAccessContext } from '../../security/accessPolicy.js';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash, createHmac } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ModuleRepository, type SessionWithUser, type UserWithDefaultOrg, type VerificationWithUser } from './repository.js';
 import { ProductionIdentityNotifications, type DeliveryReceipt, type IdentityNotificationProvider } from './notifications.js';
 import { ProductionRegistryProvider, isRegistryProviderFailure, type RegistryProvider } from './registryProviders.js';
+import { DeterministicScreeningProvider, type ScreeningProvider } from './screeningProviders.js';
 import {
   moduleDefinition,
   type AdminVerificationDto,
@@ -162,6 +167,10 @@ function metadataObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function metadataArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item))) : [];
+}
+
 function inputJson(value: Record<string, unknown>): Prisma.InputJsonObject {
   return value as Prisma.InputJsonObject;
 }
@@ -196,6 +205,15 @@ function deliveryMetadata(receipt: DeliveryReceipt) {
 function toSessionUser(user: UserWithDefaultOrg): SessionUserDto {
   const membership = user.memberships[0];
   const organization = membership?.organization;
+  const capabilities = organization?.capabilities.map((item) => item.capability) ?? [];
+  const access = accessForUser({
+    accountType: user.accountType,
+    verificationStatus: user.verificationStatus,
+    capabilities,
+    trustTier: organization?.supplierProfile?.trustTier,
+    riskLevel: organization?.supplierProfile?.riskLevel,
+    latestScreeningStatus: user.screeningChecks?.[0]?.status
+  });
   return {
     id: user.id,
     email: user.email,
@@ -203,14 +221,28 @@ function toSessionUser(user: UserWithDefaultOrg): SessionUserDto {
     displayName: user.displayName,
     accountType: user.accountType,
     verificationStatus: user.verificationStatus,
-    organization: organization?.name,
+    organization: organization?.name ?? '',
     organizationId: organization?.id,
-    capabilities: organization?.capabilities.map((item) => item.capability) ?? []
+    capabilities,
+    permissions: access.permissions,
+    trustTier: access.trustTier,
+    riskLevel: access.riskLevel,
+    featureGates: access.featureGates,
+    screeningStatus: access.screeningStatus
   };
 }
 
 function toSessionUserFromSession(session: SessionWithUser): SessionUserDto {
   const organization = session.organization ?? session.user.memberships[0]?.organization;
+  const capabilities = organization?.capabilities.map((item) => item.capability) ?? [];
+  const access = accessForUser({
+    accountType: session.user.accountType,
+    verificationStatus: session.user.verificationStatus,
+    capabilities,
+    trustTier: organization?.supplierProfile?.trustTier,
+    riskLevel: organization?.supplierProfile?.riskLevel,
+    latestScreeningStatus: session.user.screeningChecks?.[0]?.status
+  });
   return {
     id: session.user.id,
     email: session.user.email,
@@ -218,9 +250,14 @@ function toSessionUserFromSession(session: SessionWithUser): SessionUserDto {
     displayName: session.user.displayName,
     accountType: session.user.accountType,
     verificationStatus: session.user.verificationStatus,
-    organization: organization?.name,
+    organization: organization?.name ?? '',
     organizationId: organization?.id,
-    capabilities: organization?.capabilities.map((item) => item.capability) ?? []
+    capabilities,
+    permissions: access.permissions,
+    trustTier: access.trustTier,
+    riskLevel: access.riskLevel,
+    featureGates: access.featureGates,
+    screeningStatus: access.screeningStatus
   };
 }
 
@@ -272,11 +309,34 @@ function registryPayload(record: {
   };
 }
 
+function screeningStatus(value: unknown): ScreeningStatus {
+  return value === 'CLEAR' || value === 'REVIEW' || value === 'BLOCKED' ? value : 'NOT_RUN';
+}
+
+function accessForUser(input: {
+  accountType: AccountType;
+  verificationStatus: VerificationStatus;
+  capabilities: string[];
+  trustTier?: TrustTier | null;
+  riskLevel?: RiskLevel | null;
+  latestScreeningStatus?: string | null;
+}) {
+  return computeAccessContext({
+    accountType: input.accountType,
+    verificationStatus: input.verificationStatus,
+    capabilities: input.capabilities,
+    trustTier: input.trustTier ?? undefined,
+    riskLevel: input.riskLevel ?? undefined,
+    screeningStatus: screeningStatus(input.latestScreeningStatus)
+  });
+}
+
 export class ModuleService {
   constructor(
     private readonly repository = new ModuleRepository(),
     private readonly notifications: IdentityNotificationProvider = new ProductionIdentityNotifications(),
-    private readonly registryProvider: RegistryProvider = new ProductionRegistryProvider()
+    private readonly registryProvider: RegistryProvider = new ProductionRegistryProvider(),
+    private readonly screeningProvider: ScreeningProvider = new DeterministicScreeningProvider()
   ) {}
 
   async status(): Promise<ModuleStatus> {
@@ -286,6 +346,119 @@ export class ModuleService {
       ...moduleDefinition,
       status: 'ready'
     };
+  }
+
+  private trustEvaluation(input: {
+    verificationStatus: VerificationStatus;
+    screeningStatus: ScreeningStatus;
+    registryConfidence?: number | null;
+    hasDocuments?: boolean;
+    hasCompleteProfile?: boolean;
+    cleanActivity?: boolean;
+    reviewReasons?: string[];
+  }) {
+    const reasons = [...(input.reviewReasons ?? [])];
+    if (input.screeningStatus === 'BLOCKED') reasons.push('Screening result is blocked.');
+    if (input.screeningStatus === 'REVIEW') reasons.push('Screening result requires review.');
+
+    if (input.verificationStatus !== VerificationStatus.APPROVED || input.screeningStatus === 'BLOCKED') {
+      return {
+        trustTier: TrustTier.UNVERIFIED,
+        riskLevel: input.screeningStatus === 'BLOCKED' ? RiskLevel.CRITICAL : input.screeningStatus === 'REVIEW' ? RiskLevel.HIGH : RiskLevel.MEDIUM,
+        score: input.screeningStatus === 'BLOCKED' ? 5 : 25,
+        reasons
+      };
+    }
+
+    let score = 40;
+    score += input.screeningStatus === 'CLEAR' ? 20 : 0;
+    score += (input.registryConfidence ?? 0) >= 95 ? 5 : 0;
+    score += input.hasCompleteProfile ? 10 : 0;
+    score += input.hasDocuments ? 10 : 0;
+    score += input.cleanActivity ? 15 : 0;
+
+    const trustTier =
+      score >= 90 ? TrustTier.GOLD :
+      score >= 75 ? TrustTier.SILVER :
+      score >= 60 ? TrustTier.BRONZE :
+      TrustTier.VERIFIED;
+
+    return {
+      trustTier,
+      riskLevel: input.screeningStatus === 'CLEAR' ? RiskLevel.LOW : RiskLevel.MEDIUM,
+      score,
+      reasons
+    };
+  }
+
+  private async persistTrustEvaluation(input: {
+    userId: string;
+    organizationId?: string | null;
+    verificationProfileId?: string | null;
+    evaluation: ReturnType<ModuleService['trustEvaluation']>;
+  }) {
+    const reasons = input.evaluation.reasons as Prisma.InputJsonArray;
+    if (input.organizationId) {
+      return this.repository.upsertSupplierTrust({
+        organizationId: input.organizationId,
+        userId: input.userId,
+        verificationProfileId: input.verificationProfileId,
+        trustTier: input.evaluation.trustTier,
+        riskLevel: input.evaluation.riskLevel,
+        score: input.evaluation.score,
+        reasons
+      });
+    }
+
+    await this.repository.createTrustTierHistory({
+      userId: input.userId,
+      verificationProfileId: input.verificationProfileId,
+      nextTier: input.evaluation.trustTier,
+      riskLevel: input.evaluation.riskLevel,
+      score: input.evaluation.score,
+      reasons
+    });
+    return null;
+  }
+
+  private async runScreening(input: {
+    userId: string;
+    verificationProfileId?: string | null;
+    organizationId?: string | null;
+    registry: {
+      source: string;
+      registryNumber: string;
+      entityType: string;
+      name: string;
+      status: string;
+      confidence: number;
+      payload: Prisma.JsonValue;
+    };
+    duplicateApprovedRegistryCount: number;
+  }) {
+    const result = await this.screeningProvider.screen({
+      userId: input.userId,
+      registrySource: input.registry.source,
+      registryNumber: input.registry.registryNumber,
+      entityType: input.registry.entityType,
+      name: input.registry.name,
+      registryStatus: input.registry.status,
+      registryConfidence: input.registry.confidence,
+      duplicateApprovedRegistryCount: input.duplicateApprovedRegistryCount,
+      payload: metadataObject(input.registry.payload)
+    });
+
+    await this.repository.createScreeningCheck({
+      userId: input.userId,
+      verificationProfileId: input.verificationProfileId,
+      organizationId: input.organizationId,
+      provider: result.provider,
+      status: result.status,
+      reasons: result.reasons as Prisma.InputJsonArray,
+      providerMetadata: inputJson(result.providerMetadata)
+    });
+
+    return result;
   }
 
   async recordAuthEvent(event: string, input: AuthAuditInput = {}) {
@@ -880,6 +1053,11 @@ export class ModuleService {
     };
   }
 
+  async accessMe(token?: string) {
+    const session = await this.requireSession(token);
+    return session.user;
+  }
+
   async signOut(token: string, audit?: AuthAuditContext) {
     const tokenHash = sha256(token);
     const session = await this.repository.findActiveSession(tokenHash);
@@ -903,6 +1081,12 @@ export class ModuleService {
     if (session.user.accountType !== AccountType.ADMIN) {
       throw requestError('Admin access is required.', 403);
     }
+    return session;
+  }
+
+  async requirePermission(token: string | undefined, permission: PermissionName) {
+    const session = await this.requireSession(token);
+    assertPermission(session.user, permission);
     return session;
   }
 
@@ -1083,7 +1267,16 @@ export class ModuleService {
     if (!input.signatureConsent) reviewReasons.push('Digital signature consent is missing.');
     if (duplicateCount > 0) reviewReasons.push('Another approved account already uses this registry number.');
 
-    const autoApproved = reviewReasons.length === 0;
+    const screening = await this.runScreening({
+      userId: fullUser.id,
+      registry,
+      duplicateApprovedRegistryCount: duplicateCount
+    });
+    for (const reason of screening.reasons) {
+      if (!reviewReasons.includes(reason)) reviewReasons.push(reason);
+    }
+
+    const autoApproved = reviewReasons.length === 0 && screening.status === 'CLEAR';
     const status = autoApproved ? VerificationStatus.APPROVED : VerificationStatus.PENDING;
     const organization = autoApproved
       ? await this.repository.createOrUpdateVerifiedOrganization({
@@ -1101,6 +1294,12 @@ export class ModuleService {
       verifiedName: registry.name,
       reviewReasons,
       autoApproved,
+      screening: {
+        provider: screening.provider,
+        status: screening.status,
+        reasons: screening.reasons,
+        providerMetadata: screening.providerMetadata
+      },
       submittedAt: new Date().toISOString()
     };
 
@@ -1168,6 +1367,21 @@ export class ModuleService {
       payload
     });
 
+    const trustEvaluation = this.trustEvaluation({
+      verificationStatus: status,
+      screeningStatus: screening.status,
+      registryConfidence: registry.confidence,
+      hasCompleteProfile: Boolean(metadataObject(payload.profile).displayName || metadataObject(payload).verifiedName),
+      hasDocuments: metadataArray(metadataObject(payload).documents).length > 0,
+      reviewReasons
+    });
+    await this.persistTrustEvaluation({
+      userId: fullUser.id,
+      organizationId: organization?.id ?? user.organizationId,
+      verificationProfileId: profile.id,
+      evaluation: trustEvaluation
+    });
+
     await this.repository.createVerificationHistory({
       verificationProfileId: profile.id,
       userId: fullUser.id,
@@ -1199,6 +1413,15 @@ export class ModuleService {
       entityRef: profile.id,
       severity: autoApproved ? AuditSeverity.INFO : AuditSeverity.WARNING,
       payload: { reviewReasons, autoApproved, signatureId: signature.id }
+    });
+
+    await this.repository.createAuditEvent({
+      actorUserId: fullUser.id,
+      ownerOrgId: organization?.id ?? user.organizationId,
+      event: `identity.screening.${screening.status.toLowerCase()}`,
+      entityType: 'screening_check',
+      severity: screening.status === 'BLOCKED' ? AuditSeverity.CRITICAL : screening.status === 'REVIEW' ? AuditSeverity.WARNING : AuditSeverity.INFO,
+      payload: { provider: screening.provider, reasons: screening.reasons }
     });
 
     await this.repository.createAuditEvent({
@@ -1283,6 +1506,22 @@ export class ModuleService {
       displayName: decision === 'approve' ? String(registryRecord.name || payload.verifiedName || profile.user.displayName) : profile.user.displayName
     });
 
+    const screening = metadataObject(payload.screening);
+    const trustEvaluation = this.trustEvaluation({
+      verificationStatus: nextStatus,
+      screeningStatus: screeningStatus(screening.status),
+      registryConfidence: typeof registryRecord.confidence === 'number' ? registryRecord.confidence : undefined,
+      hasCompleteProfile: Boolean(metadataObject(payload.profile).displayName || payload.verifiedName),
+      hasDocuments: metadataArray(payload.documents).length > 0,
+      reviewReasons: decision === 'reject' ? ['Admin rejected verification.'] : []
+    });
+    await this.persistTrustEvaluation({
+      userId: profile.userId,
+      organizationId,
+      verificationProfileId: profile.id,
+      evaluation: trustEvaluation
+    });
+
     await this.repository.createAdminAction({
       actorUserId: admin.user.id,
       ownerOrgId: organizationId,
@@ -1307,6 +1546,79 @@ export class ModuleService {
     return this.adminVerificationDto(refreshedProfile);
   }
 
+  async rescreenAdminVerification(token: string | undefined, profileId: string) {
+    const admin = await this.requireAdmin(token);
+    const profile = await this.repository.findVerificationProfileById(profileId);
+    if (!profile) throw requestError('Verification profile was not found.', 404);
+    const payload = metadataObject(profile.payload);
+    const registryRecord = metadataObject(payload.registryRecord);
+    const registrySource = profile.registrySource || String(registryRecord.source || '');
+    const registryNumber = profile.registryNumber || String(registryRecord.registryNumber || '');
+    const registry = registrySource && registryNumber ? await this.repository.findRegistryRecord(registrySource, registryNumber) : null;
+    if (!registry) throw requestError('Registry record was not found for this verification.', 409);
+
+    const duplicateCount = await this.repository.countApprovedRegistryDuplicates({
+      userId: profile.userId,
+      registrySource: registry.source,
+      registryNumber: registry.registryNumber
+    });
+    const screening = await this.runScreening({
+      userId: profile.userId,
+      verificationProfileId: profile.id,
+      organizationId: profile.organizationId,
+      registry,
+      duplicateApprovedRegistryCount: duplicateCount
+    });
+    const reviewReasons = Array.isArray(payload.reviewReasons) ? payload.reviewReasons.map((reason) => String(reason)) : [];
+    for (const reason of screening.reasons) {
+      if (!reviewReasons.includes(reason)) reviewReasons.push(reason);
+    }
+    const nextStatus = profile.status === VerificationStatus.APPROVED && screening.status !== 'CLEAR' ? VerificationStatus.PENDING : profile.status;
+    const updatedPayload = inputJson({
+      ...payload,
+      reviewReasons,
+      screening: {
+        provider: screening.provider,
+        status: screening.status,
+        reasons: screening.reasons,
+        providerMetadata: screening.providerMetadata,
+        rescreenedAt: new Date().toISOString(),
+        rescreenedBy: admin.user.id
+      }
+    });
+
+    await this.repository.updateVerificationStatus(profile.id, nextStatus, updatedPayload, profile.organizationId);
+    await this.repository.updateUser(profile.userId, { verificationStatus: nextStatus });
+    const trustEvaluation = this.trustEvaluation({
+      verificationStatus: nextStatus,
+      screeningStatus: screening.status,
+      registryConfidence: registry.confidence,
+      hasCompleteProfile: Boolean(metadataObject(updatedPayload.profile).displayName || metadataObject(updatedPayload).verifiedName),
+      hasDocuments: metadataArray(metadataObject(updatedPayload).documents).length > 0,
+      reviewReasons
+    });
+    await this.persistTrustEvaluation({
+      userId: profile.userId,
+      organizationId: profile.organizationId,
+      verificationProfileId: profile.id,
+      evaluation: trustEvaluation
+    });
+
+    await this.repository.createAuditEvent({
+      actorUserId: admin.user.id,
+      ownerOrgId: profile.organizationId,
+      event: 'identity.verification.admin_rescreen',
+      entityType: 'verification_profile',
+      entityRef: profile.id,
+      severity: screening.status === 'BLOCKED' ? AuditSeverity.CRITICAL : screening.status === 'REVIEW' ? AuditSeverity.WARNING : AuditSeverity.INFO,
+      payload: { screeningStatus: screening.status, reasons: screening.reasons }
+    });
+
+    const refreshedProfile = await this.repository.findVerificationProfileById(profile.id);
+    if (!refreshedProfile) throw requestError('Verification profile was not found after rescreen.', 404);
+    return this.adminVerificationDto(refreshedProfile);
+  }
+
   private adminVerificationDto(profile: VerificationWithUser): AdminVerificationDto {
     const dto = toProfileDto(profile);
     const payload = metadataObject(profile.payload);
@@ -1317,7 +1629,10 @@ export class ModuleService {
     return {
       ...dto,
       user: toSessionUser(profile.user),
-      reviewReasons
+      reviewReasons,
+      screeningStatus: toSessionUser(profile.user).screeningStatus,
+      trustTier: toSessionUser(profile.user).trustTier,
+      riskLevel: toSessionUser(profile.user).riskLevel
     };
   }
 }

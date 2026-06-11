@@ -30,16 +30,17 @@ function apiError(status: number, message: string) {
   return { response: { status, data: { message } }, message };
 }
 
-function renderSignIn() {
+function renderSignIn(initialEntry = '/sign-in') {
   return render(
     <Provider store={store}>
-      <MemoryRouter initialEntries={['/sign-in']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/sign-in" element={<SignInProcurexPage />} />
           <Route path="/identity/verification" element={<div>Identity verification</div>} />
           <Route path="/apps" element={<div>Apps</div>} />
           <Route path="/dashboard" element={<div>User dashboard</div>} />
           <Route path="/admin" element={<div>Admin</div>} />
+          <Route path="/account-locked" element={<div>Account locked page</div>} />
         </Routes>
       </MemoryRouter>
     </Provider>
@@ -126,7 +127,21 @@ describe('SignInProcurexPage', () => {
     const demoButton = screen.getByRole('button', { name: /Sign in as demo user/i });
     expect(demoButton).toBeEnabled();
     expect(demoButton.querySelector('svg')).toBeInTheDocument();
+    expect(screen.getByLabelText('Email Address *')).toHaveValue('demo@procurex.tz');
+    expect(screen.getByLabelText('Password *')).toHaveValue('Demo123!');
     expect(mockedAuthApi.signIn).not.toHaveBeenCalled();
+  });
+
+  it('prefills demo credentials from the landing demo route when demo mode is enabled', () => {
+    vi.stubEnv('VITE_DEMO_SIGN_IN_ENABLED', 'true');
+    vi.stubEnv('VITE_DEMO_USER_EMAIL', 'walkthrough@procurex.tz');
+    vi.stubEnv('VITE_DEMO_USER_PASSWORD', 'Walkthrough123!');
+
+    renderSignIn('/sign-in?demo=1');
+
+    expect(screen.getByLabelText('Email Address *')).toHaveValue('walkthrough@procurex.tz');
+    expect(screen.getByLabelText('Password *')).toHaveValue('Walkthrough123!');
+    expect(screen.getByText('Development demo credentials are filled in for this session. Complete the security check, then sign in.')).toBeInTheDocument();
   });
 
   it('signs in the local demo account without Turnstile or backend auth and routes to the dashboard', async () => {
@@ -139,6 +154,17 @@ describe('SignInProcurexPage', () => {
     await screen.findByText('User dashboard');
     expect(mockedAuthApi.signIn).not.toHaveBeenCalled();
     expect(window.localStorage.getItem('procurex.authToken')).toBeNull();
+    expect(store.getState().auth.user).toMatchObject({
+      trustTier: 'PLATINUM',
+      riskLevel: 'LOW',
+      screeningStatus: 'CLEAR',
+      featureGates: expect.objectContaining({
+        tenderCreation: true,
+        tenderPublication: true,
+        bidSubmission: true,
+        evaluationManagement: true
+      })
+    });
   });
 
   it('accepts typed demo credentials through the backend when local demo sign-in is enabled', async () => {
@@ -191,5 +217,18 @@ describe('SignInProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password.');
+  });
+
+  it('routes locked or suspended account responses to the account support page', async () => {
+    mockedAuthApi.signIn.mockRejectedValueOnce(apiError(423, 'Account locked pending support review.'));
+
+    renderSignIn();
+
+    fireEvent.change(screen.getByLabelText('Email Address *'), { target: { value: 'locked@example.test' } });
+    fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'Strong123!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    expect(await screen.findByText('Account locked page')).toBeInTheDocument();
   });
 });

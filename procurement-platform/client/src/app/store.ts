@@ -8,6 +8,7 @@ import communicationReducer from '@/features/communication/slice';
 import documentsReducer from '@/features/documents/slice';
 import evaluationReducer from '@/features/evaluation/slice';
 import identityReducer from '@/features/identity/slice';
+import notificationsReducer from '@/features/notifications/slice';
 import procurementReducer from '@/features/procurement/slice';
 import publicReducer from '@/features/public/slice';
 import recordsReducer from '@/features/records/slice';
@@ -23,6 +24,7 @@ export const store = configureStore({
     documents: documentsReducer,
     evaluation: evaluationReducer,
     identity: identityReducer,
+    notifications: notificationsReducer,
     procurement: procurementReducer,
     public: publicReducer,
     records: recordsReducer,

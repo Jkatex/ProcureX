@@ -16,9 +16,27 @@ export function createApp() {
   const app = express();
   const config = securityConfig();
   const allowedOrigins = config.corsOrigins.length > 0 ? config.corsOrigins : config.localCorsOrigins;
+  const connectSources = ["'self'", ...allowedOrigins, 'http://localhost:4000', 'http://127.0.0.1:4000'];
 
   app.set('trust proxy', 1);
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          baseUri: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          scriptSrc: ["'self'", 'https://unpkg.com', 'https://challenges.cloudflare.com'],
+          connectSrc: connectSources,
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          fontSrc: ["'self'", 'data:'],
+          frameSrc: ["'self'", 'https://challenges.cloudflare.com']
+        }
+      }
+    })
+  );
   app.use(
     cors({
       origin(origin, callback) {
