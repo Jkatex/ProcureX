@@ -99,6 +99,11 @@ describe('route guards', () => {
         tenderPublication: false,
         bidSubmission: false,
         evaluationManagement: false,
+        awardManagement: false,
+        awardResponse: false,
+        contractManagement: false,
+        contractSigning: false,
+        contractTracking: false,
         complianceReview: false
       }
     }));

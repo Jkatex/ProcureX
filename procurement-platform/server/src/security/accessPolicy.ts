@@ -37,7 +37,17 @@ const trustTierRank: Record<TrustTier, number> = {
 
 // Temporary development switch: false means signed-in users can use core procurement while trust gates are being iterated.
 const TEMP_PROCUREMENT_CORE_GATES_ENABLED = false;
-const coreProcurementPermissions: PermissionName[] = ['procurement.create', 'procurement.publish', 'bidding.submit', 'evaluation.manage'];
+const coreProcurementPermissions: PermissionName[] = [
+  'procurement.create',
+  'procurement.publish',
+  'bidding.submit',
+  'evaluation.manage',
+  'award.manage',
+  'award.respond',
+  'contract.manage',
+  'contract.sign',
+  'contract.track'
+];
 
 function hasCapability(subject: AccessSubject, capability: OrganizationCapability) {
   return subject.capabilities.includes(capability);
@@ -73,6 +83,14 @@ export function computeAccessContext(subject: AccessSubject): AccessContext {
     }
     if (canOperate && hasCapability(subject, 'BUYER')) {
       permissions.add('evaluation.manage');
+      permissions.add('award.manage');
+      permissions.add('contract.manage');
+      permissions.add('contract.track');
+    }
+    if (canOperate && hasCapability(subject, 'SUPPLIER')) {
+      permissions.add('award.respond');
+      permissions.add('contract.sign');
+      permissions.add('contract.track');
     }
   }
 
@@ -88,6 +106,11 @@ export function computeAccessContext(subject: AccessSubject): AccessContext {
       tenderPublication: permissions.has('procurement.publish'),
       bidSubmission: permissions.has('bidding.submit'),
       evaluationManagement: permissions.has('evaluation.manage'),
+      awardManagement: permissions.has('award.manage'),
+      awardResponse: permissions.has('award.respond'),
+      contractManagement: permissions.has('contract.manage'),
+      contractSigning: permissions.has('contract.sign'),
+      contractTracking: permissions.has('contract.track'),
       complianceReview: permissions.has('compliance.review')
     }
   };

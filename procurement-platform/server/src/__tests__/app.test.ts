@@ -1,19 +1,31 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
 import { registeredModules } from '../modules/index.js';
 import { resetAuthRateLimitState } from '../security/rateLimit.js';
+
+const originalDatabaseUrl = process.env.DATABASE_URL;
+const originalDirectUrl = process.env.DIRECT_URL;
 
 describe('ProcureX server skeleton', () => {
   beforeEach(async () => {
     await resetAuthRateLimitState();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    process.env.DATABASE_URL = '';
+    process.env.DIRECT_URL = '';
     delete process.env.AUTH_RATE_LIMIT_MAX;
     delete process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS;
     delete process.env.AUTH_RATE_LIMIT_DISABLED;
     delete process.env.CORS_ORIGINS;
     delete process.env.TURNSTILE_SECRET_KEY;
+  });
+
+  afterEach(() => {
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = originalDatabaseUrl;
+    if (originalDirectUrl === undefined) delete process.env.DIRECT_URL;
+    else process.env.DIRECT_URL = originalDirectUrl;
   });
 
   it('returns health with all registered modules', async () => {
@@ -125,5 +137,14 @@ describe('ProcureX server skeleton', () => {
     const legalResponse = await request(createApp()).get('/api/public/legal/current').expect(200);
     expect(legalResponse.body.terms.pageKey).toBe('terms-and-conditions');
     expect(legalResponse.body.privacy.pageKey).toBe('privacy-policy');
+  });
+
+  it('keeps award-contract workflow routes behind authentication', async () => {
+    await request(createApp()).get('/api/award-contract/recommendations').expect(401);
+    await request(createApp()).get('/api/award-contract/contracts').expect(401);
+    await request(createApp())
+      .post('/api/award-contract/notices/11111111-1111-4111-8111-111111111111/respond')
+      .send({ action: 'ACCEPT' })
+      .expect(401);
   });
 });

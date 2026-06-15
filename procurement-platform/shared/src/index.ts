@@ -10,6 +10,11 @@ export const permissionNames = [
   'procurement.publish',
   'bidding.submit',
   'evaluation.manage',
+  'award.manage',
+  'award.respond',
+  'contract.manage',
+  'contract.sign',
+  'contract.track',
   'admin.access',
   'compliance.review'
 ] as const;
@@ -28,6 +33,11 @@ export type FeatureGateName =
   | 'tenderPublication'
   | 'bidSubmission'
   | 'evaluationManagement'
+  | 'awardManagement'
+  | 'awardResponse'
+  | 'contractManagement'
+  | 'contractSigning'
+  | 'contractTracking'
   | 'complianceReview';
 
 export type FeatureGateMap = Record<FeatureGateName, boolean>;

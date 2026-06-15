@@ -9,7 +9,18 @@ export const demoUsers: Record<'user' | 'admin', SessionUser> = {
     organization: 'Kilimanjaro Supplies Limited',
     capabilities: ['BUYER', 'SUPPLIER'],
     verificationStatus: 'APPROVED',
-    permissions: ['identity.verify', 'procurement.create', 'procurement.publish', 'bidding.submit', 'evaluation.manage'],
+    permissions: [
+      'identity.verify',
+      'procurement.create',
+      'procurement.publish',
+      'bidding.submit',
+      'evaluation.manage',
+      'award.manage',
+      'award.respond',
+      'contract.manage',
+      'contract.sign',
+      'contract.track'
+    ],
     trustTier: 'PLATINUM',
     riskLevel: 'LOW',
     screeningStatus: 'CLEAR',
@@ -20,6 +31,11 @@ export const demoUsers: Record<'user' | 'admin', SessionUser> = {
       tenderPublication: true,
       bidSubmission: true,
       evaluationManagement: true,
+      awardManagement: true,
+      awardResponse: true,
+      contractManagement: true,
+      contractSigning: true,
+      contractTracking: true,
       complianceReview: false
     }
   },
@@ -31,7 +47,21 @@ export const demoUsers: Record<'user' | 'admin', SessionUser> = {
     organization: 'ProcureX Platform',
     capabilities: [],
     verificationStatus: 'APPROVED',
-    permissions: ['identity.verify', 'identity.review', 'procurement.create', 'procurement.publish', 'bidding.submit', 'evaluation.manage', 'admin.access', 'compliance.review'],
+    permissions: [
+      'identity.verify',
+      'identity.review',
+      'procurement.create',
+      'procurement.publish',
+      'bidding.submit',
+      'evaluation.manage',
+      'award.manage',
+      'award.respond',
+      'contract.manage',
+      'contract.sign',
+      'contract.track',
+      'admin.access',
+      'compliance.review'
+    ],
     trustTier: 'PLATINUM',
     riskLevel: 'LOW',
     screeningStatus: 'CLEAR',
@@ -42,6 +72,11 @@ export const demoUsers: Record<'user' | 'admin', SessionUser> = {
       tenderPublication: true,
       bidSubmission: true,
       evaluationManagement: true,
+      awardManagement: true,
+      awardResponse: true,
+      contractManagement: true,
+      contractSigning: true,
+      contractTracking: true,
       complianceReview: true
     }
   }
