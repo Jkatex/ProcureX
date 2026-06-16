@@ -2541,6 +2541,215 @@ body:not([data-page="iam-verification"]) .tender-wizard-page .wizard-rail {
   color: #8a1f2d;
 }
 
+.tender-wizard-page .journey-panel.evaluation-criteria-panel {
+  padding: 30px;
+  border-color: var(--wizard-teal);
+  border-top-width: 3px;
+  border-radius: 14px;
+}
+
+.tender-wizard-page .evaluation-criteria-panel > .panel-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 0 0 26px;
+  border-bottom: 1px solid #d7dfe8;
+}
+
+.tender-wizard-page .evaluation-criteria-panel > .panel-heading > div {
+  gap: 12px;
+}
+
+.tender-wizard-page .evaluation-criteria-panel > .panel-heading .section-kicker {
+  min-height: 36px;
+  padding: 8px 14px;
+  background: #e6f3f3;
+  color: #0b1724;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel > .panel-heading h2 {
+  color: #071423;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.tender-wizard-page .evaluation-criteria-panel > .panel-heading > .badge {
+  min-height: 38px;
+  padding: 9px 16px;
+  border-color: rgba(0, 128, 128, 0.22);
+  background: #dff0eb;
+  color: #007777;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-step-surface,
+.tender-wizard-page .evaluation-criteria-panel .evaluation-builder {
+  gap: 20px;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-builder-header {
+  min-height: 132px;
+  align-items: center;
+  padding: 22px 24px;
+  border-color: #d8e0ea;
+  border-radius: 20px;
+  background: #f3f6fa;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-builder-header .section-kicker {
+  min-height: 38px;
+  padding: 9px 16px;
+  background: #dceff2;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-builder-header h3 {
+  margin-top: 16px;
+  color: #071423;
+  font-size: 24px;
+  line-height: 1.18;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-builder-header > .badge {
+  align-self: center;
+  min-height: 38px;
+  padding: 9px 16px;
+  border-color: rgba(0, 128, 128, 0.22);
+  background: #dff0eb;
+  color: #007777;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-weight-panel {
+  gap: 16px;
+  padding: 20px 18px 18px;
+  border-color: rgba(49, 162, 76, 0.48);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-weight-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: #071423;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-weight-status strong {
+  font-weight: 900;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-progress-track {
+  height: 13px;
+  background: #e8eef5;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-progress-track span {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.22) 0,
+      rgba(255, 255, 255, 0.22) 18px,
+      rgba(255, 255, 255, 0) 18px,
+      rgba(255, 255, 255, 0) 36px
+    ),
+    linear-gradient(90deg, #008080 0%, #2d6fe8 100%);
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-toolbar {
+  grid-template-columns: minmax(0, 1fr) 268px;
+  align-items: end;
+  gap: 18px;
+  padding: 22px 18px 18px;
+  border-color: #d8e0ea;
+  border-radius: 18px;
+  background: #f3f6fa;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-toolbar label {
+  gap: 16px;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-toolbar .form-label {
+  color: #071423;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-toolbar select.form-input {
+  min-height: 60px;
+  border-color: #dfe4eb;
+  border-radius: 28px;
+  background-color: #ffffff;
+  color: #071423;
+  font-size: 20px;
+  padding-inline: 24px;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-toolbar .btn-primary {
+  min-height: 56px;
+  border-radius: 28px;
+  background: var(--wizard-teal);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-selected-panel > .scope-list-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  padding: 6px 0 4px;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-selected-panel > .scope-list-heading h3 {
+  margin: 0 0 8px;
+  color: #071423;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-selected-panel > .scope-list-heading .form-hint {
+  color: #071423;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-selected-heading-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-selected-heading-meta > span:first-child {
+  color: #071423;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.tender-wizard-page .evaluation-criteria-panel .evaluation-selected-heading-meta .badge {
+  min-height: 38px;
+  padding: 9px 15px;
+  border-color: #d5deeb;
+  background: #f3f7ff;
+  color: #071423;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .tender-wizard-page .scope-list-heading,
 .tender-wizard-page .evaluation-balance-panel,
 .tender-wizard-page .publication-readiness-panel,
@@ -3268,5 +3477,35 @@ body:not([data-page="iam-verification"]) .tender-wizard-page .wizard-rail {
 
   .tender-wizard-page .wizard-flow-controls .btn {
     width: 100%;
+  }
+
+  .tender-wizard-page .journey-panel.evaluation-criteria-panel {
+    padding: 18px;
+  }
+
+  .tender-wizard-page .evaluation-criteria-panel > .panel-heading,
+  .tender-wizard-page .evaluation-criteria-panel .evaluation-builder-header,
+  .tender-wizard-page .evaluation-criteria-panel .evaluation-toolbar,
+  .tender-wizard-page .evaluation-criteria-panel .evaluation-selected-panel > .scope-list-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .tender-wizard-page .evaluation-criteria-panel > .panel-heading > .badge,
+  .tender-wizard-page .evaluation-criteria-panel .evaluation-builder-header > .badge {
+    justify-self: start;
+  }
+
+  .tender-wizard-page .evaluation-criteria-panel .evaluation-weight-status {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tender-wizard-page .evaluation-criteria-panel .evaluation-toolbar .btn-primary {
+    width: 100%;
+  }
+
+  .tender-wizard-page .evaluation-criteria-panel .evaluation-selected-heading-meta {
+    justify-content: flex-start;
   }
 }

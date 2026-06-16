@@ -1,4 +1,4 @@
-import type { CreateTenderDraft, CreateTenderEvaluationCriterion, CreateTenderProcurementTypeId, CreateTenderSetup } from './types';
+import type { CreateTenderDraft, CreateTenderEvaluationCriterion, CreateTenderProcurementTypeId, CreateTenderSetup, CreateTenderWorksRequirements } from './types';
 
 export const createTenderSetup: CreateTenderSetup = {
   procurementTypes: [
@@ -110,14 +110,225 @@ export const createTenderSetup: CreateTenderSetup = {
     }
   ],
   evaluationCatalog: [
-    { id: 'technical-compliance', label: 'Technical compliance', weight: 35, notes: 'Meets mandatory specifications and response format.', suggestedFor: ['goods', 'works', 'services', 'consultancy'] },
-    { id: 'experience', label: 'Relevant experience', weight: 20, notes: 'Comparable contracts, references, and sector familiarity.', suggestedFor: ['goods', 'works', 'services', 'consultancy'] },
-    { id: 'delivery-capacity', label: 'Delivery capacity', weight: 20, notes: 'Resources, schedule, staffing, and implementation plan.', suggestedFor: ['goods', 'works', 'services'] },
-    { id: 'price', label: 'Financial offer', weight: 25, notes: 'Evaluated price and commercial completeness.', suggestedFor: ['goods', 'works', 'services', 'consultancy'] },
-    { id: 'methodology', label: 'Methodology and work plan', weight: 30, notes: 'Approach, quality assurance, and deliverable management.', suggestedFor: ['consultancy', 'services', 'works'] },
+    {
+      id: 'goods-technical-compliance',
+      label: 'Technical Compliance',
+      category: 'Technical Compliance',
+      weight: 40,
+      notes: 'Specification compliance, standards, product performance, and compatibility.',
+      suggestedFor: ['goods'],
+      evaluationType: 'specification_compliance',
+      evidenceRequired: ['Specification response', 'Product catalogue', 'Datasheet'],
+      subcriteria: [
+        'Conformity to technical specifications',
+        'Compliance with standards (ISO, TBS, etc.)',
+        'Brand/model compliance',
+        'Product performance characteristics',
+        'Sample evaluation / testing results',
+        'Compatibility with existing systems/equipment'
+      ]
+    },
+    {
+      id: 'goods-financial',
+      label: 'Financial',
+      category: 'Financial',
+      weight: 30,
+      notes: 'Evaluated price and commercial completeness.',
+      suggestedFor: ['goods'],
+      evaluationType: 'price_based',
+      evidenceRequired: ['Completed quantity schedule', 'Financial offer'],
+      subcriteria: ['Total price', 'Price competitiveness', 'Cost of maintenance']
+    },
+    {
+      id: 'goods-delivery-logistics',
+      label: 'Delivery and Logistics',
+      category: 'Delivery and Logistics',
+      weight: 15,
+      notes: 'Delivery timing, stock availability, logistics, and installation readiness.',
+      suggestedFor: ['goods'],
+      evaluationType: 'delivery_based',
+      evidenceRequired: ['Delivery schedule', 'Logistics plan'],
+      subcriteria: [
+        'Delivery time compliance',
+        'Availability of stock',
+        'Supply chain reliability',
+        'Packaging and transportation method',
+        'Installation requirement compliance'
+      ]
+    },
+    {
+      id: 'goods-quality-assurance',
+      label: 'Quality Assurance',
+      category: 'Quality Assurance',
+      weight: 10,
+      notes: 'Warranty, after-sales support, return policy, and certification.',
+      suggestedFor: ['goods'],
+      evaluationType: 'warranty_support',
+      evidenceRequired: ['Warranty letter', 'Quality certificate'],
+      subcriteria: ['Warranty period offered', 'After-sales support availability', 'Replacement/return policy', 'Quality certification of manufacturer']
+    },
+    {
+      id: 'goods-supplier-capability',
+      label: 'Supplier Capability',
+      category: 'Supplier Capability',
+      weight: 5,
+      notes: 'Past supply performance, financial capacity, local support, and authorization.',
+      suggestedFor: ['goods'],
+      evaluationType: 'document_check',
+      evidenceRequired: ['Past supply contracts', 'Manufacturer authorization', 'Financial capacity evidence'],
+      subcriteria: [
+        'Past performance / similar supply experience',
+        'Financial capacity of supplier',
+        'Local presence / support office',
+        'Authorized distributor/manufacturer status'
+      ]
+    },
+    {
+      id: 'works-technical-methodology',
+      label: 'Technical Methodology',
+      category: 'Technical Methodology',
+      weight: 20,
+      notes: 'Construction methodology, execution planning, risk, quality, and environmental controls.',
+      suggestedFor: ['works'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Construction methodology', 'Work execution plan', 'Risk mitigation plan', 'Quality assurance approach'],
+      subcriteria: [
+        'Construction methodology',
+        'Work execution plan',
+        'Site mobilization strategy',
+        'Risk management approach',
+        'Quality control plan',
+        'Environmental management plan'
+      ]
+    },
+    {
+      id: 'works-personnel',
+      label: 'Personnel',
+      category: 'Personnel',
+      weight: 15,
+      notes: 'Qualifications, role experience, and availability of key personnel.',
+      suggestedFor: ['works'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Key personnel CVs', 'Professional certificates', 'Availability declaration'],
+      subcriteria: [
+        'Project manager qualification',
+        'Site engineer qualifications',
+        'Safety officer competence',
+        'Key technical staff experience',
+        'Availability of required personnel'
+      ]
+    },
+    {
+      id: 'works-equipment-resources',
+      label: 'Equipment and Resources',
+      category: 'Equipment and Resources',
+      weight: 10,
+      notes: 'Equipment availability, suitability, ownership, leasing, and mobilization.',
+      suggestedFor: ['works'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Equipment list', 'Ownership proof', 'Lease agreements', 'Availability declaration'],
+      subcriteria: [
+        'Availability of construction equipment',
+        'Ownership vs leased equipment',
+        'Equipment capacity and suitability',
+        'Mobilization timeline for equipment'
+      ]
+    },
+    {
+      id: 'works-experience',
+      label: 'Experience',
+      category: 'Experience',
+      weight: 15,
+      notes: 'Similar completed works, value history, references, and timely completion.',
+      suggestedFor: ['works'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Similar completed project evidence', 'Completion certificates', 'Client references'],
+      subcriteria: [
+        'Similar completed projects',
+        'Project value history',
+        'Experience in similar terrain/environment',
+        'Track record of timely completion'
+      ]
+    },
+    {
+      id: 'works-schedule-execution',
+      label: 'Schedule and Execution',
+      category: 'Schedule and Execution',
+      weight: 10,
+      notes: 'Work program, construction schedule, milestones, and critical path feasibility.',
+      suggestedFor: ['works'],
+      evaluationType: 'delivery_based',
+      evidenceRequired: ['Work program', 'Construction schedule', 'Milestone plan'],
+      subcriteria: [
+        'Work program / timeline',
+        'Milestone alignment',
+        'Project completion duration',
+        'Critical path feasibility'
+      ]
+    },
+    {
+      id: 'works-hse',
+      label: 'Health, Safety and Environment (HSE)',
+      category: 'Health, Safety and Environment (HSE)',
+      weight: 10,
+      notes: 'Safety planning, environmental mitigation, site records, and regulatory compliance.',
+      suggestedFor: ['works'],
+      evaluationType: 'document_check',
+      mandatory: true,
+      passFailGate: true,
+      evidenceRequired: ['HSE policy', 'PPE plan', 'Safety officer assignment', 'Incident management plan', 'Waste management plan'],
+      subcriteria: [
+        'Safety plan compliance',
+        'Environmental mitigation measures',
+        'Site safety record',
+        'Compliance with regulations'
+      ]
+    },
+    {
+      id: 'works-financial',
+      label: 'Financial',
+      category: 'Financial',
+      weight: 20,
+      notes: 'Priced BOQ, rate breakdown, price realism, and corrected tender sum.',
+      suggestedFor: ['works'],
+      evaluationType: 'price_based',
+      evidenceRequired: ['Priced BOQ', 'Rate breakdown', 'Commercial terms'],
+      subcriteria: ['Total BOQ price', 'Unit rate accuracy', 'Price realism', 'Corrected tender sum']
+    },
+    { id: 'technical-compliance', label: 'Technical compliance', weight: 35, notes: 'Meets mandatory specifications and response format.', suggestedFor: ['services', 'consultancy'] },
+    { id: 'experience', label: 'Relevant experience', weight: 20, notes: 'Comparable contracts, references, and sector familiarity.', suggestedFor: ['services', 'consultancy'] },
+    { id: 'delivery-capacity', label: 'Delivery capacity', weight: 20, notes: 'Resources, schedule, staffing, and implementation plan.', suggestedFor: ['services'] },
+    { id: 'price', label: 'Financial offer', weight: 25, notes: 'Evaluated price and commercial completeness.', suggestedFor: ['services', 'consultancy'] },
+    { id: 'methodology', label: 'Methodology and work plan', weight: 30, notes: 'Approach, quality assurance, and deliverable management.', suggestedFor: ['consultancy', 'services'] },
     { id: 'key-experts', label: 'Key expert qualifications', weight: 25, notes: 'Professional qualifications and role-specific experience.', suggestedFor: ['consultancy'] }
   ]
 };
+
+export function createEmptyWorksRequirements(): CreateTenderWorksRequirements {
+  return {
+    projectName: '',
+    procuringEntity: '',
+    location: '',
+    contractType: '',
+    customContractType: '',
+    completionPeriod: '',
+    scopeSummary: '',
+    mainConstructionActivities: [],
+    technicalSpecificationDocuments: [],
+    drawingDesignRows: [],
+    lumpSumPricingRows: [],
+    boqRows: [],
+    commencementDate: '',
+    worksCompletionPeriod: '',
+    worksMilestoneRows: [],
+    siteVisitRequirement: 'Not mandatory',
+    siteSurveyUploadName: '',
+    similarCompletedProjectsRequired: false,
+    keyPersonnelCvsRequired: false,
+    bankStatementsRequired: false,
+    bankStatementPeriod: ''
+  };
+}
 
 export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
   const timestamp = now.toISOString();
@@ -150,6 +361,7 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
     financialRequirements: [],
     eligibilityRequirements: [],
     regulatoryLicenseRequirements: [],
+    worksRequirements: createEmptyWorksRequirements(),
     deliverables: [],
     attachments: [],
     milestones: createTenderSetup.milestoneDefaults.map((label, index) => ({ id: `milestone-${index + 1}`, label, dueDate: '' })),
@@ -163,6 +375,11 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
 
 export function getSuggestedCriteria(typeId: CreateTenderProcurementTypeId): CreateTenderEvaluationCriterion[] {
   const suggested = createTenderSetup.evaluationCatalog.filter((criterion) => criterion.suggestedFor.includes(typeId)).slice(0, 4);
+  if (typeId === 'goods' || typeId === 'works') {
+    return createTenderSetup.evaluationCatalog
+      .filter((criterion) => criterion.suggestedFor.includes(typeId))
+      .map((criterion) => ({ ...criterion, subcriteria: [...(criterion.subcriteria ?? [])], evidenceRequired: [...(criterion.evidenceRequired ?? [])], maxScore: criterion.maxScore ?? criterion.weight }));
+  }
   const total = suggested.reduce((sum, criterion) => sum + criterion.weight, 0);
   return suggested.map((criterion) => ({ ...criterion, weight: Math.round((criterion.weight / total) * 100) }));
 }

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
-import { createEmptyTenderDraft, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
+import { createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { publishSimulatedTender, saveCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import type {
@@ -16,7 +16,13 @@ import type {
   CreateTenderProcurementTypeId,
   CreateTenderRegulatoryLicenseRequirementRow,
   CreateTenderRequirementTemplate,
-  CreateTenderSampleRequirementRow
+  CreateTenderSampleRequirementRow,
+  CreateTenderWorksBoqRow,
+  CreateTenderWorksDrawingRow,
+  CreateTenderWorksLumpSumPricingRow,
+  CreateTenderWorksMilestoneRow,
+  CreateTenderWorksRequirements,
+  CreateTenderWorksSpecificationDocumentRow
 } from '../../types';
 
 const steps = ['Basic Information', 'Procurement Planning', 'Tender Requirements', 'Evaluation Criteria and Weights', 'Review Tender', 'Tender Review and Publication'];
@@ -28,6 +34,16 @@ const confirmationLabels: Record<CreateTenderConfirmationId, string> = {
 };
 
 const goodsUnitOptions = ['Pcs', 'Unit', 'Set', 'Lot', 'Kg', 'Litre', 'Meter', 'Sqm', 'Day', 'Month'];
+const evaluationTypes = [
+  { value: 'scored', label: 'Scored' },
+  { value: 'pass_fail', label: 'Pass / Fail' },
+  { value: 'price_based', label: 'Price-based' },
+  { value: 'document_check', label: 'Document check' },
+  { value: 'specification_compliance', label: 'Specification compliance' },
+  { value: 'sample_based', label: 'Sample-based' },
+  { value: 'delivery_based', label: 'Delivery-based' },
+  { value: 'warranty_support', label: 'Warranty / support' }
+];
 const financialRequirementTypes = [
   'Minimum Annual Turnover',
   'Average Annual Turnover',
@@ -40,6 +56,16 @@ const financialRequirementTypes = [
 const financialPeriods = ['Annual', 'Current', 'Last 12 Months', 'Last 3 Years', 'Last 5 Years'];
 const financialEvidence = ['Audited accounts', 'Bank statement', 'Bank letter', 'Credit facility letter', 'Tax clearance', 'Management accounts'];
 const eligibilityPresets = ['Certificate of incorporation', 'Tax clearance certificate', 'Manufacturer authorization', 'Past supply contracts', 'Audited financial statements'];
+const worksContractTypes = ['Lump Sum Contract', 'Unit Price Contract', 'Fixed Price Contract', 'Framework Contract', 'Consultancy / Time-Based Contract', 'Other'];
+const worksDocumentTypes = ['Architectural drawings', 'Structural drawings', 'Electrical drawings', 'Mechanical drawings', 'Geotechnical report', 'Environmental report', 'Other'];
+const worksTechnicalSpecificationTitles = ['Applicable standards / codes', 'Material specifications', 'Workmanship standards', 'Engineering requirements', 'Equipment requirements', 'Others'];
+const worksContractTypeDescriptions: Record<string, string> = {
+  'Lump Sum Contract': 'A single total price is agreed for the whole work or project.',
+  'Unit Price Contract': 'Payment is based on measured quantities completed.',
+  'Fixed Price Contract': 'The supplier agrees to deliver goods or services at a fixed agreed price.',
+  'Framework Contract': 'Used for repeated or recurring procurement over a defined period.',
+  'Consultancy / Time-Based Contract': 'Payment is based on consultant time, milestones, or agreed service duration.'
+};
 const regulatoryLicenseCatalog = [
   { group: 'Food, Drugs and Cosmetics', license: 'Food Business Permit / Food Handling License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
   { group: 'Food, Drugs and Cosmetics', license: 'Pharmaceutical Business License', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)' },
@@ -190,6 +216,40 @@ function parseProductSpecificationCsv(text: string, items: CreateTenderLineItem[
     .filter(Boolean) as CreateTenderProductSpecificationRow[];
 }
 
+function getWorksBoqTotal(row: CreateTenderWorksBoqRow) {
+  const quantity = Number(row.quantity);
+  const rate = Number(row.rate);
+  if (!Number.isFinite(quantity) || !Number.isFinite(rate) || !row.quantity || !row.rate) return '';
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(quantity * rate);
+}
+
+function downloadWorksBoqTemplate() {
+  const csv = ['No.,Description,Unit,Quantity,Rate,Total amount', '1,,,,,'].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'works-boq-template.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseWorksBoqCsv(text: string): CreateTenderWorksBoqRow[] {
+  const rows = text
+    .split(/\r?\n/)
+    .map((line) => parseCsvLine(line))
+    .filter((row) => row.some(Boolean));
+  const dataRows = rows[0]?.join(' ').toLowerCase().includes('description') ? rows.slice(1) : rows;
+
+  return dataRows.map((row, index) => ({
+    id: `works-boq-import-${Date.now()}-${index}`,
+    description: row[1] || row[0] || '',
+    unit: row[2] || '',
+    quantity: row[3] || '',
+    rate: row[4] || ''
+  }));
+}
+
 type PlanningBridge = {
   title?: string;
   description?: string;
@@ -227,12 +287,14 @@ export function CreateTenderProcurexPage() {
   const [newDeliverable, setNewDeliverable] = useState('');
   const [newAttachment, setNewAttachment] = useState('');
   const [planWarningFields, setPlanWarningFields] = useState<string[]>([]);
+  const [pdfWarningMessage, setPdfWarningMessage] = useState('');
 
   const selectedType = createTenderSetup.procurementTypes.find((type) => type.id === draft.procurementTypeId) ?? createTenderSetup.procurementTypes[0];
   const requirementTemplates = createTenderSetup.requirementTemplates.filter((template) => template.typeId === draft.procurementTypeId);
   const availableCategories = createTenderSetup.categories[draft.procurementTypeId];
   const availableLicenses = createTenderSetup.regulatoryLicenses[draft.procurementTypeId];
   const criteriaTotal = draft.evaluationCriteria.reduce((sum, criterion) => sum + Number(criterion.weight || 0), 0);
+  const evaluationSummary = getEvaluationSummary(draft.evaluationCriteria);
   const canSaveDraft = hasMeaningfulDraft(draft);
   const confirmationsComplete = Object.values(draft.confirmations).every(Boolean);
   const contactVerified = (draft.contact.verifiedPhone && Boolean(draft.contact.phone)) || (draft.contact.verifiedEmail && Boolean(draft.contact.email));
@@ -248,12 +310,20 @@ export function CreateTenderProcurexPage() {
           ? 'Goods Tender Requirements'
           : selectedType.label
         : activeStep === 3
-          ? 'Evaluation criteria'
+          ? evaluationSummary.message
             : activeStep === 4
               ? 'Buyer preview'
               : confirmationsComplete
                 ? 'Evaluation complete'
                 : 'Evaluation required';
+  const activeStepBadgeClass =
+    activeStep === 3
+      ? evaluationSummary.state === 'balanced'
+        ? 'badge-success'
+        : evaluationSummary.state === 'over'
+          ? 'badge-error'
+          : 'badge-warning'
+      : 'badge-info';
 
   useEffect(() => {
     const bridge = readPlanningBridge();
@@ -267,7 +337,12 @@ export function CreateTenderProcurexPage() {
   }, []);
 
   function patchDraft(patch: Partial<CreateTenderDraft>) {
-    setDraft((current) => ({ ...current, ...patch, updatedAt: new Date().toISOString() }));
+    setDraft((current) => ({
+      ...current,
+      ...patch,
+      worksRequirements: patch.worksRequirements ? { ...current.worksRequirements, ...patch.worksRequirements } : current.worksRequirements,
+      updatedAt: new Date().toISOString()
+    }));
   }
 
   function patchPlanAware(field: keyof CreateTenderDraft, value: CreateTenderDraft[keyof CreateTenderDraft]) {
@@ -399,6 +474,14 @@ export function CreateTenderProcurexPage() {
     navigate('/procurement/my-tenders');
   }
 
+  function downloadTenderPdfStub() {
+    const message = 'Tender PDF generator is not available in this frontend yet.';
+    setPdfWarningMessage(message);
+    notifyWarning('Tender PDF unavailable', message, {
+      reason: 'The React frontend has the publication action in place, but PDF export is not wired in this pass.'
+    });
+  }
+
   return (
     <div className="procurement-app-page tender-wizard-page" data-create-tender-root>
       <section className="journey-hero compact">
@@ -434,12 +517,15 @@ export function CreateTenderProcurexPage() {
         </nav>
 
         <div className="wizard-workspace">
-          <section className="journey-panel active">
+          <section className={`journey-panel active ${activeStep === 3 ? 'evaluation-criteria-panel' : ''}`}>
             {statusMessage ? (
               <NotificationCard notification={{ tone: 'success', title: 'Tender updated', message: statusMessage, reason: 'This confirmation applies to the current browser session.', dismissible: false }} />
             ) : null}
             {validationMessage ? (
               <NotificationCard notification={{ tone: 'error', title: 'Action needed', message: validationMessage, reason: 'Review the current tender step and complete the missing information.', dismissible: false }} />
+            ) : null}
+            {pdfWarningMessage ? (
+              <NotificationCard notification={{ tone: 'warning', title: 'Tender PDF unavailable', message: pdfWarningMessage, reason: 'PDF export is visual-only in this frontend pass.', dismissible: false }} />
             ) : null}
             {planWarningFields.length ? <div className="planning-section planning-section-notice">Planning handoff fields were edited: {planWarningFields.join(', ')}.</div> : null}
 
@@ -448,7 +534,7 @@ export function CreateTenderProcurexPage() {
                 <span className="section-kicker">Step {activeStep + 1}</span>
                 <h2>{steps[activeStep]}</h2>
               </div>
-              <span className="badge badge-info">{activeStepBadge}</span>
+              <span className={`badge ${activeStepBadgeClass}`}>{activeStepBadge}</span>
             </div>
 
             <div className="journey-panel-content">
@@ -497,10 +583,11 @@ export function CreateTenderProcurexPage() {
                   onAddCriterion={addCriterion}
                   onUpdateCriterion={updateCriterion}
                   onRemoveCriterion={removeCriterion}
+                  onReplaceCriteria={(evaluationCriteria) => patchDraft({ evaluationCriteria })}
                 />
               ) : null}
-              {activeStep === 4 ? <ReviewStep draft={draft} selectedTypeLabel={selectedType.label} total={criteriaTotal} /> : null}
-              {activeStep === 5 ? <PublicationStep draft={draft} onPatch={patchDraft} confirmationsComplete={confirmationsComplete} /> : null}
+              {activeStep === 4 ? <ReviewStep draft={draft} selectedType={selectedType} total={criteriaTotal} /> : null}
+              {activeStep === 5 ? <PublicationStep draft={draft} onPatch={patchDraft} confirmationsComplete={confirmationsComplete} onDownloadPdf={downloadTenderPdfStub} onSubmitTender={submitTender} /> : null}
             </div>
 
             <footer className="wizard-flow-controls" data-wizard-flow-controls>
@@ -515,7 +602,7 @@ export function CreateTenderProcurexPage() {
                 <button className="btn btn-primary" type="button" onClick={continueStep}>
                   Continue
                 </button>
-              ) : (
+              ) : activeStep === steps.length - 1 ? null : (
                 <button className="btn btn-primary" type="button" onClick={submitTender} disabled={!confirmationsComplete}>
                   Submit Tender for Evaluation
                 </button>
@@ -824,6 +911,155 @@ function PlanningStep({
   );
 }
 
+type RegulatoryLicenseCatalogItem = (typeof regulatoryLicenseCatalog)[number];
+
+function RegulatoryLicenseRequirementsPanel({
+  rows,
+  addOpen,
+  addSearch,
+  changeRowId,
+  changeSearch,
+  filteredAddLicenses,
+  getChangeMatches,
+  onToggleAdd,
+  onAddSearch,
+  onStartChange,
+  onChangeSearch,
+  onAddLicense,
+  onUpdateLicense,
+  onChangeLicense,
+  onDeleteLicense
+}: {
+  rows: CreateTenderRegulatoryLicenseRequirementRow[];
+  addOpen: boolean;
+  addSearch: string;
+  changeRowId: string | null;
+  changeSearch: string;
+  filteredAddLicenses: RegulatoryLicenseCatalogItem[];
+  getChangeMatches: (row: CreateTenderRegulatoryLicenseRequirementRow) => RegulatoryLicenseCatalogItem[];
+  onToggleAdd: () => void;
+  onAddSearch: (value: string) => void;
+  onStartChange: (rowId: string) => void;
+  onChangeSearch: (value: string) => void;
+  onAddLicense: (licenseName: string) => void;
+  onUpdateLicense: (rowId: string, patch: Partial<CreateTenderRegulatoryLicenseRequirementRow>) => void;
+  onChangeLicense: (rowId: string, licenseName: string) => void;
+  onDeleteLicense: (rowId: string) => void;
+}) {
+  return (
+    <section className="planning-section wizard-section scope-list-panel license-requirements-panel">
+      <div className="scope-list-heading">
+        <div>
+          <h3>Regulatory license requirements</h3>
+          <span className="form-hint">Search and select the licenses suppliers must hold for this tender. The issuing body is filled automatically.</span>
+        </div>
+        <span className="badge badge-info">{rows.length}</span>
+      </div>
+      <div className="license-requirement-list">
+        {rows.length ? (
+          rows.map((row) => {
+            const changeMatches = getChangeMatches(row);
+            return (
+              <div className="license-requirement-row" key={row.id}>
+                <div className="license-summary">
+                  <span>License</span>
+                  <strong>{row.license}</strong>
+                  <small>{row.body}</small>
+                  {changeRowId === row.id ? (
+                    <div className="license-picker">
+                      <input
+                        className="form-input"
+                        type="search"
+                        aria-label="Search regulatory license"
+                        placeholder="Search license"
+                        value={changeSearch}
+                        onChange={(event) => onChangeSearch(event.target.value)}
+                      />
+                      <div className="license-results open" role="listbox" aria-label="Matching licenses">
+                        {changeMatches.length ? (
+                          changeMatches.map((item) => (
+                            <button className="license-result-option" type="button" role="option" key={item.license} onClick={() => onChangeLicense(row.id, item.license)}>
+                              <strong>{item.license}</strong>
+                              <span>{item.group} - {item.body}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="license-result-empty">No matching license</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="license-toggle-cell">
+                  <span>Mandatory</span>
+                  <label className="requirement-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label={`${row.license} Mandatory`}
+                      checked={row.mandatory}
+                      onChange={(event) => onUpdateLicense(row.id, { mandatory: event.target.checked })}
+                    />
+                    <span></span>
+                  </label>
+                </div>
+                <div className="license-toggle-cell">
+                  <span>Expiry required</span>
+                  <label className="requirement-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label={`${row.license} Expiry required`}
+                      checked={row.expiryRequired}
+                      onChange={(event) => onUpdateLicense(row.id, { expiryRequired: event.target.checked })}
+                    />
+                    <span></span>
+                  </label>
+                </div>
+                <div className="license-row-actions">
+                  <button className="btn btn-secondary" type="button" onClick={() => onStartChange(row.id)}>
+                    Change
+                  </button>
+                  <button className="boq-row-action icon-delete-btn" type="button" aria-label="Remove license requirement" title="Remove license requirement" onClick={() => onDeleteLicense(row.id)}>
+                    x
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="scope-empty">No regulatory license requirements added yet.</div>
+        )}
+      </div>
+      <button className="btn btn-secondary scope-add" type="button" onClick={onToggleAdd}>
+        Add License Requirement
+      </button>
+      {addOpen ? (
+        <div className="license-add-picker">
+          <input
+            className="form-input"
+            type="search"
+            aria-label="Search all regulatory licenses"
+            placeholder="Search all licenses"
+            value={addSearch}
+            onChange={(event) => onAddSearch(event.target.value)}
+          />
+          <div className="license-results open" role="listbox" aria-label="Available regulatory licenses">
+            {filteredAddLicenses.length ? (
+              filteredAddLicenses.map((item) => (
+                <button className="license-result-option" type="button" role="option" key={item.license} onClick={() => onAddLicense(item.license)}>
+                  <strong>{item.license}</strong>
+                  <span>{item.group} - {item.body}</span>
+                </button>
+              ))
+            ) : (
+              <div className="license-result-empty">No matching license</div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function RequirementsStep({
   draft,
   templates,
@@ -996,6 +1232,52 @@ function RequirementsStep({
 
   function deleteRegulatoryLicenseRequirement(rowId: string) {
     patchRegulatoryLicenseRows(draft.regulatoryLicenseRequirements.filter((row) => row.id !== rowId));
+  }
+
+  const regulatoryLicensePanel = (
+    <RegulatoryLicenseRequirementsPanel
+      rows={draft.regulatoryLicenseRequirements}
+      addOpen={licenseAddOpen}
+      addSearch={licenseAddSearch}
+      changeRowId={licenseChangeRowId}
+      changeSearch={licenseChangeSearch}
+      filteredAddLicenses={filteredAddLicenses}
+      getChangeMatches={(row) =>
+        filterRegulatoryLicenses(
+          licenseChangeSearch,
+          draft.regulatoryLicenseRequirements.filter((item) => item.id !== row.id).map((item) => item.license)
+        )
+      }
+      onToggleAdd={() => {
+        setLicenseAddOpen((current) => !current);
+        setLicenseAddSearch('');
+      }}
+      onAddSearch={setLicenseAddSearch}
+      onStartChange={(rowId) => {
+        setLicenseAddOpen(false);
+        setLicenseAddSearch('');
+        setLicenseChangeRowId(rowId);
+        setLicenseChangeSearch('');
+      }}
+      onChangeSearch={setLicenseChangeSearch}
+      onAddLicense={addRegulatoryLicenseRequirement}
+      onUpdateLicense={updateRegulatoryLicenseRequirement}
+      onChangeLicense={changeRegulatoryLicenseRequirement}
+      onDeleteLicense={deleteRegulatoryLicenseRequirement}
+    />
+  );
+
+  if (draft.procurementTypeId === 'works') {
+    return (
+      <WorksRequirementsStep
+        draft={draft}
+        onPatch={onPatch}
+        onAddFinancialRequirement={addFinancialRequirement}
+        onUpdateFinancialRequirement={updateFinancialRequirement}
+        onDeleteFinancialRequirement={deleteFinancialRequirement}
+        regulatoryLicensePanel={regulatoryLicensePanel}
+      />
+    );
   }
 
   if (draft.procurementTypeId === 'goods') {
@@ -1514,135 +1796,7 @@ function RequirementsStep({
           </div>
         </section>
 
-        <section className="planning-section wizard-section scope-list-panel license-requirements-panel">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Regulatory license requirements</h3>
-              <span className="form-hint">Search and select the licenses suppliers must hold for this tender. The issuing body is filled automatically.</span>
-            </div>
-            <span className="badge badge-info">{draft.regulatoryLicenseRequirements.length}</span>
-          </div>
-          <div className="license-requirement-list">
-            {draft.regulatoryLicenseRequirements.length ? (
-              draft.regulatoryLicenseRequirements.map((row) => {
-                const changeMatches = filterRegulatoryLicenses(
-                  licenseChangeSearch,
-                  draft.regulatoryLicenseRequirements.filter((item) => item.id !== row.id).map((item) => item.license)
-                );
-                return (
-                  <div className="license-requirement-row" key={row.id}>
-                    <div className="license-summary">
-                      <span>License</span>
-                      <strong>{row.license}</strong>
-                      <small>{row.body}</small>
-                      {licenseChangeRowId === row.id ? (
-                        <div className="license-picker">
-                          <input
-                            className="form-input"
-                            type="search"
-                            aria-label="Search regulatory license"
-                            placeholder="Search license"
-                            value={licenseChangeSearch}
-                            onChange={(event) => setLicenseChangeSearch(event.target.value)}
-                          />
-                          <div className="license-results open" role="listbox" aria-label="Matching licenses">
-                            {changeMatches.length ? (
-                              changeMatches.map((item) => (
-                                <button className="license-result-option" type="button" role="option" key={item.license} onClick={() => changeRegulatoryLicenseRequirement(row.id, item.license)}>
-                                  <strong>{item.license}</strong>
-                                  <span>{item.group} - {item.body}</span>
-                                </button>
-                              ))
-                            ) : (
-                              <div className="license-result-empty">No matching license</div>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="license-toggle-cell">
-                      <span>Mandatory</span>
-                      <label className="requirement-toggle">
-                        <input
-                          type="checkbox"
-                          aria-label={`${row.license} Mandatory`}
-                          checked={row.mandatory}
-                          onChange={(event) => updateRegulatoryLicenseRequirement(row.id, { mandatory: event.target.checked })}
-                        />
-                        <span></span>
-                      </label>
-                    </div>
-                    <div className="license-toggle-cell">
-                      <span>Expiry required</span>
-                      <label className="requirement-toggle">
-                        <input
-                          type="checkbox"
-                          aria-label={`${row.license} Expiry required`}
-                          checked={row.expiryRequired}
-                          onChange={(event) => updateRegulatoryLicenseRequirement(row.id, { expiryRequired: event.target.checked })}
-                        />
-                        <span></span>
-                      </label>
-                    </div>
-                    <div className="license-row-actions">
-                      <button
-                        className="btn btn-secondary"
-                        type="button"
-                        onClick={() => {
-                          setLicenseAddOpen(false);
-                          setLicenseAddSearch('');
-                          setLicenseChangeRowId(row.id);
-                          setLicenseChangeSearch('');
-                        }}
-                      >
-                        Change
-                      </button>
-                      <button className="boq-row-action icon-delete-btn" type="button" aria-label="Remove license requirement" title="Remove license requirement" onClick={() => deleteRegulatoryLicenseRequirement(row.id)}>
-                        x
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="scope-empty">No regulatory license requirements added yet.</div>
-            )}
-          </div>
-          <button
-            className="btn btn-secondary scope-add"
-            type="button"
-            onClick={() => {
-              setLicenseAddOpen((current) => !current);
-              setLicenseAddSearch('');
-            }}
-          >
-            Add License Requirement
-          </button>
-          {licenseAddOpen ? (
-            <div className="license-add-picker">
-              <input
-                className="form-input"
-                type="search"
-                aria-label="Search all regulatory licenses"
-                placeholder="Search all licenses"
-                value={licenseAddSearch}
-                onChange={(event) => setLicenseAddSearch(event.target.value)}
-              />
-              <div className="license-results open" role="listbox" aria-label="Available regulatory licenses">
-                {filteredAddLicenses.length ? (
-                  filteredAddLicenses.map((item) => (
-                    <button className="license-result-option" type="button" role="option" key={item.license} onClick={() => addRegulatoryLicenseRequirement(item.license)}>
-                      <strong>{item.license}</strong>
-                      <span>{item.group} - {item.body}</span>
-                    </button>
-                  ))
-                ) : (
-                  <div className="license-result-empty">No matching license</div>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </section>
+        {regulatoryLicensePanel}
 
         <section className="planning-section wizard-section goods-requirements-section">
           <div className="scope-list-heading">
@@ -1815,13 +1969,642 @@ function RequirementsStep({
   );
 }
 
+function WorksRequirementsStep({
+  draft,
+  onPatch,
+  onAddFinancialRequirement,
+  onUpdateFinancialRequirement,
+  onDeleteFinancialRequirement,
+  regulatoryLicensePanel
+}: {
+  draft: CreateTenderDraft;
+  onPatch: (patch: Partial<CreateTenderDraft>) => void;
+  onAddFinancialRequirement: () => void;
+  onUpdateFinancialRequirement: (rowId: string, patch: Partial<CreateTenderFinancialRequirementRow>) => void;
+  onDeleteFinancialRequirement: (rowId: string) => void;
+  regulatoryLicensePanel: ReactNode;
+}) {
+  const works = draft.worksRequirements ?? createEmptyWorksRequirements();
+
+  function patchWorks(patch: Partial<CreateTenderWorksRequirements>) {
+    onPatch({ worksRequirements: patch as CreateTenderWorksRequirements });
+  }
+
+  function updateActivity(index: number, value: string) {
+    patchWorks({ mainConstructionActivities: works.mainConstructionActivities.map((item, itemIndex) => (itemIndex === index ? value : item)) });
+  }
+
+  function addSpecificationDocument() {
+    patchWorks({
+      technicalSpecificationDocuments: [
+        ...works.technicalSpecificationDocuments,
+        { id: createRowId('works-spec-document'), documentTitle: '', customDocumentTitle: '', uploadName: '' }
+      ]
+    });
+  }
+
+  function updateSpecificationDocument(rowId: string, patch: Partial<CreateTenderWorksSpecificationDocumentRow>) {
+    patchWorks({
+      technicalSpecificationDocuments: works.technicalSpecificationDocuments.map((row) => (row.id === rowId ? { ...row, ...patch } : row))
+    });
+  }
+
+  function addDrawing() {
+    patchWorks({
+      drawingDesignRows: [
+        ...works.drawingDesignRows,
+        { id: createRowId('works-drawing'), documentType: '', otherDocumentName: '', uploadName: '' }
+      ]
+    });
+  }
+
+  function updateDrawing(rowId: string, patch: Partial<CreateTenderWorksDrawingRow>) {
+    patchWorks({ drawingDesignRows: works.drawingDesignRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addLumpSumPricingRow() {
+    patchWorks({
+      lumpSumPricingRows: [
+        ...works.lumpSumPricingRows,
+        { id: createRowId('works-lump-sum'), section: '', description: '', amount: '' }
+      ]
+    });
+  }
+
+  function updateLumpSumPricingRow(rowId: string, patch: Partial<CreateTenderWorksLumpSumPricingRow>) {
+    patchWorks({ lumpSumPricingRows: works.lumpSumPricingRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addWorksBoqRow() {
+    patchWorks({
+      boqRows: [
+        ...works.boqRows,
+        { id: createRowId('works-boq'), description: '', unit: 'Unit', quantity: '', rate: '' }
+      ]
+    });
+  }
+
+  function updateWorksBoqRow(rowId: string, patch: Partial<CreateTenderWorksBoqRow>) {
+    patchWorks({ boqRows: works.boqRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function importWorksBoq(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const importedRows = parseWorksBoqCsv(String(reader.result || ''));
+      if (!importedRows.length) return;
+      patchWorks({ boqRows: [...works.boqRows, ...importedRows] });
+    };
+    reader.readAsText(file);
+  }
+
+  function addWorksMilestone() {
+    patchWorks({
+      worksMilestoneRows: [
+        ...works.worksMilestoneRows,
+        { id: createRowId('works-milestone'), milestone: '', targetDate: '' }
+      ]
+    });
+  }
+
+  function updateWorksMilestone(rowId: string, patch: Partial<CreateTenderWorksMilestoneRow>) {
+    patchWorks({ worksMilestoneRows: works.worksMilestoneRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  return (
+    <div className="wizard-step-surface requirements-step-surface works-requirements-step">
+      <div className="requirement-type-header">
+        <div>
+          <span className="section-kicker">Tender requirements</span>
+          <h3>Works Tender Requirements</h3>
+        </div>
+        <span className="badge badge-info">Bill of Quantities</span>
+      </div>
+
+      <div className="requirement-section-grid">
+        <article className="requirement-block" id="requirement-section-generalInformation">
+          <div>
+            <h4>1. Project Overview</h4>
+            <span className="form-hint">Capture the purpose, buyer context, objective, and location of the works.</span>
+          </div>
+          <div className="requirement-control-grid">
+            <label className="requirement-control">
+              <span className="form-label">Project title</span>
+              <input className="form-input" value={works.projectName} onChange={(event) => patchWorks({ projectName: event.target.value })} aria-label="Project title" />
+            </label>
+            <label className="requirement-control">
+              <span className="form-label">Procuring entity</span>
+              <input className="form-input" value={works.procuringEntity} onChange={(event) => patchWorks({ procuringEntity: event.target.value })} aria-label="Procuring entity" />
+            </label>
+            <label className="requirement-control">
+              <span className="form-label">Project location</span>
+              <input className="form-input" value={works.location} onChange={(event) => patchWorks({ location: event.target.value })} aria-label="Project location" />
+            </label>
+            <label className="requirement-control">
+              <span className="form-label">Contract type</span>
+              <select className="form-input" value={works.contractType} onChange={(event) => patchWorks({ contractType: event.target.value })} aria-label="Contract type">
+                <option value=""></option>
+                {worksContractTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              {worksContractTypeDescriptions[works.contractType] ? <span className="form-hint">{worksContractTypeDescriptions[works.contractType]}</span> : null}
+            </label>
+            {works.contractType === 'Other' ? (
+              <label className="requirement-control">
+                <span className="form-label">Custom contract type</span>
+                <input className="form-input" value={works.customContractType} onChange={(event) => patchWorks({ customContractType: event.target.value })} aria-label="Custom contract type" />
+              </label>
+            ) : null}
+            <label className="requirement-control">
+              <span className="form-label">Completion period</span>
+              <input className="form-input" value={works.completionPeriod} onChange={(event) => patchWorks({ completionPeriod: event.target.value })} aria-label="Completion period" />
+            </label>
+          </div>
+        </article>
+
+        <article className="requirement-block scope-description-block" id="requirement-section-scopeDescription">
+          <div className="scope-description-heading">
+            <h4>2. Scope Description</h4>
+            <p>Summarize the works, major construction activities, and any project notes.</p>
+          </div>
+          <div className="scope-field-group">
+            <span className="form-label">Scope Summary</span>
+            <span className="form-hint">Summarize the overall scope of the project including what the contractor is expected to do.</span>
+            <textarea
+              className="form-input"
+              rows={6}
+              maxLength={1000}
+              placeholder="Example: Construction of a 3-floor academic building including structural works, electrical installation, plumbing, roofing, doors and windows, finishing works and external works."
+              value={works.scopeSummary}
+              onChange={(event) => patchWorks({ scopeSummary: event.target.value })}
+              aria-label="Scope Summary"
+            />
+            <span className="requirement-character-counter">{works.scopeSummary.length}/1000</span>
+          </div>
+          <div className="scope-field-group scope-activity-group">
+            <div className="scope-activity-heading">
+              <div>
+                <span className="form-label">Main Activities</span>
+                <span className="form-hint">List the major construction activities to be carried out.</span>
+              </div>
+              <button className="btn btn-secondary scope-add scope-activity-add" type="button" onClick={() => patchWorks({ mainConstructionActivities: [...works.mainConstructionActivities, ''] })}>
+                + Add Activity
+              </button>
+            </div>
+            <div className="scope-activity-list">
+              {works.mainConstructionActivities.length ? (
+                works.mainConstructionActivities.map((activity, index) => (
+                  <div className="scope-activity-row" key={`works-activity-${index}`}>
+                    <span className="scope-activity-handle" aria-hidden="true">::</span>
+                    <input
+                      className="scope-activity-input"
+                      value={activity}
+                      placeholder={['Example: Site preparation', 'Example: Excavation and foundation works', 'Example: Structural works', 'Example: Roofing, electrical, plumbing, or finishing works'][index % 4]}
+                      onChange={(event) => updateActivity(index, event.target.value)}
+                      aria-label={`Main Activities item ${index + 1}`}
+                    />
+                    <button
+                      className="boq-row-action icon-delete-btn scope-activity-delete"
+                      type="button"
+                      aria-label={`Remove Main Activities ${index + 1}`}
+                      onClick={() => patchWorks({ mainConstructionActivities: works.mainConstructionActivities.filter((_, itemIndex) => itemIndex !== index) })}
+                    >
+                      x
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="scope-empty">Add the key works activities expected, such as site preparation, foundation works, structural works, roofing, electrical installation, plumbing, finishing, or external works.</div>
+              )}
+            </div>
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-technicalSpecifications">
+          <div>
+            <h4>3. Technical Specifications</h4>
+            <span className="form-hint">Detailed technical requirements and mandatory specification documents.</span>
+          </div>
+          <div className="requirement-control requirement-control-wide">
+            <span className="form-label">Technical specification documents</span>
+            <div className="requirement-table-wrap">
+              <table className="requirement-table">
+                <thead>
+                  <tr>
+                    <th>Document title</th>
+                    <th>Upload document</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {works.technicalSpecificationDocuments.length ? (
+                    works.technicalSpecificationDocuments.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>
+                          <select className="form-input" value={row.documentTitle} onChange={(event) => updateSpecificationDocument(row.id, { documentTitle: event.target.value })} aria-label={`Document title ${index + 1}`}>
+                            <option value=""></option>
+                            {worksTechnicalSpecificationTitles.map((title) => (
+                              <option key={title} value={title}>{title}</option>
+                            ))}
+                          </select>
+                          {row.documentTitle === 'Others' ? (
+                            <input className="form-input" value={row.customDocumentTitle} onChange={(event) => updateSpecificationDocument(row.id, { customDocumentTitle: event.target.value })} aria-label={`Custom specification document title ${index + 1}`} placeholder="Write document title" />
+                          ) : null}
+                        </td>
+                        <td>
+                          <label className="btn btn-secondary scope-add goods-import-control">
+                            Upload document
+                            <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" aria-label={`Upload document ${index + 1}`} onChange={(event) => updateSpecificationDocument(row.id, { uploadName: event.target.files?.[0]?.name ?? '' })} />
+                          </label>
+                          {row.uploadName ? <span className="form-hint">{row.uploadName}</span> : null}
+                        </td>
+                        <td className="requirement-table-action-cell">
+                          <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove specification document ${index + 1}`} onClick={() => patchWorks({ technicalSpecificationDocuments: works.technicalSpecificationDocuments.filter((item) => item.id !== row.id) })}>
+                            x
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3}><div className="scope-empty">No specification documents added yet.</div></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="requirement-table-actions">
+              <button className="btn btn-secondary scope-add" type="button" onClick={addSpecificationDocument}>Add Specification Document</button>
+            </div>
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-drawingsDesignDocuments">
+          <div>
+            <h4>4. Drawings and Design Documents</h4>
+            <span className="form-hint">Reference drawings, revisions, design consultants, and CAD/PDF uploads.</span>
+          </div>
+          <div className="requirement-control requirement-control-wide">
+            <span className="form-label">Drawings and design documents</span>
+            <div className="requirement-table-wrap">
+              <table className="requirement-table">
+                <thead>
+                  <tr>
+                    <th>Document type</th>
+                    <th>Other document name</th>
+                    <th>CAD / PDF upload</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {works.drawingDesignRows.length ? (
+                    works.drawingDesignRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>
+                          <select className="form-input" value={row.documentType} onChange={(event) => updateDrawing(row.id, { documentType: event.target.value })} aria-label={`Document type ${index + 1}`}>
+                            <option value=""></option>
+                            {worksDocumentTypes.map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          {row.documentType === 'Other' ? (
+                            <input className="form-input" value={row.otherDocumentName} onChange={(event) => updateDrawing(row.id, { otherDocumentName: event.target.value })} aria-label={`Other document name ${index + 1}`} placeholder="Write document name" />
+                          ) : (
+                            <span className="requirement-auto-value">-</span>
+                          )}
+                        </td>
+                        <td>
+                          <label className="btn btn-secondary scope-add goods-import-control">
+                            CAD / PDF upload
+                            <input type="file" accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" aria-label={`CAD / PDF upload ${index + 1}`} onChange={(event) => updateDrawing(row.id, { uploadName: event.target.files?.[0]?.name ?? '' })} />
+                          </label>
+                          {row.uploadName ? <span className="form-hint">{row.uploadName}</span> : null}
+                        </td>
+                        <td className="requirement-table-action-cell">
+                          <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove drawing ${index + 1}`} onClick={() => patchWorks({ drawingDesignRows: works.drawingDesignRows.filter((item) => item.id !== row.id) })}>
+                            x
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4}><div className="scope-empty">No drawings or design documents added yet.</div></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="requirement-table-actions">
+              <button className="btn btn-secondary scope-add" type="button" onClick={addDrawing}>Add Drawing</button>
+            </div>
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-boqRequirements">
+          <div>
+            <h4>5. Bill of Quantities (BoQ) / Pricing Schedule</h4>
+            <span className="form-hint">Commercial breakdown of works. Lump Sum uses summary pricing; Unit Price uses detailed measured items.</span>
+          </div>
+          {works.contractType === 'Lump Sum Contract' ? (
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Summary pricing schedule</span>
+              <div className="requirement-table-wrap">
+                <table className="requirement-table">
+                  <thead>
+                    <tr>
+                      <th>Section</th>
+                      <th>Description</th>
+                      <th>Amount</th>
+                      <th aria-label="Actions"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {works.lumpSumPricingRows.length ? (
+                      works.lumpSumPricingRows.map((row, index) => (
+                        <tr key={row.id}>
+                          <td><input className="form-input" value={row.section} onChange={(event) => updateLumpSumPricingRow(row.id, { section: event.target.value })} aria-label={`Section ${index + 1}`} /></td>
+                          <td><textarea className="form-input" value={row.description} onChange={(event) => updateLumpSumPricingRow(row.id, { description: event.target.value })} aria-label={`Description ${index + 1}`} /></td>
+                          <td><input className="form-input" inputMode="decimal" value={row.amount} onChange={(event) => updateLumpSumPricingRow(row.id, { amount: event.target.value })} aria-label={`Amount ${index + 1}`} /></td>
+                          <td className="requirement-table-action-cell">
+                            <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove pricing section ${index + 1}`} onClick={() => patchWorks({ lumpSumPricingRows: works.lumpSumPricingRows.filter((item) => item.id !== row.id) })}>x</button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4}><div className="scope-empty">No summary pricing sections added yet.</div></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="requirement-table-actions">
+                <button className="btn btn-secondary scope-add" type="button" onClick={addLumpSumPricingRow}>Add Pricing Section</button>
+              </div>
+            </div>
+          ) : null}
+          <div className="requirement-control requirement-control-wide">
+            <span className="form-label">Bill of Quantities table</span>
+            <div className="requirement-table-wrap">
+              <table className="requirement-table">
+                <thead>
+                  <tr>
+                    <th>No.</th>
+                    <th>Description</th>
+                    <th>Unit</th>
+                    <th>Quantity</th>
+                    <th>Rate</th>
+                    <th>Total amount</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {works.boqRows.length ? (
+                    works.boqRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td><span className="requirement-auto-value">{index + 1}</span></td>
+                        <td><input className="form-input" value={row.description} onChange={(event) => updateWorksBoqRow(row.id, { description: event.target.value })} aria-label={`BOQ description ${index + 1}`} /></td>
+                        <td>
+                          <select className="form-input" value={row.unit} onChange={(event) => updateWorksBoqRow(row.id, { unit: event.target.value })} aria-label={`BOQ unit ${index + 1}`}>
+                            <option value=""></option>
+                            {goodsUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                          </select>
+                        </td>
+                        <td><input className="form-input" inputMode="decimal" value={row.quantity} onChange={(event) => updateWorksBoqRow(row.id, { quantity: event.target.value })} aria-label={`BOQ quantity ${index + 1}`} /></td>
+                        <td><input className="form-input" inputMode="decimal" value={row.rate} onChange={(event) => updateWorksBoqRow(row.id, { rate: event.target.value })} aria-label={`BOQ rate ${index + 1}`} /></td>
+                        <td><span className="requirement-auto-value">{getWorksBoqTotal(row)}</span></td>
+                        <td className="requirement-table-action-cell">
+                          <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove BOQ line ${index + 1}`} onClick={() => patchWorks({ boqRows: works.boqRows.filter((item) => item.id !== row.id) })}>x</button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7}><div className="scope-empty">No BOQ lines added yet.</div></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="requirement-table-actions">
+              <label className="btn btn-secondary scope-add goods-import-control">
+                Import Excel
+                <input type="file" accept=".csv,.txt" aria-label="Import works BOQ" onChange={(event) => importWorksBoq(event.target.files?.[0])} />
+              </label>
+              <button className="btn btn-secondary scope-add" type="button" onClick={downloadWorksBoqTemplate}>Download Excel Template</button>
+              <button className="btn btn-secondary scope-add" type="button" onClick={addWorksBoqRow}>Add BOQ Line</button>
+            </div>
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-timeScheduleMilestones">
+          <div>
+            <h4>6. Time Schedule and Milestones</h4>
+            <span className="form-hint">Capture expected timelines, milestone triggers, and optional work program uploads.</span>
+          </div>
+          <div className="requirement-control-grid">
+            <label className="requirement-control">
+              <span className="form-label">Commencement date</span>
+              <input className="form-input" type="date" value={works.commencementDate} onChange={(event) => patchWorks({ commencementDate: event.target.value })} aria-label="Commencement date" />
+            </label>
+            <label className="requirement-control">
+              <span className="form-label">Completion period</span>
+              <input className="form-input" value={works.worksCompletionPeriod} onChange={(event) => patchWorks({ worksCompletionPeriod: event.target.value })} aria-label="Works completion period" />
+            </label>
+          </div>
+          <div className="requirement-control requirement-control-wide">
+            <span className="form-label">Works milestones</span>
+            <div className="requirement-table-wrap">
+              <table className="requirement-table">
+                <thead>
+                  <tr>
+                    <th>Milestone</th>
+                    <th>Target date</th>
+                    <th aria-label="Actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {works.worksMilestoneRows.length ? (
+                    works.worksMilestoneRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td><input className="form-input" value={row.milestone} onChange={(event) => updateWorksMilestone(row.id, { milestone: event.target.value })} aria-label={`Works milestone ${index + 1}`} /></td>
+                        <td><input className="form-input" type="date" value={row.targetDate} onChange={(event) => updateWorksMilestone(row.id, { targetDate: event.target.value })} aria-label={`Target date ${index + 1}`} /></td>
+                        <td className="requirement-table-action-cell">
+                          <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove works milestone ${index + 1}`} onClick={() => patchWorks({ worksMilestoneRows: works.worksMilestoneRows.filter((item) => item.id !== row.id) })}>x</button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3}><div className="scope-empty">No works milestones added yet.</div></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="requirement-table-actions">
+              <button className="btn btn-secondary scope-add" type="button" onClick={addWorksMilestone}>Add Milestone</button>
+            </div>
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-siteInformation">
+          <div>
+            <h4>7. Site Visit</h4>
+            <span className="form-hint">Important works-procurement context for access, utilities, infrastructure, and ground conditions.</span>
+          </div>
+          <div className="requirement-control-grid">
+            <div className="requirement-control">
+              <span className="form-label">Site visit requirement</span>
+              <div className="sample-requirement-choice-row">
+                {(['Mandatory', 'Not mandatory'] as const).map((option) => (
+                  <label key={option} className={`sample-requirement-choice ${works.siteVisitRequirement === option ? 'is-selected' : ''}`}>
+                    <input type="radio" name="siteVisitRequirement" value={option} checked={works.siteVisitRequirement === option} onChange={() => patchWorks({ siteVisitRequirement: option })} />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {works.siteVisitRequirement === 'Not mandatory' ? (
+              <div className="requirement-control">
+                <span className="form-label">Site survey</span>
+                <label className="btn btn-secondary scope-add goods-import-control">
+                  Upload Site survey
+                  <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.dwg,.dxf" aria-label="Upload Site survey" onChange={(event) => patchWorks({ siteSurveyUploadName: event.target.files?.[0]?.name ?? '' })} />
+                </label>
+                {works.siteSurveyUploadName ? <span className="form-hint">{works.siteSurveyUploadName}</span> : null}
+              </div>
+            ) : null}
+          </div>
+        </article>
+
+        <article className="requirement-block technical-capacity-block" id="requirement-section-technicalCapacity">
+          <div>
+            <h4>Technical Capacity</h4>
+            <span className="form-hint">Turn each technical capacity evidence requirement on or off.</span>
+          </div>
+          <div className="technical-capacity-list">
+            <div className="technical-capacity-row">
+              <div>
+                <strong>Similar completed projects</strong>
+                <span>Require bidders to submit evidence of similar completed works.</span>
+              </div>
+              <label className="requirement-toggle">
+                <input type="checkbox" checked={works.similarCompletedProjectsRequired} onChange={(event) => patchWorks({ similarCompletedProjectsRequired: event.target.checked })} aria-label="Similar completed projects" />
+                <span></span>
+              </label>
+            </div>
+            <div className="technical-capacity-row">
+              <div>
+                <strong>Key personnel CVs</strong>
+                <span>Require CVs for proposed key personnel.</span>
+              </div>
+              <label className="requirement-toggle">
+                <input type="checkbox" checked={works.keyPersonnelCvsRequired} onChange={(event) => patchWorks({ keyPersonnelCvsRequired: event.target.checked })} aria-label="Key personnel CVs" />
+                <span></span>
+              </label>
+            </div>
+            <div className="technical-capacity-row">
+              <div>
+                <strong>Bank statements</strong>
+                <span>Require bank statements as financial capacity evidence.</span>
+              </div>
+              <label className="requirement-toggle">
+                <input type="checkbox" checked={works.bankStatementsRequired} onChange={(event) => patchWorks({ bankStatementsRequired: event.target.checked })} aria-label="Bank statements" />
+                <span></span>
+              </label>
+            </div>
+            {works.bankStatementsRequired ? (
+              <div className="technical-capacity-detail-row">
+                <span className="form-label">Bank statement period</span>
+                <span className="form-hint">Describe how far back the bank statements should cover.</span>
+                <textarea className="form-input" placeholder="Example: Submit bank statements covering the last 6 months." value={works.bankStatementPeriod} onChange={(event) => patchWorks({ bankStatementPeriod: event.target.value })} aria-label="Bank statement period" />
+              </div>
+            ) : null}
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-financialCapacity">
+          <div className="scope-list-heading">
+            <div>
+              <h4>Financial Capacity Requirements</h4>
+              <span className="form-hint">Structured financial rules used to verify whether bidders can sustain the contract.</span>
+            </div>
+            <button className="btn btn-secondary scope-add" type="button" onClick={onAddFinancialRequirement}>Add Financial Requirement</button>
+          </div>
+          <div className="requirement-table-wrap">
+            <table className="requirement-table">
+              <thead>
+                <tr>
+                  <th>Requirement type</th>
+                  <th>Minimum value</th>
+                  <th>Period</th>
+                  <th>Evidence required</th>
+                  <th>Mandatory</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {draft.financialRequirements.length ? (
+                  draft.financialRequirements.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>
+                        <select className="form-input" aria-label={`Requirement type ${index + 1}`} value={row.requirementType} onChange={(event) => onUpdateFinancialRequirement(row.id, { requirementType: event.target.value })}>
+                          <option value="">Select</option>
+                          {financialRequirementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                        </select>
+                      </td>
+                      <td><input className="form-input" aria-label={`Minimum value ${index + 1}`} inputMode="decimal" value={row.minimumValue} onChange={(event) => onUpdateFinancialRequirement(row.id, { minimumValue: event.target.value })} /></td>
+                      <td>
+                        <select className="form-input" aria-label={`Period ${index + 1}`} value={row.period} onChange={(event) => onUpdateFinancialRequirement(row.id, { period: event.target.value })}>
+                          <option value="">Select</option>
+                          {financialPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select className="form-input" aria-label={`Evidence required ${index + 1}`} value={row.evidenceRequired} onChange={(event) => onUpdateFinancialRequirement(row.id, { evidenceRequired: event.target.value })}>
+                          <option value="">Select</option>
+                          {financialEvidence.map((evidence) => <option key={evidence} value={evidence}>{evidence}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <input type="checkbox" aria-label={`Mandatory financial requirement ${index + 1}`} checked={row.mandatory} onChange={(event) => onUpdateFinancialRequirement(row.id, { mandatory: event.target.checked })} />
+                      </td>
+                      <td className="requirement-table-action-cell">
+                        <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete financial requirement ${index + 1}`} onClick={() => onDeleteFinancialRequirement(row.id)}>x</button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6}><div className="scope-empty">No financial requirements added yet.</div></td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+        {regulatoryLicensePanel}
+      </div>
+    </div>
+  );
+}
+
 function EvaluationStep({
   draft,
   total,
   suggestions,
   onAddCriterion,
   onUpdateCriterion,
-  onRemoveCriterion
+  onRemoveCriterion,
+  onReplaceCriteria
 }: {
   draft: CreateTenderDraft;
   total: number;
@@ -1829,7 +2612,322 @@ function EvaluationStep({
   onAddCriterion: (criterion: CreateTenderEvaluationCriterion) => void;
   onUpdateCriterion: (criterionId: string, patch: Partial<CreateTenderEvaluationCriterion>) => void;
   onRemoveCriterion: (criterionId: string) => void;
+  onReplaceCriteria: (criteria: CreateTenderEvaluationCriterion[]) => void;
 }) {
+  const [mode, setMode] = useState<'manual' | 'auto'>('manual');
+  const [editingCriterionId, setEditingCriterionId] = useState<string | null>(null);
+  const [subcriteriaPicker, setSubcriteriaPicker] = useState<Record<string, string>>({});
+  const [customSubcriteria, setCustomSubcriteria] = useState<Record<string, string>>({});
+
+  if (draft.procurementTypeId === 'goods' || draft.procurementTypeId === 'works') {
+    const summary = getEvaluationSummary(draft.evaluationCriteria);
+    const selectedIds = new Set(draft.evaluationCriteria.map((criterion) => criterion.id));
+    const availableSuggestions = suggestions.filter((criterion) => !selectedIds.has(criterion.id));
+
+    const updateWeight = (criterionId: string, value: number) => {
+      if (mode !== 'auto') {
+        onUpdateCriterion(criterionId, { weight: value });
+        return;
+      }
+      onReplaceCriteria(autoBalanceCriteria(draft.evaluationCriteria, criterionId, value));
+    };
+
+    const updateCriterionSubcriteria = (criterion: CreateTenderEvaluationCriterion, nextSubcriteria: string[]) => {
+      onUpdateCriterion(criterion.id, { subcriteria: normalizeTextList(nextSubcriteria) });
+    };
+
+    const addSelectedSubcriterion = (criterion: CreateTenderEvaluationCriterion) => {
+      const value = (subcriteriaPicker[criterion.id] || '').trim();
+      if (!value) return;
+      const existing = normalizeTextList(criterion.subcriteria);
+      if (!existing.some((item) => item.toLowerCase() === value.toLowerCase())) {
+        updateCriterionSubcriteria(criterion, [...existing, value]);
+      }
+      setSubcriteriaPicker((current) => ({ ...current, [criterion.id]: '' }));
+    };
+
+    const addCustomSubcriterion = (criterion: CreateTenderEvaluationCriterion) => {
+      const value = (customSubcriteria[criterion.id] || '').trim();
+      if (!value) return;
+      const existing = normalizeTextList(criterion.subcriteria);
+      if (!existing.some((item) => item.toLowerCase() === value.toLowerCase())) {
+        updateCriterionSubcriteria(criterion, [...existing, value]);
+      }
+      setCustomSubcriteria((current) => ({ ...current, [criterion.id]: '' }));
+    };
+
+    const addCustomCriterion = () => {
+      onAddCriterion({
+        id: createRowId(`${draft.procurementTypeId}-custom-criterion`),
+        label: 'Custom Criterion',
+        category: 'Custom',
+        weight: 0,
+        maxScore: 0,
+        notes: '',
+        description: '',
+        evaluationType: 'scored',
+        mandatory: false,
+        passFailGate: false,
+        evidenceRequired: [],
+        scoringGuide: [],
+        subcriteria: [],
+        custom: true,
+        suggestedFor: [draft.procurementTypeId]
+      });
+    };
+
+    return (
+      <div className="wizard-step-surface evaluation-step-surface">
+        <div className="evaluation-builder" data-evaluation-builder>
+          <div className="evaluation-builder-header">
+            <div>
+              <span className="section-kicker">Evaluation setup</span>
+              <h3>Criteria suggestion library</h3>
+            </div>
+            <span className={`badge ${summary.state === 'balanced' ? 'badge-success' : summary.state === 'over' ? 'badge-error' : 'badge-warning'}`}>{summary.message}</span>
+          </div>
+
+          <div className={`evaluation-weight-panel ${summary.state}`}>
+            <div className="evaluation-weight-status">
+              <span>Total Weight: <strong>{summary.total}%</strong></span>
+              <span>{summary.message}</span>
+            </div>
+            <div className="evaluation-progress-track" aria-label={`Evaluation criteria total ${summary.total}%`}>
+              <span style={{ width: `${Math.min(summary.total, 100)}%` }} />
+            </div>
+          </div>
+
+          <div className="evaluation-toolbar">
+            <label>
+              <span className="form-label">Balancing mode</span>
+              <select className="form-input" value={mode} onChange={(event) => setMode(event.target.value as 'manual' | 'auto')}>
+                <option value="manual">Manual</option>
+                <option value="auto">Auto-balance</option>
+              </select>
+            </label>
+            <button className="btn btn-primary" type="button" onClick={addCustomCriterion}>
+              Add Custom Criterion
+            </button>
+          </div>
+
+          <div className="evaluation-builder-grid">
+            <section className="evaluation-selected-panel">
+              <div className="scope-list-heading">
+                <div>
+                  <h3>Selected criteria</h3>
+                  <span className="form-hint">Buyer-controlled labels, weights, and selectable subcriteria.</span>
+                </div>
+                <div className="evaluation-selected-heading-meta">
+                  <span>Weight</span>
+                  <span className="badge badge-info">{draft.evaluationCriteria.length} criteria</span>
+                </div>
+              </div>
+              <div className="evaluation-criteria-list" data-evaluation-criteria-list>
+                {draft.evaluationCriteria.length ? (
+                  draft.evaluationCriteria.map((criterion) => {
+                    const selectedSubcriteria = normalizeTextList(criterion.subcriteria);
+                    const catalogSubcriteria = normalizeTextList(suggestions.find((item) => item.id === criterion.id)?.subcriteria);
+                    const availableSubcriteria = catalogSubcriteria.filter((item) => !selectedSubcriteria.some((selected) => selected.toLowerCase() === item.toLowerCase()));
+                    const isEditing = editingCriterionId === criterion.id;
+
+                    return (
+                      <article key={criterion.id} className="evaluation-selected-card" data-evaluation-criterion={criterion.id}>
+                        <div className="evaluation-selected-main">
+                          <div className="evaluation-selected-copy">
+                            <strong>{criterion.label}</strong>
+                            <div className="evaluation-subcriteria-preview">
+                              {selectedSubcriteria.length ? (
+                                selectedSubcriteria.map((item) => (
+                                  <span key={item} className="evaluation-subcriterion-chip">
+                                    {item}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="requirement-tag-empty">No subcriteria selected</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="evaluation-selected-actions">
+                            <div className="requirement-input-affix evaluation-weight-cell">
+                              <input
+                                className="form-input evaluation-weight-input"
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={criterion.weight}
+                                onChange={(event) => updateWeight(criterion.id, Number(event.target.value))}
+                                aria-label="Weight"
+                              />
+                              <span>%</span>
+                            </div>
+                            <div className="evaluation-card-action-stack">
+                              <button className="btn btn-secondary" type="button" onClick={() => setEditingCriterionId(criterion.id)}>
+                                Edit
+                              </button>
+                              <button className="boq-row-action icon-delete-btn" type="button" onClick={() => onRemoveCriterion(criterion.id)} aria-label="Delete criteria" title="Delete criteria">
+                                <svg className="trash-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M3 6h18" />
+                                  <path d="M8 6V4h8v2" />
+                                  <path d="M19 6l-1 14H6L5 6" />
+                                  <path d="M10 11v5" />
+                                  <path d="M14 11v5" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isEditing ? (
+                          <div className="evaluation-edit-menu" data-evaluation-edit-menu>
+                            <button className="boq-row-action evaluation-edit-close" type="button" onClick={() => setEditingCriterionId(null)} aria-label="Close edit menu" title="Close">
+                              x
+                            </button>
+                            <div className="evaluation-edit-grid">
+                              <label>
+                                <span className="form-label">Criterion name</span>
+                                <input className="form-input" value={criterion.label} onChange={(event) => onUpdateCriterion(criterion.id, { label: event.target.value })} aria-label="Criterion name" />
+                              </label>
+                              <label>
+                                <span className="form-label">Category</span>
+                                <input className="form-input" value={criterion.category ?? ''} onChange={(event) => onUpdateCriterion(criterion.id, { category: event.target.value })} aria-label="Criterion category" />
+                              </label>
+                              <label>
+                                <span className="form-label">Evaluation type</span>
+                                <select className="form-input" value={criterion.evaluationType ?? 'scored'} onChange={(event) => onUpdateCriterion(criterion.id, { evaluationType: event.target.value })} aria-label="Evaluation type">
+                                  {evaluationTypes.map((type) => (
+                                    <option key={type.value} value={type.value}>
+                                      {type.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                <span className="form-label">Max score</span>
+                                <input className="form-input" type="number" min="0" max="100" step="0.01" value={criterion.maxScore ?? criterion.weight} onChange={(event) => onUpdateCriterion(criterion.id, { maxScore: Number(event.target.value) })} aria-label="Criterion max score" />
+                              </label>
+                              <label className="wide">
+                                <span className="form-label">Description</span>
+                                <textarea className="form-input" rows={2} value={criterion.description ?? ''} onChange={(event) => onUpdateCriterion(criterion.id, { description: event.target.value })} aria-label="Criterion description" />
+                              </label>
+                              <label className="confirm-action evaluation-toggle-field">
+                                <input type="checkbox" className="confirm-action-input" checked={Boolean(criterion.mandatory)} onChange={(event) => onUpdateCriterion(criterion.id, { mandatory: event.target.checked })} />
+                                <span>Mandatory criterion</span>
+                              </label>
+                              <label className="confirm-action evaluation-toggle-field">
+                                <input type="checkbox" className="confirm-action-input" checked={Boolean(criterion.passFailGate)} onChange={(event) => onUpdateCriterion(criterion.id, { passFailGate: event.target.checked })} />
+                                <span>Failure blocks ranking</span>
+                              </label>
+                              <label className="wide">
+                                <span className="form-label">Evidence required</span>
+                                <textarea className="form-input" rows={2} value={normalizeTextList(criterion.evidenceRequired).join('\n')} onChange={(event) => onUpdateCriterion(criterion.id, { evidenceRequired: normalizeTextList(event.target.value) })} aria-label="Evidence required" />
+                              </label>
+                              <label className="wide">
+                                <span className="form-label">Scoring guide</span>
+                                <textarea className="form-input" rows={3} value={normalizeTextList(criterion.scoringGuide).join('\n')} onChange={(event) => onUpdateCriterion(criterion.id, { scoringGuide: normalizeTextList(event.target.value) })} aria-label="Scoring guide" />
+                              </label>
+                            </div>
+
+                            <div className="evaluation-subcriteria-control">
+                              <span className="form-label">Subcriteria</span>
+                              <div className="evaluation-subcriteria-list">
+                                {selectedSubcriteria.length ? (
+                                  selectedSubcriteria.map((item) => (
+                                    <span key={item} className="evaluation-subcriterion-chip">
+                                      {item}
+                                      <button
+                                        type="button"
+                                        onClick={() => updateCriterionSubcriteria(criterion, selectedSubcriteria.filter((selected) => selected !== item))}
+                                        aria-label={`Remove ${item}`}
+                                      >
+                                        x
+                                      </button>
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="requirement-tag-empty">No subcriteria selected</span>
+                                )}
+                              </div>
+                              <div className="evaluation-subcriteria-add-row">
+                                <select
+                                  className="form-input"
+                                  value={subcriteriaPicker[criterion.id] ?? ''}
+                                  onChange={(event) => setSubcriteriaPicker((current) => ({ ...current, [criterion.id]: event.target.value }))}
+                                  aria-label="Select subcriterion"
+                                  disabled={!availableSubcriteria.length}
+                                >
+                                  <option value="">Choose subcriterion</option>
+                                  {availableSubcriteria.map((item) => (
+                                    <option key={item} value={item}>
+                                      {item}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button className="btn btn-secondary" type="button" onClick={() => addSelectedSubcriterion(criterion)} disabled={!availableSubcriteria.length}>
+                                  Add
+                                </button>
+                              </div>
+                              <div className="evaluation-subcriteria-add-row">
+                                <input
+                                  className="form-input"
+                                  placeholder="Custom subcriterion"
+                                  value={customSubcriteria[criterion.id] ?? ''}
+                                  onChange={(event) => setCustomSubcriteria((current) => ({ ...current, [criterion.id]: event.target.value }))}
+                                  aria-label="Custom subcriterion"
+                                />
+                                <button className="btn btn-secondary" type="button" onClick={() => addCustomSubcriterion(criterion)}>
+                                  Add Custom
+                                </button>
+                              </div>
+                            </div>
+                            <div className="evaluation-edit-actions">
+                              <button className="btn btn-secondary" type="button" onClick={() => setEditingCriterionId(null)}>
+                                Cancel
+                              </button>
+                              <button className="btn btn-primary" type="button" onClick={() => setEditingCriterionId(null)}>
+                                Save Changes
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })
+                ) : (
+                  <div className="scope-empty">No evaluation criteria selected yet.</div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <div className="evaluation-suggestions-row">
+            <section className="evaluation-suggestions-panel">
+              <div className="scope-list-heading">
+                <div>
+                  <h3>Suggested criteria</h3>
+                  <span className="form-hint">Suggestions are guidance only and can be removed after adding.</span>
+                </div>
+              </div>
+              <div className="evaluation-suggestion-list" data-evaluation-suggestion-list>
+                {availableSuggestions.length ? (
+                  availableSuggestions.map((criterion) => (
+                    <button key={criterion.id} className="evaluation-suggestion" type="button" onClick={() => onAddCriterion({ ...criterion, subcriteria: [...(criterion.subcriteria ?? [])], evidenceRequired: [...(criterion.evidenceRequired ?? [])], maxScore: criterion.maxScore ?? criterion.weight })}>
+                      <span>+</span>
+                      <strong>{criterion.label}</strong>
+                      <small>{normalizeTextList(criterion.subcriteria).slice(0, 3).join(', ')}</small>
+                    </button>
+                  ))
+                ) : (
+                  <div className="scope-empty">All suggested criteria have been added.</div>
+                )}
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="wizard-step-surface evaluation-step-surface">
       <section className="planning-section wizard-section evaluation-balance-panel">
@@ -1892,90 +2990,220 @@ function EvaluationStep({
   );
 }
 
-function ReviewStep({ draft, selectedTypeLabel, total }: { draft: CreateTenderDraft; selectedTypeLabel: string; total: number }) {
+function ReviewStep({
+  draft,
+  selectedType,
+  total
+}: {
+  draft: CreateTenderDraft;
+  selectedType: { id: CreateTenderProcurementTypeId; label: string; description: string };
+  total: number;
+}) {
   const itemLabel = (itemId: string) => {
     const index = draft.commercialItems.findIndex((item) => item.id === itemId);
     const item = draft.commercialItems[index];
     return item ? item.description || `Product item ${index + 1}` : 'Unknown BOQ item';
   };
-  const requirementEntries = Object.entries(draft.requirements)
-    .filter(([, value]) => Boolean(value))
-    .map(([key, value]) => `${key === 'requireSamples' ? 'Require Samples?' : key}: ${value}`);
+  const fundingSource = draft.fundingSource === 'Other' ? draft.customFundingSource || 'Other' : draft.fundingSource;
+  const requirementEntries = Object.entries(draft.requirements).filter(([, value]) => Boolean(value));
+  const works = draft.worksRequirements ?? createEmptyWorksRequirements();
+  const licenseRows = draft.regulatoryLicenseRequirements.length
+    ? draft.regulatoryLicenseRequirements.map((row) => [
+        { label: 'License', value: row.license },
+        { label: 'Issuing body', value: row.body },
+        { label: 'Mandatory', value: row.mandatory ? 'Yes' : 'No' },
+        { label: 'Expiry validation', value: row.expiryRequired ? 'Yes' : 'No' }
+      ])
+    : draft.selectedLicenses.map((license) => [{ label: 'License', value: license }]);
+  const commercialTotal = draft.commercialItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
+  const worksBoqTotal = works.boqRows.reduce((sum, row) => sum + Number(row.quantity || 0) * Number(row.rate || 0), 0);
+  const worksLumpSumTotal = works.lumpSumPricingRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const reviewCommercialTotal = selectedType.id === 'works' ? worksBoqTotal + worksLumpSumTotal : commercialTotal;
 
   return (
     <div className="wizard-step-surface review-step-surface">
-      <section className="planning-section wizard-section review-hero-panel">
-        <div>
-          <span className="section-kicker">Tender package</span>
-          <h3>{draft.title || 'Untitled tender'}</h3>
-          <p>{draft.description || `${selectedTypeLabel} tender using ${draft.method || 'no method selected'}.`}</p>
-        </div>
-        <span className={`status-badge ${total === 100 ? 'is-success' : 'is-warning'}`}>Evaluation criteria ({total}%)</span>
-        <dl>
-          <dt>Reference</dt>
-          <dd>{draft.reference}</dd>
-          <dt>Procuring entity</dt>
-          <dd>{draft.procuringEntity || 'Not set'}</dd>
-          <dt>Funding source</dt>
-          <dd>{draft.fundingSource === 'Other' ? draft.customFundingSource || 'Other' : draft.fundingSource || 'Not set'}</dd>
-          <dt>Estimated budget</dt>
-          <dd>{draft.estimatedBudget ? `${draft.currency} ${draft.estimatedBudget}` : 'Not set'}</dd>
-          <dt>Location</dt>
-          <dd>{draft.location || 'Not set'}</dd>
-          <dt>Submission deadline</dt>
-          <dd>{draft.submissionDate || 'Not set'}</dd>
-          <dt>Opening date</dt>
-          <dd>{draft.openingDate || 'Not set'}</dd>
-          <dt>Clarification deadline</dt>
-          <dd>{draft.clarificationDeadline || 'Not set'}</dd>
-          <dt>Publication date</dt>
-          <dd>{draft.publicationDate || 'Not set'}</dd>
-          <dt>Contact</dt>
-          <dd>{[draft.contact.name, draft.contact.role, draft.contact.email || draft.contact.phone].filter(Boolean).join(' / ') || 'Not set'}</dd>
-        </dl>
-      </section>
-      <SummaryList title="Categories" items={draft.categories} />
-      <SummaryList title="Requirements" items={requirementEntries} />
-      <SummaryList title="Commercial items" items={draft.commercialItems.map((item) => `${item.description || 'Item'} - ${item.quantity || 'Qty'} ${item.unit || ''}`)} />
-      <SummaryList
-        title="Product specifications"
-        items={draft.productSpecifications.map((row) => `${itemLabel(row.sourceItemId)} - ${row.specificationName}${row.acceptableRequirement ? `: ${row.acceptableRequirement}` : ''}`)}
-      />
-      <SummaryList
-        title="Sample requirements"
-        items={draft.sampleRequirements.map((row) => `${itemLabel(row.relatedBoqItemId)} - ${row.numberOfSamples || 'Sample count pending'}${row.deliveryDeadline ? ` by ${row.deliveryDeadline}` : ''}`)}
-      />
-      <SummaryList
-        title="Financial capacity"
-        items={draft.financialRequirements.map((row) =>
-          [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
+      <div className="tender-review-workspace">
+        <section className="tender-review-panel">
+          <div className="scope-list-heading">
+            <div>
+              <h3>Tender information</h3>
+              <span className="form-hint">Basic details, contact, procurement type, category, method, and visibility.</span>
+            </div>
+          </div>
+          <div className="tender-review-field-grid">
+            {renderReviewField('Tender title', draft.title)}
+            {renderReviewField('Procurement type', selectedType.label)}
+            {renderReviewField('Categories', draft.categories)}
+            {renderReviewField('Procurement method', draft.method)}
+            {renderReviewField('Funding source', fundingSource)}
+            {renderReviewField('Visibility', getReviewVisibility(draft.method))}
+            {renderReviewField('Invited suppliers', draft.invitedSuppliers)}
+            {renderReviewField('Location', draft.location)}
+            {renderReviewField('Contact person / department', draft.contact.name)}
+            {renderReviewField('Phone', draft.contact.phone)}
+            {renderReviewField('Email', draft.contact.email)}
+            {renderReviewField('Estimated budget', draft.estimatedBudget ? `${draft.currency} ${draft.estimatedBudget}` : '')}
+          </div>
+        </section>
+
+        <section className="tender-review-panel">
+          <div className="scope-list-heading">
+            <div>
+              <h3>Tender requirements</h3>
+              <span className="form-hint">Structured requirement fields and procurement-specific response controls.</span>
+            </div>
+          </div>
+          {selectedType.id === 'works' ? (
+            renderWorksReviewRequirements(works, draft.financialRequirements)
+          ) : (
+            <div className="tender-review-section-stack">
+              <article className="tender-review-section">
+                <h4>Requirement fields</h4>
+                {requirementEntries.length ? (
+                  <div className="tender-review-field-grid">
+                    {requirementEntries.map(([key, value]) => renderReviewField(key === 'requireSamples' ? 'Require Samples?' : formatReviewLabel(key), value))}
+                  </div>
+                ) : (
+                  <div className="scope-empty">No structured requirement fields were configured.</div>
+                )}
+              </article>
+              <article className="tender-review-section">
+                <h4>Product specifications</h4>
+                {renderReviewTextList(
+                  draft.productSpecifications.map((row) => `${itemLabel(row.sourceItemId)} - ${row.specificationName}${row.acceptableRequirement ? `: ${row.acceptableRequirement}` : ''}`),
+                  'No product specifications added yet.'
+                )}
+              </article>
+              <article className="tender-review-section">
+                <h4>Sample requirements</h4>
+                {renderReviewTextList(
+                  draft.sampleRequirements.map((row) => `${itemLabel(row.relatedBoqItemId)} - ${row.numberOfSamples || 'Sample count pending'}${row.deliveryDeadline ? ` by ${row.deliveryDeadline}` : ''}`),
+                  'No sample requirements added yet.'
+                )}
+              </article>
+              <article className="tender-review-section">
+                <h4>Financial capacity</h4>
+                {renderReviewTextList(
+                  draft.financialRequirements.map((row) =>
+                    [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
+                  ),
+                  'No financial capacity requirements added yet.'
+                )}
+              </article>
+              <article className="tender-review-section">
+                <h4>Other eligibility</h4>
+                {renderReviewTextList(
+                  draft.eligibilityRequirements.map((row) =>
+                    `${row.requirementName || 'Eligibility requirement'}${row.mandatory ? ' - mandatory' : ''}${row.requiresUpload ? ' - upload required' : ''}${row.notes ? ` - ${row.notes}` : ''}`
+                  ),
+                  'No eligibility requirements added yet.'
+                )}
+              </article>
+            </div>
+          )}
+        </section>
+
+        {selectedType.id === 'consultancy' ? null : (
+          <section className="tender-review-panel">
+            <div className="scope-list-heading">
+              <div>
+                <h3>Regulatory license requirements</h3>
+                <span className="form-hint">Licenses required for supplier eligibility.</span>
+              </div>
+            </div>
+            {licenseRows.length ? renderReviewObjectRows(licenseRows) : <div className="scope-empty">No regulatory licenses selected.</div>}
+          </section>
         )}
-      />
-      <SummaryList
-        title="Regulatory licenses"
-        items={
-          draft.regulatoryLicenseRequirements.length
-            ? draft.regulatoryLicenseRequirements.map((row) =>
-                [
-                  `License: ${row.license}`,
-                  `Issuing body: ${row.body}`,
-                  `Mandatory: ${row.mandatory ? 'Yes' : 'No'}`,
-                  `Expiry required: ${row.expiryRequired ? 'Yes' : 'No'}`
-                ].join(' - ')
-              )
-            : draft.selectedLicenses
-        }
-      />
-      <SummaryList
-        title="Other eligibility"
-        items={draft.eligibilityRequirements.map((row) =>
-          `${row.requirementName || 'Eligibility requirement'}${row.mandatory ? ' - mandatory' : ''}${row.requiresUpload ? ' - upload required' : ''}${row.notes ? ` - ${row.notes}` : ''}`
-        )}
-      />
-      <SummaryList title="Deliverables" items={draft.deliverables} />
-      <SummaryList title="Attachments" items={draft.attachments} />
-      <SummaryList title="Milestones" items={draft.milestones.map((milestone) => `${milestone.label}: ${milestone.dueDate || 'date pending'}`)} />
-      <SummaryList title={`Evaluation criteria (${total}%)`} items={draft.evaluationCriteria.map((criterion) => `${criterion.label} - ${criterion.weight}%`)} />
+
+        <section className="tender-review-panel">
+          <div className="scope-list-heading">
+            <div>
+              <h3>{getReviewCommercialTitle(selectedType.id)}</h3>
+              <span className="form-hint">Commercial schedule and estimated amount.</span>
+            </div>
+            <span className="badge badge-info">{formatReviewMoney(reviewCommercialTotal, draft.currency)}</span>
+          </div>
+          {selectedType.id === 'works' ? (
+            works.boqRows.length || works.lumpSumPricingRows.length ? (
+              renderReviewObjectRows([
+                ...works.lumpSumPricingRows.map((row, index) => [
+                  { label: 'Code', value: `LS-${index + 1}` },
+                  { label: 'Requirement', value: row.section || 'Pricing section' },
+                  { label: 'Qty / Duration', value: row.description },
+                  { label: 'Unit', value: 'Lump sum' },
+                  { label: 'Rate / Fee', value: row.amount }
+                ]),
+                ...works.boqRows.map((row, index) => [
+                  { label: 'Code', value: String(index + 1) },
+                  { label: 'Requirement', value: row.description || 'BOQ line' },
+                  { label: 'Qty / Duration', value: row.quantity },
+                  { label: 'Unit', value: row.unit },
+                  { label: 'Rate / Fee', value: row.rate }
+                ])
+              ])
+            ) : (
+              <div className="scope-empty">{getReviewCommercialEmptyText(selectedType.id)}</div>
+            )
+          ) : draft.commercialItems.length ? (
+            renderReviewObjectRows(
+              draft.commercialItems.map((item, index) => [
+                { label: 'Code', value: String(index + 1) },
+                { label: 'Requirement', value: item.description || 'Item' },
+                { label: 'Qty / Duration', value: item.quantity },
+                { label: 'Unit', value: item.unit },
+                { label: 'Rate / Fee', value: item.unitPrice || '' }
+              ])
+            )
+          ) : (
+            <div className="scope-empty">{getReviewCommercialEmptyText(selectedType.id)}</div>
+          )}
+        </section>
+
+        <section className="tender-review-panel">
+          <div className="scope-list-heading">
+            <div>
+              <h3>Deliverables and attachments</h3>
+              <span className="form-hint">Outputs and required supporting documents.</span>
+            </div>
+          </div>
+          <div className="tender-review-two-column">
+            <div>
+              <h4>Deliverables</h4>
+              {renderReviewTextList(draft.deliverables, 'No deliverables added yet.')}
+            </div>
+            <div>
+              <h4>Required attachments</h4>
+              {renderReviewTextList(draft.attachments, 'No required attachments added yet.')}
+            </div>
+          </div>
+        </section>
+
+        <section className="tender-review-panel">
+          <div className="scope-list-heading">
+            <div>
+              <h3>Evaluation criteria and timeline</h3>
+              <span className="form-hint">Evaluation weights and publication milestones.</span>
+            </div>
+            <span className={`badge ${total === 100 ? 'badge-success' : 'badge-warning'}`}>{total === 100 ? 'Balanced' : `Add ${100 - total}% remaining`}</span>
+          </div>
+          <div className="tender-review-two-column">
+            <div>
+              <h4>Evaluation criteria</h4>
+              {renderReviewEvaluation(draft.evaluationCriteria)}
+            </div>
+            <div>
+              <h4>Timeline</h4>
+              <div className="tender-review-field-grid">
+                {renderReviewField('Publication', draft.publicationDate)}
+                {renderReviewField('Clarification deadline', draft.clarificationDeadline)}
+                {renderReviewField('Bid submission deadline', draft.submissionDate)}
+                {renderReviewField('Opening session', draft.openingDate)}
+                {draft.milestones.map((milestone) => renderReviewField(milestone.label, milestone.dueDate))}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1983,46 +3211,237 @@ function ReviewStep({ draft, selectedTypeLabel, total }: { draft: CreateTenderDr
 function PublicationStep({
   draft,
   onPatch,
-  confirmationsComplete
+  confirmationsComplete,
+  onDownloadPdf,
+  onSubmitTender
 }: {
   draft: CreateTenderDraft;
   onPatch: (patch: Partial<CreateTenderDraft>) => void;
   confirmationsComplete: boolean;
+  onDownloadPdf: () => void;
+  onSubmitTender: () => void;
 }) {
+  const setConfirmationGroup = (patch: Partial<Record<CreateTenderConfirmationId, boolean>>) => {
+    onPatch({ confirmations: { ...draft.confirmations, ...patch } });
+  };
+
   return (
     <div className="wizard-step-surface publication-step-surface">
-      <section className="planning-section wizard-section publication-readiness-panel">
-        <div>
-          <h3>System evaluation preview</h3>
-          <p>Ready for simulated rules check. Publication will create a frontend tender record visible in My Tenders and Marketplace.</p>
-        </div>
-        <span className={`status-badge ${confirmationsComplete ? 'is-success' : 'is-warning'}`}>{confirmationsComplete ? 'Ready to submit' : 'Confirmations required'}</span>
-      </section>
-      <section className="planning-section wizard-section">
-        <div className="scope-list-heading">
-          <div>
-            <h3>Publication confirmations</h3>
-            <span className="form-hint">Confirm the package before simulated system evaluation.</span>
+      <div className="system-evaluation-workspace system-evaluation-submit-flow" data-system-evaluation-wrap>
+        <section className="system-evaluation-submit-card">
+          <div className="system-evaluation-submit-header">
+            <div>
+              <span className="section-kicker">Evaluation submission</span>
+              <h3>Submit Tender for Evaluation</h3>
+            </div>
+            <span className={`badge ${confirmationsComplete ? 'badge-success' : 'badge-info'}`}>{confirmationsComplete ? 'Evaluation completed' : 'Ready to submit'}</span>
           </div>
-        </div>
-        <div className="confirmation-check-list">
-          {Object.entries(confirmationLabels).map(([id, label]) => (
-            <label key={id}>
-              <input
-                type="checkbox"
-                checked={draft.confirmations[id as CreateTenderConfirmationId]}
-                onChange={(event) => onPatch({ confirmations: { ...draft.confirmations, [id]: event.target.checked } })}
-              />{' '}
-              {label}
+          <div className="system-evaluation-description">
+            <strong>Description</strong>
+            <p>Your tender will be checked by the system for grammar, professionalism, clarity, and completeness before publication.</p>
+          </div>
+          <div className="system-evaluation-outcome-grid">
+            <article className="system-evaluation-outcome-card outcome-pass">
+              <h4>If the tender passes evaluation:</h4>
+              <ul>
+                <li>It will be published automatically to the marketplace.</li>
+                <li>You will receive a success notification.</li>
+              </ul>
+            </article>
+            <article className="system-evaluation-outcome-card outcome-return">
+              <h4>If the tender does not pass:</h4>
+              <ul>
+                <li>It will return to your dashboard as a draft.</li>
+                <li>You will receive system comments and required changes.</li>
+              </ul>
+            </article>
+          </div>
+          <div className="system-evaluation-confirmations">
+            <label>
+              <input type="checkbox" checked={draft.confirmations.accuracy && draft.confirmations.compliance} onChange={(event) => setConfirmationGroup({ accuracy: event.target.checked, compliance: event.target.checked })} />
+              <span>I confirm the tender information is complete and accurate.</span>
             </label>
-          ))}
-        </div>
-      </section>
-      <div className="submit-strip">
-        <span className="status-badge">{confirmationsComplete ? 'Ready to submit' : 'Confirmations required'}</span>
+            <label>
+              <input type="checkbox" checked={draft.confirmations.evaluation} onChange={(event) => setConfirmationGroup({ evaluation: event.target.checked })} />
+              <span>I understand the tender will be reviewed before publication.</span>
+            </label>
+            <label>
+              <input type="checkbox" checked={draft.confirmations.publication} onChange={(event) => setConfirmationGroup({ publication: event.target.checked })} />
+              <span>I understand rejected tenders will return as draft with comments.</span>
+            </label>
+          </div>
+          <div className="submit-strip buyer-review-submit system-evaluation-publish">
+            <div>
+              <strong>Actions</strong>
+              <span data-system-publish-note>Submit the tender for system review. The creation wizard will close after submission.</span>
+            </div>
+            <div className="system-evaluation-action-buttons">
+              <button className="btn btn-secondary" type="button" onClick={onDownloadPdf}>
+                Download Tender PDF
+              </button>
+              <button className="btn btn-primary" type="button" onClick={onSubmitTender} disabled={!confirmationsComplete}>
+                Submit Tender for Evaluation
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
+}
+
+function renderWorksReviewRequirements(works: CreateTenderWorksRequirements, financialRequirements: CreateTenderFinancialRequirementRow[]) {
+  return (
+    <div className="tender-review-section-stack">
+      <article className="tender-review-section">
+        <h4>Project overview</h4>
+        <div className="tender-review-field-grid">
+          {renderReviewField('Project title', works.projectName)}
+          {renderReviewField('Procuring entity', works.procuringEntity)}
+          {renderReviewField('Project location', works.location)}
+          {renderReviewField('Contract type', works.contractType === 'Other' ? works.customContractType || 'Other' : works.contractType)}
+          {renderReviewField('Completion period', works.completionPeriod)}
+        </div>
+      </article>
+      <article className="tender-review-section">
+        <h4>Scope description</h4>
+        <div className="tender-review-field-grid">{renderReviewField('Scope Summary', works.scopeSummary)}</div>
+        {renderReviewTextList(works.mainConstructionActivities, 'No main activities added yet.')}
+      </article>
+      <article className="tender-review-section">
+        <h4>Technical specifications</h4>
+        {renderReviewTextList(
+          works.technicalSpecificationDocuments.map((row) => [row.documentTitle === 'Others' ? row.customDocumentTitle || 'Others' : row.documentTitle, row.uploadName].filter(Boolean).join(' - ')),
+          'No specification documents added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Drawings and design documents</h4>
+        {renderReviewTextList(
+          works.drawingDesignRows.map((row) => [row.documentType === 'Other' ? row.otherDocumentName || 'Other' : row.documentType, row.uploadName].filter(Boolean).join(' - ')),
+          'No drawings or design documents added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Time schedule and milestones</h4>
+        <div className="tender-review-field-grid">
+          {renderReviewField('Commencement date', works.commencementDate)}
+          {renderReviewField('Completion period', works.worksCompletionPeriod)}
+          {renderReviewField('Site visit requirement', works.siteVisitRequirement)}
+          {renderReviewField('Site survey', works.siteSurveyUploadName)}
+        </div>
+        {renderReviewTextList(
+          works.worksMilestoneRows.map((row) => [row.milestone || 'Milestone', row.targetDate].filter(Boolean).join(' - ')),
+          'No works milestones added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Technical capacity</h4>
+        {renderReviewTextList(
+          [
+            works.similarCompletedProjectsRequired ? 'Similar completed projects required' : '',
+            works.keyPersonnelCvsRequired ? 'Key personnel CVs required' : '',
+            works.bankStatementsRequired ? `Bank statements required${works.bankStatementPeriod ? ` - ${works.bankStatementPeriod}` : ''}` : ''
+          ],
+          'No technical capacity evidence toggled yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Financial capacity</h4>
+        {renderReviewTextList(
+          financialRequirements.map((row) =>
+            [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
+          ),
+          'No financial capacity requirements added yet.'
+        )}
+      </article>
+    </div>
+  );
+}
+
+function renderReviewField(label: string, value: string | number | string[] | undefined) {
+  const display = Array.isArray(value) ? value.filter(Boolean).join(', ') : String(value ?? '').trim();
+  return (
+    <div className="tender-review-field" key={`${label}-${display || 'empty'}`}>
+      <span>{label}</span>
+      <strong>{display || 'Not specified'}</strong>
+    </div>
+  );
+}
+
+function renderReviewTextList(items: string[], emptyText: string) {
+  const values = items.map((item) => item.trim()).filter(Boolean);
+  if (!values.length) return <div className="scope-empty">{emptyText}</div>;
+  return (
+    <ul className="tender-review-bullet-list">
+      {values.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function renderReviewObjectRows(rows: Array<Array<{ label: string; value: string | number | undefined }>>) {
+  return (
+    <div className="tender-review-record-list">
+      {rows.map((row, index) => (
+        <article className="tender-review-record" key={`${index}-${row.map((item) => item.value).join('-')}`}>
+          {row.map((item) => (
+            <div className="tender-review-record-heading" key={item.label}>
+              <strong>{item.label}</strong>
+              <span>{String(item.value ?? '').trim() || 'Not specified'}</span>
+            </div>
+          ))}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function renderReviewEvaluation(criteria: CreateTenderEvaluationCriterion[]) {
+  if (!criteria.length) return <div className="scope-empty">No evaluation criteria configured.</div>;
+  return (
+    <div className="tender-review-record-list">
+      {criteria.map((criterion) => (
+        <article className="tender-review-record" key={criterion.id}>
+          <div className="tender-review-record-heading">
+            <strong>{criterion.label}</strong>
+            <span>{criterion.weight}%</span>
+          </div>
+          {renderReviewTextList(normalizeTextList(criterion.subcriteria?.length ? criterion.subcriteria : criterion.notes), 'No subcriteria selected.')}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function getReviewVisibility(method: string) {
+  return method === 'Invited Tender' || method === 'Restricted Tender' ? 'Invited suppliers only' : 'Public marketplace';
+}
+
+function getReviewCommercialTitle(typeId: CreateTenderProcurementTypeId) {
+  if (typeId === 'works') return 'Bill of Quantities';
+  if (typeId === 'consultancy') return 'Financial Proposal';
+  if (typeId === 'services') return 'Service Commercial Schedule';
+  return 'Quantity Schedule';
+}
+
+function getReviewCommercialEmptyText(typeId: CreateTenderProcurementTypeId) {
+  if (typeId === 'works') return 'No BOQ items added yet.';
+  if (typeId === 'consultancy') return 'No financial proposal items added yet.';
+  if (typeId === 'services') return 'No service commercial items added yet.';
+  return 'No quantity schedule items added yet.';
+}
+
+function formatReviewMoney(value: number, currency: string) {
+  return `${currency || 'TZS'} ${Math.round(value).toLocaleString('en-US')}`;
+}
+
+function formatReviewLabel(value: string) {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function SummaryList({ title, items }: { title: string; items: string[] }) {
@@ -2046,9 +3465,10 @@ function normalizeDraftForType(draft: CreateTenderDraft, typeId: CreateTenderPro
   return {
     ...draft,
     procurementTypeId: typeId,
+    worksRequirements: draft.worksRequirements ?? createEmptyWorksRequirements(),
     categories: draft.categories.filter((category) => createTenderSetup.categories[typeId].includes(category)),
     selectedLicenses: draft.selectedLicenses.filter((license) => createTenderSetup.regulatoryLicenses[typeId].includes(license)),
-    regulatoryLicenseRequirements: typeId === 'goods' ? draft.regulatoryLicenseRequirements : [],
+    regulatoryLicenseRequirements: typeId === 'goods' || typeId === 'works' ? draft.regulatoryLicenseRequirements : [],
     evaluationCriteria: getSuggestedCriteria(typeId),
     updatedAt: new Date().toISOString()
   };
@@ -2067,6 +3487,7 @@ function hasMeaningfulDraft(draft: CreateTenderDraft) {
       draft.submissionDate ||
       draft.categories.length ||
       Object.values(draft.requirements).some(Boolean) ||
+      hasMeaningfulWorksRequirements(draft.worksRequirements) ||
       draft.productSpecifications.length ||
       draft.sampleRequirements.length ||
       draft.financialRequirements.length ||
@@ -2074,6 +3495,66 @@ function hasMeaningfulDraft(draft: CreateTenderDraft) {
       draft.regulatoryLicenseRequirements.length ||
       draft.deliverables.length
   );
+}
+
+function hasMeaningfulWorksRequirements(works?: CreateTenderWorksRequirements) {
+  if (!works) return false;
+  return Boolean(
+    works.projectName ||
+      works.procuringEntity ||
+      works.location ||
+      works.contractType ||
+      works.customContractType ||
+      works.completionPeriod ||
+      works.scopeSummary ||
+      works.mainConstructionActivities.some(Boolean) ||
+      works.technicalSpecificationDocuments.length ||
+      works.drawingDesignRows.length ||
+      works.lumpSumPricingRows.length ||
+      works.boqRows.length ||
+      works.commencementDate ||
+      works.worksCompletionPeriod ||
+      works.worksMilestoneRows.length ||
+      works.siteSurveyUploadName ||
+      works.similarCompletedProjectsRequired ||
+      works.keyPersonnelCvsRequired ||
+      works.bankStatementsRequired ||
+      works.bankStatementPeriod
+  );
+}
+
+function normalizeTextList(value: string[] | string | undefined) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  return String(value || '')
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getEvaluationSummary(criteria: CreateTenderEvaluationCriterion[]) {
+  const total = Math.round(criteria.reduce((sum, item) => sum + Number(item.weight || 0), 0) * 100) / 100;
+  const remaining = Math.round((100 - total) * 100) / 100;
+  const state = !criteria.length ? 'empty' : remaining === 0 ? 'balanced' : remaining > 0 ? 'under' : 'over';
+  const message = state === 'balanced' ? 'Balanced' : state === 'over' ? `Reduce by ${Math.abs(remaining)}%` : `Add ${remaining}% remaining`;
+  return { total, remaining, state, message };
+}
+
+function autoBalanceCriteria(criteria: CreateTenderEvaluationCriterion[], changedCriterionId: string, changedWeight: number) {
+  if (criteria.length < 2) return criteria.map((criterion) => (criterion.id === changedCriterionId ? { ...criterion, weight: changedWeight } : criterion));
+  const others = criteria.filter((criterion) => criterion.id !== changedCriterionId);
+  const remaining = Math.max(100 - changedWeight, 0);
+  const otherTotal = others.reduce((sum, criterion) => sum + Number(criterion.weight || 0), 0);
+  let used = 0;
+  const balancedOthers = others.map((criterion, index) => {
+    const weight =
+      index === others.length - 1
+        ? Math.round((remaining - used) * 100) / 100
+        : Math.round(((otherTotal ? Number(criterion.weight || 0) / otherTotal : 1 / others.length) * remaining) * 100) / 100;
+    used += weight;
+    return { ...criterion, weight };
+  });
+
+  return criteria.map((criterion) => (criterion.id === changedCriterionId ? { ...criterion, weight: changedWeight } : balancedOthers.shift() ?? criterion));
 }
 
 function validateStep(step: number, draft: CreateTenderDraft, total: number) {

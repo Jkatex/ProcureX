@@ -28,6 +28,16 @@ export type CreateTenderEvaluationCriterion = {
   weight: number;
   notes: string;
   suggestedFor: CreateTenderProcurementTypeId[];
+  category?: string;
+  evaluationType?: string;
+  description?: string;
+  maxScore?: number;
+  mandatory?: boolean;
+  passFailGate?: boolean;
+  evidenceRequired?: string[];
+  scoringGuide?: string[];
+  subcriteria?: string[];
+  custom?: boolean;
 };
 
 export type CreateTenderSetup = {
@@ -104,6 +114,65 @@ export type CreateTenderRegulatoryLicenseRequirementRow = {
   expiryRequired: boolean;
 };
 
+export type CreateTenderWorksSpecificationDocumentRow = {
+  id: string;
+  documentTitle: string;
+  customDocumentTitle: string;
+  uploadName: string;
+};
+
+export type CreateTenderWorksDrawingRow = {
+  id: string;
+  documentType: string;
+  otherDocumentName: string;
+  uploadName: string;
+};
+
+export type CreateTenderWorksLumpSumPricingRow = {
+  id: string;
+  section: string;
+  description: string;
+  amount: string;
+};
+
+export type CreateTenderWorksBoqRow = {
+  id: string;
+  description: string;
+  unit: string;
+  quantity: string;
+  rate: string;
+};
+
+export type CreateTenderWorksMilestoneRow = {
+  id: string;
+  milestone: string;
+  targetDate: string;
+};
+
+export type CreateTenderWorksRequirements = {
+  projectName: string;
+  procuringEntity: string;
+  location: string;
+  contractType: string;
+  customContractType: string;
+  completionPeriod: string;
+  scopeSummary: string;
+  mainConstructionActivities: string[];
+  technicalSpecificationDocuments: CreateTenderWorksSpecificationDocumentRow[];
+  drawingDesignRows: CreateTenderWorksDrawingRow[];
+  lumpSumPricingRows: CreateTenderWorksLumpSumPricingRow[];
+  boqRows: CreateTenderWorksBoqRow[];
+  commencementDate: string;
+  worksCompletionPeriod: string;
+  worksMilestoneRows: CreateTenderWorksMilestoneRow[];
+  siteVisitRequirement: 'Mandatory' | 'Not mandatory';
+  siteSurveyUploadName: string;
+  similarCompletedProjectsRequired: boolean;
+  keyPersonnelCvsRequired: boolean;
+  bankStatementsRequired: boolean;
+  bankStatementPeriod: string;
+};
+
 export type CreateTenderMilestone = {
   id: string;
   label: string;
@@ -141,6 +210,7 @@ export type CreateTenderDraft = {
   financialRequirements: CreateTenderFinancialRequirementRow[];
   eligibilityRequirements: CreateTenderEligibilityRequirementRow[];
   regulatoryLicenseRequirements: CreateTenderRegulatoryLicenseRequirementRow[];
+  worksRequirements: CreateTenderWorksRequirements;
   deliverables: string[];
   attachments: string[];
   milestones: CreateTenderMilestone[];

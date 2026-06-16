@@ -162,6 +162,166 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.queryByRole('heading', { name: 'Quantity Schedule and Product Specifications' })).not.toBeInTheDocument();
   });
 
+  it('renders and manages works tender requirements like the ProcureX reference', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Works/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Works Tender Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '1. Project Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '2. Scope Description' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '3. Technical Specifications' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '4. Drawings and Design Documents' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '5. Bill of Quantities (BoQ) / Pricing Schedule' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '6. Time Schedule and Milestones' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '7. Site Visit' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Technical Capacity' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Financial Capacity Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
+
+    const bodyText = document.body.textContent ?? '';
+    expect(bodyText.indexOf('Regulatory license requirements')).toBeGreaterThan(bodyText.indexOf('Financial Capacity Requirements'));
+
+    fireEvent.change(screen.getByLabelText('Project title'), { target: { value: 'Ward office construction' } });
+    fireEvent.change(screen.getByLabelText('Procuring entity'), { target: { value: 'District Council' } });
+    fireEvent.change(screen.getByLabelText('Project location'), { target: { value: 'Kigoma' } });
+    await user.selectOptions(screen.getByLabelText('Contract type'), 'Other');
+    expect(screen.getByLabelText('Custom contract type')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Custom contract type'), { target: { value: 'Design and build' } });
+    await user.selectOptions(screen.getByLabelText('Contract type'), 'Lump Sum Contract');
+    expect(screen.getByText('A single total price is agreed for the whole work or project.')).toBeInTheDocument();
+
+    const scope = 'Construct ward clinic block';
+    fireEvent.change(screen.getByLabelText('Scope Summary'), { target: { value: scope } });
+    expect(screen.getByText(`${scope.length}/1000`)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+ Add Activity' }));
+    fireEvent.change(screen.getByLabelText('Main Activities item 1'), { target: { value: 'Foundation works' } });
+    await user.click(screen.getByRole('button', { name: '+ Add Activity' }));
+    await user.click(screen.getByRole('button', { name: 'Remove Main Activities 2' }));
+    expect(screen.queryByLabelText('Main Activities item 2')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add Specification Document' }));
+    await user.selectOptions(screen.getByLabelText('Document title 1'), 'Others');
+    fireEvent.change(screen.getByLabelText('Custom specification document title 1'), { target: { value: 'Concrete mix standards' } });
+    await user.upload(screen.getByLabelText('Upload document 1'), new File(['spec'], 'technical-spec.pdf', { type: 'application/pdf' }));
+    expect(screen.getByText('technical-spec.pdf')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add Drawing' }));
+    await user.selectOptions(screen.getByLabelText('Document type 1'), 'Other');
+    fireEvent.change(screen.getByLabelText('Other document name 1'), { target: { value: 'Site layout' } });
+    await user.upload(screen.getByLabelText('CAD / PDF upload 1'), new File(['drawing'], 'site-layout.dwg', { type: 'application/octet-stream' }));
+    expect(screen.getByText('site-layout.dwg')).toBeInTheDocument();
+
+    expect(screen.getByText('Summary pricing schedule')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add Pricing Section' }));
+    fireEvent.change(screen.getByLabelText('Section 1'), { target: { value: 'Preliminaries' } });
+    fireEvent.change(screen.getByLabelText('Description 1'), { target: { value: 'Mobilization and site setup' } });
+    fireEvent.change(screen.getByLabelText('Amount 1'), { target: { value: '1000000' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add BOQ Line' }));
+    fireEvent.change(screen.getByLabelText('BOQ description 1'), { target: { value: 'Concrete works' } });
+    await user.selectOptions(screen.getByLabelText('BOQ unit 1'), 'Sqm');
+    fireEvent.change(screen.getByLabelText('BOQ quantity 1'), { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText('BOQ rate 1'), { target: { value: '2500' } });
+    expect(screen.getByText('25,000')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add BOQ Line' }));
+    await user.click(screen.getByRole('button', { name: 'Remove BOQ line 2' }));
+    expect(screen.queryByLabelText('BOQ description 2')).not.toBeInTheDocument();
+
+    expect(screen.queryByLabelText('Bank statement period')).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText('Bank statements'));
+    expect(screen.getByLabelText('Bank statement period')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Bank statement period'), { target: { value: 'Submit statements for the last 6 months.' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
+    await user.selectOptions(screen.getByLabelText('Requirement type 1'), 'Minimum Annual Turnover');
+    fireEvent.change(screen.getByLabelText('Minimum value 1'), { target: { value: '500000000' } });
+    await user.selectOptions(screen.getByLabelText('Period 1'), 'Last 3 Years');
+    await user.selectOptions(screen.getByLabelText('Evidence required 1'), 'Audited accounts');
+  }, 10000);
+
+  it('manages works regulatory license requirements with the prototype picker', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Works/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    expect(screen.getByText('No regulatory license requirements added yet.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add License Requirement' }));
+    await user.type(screen.getByLabelText('Search all regulatory licenses'), 'Building Permit');
+    await user.click(screen.getByRole('option', { name: /Building Permit/ }));
+
+    expect(screen.getByText('Building Permit')).toBeInTheDocument();
+    expect(screen.getByText('Contractors Registration Board (CRB) and Local Government Authorities')).toBeInTheDocument();
+    expect(screen.getByLabelText('Building Permit Mandatory')).toBeChecked();
+
+    await user.click(screen.getByLabelText('Building Permit Mandatory'));
+    expect(screen.getByLabelText('Building Permit Mandatory')).not.toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Change' }));
+    await user.type(screen.getByLabelText('Search regulatory license'), 'Environmental Impact');
+    await user.click(screen.getByRole('option', { name: /Environmental Impact Assessment Certificate/ }));
+
+    expect(screen.queryByText('Building Permit')).not.toBeInTheDocument();
+    expect(screen.getByText('Environmental Impact Assessment Certificate')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove license requirement' }));
+    expect(screen.queryByText('Environmental Impact Assessment Certificate')).not.toBeInTheDocument();
+    expect(screen.getByText('No regulatory license requirements added yet.')).toBeInTheDocument();
+  }, 10000);
+
+  it('summarizes works requirements during review', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Works/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    fireEvent.change(screen.getByLabelText('Project title'), { target: { value: 'District market rehabilitation' } });
+    fireEvent.change(screen.getByLabelText('Procuring entity'), { target: { value: 'Municipal Council' } });
+    fireEvent.change(screen.getByLabelText('Project location'), { target: { value: 'Morogoro' } });
+    await user.selectOptions(screen.getByLabelText('Contract type'), 'Lump Sum Contract');
+    fireEvent.change(screen.getByLabelText('Scope Summary'), { target: { value: 'Rehabilitate market stalls and drainage.' } });
+    await user.click(screen.getByRole('button', { name: '+ Add Activity' }));
+    fireEvent.change(screen.getByLabelText('Main Activities item 1'), { target: { value: 'Drainage works' } });
+    await user.click(screen.getByRole('button', { name: 'Add Specification Document' }));
+    await user.selectOptions(screen.getByLabelText('Document title 1'), 'Material specifications');
+    await user.upload(screen.getByLabelText('Upload document 1'), new File(['spec'], 'materials.pdf', { type: 'application/pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Add BOQ Line' }));
+    fireEvent.change(screen.getByLabelText('BOQ description 1'), { target: { value: 'Drain channel' } });
+    await user.selectOptions(screen.getByLabelText('BOQ unit 1'), 'Meter');
+    fireEvent.change(screen.getByLabelText('BOQ quantity 1'), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText('BOQ rate 1'), { target: { value: '15000' } });
+    await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
+    await user.selectOptions(screen.getByLabelText('Requirement type 1'), 'Access to Credit');
+    fireEvent.change(screen.getByLabelText('Minimum value 1'), { target: { value: '250000000' } });
+    await user.click(screen.getByRole('button', { name: 'Add License Requirement' }));
+    await user.type(screen.getByLabelText('Search all regulatory licenses'), 'Building Permit');
+    await user.click(screen.getByRole('option', { name: /Building Permit/ }));
+
+    await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Tender requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Project overview' })).toBeInTheDocument();
+    expect(screen.getByText('District market rehabilitation')).toBeInTheDocument();
+    expect(screen.getByText('Municipal Council')).toBeInTheDocument();
+    expect(screen.getByText('Morogoro')).toBeInTheDocument();
+    expect(screen.getByText('Drainage works')).toBeInTheDocument();
+    expect(screen.getByText('Material specifications - materials.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Bill of Quantities' })).toBeInTheDocument();
+    expect(screen.getByText('Drain channel')).toBeInTheDocument();
+    expect(screen.getByText(/Access to Credit - minimum 250000000/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
+    expect(screen.getByText('Building Permit')).toBeInTheDocument();
+  }, 10000);
+
   it('renders goods tender requirements with a BOQ table and product specification builder', async () => {
     const user = userEvent.setup();
     renderCreateTender();
@@ -337,17 +497,23 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Tax clearance certificate' }));
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
+    expect(screen.getByRole('heading', { name: 'Tender information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender requirements' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Product specifications' })).toBeInTheDocument();
     expect(screen.getByText('Laptop computer - Processor: Core i5 or above')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sample requirements' })).toBeInTheDocument();
     expect(screen.getByText(/Laptop computer - 1/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Financial capacity' })).toBeInTheDocument();
     expect(screen.getByText(/Access to Credit - minimum 20000000/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Regulatory licenses' })).toBeInTheDocument();
-    expect(screen.getByText(/License: Food Business Permit \/ Food Handling License/)).toBeInTheDocument();
-    expect(screen.getByText(/Issuing body: Tanzania Medicines and Medical Devices Authority \(TMDA\)/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
+    expect(screen.getByText('Food Business Permit / Food Handling License')).toBeInTheDocument();
+    expect(screen.getByText('Tanzania Medicines and Medical Devices Authority (TMDA)')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Other eligibility' })).toBeInTheDocument();
     expect(screen.getByText(/Tax clearance certificate/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Deliverables and attachments' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Evaluation criteria and timeline' })).toBeInTheDocument();
+    expect(screen.getByText('Technical Compliance')).toBeInTheDocument();
+    expect(screen.getByText('Conformity to technical specifications')).toBeInTheDocument();
   }, 10000);
 
   it('category selection supports adding and removing categories', async () => {
@@ -430,17 +596,141 @@ describe('CreateTenderProcurexPage', () => {
 
   it('evaluation criteria weights show balanced and unbalanced status', async () => {
     const user = userEvent.setup();
-    renderCreateTender();
+    const { container } = renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
 
-    expect(screen.getByText('Balanced total: 100%')).toBeInTheDocument();
+    expect(container.querySelector('.evaluation-criteria-panel')).toBeInTheDocument();
+    expect(container.querySelector('.evaluation-criteria-panel .evaluation-builder')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('Total Weight: 100%');
+    expect(screen.getByRole('heading', { name: 'Evaluation Criteria and Weights' })).toBeInTheDocument();
+    expect(screen.getByText('Criteria suggestion library')).toBeInTheDocument();
+    expect(screen.getByText('Balancing mode')).toBeInTheDocument();
+    expect(screen.getByText('Selected criteria')).toBeInTheDocument();
+    expect(screen.getByText('Suggested criteria')).toBeInTheDocument();
+    expect(screen.getByText('5 criteria')).toBeInTheDocument();
+    expect(screen.getByText('Buyer-controlled labels, weights, and selectable subcriteria.')).toBeInTheDocument();
+    expect(screen.getByText('Technical Compliance')).toBeInTheDocument();
+    expect(screen.getAllByText('Balanced').length).toBeGreaterThan(1);
 
     const firstWeight = screen.getAllByLabelText('Weight')[0];
     await user.clear(firstWeight);
     await user.type(firstWeight, '10');
 
-    expect(screen.getByText('Unbalanced total: 75%')).toBeInTheDocument();
+    expect(screen.getAllByText('Add 30% remaining').length).toBeGreaterThan(1);
+  });
+
+  it('works evaluation criteria use the ProcureX builder and reference weights', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Works/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+
+    expect(screen.getByText('Criteria suggestion library')).toBeInTheDocument();
+    expect(screen.getByText('Selected criteria')).toBeInTheDocument();
+    expect(screen.getByText('Suggested criteria')).toBeInTheDocument();
+    expect(screen.getByText('Technical Methodology')).toBeInTheDocument();
+    expect(screen.getByText('Personnel')).toBeInTheDocument();
+    expect(screen.getByText('Equipment and Resources')).toBeInTheDocument();
+    expect(screen.getByText('Experience')).toBeInTheDocument();
+    expect(screen.getByText('Schedule and Execution')).toBeInTheDocument();
+    expect(screen.getByText('Health, Safety and Environment (HSE)')).toBeInTheDocument();
+    expect(screen.getByText('Financial')).toBeInTheDocument();
+    expect(screen.getAllByText('Balanced').length).toBeGreaterThan(1);
+
+    expect(screen.getAllByLabelText('Weight').map((input) => (input as HTMLInputElement).value)).toEqual(['20', '15', '10', '15', '10', '10', '20']);
+
+    const firstWeight = screen.getAllByLabelText('Weight')[0];
+    await user.clear(firstWeight);
+    await user.type(firstWeight, '10');
+
+    expect(screen.getAllByText('Add 10% remaining').length).toBeGreaterThan(1);
+  }, 10000);
+
+  it('works evaluation edit menu manages subcriteria chips', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Works/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+
+    expect(screen.getByLabelText('Criterion name')).toHaveValue('Technical Methodology');
+    expect(screen.getByText('Subcriteria')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Custom subcriterion'), 'Community disruption plan');
+    await user.click(screen.getByRole('button', { name: 'Add Custom' }));
+
+    expect(screen.getAllByText('Community disruption plan').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Remove Community disruption plan' }));
+
+    expect(screen.queryByRole('button', { name: 'Remove Community disruption plan' })).not.toBeInTheDocument();
+  }, 10000);
+
+  it('works evaluation suggestions hide selected criteria and support custom criteria', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Works/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+
+    expect(screen.getByText('7 criteria')).toBeInTheDocument();
+    expect(screen.getByText('All suggested criteria have been added.')).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete criteria' })[0]);
+
+    expect(screen.getByText('6 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Technical Methodology/ }));
+
+    expect(screen.getByText('7 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add Custom Criterion' }));
+
+    expect(screen.getByText('8 criteria')).toBeInTheDocument();
+    expect(screen.getByText('Custom Criterion')).toBeInTheDocument();
+  }, 10000);
+
+  it('goods evaluation edit menu manages subcriteria chips', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+
+    expect(screen.getByLabelText('Criterion name')).toHaveValue('Technical Compliance');
+    expect(screen.getByText('Subcriteria')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Custom subcriterion'), 'Energy efficiency rating');
+    await user.click(screen.getByRole('button', { name: 'Add Custom' }));
+
+    expect(screen.getAllByText('Energy efficiency rating').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Remove Energy efficiency rating' }));
+
+    expect(screen.queryByRole('button', { name: 'Remove Energy efficiency rating' })).not.toBeInTheDocument();
+  });
+
+  it('goods evaluation suggestions hide selected criteria and support custom criteria', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+
+    expect(screen.getByText('5 criteria')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Delete criteria' })[0]);
+
+    expect(screen.getByText('4 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Technical Compliance/ }));
+
+    expect(screen.getByText('5 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add Custom Criterion' }));
+
+    expect(screen.getByText('6 criteria')).toBeInTheDocument();
+    expect(screen.getByText('Custom Criterion')).toBeInTheDocument();
   });
 
   it('review step reflects entered details and requirements', async () => {
@@ -468,13 +758,16 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Save Specification' }));
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Supply of Solar Equipment' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender information' })).toBeInTheDocument();
+    expect(screen.getByText('Supply of Solar Equipment')).toBeInTheDocument();
     expect(screen.getByText(/Procurement Officer/)).toBeInTheDocument();
     expect(screen.getByText('Dodoma')).toBeInTheDocument();
     expect(screen.getByText('2026-08-20')).toBeInTheDocument();
     expect(screen.getByText('2026-08-21')).toBeInTheDocument();
     expect(screen.getByText(/Solar panels, inverters, mounting kits/)).toBeInTheDocument();
-    expect(screen.getByText(/Solar panel kit - 12 Pcs/)).toBeInTheDocument();
+    expect(screen.getByText('Solar panel kit')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('Pcs')).toBeInTheDocument();
     expect(screen.queryByText('Installed pilot system')).not.toBeInTheDocument();
   }, 10000);
 
@@ -510,7 +803,18 @@ describe('CreateTenderProcurexPage', () => {
     await addDefaultCategory(user);
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
 
+    expect(screen.getByText('Evaluation submission')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Submit Tender for Evaluation' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'If the tender passes evaluation:' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'If the tender does not pass:' })).toBeInTheDocument();
+    expect(screen.getByText('I confirm the tender information is complete and accurate.')).toBeInTheDocument();
+    expect(screen.getByText('I understand the tender will be reviewed before publication.')).toBeInTheDocument();
+    expect(screen.getByText('I understand rejected tenders will return as draft with comments.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download Tender PDF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit Tender for Evaluation' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Download Tender PDF' }));
+    expect(screen.getByText('Tender PDF generator is not available in this frontend yet.')).toBeInTheDocument();
 
     for (const checkbox of screen.getAllByRole('checkbox')) {
       await user.click(checkbox);
