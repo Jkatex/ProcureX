@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/app/store';
 import { setSessionUser } from '@/features/auth/slice';
 import { identityApi } from '@/features/identity/api';
 import { useNotifications } from '@/features/notifications/hooks';
-import type { BusinessRegistrationSource, EntityType, RegistryRecord, VerificationSubmitResult } from '@/features/identity/types';
+import type { BusinessRegistrationSource, EntityType, RegistryRecord, SigningCredentialStatus, VerificationSubmitResult } from '@/features/identity/types';
 import { apiErrorMessage, notificationFromApiError } from '@/shared/api/errors';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
@@ -54,7 +54,16 @@ function registryPlaceholder(entityType: EntityType, businessRegistrationSource:
 }
 
 function payloadRows(record: RegistryRecord) {
-  return Object.entries(record.payload).filter(([, value]) => value !== null && value !== undefined && value !== '');
+  return Object.entries(record.payload).filter(([key, value]) => key !== 'summaryRows' && value !== null && value !== undefined && value !== '');
+}
+
+function registryInfoRows(record: RegistryRecord) {
+  return [
+    ['Source', record.source],
+    ['Registry number', record.registryNumber],
+    ['Confidence', `${record.confidence}%`],
+    ...payloadRows(record).map(([key, value]) => [key.replace(/([A-Z])/g, ' $1'), stringValue(value)])
+  ];
 }
 
 function stringValue(value: unknown) {
@@ -102,6 +111,10 @@ export function IdentityVerificationProcurexPage() {
   const [signatureName, setSignatureName] = useState('');
   const [signatureTitle, setSignatureTitle] = useState('');
   const [signatureConsent, setSignatureConsent] = useState(false);
+  const [signatureStatus, setSignatureStatus] = useState<SigningCredentialStatus | null>(null);
+  const [requestKeyphrase, setRequestKeyphrase] = useState('');
+  const [repeatKeyphrase, setRepeatKeyphrase] = useState('');
+  const [signatureKeyphrase, setSignatureKeyphrase] = useState('');
   const [result, setResult] = useState<VerificationSubmitResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<CreateNotificationInput | null>(null);
@@ -110,16 +123,18 @@ export function IdentityVerificationProcurexPage() {
 
   const registrySource = useMemo(() => sourceFor(entityType, businessRegistrationSource), [businessRegistrationSource, entityType]);
   const canContinueRegistry = Boolean(registryRecord && registryVerified && registryRecord.registryNumber === registryNumber.trim());
-  const canSubmit = canContinueRegistry && signatureName.trim().length > 1 && signatureConsent;
+  const canRequestSignature = requestKeyphrase.length >= 6 && requestKeyphrase === repeatKeyphrase;
+  const canSubmit = canContinueRegistry && signatureName.trim().length > 1 && signatureConsent && Boolean(signatureStatus?.hasCredential) && signatureKeyphrase.length >= 6;
 
   useEffect(() => {
     let active = true;
 
     async function loadVerification() {
       try {
-        const response = await identityApi.getVerificationMe();
+        const [response, status] = await Promise.all([identityApi.getVerificationMe(), identityApi.getSignatureStatus()]);
         if (!active) return;
         dispatch(setSessionUser(response.user));
+        setSignatureStatus(status);
         const payload = response.verification?.payload ?? {};
         const savedEntity = payload.entityType === 'company' || payload.entityType === 'business' || payload.entityType === 'individual' ? payload.entityType : undefined;
         const savedSource = payload.businessRegistrationSource === 'brela' || payload.businessRegistrationSource === 'tin' ? payload.businessRegistrationSource : undefined;
@@ -143,6 +158,29 @@ export function IdentityVerificationProcurexPage() {
       active = false;
     };
   }, [dispatch]);
+
+  async function requestDigitalSignature() {
+    if (!canRequestSignature) {
+      setMessage(identityNotification('warning', 'Keyphrase not ready', 'Enter a matching keyphrase with at least 6 characters.', 'The keyphrase protects your ProcureX signing key.'));
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const status = await identityApi.requestSignature({ keyphrase: requestKeyphrase, repeatedKeyphrase: repeatKeyphrase });
+      setSignatureStatus(status);
+      setSignatureKeyphrase('');
+      setRequestKeyphrase('');
+      setRepeatKeyphrase('');
+      setMessage(identityNotification('info', 'Digital signature ready', 'Your keyphrase-backed digital signature is active.', 'Use this keyphrase whenever you sign ProcureX documents.'));
+    } catch (error) {
+      setMessage(notificationFromApiError(error, { title: 'Digital signature not created', fallback: 'Could not create the digital signature keyphrase.' }));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function chooseEntity(nextType: EntityType) {
     const nextSource: BusinessRegistrationSource = nextType === 'business' ? 'brela' : 'tin';
@@ -239,6 +277,7 @@ export function IdentityVerificationProcurexPage() {
         signatureName: signatureName.trim(),
         signatureTitle: signatureTitle.trim(),
         signatureConsent: true,
+        signatureKeyphrase,
         signatureConsentVersion,
         signatureConsentTitle,
         profile: {
@@ -410,25 +449,17 @@ export function IdentityVerificationProcurexPage() {
                     </div>
                     <span className={registryRecord.status === 'MATCHED' ? 'badge badge-success' : 'badge badge-warning'}>{registryRecord.status}</span>
                   </div>
-                  <div className="registry-summary">
-                    <div>
-                      <span>Source</span>
-                      <strong>{registryRecord.source}</strong>
-                    </div>
-                    <div>
-                      <span>Registry number</span>
-                      <strong>{registryRecord.registryNumber}</strong>
-                    </div>
-                    <div>
-                      <span>Confidence</span>
-                      <strong>{registryRecord.confidence}%</strong>
-                    </div>
-                    {payloadRows(registryRecord).map(([key, value]) => (
-                      <div key={key}>
-                        <span>{key.replace(/([A-Z])/g, ' $1')}</span>
-                        <strong>{stringValue(value)}</strong>
-                      </div>
-                    ))}
+                  <div className="registry-info-table-wrap">
+                    <table className="registry-info-table">
+                      <tbody>
+                        {registryInfoRows(registryRecord).map(([label, value]) => (
+                          <tr key={label}>
+                            <th scope="row">{label}</th>
+                            <td>{value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                   <label className={`confirm-action ${registryVerified ? 'confirmed' : ''}`}>
                     <input className="confirm-action-input" type="checkbox" checked={registryVerified} onChange={(event) => setRegistryVerified(event.target.checked)} />
@@ -452,11 +483,62 @@ export function IdentityVerificationProcurexPage() {
                 <span className="ekyc-step-badge">3</span>
                 <div>
                   <h2>Create digital signature</h2>
-                  <p>The signer name and consent are sealed into a server-generated signature hash with audit metadata for ProcureX actions.</p>
+                  <p>Create a private keyphrase once, then use it every time ProcureX signs documents for this account.</p>
                 </div>
               </div>
 
               <div className="signature-panel">
+                {!signatureStatus?.hasCredential ? (
+                  <div className="signature-keyphrase-panel">
+                    <div>
+                      <span className="section-kicker">Signature request</span>
+                      <h3>Request your digital signature</h3>
+                      <p>This keyphrase protects your signing key and is required each time you sign a ProcureX document.</p>
+                    </div>
+                    <div className="ekyc-grid two">
+                      <div className="form-group-new">
+                        <label className="form-label-new">Keyphrase *</label>
+                        <input
+                          className="form-input-new"
+                          type="password"
+                          value={requestKeyphrase}
+                          minLength={6}
+                          maxLength={128}
+                          autoComplete="new-password"
+                          onChange={(event) => setRequestKeyphrase(event.target.value)}
+                        />
+                        <span className="form-hint-new">Minimum 6 characters.</span>
+                      </div>
+
+                      <div className="form-group-new">
+                        <label className="form-label-new">Repeat keyphrase *</label>
+                        <input
+                          className="form-input-new"
+                          type="password"
+                          value={repeatKeyphrase}
+                          minLength={6}
+                          maxLength={128}
+                          autoComplete="new-password"
+                          onChange={(event) => setRepeatKeyphrase(event.target.value)}
+                        />
+                        <span className="form-hint-new">{repeatKeyphrase && requestKeyphrase !== repeatKeyphrase ? 'Key phrase and repeated key phrase do not match.' : 'Repeat the same keyphrase.'}</span>
+                      </div>
+                    </div>
+                    <button type="button" className="btn btn-secondary" disabled={loading || !canRequestSignature} onClick={() => void requestDigitalSignature()}>
+                      {loading ? 'Requesting...' : 'Request signature'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="signature-keyphrase-panel ready">
+                    <div>
+                      <span className="section-kicker">Signature ready</span>
+                      <h3>You have successfully registered your digital signature</h3>
+                      <p>Use your keyphrase below to sign this verification submission.</p>
+                    </div>
+                    {signatureStatus.keyFingerprint ? <span className="signature-fingerprint">{signatureStatus.keyFingerprint}</span> : null}
+                  </div>
+                )}
+
                 <div className="ekyc-grid two">
                   <div className="form-group-new">
                     <label className="form-label-new">Signer full name *</label>
@@ -470,6 +552,22 @@ export function IdentityVerificationProcurexPage() {
                 </div>
 
                 <div className="signature-preview">{signatureName.trim() || 'Typed signature preview'}</div>
+
+                <div className="form-group-new">
+                  <label className="form-label-new">Signing keyphrase *</label>
+                  <input
+                    className="form-input-new"
+                    type="password"
+                    value={signatureKeyphrase}
+                    minLength={6}
+                    maxLength={128}
+                    autoComplete="current-password"
+                    disabled={!signatureStatus?.hasCredential}
+                    placeholder={signatureStatus?.hasCredential ? 'Enter your signing keyphrase' : 'Request a digital signature first'}
+                    onChange={(event) => setSignatureKeyphrase(event.target.value)}
+                  />
+                  <span className="form-hint-new">This keyphrase is verified by decrypting your signing key in memory only.</span>
+                </div>
 
                 <label className={`confirm-action ${signatureConsent ? 'confirmed' : ''}`}>
                   <input className="confirm-action-input" type="checkbox" checked={signatureConsent} onChange={(event) => setSignatureConsent(event.target.checked)} />

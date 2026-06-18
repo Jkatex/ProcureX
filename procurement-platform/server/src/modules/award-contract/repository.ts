@@ -14,8 +14,9 @@ import {
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
+import { signCanonicalPayloadHash } from '../identity/signing.js';
 import type {
   AwardContractRequestContext,
   AwardDecisionInput,
@@ -237,10 +238,6 @@ function canonicalJson(value: unknown): string {
 
 function sha256(value: string) {
   return createHash('sha256').update(value).digest('hex');
-}
-
-function signatureSecret() {
-  return process.env.SIGNATURE_HASH_SECRET || (process.env.NODE_ENV === 'test' ? 'vitest-signature-secret' : 'local-development-signature-secret');
 }
 
 function contractReference() {
@@ -730,6 +727,13 @@ export class ModuleRepository {
       assertContractVisible(signature.contract, context);
       if (!context.isAdmin && signature.signerOrgId !== context.organizationId) throw requestError('Signature is assigned to another organization.', 403);
       if (signature.status === SignatureStatus.SIGNED) return;
+      if (!context.userId) throw requestError('Authenticated signer is required.', 403);
+
+      const signingCredential = await tx.signingCredential.findFirst({
+        where: { userId: context.userId, status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (!signingCredential) throw requestError('Create a digital signature keyphrase before signing contracts.', 409);
 
       const signedAt = new Date();
       const canonicalPayload = {
@@ -744,7 +748,7 @@ export class ModuleRepository {
         signedAt: signedAt.toISOString()
       };
       const canonicalPayloadHash = sha256(canonicalJson(canonicalPayload));
-      const signatureHash = createHmac('sha256', signatureSecret()).update(`${canonicalPayloadHash}:${signature.id}:${context.userId ?? ''}`).digest('hex');
+      const signed = await signCanonicalPayloadHash(signingCredential, input.signatureKeyphrase, canonicalPayloadHash);
 
       await tx.contractSignature.update({
         where: { id: signature.id },
@@ -754,11 +758,14 @@ export class ModuleRepository {
           signerName: input.signerName,
           signerTitle: input.signerTitle || null,
           canonicalPayloadHash,
-          signatureHash,
+          signatureHash: signed.signatureHash,
           signedAt,
           declinedAt: null,
           payload: input.payload as Prisma.InputJsonObject,
-          providerMetadata: { provider: 'procurex-contract-signature-v1' } as Prisma.InputJsonObject
+          providerMetadata: {
+            ...signed.providerMetadata,
+            signatureCredentialId: signingCredential.id
+          } as Prisma.InputJsonObject
         }
       });
 

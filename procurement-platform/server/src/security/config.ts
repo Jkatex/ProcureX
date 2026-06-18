@@ -36,6 +36,9 @@ export function securityConfig() {
 
 export function validateProductionSecurityConfig() {
   const config = securityConfig();
+  if (config.production && process.env.IDENTITY_NOTIFICATION_PROVIDER === 'dev-console') {
+    throw new Error('Production security configuration is invalid: IDENTITY_NOTIFICATION_PROVIDER=dev-console is local-only.');
+  }
   if (!config.production) return;
 
   const missing = [

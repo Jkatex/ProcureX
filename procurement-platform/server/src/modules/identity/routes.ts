@@ -31,6 +31,10 @@ export function createModuleRouter() {
   router.post('/verification/registry-lookup', controller.registryLookup);
   router.put('/verification/draft', controller.saveVerificationDraft);
   router.post('/verification/submit', controller.submitVerification);
+  router.get('/signature/status', controller.getSignatureStatus);
+  router.post('/signature/request', controller.requestSignature);
+  router.post('/signature/test', controller.testSignature);
+  router.post('/signature/revoke', controller.revokeSignature);
   router.put('/profile', controller.updateProfile);
 
   router.get('/admin/verifications', controller.listAdminVerifications);

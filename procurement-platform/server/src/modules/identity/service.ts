@@ -10,10 +10,10 @@ import {
 } from '@prisma/client';
 import type { PermissionName, ScreeningStatus } from '@procurex/shared';
 import { assertPermission, computeAccessContext } from '../../security/accessPolicy.js';
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash, createHmac } from 'node:crypto';
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ModuleRepository, type SessionWithUser, type UserWithDefaultOrg, type VerificationWithUser } from './repository.js';
-import { ProductionIdentityNotifications, type DeliveryReceipt, type IdentityNotificationProvider } from './notifications.js';
+import { createIdentityNotifications, type DeliveryReceipt, type IdentityNotificationProvider } from './notifications.js';
 import { ProductionRegistryProvider, isRegistryProviderFailure, type RegistryProvider } from './registryProviders.js';
 import { DeterministicScreeningProvider, type ScreeningProvider } from './screeningProviders.js';
 import {
@@ -23,8 +23,15 @@ import {
   type ModuleStatus,
   type RegistryRecordDto,
   type SessionUserDto,
+  type SigningCredentialStatusDto,
   type VerificationProfileDto
 } from './types.js';
+import {
+  createEncryptedSigningCredential,
+  signCanonicalPayloadHash,
+  signatureStatusDto,
+  validateRepeatedKeyphrase
+} from './signing.js';
 
 const scrypt = promisify(scryptCallback);
 const phoneOtpPurpose = 'PHONE_OTP';
@@ -62,6 +69,7 @@ type VerificationPayloadInput = {
   signatureName?: string;
   signatureTitle?: string;
   signatureConsent?: boolean;
+  signatureKeyphrase?: string;
   signatureConsentVersion?: string;
   signatureConsentTitle?: string;
   profile?: Record<string, unknown>;
@@ -73,6 +81,8 @@ type RegistryLookupInput = {
   businessRegistrationSource?: 'tin' | 'brela';
   registryNumber: string;
 };
+
+type RegistrySource = 'TRA' | 'BRELA';
 
 type AuthAuditContext = {
   ipAddress?: string;
@@ -197,20 +207,16 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function hashWithSecret(value: string, secret: string) {
-  return createHmac('sha256', secret).update(value).digest('hex');
-}
-
-function signatureHashSecret() {
-  return process.env.SIGNATURE_HASH_SECRET || (process.env.NODE_ENV === 'test' ? 'vitest-signature-secret' : 'local-development-signature-secret');
-}
-
 function deliveryMetadata(receipt: DeliveryReceipt) {
   return {
     provider: receipt.provider,
     messageId: receipt.messageId,
     deliveredAt: new Date().toISOString()
   };
+}
+
+function devChallengeMetadata(receipt: DeliveryReceipt, code: string) {
+  return receipt.provider === 'dev-console' ? { devCode: code } : {};
 }
 
 function toSessionUser(user: UserWithDefaultOrg): SessionUserDto {
@@ -300,6 +306,84 @@ function registrySourceFor(input: RegistryLookupInput) {
   return 'TRA';
 }
 
+function localRegistryMocksEnabled() {
+  return process.env.NODE_ENV !== 'production' && process.env.APP_ENV !== 'production';
+}
+
+function localRegistryMockPayload(input: RegistryLookupInput & { source: RegistrySource; registryNumber: string }) {
+  const fetchedAt = new Date().toISOString();
+
+  if (input.source === 'TRA' && input.registryNumber === '1234567890') {
+    const businessLike = input.entityType === 'business';
+    const name = businessLike ? 'Asha Juma Trading Enterprise' : 'Asha Juma Mwinyi';
+    return {
+      source: 'TRA' as const,
+      registryNumber: input.registryNumber,
+      entityType: input.entityType,
+      name,
+      status: 'MATCHED',
+      confidence: 100,
+      payload: {
+        tin: input.registryNumber,
+        taxpayerName: name,
+        taxpayerType: businessLike ? 'Sole proprietor business' : 'Individual taxpayer',
+        registrationStatus: 'Active',
+        registeredOn: '2026-06-18',
+        taxOffice: 'Ilala Tax Region',
+        location: 'Dar es Salaam, Tanzania',
+        localDevelopmentRecord: true,
+        mockIdentifier: true,
+        provider: 'LOCAL_TRA_MOCK',
+        fetchedAt,
+        summaryRows: [
+          ['TIN', input.registryNumber],
+          ['Taxpayer name', name],
+          ['Taxpayer type', businessLike ? 'Business with TIN' : 'Individual'],
+          ['Status', 'Active'],
+          ['Tax office', 'Ilala Tax Region']
+        ]
+      }
+    };
+  }
+
+  if (input.source === 'BRELA' && input.registryNumber === '987654321') {
+    const businessLike = input.entityType === 'business';
+    const name = businessLike ? 'Local Test Supplies Business Name' : 'Local Test Supplies Limited';
+    return {
+      source: 'BRELA' as const,
+      registryNumber: input.registryNumber,
+      entityType: input.entityType,
+      name,
+      status: 'MATCHED',
+      confidence: 100,
+      payload: {
+        registrationNumber: input.registryNumber,
+        companyName: name,
+        entityCategory: businessLike ? 'Registered business name' : 'Private limited company',
+        incorporationDate: '2026-06-18',
+        registrationStatus: 'Active',
+        principalOffice: 'Dar es Salaam, Tanzania',
+        taxpayerTin: '1234567890',
+        localDevelopmentRecord: true,
+        mockIdentifier: true,
+        provider: 'LOCAL_BRELA_MOCK',
+        fetchedAt,
+        directors: businessLike ? ['Asha Juma Mwinyi'] : ['Asha Juma Mwinyi', 'John Joseph Mrema'],
+        businessActivities: ['General supplies', 'Procurement services'],
+        summaryRows: [
+          ['Registered name', name],
+          ['BRELA number', input.registryNumber],
+          ['Entity category', businessLike ? 'Business name' : 'Company'],
+          ['Status', 'Active'],
+          ['Principal office', 'Dar es Salaam, Tanzania']
+        ]
+      }
+    };
+  }
+
+  return null;
+}
+
 function registryPayload(record: {
   id: string;
   source: string;
@@ -347,7 +431,7 @@ function accessForUser(input: {
 export class ModuleService {
   constructor(
     private readonly repository = new ModuleRepository(),
-    private readonly notifications: IdentityNotificationProvider = new ProductionIdentityNotifications(),
+    private readonly notifications: IdentityNotificationProvider = createIdentityNotifications(),
     private readonly registryProvider: RegistryProvider = new ProductionRegistryProvider(),
     private readonly screeningProvider: ScreeningProvider = new DeterministicScreeningProvider()
   ) {}
@@ -547,6 +631,7 @@ export class ModuleService {
       await this.repository.updateChallenge(challenge.id, {
         metadata: inputJson({
           ...metadataObject(challenge.metadata),
+          ...devChallengeMetadata(receipt, code),
           delivery: {
             channel: 'sms',
             status: 'sent',
@@ -628,6 +713,7 @@ export class ModuleService {
       await this.repository.updateChallenge(activation.id, {
         metadata: inputJson({
           ...metadataObject(activation.metadata),
+          ...devChallengeMetadata(receipt, activationCode),
           delivery: {
             channel: 'email',
             status: 'sent',
@@ -937,6 +1023,7 @@ export class ModuleService {
       await this.repository.updateChallenge(challenge.id, {
         metadata: inputJson({
           ...metadataObject(challenge.metadata),
+          ...devChallengeMetadata(receipt, code),
           delivery: {
             channel: 'email',
             status: 'sent',
@@ -1149,14 +1236,31 @@ export class ModuleService {
     return session;
   }
 
+  private async localRegistryMock(input: RegistryLookupInput & { source: RegistrySource; registryNumber: string }) {
+    if (!localRegistryMocksEnabled()) return null;
+
+    const mock = localRegistryMockPayload(input);
+    if (!mock) return null;
+
+    return this.repository.upsertRegistryRecord({
+      source: mock.source,
+      registryNumber: mock.registryNumber,
+      entityType: mock.entityType,
+      name: mock.name,
+      status: mock.status,
+      confidence: mock.confidence,
+      payload: inputJson(mock.payload)
+    });
+  }
+
   async registryLookup(input: RegistryLookupInput, audit?: AuthAuditContext) {
-    const source = registrySourceFor(input);
+    const source = registrySourceFor(input) as RegistrySource;
     const registryNumber = input.registryNumber.trim();
     let record;
 
     try {
       const provided = await this.registryProvider.lookup({
-        source: source as 'TRA' | 'BRELA',
+        source,
         entityType: input.entityType,
         businessRegistrationSource: input.businessRegistrationSource,
         registryNumber
@@ -1189,7 +1293,11 @@ export class ModuleService {
       throw error;
     }
 
-    if (!record && process.env.NODE_ENV !== 'production' && process.env.APP_ENV !== 'production') {
+    if (!record) {
+      record = await this.localRegistryMock({ ...input, source, registryNumber });
+    }
+
+    if (!record && localRegistryMocksEnabled()) {
       record = await this.repository.findRegistryRecord(source, registryNumber);
     }
 
@@ -1222,12 +1330,85 @@ export class ModuleService {
     };
   }
 
+  async getSignatureStatus(token?: string): Promise<SigningCredentialStatusDto> {
+    const { user } = await this.requireSession(token);
+    const credential = await this.repository.findActiveSigningCredential(user.id);
+    return signatureStatusDto(credential);
+  }
+
+  async requestSignature(token: string | undefined, input: { keyphrase: string; repeatedKeyphrase: string }, audit?: AuthAuditContext): Promise<SigningCredentialStatusDto> {
+    const { user } = await this.requireSession(token);
+    validateRepeatedKeyphrase(input.keyphrase, input.repeatedKeyphrase);
+
+    const existing = await this.repository.findActiveSigningCredential(user.id);
+    if (existing) throw requestError('A digital signature keyphrase is already active. Revoke it before requesting a new signature.', 409);
+
+    const encrypted = await createEncryptedSigningCredential(input.keyphrase);
+    const credential = await this.repository.createSigningCredential({
+      userId: user.id,
+      publicKeyPem: encrypted.publicKeyPem,
+      keyFingerprint: encrypted.keyFingerprint,
+      encryptedPrivateKey: encrypted.encryptedPrivateKey,
+      kdfMetadata: inputJson(encrypted.kdfMetadata),
+      encryptionMetadata: inputJson(encrypted.encryptionMetadata),
+      providerMetadata: inputJson(encrypted.providerMetadata)
+    });
+
+    await this.recordAuthEvent('identity.signature.requested', {
+      ...audit,
+      userId: user.id,
+      entityRef: credential.id,
+      details: { keyFingerprint: credential.keyFingerprint }
+    });
+
+    return signatureStatusDto(credential);
+  }
+
+  async testSignature(token: string | undefined, input: { keyphrase: string }, audit?: AuthAuditContext) {
+    const { user } = await this.requireSession(token);
+    const credential = await this.repository.findActiveSigningCredential(user.id);
+    if (!credential) throw requestError('Create a digital signature keyphrase before signing.', 409);
+
+    const canonicalPayload = canonicalJson({
+      purpose: 'SIGNATURE_TEST',
+      userId: user.id,
+      issuedAt: new Date().toISOString()
+    });
+    const canonicalPayloadHash = sha256(canonicalPayload);
+    const signed = await signCanonicalPayloadHash(credential, input.keyphrase, canonicalPayloadHash);
+
+    await this.recordAuthEvent('identity.signature.tested', {
+      ...audit,
+      userId: user.id,
+      entityRef: credential.id,
+      details: { keyFingerprint: credential.keyFingerprint }
+    });
+
+    return {
+      ok: true,
+      canonicalPayloadHash,
+      signatureHash: signed.signatureHash,
+      providerMetadata: signed.providerMetadata
+    };
+  }
+
+  async revokeSignature(token: string | undefined, audit?: AuthAuditContext): Promise<SigningCredentialStatusDto> {
+    const { user } = await this.requireSession(token);
+    await this.repository.revokeActiveSigningCredential(user.id);
+    await this.recordAuthEvent('identity.signature.revoked', {
+      ...audit,
+      userId: user.id
+    });
+    return signatureStatusDto(null);
+  }
+
   async saveVerificationDraft(token: string | undefined, input: VerificationPayloadInput, audit?: AuthAuditContext) {
     const { user } = await this.requireSession(token);
     const existing = await this.repository.latestVerificationProfile(user.id);
+    const { signatureKeyphrase: _signatureKeyphrase, ...safeInput } = input;
     const payload = inputJson({
       ...metadataObject(existing?.payload),
-      ...input,
+      ...safeInput,
       savedAt: new Date().toISOString()
     });
 
@@ -1311,6 +1492,10 @@ export class ModuleService {
       throw requestError('Registry record must be fetched before submitting verification.', 409);
     }
 
+    const signingCredential = await this.repository.findActiveSigningCredential(fullUser.id);
+    if (!signingCredential) throw requestError('Create a digital signature keyphrase before submitting verification.', 409);
+    if (!input.signatureKeyphrase) throw requestError('Digital signature keyphrase is required.', 409);
+
     const userMetadata = metadataObject(fullUser.metadata);
     const duplicateCount = await this.repository.countApprovedRegistryDuplicates({
       userId: fullUser.id,
@@ -1347,8 +1532,9 @@ export class ModuleService {
         })
       : null;
 
+    const { signatureKeyphrase: _signatureKeyphrase, ...safeInput } = input;
     const basePayload = {
-      ...input,
+      ...safeInput,
       registryRecord: registryPayload(registry),
       verifiedName: registry.name,
       reviewReasons,
@@ -1382,10 +1568,13 @@ export class ModuleService {
       signerTitle: input.signatureTitle?.trim() ?? '',
       consentVersion: input.signatureConsentVersion ?? '2026.06.06',
       consentTitle: input.signatureConsentTitle ?? 'ProcureX identity verification signature consent',
+      signatureCredentialId: signingCredential.id,
+      keyFingerprint: signingCredential.keyFingerprint,
       signedAt: new Date().toISOString()
     };
     const canonicalPayload = canonicalJson(signedPayload);
     const canonicalPayloadHash = sha256(canonicalPayload);
+    const signed = await signCanonicalPayloadHash(signingCredential, input.signatureKeyphrase, canonicalPayloadHash);
     const signature = await this.repository.createDigitalSignature({
       verificationProfileId: profile.id,
       userId: fullUser.id,
@@ -1395,12 +1584,15 @@ export class ModuleService {
       consentVersion: signedPayload.consentVersion,
       consentTitle: signedPayload.consentTitle,
       canonicalPayloadHash,
-      signatureHash: hashWithSecret(`${canonicalPayloadHash}:${fullUser.id}:${profile.id}`, signatureHashSecret()),
+      signatureHash: signed.signatureHash,
       metadata: inputJson({
         ...(audit?.ipAddress ? { ipHash: sha256(audit.ipAddress) } : {}),
         ...(audit?.userAgent ? { userAgentHash: sha256(audit.userAgent) } : {})
       }),
-      providerMetadata: inputJson({ provider: 'procurex-secure-hash-v1' }),
+      providerMetadata: inputJson({
+        ...signed.providerMetadata,
+        signatureCredentialId: signingCredential.id
+      }),
       blockchainMetadata: inputJson({ anchorStatus: 'PENDING_IMPLEMENTATION' })
     });
 
@@ -1411,6 +1603,8 @@ export class ModuleService {
         status: signature.status,
         signedAt: signature.signedAt.toISOString(),
         canonicalPayloadHash: signature.canonicalPayloadHash,
+        signatureHash: signature.signatureHash,
+        keyFingerprint: signingCredential.keyFingerprint,
         consentVersion: signature.consentVersion,
         consentTitle: signature.consentTitle,
         blockchainAnchorStatus: 'PENDING_IMPLEMENTATION'

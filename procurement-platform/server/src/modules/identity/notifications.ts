@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import twilio from 'twilio';
+import { isProductionRuntime } from '../../security/config.js';
 
 export type DeliveryReceipt = {
   provider: string;
@@ -11,6 +12,10 @@ export type IdentityNotificationProvider = {
   sendEmailActivation(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt>;
   sendPasswordReset(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt>;
 };
+
+function devConsoleEnabled(config = process.env) {
+  return config.IDENTITY_NOTIFICATION_PROVIDER === 'dev-console';
+}
 
 function deliveryConfigError(message: string) {
   const error = new Error(message) as Error & { status?: number };
@@ -116,4 +121,31 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
     this.email ??= new SmtpEmailProvider();
     return this.email.sendPasswordReset(input);
   }
+}
+
+export class DevConsoleIdentityNotifications implements IdentityNotificationProvider {
+  constructor(config = process.env) {
+    if (isProductionRuntime() || config.APP_ENV === 'production' || config.NODE_ENV === 'production') {
+      throw deliveryConfigError('The dev-console identity notification provider cannot run in production.');
+    }
+  }
+
+  async sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
+    console.info(`[identity:dev-console] phone OTP for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)`);
+    return { provider: 'dev-console' };
+  }
+
+  async sendEmailActivation(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
+    console.info(`[identity:dev-console] email activation for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)`);
+    return { provider: 'dev-console' };
+  }
+
+  async sendPasswordReset(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
+    console.info(`[identity:dev-console] password reset for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)`);
+    return { provider: 'dev-console' };
+  }
+}
+
+export function createIdentityNotifications(config = process.env): IdentityNotificationProvider {
+  return devConsoleEnabled(config) ? new DevConsoleIdentityNotifications(config) : new ProductionIdentityNotifications();
 }

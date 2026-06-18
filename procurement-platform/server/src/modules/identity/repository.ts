@@ -92,6 +92,34 @@ export class ModuleRepository {
     });
   }
 
+  findActiveSigningCredential(userId: string) {
+    return this.db.signingCredential.findFirst({
+      where: { userId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  createSigningCredential(input: {
+    userId: string;
+    publicKeyPem: string;
+    keyFingerprint: string;
+    encryptedPrivateKey: string;
+    kdfMetadata: Prisma.InputJsonObject;
+    encryptionMetadata: Prisma.InputJsonObject;
+    providerMetadata: Prisma.InputJsonObject;
+  }) {
+    return this.db.signingCredential.create({
+      data: input
+    });
+  }
+
+  revokeActiveSigningCredential(userId: string) {
+    return this.db.signingCredential.updateMany({
+      where: { userId, status: 'ACTIVE' },
+      data: { status: 'REVOKED', revokedAt: new Date() }
+    });
+  }
+
   upsertPreference(input: { userId: string; preferredLanguage?: string; timezone?: string; metadata?: Prisma.InputJsonObject }) {
     return this.db.userPreference.upsert({
       where: { userId: input.userId },

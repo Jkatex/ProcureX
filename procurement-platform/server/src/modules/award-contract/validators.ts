@@ -86,6 +86,7 @@ export const contractSignatureSignBodySchema = z
   .object({
     signerName: nonEmptyText.max(160),
     signerTitle: z.string().trim().max(160).optional().default(''),
+    signatureKeyphrase: z.string().min(6).max(128),
     payload: jsonObjectSchema
   })
   .strict();

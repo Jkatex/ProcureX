@@ -15,6 +15,7 @@ class FakeIdentityRepository {
   profiles: any[] = [];
   history: any[] = [];
   signatures: any[] = [];
+  signingCredentials: any[] = [];
   trustHistory: any[] = [];
   screeningChecks: any[] = [];
   preferences = new Map<string, any>();
@@ -39,6 +40,35 @@ class FakeIdentityRepository {
 
   findPreference(userId: string) {
     return Promise.resolve(this.preferences.get(userId) ?? null);
+  }
+
+  findActiveSigningCredential(userId: string) {
+    return Promise.resolve(this.signingCredentials.find((credential) => credential.userId === userId && credential.status === 'ACTIVE') ?? null);
+  }
+
+  createSigningCredential(input: Record<string, unknown>) {
+    const credential = {
+      id: this.nextId('signing-credential'),
+      status: 'ACTIVE',
+      revokedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...input
+    };
+    this.signingCredentials.push(credential);
+    return Promise.resolve(credential);
+  }
+
+  revokeActiveSigningCredential(userId: string) {
+    let count = 0;
+    for (const credential of this.signingCredentials) {
+      if (credential.userId === userId && credential.status === 'ACTIVE') {
+        credential.status = 'REVOKED';
+        credential.revokedAt = new Date();
+        count += 1;
+      }
+    }
+    return Promise.resolve({ count });
   }
 
   upsertPreference(input: { userId: string; preferredLanguage?: string; timezone?: string; metadata?: Record<string, unknown> }) {
@@ -475,7 +505,28 @@ function legalAcceptance() {
   } as const;
 }
 
+async function requestSignatureForSession(service: ModuleService, token: string, keyphrase = 'Signing123') {
+  await service.requestSignature(token, { keyphrase, repeatedKeyphrase: keyphrase });
+  return keyphrase;
+}
+
+const originalNodeEnv = process.env.NODE_ENV;
+const originalAppEnv = process.env.APP_ENV;
+
 describe('identity production auth', () => {
+  beforeEach(() => {
+    process.env.NODE_ENV = 'test';
+    process.env.APP_ENV = 'test';
+  });
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = originalNodeEnv;
+
+    if (originalAppEnv === undefined) delete process.env.APP_ENV;
+    else process.env.APP_ENV = originalAppEnv;
+  });
+
   it('sends phone OTP by SMS and rejects a fallback OTP', async () => {
     const { repository, notifications, service } = makeService();
     const registration = await service.startRegistration({ email: 'new-user@example.test', phone: '+255 700 000 001' });
@@ -735,6 +786,48 @@ describe('identity production auth', () => {
     ).rejects.toMatchObject({ status: 502 });
   });
 
+  it('serves local test registry mocks only outside production', async () => {
+    const { service } = makeService(new FakeIdentityRepository(), new FakeIdentityNotifications(), new FakeRegistryProvider());
+
+    const tin = await service.registryLookup({
+      entityType: 'business',
+      businessRegistrationSource: 'tin',
+      registryNumber: '1234567890'
+    });
+    expect(tin).toMatchObject({
+      source: 'TRA',
+      registryNumber: '1234567890',
+      entityType: 'business',
+      name: 'Asha Juma Trading Enterprise',
+      status: 'MATCHED',
+      confidence: 100
+    });
+    expect(tin.payload).toMatchObject({ localDevelopmentRecord: true, mockIdentifier: true, provider: 'LOCAL_TRA_MOCK' });
+
+    const brela = await service.registryLookup({
+      entityType: 'company',
+      registryNumber: '987654321'
+    });
+    expect(brela).toMatchObject({
+      source: 'BRELA',
+      registryNumber: '987654321',
+      entityType: 'company',
+      name: 'Local Test Supplies Limited',
+      status: 'MATCHED',
+      confidence: 100
+    });
+    expect(brela.payload).toMatchObject({ localDevelopmentRecord: true, mockIdentifier: true, provider: 'LOCAL_BRELA_MOCK' });
+
+    process.env.APP_ENV = 'production';
+    const productionOnly = makeService(new FakeIdentityRepository(), new FakeIdentityNotifications(), new FakeRegistryProvider()).service;
+    await expect(
+      productionOnly.registryLookup({
+        entityType: 'individual',
+        registryNumber: '1234567890'
+      })
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
   it('auto-approves eKYC when a matching production registry record passes deterministic checks', async () => {
     const { repository, notifications, service } = makeService();
     repository.registry.set('TRA:TIN-001', {
@@ -752,6 +845,7 @@ describe('identity production auth', () => {
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('ekyc@example.test', 'Strong123!', legalAcceptance());
     const session = await service.signIn('ekyc@example.test', 'Strong123!');
+    const keyphrase = await requestSignatureForSession(service, session.token);
 
     const registry = await service.registryLookup({
       entityType: 'business',
@@ -766,7 +860,8 @@ describe('identity production auth', () => {
       registryVerified: true,
       registryRecordId: registry.id,
       signatureName: 'Walkthrough Owner',
-      signatureConsent: true
+      signatureConsent: true,
+      signatureKeyphrase: keyphrase
     });
 
     expect(registry.status).toBe('MATCHED');
@@ -780,9 +875,50 @@ describe('identity production auth', () => {
     });
     expect(repository.signatures[0].canonicalPayloadHash).toMatch(/^[a-f0-9]{64}$/);
     expect(repository.signatures[0].signatureHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(repository.signatures[0].providerMetadata).toMatchObject({
+      provider: 'procurex-keyphrase-ed25519-v1',
+      algorithm: 'Ed25519'
+    });
     expect(repository.history.some((entry) => entry.event === 'verification_submitted')).toBe(true);
     expect(repository.auditEvents.some((event) => event.event === 'identity.verification.signature_created')).toBe(true);
     expect(JSON.stringify(repository.signatures)).not.toContain(session.token);
+    expect(JSON.stringify(repository.signatures)).not.toContain(keyphrase);
+    expect(JSON.stringify(repository.profiles)).not.toContain(keyphrase);
+  });
+
+  it('requires an active signing credential and matching keyphrase for eKYC submission', async () => {
+    const { repository, notifications, service } = makeService();
+    repository.registry.set('TRA:TIN-KEYPHRASE', {
+      id: 'registry-keyphrase',
+      source: 'TRA',
+      registryNumber: 'TIN-KEYPHRASE',
+      entityType: 'business',
+      name: 'Keyphrase Business',
+      status: 'MATCHED',
+      confidence: 100,
+      payload: {}
+    });
+    const registration = await service.startRegistration({ email: 'keyphrase@example.test', phone: '+255700000041' });
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
+    await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
+    await service.setPassword('keyphrase@example.test', 'Strong123!', legalAcceptance());
+    const session = await service.signIn('keyphrase@example.test', 'Strong123!');
+    const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-KEYPHRASE' });
+    const input = {
+      entityType: 'business' as const,
+      businessRegistrationSource: 'tin' as const,
+      registrySource: registry.source,
+      registryNumber: registry.registryNumber,
+      registryVerified: true as const,
+      registryRecordId: registry.id,
+      signatureName: 'Keyphrase Owner',
+      signatureConsent: true as const
+    };
+
+    await expect(service.submitVerification(session.token, { ...input, signatureKeyphrase: 'Signing123' })).rejects.toMatchObject({ status: 409 });
+    const keyphrase = await requestSignatureForSession(service, session.token);
+    await expect(service.submitVerification(session.token, { ...input, signatureKeyphrase: 'Wrong123' })).rejects.toMatchObject({ status: 403 });
+    await expect(service.submitVerification(session.token, { ...input, signatureKeyphrase: keyphrase })).resolves.toMatchObject({ autoApproved: true });
   });
 
   it('returns computed IAM access context in sessions after trust evaluation', async () => {
@@ -802,6 +938,7 @@ describe('identity production auth', () => {
     await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('access@example.test', 'Strong123!', legalAcceptance());
     const session = await service.signIn('access@example.test', 'Strong123!');
+    const keyphrase = await requestSignatureForSession(service, session.token);
     const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-ACCESS' });
 
     const submitted = await service.submitVerification(session.token, {
@@ -813,6 +950,7 @@ describe('identity production auth', () => {
       registryRecordId: registry.id,
       signatureName: 'Access Owner',
       signatureConsent: true,
+      signatureKeyphrase: keyphrase,
       profile: { displayName: 'Access Business' },
       documents: [{ type: 'registry', status: 'fetched' }]
     });
@@ -846,6 +984,7 @@ describe('identity production auth', () => {
     await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('blocked@example.test', 'Strong123!', legalAcceptance());
     const session = await service.signIn('blocked@example.test', 'Strong123!');
+    const keyphrase = await requestSignatureForSession(service, session.token);
     const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-BLOCKED' });
     const result = await service.submitVerification(session.token, {
       entityType: 'business',
@@ -855,7 +994,8 @@ describe('identity production auth', () => {
       registryVerified: true,
       registryRecordId: registry.id,
       signatureName: 'Blocked Owner',
-      signatureConsent: true
+      signatureConsent: true,
+      signatureKeyphrase: keyphrase
     });
 
     expect(result.autoApproved).toBe(false);
@@ -886,6 +1026,7 @@ describe('identity production auth', () => {
     await service.activateEmail(firstOtp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('duplicate-one@example.test', 'Strong123!', legalAcceptance());
     const firstSession = await service.signIn('duplicate-one@example.test', 'Strong123!');
+    const firstKeyphrase = await requestSignatureForSession(service, firstSession.token, 'SigningOne123');
     const firstRegistry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-200' });
     await service.submitVerification(firstSession.token, {
       entityType: 'business',
@@ -895,7 +1036,8 @@ describe('identity production auth', () => {
       registryVerified: true,
       registryRecordId: firstRegistry.id,
       signatureName: 'First Owner',
-      signatureConsent: true
+      signatureConsent: true,
+      signatureKeyphrase: firstKeyphrase
     });
 
     const second = await service.startRegistration({ email: 'duplicate-two@example.test', phone: '+255700000022' });
@@ -903,6 +1045,7 @@ describe('identity production auth', () => {
     await service.activateEmail(secondOtp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('duplicate-two@example.test', 'Strong123!', legalAcceptance());
     const secondSession = await service.signIn('duplicate-two@example.test', 'Strong123!');
+    const secondKeyphrase = await requestSignatureForSession(service, secondSession.token, 'SigningTwo123');
     const secondRegistry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-200' });
     const result = await service.submitVerification(secondSession.token, {
       entityType: 'business',
@@ -912,7 +1055,8 @@ describe('identity production auth', () => {
       registryVerified: true,
       registryRecordId: secondRegistry.id,
       signatureName: 'Second Owner',
-      signatureConsent: true
+      signatureConsent: true,
+      signatureKeyphrase: secondKeyphrase
     });
 
     expect(result.autoApproved).toBe(false);
@@ -937,6 +1081,7 @@ describe('identity production auth', () => {
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('pending@example.test', 'Strong123!', legalAcceptance());
     const session = await service.signIn('pending@example.test', 'Strong123!');
+    const keyphrase = await requestSignatureForSession(service, session.token);
     const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-300' });
     const submitted = await service.submitVerification(session.token, {
       entityType: 'business',
@@ -946,7 +1091,8 @@ describe('identity production auth', () => {
       registryVerified: true,
       registryRecordId: registry.id,
       signatureName: 'Pending Owner',
-      signatureConsent: true
+      signatureConsent: true,
+      signatureKeyphrase: keyphrase
     });
 
     const admin = await service.startRegistration({ email: 'admin@example.test', phone: '+255700000024' });

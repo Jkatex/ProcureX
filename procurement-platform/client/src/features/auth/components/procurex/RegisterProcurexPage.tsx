@@ -487,14 +487,11 @@ export function RegisterProcurexPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="form-group-new confirm-action" data-confirm-control>
-                    <input id="terms-accept-new" className="confirm-action-input" type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} required />
-                    <button className="confirm-action-button" type="button" aria-pressed={termsAccepted} onClick={() => setTermsAccepted((value) => !value)}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
+                  <div className={`form-group-new confirm-action register-agreement ${termsAccepted ? 'confirmed' : ''}`} data-confirm-control>
+                    <label className="register-agreement-checkbox" htmlFor="terms-accept-new">
+                      <input id="terms-accept-new" className="confirm-action-input" type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} required />
                       <span>{t('auth.register.password.confirmAgreement')}</span>
-                    </button>
+                    </label>
                     <p className="confirm-action-note">
                       {t('auth.register.password.agreementNoteStart')} <Link className="link-new" to="/terms">{t('auth.register.password.terms')}</Link> {t('auth.register.password.agreementAnd')}{' '}
                       <Link className="link-new" to="/privacy">{t('auth.register.password.privacy')}</Link>.

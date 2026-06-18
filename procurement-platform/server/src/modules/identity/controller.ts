@@ -16,6 +16,8 @@ import {
   resetPasswordSchema,
   setPasswordSchema,
   signInSchema,
+  signatureKeyphraseOnlySchema,
+  signatureRequestSchema,
   startRegistrationSchema,
   verificationDraftSchema,
   verificationSubmitSchema,
@@ -295,6 +297,38 @@ export class ModuleController {
   submitVerification: RequestHandler = async (req, res, next) => {
     try {
       res.json(await this.service.submitVerification(bearerToken(req), verificationSubmitSchema.parse(req.body), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getSignatureStatus: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.getSignatureStatus(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  requestSignature: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.requestSignature(bearerToken(req), signatureRequestSchema.parse(req.body), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  testSignature: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.testSignature(bearerToken(req), signatureKeyphraseOnlySchema.parse(req.body), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  revokeSignature: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.revokeSignature(bearerToken(req), this.auditContext(req)));
     } catch (error) {
       next(error);
     }

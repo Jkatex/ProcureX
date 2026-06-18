@@ -62,6 +62,15 @@ export type VerificationProfileDto = {
   updatedAt: string;
 };
 
+export type SigningCredentialStatusDto = {
+  hasCredential: boolean;
+  status: string;
+  keyFingerprint: string | null;
+  createdAt: string | null;
+  revokedAt: string | null;
+  provider: string | null;
+};
+
 export type AdminVerificationDto = VerificationProfileDto & {
   user: SessionUserDto;
   reviewReasons: string[];

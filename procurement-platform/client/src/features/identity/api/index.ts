@@ -3,6 +3,7 @@ import type {
   BusinessRegistrationSource,
   EntityType,
   RegistryRecord,
+  SigningCredentialStatus,
   VerificationMe,
   VerificationProfile,
   VerificationSubmitResult
@@ -18,6 +19,7 @@ export type VerificationDraftInput = {
   signatureName?: string;
   signatureTitle?: string;
   signatureConsent?: boolean;
+  signatureKeyphrase?: string;
   signatureConsentVersion?: string;
   signatureConsentTitle?: string;
   profile?: Record<string, unknown>;
@@ -51,6 +53,22 @@ export const identityApi = {
   },
   async submitVerification(input: VerificationSubmitInput) {
     const response = await apiClient.post<VerificationSubmitResult>('/api/identity/verification/submit', input);
+    return response.data;
+  },
+  async getSignatureStatus() {
+    const response = await apiClient.get<SigningCredentialStatus>('/api/identity/signature/status');
+    return response.data;
+  },
+  async requestSignature(input: { keyphrase: string; repeatedKeyphrase: string }) {
+    const response = await apiClient.post<SigningCredentialStatus>('/api/identity/signature/request', input);
+    return response.data;
+  },
+  async testSignature(input: { keyphrase: string }) {
+    const response = await apiClient.post<{ ok: boolean; canonicalPayloadHash: string; signatureHash: string }>('/api/identity/signature/test', input);
+    return response.data;
+  },
+  async revokeSignature() {
+    const response = await apiClient.post<SigningCredentialStatus>('/api/identity/signature/revoke');
     return response.data;
   },
   async updateProfile(input: { profile: Record<string, unknown>; documents?: Record<string, unknown>[] }) {

@@ -218,6 +218,7 @@ export type ContractSignatureRequestInput = {
 export type ContractSignatureSignInput = {
   signerName: string;
   signerTitle: string;
+  signatureKeyphrase: string;
   payload: Record<string, unknown>;
 };
 

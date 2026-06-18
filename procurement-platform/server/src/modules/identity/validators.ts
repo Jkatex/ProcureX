@@ -11,6 +11,7 @@ const passwordSchema = z
   .regex(/[^A-Za-z0-9]/, 'Password must include a special character.');
 
 const turnstileTokenSchema = z.string().min(1).max(4096);
+const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const startRegistrationSchema = z.object({
   email: z.string().email(),
@@ -76,6 +77,7 @@ export const verificationDraftSchema = z.object({
   signatureName: z.string().optional(),
   signatureTitle: z.string().optional(),
   signatureConsent: z.boolean().optional(),
+  signatureKeyphrase: signatureKeyphraseSchema.optional(),
   signatureConsentVersion: z.string().max(64).optional(),
   signatureConsentTitle: z.string().max(200).optional(),
   profile: z.record(z.unknown()).optional(),
@@ -89,8 +91,22 @@ export const verificationSubmitSchema = verificationDraftSchema.extend({
   registryVerified: z.literal(true),
   registryRecordId: z.string().uuid(),
   signatureName: z.string().min(2),
-  signatureConsent: z.literal(true)
+  signatureConsent: z.literal(true),
+  signatureKeyphrase: signatureKeyphraseSchema
 });
+
+export const signatureRequestSchema = z
+  .object({
+    keyphrase: signatureKeyphraseSchema,
+    repeatedKeyphrase: signatureKeyphraseSchema
+  })
+  .strict();
+
+export const signatureKeyphraseOnlySchema = z
+  .object({
+    keyphrase: signatureKeyphraseSchema
+  })
+  .strict();
 
 export const profileUpdateSchema = z.object({
   profile: z.record(z.unknown()).default({}),

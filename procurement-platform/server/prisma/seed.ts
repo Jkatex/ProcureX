@@ -304,6 +304,118 @@ async function main() {
       }
     });
 
+    await db.registryRecord.upsert({
+      where: { source_registryNumber: { source: 'BRELA', registryNumber: '987654321' } },
+      update: {
+        entityType: 'company',
+        name: 'Local Test Supplies Limited',
+        status: 'MATCHED',
+        confidence: 100,
+        payload: {
+          registrationNumber: '987654321',
+          companyName: 'Local Test Supplies Limited',
+          companyType: 'Private limited company',
+          incorporationDate: '2026-06-18',
+          registrationStatus: 'Active',
+          principalOffice: 'Dar es Salaam, Tanzania',
+          taxpayerTin: '1234567890',
+          directors: ['Asha Juma Mwinyi', 'John Joseph Mrema'],
+          businessActivities: ['General supplies', 'Procurement services'],
+          localDevelopmentRecord: true,
+          mockIdentifier: true,
+          summaryRows: [
+            ['Company name', 'Local Test Supplies Limited'],
+            ['BRELA number', '987654321'],
+            ['Status', 'Active'],
+            ['Principal office', 'Dar es Salaam, Tanzania'],
+            ['TIN', '1234567890']
+          ]
+        }
+      },
+      create: {
+        source: 'BRELA',
+        registryNumber: '987654321',
+        entityType: 'company',
+        name: 'Local Test Supplies Limited',
+        status: 'MATCHED',
+        confidence: 100,
+        payload: {
+          registrationNumber: '987654321',
+          companyName: 'Local Test Supplies Limited',
+          companyType: 'Private limited company',
+          incorporationDate: '2026-06-18',
+          registrationStatus: 'Active',
+          principalOffice: 'Dar es Salaam, Tanzania',
+          taxpayerTin: '1234567890',
+          directors: ['Asha Juma Mwinyi', 'John Joseph Mrema'],
+          businessActivities: ['General supplies', 'Procurement services'],
+          localDevelopmentRecord: true,
+          mockIdentifier: true,
+          summaryRows: [
+            ['Company name', 'Local Test Supplies Limited'],
+            ['BRELA number', '987654321'],
+            ['Status', 'Active'],
+            ['Principal office', 'Dar es Salaam, Tanzania'],
+            ['TIN', '1234567890']
+          ]
+        }
+      }
+    });
+
+    await db.registryRecord.upsert({
+      where: { source_registryNumber: { source: 'TRA', registryNumber: '1234567890' } },
+      update: {
+        entityType: 'individual',
+        name: 'Asha Juma Mwinyi',
+        status: 'MATCHED',
+        confidence: 100,
+        payload: {
+          tin: '1234567890',
+          taxpayerName: 'Asha Juma Mwinyi',
+          taxpayerType: 'Individual taxpayer',
+          registrationStatus: 'Active',
+          registeredOn: '2026-06-18',
+          taxOffice: 'Ilala Tax Region',
+          location: 'Dar es Salaam, Tanzania',
+          localDevelopmentRecord: true,
+          mockIdentifier: true,
+          summaryRows: [
+            ['TIN', '1234567890'],
+            ['Taxpayer name', 'Asha Juma Mwinyi'],
+            ['Taxpayer type', 'Individual'],
+            ['Status', 'Active'],
+            ['Tax office', 'Ilala Tax Region']
+          ]
+        }
+      },
+      create: {
+        source: 'TRA',
+        registryNumber: '1234567890',
+        entityType: 'individual',
+        name: 'Asha Juma Mwinyi',
+        status: 'MATCHED',
+        confidence: 100,
+        payload: {
+          tin: '1234567890',
+          taxpayerName: 'Asha Juma Mwinyi',
+          taxpayerType: 'Individual taxpayer',
+          registrationStatus: 'Active',
+          registeredOn: '2026-06-18',
+          taxOffice: 'Ilala Tax Region',
+          location: 'Dar es Salaam, Tanzania',
+          localDevelopmentRecord: true,
+          mockIdentifier: true,
+          summaryRows: [
+            ['TIN', '1234567890'],
+            ['Taxpayer name', 'Asha Juma Mwinyi'],
+            ['Taxpayer type', 'Individual'],
+            ['Status', 'Active'],
+            ['Tax office', 'Ilala Tax Region']
+          ]
+        }
+      }
+    });
+
     const demoProfileId = '00000000-0000-4000-8000-000000000101';
     const demoSignatureId = '00000000-0000-4000-8000-000000000102';
     const demoHistoryId = '00000000-0000-4000-8000-000000000103';

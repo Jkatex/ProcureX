@@ -36,3 +36,12 @@ export type VerificationSubmitResult = {
   autoApproved: boolean;
   reviewReasons: string[];
 };
+
+export type SigningCredentialStatus = {
+  hasCredential: boolean;
+  status: string;
+  keyFingerprint: string | null;
+  createdAt: string | null;
+  revokedAt: string | null;
+  provider: string | null;
+};
