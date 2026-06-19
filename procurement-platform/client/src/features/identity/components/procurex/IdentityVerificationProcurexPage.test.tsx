@@ -147,6 +147,11 @@ describe('IdentityVerificationProcurexPage signature step', () => {
 
     expect(screen.getByText('Keyphrases match.')).toBeInTheDocument();
     expect(createButton).toBeEnabled();
+
+    await user.click(createButton);
+
+    await waitFor(() => expect(mockedIdentityApi.requestSignature).toHaveBeenCalledWith({ keyphrase: 'Signing123', repeatedKeyphrase: 'Signing123' }));
+    expect(screen.getByLabelText('Signing keyphrase *')).toHaveValue('Signing123');
   });
 
   it('requires a verified signing keyphrase before submit can run', async () => {

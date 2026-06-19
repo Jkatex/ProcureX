@@ -106,7 +106,8 @@ describe('Mailtrap SMTP identity notifications', () => {
       ...mailtrapConfig(),
       IDENTITY_NOTIFICATION_PROVIDER: 'dev-console',
       IDENTITY_EMAIL_PROVIDER: 'smtp',
-      IDENTITY_PHONE_PROVIDER: 'dev-console'
+      IDENTITY_PHONE_PROVIDER: 'dev-console',
+      IDENTITY_EMAIL_CODE_LOG_COPY: 'true'
     } as NodeJS.ProcessEnv);
 
     const phoneReceipt = await notifications.sendPhoneOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 });
@@ -120,6 +121,20 @@ describe('Mailtrap SMTP identity notifications', () => {
         subject: 'Reset your ProcureX password'
       })
     );
+    expect(console.info).toHaveBeenCalledWith(expect.stringContaining('[identity:smtp-log-copy] password reset for owner@example.test: RESET123'));
+  });
+
+  it('does not log SMTP email codes in production', async () => {
+    const provider = new SmtpEmailProvider({
+      ...mailtrapConfig(),
+      NODE_ENV: 'production',
+      APP_ENV: 'production',
+      IDENTITY_EMAIL_CODE_LOG_COPY: 'true'
+    } as NodeJS.ProcessEnv);
+
+    await provider.sendPasswordReset({ to: 'owner@example.test', code: 'RESET123', expiresInMinutes: 30 });
+
+    expect(console.info).not.toHaveBeenCalledWith(expect.stringContaining('RESET123'));
   });
 
   it('requires Mailtrap SMTP credentials in production when SMTP email is selected', () => {

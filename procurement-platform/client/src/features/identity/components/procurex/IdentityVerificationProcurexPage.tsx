@@ -180,12 +180,12 @@ export function IdentityVerificationProcurexPage() {
     try {
       const status = await identityApi.requestSignature({ keyphrase: requestKeyphrase, repeatedKeyphrase: repeatKeyphrase });
       setSignatureStatus(status);
-      setSignatureKeyphrase('');
+      setSignatureKeyphrase(requestKeyphrase);
       setSignatureVerificationState('idle');
       setShowSignatureResetConfirm(false);
       setRequestKeyphrase('');
       setRepeatKeyphrase('');
-      setMessage(identityNotification('info', 'Digital signature ready', 'Your keyphrase-backed digital signature is active.', 'Use this keyphrase whenever you sign ProcureX documents.'));
+      setMessage(identityNotification('info', 'Digital signature ready', 'Your keyphrase-backed digital signature is active.', 'Verify the pre-filled keyphrase below, then confirm consent and submit.'));
     } catch (error) {
       setMessage(notificationFromApiError(error, { title: 'Digital signature not created', fallback: 'Could not create the digital signature keyphrase.' }));
     } finally {

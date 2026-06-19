@@ -28,6 +28,19 @@ function providerName(value: string | undefined) {
   return value?.trim().toLowerCase();
 }
 
+function boolEnv(value: string | undefined, fallback: boolean) {
+  if (value === undefined || value === '') return fallback;
+  return value === 'true' || value === '1';
+}
+
+function productionRuntimeFor(config = process.env) {
+  return config.NODE_ENV === 'production' || config.APP_ENV === 'production';
+}
+
+function emailCodeLogCopyEnabled(config = process.env) {
+  return !productionRuntimeFor(config) && !isProductionRuntime() && boolEnv(config.IDENTITY_EMAIL_CODE_LOG_COPY, true);
+}
+
 function deliveryConfigError(message: string) {
   const error = new Error(message) as Error & { status?: number };
   error.status = 502;
@@ -159,6 +172,7 @@ export class SendchampSmsProvider {
 export class SmtpEmailProvider {
   private readonly transporter;
   private readonly from: string;
+  private readonly logCodeCopy: boolean;
 
   constructor(config = process.env) {
     const host = config.SMTP_HOST;
@@ -166,6 +180,7 @@ export class SmtpEmailProvider {
     const user = config.SMTP_USER;
     const pass = config.SMTP_PASS;
     this.from = config.SMTP_FROM ?? '';
+    this.logCodeCopy = emailCodeLogCopyEnabled(config);
 
     if (!host || !this.from) {
       throw deliveryConfigError('SMTP host and sender are not configured.');
@@ -190,6 +205,10 @@ export class SmtpEmailProvider {
       html: `<p>Your ProcureX activation code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`
     });
 
+    if (this.logCodeCopy) {
+      console.info(`[identity:smtp-log-copy] email activation for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)${input.actionUrl ? ` ${input.actionUrl}` : ''}`);
+    }
+
     return { provider: 'smtp', messageId: result.messageId };
   }
 
@@ -203,6 +222,10 @@ export class SmtpEmailProvider {
       text: `Your ProcureX password reset code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
       html: `<p>Your ProcureX password reset code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`
     });
+
+    if (this.logCodeCopy) {
+      console.info(`[identity:smtp-log-copy] password reset for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)${input.actionUrl ? ` ${input.actionUrl}` : ''}`);
+    }
 
     return { provider: 'smtp', messageId: result.messageId };
   }
