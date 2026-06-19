@@ -72,6 +72,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(container.querySelector('.journey-panel-content .planning-section')).toBeInTheDocument();
     expect(container.querySelector('.wizard-progress-step.active')).toHaveTextContent('Basic Information');
     expect(screen.getByRole('button', { name: 'Save Draft' })).toHaveClass('save-draft-button');
+    expect(screen.getByRole('button', { name: 'Save Draft' })).toBeDisabled();
   });
 
   it('step navigation updates the active panel', async () => {
@@ -278,6 +279,88 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
     expect(screen.getByText('Environmental Compliance Certificate')).toBeInTheDocument();
     expect(screen.getByText('National Environment Management Council (NEMC)')).toBeInTheDocument();
+  }, 10000);
+
+  it('renders and manages Consultancy TOR requirements like the ProcureX reference', async () => {
+    const user = userEvent.setup();
+    const { container } = renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /^Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Consultancy Procurement TOR' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '1. Introduction' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '2. Objectives of the Consultancy' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '3. Scope of Consultancy Services' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '4. Duties and Responsibilities of the Parties' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '5. Deliverables and Timeline' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '6. Required Qualifications and Experience' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '7. Institutional and Organizational Arrangements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '8. Attachments and Reference Documents' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
+    expect(container.querySelector('.consultancy-requirements-step')).toBeInTheDocument();
+    expect(container.querySelector('.consultancy-tor-workspace')).toBeInTheDocument();
+    expect(container.querySelector('.consultancy-tor-header')).toBeInTheDocument();
+    expect(container.querySelector('.requirement-section-grid')).toBeInTheDocument();
+    expect(container.querySelectorAll('.consultancy-requirements-step .requirement-block').length).toBeGreaterThanOrEqual(8);
+    const introductionBlock = container.querySelector('#requirement-section-consultancyIntroduction');
+    expect(introductionBlock).toBeInTheDocument();
+    expect(within(introductionBlock as HTMLElement).getByRole('heading', { name: '1. Introduction' })).toBeInTheDocument();
+    const entityBackgroundControl = within(introductionBlock as HTMLElement).getByText('1.1 Procuring Entity Background').closest('.requirement-control');
+    expect(entityBackgroundControl).toBeInTheDocument();
+    expect(entityBackgroundControl?.querySelector('.scope-list-heading')).toContainElement(screen.getByRole('button', { name: 'Add Entity Background' }));
+    expect(entityBackgroundControl?.querySelector('.scope-empty')).toHaveTextContent('No procuring entity background captured yet.');
+    const projectBackgroundControl = within(introductionBlock as HTMLElement).getByText('1.2 Project Background').closest('.requirement-control');
+    expect(projectBackgroundControl).toBeInTheDocument();
+    expect(projectBackgroundControl?.querySelector('.scope-list-heading')).toHaveTextContent('1.2 Project Background');
+    expect(projectBackgroundControl?.querySelectorAll('.requirement-accordion-item')).toHaveLength(5);
+    ['Project Name', 'Background Narrative', 'Existing Challenges', 'Current Situation', 'Related Initiatives'].forEach((label) => {
+      expect(within(projectBackgroundControl as HTMLElement).getByText(label)).toBeInTheDocument();
+    });
+    const projectNameRow = within(projectBackgroundControl as HTMLElement).getByText('Project Name').closest('details');
+    expect(projectNameRow).toHaveAttribute('open');
+    fireEvent.change(screen.getByLabelText('Project Name'), { target: { value: 'Procurement capacity diagnostic' } });
+    expect(screen.getByLabelText('Project Name')).toHaveValue('Procurement capacity diagnostic');
+
+    fireEvent.change(screen.getByLabelText('General Objective'), { target: { value: 'Improve regional procurement performance.' } });
+    await user.click(screen.getByRole('button', { name: 'Add Objective' }));
+    fireEvent.change(screen.getByLabelText('Objective Title 1'), { target: { value: 'Assess current workflows' } });
+    fireEvent.change(screen.getByLabelText('Objective Description 1'), { target: { value: 'Document gaps and process bottlenecks.' } });
+    await user.selectOptions(screen.getByLabelText('Priority Level 1'), 'High');
+
+    await user.click(screen.getByRole('button', { name: 'Add Activity' }));
+    fireEvent.change(screen.getByLabelText('Activity Title 1'), { target: { value: 'Stakeholder interviews' } });
+    fireEvent.change(screen.getByLabelText('Expected Output 1'), { target: { value: 'Interview summary' } });
+    fireEvent.change(screen.getByLabelText('Activity Location 1'), { target: { value: 'Dodoma' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add Deliverable' }));
+    fireEvent.change(screen.getByLabelText('Deliverable Name 1'), { target: { value: 'Inception report' } });
+    fireEvent.change(screen.getByLabelText('Submission Timeline 1'), { target: { value: '2 weeks' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add Key Personnel' }));
+    fireEvent.change(screen.getByLabelText('Key Personnel Position Title 1'), { target: { value: 'Procurement specialist' } });
+    await user.selectOptions(screen.getByLabelText('Key Personnel Minimum Qualification 1'), 'Masters Degree');
+    fireEvent.change(screen.getByLabelText('Key Personnel Years of Experience 1'), { target: { value: '8' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add Supporting Document' }));
+    fireEvent.change(screen.getByLabelText('Consultancy Document Title 1'), { target: { value: 'Existing procurement manual' } });
+    await user.selectOptions(screen.getByLabelText('Consultancy Document Category 1'), 'Policy documents');
+
+    await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
+    await user.selectOptions(screen.getByLabelText('Consultancy requirement type 1'), 'Audited Financial Statements');
+    fireEvent.change(screen.getByLabelText('Consultancy minimum value 1'), { target: { value: '3 years' } });
+
+    await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Consultancy TOR introduction' })).toBeInTheDocument();
+    expect(screen.getByText('Improve regional procurement performance.')).toBeInTheDocument();
+    expect(screen.getByText(/Assess current workflows/)).toBeInTheDocument();
+    expect(screen.getByText(/Stakeholder interviews/)).toBeInTheDocument();
+    expect(screen.getByText(/Inception report/)).toBeInTheDocument();
+    expect(screen.getByText(/Procurement specialist/)).toBeInTheDocument();
+    expect(screen.getByText(/Existing procurement manual/)).toBeInTheDocument();
+    expect(screen.getByText(/Audited Financial Statements - minimum 3 years/)).toBeInTheDocument();
   }, 10000);
 
   it('renders and manages works tender requirements like the ProcureX reference', async () => {
@@ -888,6 +971,79 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Custom Criterion')).toBeInTheDocument();
   }, 10000);
 
+  it('Consultancy evaluation criteria use the ProcureX builder and reference weights', async () => {
+    const user = userEvent.setup();
+    const { container } = renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /^Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+
+    expect(container.querySelector('.evaluation-criteria-panel .evaluation-builder')).toBeInTheDocument();
+    expect(container.querySelector('.evaluation-balance-panel')).not.toBeInTheDocument();
+    expect(screen.getByText('Criteria suggestion library')).toBeInTheDocument();
+    expect(screen.getByText('Methodology and Approach')).toBeInTheDocument();
+    expect(screen.getByText('Key Experts')).toBeInTheDocument();
+    expect(screen.getByText('Firm Experience')).toBeInTheDocument();
+    expect(screen.getByText('Work Plan and Organization')).toBeInTheDocument();
+    expect(screen.getByText('Knowledge Transfer')).toBeInTheDocument();
+    expect(screen.getByText('Financial')).toBeInTheDocument();
+    expect(screen.getAllByText('Balanced').length).toBeGreaterThan(1);
+
+    expect(screen.getAllByLabelText('Weight').map((input) => (input as HTMLInputElement).value)).toEqual(['30', '35', '15', '10', '10', '0']);
+
+    const firstWeight = screen.getAllByLabelText('Weight')[0];
+    await user.clear(firstWeight);
+    await user.type(firstWeight, '20');
+
+    expect(screen.getAllByText('Add 10% remaining').length).toBeGreaterThan(1);
+  }, 10000);
+
+  it('Consultancy evaluation edit menu manages subcriteria chips', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /^Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+
+    expect(screen.getByLabelText('Criterion name')).toHaveValue('Methodology and Approach');
+    expect(screen.getByText('Subcriteria')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Custom subcriterion'), 'Knowledge transfer sessions');
+    await user.click(screen.getByRole('button', { name: 'Add Custom' }));
+
+    expect(screen.getAllByText('Knowledge transfer sessions').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Remove Knowledge transfer sessions' }));
+
+    expect(screen.queryByRole('button', { name: 'Remove Knowledge transfer sessions' })).not.toBeInTheDocument();
+  }, 10000);
+
+  it('Consultancy evaluation suggestions hide selected criteria and support custom criteria', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /^Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+
+    expect(screen.getByText('6 criteria')).toBeInTheDocument();
+    expect(screen.getByText('All suggested criteria have been added.')).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete criteria' })[0]);
+
+    expect(screen.getByText('5 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Methodology and Approach/ }));
+
+    expect(screen.getByText('6 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add Custom Criterion' }));
+
+    expect(screen.getByText('7 criteria')).toBeInTheDocument();
+    expect(screen.getByText('Custom Criterion')).toBeInTheDocument();
+  }, 10000);
+
   it('goods evaluation edit menu manages subcriteria chips', async () => {
     const user = userEvent.setup();
     renderCreateTender();
@@ -906,7 +1062,7 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Remove Energy efficiency rating' }));
 
     expect(screen.queryByRole('button', { name: 'Remove Energy efficiency rating' })).not.toBeInTheDocument();
-  });
+  }, 10000);
 
   it('goods evaluation suggestions hide selected criteria and support custom criteria', async () => {
     const user = userEvent.setup();

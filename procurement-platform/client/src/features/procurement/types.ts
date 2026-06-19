@@ -192,6 +192,118 @@ export type CreateTenderServiceSupportingDocumentRow = {
   mandatory: boolean;
 };
 
+export type CreateTenderConsultancyEntityBackgroundCard = {
+  id: string;
+  organizationBackground: string;
+  departmentUnit: string;
+};
+
+export type CreateTenderConsultancySpecificObjectiveRow = {
+  id: string;
+  objectiveTitle: string;
+  objectiveDescription: string;
+  priorityLevel: string;
+};
+
+export type CreateTenderConsultancyAssignmentActivityRow = {
+  id: string;
+  activityTitle: string;
+  detailedDescription: string;
+  expectedOutput: string;
+  location: string;
+  duration: string;
+};
+
+export type CreateTenderConsultancyResponsibilityRow = {
+  id: string;
+  title: string;
+  description: string;
+  supportType: string;
+};
+
+export type CreateTenderConsultancyDeliverableRow = {
+  id: string;
+  deliverableName: string;
+  description: string;
+  submissionTimeline: string;
+  formatRequired: string;
+  reviewer: string;
+  mandatory: boolean;
+};
+
+export type CreateTenderConsultancyReportingRequirementRow = {
+  id: string;
+  reportType: string;
+  frequency: string;
+  submissionFormat: string;
+  submissionChannel: string;
+};
+
+export type CreateTenderConsultancyKeyExpertRow = {
+  id: string;
+  positionTitle: string;
+  minimumQualification: string;
+  yearsOfExperience: string;
+  certifications: string;
+  quantityRequired: string;
+  mandatory: boolean;
+};
+
+export type CreateTenderConsultancySupportingDocumentRow = {
+  id: string;
+  documentTitle: string;
+  category: string;
+  uploadName: string;
+  confidential: boolean;
+};
+
+export type CreateTenderConsultancyExternalReferenceRow = {
+  id: string;
+  referenceName: string;
+  url: string;
+  description: string;
+};
+
+export type CreateTenderConsultancyRequirements = {
+  entityBackgroundCards: CreateTenderConsultancyEntityBackgroundCard[];
+  projectName: string;
+  backgroundNarrative: string;
+  existingChallenges: string;
+  currentSituation: string;
+  relatedInitiatives: string;
+  mainProblemDescription: string;
+  expectedImpact: string;
+  generalObjective: string;
+  specificObjectiveRows: CreateTenderConsultancySpecificObjectiveRow[];
+  assignmentActivityRows: CreateTenderConsultancyAssignmentActivityRow[];
+  outOfScopeActivities: string;
+  clientResponsibilityRows: CreateTenderConsultancyResponsibilityRow[];
+  consultantResponsibilityRows: CreateTenderConsultancyResponsibilityRow[];
+  deliverableRows: CreateTenderConsultancyDeliverableRow[];
+  reportingRequirementRows: CreateTenderConsultancyReportingRequirementRow[];
+  individualProfessionalCertifications: string[];
+  individualCvRequired: string;
+  individualYearsExperience: string;
+  individualSimilarAssignmentsCount: string;
+  individualSimilarAssignmentsEvidenceRequired: string;
+  firmMinimumYearsExperience: string;
+  firmRequiredSimilarAssignments: string;
+  firmSectorExperience: string[];
+  firmRequiredEvidence: string;
+  keyExpertRows: CreateTenderConsultancyKeyExpertRow[];
+  consultantReportsTo: string;
+  supervisingOfficer: string;
+  approvalAuthority: string;
+  meetingFrequency: string;
+  coordinationMechanism: string;
+  communicationMethods: string[];
+  officeSpaceProvided: boolean;
+  accessToFacilities: boolean;
+  accessToDocuments: boolean;
+  supportingDocumentRows: CreateTenderConsultancySupportingDocumentRow[];
+  externalReferenceRows: CreateTenderConsultancyExternalReferenceRow[];
+};
+
 export type CreateTenderServiceRequirements = {
   serviceCategory: string;
   scopeOfServices: string;
@@ -295,6 +407,7 @@ export type CreateTenderDraft = {
   financialRequirements: CreateTenderFinancialRequirementRow[];
   eligibilityRequirements: CreateTenderEligibilityRequirementRow[];
   regulatoryLicenseRequirements: CreateTenderRegulatoryLicenseRequirementRow[];
+  consultancyRequirements: CreateTenderConsultancyRequirements;
   serviceRequirements: CreateTenderServiceRequirements;
   worksRequirements: CreateTenderWorksRequirements;
   deliverables: string[];

@@ -2,15 +2,25 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
-import { createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
+import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { publishSimulatedTender, saveCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import type {
   CreateTenderConfirmationId,
+  CreateTenderConsultancyAssignmentActivityRow,
+  CreateTenderConsultancyDeliverableRow,
   CreateTenderDraft,
   CreateTenderEligibilityRequirementRow,
   CreateTenderEvaluationCriterion,
   CreateTenderFinancialRequirementRow,
+  CreateTenderConsultancyEntityBackgroundCard,
+  CreateTenderConsultancyExternalReferenceRow,
+  CreateTenderConsultancyKeyExpertRow,
+  CreateTenderConsultancyReportingRequirementRow,
+  CreateTenderConsultancyRequirements,
+  CreateTenderConsultancyResponsibilityRow,
+  CreateTenderConsultancySpecificObjectiveRow,
+  CreateTenderConsultancySupportingDocumentRow,
   CreateTenderLineItem,
   CreateTenderProductSpecificationRow,
   CreateTenderProcurementTypeId,
@@ -75,6 +85,18 @@ const serviceEvaluationMethods = ['Pass / fail', 'Scored', 'Document check', 'Ph
 const serviceResponseTypes = ['Upload evidence', 'Describe availability', 'Complete table', 'Confirm compliance'];
 const serviceEsCategories = ['Worker safety', 'SEA/SH', 'Environmental protection', 'Labor compliance', 'Community health and safety'];
 const serviceEsEvidence = ['Policy document', 'Method statement', 'Training record', 'Compliance certificate', 'Incident register'];
+const consultancyDepartmentOptions = ['Procurement Management Unit', 'Finance', 'Planning', 'ICT', 'Engineering', 'Legal', 'User Department', 'Other'];
+const consultancyPriorityOptions = ['High', 'Medium', 'Low'];
+const consultancySupportTypes = ['Office access', 'Document access', 'Meeting coordination', 'Counterpart staff', 'Logistics', 'Data access', 'Other'];
+const consultancyFrequencyOptions = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'On completion', 'Ad hoc'];
+const consultancyReportTypes = ['Weekly progress report', 'Monthly report', 'Inception report', 'Draft report', 'Final report', 'Ad hoc report'];
+const consultancyFormats = ['PDF', 'Word', 'Excel', 'PowerPoint', 'Hard copy', 'Soft copy', 'Other'];
+const consultancyReviewers = ['Project Manager', 'Supervising Officer', 'Accounting Officer', 'Buyer', 'User Department', 'Other'];
+const consultancyEducationLevels = ['Certificate', 'Diploma', 'Bachelor Degree', 'Masters Degree', 'PhD', 'Professional certification', 'Other'];
+const consultancyFirmSectors = ['Public sector', 'Health', 'Education', 'Infrastructure', 'ICT', 'Finance', 'Environment', 'Energy', 'Water', 'Transport', 'Agriculture', 'Research'];
+const consultancyAuthorities = ['Project Manager', 'Supervising Officer', 'Accounting Officer', 'User Department', 'Steering Committee', 'Tender Board', 'Other'];
+const consultancyCommunicationMethods = ['Email', 'Procurement portal', 'Physical meetings', 'Virtual meetings', 'Phone', 'Official letters'];
+const consultancyDocumentCategories = ['Existing reports', 'Policy documents', 'Architectural drawings', 'Baseline studies', 'Previous assessments', 'Other'];
 const worksContractTypeDescriptions: Record<string, string> = {
   'Lump Sum Contract': 'A single total price is agreed for the whole work or project.',
   'Unit Price Contract': 'Payment is based on measured quantities completed.',
@@ -379,8 +401,9 @@ export function CreateTenderProcurexPage() {
     setDraft((current) => ({
       ...current,
       ...patch,
-      serviceRequirements: patch.serviceRequirements ? { ...current.serviceRequirements, ...patch.serviceRequirements } : current.serviceRequirements,
-      worksRequirements: patch.worksRequirements ? { ...current.worksRequirements, ...patch.worksRequirements } : current.worksRequirements,
+      consultancyRequirements: patch.consultancyRequirements ? { ...(current.consultancyRequirements ?? createEmptyConsultancyRequirements()), ...patch.consultancyRequirements } : current.consultancyRequirements,
+      serviceRequirements: patch.serviceRequirements ? { ...(current.serviceRequirements ?? createEmptyServiceRequirements()), ...patch.serviceRequirements } : current.serviceRequirements,
+      worksRequirements: patch.worksRequirements ? { ...(current.worksRequirements ?? createEmptyWorksRequirements()), ...patch.worksRequirements } : current.worksRequirements,
       updatedAt: new Date().toISOString()
     }));
   }
@@ -1332,6 +1355,19 @@ function RequirementsStep({
     );
   }
 
+  if (draft.procurementTypeId === 'consultancy') {
+    return (
+      <ConsultancyRequirementsStep
+        draft={draft}
+        onPatch={onPatch}
+        onAddFinancialRequirement={addFinancialRequirement}
+        onUpdateFinancialRequirement={updateFinancialRequirement}
+        onDeleteFinancialRequirement={deleteFinancialRequirement}
+        regulatoryLicensePanel={regulatoryLicensePanel}
+      />
+    );
+  }
+
   if (draft.procurementTypeId === 'goods') {
     function importGoodsQuantitySchedule(file: File | undefined) {
       if (!file) return;
@@ -2017,6 +2053,603 @@ function RequirementsStep({
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function ConsultancyRequirementsStep({
+  draft,
+  onPatch,
+  onAddFinancialRequirement,
+  onUpdateFinancialRequirement,
+  onDeleteFinancialRequirement,
+  regulatoryLicensePanel
+}: {
+  draft: CreateTenderDraft;
+  onPatch: (patch: Partial<CreateTenderDraft>) => void;
+  onAddFinancialRequirement: () => void;
+  onUpdateFinancialRequirement: (rowId: string, patch: Partial<CreateTenderFinancialRequirementRow>) => void;
+  onDeleteFinancialRequirement: (rowId: string) => void;
+  regulatoryLicensePanel: ReactNode;
+}) {
+  const consultancy = draft.consultancyRequirements ?? createEmptyConsultancyRequirements();
+
+  function patchConsultancy(patch: Partial<CreateTenderConsultancyRequirements>) {
+    onPatch({ consultancyRequirements: patch as CreateTenderConsultancyRequirements });
+  }
+
+  function addEntityBackground() {
+    patchConsultancy({ entityBackgroundCards: [...consultancy.entityBackgroundCards, { id: createRowId('consultancy-background'), organizationBackground: '', departmentUnit: '' }] });
+  }
+
+  function updateEntityBackground(rowId: string, patch: Partial<CreateTenderConsultancyEntityBackgroundCard>) {
+    patchConsultancy({ entityBackgroundCards: consultancy.entityBackgroundCards.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addSpecificObjective() {
+    patchConsultancy({ specificObjectiveRows: [...consultancy.specificObjectiveRows, { id: createRowId('consultancy-objective'), objectiveTitle: '', objectiveDescription: '', priorityLevel: '' }] });
+  }
+
+  function updateSpecificObjective(rowId: string, patch: Partial<CreateTenderConsultancySpecificObjectiveRow>) {
+    patchConsultancy({ specificObjectiveRows: consultancy.specificObjectiveRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addAssignmentActivity() {
+    patchConsultancy({
+      assignmentActivityRows: [...consultancy.assignmentActivityRows, { id: createRowId('consultancy-activity'), activityTitle: '', detailedDescription: '', expectedOutput: '', location: '', duration: '' }]
+    });
+  }
+
+  function updateAssignmentActivity(rowId: string, patch: Partial<CreateTenderConsultancyAssignmentActivityRow>) {
+    patchConsultancy({ assignmentActivityRows: consultancy.assignmentActivityRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addResponsibility(type: 'clientResponsibilityRows' | 'consultantResponsibilityRows') {
+    patchConsultancy({ [type]: [...consultancy[type], { id: createRowId(type), title: '', description: '', supportType: '' }] } as Partial<CreateTenderConsultancyRequirements>);
+  }
+
+  function updateResponsibility(type: 'clientResponsibilityRows' | 'consultantResponsibilityRows', rowId: string, patch: Partial<CreateTenderConsultancyResponsibilityRow>) {
+    patchConsultancy({ [type]: consultancy[type].map((row) => (row.id === rowId ? { ...row, ...patch } : row)) } as Partial<CreateTenderConsultancyRequirements>);
+  }
+
+  function addConsultancyDeliverable() {
+    patchConsultancy({
+      deliverableRows: [
+        ...consultancy.deliverableRows,
+        { id: createRowId('consultancy-deliverable'), deliverableName: '', description: '', submissionTimeline: '', formatRequired: '', reviewer: '', mandatory: true }
+      ]
+    });
+  }
+
+  function updateConsultancyDeliverable(rowId: string, patch: Partial<CreateTenderConsultancyDeliverableRow>) {
+    patchConsultancy({ deliverableRows: consultancy.deliverableRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addReportingRequirement() {
+    patchConsultancy({
+      reportingRequirementRows: [...consultancy.reportingRequirementRows, { id: createRowId('consultancy-report'), reportType: '', frequency: '', submissionFormat: '', submissionChannel: '' }]
+    });
+  }
+
+  function updateReportingRequirement(rowId: string, patch: Partial<CreateTenderConsultancyReportingRequirementRow>) {
+    patchConsultancy({ reportingRequirementRows: consultancy.reportingRequirementRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addKeyExpert() {
+    patchConsultancy({
+      keyExpertRows: [...consultancy.keyExpertRows, { id: createRowId('consultancy-key-expert'), positionTitle: '', minimumQualification: '', yearsOfExperience: '', certifications: '', quantityRequired: '', mandatory: true }]
+    });
+  }
+
+  function updateKeyExpert(rowId: string, patch: Partial<CreateTenderConsultancyKeyExpertRow>) {
+    patchConsultancy({ keyExpertRows: consultancy.keyExpertRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addSupportingDocument() {
+    patchConsultancy({ supportingDocumentRows: [...consultancy.supportingDocumentRows, { id: createRowId('consultancy-document'), documentTitle: '', category: '', uploadName: '', confidential: false }] });
+  }
+
+  function updateSupportingDocument(rowId: string, patch: Partial<CreateTenderConsultancySupportingDocumentRow>) {
+    patchConsultancy({ supportingDocumentRows: consultancy.supportingDocumentRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addExternalReference() {
+    patchConsultancy({ externalReferenceRows: [...consultancy.externalReferenceRows, { id: createRowId('consultancy-reference'), referenceName: '', url: '', description: '' }] });
+  }
+
+  function updateExternalReference(rowId: string, patch: Partial<CreateTenderConsultancyExternalReferenceRow>) {
+    patchConsultancy({ externalReferenceRows: consultancy.externalReferenceRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addStringItem(key: 'individualProfessionalCertifications' | 'firmSectorExperience' | 'communicationMethods') {
+    patchConsultancy({ [key]: [...consultancy[key], ''] } as Partial<CreateTenderConsultancyRequirements>);
+  }
+
+  function updateStringItem(key: 'individualProfessionalCertifications' | 'firmSectorExperience' | 'communicationMethods', index: number, value: string) {
+    patchConsultancy({ [key]: consultancy[key].map((item, itemIndex) => (itemIndex === index ? value : item)) } as Partial<CreateTenderConsultancyRequirements>);
+  }
+
+  const renderStringList = (key: 'individualProfessionalCertifications' | 'firmSectorExperience' | 'communicationMethods', label: string, options: string[]) => (
+    <div className="repeatable-list-control">
+      <div className="scope-list-heading compact">
+        <span className="form-label">{label}</span>
+        <button className="btn btn-secondary" type="button" onClick={() => addStringItem(key)}>
+          Add
+        </button>
+      </div>
+      {consultancy[key].length ? (
+        consultancy[key].map((item, index) => (
+          <select key={`${key}-${index}`} className="form-input" value={item} onChange={(event) => updateStringItem(key, index, event.target.value)} aria-label={`${label} ${index + 1}`}>
+            <option value="">Select</option>
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        ))
+      ) : (
+        <span className="scope-empty">No {label.toLowerCase()} added yet.</span>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="wizard-step-surface requirements-step-surface consultancy-requirements-step">
+      <div className="consultancy-tor-workspace">
+        <div className="consultancy-tor-main">
+          <div className="consultancy-tor-header">
+            <div>
+              <span className="section-kicker">Structured assignment-definition workspace</span>
+              <h3>Consultancy Procurement TOR</h3>
+            </div>
+            <span className="badge badge-info">Financial Proposal</span>
+          </div>
+
+          <div className="requirement-section-grid">
+            <article className="requirement-block" id="requirement-section-consultancyIntroduction">
+              <div>
+                <h4>1. Introduction</h4>
+                <span className="form-hint">Provides assignment background, procuring entity context, project background, and the problem statement.</span>
+              </div>
+              <div className="requirement-control-grid">
+                <div className="requirement-control requirement-control-wide">
+                  <div className="scope-list-heading">
+                    <span className="form-label">1.1 Procuring Entity Background</span>
+                    <button className="btn btn-secondary" type="button" onClick={addEntityBackground}>
+                      Add Entity Background
+                    </button>
+                  </div>
+                  {consultancy.entityBackgroundCards.length ? (
+                    <div className="requirement-card-list">
+                      {consultancy.entityBackgroundCards.map((row, index) => (
+                        <article key={row.id} className="requirement-repeater-card">
+                          <label>
+                            <span className="form-label">Organization Background</span>
+                            <textarea className="form-input" value={row.organizationBackground} onChange={(event) => updateEntityBackground(row.id, { organizationBackground: event.target.value })} aria-label={`Organization Background ${index + 1}`} />
+                          </label>
+                          <label>
+                            <span className="form-label">Department / Unit</span>
+                            <select className="form-input" value={row.departmentUnit} onChange={(event) => updateEntityBackground(row.id, { departmentUnit: event.target.value })} aria-label={`Department / Unit ${index + 1}`}>
+                              <option value="">Select</option>
+                              {consultancyDepartmentOptions.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="scope-empty">No procuring entity background captured yet.</div>
+                  )}
+                </div>
+                <div className="requirement-control requirement-control-wide">
+                  <div className="scope-list-heading">
+                    <span className="form-label">1.2 Project Background</span>
+                  </div>
+                  <div className="requirement-accordion">
+                    <details className="requirement-accordion-item" open>
+                      <summary>Project Name</summary>
+                      <input className="form-input" value={consultancy.projectName} onChange={(event) => patchConsultancy({ projectName: event.target.value })} aria-label="Project Name" />
+                    </details>
+                    <details className="requirement-accordion-item">
+                      <summary>Background Narrative</summary>
+                      <textarea className="form-input requirement-rich-input" rows={5} value={consultancy.backgroundNarrative} onChange={(event) => patchConsultancy({ backgroundNarrative: event.target.value })} aria-label="Background Narrative" />
+                    </details>
+                    <details className="requirement-accordion-item">
+                      <summary>Existing Challenges</summary>
+                      <textarea className="form-input requirement-rich-input" rows={5} value={consultancy.existingChallenges} onChange={(event) => patchConsultancy({ existingChallenges: event.target.value })} aria-label="Existing Challenges" />
+                    </details>
+                    <details className="requirement-accordion-item">
+                      <summary>Current Situation</summary>
+                      <textarea className="form-input requirement-rich-input" rows={5} value={consultancy.currentSituation} onChange={(event) => patchConsultancy({ currentSituation: event.target.value })} aria-label="Current Situation" />
+                    </details>
+                    <details className="requirement-accordion-item">
+                      <summary>Related Initiatives</summary>
+                      <textarea className="form-input requirement-rich-input" rows={5} value={consultancy.relatedInitiatives} onChange={(event) => patchConsultancy({ relatedInitiatives: event.target.value })} aria-label="Related Initiatives" />
+                    </details>
+                  </div>
+                </div>
+                <div className="requirement-control requirement-control-wide">
+                  <div className="scope-list-heading">
+                    <span className="form-label">1.3 Problem Statement</span>
+                  </div>
+                  <div className="requirement-accordion">
+                    <details className="requirement-accordion-item" open>
+                      <summary>Main Problem Description</summary>
+                      <textarea className="form-input requirement-rich-input" rows={5} value={consultancy.mainProblemDescription} onChange={(event) => patchConsultancy({ mainProblemDescription: event.target.value })} aria-label="Main Problem Description" />
+                    </details>
+                    <details className="requirement-accordion-item">
+                      <summary>Expected Impact</summary>
+                      <textarea className="form-input requirement-rich-input" rows={5} value={consultancy.expectedImpact} onChange={(event) => patchConsultancy({ expectedImpact: event.target.value })} aria-label="Expected Impact" />
+                    </details>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article className="requirement-block" id="requirement-section-consultancyObjectives">
+              <div>
+                <h4>2. Objectives of the Consultancy</h4>
+                <span className="form-hint">Defines the general objective and specific outcomes expected from the assignment.</span>
+              </div>
+              <div className="requirement-control-grid">
+                <label className="requirement-control requirement-control-wide">
+                  <span className="form-label">2.1 General Objective</span>
+                  <textarea className="form-input" value={consultancy.generalObjective} onChange={(event) => patchConsultancy({ generalObjective: event.target.value })} aria-label="General Objective" />
+                </label>
+                <div className="requirement-control requirement-control-wide">
+                  <div className="scope-list-heading">
+                    <span className="form-label">2.2 Specific Objectives</span>
+                    <button className="btn btn-secondary" type="button" onClick={addSpecificObjective}>
+                      Add Objective
+                    </button>
+                  </div>
+                  {consultancy.specificObjectiveRows.length ? (
+                    <div className="requirement-card-list">
+                      {consultancy.specificObjectiveRows.map((row, index) => (
+                        <article key={row.id} className="requirement-repeater-card">
+                          <input className="form-input" placeholder="Objective Title" value={row.objectiveTitle} onChange={(event) => updateSpecificObjective(row.id, { objectiveTitle: event.target.value })} aria-label={`Objective Title ${index + 1}`} />
+                          <textarea className="form-input" placeholder="Objective Description" value={row.objectiveDescription} onChange={(event) => updateSpecificObjective(row.id, { objectiveDescription: event.target.value })} aria-label={`Objective Description ${index + 1}`} />
+                          <select className="form-input" value={row.priorityLevel} onChange={(event) => updateSpecificObjective(row.id, { priorityLevel: event.target.value })} aria-label={`Priority Level ${index + 1}`}>
+                            <option value="">Priority Level</option>
+                            {consultancyPriorityOptions.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="scope-empty">No specific objectives added yet.</div>
+                  )}
+                </div>
+              </div>
+            </article>
+
+            <article className="requirement-block" id="requirement-section-consultancyScopeServices">
+              <div>
+                <h4>3. Scope of Consultancy Services</h4>
+                <span className="form-hint">Defines assignment activities and assignment boundaries.</span>
+              </div>
+              <div className="requirement-control requirement-control-wide">
+                <div className="scope-list-heading">
+                  <span className="form-label">3.1 Assignment Activities</span>
+                  <button className="btn btn-secondary" type="button" onClick={addAssignmentActivity}>
+                    Add Activity
+                  </button>
+                </div>
+                <div className="requirement-table-wrap">
+                  <table className="requirement-table">
+                    <thead>
+                      <tr>
+                        <th>Activity Title</th>
+                        <th>Detailed Description</th>
+                        <th>Expected Output</th>
+                        <th>Location</th>
+                        <th>Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {consultancy.assignmentActivityRows.length ? (
+                        consultancy.assignmentActivityRows.map((row, index) => (
+                          <tr key={row.id}>
+                            <td><input className="form-input" value={row.activityTitle} onChange={(event) => updateAssignmentActivity(row.id, { activityTitle: event.target.value })} aria-label={`Activity Title ${index + 1}`} /></td>
+                            <td><textarea className="form-input" value={row.detailedDescription} onChange={(event) => updateAssignmentActivity(row.id, { detailedDescription: event.target.value })} aria-label={`Detailed Description ${index + 1}`} /></td>
+                            <td><input className="form-input" value={row.expectedOutput} onChange={(event) => updateAssignmentActivity(row.id, { expectedOutput: event.target.value })} aria-label={`Expected Output ${index + 1}`} /></td>
+                            <td><input className="form-input" value={row.location} onChange={(event) => updateAssignmentActivity(row.id, { location: event.target.value })} aria-label={`Activity Location ${index + 1}`} /></td>
+                            <td><input className="form-input" type="number" value={row.duration} onChange={(event) => updateAssignmentActivity(row.id, { duration: event.target.value })} aria-label={`Activity Duration ${index + 1}`} /></td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr><td colSpan={5}>No assignment activities added yet.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <label>
+                  <span className="form-label">3.2 Assignment Boundaries - Out-of-Scope Activities</span>
+                  <textarea className="form-input" value={consultancy.outOfScopeActivities} onChange={(event) => patchConsultancy({ outOfScopeActivities: event.target.value })} aria-label="Out-of-Scope Activities" />
+                </label>
+              </div>
+            </article>
+
+            <article className="requirement-block" id="requirement-section-consultancyResponsibilities">
+              <div>
+                <h4>4. Duties and Responsibilities of the Parties</h4>
+                <span className="form-hint">Defines obligations of the client and consultant.</span>
+              </div>
+              {(['clientResponsibilityRows', 'consultantResponsibilityRows'] as const).map((key) => (
+                <div key={key} className="requirement-control requirement-control-wide">
+                  <div className="scope-list-heading">
+                    <span className="form-label">{key === 'clientResponsibilityRows' ? '4.1 Client Responsibilities' : '4.2 Consultant Responsibilities'}</span>
+                    <button className="btn btn-secondary" type="button" onClick={() => addResponsibility(key)}>
+                      {key === 'clientResponsibilityRows' ? 'Add Client Responsibility' : 'Add Consultant Responsibility'}
+                    </button>
+                  </div>
+                  {consultancy[key].length ? (
+                    <div className="requirement-card-list">
+                      {consultancy[key].map((row, index) => (
+                        <article key={row.id} className="requirement-repeater-card">
+                          <input className="form-input" placeholder={key === 'clientResponsibilityRows' ? 'Responsibility Title' : 'Responsibility'} value={row.title} onChange={(event) => updateResponsibility(key, row.id, { title: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility ${index + 1}`} />
+                          <textarea className="form-input" placeholder="Description" value={row.description} onChange={(event) => updateResponsibility(key, row.id, { description: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility Description ${index + 1}`} />
+                          <select className="form-input" value={row.supportType} onChange={(event) => updateResponsibility(key, row.id, { supportType: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility Support Type ${index + 1}`}>
+                            <option value="">Support Type</option>
+                            {consultancySupportTypes.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="scope-empty">No {key === 'clientResponsibilityRows' ? 'client' : 'consultant'} responsibilities added yet.</div>
+                  )}
+                </div>
+              ))}
+            </article>
+
+            <article className="requirement-block" id="requirement-section-consultancyDeliverablesTimeline">
+              <div>
+                <h4>5. Deliverables and Timeline</h4>
+                <span className="form-hint">Defines expected outputs and reporting requirements.</span>
+              </div>
+              <div className="requirement-control requirement-control-wide">
+                <div className="scope-list-heading">
+                  <span className="form-label">5.1 Deliverables</span>
+                  <button className="btn btn-secondary" type="button" onClick={addConsultancyDeliverable}>
+                    Add Deliverable
+                  </button>
+                </div>
+                <div className="requirement-table-wrap">
+                  <table className="requirement-table">
+                    <thead>
+                      <tr>
+                        <th>Deliverable Name</th>
+                        <th>Description</th>
+                        <th>Submission Timeline</th>
+                        <th>Format Required</th>
+                        <th>Reviewer</th>
+                        <th>Mandatory</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {consultancy.deliverableRows.length ? (
+                        consultancy.deliverableRows.map((row, index) => (
+                          <tr key={row.id}>
+                            <td><input className="form-input" value={row.deliverableName} onChange={(event) => updateConsultancyDeliverable(row.id, { deliverableName: event.target.value })} aria-label={`Deliverable Name ${index + 1}`} /></td>
+                            <td><textarea className="form-input" value={row.description} onChange={(event) => updateConsultancyDeliverable(row.id, { description: event.target.value })} aria-label={`Deliverable Description ${index + 1}`} /></td>
+                            <td><input className="form-input" value={row.submissionTimeline} onChange={(event) => updateConsultancyDeliverable(row.id, { submissionTimeline: event.target.value })} aria-label={`Submission Timeline ${index + 1}`} /></td>
+                            <td><select className="form-input" value={row.formatRequired} onChange={(event) => updateConsultancyDeliverable(row.id, { formatRequired: event.target.value })} aria-label={`Format Required ${index + 1}`}><option value="">Select</option>{consultancyFormats.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                            <td><select className="form-input" value={row.reviewer} onChange={(event) => updateConsultancyDeliverable(row.id, { reviewer: event.target.value })} aria-label={`Reviewer ${index + 1}`}><option value="">Select</option>{consultancyReviewers.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                            <td><input type="checkbox" checked={row.mandatory} onChange={(event) => updateConsultancyDeliverable(row.id, { mandatory: event.target.checked })} aria-label={`Deliverable Mandatory ${index + 1}`} /></td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr><td colSpan={6}>No deliverables added yet.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="requirement-control requirement-control-wide">
+                <div className="scope-list-heading">
+                  <span className="form-label">5.2 Reporting Requirements</span>
+                  <button className="btn btn-secondary" type="button" onClick={addReportingRequirement}>
+                    Add Reporting Requirement
+                  </button>
+                </div>
+                <div className="requirement-table-wrap">
+                  <table className="requirement-table">
+                    <thead><tr><th>Report Type</th><th>Frequency</th><th>Submission Format</th><th>Submission Channel</th></tr></thead>
+                    <tbody>
+                      {consultancy.reportingRequirementRows.length ? (
+                        consultancy.reportingRequirementRows.map((row, index) => (
+                          <tr key={row.id}>
+                            <td><select className="form-input" value={row.reportType} onChange={(event) => updateReportingRequirement(row.id, { reportType: event.target.value })} aria-label={`Report Type ${index + 1}`}><option value="">Select</option>{consultancyReportTypes.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                            <td><select className="form-input" value={row.frequency} onChange={(event) => updateReportingRequirement(row.id, { frequency: event.target.value })} aria-label={`Reporting Frequency ${index + 1}`}><option value="">Select</option>{consultancyFrequencyOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                            <td><select className="form-input" value={row.submissionFormat} onChange={(event) => updateReportingRequirement(row.id, { submissionFormat: event.target.value })} aria-label={`Submission Format ${index + 1}`}><option value="">Select</option>{consultancyFormats.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                            <td><input className="form-input" value={row.submissionChannel} onChange={(event) => updateReportingRequirement(row.id, { submissionChannel: event.target.value })} aria-label={`Submission Channel ${index + 1}`} /></td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr><td colSpan={4}>No reporting requirements added yet.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </article>
+
+            <article className="requirement-block" id="requirement-section-consultancyQualificationsExperience">
+              <div>
+                <h4>6. Required Qualifications and Experience</h4>
+                <span className="form-hint">Separates requirements for individual consultants or sole proprietors from consulting firms.</span>
+              </div>
+              <div className="requirement-control-grid">
+                <article className="requirement-control requirement-repeater-card">
+                  <span className="form-label">6.1 Individual / Sole Proprietor</span>
+                  {renderStringList('individualProfessionalCertifications', 'Professional Registration / Certifications', ['CPA', 'PE', 'PMP', 'CISA', 'Registered Engineer', 'Registered Architect', 'Other'])}
+                  <label><span className="form-label">CV</span><select className="form-input" value={consultancy.individualCvRequired} onChange={(event) => patchConsultancy({ individualCvRequired: event.target.value })} aria-label="Individual CV"><option>Required</option><option>Not required</option></select></label>
+                  <label><span className="form-label">Years of Experience</span><input className="form-input" type="number" value={consultancy.individualYearsExperience} onChange={(event) => patchConsultancy({ individualYearsExperience: event.target.value })} aria-label="Individual Years of Experience" /></label>
+                  <label><span className="form-label">Number of Similar Assignments</span><input className="form-input" type="number" value={consultancy.individualSimilarAssignmentsCount} onChange={(event) => patchConsultancy({ individualSimilarAssignmentsCount: event.target.value })} aria-label="Individual Similar Assignments" /></label>
+                  <label><span className="form-label">Similar Assignment Evidence</span><select className="form-input" value={consultancy.individualSimilarAssignmentsEvidenceRequired} onChange={(event) => patchConsultancy({ individualSimilarAssignmentsEvidenceRequired: event.target.value })} aria-label="Individual Similar Assignment Evidence"><option>Required</option><option>Not required</option></select></label>
+                </article>
+                <article className="requirement-control requirement-repeater-card">
+                  <span className="form-label">6.2 Consulting Firm - Firm Experience</span>
+                  <label><span className="form-label">Minimum Years Experience</span><input className="form-input" type="number" value={consultancy.firmMinimumYearsExperience} onChange={(event) => patchConsultancy({ firmMinimumYearsExperience: event.target.value })} aria-label="Firm Minimum Years Experience" /></label>
+                  <label><span className="form-label">Number of Similar Assignments</span><input className="form-input" type="number" value={consultancy.firmRequiredSimilarAssignments} onChange={(event) => patchConsultancy({ firmRequiredSimilarAssignments: event.target.value })} aria-label="Firm Similar Assignments" /></label>
+                  {renderStringList('firmSectorExperience', 'Sector Experience', consultancyFirmSectors)}
+                  <label><span className="form-label">Similar Assignments Evidence</span><select className="form-input" value={consultancy.firmRequiredEvidence} onChange={(event) => patchConsultancy({ firmRequiredEvidence: event.target.value })} aria-label="Firm Similar Assignments Evidence"><option>Required</option><option>Not required</option></select></label>
+                </article>
+                <div className="requirement-control requirement-control-wide">
+                  <div className="scope-list-heading">
+                    <span className="form-label">Consulting Firm - Key Personnel</span>
+                    <button className="btn btn-secondary" type="button" onClick={addKeyExpert}>
+                      Add Key Personnel
+                    </button>
+                  </div>
+                  <div className="requirement-table-wrap">
+                    <table className="requirement-table">
+                      <thead><tr><th>Position Title</th><th>Minimum Qualification</th><th>Years</th><th>Certifications</th><th>Quantity</th><th>Mandatory</th></tr></thead>
+                      <tbody>
+                        {consultancy.keyExpertRows.length ? (
+                          consultancy.keyExpertRows.map((row, index) => (
+                            <tr key={row.id}>
+                              <td><input className="form-input" value={row.positionTitle} onChange={(event) => updateKeyExpert(row.id, { positionTitle: event.target.value })} aria-label={`Key Personnel Position Title ${index + 1}`} /></td>
+                              <td><select className="form-input" value={row.minimumQualification} onChange={(event) => updateKeyExpert(row.id, { minimumQualification: event.target.value })} aria-label={`Key Personnel Minimum Qualification ${index + 1}`}><option value="">Select</option>{consultancyEducationLevels.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                              <td><input className="form-input" type="number" value={row.yearsOfExperience} onChange={(event) => updateKeyExpert(row.id, { yearsOfExperience: event.target.value })} aria-label={`Key Personnel Years of Experience ${index + 1}`} /></td>
+                              <td><input className="form-input" value={row.certifications} onChange={(event) => updateKeyExpert(row.id, { certifications: event.target.value })} aria-label={`Key Personnel Certifications ${index + 1}`} /></td>
+                              <td><input className="form-input" type="number" value={row.quantityRequired} onChange={(event) => updateKeyExpert(row.id, { quantityRequired: event.target.value })} aria-label={`Key Personnel Quantity Required ${index + 1}`} /></td>
+                              <td><input type="checkbox" checked={row.mandatory} onChange={(event) => updateKeyExpert(row.id, { mandatory: event.target.checked })} aria-label={`Key Personnel Mandatory ${index + 1}`} /></td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan={6}>No key personnel added yet.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="requirement-control requirement-control-wide">{regulatoryLicensePanel}</div>
+              </div>
+            </article>
+
+            <article className="requirement-block" id="requirement-section-financialCapacity">
+              <div className="scope-list-heading">
+                <div>
+                  <h4>Financial Capacity</h4>
+                  <span className="form-hint">Add minimum financial evidence required for consultant eligibility.</span>
+                </div>
+                <button className="btn btn-secondary" type="button" onClick={onAddFinancialRequirement}>
+                  Add Financial Requirement
+                </button>
+              </div>
+              <div className="requirement-table-wrap">
+                <table className="requirement-table">
+                  <thead><tr><th>Requirement type</th><th>Minimum value</th><th>Period</th><th>Evidence</th><th>Mandatory</th><th></th></tr></thead>
+                  <tbody>
+                    {draft.financialRequirements.length ? (
+                      draft.financialRequirements.map((row, index) => (
+                        <tr key={row.id}>
+                          <td><select className="form-input" value={row.requirementType} onChange={(event) => onUpdateFinancialRequirement(row.id, { requirementType: event.target.value })} aria-label={`Consultancy requirement type ${index + 1}`}><option value="">Select</option>{financialRequirementTypes.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                          <td><input className="form-input" value={row.minimumValue} onChange={(event) => onUpdateFinancialRequirement(row.id, { minimumValue: event.target.value })} aria-label={`Consultancy minimum value ${index + 1}`} /></td>
+                          <td><select className="form-input" value={row.period} onChange={(event) => onUpdateFinancialRequirement(row.id, { period: event.target.value })} aria-label={`Consultancy financial period ${index + 1}`}><option value="">Select</option>{financialPeriods.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                          <td><select className="form-input" value={row.evidenceRequired} onChange={(event) => onUpdateFinancialRequirement(row.id, { evidenceRequired: event.target.value })} aria-label={`Consultancy evidence required ${index + 1}`}><option value="">Select</option>{financialEvidence.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                          <td><input type="checkbox" checked={row.mandatory} onChange={(event) => onUpdateFinancialRequirement(row.id, { mandatory: event.target.checked })} aria-label={`Consultancy financial mandatory ${index + 1}`} /></td>
+                          <td><button className="boq-row-action icon-delete-btn" type="button" onClick={() => onDeleteFinancialRequirement(row.id)} aria-label="Delete consultancy financial requirement">x</button></td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={6}>No financial requirements added yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <article className="requirement-block" id="requirement-section-consultancyInstitutionalArrangements">
+              <div>
+                <h4>7. Institutional and Organizational Arrangements</h4>
+                <span className="form-hint">Defines reporting hierarchy, coordination arrangements, and administrative support.</span>
+              </div>
+              <div className="requirement-control-grid">
+                <label><span className="form-label">Consultant Reports To</span><select className="form-input" value={consultancy.consultantReportsTo} onChange={(event) => patchConsultancy({ consultantReportsTo: event.target.value })} aria-label="Consultant Reports To"><option value="">Select</option>{consultancyAuthorities.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                <label><span className="form-label">Supervising Officer</span><select className="form-input" value={consultancy.supervisingOfficer} onChange={(event) => patchConsultancy({ supervisingOfficer: event.target.value })} aria-label="Supervising Officer"><option value="">Select</option>{consultancyAuthorities.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                <label><span className="form-label">Approval Authority</span><select className="form-input" value={consultancy.approvalAuthority} onChange={(event) => patchConsultancy({ approvalAuthority: event.target.value })} aria-label="Approval Authority"><option value="">Select</option>{consultancyAuthorities.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                <label><span className="form-label">Meeting Frequency</span><select className="form-input" value={consultancy.meetingFrequency} onChange={(event) => patchConsultancy({ meetingFrequency: event.target.value })} aria-label="Meeting Frequency"><option value="">Select</option>{consultancyFrequencyOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                <label className="requirement-control-wide"><span className="form-label">Coordination Mechanism</span><textarea className="form-input" value={consultancy.coordinationMechanism} onChange={(event) => patchConsultancy({ coordinationMechanism: event.target.value })} aria-label="Coordination Mechanism" /></label>
+                <div className="requirement-control-wide">{renderStringList('communicationMethods', 'Communication Method', consultancyCommunicationMethods)}</div>
+                <label className="confirm-action"><input type="checkbox" className="confirm-action-input" checked={consultancy.officeSpaceProvided} onChange={(event) => patchConsultancy({ officeSpaceProvided: event.target.checked })} /> <span>Office Space Provided</span></label>
+                <label className="confirm-action"><input type="checkbox" className="confirm-action-input" checked={consultancy.accessToFacilities} onChange={(event) => patchConsultancy({ accessToFacilities: event.target.checked })} /> <span>Access to Facilities</span></label>
+                <label className="confirm-action"><input type="checkbox" className="confirm-action-input" checked={consultancy.accessToDocuments} onChange={(event) => patchConsultancy({ accessToDocuments: event.target.checked })} /> <span>Access to Documents</span></label>
+              </div>
+            </article>
+
+            <article className="requirement-block" id="requirement-section-consultancyAttachmentsReferences">
+              <div>
+                <h4>8. Attachments and Reference Documents</h4>
+                <span className="form-hint">Supports consultants with background materials, policy documents, studies, drawings, and external references.</span>
+              </div>
+              <div className="requirement-control requirement-control-wide">
+                <div className="scope-list-heading">
+                  <span className="form-label">8.1 Supporting Documents</span>
+                  <button className="btn btn-secondary" type="button" onClick={addSupportingDocument}>
+                    Add Supporting Document
+                  </button>
+                </div>
+                <div className="requirement-table-wrap">
+                  <table className="requirement-table">
+                    <thead><tr><th>Document Title</th><th>File Upload</th><th>Category</th><th>Confidential</th></tr></thead>
+                    <tbody>
+                      {consultancy.supportingDocumentRows.length ? (
+                        consultancy.supportingDocumentRows.map((row, index) => (
+                          <tr key={row.id}>
+                            <td><input className="form-input" value={row.documentTitle} onChange={(event) => updateSupportingDocument(row.id, { documentTitle: event.target.value })} aria-label={`Consultancy Document Title ${index + 1}`} /></td>
+                            <td><input className="form-input" value={row.uploadName} onChange={(event) => updateSupportingDocument(row.id, { uploadName: event.target.value })} aria-label={`Consultancy File Upload ${index + 1}`} placeholder="Filename" /></td>
+                            <td><select className="form-input" value={row.category} onChange={(event) => updateSupportingDocument(row.id, { category: event.target.value })} aria-label={`Consultancy Document Category ${index + 1}`}><option value="">Select</option>{consultancyDocumentCategories.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                            <td><input type="checkbox" checked={row.confidential} onChange={(event) => updateSupportingDocument(row.id, { confidential: event.target.checked })} aria-label={`Consultancy Document Confidential ${index + 1}`} /></td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr><td colSpan={4}>No supporting documents added yet.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="requirement-control requirement-control-wide">
+                <div className="scope-list-heading">
+                  <span className="form-label">8.2 External References</span>
+                  <button className="btn btn-secondary" type="button" onClick={addExternalReference}>
+                    Add External Reference
+                  </button>
+                </div>
+                {consultancy.externalReferenceRows.length ? (
+                  <div className="requirement-card-list">
+                    {consultancy.externalReferenceRows.map((row, index) => (
+                      <article key={row.id} className="requirement-repeater-card">
+                        <input className="form-input" placeholder="Reference Name" value={row.referenceName} onChange={(event) => updateExternalReference(row.id, { referenceName: event.target.value })} aria-label={`External Reference Name ${index + 1}`} />
+                        <input className="form-input" placeholder="URL" value={row.url} onChange={(event) => updateExternalReference(row.id, { url: event.target.value })} aria-label={`External Reference URL ${index + 1}`} />
+                        <textarea className="form-input" placeholder="Description" value={row.description} onChange={(event) => updateExternalReference(row.id, { description: event.target.value })} aria-label={`External Reference Description ${index + 1}`} />
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="scope-empty">No external references added yet.</div>
+                )}
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3241,7 +3874,7 @@ function EvaluationStep({
   const [subcriteriaPicker, setSubcriteriaPicker] = useState<Record<string, string>>({});
   const [customSubcriteria, setCustomSubcriteria] = useState<Record<string, string>>({});
 
-  if (draft.procurementTypeId === 'goods' || draft.procurementTypeId === 'works' || draft.procurementTypeId === 'services') {
+  if (draft.procurementTypeId === 'goods' || draft.procurementTypeId === 'works' || draft.procurementTypeId === 'services' || draft.procurementTypeId === 'consultancy') {
     const summary = getEvaluationSummary(draft.evaluationCriteria);
     const selectedIds = new Set(draft.evaluationCriteria.map((criterion) => criterion.id));
     const availableSuggestions = suggestions.filter((criterion) => !selectedIds.has(criterion.id));
@@ -3628,6 +4261,7 @@ function ReviewStep({
   };
   const fundingSource = draft.fundingSource === 'Other' ? draft.customFundingSource || 'Other' : draft.fundingSource;
   const requirementEntries = Object.entries(draft.requirements).filter(([, value]) => Boolean(value));
+  const consultancy = draft.consultancyRequirements ?? createEmptyConsultancyRequirements();
   const services = draft.serviceRequirements ?? createEmptyServiceRequirements();
   const works = draft.worksRequirements ?? createEmptyWorksRequirements();
   const licenseRows = draft.regulatoryLicenseRequirements.length
@@ -3681,6 +4315,8 @@ function ReviewStep({
             renderWorksReviewRequirements(works, draft.financialRequirements)
           ) : selectedType.id === 'services' ? (
             renderServiceReviewRequirements(services, draft.financialRequirements)
+          ) : selectedType.id === 'consultancy' ? (
+            renderConsultancyReviewRequirements(consultancy, draft.financialRequirements, licenseRows)
           ) : (
             <div className="tender-review-section-stack">
               <article className="tender-review-section">
@@ -3930,6 +4566,109 @@ function PublicationStep({
   );
 }
 
+function renderConsultancyReviewRequirements(consultancy: CreateTenderConsultancyRequirements, financialRequirements: CreateTenderFinancialRequirementRow[], licenseRows: Array<Array<{ label: string; value: string }>>) {
+  return (
+    <div className="tender-review-section-stack">
+      <article className="tender-review-section">
+        <h4>Consultancy TOR introduction</h4>
+        <div className="tender-review-field-grid">
+          {renderReviewField('Project name', consultancy.projectName)}
+          {renderReviewField('Background narrative', consultancy.backgroundNarrative)}
+          {renderReviewField('Problem statement', consultancy.mainProblemDescription)}
+          {renderReviewField('Expected impact', consultancy.expectedImpact)}
+        </div>
+        {renderReviewTextList(
+          consultancy.entityBackgroundCards.map((row) => [row.organizationBackground, row.departmentUnit].filter(Boolean).join(' - ')),
+          'No procuring entity background captured yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Objectives</h4>
+        <div className="tender-review-field-grid">{renderReviewField('General objective', consultancy.generalObjective)}</div>
+        {renderReviewTextList(
+          consultancy.specificObjectiveRows.map((row) => [row.objectiveTitle || 'Objective', row.objectiveDescription, row.priorityLevel].filter(Boolean).join(' - ')),
+          'No specific objectives added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Scope of consultancy services</h4>
+        {renderReviewTextList(
+          consultancy.assignmentActivityRows.map((row) => [row.activityTitle || 'Activity', row.expectedOutput, row.location, row.duration ? `${row.duration} days` : ''].filter(Boolean).join(' - ')),
+          'No assignment activities added yet.'
+        )}
+        <div className="tender-review-field-grid">{renderReviewField('Out-of-scope activities', consultancy.outOfScopeActivities)}</div>
+      </article>
+      <article className="tender-review-section">
+        <h4>Duties and responsibilities</h4>
+        {renderReviewTextList(
+          [
+            ...consultancy.clientResponsibilityRows.map((row) => `Client: ${[row.title || 'Responsibility', row.description, row.supportType].filter(Boolean).join(' - ')}`),
+            ...consultancy.consultantResponsibilityRows.map((row) => `Consultant: ${[row.title || 'Responsibility', row.description, row.supportType].filter(Boolean).join(' - ')}`)
+          ],
+          'No responsibilities added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Deliverables and reporting</h4>
+        {renderReviewTextList(
+          [
+            ...consultancy.deliverableRows.map((row) => [row.deliverableName || 'Deliverable', row.submissionTimeline, row.formatRequired, row.reviewer].filter(Boolean).join(' - ')),
+            ...consultancy.reportingRequirementRows.map((row) => [row.reportType || 'Report', row.frequency, row.submissionFormat, row.submissionChannel].filter(Boolean).join(' - '))
+          ],
+          'No deliverables or reporting requirements added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Qualifications and experience</h4>
+        <div className="tender-review-field-grid">
+          {renderReviewField('Individual years of experience', consultancy.individualYearsExperience)}
+          {renderReviewField('Individual similar assignments', consultancy.individualSimilarAssignmentsCount)}
+          {renderReviewField('Firm minimum years', consultancy.firmMinimumYearsExperience)}
+          {renderReviewField('Firm similar assignments', consultancy.firmRequiredSimilarAssignments)}
+        </div>
+        {renderReviewTextList(
+          consultancy.keyExpertRows.map((row) => [row.positionTitle || 'Key expert', row.minimumQualification, row.yearsOfExperience ? `${row.yearsOfExperience} years` : '', row.certifications].filter(Boolean).join(' - ')),
+          'No key experts added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Regulatory license requirements</h4>
+        {licenseRows.length ? renderReviewObjectRows(licenseRows) : <div className="scope-empty">No regulatory licenses selected.</div>}
+      </article>
+      <article className="tender-review-section">
+        <h4>Financial capacity</h4>
+        {renderReviewTextList(
+          financialRequirements.map((row) =>
+            [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
+          ),
+          'No financial capacity requirements added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Institutional arrangements</h4>
+        <div className="tender-review-field-grid">
+          {renderReviewField('Consultant reports to', consultancy.consultantReportsTo)}
+          {renderReviewField('Supervising officer', consultancy.supervisingOfficer)}
+          {renderReviewField('Approval authority', consultancy.approvalAuthority)}
+          {renderReviewField('Meeting frequency', consultancy.meetingFrequency)}
+          {renderReviewField('Coordination mechanism', consultancy.coordinationMechanism)}
+          {renderReviewField('Communication methods', consultancy.communicationMethods)}
+        </div>
+      </article>
+      <article className="tender-review-section">
+        <h4>Attachments and reference documents</h4>
+        {renderReviewTextList(
+          [
+            ...consultancy.supportingDocumentRows.map((row) => [row.documentTitle || 'Supporting document', row.uploadName, row.category].filter(Boolean).join(' - ')),
+            ...consultancy.externalReferenceRows.map((row) => [row.referenceName || 'External reference', row.url, row.description].filter(Boolean).join(' - '))
+          ],
+          'No supporting documents or external references added yet.'
+        )}
+      </article>
+    </div>
+  );
+}
+
 function renderWorksReviewRequirements(works: CreateTenderWorksRequirements, financialRequirements: CreateTenderFinancialRequirementRow[]) {
   return (
     <div className="tender-review-section-stack">
@@ -4168,13 +4907,50 @@ function normalizeDraftForType(draft: CreateTenderDraft, typeId: CreateTenderPro
   return {
     ...draft,
     procurementTypeId: typeId,
+    consultancyRequirements: normalizeConsultancyRequirements(draft),
     serviceRequirements: normalizeServiceRequirements(draft),
     worksRequirements: draft.worksRequirements ?? createEmptyWorksRequirements(),
     categories: draft.categories.filter((category) => createTenderSetup.categories[typeId].includes(category)),
     selectedLicenses: draft.selectedLicenses.filter((license) => createTenderSetup.regulatoryLicenses[typeId].includes(license)),
-    regulatoryLicenseRequirements: typeId === 'goods' || typeId === 'works' || typeId === 'services' ? draft.regulatoryLicenseRequirements : [],
+    regulatoryLicenseRequirements: typeId === 'goods' || typeId === 'works' || typeId === 'services' || typeId === 'consultancy' ? draft.regulatoryLicenseRequirements : [],
     evaluationCriteria: getSuggestedCriteria(typeId),
     updatedAt: new Date().toISOString()
+  };
+}
+
+function normalizeConsultancyRequirements(draft: CreateTenderDraft): CreateTenderConsultancyRequirements {
+  const current = draft.consultancyRequirements ?? createEmptyConsultancyRequirements();
+  return {
+    ...createEmptyConsultancyRequirements(),
+    ...current,
+    generalObjective: current.generalObjective || draft.requirements.consultancy_objective || '',
+    backgroundNarrative: current.backgroundNarrative || draft.requirements.consultancy_methodology || '',
+    keyExpertRows:
+      current.keyExpertRows.length || !draft.requirements.consultancy_team
+        ? current.keyExpertRows
+        : [
+            {
+              id: createRowId('consultancy-key-expert-migrated'),
+              positionTitle: draft.requirements.consultancy_team,
+              minimumQualification: '',
+              yearsOfExperience: '',
+              certifications: '',
+              quantityRequired: '',
+              mandatory: true
+            }
+          ],
+    reportingRequirementRows:
+      current.reportingRequirementRows.length || !draft.requirements.consultancy_reports
+        ? current.reportingRequirementRows
+        : [
+            {
+              id: createRowId('consultancy-reporting-migrated'),
+              reportType: draft.requirements.consultancy_reports,
+              frequency: '',
+              submissionFormat: '',
+              submissionChannel: ''
+            }
+          ]
   };
 }
 
@@ -4215,6 +4991,7 @@ function hasMeaningfulDraft(draft: CreateTenderDraft) {
       draft.submissionDate ||
       draft.categories.length ||
       Object.values(draft.requirements).some(Boolean) ||
+      hasMeaningfulConsultancyRequirements(draft.consultancyRequirements) ||
       hasMeaningfulServiceRequirements(draft.serviceRequirements) ||
       hasMeaningfulWorksRequirements(draft.worksRequirements) ||
       draft.productSpecifications.length ||
@@ -4223,6 +5000,46 @@ function hasMeaningfulDraft(draft: CreateTenderDraft) {
       draft.eligibilityRequirements.length ||
       draft.regulatoryLicenseRequirements.length ||
       draft.deliverables.length
+  );
+}
+
+function hasMeaningfulConsultancyRequirements(consultancy?: CreateTenderConsultancyRequirements) {
+  if (!consultancy) return false;
+  return Boolean(
+    consultancy.entityBackgroundCards.length ||
+      consultancy.projectName ||
+      consultancy.backgroundNarrative ||
+      consultancy.existingChallenges ||
+      consultancy.currentSituation ||
+      consultancy.relatedInitiatives ||
+      consultancy.mainProblemDescription ||
+      consultancy.expectedImpact ||
+      consultancy.generalObjective ||
+      consultancy.specificObjectiveRows.length ||
+      consultancy.assignmentActivityRows.length ||
+      consultancy.outOfScopeActivities ||
+      consultancy.clientResponsibilityRows.length ||
+      consultancy.consultantResponsibilityRows.length ||
+      consultancy.deliverableRows.length ||
+      consultancy.reportingRequirementRows.length ||
+      consultancy.individualProfessionalCertifications.some(Boolean) ||
+      consultancy.individualYearsExperience ||
+      consultancy.individualSimilarAssignmentsCount ||
+      consultancy.firmMinimumYearsExperience ||
+      consultancy.firmRequiredSimilarAssignments ||
+      consultancy.firmSectorExperience.some(Boolean) ||
+      consultancy.keyExpertRows.length ||
+      consultancy.consultantReportsTo ||
+      consultancy.supervisingOfficer ||
+      consultancy.approvalAuthority ||
+      consultancy.meetingFrequency ||
+      consultancy.coordinationMechanism ||
+      consultancy.communicationMethods.some(Boolean) ||
+      consultancy.officeSpaceProvided ||
+      consultancy.accessToFacilities ||
+      consultancy.accessToDocuments ||
+      consultancy.supportingDocumentRows.length ||
+      consultancy.externalReferenceRows.length
   );
 }
 

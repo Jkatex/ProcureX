@@ -1,4 +1,5 @@
 import type {
+  CreateTenderConsultancyRequirements,
   CreateTenderDraft,
   CreateTenderEvaluationCriterion,
   CreateTenderProcurementTypeId,
@@ -379,13 +380,122 @@ export const createTenderSetup: CreateTenderSetup = {
       evidenceRequired: ['Service BOQ', 'Monthly rate schedule', 'Unit rate schedule', 'Tax and discount details'],
       subcriteria: ['Service pricing model', 'Monthly/annual cost', 'Cost per unit/service', 'Value for money']
     },
-    { id: 'technical-compliance', label: 'Technical compliance', weight: 35, notes: 'Meets mandatory specifications and response format.', suggestedFor: ['consultancy'] },
-    { id: 'experience', label: 'Relevant experience', weight: 20, notes: 'Comparable contracts, references, and sector familiarity.', suggestedFor: ['consultancy'] },
-    { id: 'price', label: 'Financial offer', weight: 25, notes: 'Evaluated price and commercial completeness.', suggestedFor: ['consultancy'] },
-    { id: 'methodology', label: 'Methodology and work plan', weight: 30, notes: 'Approach, quality assurance, and deliverable management.', suggestedFor: ['consultancy'] },
-    { id: 'key-experts', label: 'Key expert qualifications', weight: 25, notes: 'Professional qualifications and role-specific experience.', suggestedFor: ['consultancy'] }
+    {
+      id: 'consultancy-methodology-approach',
+      label: 'Methodology and Approach',
+      category: 'Methodology and Approach',
+      weight: 30,
+      notes: 'TOR understanding, methodology quality, innovation, risk, and work plan feasibility.',
+      suggestedFor: ['consultancy'],
+      evaluationType: 'scored',
+      maxScore: 30,
+      evidenceRequired: ['Technical proposal', 'TOR understanding', 'Methodology response', 'Work plan', 'Risk and quality approach'],
+      subcriteria: ['Understanding of Terms of Reference (ToR)', 'Methodology clarity', 'Technical approach quality', 'Innovation in approach', 'Risk identification and mitigation', 'Work plan and timeline']
+    },
+    {
+      id: 'consultancy-key-experts',
+      label: 'Key Experts',
+      category: 'Key Experts',
+      weight: 35,
+      notes: 'Key expert qualifications, certifications, role relevance, and similar assignment experience.',
+      suggestedFor: ['consultancy'],
+      evaluationType: 'scored',
+      maxScore: 35,
+      evidenceRequired: ['Key expert CVs', 'Academic certificates', 'Professional certificates', 'Role assignment matrix'],
+      subcriteria: ['Team leader qualification', 'Relevant academic qualifications', 'Professional certifications', 'Years of experience', 'Similar assignments handled', 'Role relevance to assignment']
+    },
+    {
+      id: 'consultancy-firm-experience',
+      label: 'Firm Experience',
+      category: 'Firm Experience',
+      weight: 15,
+      notes: 'Similar consultancy assignments, sector experience, regional experience, and institutional capacity.',
+      suggestedFor: ['consultancy'],
+      evaluationType: 'scored',
+      maxScore: 15,
+      evidenceRequired: ['Similar assignment evidence', 'Client references', 'Completion certificates', 'Firm profile'],
+      subcriteria: ['Similar consultancy assignments', 'Sector experience', 'Regional experience', 'Institutional capacity', 'Past performance record']
+    },
+    {
+      id: 'consultancy-work-plan-organization',
+      label: 'Work Plan and Organization',
+      category: 'Work Plan and Organization',
+      weight: 10,
+      notes: 'Task allocation, schedule realism, resource allocation, and deliverable structure.',
+      suggestedFor: ['consultancy'],
+      evaluationType: 'scored',
+      maxScore: 10,
+      evidenceRequired: ['Work plan', 'Activity schedule', 'Deliverables schedule', 'Team organization chart'],
+      subcriteria: ['Task allocation clarity', 'Time schedule realism', 'Resource allocation efficiency', 'Deliverable structure']
+    },
+    {
+      id: 'consultancy-knowledge-transfer',
+      label: 'Knowledge Transfer',
+      category: 'Knowledge Transfer',
+      weight: 10,
+      notes: 'Training, capacity building, documentation, and sustainability of results.',
+      suggestedFor: ['consultancy'],
+      evaluationType: 'scored',
+      maxScore: 10,
+      evidenceRequired: ['Training plan', 'Knowledge transfer plan', 'Documentation approach'],
+      subcriteria: ['Training plan for client staff', 'Capacity building approach', 'Documentation quality', 'Sustainability of results']
+    },
+    {
+      id: 'consultancy-financial',
+      label: 'Financial',
+      category: 'Financial',
+      weight: 0,
+      notes: 'Separate financial proposal, fee breakdown, reimbursables, taxes, and validity confirmation.',
+      suggestedFor: ['consultancy'],
+      evaluationType: 'price_based',
+      maxScore: 0,
+      evidenceRequired: ['Separate financial proposal', 'Fee breakdown', 'Reimbursables schedule', 'Tax and validity confirmation'],
+      subcriteria: ['Total consultancy fee', 'Breakdown of costs', 'Cost realism', 'Budget alignment', 'Price competitiveness']
+    }
   ]
 };
+
+export function createEmptyConsultancyRequirements(): CreateTenderConsultancyRequirements {
+  return {
+    entityBackgroundCards: [],
+    projectName: '',
+    backgroundNarrative: '',
+    existingChallenges: '',
+    currentSituation: '',
+    relatedInitiatives: '',
+    mainProblemDescription: '',
+    expectedImpact: '',
+    generalObjective: '',
+    specificObjectiveRows: [],
+    assignmentActivityRows: [],
+    outOfScopeActivities: '',
+    clientResponsibilityRows: [],
+    consultantResponsibilityRows: [],
+    deliverableRows: [],
+    reportingRequirementRows: [],
+    individualProfessionalCertifications: [],
+    individualCvRequired: 'Required',
+    individualYearsExperience: '',
+    individualSimilarAssignmentsCount: '',
+    individualSimilarAssignmentsEvidenceRequired: 'Required',
+    firmMinimumYearsExperience: '',
+    firmRequiredSimilarAssignments: '',
+    firmSectorExperience: [],
+    firmRequiredEvidence: 'Required',
+    keyExpertRows: [],
+    consultantReportsTo: '',
+    supervisingOfficer: '',
+    approvalAuthority: '',
+    meetingFrequency: '',
+    coordinationMechanism: '',
+    communicationMethods: [],
+    officeSpaceProvided: false,
+    accessToFacilities: false,
+    accessToDocuments: false,
+    supportingDocumentRows: [],
+    externalReferenceRows: []
+  };
+}
 
 export function createEmptyWorksRequirements(): CreateTenderWorksRequirements {
   return {
@@ -488,6 +598,7 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
     financialRequirements: [],
     eligibilityRequirements: [],
     regulatoryLicenseRequirements: [],
+    consultancyRequirements: createEmptyConsultancyRequirements(),
     serviceRequirements: createEmptyServiceRequirements(),
     worksRequirements: createEmptyWorksRequirements(),
     deliverables: [],
@@ -503,7 +614,7 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
 
 export function getSuggestedCriteria(typeId: CreateTenderProcurementTypeId): CreateTenderEvaluationCriterion[] {
   const suggested = createTenderSetup.evaluationCatalog.filter((criterion) => criterion.suggestedFor.includes(typeId)).slice(0, 4);
-  if (typeId === 'goods' || typeId === 'works' || typeId === 'services') {
+  if (typeId === 'goods' || typeId === 'works' || typeId === 'services' || typeId === 'consultancy') {
     return createTenderSetup.evaluationCatalog
       .filter((criterion) => criterion.suggestedFor.includes(typeId))
       .map((criterion) => ({ ...criterion, subcriteria: [...(criterion.subcriteria ?? [])], evidenceRequired: [...(criterion.evidenceRequired ?? [])], maxScore: criterion.maxScore ?? criterion.weight }));
