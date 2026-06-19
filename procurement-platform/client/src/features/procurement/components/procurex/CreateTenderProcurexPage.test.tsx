@@ -71,7 +71,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(container.querySelector('.journey-panel')).toBeInTheDocument();
     expect(container.querySelector('.journey-panel-content .planning-section')).toBeInTheDocument();
     expect(container.querySelector('.wizard-progress-step.active')).toHaveTextContent('Basic Information');
-    expect(screen.getByRole('button', { name: 'Save Draft' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Draft' })).toHaveClass('save-draft-button');
   });
 
   it('step navigation updates the active panel', async () => {
@@ -158,9 +158,127 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: /Non Consultancy/ }));
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Service Scope and Service Levels' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Service Tender Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Service Definition' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Quantity Schedule and Product Specifications' })).not.toBeInTheDocument();
   });
+
+  it('renders and manages Non Consultancy service requirements like the ProcureX reference', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Non Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Service Tender Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Service Definition' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Bill of Quantities (BOQ)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Financial Capacity Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Personnel Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Environmental and Social Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Supporting Documents' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Scope of services'), { target: { value: 'Provide round-the-clock facility security.' } });
+    await user.click(screen.getByRole('button', { name: 'Add Service Location' }));
+    fireEvent.change(screen.getByLabelText('Service locations 1'), { target: { value: 'Head office' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add BOQ Line' }));
+    fireEvent.change(screen.getByLabelText('Service BOQ description 1'), { target: { value: 'Security guard services' } });
+    await user.selectOptions(screen.getByLabelText('Service BOQ unit 1'), 'Month');
+    fireEvent.change(screen.getByLabelText('Service BOQ quantity 1'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('Service BOQ rate 1'), { target: { value: '500000' } });
+    expect(screen.getByText('6,000,000')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add Personnel Requirement' }));
+    fireEvent.change(screen.getByLabelText('Personnel position 1'), { target: { value: 'Security supervisor' } });
+    await user.selectOptions(screen.getByLabelText('Minimum education 1'), 'Diploma');
+    fireEvent.change(screen.getByLabelText('Personnel experience 1'), { target: { value: '5' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
+    await user.selectOptions(screen.getByLabelText('Requirement type 1'), 'Access to Credit');
+    fireEvent.change(screen.getByLabelText('Minimum value 1'), { target: { value: '50000000' } });
+
+    await user.selectOptions(screen.getByLabelText('Service category'), 'Security');
+    expect(screen.getByRole('heading', { name: 'Security Service Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Equipment Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Insurance Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Risk and Safety Requirements' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Number of guards'), { target: { value: '8' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add Equipment' }));
+    fireEvent.change(screen.getByLabelText('Equipment name 1'), { target: { value: 'Radio handset' } });
+    await user.selectOptions(screen.getByLabelText('Ownership type 1'), 'Owned');
+
+    await user.click(screen.getByRole('button', { name: 'Add ES Requirement' }));
+    await user.selectOptions(screen.getByLabelText('ES category 1'), 'Worker safety');
+    fireEvent.change(screen.getByLabelText('ES description 1'), { target: { value: 'Provide safety induction before deployment.' } });
+
+    await user.click(screen.getByRole('button', { name: 'Add Required Document' }));
+    fireEvent.change(screen.getByLabelText('Supporting document 1'), { target: { value: 'Valid service provider license' } });
+
+    await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Service definition' })).toBeInTheDocument();
+    expect(screen.getByText('Head office')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Service Commercial Schedule' })).toBeInTheDocument();
+    expect(screen.getByText('Security guard services')).toBeInTheDocument();
+    expect(screen.getByText(/Security supervisor - Diploma - 5 years/)).toBeInTheDocument();
+    expect(screen.getByText(/Access to Credit - minimum 50000000/)).toBeInTheDocument();
+    expect(screen.getByText(/Valid service provider license/)).toBeInTheDocument();
+  }, 10000);
+
+  it('adds regulatory license requirements at the bottom of Non Consultancy tender requirements', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Non Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    await user.selectOptions(screen.getByLabelText('Service category'), 'Security');
+    expect(screen.getByRole('heading', { name: 'Risk and Safety Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
+
+    const licensePanel = document.querySelector('.license-requirements-panel');
+    expect(licensePanel?.querySelector(':scope > .scope-list-heading > button')).toHaveTextContent('Add License Requirement');
+
+    const bodyText = document.body.textContent ?? '';
+    expect(bodyText.indexOf('Regulatory license requirements')).toBeGreaterThan(bodyText.indexOf('Risk and Safety Requirements'));
+
+    expect(screen.getByText('No regulatory license requirements added yet.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add License Requirement' }));
+    await user.type(screen.getByLabelText('Search all regulatory licenses'), 'Content Services');
+    await user.click(screen.getByRole('option', { name: /Content Services License/ }));
+
+    expect(screen.getByText('Content Services License')).toBeInTheDocument();
+    expect(screen.getByText('Tanzania Communications Regulatory Authority (TCRA)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Content Services License Mandatory')).toBeChecked();
+
+    await user.click(screen.getByLabelText('Content Services License Mandatory'));
+    expect(screen.getByLabelText('Content Services License Mandatory')).not.toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Change' }));
+    await user.type(screen.getByLabelText('Search regulatory license'), 'Electronic Communications');
+    await user.click(screen.getByRole('option', { name: /Electronic Communications Service License/ }));
+
+    expect(screen.queryByText('Content Services License')).not.toBeInTheDocument();
+    expect(screen.getByText('Electronic Communications Service License')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove license requirement' }));
+    expect(screen.queryByText('Electronic Communications Service License')).not.toBeInTheDocument();
+    expect(screen.getByText('No regulatory license requirements added yet.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add License Requirement' }));
+    await user.type(screen.getByLabelText('Search all regulatory licenses'), 'Environmental Compliance');
+    await user.click(screen.getByRole('option', { name: /Environmental Compliance Certificate/ }));
+
+    await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
+    expect(screen.getByText('Environmental Compliance Certificate')).toBeInTheDocument();
+    expect(screen.getByText('National Environment Management Council (NEMC)')).toBeInTheDocument();
+  }, 10000);
 
   it('renders and manages works tender requirements like the ProcureX reference', async () => {
     const user = userEvent.setup();
@@ -686,6 +804,82 @@ describe('CreateTenderProcurexPage', () => {
 
     expect(screen.getByText('6 criteria')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Technical Methodology/ }));
+
+    expect(screen.getByText('7 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add Custom Criterion' }));
+
+    expect(screen.getByText('8 criteria')).toBeInTheDocument();
+    expect(screen.getByText('Custom Criterion')).toBeInTheDocument();
+  }, 10000);
+
+  it('Non Consultancy evaluation criteria use the ProcureX builder and reference service weights', async () => {
+    const user = userEvent.setup();
+    const { container } = renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Non Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+
+    expect(container.querySelector('.evaluation-criteria-panel .evaluation-builder')).toBeInTheDocument();
+    expect(container.querySelector('.evaluation-balance-panel')).not.toBeInTheDocument();
+    expect(screen.getByText('Criteria suggestion library')).toBeInTheDocument();
+    expect(screen.getByText('Selected criteria')).toBeInTheDocument();
+    expect(screen.getByText('Suggested criteria')).toBeInTheDocument();
+    expect(screen.getByText('Service Delivery Approach')).toBeInTheDocument();
+    expect(screen.getByText('Staffing and Personnel')).toBeInTheDocument();
+    expect(screen.getByText('Service Capacity')).toBeInTheDocument();
+    expect(screen.getByText('SLA and Performance')).toBeInTheDocument();
+    expect(screen.getByText('Tools and Systems')).toBeInTheDocument();
+    expect(screen.getByText('Experience')).toBeInTheDocument();
+    expect(screen.getByText('Financial')).toBeInTheDocument();
+    expect(screen.getAllByText('Balanced').length).toBeGreaterThan(1);
+
+    expect(screen.getAllByLabelText('Weight').map((input) => (input as HTMLInputElement).value)).toEqual(['20', '20', '10', '20', '10', '10', '10']);
+
+    const firstWeight = screen.getAllByLabelText('Weight')[0];
+    await user.clear(firstWeight);
+    await user.type(firstWeight, '10');
+
+    expect(screen.getAllByText('Add 10% remaining').length).toBeGreaterThan(1);
+  }, 10000);
+
+  it('Non Consultancy evaluation edit menu manages service subcriteria chips', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Non Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+
+    expect(screen.getByLabelText('Criterion name')).toHaveValue('Service Delivery Approach');
+    expect(screen.getByText('Subcriteria')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Custom subcriterion'), 'Continuity reporting');
+    await user.click(screen.getByRole('button', { name: 'Add Custom' }));
+
+    expect(screen.getAllByText('Continuity reporting').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Remove Continuity reporting' }));
+
+    expect(screen.queryByRole('button', { name: 'Remove Continuity reporting' })).not.toBeInTheDocument();
+  }, 10000);
+
+  it('Non Consultancy evaluation suggestions hide selected criteria and support custom criteria', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Non Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Evaluation Criteria and Weights/ })[0]);
+
+    expect(screen.getByText('7 criteria')).toBeInTheDocument();
+    expect(screen.getByText('All suggested criteria have been added.')).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete criteria' })[0]);
+
+    expect(screen.getByText('6 criteria')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Service Delivery Approach/ }));
 
     expect(screen.getByText('7 criteria')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add Custom Criterion' }));
