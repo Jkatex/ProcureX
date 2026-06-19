@@ -29821,6 +29821,66 @@ body[data-page="admin-audit"] {
     color: var(--design-primary-deep) !important;
 }
 
+@media (max-width: 760px) {
+    .ekyc-shell {
+        grid-template-columns: 1fr !important;
+        min-height: auto;
+    }
+
+    .ekyc-side {
+        min-height: auto;
+        padding: 22px 20px !important;
+    }
+
+    .ekyc-side-status h2 {
+        font-size: 24px;
+    }
+
+    .ekyc-main {
+        width: 100%;
+        min-width: 0;
+        padding: 20px 14px 44px !important;
+        overflow: visible;
+    }
+
+    .ekyc-header {
+        gap: 14px;
+    }
+
+    .ekyc-header h1 {
+        font-size: 30px;
+    }
+
+    .ekyc-section {
+        padding: 18px !important;
+    }
+
+    .signature-card {
+        padding: 16px;
+    }
+
+    .signature-card-header,
+    .signature-reset-panel,
+    .signature-action-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .signature-keyphrase-check {
+        grid-template-columns: 1fr;
+    }
+
+    .signature-keyphrase-check .btn,
+    .signature-action-row .btn,
+    .signature-reset-actions .btn {
+        width: 100%;
+    }
+
+    .signature-reset-actions {
+        justify-content: stretch;
+    }
+}
+
 .admin-sidebar {
     max-height: calc(100vh - 72px);
     overflow-y: auto;

@@ -149,6 +149,91 @@ export type CreateTenderWorksMilestoneRow = {
   targetDate: string;
 };
 
+export type CreateTenderServiceBoqRow = {
+  id: string;
+  description: string;
+  unit: string;
+  quantity: string;
+  rate: string;
+};
+
+export type CreateTenderServicePersonnelRequirementRow = {
+  id: string;
+  position: string;
+  minimumEducation: string;
+  minimumYearsExperience: string;
+  cvRequired: boolean;
+  mandatory: boolean;
+};
+
+export type CreateTenderServiceEquipmentRequirementRow = {
+  id: string;
+  equipmentName: string;
+  quantity: string;
+  ownershipRequirement: string;
+  technicalSpecification: string;
+  evidenceRequired: string[];
+  mandatory: boolean;
+  evaluationMethod: string;
+  supplierResponseType: string;
+};
+
+export type CreateTenderServiceEnvironmentalSocialRequirementCard = {
+  id: string;
+  category: string;
+  description: string;
+  evidenceRequired: string[];
+  mandatory: boolean;
+};
+
+export type CreateTenderServiceSupportingDocumentRow = {
+  id: string;
+  documentName: string;
+  mandatory: boolean;
+};
+
+export type CreateTenderServiceRequirements = {
+  serviceCategory: string;
+  scopeOfServices: string;
+  serviceLocations: string[];
+  duration: string;
+  serviceBoqRows: CreateTenderServiceBoqRow[];
+  personnelRequirementRows: CreateTenderServicePersonnelRequirementRow[];
+  numberOfGuards: string;
+  shiftSchedule: string;
+  patrolFrequency: string;
+  weaponRequirement: string;
+  controlRoomRequirement: string;
+  cleaningAreas: string;
+  cleaningFrequency: string;
+  cleaningMaterials: string;
+  wasteDisposalRequirements: string;
+  serviceDeliverables: string[];
+  serviceMilestones: string[];
+  reportingRequirements: string;
+  slaRequirement: string;
+  uptimeRequirement: string;
+  responseTime: string;
+  supportHours: string;
+  maintenanceSchedule: string;
+  sparePartsRequirement: string;
+  technicianRequirements: string;
+  menuRequirements: string;
+  hygieneRequirements: string;
+  foodCertifications: string[];
+  fleetRequirements: string;
+  driverLicenseRequirements: string;
+  routeCoverage: string;
+  equipmentRequirementRows: CreateTenderServiceEquipmentRequirementRow[];
+  esRequirementCards: CreateTenderServiceEnvironmentalSocialRequirementCard[];
+  supportingDocumentRows: CreateTenderServiceSupportingDocumentRow[];
+  insuranceCovers: string[];
+  insuranceNotes: string;
+  riskAssessmentRequirement: string;
+  safetyPlanRequirement: string;
+  ppeRequirements: string;
+};
+
 export type CreateTenderWorksRequirements = {
   projectName: string;
   procuringEntity: string;
@@ -210,6 +295,7 @@ export type CreateTenderDraft = {
   financialRequirements: CreateTenderFinancialRequirementRow[];
   eligibilityRequirements: CreateTenderEligibilityRequirementRow[];
   regulatoryLicenseRequirements: CreateTenderRegulatoryLicenseRequirementRow[];
+  serviceRequirements: CreateTenderServiceRequirements;
   worksRequirements: CreateTenderWorksRequirements;
   deliverables: string[];
   attachments: string[];

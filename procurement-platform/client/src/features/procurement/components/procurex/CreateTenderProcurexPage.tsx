@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
-import { createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
+import { createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { publishSimulatedTender, saveCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import type {
@@ -17,6 +17,12 @@ import type {
   CreateTenderRegulatoryLicenseRequirementRow,
   CreateTenderRequirementTemplate,
   CreateTenderSampleRequirementRow,
+  CreateTenderServiceBoqRow,
+  CreateTenderServiceEnvironmentalSocialRequirementCard,
+  CreateTenderServiceEquipmentRequirementRow,
+  CreateTenderServicePersonnelRequirementRow,
+  CreateTenderServiceRequirements,
+  CreateTenderServiceSupportingDocumentRow,
   CreateTenderWorksBoqRow,
   CreateTenderWorksDrawingRow,
   CreateTenderWorksLumpSumPricingRow,
@@ -59,6 +65,16 @@ const eligibilityPresets = ['Certificate of incorporation', 'Tax clearance certi
 const worksContractTypes = ['Lump Sum Contract', 'Unit Price Contract', 'Fixed Price Contract', 'Framework Contract', 'Consultancy / Time-Based Contract', 'Other'];
 const worksDocumentTypes = ['Architectural drawings', 'Structural drawings', 'Electrical drawings', 'Mechanical drawings', 'Geotechnical report', 'Environmental report', 'Other'];
 const worksTechnicalSpecificationTitles = ['Applicable standards / codes', 'Material specifications', 'Workmanship standards', 'Engineering requirements', 'Equipment requirements', 'Others'];
+const serviceCategoryOptions = ['Security', 'Cleaning', 'IT Support', 'Internet services', 'Vehicle maintenance', 'Generator maintenance', 'Maintenance', 'Catering', 'Transport / logistics', 'Training', 'Other'];
+const serviceUnitOptions = ['Unit', 'Lot', 'Hour', 'Day', 'Month', 'Trip', 'Guard', 'Sqm', 'Vehicle', 'Visit'];
+const serviceEducationLevels = ['Primary', 'Secondary', 'Certificate', 'Diploma', 'Bachelor Degree', 'Postgraduate', 'Professional certification'];
+const serviceFrequencyOptions = ['Hourly', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'On demand'];
+const serviceOwnershipTypes = ['Owned', 'Leased', 'Either owned or leased', 'Available on demand'];
+const serviceEquipmentEvidence = ['Ownership proof', 'Lease agreement', 'Calibration certificate', 'Inspection certificate', 'Photo evidence'];
+const serviceEvaluationMethods = ['Pass / fail', 'Scored', 'Document check', 'Physical inspection'];
+const serviceResponseTypes = ['Upload evidence', 'Describe availability', 'Complete table', 'Confirm compliance'];
+const serviceEsCategories = ['Worker safety', 'SEA/SH', 'Environmental protection', 'Labor compliance', 'Community health and safety'];
+const serviceEsEvidence = ['Policy document', 'Method statement', 'Training record', 'Compliance certificate', 'Incident register'];
 const worksContractTypeDescriptions: Record<string, string> = {
   'Lump Sum Contract': 'A single total price is agreed for the whole work or project.',
   'Unit Price Contract': 'Payment is based on measured quantities completed.',
@@ -223,6 +239,13 @@ function getWorksBoqTotal(row: CreateTenderWorksBoqRow) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(quantity * rate);
 }
 
+function getServiceBoqTotal(row: CreateTenderServiceBoqRow) {
+  const quantity = Number(row.quantity);
+  const rate = Number(row.rate);
+  if (!Number.isFinite(quantity) || !Number.isFinite(rate) || !row.quantity || !row.rate) return '';
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(quantity * rate);
+}
+
 function downloadWorksBoqTemplate() {
   const csv = ['No.,Description,Unit,Quantity,Rate,Total amount', '1,,,,,'].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -243,6 +266,22 @@ function parseWorksBoqCsv(text: string): CreateTenderWorksBoqRow[] {
 
   return dataRows.map((row, index) => ({
     id: `works-boq-import-${Date.now()}-${index}`,
+    description: row[1] || row[0] || '',
+    unit: row[2] || '',
+    quantity: row[3] || '',
+    rate: row[4] || ''
+  }));
+}
+
+function parseServiceBoqCsv(text: string): CreateTenderServiceBoqRow[] {
+  const rows = text
+    .split(/\r?\n/)
+    .map((line) => parseCsvLine(line))
+    .filter((row) => row.some(Boolean));
+  const dataRows = rows[0]?.join(' ').toLowerCase().includes('description') ? rows.slice(1) : rows;
+
+  return dataRows.map((row, index) => ({
+    id: `service-boq-import-${Date.now()}-${index}`,
     description: row[1] || row[0] || '',
     unit: row[2] || '',
     quantity: row[3] || '',
@@ -340,6 +379,7 @@ export function CreateTenderProcurexPage() {
     setDraft((current) => ({
       ...current,
       ...patch,
+      serviceRequirements: patch.serviceRequirements ? { ...current.serviceRequirements, ...patch.serviceRequirements } : current.serviceRequirements,
       worksRequirements: patch.worksRequirements ? { ...current.worksRequirements, ...patch.worksRequirements } : current.worksRequirements,
       updatedAt: new Date().toISOString()
     }));
@@ -491,7 +531,7 @@ export function CreateTenderProcurexPage() {
           <p>Build a tender package that matches the procurement nature, then publish it directly to the marketplace.</p>
         </div>
         <div className="hero-action-stack">
-          <button className="btn btn-secondary" type="button" onClick={saveDraft} disabled={!canSaveDraft}>
+          <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft}>
             Save Draft
           </button>
         </div>
@@ -953,7 +993,9 @@ function RegulatoryLicenseRequirementsPanel({
           <h3>Regulatory license requirements</h3>
           <span className="form-hint">Search and select the licenses suppliers must hold for this tender. The issuing body is filled automatically.</span>
         </div>
-        <span className="badge badge-info">{rows.length}</span>
+        <button className="btn btn-secondary scope-add" type="button" onClick={onToggleAdd}>
+          Add License Requirement
+        </button>
       </div>
       <div className="license-requirement-list">
         {rows.length ? (
@@ -1029,9 +1071,6 @@ function RegulatoryLicenseRequirementsPanel({
           <div className="scope-empty">No regulatory license requirements added yet.</div>
         )}
       </div>
-      <button className="btn btn-secondary scope-add" type="button" onClick={onToggleAdd}>
-        Add License Requirement
-      </button>
       {addOpen ? (
         <div className="license-add-picker">
           <input
@@ -1270,6 +1309,19 @@ function RequirementsStep({
   if (draft.procurementTypeId === 'works') {
     return (
       <WorksRequirementsStep
+        draft={draft}
+        onPatch={onPatch}
+        onAddFinancialRequirement={addFinancialRequirement}
+        onUpdateFinancialRequirement={updateFinancialRequirement}
+        onDeleteFinancialRequirement={deleteFinancialRequirement}
+        regulatoryLicensePanel={regulatoryLicensePanel}
+      />
+    );
+  }
+
+  if (draft.procurementTypeId === 'services') {
+    return (
+      <ServicesRequirementsStep
         draft={draft}
         onPatch={onPatch}
         onAddFinancialRequirement={addFinancialRequirement}
@@ -1969,6 +2021,576 @@ function RequirementsStep({
   );
 }
 
+function ServicesRequirementsStep({
+  draft,
+  onPatch,
+  onAddFinancialRequirement,
+  onUpdateFinancialRequirement,
+  onDeleteFinancialRequirement,
+  regulatoryLicensePanel
+}: {
+  draft: CreateTenderDraft;
+  onPatch: (patch: Partial<CreateTenderDraft>) => void;
+  onAddFinancialRequirement: () => void;
+  onUpdateFinancialRequirement: (rowId: string, patch: Partial<CreateTenderFinancialRequirementRow>) => void;
+  onDeleteFinancialRequirement: (rowId: string) => void;
+  regulatoryLicensePanel: ReactNode;
+}) {
+  const services = draft.serviceRequirements ?? createEmptyServiceRequirements();
+  const showDeliverables = ['IT Support', 'Training', 'Other'].includes(services.serviceCategory);
+  const showItSupport = ['IT Support', 'Internet services'].includes(services.serviceCategory);
+  const showMaintenance = ['Vehicle maintenance', 'Generator maintenance', 'Maintenance'].includes(services.serviceCategory);
+  const showEquipment = ['Security', 'Cleaning', 'Vehicle maintenance', 'Generator maintenance', 'Maintenance', 'Catering', 'Transport / logistics'].includes(services.serviceCategory);
+  const showRiskInsurance = ['Security', 'Vehicle maintenance', 'Generator maintenance', 'Maintenance', 'Transport / logistics'].includes(services.serviceCategory);
+
+  function patchServices(patch: Partial<CreateTenderServiceRequirements>) {
+    onPatch({ serviceRequirements: patch as CreateTenderServiceRequirements });
+  }
+
+  function updateList(key: keyof Pick<CreateTenderServiceRequirements, 'serviceLocations' | 'serviceDeliverables' | 'serviceMilestones' | 'foodCertifications' | 'insuranceCovers'>, index: number, value: string) {
+    patchServices({ [key]: services[key].map((item, itemIndex) => (itemIndex === index ? value : item)) } as Partial<CreateTenderServiceRequirements>);
+  }
+
+  function addListItem(key: keyof Pick<CreateTenderServiceRequirements, 'serviceLocations' | 'serviceDeliverables' | 'serviceMilestones' | 'foodCertifications' | 'insuranceCovers'>) {
+    patchServices({ [key]: [...services[key], ''] } as Partial<CreateTenderServiceRequirements>);
+  }
+
+  function removeListItem(key: keyof Pick<CreateTenderServiceRequirements, 'serviceLocations' | 'serviceDeliverables' | 'serviceMilestones' | 'foodCertifications' | 'insuranceCovers'>, index: number) {
+    patchServices({ [key]: services[key].filter((_, itemIndex) => itemIndex !== index) } as Partial<CreateTenderServiceRequirements>);
+  }
+
+  function addServiceBoqRow() {
+    patchServices({ serviceBoqRows: [...services.serviceBoqRows, { id: createRowId('service-boq'), description: '', unit: 'Unit', quantity: '', rate: '' }] });
+  }
+
+  function updateServiceBoqRow(rowId: string, patch: Partial<CreateTenderServiceBoqRow>) {
+    patchServices({ serviceBoqRows: services.serviceBoqRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function importServiceBoq(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const importedRows = parseServiceBoqCsv(String(reader.result || ''));
+      if (importedRows.length) patchServices({ serviceBoqRows: [...services.serviceBoqRows, ...importedRows] });
+    };
+    reader.readAsText(file);
+  }
+
+  function addPersonnelRow() {
+    patchServices({
+      personnelRequirementRows: [
+        ...services.personnelRequirementRows,
+        { id: createRowId('service-personnel'), position: '', minimumEducation: '', minimumYearsExperience: '', cvRequired: true, mandatory: true }
+      ]
+    });
+  }
+
+  function updatePersonnelRow(rowId: string, patch: Partial<CreateTenderServicePersonnelRequirementRow>) {
+    patchServices({ personnelRequirementRows: services.personnelRequirementRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function addEquipmentRow() {
+    patchServices({
+      equipmentRequirementRows: [
+        ...services.equipmentRequirementRows,
+        { id: createRowId('service-equipment'), equipmentName: '', quantity: '', ownershipRequirement: '', technicalSpecification: '', evidenceRequired: [], mandatory: true, evaluationMethod: '', supplierResponseType: '' }
+      ]
+    });
+  }
+
+  function updateEquipmentRow(rowId: string, patch: Partial<CreateTenderServiceEquipmentRequirementRow>) {
+    patchServices({ equipmentRequirementRows: services.equipmentRequirementRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function toggleEquipmentEvidence(row: CreateTenderServiceEquipmentRequirementRow, evidence: string) {
+    const evidenceRequired = row.evidenceRequired.includes(evidence) ? row.evidenceRequired.filter((item) => item !== evidence) : [...row.evidenceRequired, evidence];
+    updateEquipmentRow(row.id, { evidenceRequired });
+  }
+
+  function addEsCard() {
+    patchServices({ esRequirementCards: [...services.esRequirementCards, { id: createRowId('service-es'), category: '', description: '', evidenceRequired: [], mandatory: true }] });
+  }
+
+  function updateEsCard(rowId: string, patch: Partial<CreateTenderServiceEnvironmentalSocialRequirementCard>) {
+    patchServices({ esRequirementCards: services.esRequirementCards.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function toggleEsEvidence(row: CreateTenderServiceEnvironmentalSocialRequirementCard, evidence: string) {
+    const evidenceRequired = row.evidenceRequired.includes(evidence) ? row.evidenceRequired.filter((item) => item !== evidence) : [...row.evidenceRequired, evidence];
+    updateEsCard(row.id, { evidenceRequired });
+  }
+
+  function addSupportingDocumentRow() {
+    patchServices({ supportingDocumentRows: [...services.supportingDocumentRows, { id: createRowId('service-document'), documentName: '', mandatory: true }] });
+  }
+
+  function updateSupportingDocumentRow(rowId: string, patch: Partial<CreateTenderServiceSupportingDocumentRow>) {
+    patchServices({ supportingDocumentRows: services.supportingDocumentRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function renderList(key: 'serviceLocations' | 'serviceDeliverables' | 'serviceMilestones' | 'foodCertifications' | 'insuranceCovers', label: string, addLabel: string, emptyText: string) {
+    const values = services[key];
+    return (
+      <div className="requirement-control requirement-control-wide">
+        <span className="form-label">{label}</span>
+        <div className="requirement-list">
+          {values.length ? (
+            values.map((value, index) => (
+              <div className="requirement-list-row" key={`${key}-${index}`}>
+                <input className="form-input requirement-list-input" aria-label={`${label} ${index + 1}`} value={value} onChange={(event) => updateList(key, index, event.target.value)} />
+                <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove ${label} ${index + 1}`} onClick={() => removeListItem(key, index)}>
+                  x
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="scope-empty">{emptyText}</div>
+          )}
+        </div>
+        <div className="requirement-table-actions">
+          <button className="btn btn-secondary scope-add" type="button" onClick={() => addListItem(key)}>
+            {addLabel}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wizard-step-surface requirements-step-surface services-requirements-step">
+      <div className="requirement-type-header">
+        <div>
+          <span className="section-kicker">Tender requirements</span>
+          <h3>Service Tender Requirements</h3>
+        </div>
+        <span className="badge badge-info">Service Commercial Schedule</span>
+      </div>
+
+      <div className="requirement-section-grid">
+        <article className="requirement-block" id="requirement-section-serviceDefinition">
+          <div>
+            <h4>Service Definition</h4>
+            <span className="form-hint">Core mandatory details for the service being procured.</span>
+          </div>
+          <div className="requirement-control-grid">
+            <label className="requirement-control">
+              <span className="form-label">Service category</span>
+              <select className="form-input" aria-label="Service category" value={services.serviceCategory} onChange={(event) => patchServices({ serviceCategory: event.target.value })}>
+                <option value="">Select service category</option>
+                {serviceCategoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="requirement-control">
+              <span className="form-label">Duration</span>
+              <input className="form-input" aria-label="Duration" value={services.duration} onChange={(event) => patchServices({ duration: event.target.value })} />
+            </label>
+            <label className="requirement-control requirement-control-wide">
+              <span className="form-label">Scope of services</span>
+              <textarea className="form-input" aria-label="Scope of services" value={services.scopeOfServices} onChange={(event) => patchServices({ scopeOfServices: event.target.value })} />
+            </label>
+            {renderList('serviceLocations', 'Service locations', 'Add Service Location', 'No service locations added yet.')}
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-serviceBoq">
+          <div>
+            <h4>Bill of Quantities (BOQ)</h4>
+            <span className="form-hint">Line-item BOQ schedule for the service items suppliers should price.</span>
+          </div>
+          <div className="requirement-table-wrap">
+            <table className="requirement-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Description</th>
+                  <th>Unit</th>
+                  <th>Quantity</th>
+                  <th>Rate</th>
+                  <th>Total amount</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {services.serviceBoqRows.length ? (
+                  services.serviceBoqRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>{index + 1}</td>
+                      <td><input className="form-input" aria-label={`Service BOQ description ${index + 1}`} value={row.description} onChange={(event) => updateServiceBoqRow(row.id, { description: event.target.value })} /></td>
+                      <td>
+                        <select className="form-input" aria-label={`Service BOQ unit ${index + 1}`} value={row.unit} onChange={(event) => updateServiceBoqRow(row.id, { unit: event.target.value })}>
+                          <option value=""></option>
+                          {serviceUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                        </select>
+                      </td>
+                      <td><input className="form-input" aria-label={`Service BOQ quantity ${index + 1}`} inputMode="decimal" value={row.quantity} onChange={(event) => updateServiceBoqRow(row.id, { quantity: event.target.value })} /></td>
+                      <td><input className="form-input" aria-label={`Service BOQ rate ${index + 1}`} inputMode="decimal" value={row.rate} onChange={(event) => updateServiceBoqRow(row.id, { rate: event.target.value })} /></td>
+                      <td><span className="requirement-auto-value">{getServiceBoqTotal(row)}</span></td>
+                      <td className="requirement-table-action-cell">
+                        <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove service BOQ line ${index + 1}`} onClick={() => patchServices({ serviceBoqRows: services.serviceBoqRows.filter((item) => item.id !== row.id) })}>x</button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={7}><div className="scope-empty">No BOQ lines added yet.</div></td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="requirement-table-actions">
+            <label className="btn btn-secondary scope-add goods-import-control">
+              Import Excel
+              <input type="file" accept=".csv,.txt" aria-label="Import service BOQ" onChange={(event) => importServiceBoq(event.target.files?.[0])} />
+            </label>
+            <button className="btn btn-secondary scope-add" type="button" onClick={addServiceBoqRow}>Add BOQ Line</button>
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-financialCapacity">
+          <div className="scope-list-heading">
+            <div>
+              <h4>Financial Capacity Requirements</h4>
+              <span className="form-hint">Structured financial rules used to verify whether bidders can sustain the contract.</span>
+            </div>
+            <button className="btn btn-secondary scope-add" type="button" onClick={onAddFinancialRequirement}>Add Financial Requirement</button>
+          </div>
+          <div className="requirement-table-wrap">
+            <table className="requirement-table">
+              <thead>
+                <tr>
+                  <th>Requirement type</th>
+                  <th>Minimum value</th>
+                  <th>Period</th>
+                  <th>Evidence required</th>
+                  <th>Mandatory</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {draft.financialRequirements.length ? (
+                  draft.financialRequirements.map((row, index) => (
+                    <tr key={row.id}>
+                      <td>
+                        <select className="form-input" aria-label={`Requirement type ${index + 1}`} value={row.requirementType} onChange={(event) => onUpdateFinancialRequirement(row.id, { requirementType: event.target.value })}>
+                          <option value="">Select</option>
+                          {financialRequirementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                        </select>
+                      </td>
+                      <td><input className="form-input" aria-label={`Minimum value ${index + 1}`} inputMode="decimal" value={row.minimumValue} onChange={(event) => onUpdateFinancialRequirement(row.id, { minimumValue: event.target.value })} /></td>
+                      <td>
+                        <select className="form-input" aria-label={`Period ${index + 1}`} value={row.period} onChange={(event) => onUpdateFinancialRequirement(row.id, { period: event.target.value })}>
+                          <option value="">Select</option>
+                          {financialPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select className="form-input" aria-label={`Evidence required ${index + 1}`} value={row.evidenceRequired} onChange={(event) => onUpdateFinancialRequirement(row.id, { evidenceRequired: event.target.value })}>
+                          <option value="">Select</option>
+                          {financialEvidence.map((evidence) => <option key={evidence} value={evidence}>{evidence}</option>)}
+                        </select>
+                      </td>
+                      <td><input type="checkbox" aria-label={`Mandatory financial requirement ${index + 1}`} checked={row.mandatory} onChange={(event) => onUpdateFinancialRequirement(row.id, { mandatory: event.target.checked })} /></td>
+                      <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete financial requirement ${index + 1}`} onClick={() => onDeleteFinancialRequirement(row.id)}>x</button></td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={6}><div className="scope-empty">No financial requirements added yet.</div></td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-staffingRequirements">
+          <div className="scope-list-heading">
+            <div>
+              <h4>Personnel Requirements</h4>
+              <span className="form-hint">Position-based personnel requirements for labor-based and professional services.</span>
+            </div>
+            <button className="btn btn-secondary scope-add" type="button" onClick={addPersonnelRow}>Add Personnel Requirement</button>
+          </div>
+          <div className="requirement-table-wrap">
+            <table className="requirement-table">
+              <thead>
+                <tr>
+                  <th>Role / position</th>
+                  <th>Minimum education</th>
+                  <th>Experience(Years)</th>
+                  <th>CV required</th>
+                  <th>Mandatory</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {services.personnelRequirementRows.length ? (
+                  services.personnelRequirementRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td><input className="form-input" aria-label={`Personnel position ${index + 1}`} value={row.position} onChange={(event) => updatePersonnelRow(row.id, { position: event.target.value })} /></td>
+                      <td>
+                        <select className="form-input" aria-label={`Minimum education ${index + 1}`} value={row.minimumEducation} onChange={(event) => updatePersonnelRow(row.id, { minimumEducation: event.target.value })}>
+                          <option value=""></option>
+                          {serviceEducationLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+                        </select>
+                      </td>
+                      <td><input className="form-input" aria-label={`Personnel experience ${index + 1}`} inputMode="numeric" value={row.minimumYearsExperience} onChange={(event) => updatePersonnelRow(row.id, { minimumYearsExperience: event.target.value })} /></td>
+                      <td><input type="checkbox" aria-label={`CV required ${index + 1}`} checked={row.cvRequired} onChange={(event) => updatePersonnelRow(row.id, { cvRequired: event.target.checked })} /></td>
+                      <td><input type="checkbox" aria-label={`Personnel mandatory ${index + 1}`} checked={row.mandatory} onChange={(event) => updatePersonnelRow(row.id, { mandatory: event.target.checked })} /></td>
+                      <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove personnel requirement ${index + 1}`} onClick={() => patchServices({ personnelRequirementRows: services.personnelRequirementRows.filter((item) => item.id !== row.id) })}>x</button></td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={6}><div className="scope-empty">No personnel requirements added yet.</div></td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        {services.serviceCategory === 'Security' ? (
+          <article className="requirement-block" id="requirement-section-securityRequirements">
+            <div>
+              <h4>Security Service Requirements</h4>
+              <span className="form-hint">Shown for security tenders: guards, shifts, patrols, weapons, and control room requirements.</span>
+            </div>
+            <div className="requirement-control-grid">
+              <label className="requirement-control"><span className="form-label">Number of guards</span><input className="form-input" aria-label="Number of guards" inputMode="numeric" value={services.numberOfGuards} onChange={(event) => patchServices({ numberOfGuards: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Shift schedule</span><input className="form-input" aria-label="Shift schedule" value={services.shiftSchedule} onChange={(event) => patchServices({ shiftSchedule: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Patrol frequency</span><select className="form-input" aria-label="Patrol frequency" value={services.patrolFrequency} onChange={(event) => patchServices({ patrolFrequency: event.target.value })}><option value=""></option>{serviceFrequencyOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label className="requirement-control"><span className="form-label">Weapons requirement</span><textarea className="form-input" aria-label="Weapons requirement" value={services.weaponRequirement} onChange={(event) => patchServices({ weaponRequirement: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Control room requirement</span><textarea className="form-input" aria-label="Control room requirement" value={services.controlRoomRequirement} onChange={(event) => patchServices({ controlRoomRequirement: event.target.value })} /></label>
+            </div>
+          </article>
+        ) : null}
+
+        {services.serviceCategory === 'Cleaning' ? (
+          <article className="requirement-block" id="requirement-section-cleaningRequirements">
+            <div>
+              <h4>Cleaning Service Requirements</h4>
+              <span className="form-hint">Shown for cleaning tenders: schedules, materials, areas, and waste disposal.</span>
+            </div>
+            <div className="requirement-control-grid">
+              <label className="requirement-control"><span className="form-label">Cleaning areas</span><textarea className="form-input" aria-label="Cleaning areas" value={services.cleaningAreas} onChange={(event) => patchServices({ cleaningAreas: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Cleaning frequency</span><select className="form-input" aria-label="Cleaning frequency" value={services.cleaningFrequency} onChange={(event) => patchServices({ cleaningFrequency: event.target.value })}><option value=""></option>{serviceFrequencyOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label className="requirement-control"><span className="form-label">Cleaning materials</span><textarea className="form-input" aria-label="Cleaning materials" value={services.cleaningMaterials} onChange={(event) => patchServices({ cleaningMaterials: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Waste disposal requirements</span><textarea className="form-input" aria-label="Waste disposal requirements" value={services.wasteDisposalRequirements} onChange={(event) => patchServices({ wasteDisposalRequirements: event.target.value })} /></label>
+            </div>
+          </article>
+        ) : null}
+
+        {showDeliverables ? (
+          <article className="requirement-block" id="requirement-section-deliverablesSection">
+            <div>
+              <h4>Deliverables and Reports</h4>
+              <span className="form-hint">Shown for IT implementation, research, audits, and training services.</span>
+            </div>
+            <div className="requirement-control-grid">
+              {renderList('serviceDeliverables', 'Deliverables', 'Add Deliverable', 'No deliverables added yet.')}
+              {renderList('serviceMilestones', 'Milestones', 'Add Milestone', 'No milestones added yet.')}
+              <label className="requirement-control requirement-control-wide"><span className="form-label">Reporting requirements</span><textarea className="form-input" aria-label="Reporting requirements" value={services.reportingRequirements} onChange={(event) => patchServices({ reportingRequirements: event.target.value })} /></label>
+            </div>
+          </article>
+        ) : null}
+
+        {showItSupport ? (
+          <article className="requirement-block" id="requirement-section-itSupportRequirements">
+            <div>
+              <h4>IT Support / Internet Requirements</h4>
+              <span className="form-hint">Shown for IT support and internet services: SLA, uptime, and response requirements.</span>
+            </div>
+            <div className="requirement-control-grid">
+              <label className="requirement-control"><span className="form-label">SLA requirement</span><textarea className="form-input" aria-label="SLA requirement" value={services.slaRequirement} onChange={(event) => patchServices({ slaRequirement: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Uptime requirement</span><input className="form-input" aria-label="Uptime requirement" value={services.uptimeRequirement} onChange={(event) => patchServices({ uptimeRequirement: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Response time</span><input className="form-input" aria-label="Response time" value={services.responseTime} onChange={(event) => patchServices({ responseTime: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Support hours</span><input className="form-input" aria-label="Support hours" value={services.supportHours} onChange={(event) => patchServices({ supportHours: event.target.value })} /></label>
+            </div>
+          </article>
+        ) : null}
+
+        {showMaintenance ? (
+          <article className="requirement-block" id="requirement-section-maintenanceRequirements">
+            <div>
+              <h4>Maintenance Requirements</h4>
+              <span className="form-hint">Shown for maintenance tenders: tools, spare parts, technicians, and service schedule.</span>
+            </div>
+            <div className="requirement-control-grid">
+              <label className="requirement-control"><span className="form-label">Maintenance schedule</span><textarea className="form-input" aria-label="Maintenance schedule" value={services.maintenanceSchedule} onChange={(event) => patchServices({ maintenanceSchedule: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Spare parts requirement</span><textarea className="form-input" aria-label="Spare parts requirement" value={services.sparePartsRequirement} onChange={(event) => patchServices({ sparePartsRequirement: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Technician requirements</span><textarea className="form-input" aria-label="Technician requirements" value={services.technicianRequirements} onChange={(event) => patchServices({ technicianRequirements: event.target.value })} /></label>
+            </div>
+          </article>
+        ) : null}
+
+        {services.serviceCategory === 'Catering' ? (
+          <article className="requirement-block" id="requirement-section-cateringRequirements">
+            <div>
+              <h4>Catering Requirements</h4>
+              <span className="form-hint">Shown for catering tenders: menus, hygiene, and food certifications.</span>
+            </div>
+            <div className="requirement-control-grid">
+              <label className="requirement-control"><span className="form-label">Menu requirements</span><textarea className="form-input" aria-label="Menu requirements" value={services.menuRequirements} onChange={(event) => patchServices({ menuRequirements: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Hygiene requirements</span><textarea className="form-input" aria-label="Hygiene requirements" value={services.hygieneRequirements} onChange={(event) => patchServices({ hygieneRequirements: event.target.value })} /></label>
+              {renderList('foodCertifications', 'Food certifications', 'Add Certification', 'No food certifications added yet.')}
+            </div>
+          </article>
+        ) : null}
+
+        {services.serviceCategory === 'Transport / logistics' ? (
+          <article className="requirement-block" id="requirement-section-transportRequirements">
+            <div>
+              <h4>Transport / Logistics Requirements</h4>
+              <span className="form-hint">Shown for transport and logistics tenders: fleet, insurance, and driver licenses.</span>
+            </div>
+            <div className="requirement-control-grid">
+              <label className="requirement-control"><span className="form-label">Fleet requirements</span><textarea className="form-input" aria-label="Fleet requirements" value={services.fleetRequirements} onChange={(event) => patchServices({ fleetRequirements: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Driver license requirements</span><textarea className="form-input" aria-label="Driver license requirements" value={services.driverLicenseRequirements} onChange={(event) => patchServices({ driverLicenseRequirements: event.target.value })} /></label>
+              <label className="requirement-control"><span className="form-label">Route / coverage requirements</span><textarea className="form-input" aria-label="Route / coverage requirements" value={services.routeCoverage} onChange={(event) => patchServices({ routeCoverage: event.target.value })} /></label>
+            </div>
+          </article>
+        ) : null}
+
+        {showEquipment ? (
+          <article className="requirement-block" id="requirement-section-equipmentRequirements">
+            <div className="scope-list-heading">
+              <div>
+                <h4>Equipment Requirements</h4>
+                <span className="form-hint">Shown only for service categories where equipment is normally needed.</span>
+              </div>
+              <button className="btn btn-secondary scope-add" type="button" onClick={addEquipmentRow}>Add Equipment</button>
+            </div>
+            <div className="requirement-card-list">
+              {services.equipmentRequirementRows.length ? (
+                services.equipmentRequirementRows.map((row, index) => (
+                  <article className="requirement-repeater-card" key={row.id}>
+                    <div className="requirement-card-heading">
+                      <strong>{row.equipmentName || `Equipment ${index + 1}`}</strong>
+                      <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove equipment ${index + 1}`} onClick={() => patchServices({ equipmentRequirementRows: services.equipmentRequirementRows.filter((item) => item.id !== row.id) })}>x</button>
+                    </div>
+                    <div className="requirement-card-grid">
+                      <label className="requirement-card-field"><span className="form-label">Equipment name</span><input className="form-input" aria-label={`Equipment name ${index + 1}`} value={row.equipmentName} onChange={(event) => updateEquipmentRow(row.id, { equipmentName: event.target.value })} /></label>
+                      <label className="requirement-card-field"><span className="form-label">Minimum qty</span><input className="form-input" aria-label={`Equipment quantity ${index + 1}`} inputMode="numeric" value={row.quantity} onChange={(event) => updateEquipmentRow(row.id, { quantity: event.target.value })} /></label>
+                      <label className="requirement-card-field"><span className="form-label">Ownership type</span><select className="form-input" aria-label={`Ownership type ${index + 1}`} value={row.ownershipRequirement} onChange={(event) => updateEquipmentRow(row.id, { ownershipRequirement: event.target.value })}><option value=""></option>{serviceOwnershipTypes.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                      <label className="requirement-card-field"><span className="form-label">Evaluation method</span><select className="form-input" aria-label={`Equipment evaluation method ${index + 1}`} value={row.evaluationMethod} onChange={(event) => updateEquipmentRow(row.id, { evaluationMethod: event.target.value })}><option value=""></option>{serviceEvaluationMethods.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                      <label className="requirement-card-field"><span className="form-label">Response type</span><select className="form-input" aria-label={`Equipment response type ${index + 1}`} value={row.supplierResponseType} onChange={(event) => updateEquipmentRow(row.id, { supplierResponseType: event.target.value })}><option value=""></option>{serviceResponseTypes.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                      <label className="requirement-card-field"><span className="form-label">Technical specification</span><textarea className="form-input" aria-label={`Equipment technical specification ${index + 1}`} value={row.technicalSpecification} onChange={(event) => updateEquipmentRow(row.id, { technicalSpecification: event.target.value })} /></label>
+                    </div>
+                    <div className="requirement-multi-select" aria-label={`Equipment evidence required ${index + 1}`}>
+                      {serviceEquipmentEvidence.map((evidence) => (
+                        <label key={evidence}><input type="checkbox" checked={row.evidenceRequired.includes(evidence)} onChange={() => toggleEquipmentEvidence(row, evidence)} /> {evidence}</label>
+                      ))}
+                    </div>
+                    <label><input type="checkbox" checked={row.mandatory} onChange={(event) => updateEquipmentRow(row.id, { mandatory: event.target.checked })} /> Mandatory</label>
+                  </article>
+                ))
+              ) : (
+                <div className="scope-empty">No equipment requirements added yet.</div>
+              )}
+            </div>
+          </article>
+        ) : null}
+
+        <article className="requirement-block" id="requirement-section-environmentalSocialRequirements">
+          <div className="scope-list-heading">
+            <div>
+              <h4>Environmental and Social Requirements</h4>
+              <span className="form-hint">Categorized compliance requirements for worker safety, SEA/SH, environment, and labor compliance.</span>
+            </div>
+            <button className="btn btn-secondary scope-add" type="button" onClick={addEsCard}>Add ES Requirement</button>
+          </div>
+          <div className="requirement-card-list">
+            {services.esRequirementCards.length ? (
+              services.esRequirementCards.map((row, index) => (
+                <article className="requirement-repeater-card" key={row.id}>
+                  <div className="requirement-card-heading">
+                    <strong>{row.category ? `ES requirement for ${row.category}` : `ES requirement ${index + 1}`}</strong>
+                    <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove ES requirement ${index + 1}`} onClick={() => patchServices({ esRequirementCards: services.esRequirementCards.filter((item) => item.id !== row.id) })}>x</button>
+                  </div>
+                  <div className="requirement-card-grid">
+                    <label className="requirement-card-field"><span className="form-label">Category</span><select className="form-input" aria-label={`ES category ${index + 1}`} value={row.category} onChange={(event) => updateEsCard(row.id, { category: event.target.value })}><option value=""></option>{serviceEsCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+                    <label className="requirement-card-field"><span className="form-label">Description</span><textarea className="form-input" aria-label={`ES description ${index + 1}`} value={row.description} onChange={(event) => updateEsCard(row.id, { description: event.target.value })} /></label>
+                  </div>
+                  <div className="requirement-multi-select" aria-label={`ES evidence required ${index + 1}`}>
+                    {serviceEsEvidence.map((evidence) => (
+                      <label key={evidence}><input type="checkbox" checked={row.evidenceRequired.includes(evidence)} onChange={() => toggleEsEvidence(row, evidence)} /> {evidence}</label>
+                    ))}
+                  </div>
+                  <label><input type="checkbox" checked={row.mandatory} onChange={(event) => updateEsCard(row.id, { mandatory: event.target.checked })} /> Mandatory</label>
+                </article>
+              ))
+            ) : (
+              <div className="scope-empty">No environmental or social requirements added yet.</div>
+            )}
+          </div>
+        </article>
+
+        <article className="requirement-block" id="requirement-section-supportingDocuments">
+          <div className="scope-list-heading">
+            <div>
+              <h4>Supporting Documents</h4>
+              <span className="form-hint">Define submission documents suppliers must upload or respond to.</span>
+            </div>
+            <button className="btn btn-secondary scope-add" type="button" onClick={addSupportingDocumentRow}>Add Required Document</button>
+          </div>
+          <div className="requirement-table-wrap">
+            <table className="requirement-table">
+              <thead>
+                <tr>
+                  <th>Document name</th>
+                  <th>Mandatory</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {services.supportingDocumentRows.length ? (
+                  services.supportingDocumentRows.map((row, index) => (
+                    <tr key={row.id}>
+                      <td><input className="form-input" aria-label={`Supporting document ${index + 1}`} value={row.documentName} onChange={(event) => updateSupportingDocumentRow(row.id, { documentName: event.target.value })} /></td>
+                      <td><input type="checkbox" aria-label={`Supporting document mandatory ${index + 1}`} checked={row.mandatory} onChange={(event) => updateSupportingDocumentRow(row.id, { mandatory: event.target.checked })} /></td>
+                      <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove supporting document ${index + 1}`} onClick={() => patchServices({ supportingDocumentRows: services.supportingDocumentRows.filter((item) => item.id !== row.id) })}>x</button></td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={3}><div className="scope-empty">No supporting documents added yet.</div></td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        {showRiskInsurance ? (
+          <>
+            <article className="requirement-block" id="requirement-section-insuranceRequirements">
+              <div>
+                <h4>Insurance Requirements</h4>
+                <span className="form-hint">Shown for higher-risk services where insurance evidence is important.</span>
+              </div>
+              <div className="requirement-control-grid">
+                {renderList('insuranceCovers', 'Required insurance covers', 'Add Insurance Cover', 'No insurance covers added yet.')}
+                <label className="requirement-control requirement-control-wide"><span className="form-label">Insurance notes</span><textarea className="form-input" aria-label="Insurance notes" value={services.insuranceNotes} onChange={(event) => patchServices({ insuranceNotes: event.target.value })} /></label>
+              </div>
+            </article>
+            <article className="requirement-block" id="requirement-section-riskSafetyRequirements">
+              <div>
+                <h4>Risk and Safety Requirements</h4>
+                <span className="form-hint">Shown for technical, field, maintenance, transport, and security services.</span>
+              </div>
+              <div className="requirement-control-grid">
+                <label className="requirement-control"><span className="form-label">Risk assessment requirement</span><textarea className="form-input" aria-label="Risk assessment requirement" value={services.riskAssessmentRequirement} onChange={(event) => patchServices({ riskAssessmentRequirement: event.target.value })} /></label>
+                <label className="requirement-control"><span className="form-label">Safety plan requirement</span><textarea className="form-input" aria-label="Safety plan requirement" value={services.safetyPlanRequirement} onChange={(event) => patchServices({ safetyPlanRequirement: event.target.value })} /></label>
+                <label className="requirement-control"><span className="form-label">PPE requirements</span><textarea className="form-input" aria-label="PPE requirements" value={services.ppeRequirements} onChange={(event) => patchServices({ ppeRequirements: event.target.value })} /></label>
+              </div>
+            </article>
+          </>
+        ) : null}
+        {regulatoryLicensePanel}
+      </div>
+    </div>
+  );
+}
+
 function WorksRequirementsStep({
   draft,
   onPatch,
@@ -2619,7 +3241,7 @@ function EvaluationStep({
   const [subcriteriaPicker, setSubcriteriaPicker] = useState<Record<string, string>>({});
   const [customSubcriteria, setCustomSubcriteria] = useState<Record<string, string>>({});
 
-  if (draft.procurementTypeId === 'goods' || draft.procurementTypeId === 'works') {
+  if (draft.procurementTypeId === 'goods' || draft.procurementTypeId === 'works' || draft.procurementTypeId === 'services') {
     const summary = getEvaluationSummary(draft.evaluationCriteria);
     const selectedIds = new Set(draft.evaluationCriteria.map((criterion) => criterion.id));
     const availableSuggestions = suggestions.filter((criterion) => !selectedIds.has(criterion.id));
@@ -3006,6 +3628,7 @@ function ReviewStep({
   };
   const fundingSource = draft.fundingSource === 'Other' ? draft.customFundingSource || 'Other' : draft.fundingSource;
   const requirementEntries = Object.entries(draft.requirements).filter(([, value]) => Boolean(value));
+  const services = draft.serviceRequirements ?? createEmptyServiceRequirements();
   const works = draft.worksRequirements ?? createEmptyWorksRequirements();
   const licenseRows = draft.regulatoryLicenseRequirements.length
     ? draft.regulatoryLicenseRequirements.map((row) => [
@@ -3016,9 +3639,10 @@ function ReviewStep({
       ])
     : draft.selectedLicenses.map((license) => [{ label: 'License', value: license }]);
   const commercialTotal = draft.commercialItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
+  const serviceBoqTotal = services.serviceBoqRows.reduce((sum, row) => sum + Number(row.quantity || 0) * Number(row.rate || 0), 0);
   const worksBoqTotal = works.boqRows.reduce((sum, row) => sum + Number(row.quantity || 0) * Number(row.rate || 0), 0);
   const worksLumpSumTotal = works.lumpSumPricingRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const reviewCommercialTotal = selectedType.id === 'works' ? worksBoqTotal + worksLumpSumTotal : commercialTotal;
+  const reviewCommercialTotal = selectedType.id === 'works' ? worksBoqTotal + worksLumpSumTotal : selectedType.id === 'services' ? serviceBoqTotal : commercialTotal;
 
   return (
     <div className="wizard-step-surface review-step-surface">
@@ -3055,6 +3679,8 @@ function ReviewStep({
           </div>
           {selectedType.id === 'works' ? (
             renderWorksReviewRequirements(works, draft.financialRequirements)
+          ) : selectedType.id === 'services' ? (
+            renderServiceReviewRequirements(services, draft.financialRequirements)
           ) : (
             <div className="tender-review-section-stack">
               <article className="tender-review-section">
@@ -3141,6 +3767,20 @@ function ReviewStep({
                   { label: 'Rate / Fee', value: row.rate }
                 ])
               ])
+            ) : (
+              <div className="scope-empty">{getReviewCommercialEmptyText(selectedType.id)}</div>
+            )
+          ) : selectedType.id === 'services' ? (
+            services.serviceBoqRows.length ? (
+              renderReviewObjectRows(
+                services.serviceBoqRows.map((row, index) => [
+                  { label: 'Code', value: String(index + 1) },
+                  { label: 'Requirement', value: row.description || 'Service BOQ line' },
+                  { label: 'Qty / Duration', value: row.quantity },
+                  { label: 'Unit', value: row.unit },
+                  { label: 'Rate / Fee', value: row.rate }
+                ])
+              )
             ) : (
               <div className="scope-empty">{getReviewCommercialEmptyText(selectedType.id)}</div>
             )
@@ -3359,6 +3999,69 @@ function renderWorksReviewRequirements(works: CreateTenderWorksRequirements, fin
   );
 }
 
+function renderServiceReviewRequirements(services: CreateTenderServiceRequirements, financialRequirements: CreateTenderFinancialRequirementRow[]) {
+  return (
+    <div className="tender-review-section-stack">
+      <article className="tender-review-section">
+        <h4>Service definition</h4>
+        <div className="tender-review-field-grid">
+          {renderReviewField('Service category', services.serviceCategory)}
+          {renderReviewField('Scope of services', services.scopeOfServices)}
+          {renderReviewField('Duration', services.duration)}
+        </div>
+        {renderReviewTextList(services.serviceLocations, 'No service locations added yet.')}
+      </article>
+      <article className="tender-review-section">
+        <h4>Personnel requirements</h4>
+        {renderReviewTextList(
+          services.personnelRequirementRows.map((row) =>
+            [row.position || 'Personnel role', row.minimumEducation, row.minimumYearsExperience ? `${row.minimumYearsExperience} years` : '', row.cvRequired ? 'CV required' : '', row.mandatory ? 'mandatory' : 'optional']
+              .filter(Boolean)
+              .join(' - ')
+          ),
+          'No personnel requirements added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Financial capacity</h4>
+        {renderReviewTextList(
+          financialRequirements.map((row) =>
+            [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
+          ),
+          'No financial capacity requirements added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Supporting documents</h4>
+        {renderReviewTextList(
+          services.supportingDocumentRows.map((row) => `${row.documentName || 'Supporting document'}${row.mandatory ? ' - mandatory' : ''}`),
+          'No supporting documents added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Environmental and social requirements</h4>
+        {renderReviewTextList(
+          services.esRequirementCards.map((row) => [row.category || 'ES requirement', row.description, row.evidenceRequired.join(', '), row.mandatory ? 'mandatory' : 'optional'].filter(Boolean).join(' - ')),
+          'No environmental or social requirements added yet.'
+        )}
+      </article>
+      <article className="tender-review-section">
+        <h4>Risk, safety, and insurance</h4>
+        {renderReviewTextList(
+          [
+            ...services.insuranceCovers.map((cover) => `Insurance cover: ${cover}`),
+            services.insuranceNotes ? `Insurance notes: ${services.insuranceNotes}` : '',
+            services.riskAssessmentRequirement ? `Risk assessment: ${services.riskAssessmentRequirement}` : '',
+            services.safetyPlanRequirement ? `Safety plan: ${services.safetyPlanRequirement}` : '',
+            services.ppeRequirements ? `PPE: ${services.ppeRequirements}` : ''
+          ],
+          'No risk, safety, or insurance requirements added yet.'
+        )}
+      </article>
+    </div>
+  );
+}
+
 function renderReviewField(label: string, value: string | number | string[] | undefined) {
   const display = Array.isArray(value) ? value.filter(Boolean).join(', ') : String(value ?? '').trim();
   return (
@@ -3465,12 +4168,37 @@ function normalizeDraftForType(draft: CreateTenderDraft, typeId: CreateTenderPro
   return {
     ...draft,
     procurementTypeId: typeId,
+    serviceRequirements: normalizeServiceRequirements(draft),
     worksRequirements: draft.worksRequirements ?? createEmptyWorksRequirements(),
     categories: draft.categories.filter((category) => createTenderSetup.categories[typeId].includes(category)),
     selectedLicenses: draft.selectedLicenses.filter((license) => createTenderSetup.regulatoryLicenses[typeId].includes(license)),
-    regulatoryLicenseRequirements: typeId === 'goods' || typeId === 'works' ? draft.regulatoryLicenseRequirements : [],
+    regulatoryLicenseRequirements: typeId === 'goods' || typeId === 'works' || typeId === 'services' ? draft.regulatoryLicenseRequirements : [],
     evaluationCriteria: getSuggestedCriteria(typeId),
     updatedAt: new Date().toISOString()
+  };
+}
+
+function normalizeServiceRequirements(draft: CreateTenderDraft): CreateTenderServiceRequirements {
+  const current = draft.serviceRequirements ?? createEmptyServiceRequirements();
+  return {
+    ...createEmptyServiceRequirements(),
+    ...current,
+    scopeOfServices: current.scopeOfServices || draft.requirements.services_scope || '',
+    reportingRequirements: current.reportingRequirements || draft.requirements.services_reporting || '',
+    slaRequirement: current.slaRequirement || draft.requirements.services_sla || '',
+    personnelRequirementRows:
+      current.personnelRequirementRows.length || !draft.requirements.services_staffing
+        ? current.personnelRequirementRows
+        : [
+            {
+              id: createRowId('service-personnel-migrated'),
+              position: draft.requirements.services_staffing,
+              minimumEducation: '',
+              minimumYearsExperience: '',
+              cvRequired: true,
+              mandatory: true
+            }
+          ]
   };
 }
 
@@ -3487,6 +4215,7 @@ function hasMeaningfulDraft(draft: CreateTenderDraft) {
       draft.submissionDate ||
       draft.categories.length ||
       Object.values(draft.requirements).some(Boolean) ||
+      hasMeaningfulServiceRequirements(draft.serviceRequirements) ||
       hasMeaningfulWorksRequirements(draft.worksRequirements) ||
       draft.productSpecifications.length ||
       draft.sampleRequirements.length ||
@@ -3494,6 +4223,51 @@ function hasMeaningfulDraft(draft: CreateTenderDraft) {
       draft.eligibilityRequirements.length ||
       draft.regulatoryLicenseRequirements.length ||
       draft.deliverables.length
+  );
+}
+
+function hasMeaningfulServiceRequirements(services?: CreateTenderServiceRequirements) {
+  if (!services) return false;
+  return Boolean(
+    services.serviceCategory ||
+      services.scopeOfServices ||
+      services.serviceLocations.some(Boolean) ||
+      services.duration ||
+      services.serviceBoqRows.length ||
+      services.personnelRequirementRows.length ||
+      services.numberOfGuards ||
+      services.shiftSchedule ||
+      services.patrolFrequency ||
+      services.weaponRequirement ||
+      services.controlRoomRequirement ||
+      services.cleaningAreas ||
+      services.cleaningFrequency ||
+      services.cleaningMaterials ||
+      services.wasteDisposalRequirements ||
+      services.serviceDeliverables.some(Boolean) ||
+      services.serviceMilestones.some(Boolean) ||
+      services.reportingRequirements ||
+      services.slaRequirement ||
+      services.uptimeRequirement ||
+      services.responseTime ||
+      services.supportHours ||
+      services.maintenanceSchedule ||
+      services.sparePartsRequirement ||
+      services.technicianRequirements ||
+      services.menuRequirements ||
+      services.hygieneRequirements ||
+      services.foodCertifications.some(Boolean) ||
+      services.fleetRequirements ||
+      services.driverLicenseRequirements ||
+      services.routeCoverage ||
+      services.equipmentRequirementRows.length ||
+      services.esRequirementCards.length ||
+      services.supportingDocumentRows.length ||
+      services.insuranceCovers.some(Boolean) ||
+      services.insuranceNotes ||
+      services.riskAssessmentRequirement ||
+      services.safetyPlanRequirement ||
+      services.ppeRequirements
   );
 }
 

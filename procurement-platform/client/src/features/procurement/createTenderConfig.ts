@@ -1,4 +1,11 @@
-import type { CreateTenderDraft, CreateTenderEvaluationCriterion, CreateTenderProcurementTypeId, CreateTenderSetup, CreateTenderWorksRequirements } from './types';
+import type {
+  CreateTenderDraft,
+  CreateTenderEvaluationCriterion,
+  CreateTenderProcurementTypeId,
+  CreateTenderServiceRequirements,
+  CreateTenderSetup,
+  CreateTenderWorksRequirements
+} from './types';
 
 export const createTenderSetup: CreateTenderSetup = {
   procurementTypes: [
@@ -295,11 +302,87 @@ export const createTenderSetup: CreateTenderSetup = {
       evidenceRequired: ['Priced BOQ', 'Rate breakdown', 'Commercial terms'],
       subcriteria: ['Total BOQ price', 'Unit rate accuracy', 'Price realism', 'Corrected tender sum']
     },
-    { id: 'technical-compliance', label: 'Technical compliance', weight: 35, notes: 'Meets mandatory specifications and response format.', suggestedFor: ['services', 'consultancy'] },
-    { id: 'experience', label: 'Relevant experience', weight: 20, notes: 'Comparable contracts, references, and sector familiarity.', suggestedFor: ['services', 'consultancy'] },
-    { id: 'delivery-capacity', label: 'Delivery capacity', weight: 20, notes: 'Resources, schedule, staffing, and implementation plan.', suggestedFor: ['services'] },
-    { id: 'price', label: 'Financial offer', weight: 25, notes: 'Evaluated price and commercial completeness.', suggestedFor: ['services', 'consultancy'] },
-    { id: 'methodology', label: 'Methodology and work plan', weight: 30, notes: 'Approach, quality assurance, and deliverable management.', suggestedFor: ['consultancy', 'services'] },
+    {
+      id: 'services-delivery-approach',
+      label: 'Service Delivery Approach',
+      category: 'Service Delivery Approach',
+      weight: 20,
+      notes: 'Service methodology, operational planning, workflow design, and quality controls.',
+      suggestedFor: ['services'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Technical response', 'Service delivery approach', 'Work schedule', 'Quality control plan', 'Risk management approach'],
+      subcriteria: ['Service methodology', 'Operational plan', 'Service execution strategy', 'Workflow design']
+    },
+    {
+      id: 'services-staffing-personnel',
+      label: 'Staffing and Personnel',
+      category: 'Staffing and Personnel',
+      weight: 20,
+      notes: 'Staff qualifications, availability, training, and supervision structure.',
+      suggestedFor: ['services'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Staff CVs', 'Education certificates', 'Experience records', 'Professional certificates'],
+      subcriteria: ['Staff qualifications', 'Staff availability', 'Training plan', 'Supervisory structure']
+    },
+    {
+      id: 'services-service-capacity',
+      label: 'Service Capacity',
+      category: 'Service Capacity',
+      weight: 10,
+      notes: 'Coverage, resource availability, scalability, and continuity capability.',
+      suggestedFor: ['services'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Service coverage plan', 'Staff deployment plan', 'Continuity plan', 'Local support evidence'],
+      subcriteria: ['Ability to scale service', 'Resource availability', 'Coverage area capability', 'Backup/contingency resources']
+    },
+    {
+      id: 'services-sla-performance',
+      label: 'SLA and Performance',
+      category: 'SLA and Performance',
+      weight: 20,
+      notes: 'Response times, uptime, service levels, reporting, and escalation.',
+      suggestedFor: ['services'],
+      evaluationType: 'delivery_based',
+      evidenceRequired: ['SLA response', 'Response-time commitment', 'Support-hours commitment', 'Reporting arrangement'],
+      subcriteria: ['Response time', 'Resolution time', 'Service uptime guarantee', 'Reporting frequency', 'Escalation procedures']
+    },
+    {
+      id: 'services-tools-systems',
+      label: 'Tools and Systems',
+      category: 'Tools and Systems',
+      weight: 10,
+      notes: 'Tools, systems, monitoring, reporting technology, and availability proof.',
+      suggestedFor: ['services'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Equipment list', 'Tools list', 'Systems description', 'Availability proof'],
+      subcriteria: ['Use of technology/tools', 'Service management systems', 'Monitoring and reporting systems']
+    },
+    {
+      id: 'services-experience',
+      label: 'Experience',
+      category: 'Experience',
+      weight: 10,
+      notes: 'Similar service contracts, industry experience, references, and performance history.',
+      suggestedFor: ['services'],
+      evaluationType: 'scored',
+      evidenceRequired: ['Past service contracts', 'Client references', 'Performance records'],
+      subcriteria: ['Similar service contracts', 'Industry experience', 'Client references', 'Performance history']
+    },
+    {
+      id: 'services-financial',
+      label: 'Financial',
+      category: 'Financial',
+      weight: 10,
+      notes: 'Service BOQ, rate schedules, taxes, discounts, and value for money.',
+      suggestedFor: ['services'],
+      evaluationType: 'price_based',
+      evidenceRequired: ['Service BOQ', 'Monthly rate schedule', 'Unit rate schedule', 'Tax and discount details'],
+      subcriteria: ['Service pricing model', 'Monthly/annual cost', 'Cost per unit/service', 'Value for money']
+    },
+    { id: 'technical-compliance', label: 'Technical compliance', weight: 35, notes: 'Meets mandatory specifications and response format.', suggestedFor: ['consultancy'] },
+    { id: 'experience', label: 'Relevant experience', weight: 20, notes: 'Comparable contracts, references, and sector familiarity.', suggestedFor: ['consultancy'] },
+    { id: 'price', label: 'Financial offer', weight: 25, notes: 'Evaluated price and commercial completeness.', suggestedFor: ['consultancy'] },
+    { id: 'methodology', label: 'Methodology and work plan', weight: 30, notes: 'Approach, quality assurance, and deliverable management.', suggestedFor: ['consultancy'] },
     { id: 'key-experts', label: 'Key expert qualifications', weight: 25, notes: 'Professional qualifications and role-specific experience.', suggestedFor: ['consultancy'] }
   ]
 };
@@ -327,6 +410,50 @@ export function createEmptyWorksRequirements(): CreateTenderWorksRequirements {
     keyPersonnelCvsRequired: false,
     bankStatementsRequired: false,
     bankStatementPeriod: ''
+  };
+}
+
+export function createEmptyServiceRequirements(): CreateTenderServiceRequirements {
+  return {
+    serviceCategory: '',
+    scopeOfServices: '',
+    serviceLocations: [],
+    duration: '',
+    serviceBoqRows: [],
+    personnelRequirementRows: [],
+    numberOfGuards: '',
+    shiftSchedule: '',
+    patrolFrequency: '',
+    weaponRequirement: '',
+    controlRoomRequirement: '',
+    cleaningAreas: '',
+    cleaningFrequency: '',
+    cleaningMaterials: '',
+    wasteDisposalRequirements: '',
+    serviceDeliverables: [],
+    serviceMilestones: [],
+    reportingRequirements: '',
+    slaRequirement: '',
+    uptimeRequirement: '',
+    responseTime: '',
+    supportHours: '',
+    maintenanceSchedule: '',
+    sparePartsRequirement: '',
+    technicianRequirements: '',
+    menuRequirements: '',
+    hygieneRequirements: '',
+    foodCertifications: [],
+    fleetRequirements: '',
+    driverLicenseRequirements: '',
+    routeCoverage: '',
+    equipmentRequirementRows: [],
+    esRequirementCards: [],
+    supportingDocumentRows: [],
+    insuranceCovers: [],
+    insuranceNotes: '',
+    riskAssessmentRequirement: '',
+    safetyPlanRequirement: '',
+    ppeRequirements: ''
   };
 }
 
@@ -361,6 +488,7 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
     financialRequirements: [],
     eligibilityRequirements: [],
     regulatoryLicenseRequirements: [],
+    serviceRequirements: createEmptyServiceRequirements(),
     worksRequirements: createEmptyWorksRequirements(),
     deliverables: [],
     attachments: [],
@@ -375,7 +503,7 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
 
 export function getSuggestedCriteria(typeId: CreateTenderProcurementTypeId): CreateTenderEvaluationCriterion[] {
   const suggested = createTenderSetup.evaluationCatalog.filter((criterion) => criterion.suggestedFor.includes(typeId)).slice(0, 4);
-  if (typeId === 'goods' || typeId === 'works') {
+  if (typeId === 'goods' || typeId === 'works' || typeId === 'services') {
     return createTenderSetup.evaluationCatalog
       .filter((criterion) => criterion.suggestedFor.includes(typeId))
       .map((criterion) => ({ ...criterion, subcriteria: [...(criterion.subcriteria ?? [])], evidenceRequired: [...(criterion.evidenceRequired ?? [])], maxScore: criterion.maxScore ?? criterion.weight }));
