@@ -466,3 +466,37 @@ export type MarketplacePayload = {
   myTenders: MyTenderRow[];
   myBids: MyBidRow[];
 };
+
+export type TenderDetail = MarketplaceTenderRow & {
+  buyerOrgId?: string;
+  ownerUserId?: string | null;
+  method?: string;
+  visibility?: string;
+  publishedAt?: string | null;
+  requirements?: Record<string, unknown>;
+  requirementRows?: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
+  milestones?: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
+  commercialItems?: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: number;
+    unit: string | null;
+    rate: number;
+    total: number;
+    payload: Record<string, unknown>;
+  }>;
+  documents?: Array<{ id: string; name: string; documentType: string; label: string | null }>;
+  bidSummary?: {
+    total: number;
+    draft: number;
+    submitted: number;
+    withdrawn: number;
+  };
+  currentBid?: {
+    id: string;
+    status: string;
+    submittedAt: string | null;
+    receiptHash: string | null;
+  } | null;
+};

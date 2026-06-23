@@ -157,3 +157,87 @@ export type ProcurementPlanningListDto = {
   pageSize: number;
   totalPages: number;
 };
+
+export type MarketplaceTenderRow = {
+  id: string;
+  reference: string;
+  title: string;
+  organization: string;
+  type: string;
+  status: string;
+  budget: number;
+  currency: string;
+  closingDate: string;
+  location: string;
+  description: string;
+  createdByCurrentUser: boolean;
+  categories: string[];
+  hasDraftBid: boolean;
+  hasSubmittedBid: boolean;
+};
+
+export type MyTenderRow = {
+  id: string;
+  title: string;
+  section: 'draft' | 'posted' | 'completed';
+  status: string;
+  type: string;
+  tender?: MarketplaceTenderRow;
+  lastActivity: string;
+  actionLabel: string;
+  nav: string;
+};
+
+export type MyBidRow = {
+  id: string;
+  title: string;
+  section: 'draft' | 'submitted';
+  status: string;
+  tender: MarketplaceTenderRow;
+  tenderReference: string;
+  amount?: string;
+  receiptHash?: string;
+  lastActivity: string;
+  actionLabel: string;
+  nav: string;
+};
+
+export type ProcurementMarketplacePayload = {
+  tenders: MarketplaceTenderRow[];
+  myTenders: MyTenderRow[];
+  myBids: MyBidRow[];
+};
+
+export type TenderDetailDto = MarketplaceTenderRow & {
+  buyerOrgId: string;
+  ownerUserId: string | null;
+  method: string;
+  visibility: string;
+  publishedAt: string | null;
+  requirements: Record<string, unknown>;
+  requirementRows: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
+  milestones: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
+  commercialItems: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: number;
+    unit: string | null;
+    rate: number;
+    total: number;
+    payload: Record<string, unknown>;
+  }>;
+  documents: Array<{ id: string; name: string; documentType: string; label: string | null }>;
+  bidSummary: {
+    total: number;
+    draft: number;
+    submitted: number;
+    withdrawn: number;
+  };
+  currentBid: {
+    id: string;
+    status: string;
+    submittedAt: string | null;
+    receiptHash: string | null;
+  } | null;
+};

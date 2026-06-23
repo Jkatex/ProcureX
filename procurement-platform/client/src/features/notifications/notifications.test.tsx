@@ -49,11 +49,31 @@ describe('ProcureX notification cards', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Action failed');
+    expect(screen.getByRole('alert').closest('.procurex-toast-host')).toBeNull();
     expect(screen.getByText('The server could not complete the request.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Dismiss notification' }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders queued notifications as a top-right floating stack with newest first', async () => {
+    const store = renderToastStore();
+
+    act(() => {
+      store.dispatch(enqueueNotification({ tone: 'info', title: 'First notice', message: 'Original message.', dismissible: true, autoDismissMs: 0 }));
+      store.dispatch(enqueueNotification({ tone: 'success', title: 'Second notice', message: 'Newest message.', dismissible: true, autoDismissMs: 0 }));
+    });
+
+    const host = document.querySelector('.procurex-toast-host');
+    expect(host).toBeInTheDocument();
+    expect(host).toHaveAttribute('data-placement', 'top-right');
+    await screen.findByText('Second notice');
+
+    const cards = Array.from(host?.querySelectorAll('.procurex-notification-card') ?? []);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent('Second notice');
+    expect(cards[1]).toHaveTextContent('First notice');
   });
 
   it('auto-dismisses toast notifications and keeps a manual close control', () => {

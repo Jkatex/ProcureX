@@ -830,16 +830,22 @@
 
 .procurex-toast-host {
   position: fixed;
-  top: 18px;
-  right: 18px;
-  z-index: 2200;
-  display: grid;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 10px;
   width: min(440px, calc(100vw - 36px));
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  padding: 2px;
   pointer-events: none;
 }
 
 .procurex-toast-host .procurex-notification-card {
+  width: 100%;
   pointer-events: auto;
 }
 
@@ -864,7 +870,9 @@
   .procurex-toast-host {
     top: 10px;
     right: 10px;
-    width: calc(100vw - 20px);
+    left: 10px;
+    width: auto;
+    max-height: calc(100dvh - 20px);
   }
 
   .procurex-notification-card {

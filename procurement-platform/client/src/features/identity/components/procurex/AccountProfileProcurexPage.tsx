@@ -391,7 +391,7 @@ export function AccountProfileProcurexPage() {
         reason: 'ProcureX updated the profile payload used for account verification and procurement preferences.',
         dismissible: false
       };
-      setStatusMessage(notification);
+      setStatusMessage(null);
       notifySuccess(notification.title, notification.message, { reason: notification.reason });
     } catch (error) {
       setStatusMessage(notificationFromApiError(error, { title: 'Profile could not be saved', fallback: 'Could not save profile.' }));

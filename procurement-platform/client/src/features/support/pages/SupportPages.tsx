@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
+import { useNotifications } from '@/features/notifications/hooks';
 import { supportApi, type SupportTicketPriority } from '@/features/support/api';
 import { apiClient } from '@/shared/api/http';
 import { NotificationCard } from '@/shared/components/NotificationCard';
@@ -60,34 +61,25 @@ function SupportShell({ children }: { children: ReactNode }) {
 
 export function HelpCenterProcurexPage() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const { notifyError, notifySuccess } = useNotifications();
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState('General');
   const [priority, setPriority] = useState<SupportTicketPriority>('NORMAL');
   const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<{ tone: 'success' | 'error'; title: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function submitTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setStatus(null);
     try {
       const ticket = await supportApi.createTicket({ subject, category, priority, description });
       setSubject('');
       setCategory('General');
       setPriority('NORMAL');
       setDescription('');
-      setStatus({
-        tone: 'success',
-        title: 'Support ticket created',
-        message: `Ticket ${ticket.id.slice(0, 8)} is now with ProcureX support.`
-      });
+      notifySuccess('Support ticket created', `Ticket ${ticket.id.slice(0, 8)} is now with ProcureX support.`);
     } catch {
-      setStatus({
-        tone: 'error',
-        title: 'Ticket could not be created',
-        message: 'Please check your session and try again.'
-      });
+      notifyError('Ticket could not be created', 'Please check your session and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -127,16 +119,6 @@ export function HelpCenterProcurexPage() {
             <span className="section-label">Create support ticket</span>
             <h2 id="support-ticket-title">Send an account-specific support request</h2>
           </div>
-          {status ? (
-            <NotificationCard
-              notification={{
-                tone: status.tone,
-                title: status.title,
-                message: status.message,
-                dismissible: false
-              }}
-            />
-          ) : null}
           <form className="launch-contact-form" onSubmit={submitTicket}>
             <label>
               Subject

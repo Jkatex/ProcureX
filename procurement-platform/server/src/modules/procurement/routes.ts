@@ -7,6 +7,8 @@ export function createModuleRouter() {
 
   router.get('/', controller.status);
   router.get('/public/welcome', controller.publicWelcome);
+  router.get('/marketplace', controller.marketplace);
+  router.get('/tenders/:tenderId', controller.getTenderDetail);
   router.get('/planning', controller.planning);
   router.get('/planning/summary', controller.planningSummary);
   router.post('/planning/annual-plan', controller.saveAnnualPlan);

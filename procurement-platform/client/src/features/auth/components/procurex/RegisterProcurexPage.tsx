@@ -2,12 +2,11 @@ import { Fragment, FormEvent, useEffect, useMemo, useRef, useState, type Clipboa
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '@/features/auth/api';
+import { useNotifications } from '@/features/notifications/hooks';
 import { useCurrentLegalVersions } from '@/features/public/hooks';
 import { LanguageSwitcher } from '@/shared/components/LanguageSwitcher';
-import { TanzaniaLocationSelector } from '@/shared/components/TanzaniaLocationSelector';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { isValidTanzaniaLocation, type TanzaniaLocationSelection } from '@procurex/shared';
-import { AuthAlert, authAlert, authAlertFromError, type AuthAlertMessage } from './AuthAlert';
+import { AuthAlert, authAlert, authAlertFromError, authAlertText, authAlertToNotification, type AuthAlertMessage } from './AuthAlert';
 import { TurnstileWidget } from './TurnstileWidget';
 
 type RegisterStep = 1 | 2 | 3 | 4 | 5;
@@ -43,15 +42,25 @@ function formatCountdown(seconds: number) {
   return minutes > 0 ? `${minutes}:${String(remainingSeconds).padStart(2, '0')}` : `${remainingSeconds}s`;
 }
 
+const temporaryCodeAlertMs = 30_000;
+
+function temporaryPhoneCodeAlert(code?: string) {
+  return code ? authAlertText(`Temporary phone verification code: ${code}`, 'info', temporaryCodeAlertMs) : null;
+}
+
+function temporaryEmailCodeAlert(code?: string) {
+  return code ? authAlertText(`Temporary email activation code: ${code}`, 'info', temporaryCodeAlertMs) : null;
+}
+
 export function RegisterProcurexPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { notify } = useNotifications();
   useBodyPageMetadata('register');
   const [step, setStep] = useState<RegisterStep>(1);
   const [email, setEmail] = useState('');
   const [phoneCountry, setPhoneCountry] = useState('+255');
   const [phone, setPhone] = useState('');
-  const [location, setLocation] = useState<Partial<TanzaniaLocationSelection>>({});
   const [otp, setOtp] = useState('');
   const [otpChallengeId, setOtpChallengeId] = useState('');
   const [activationChallengeId, setActivationChallengeId] = useState('');
@@ -149,19 +158,24 @@ export function RegisterProcurexPage() {
     return false;
   }
 
+  function showTemporaryCodeToast(message: AuthAlertMessage | null) {
+    if (!message) return;
+    notify(authAlertToNotification(message, t));
+  }
+
   async function submitAccountInfo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!requireSecurityCheck()) return;
     setLoading(true);
     setStatus(null);
     try {
-      const selectedLocation = isValidTanzaniaLocation(location) ? location : undefined;
-      const result = await authApi.startRegistration({ email, phone: normalizedPhone(), turnstileToken, ...(selectedLocation ? { location: selectedLocation } : {}) });
+      const result = await authApi.startRegistration({ email, phone: normalizedPhone(), turnstileToken });
       setOtpChallengeId(result.challengeId);
       setChallengeExpiresAt(result.expiresAt);
       setResendAvailableAt(result.resendAvailableAt ?? '');
       setOtp('');
       setStep(2);
+      showTemporaryCodeToast(temporaryPhoneCodeAlert(result.devCode));
     } catch (error) {
       setStatus(authAlertFromError(error, 'registration'));
     } finally {
@@ -181,6 +195,7 @@ export function RegisterProcurexPage() {
       setResendAvailableAt(result.resendAvailableAt ?? '');
       setActivationCode('');
       setStep(3);
+      showTemporaryCodeToast(temporaryEmailCodeAlert(result.devCode));
     } catch (error) {
       setStatus(authAlertFromError(error, 'otp'));
     } finally {
@@ -199,7 +214,9 @@ export function RegisterProcurexPage() {
       setChallengeExpiresAt(result.expiresAt);
       setResendAvailableAt(result.resendAvailableAt ?? '');
       setOtp('');
-      setStatus(authAlert('auth.register.messages.otpResent', 'success'));
+      const temporaryCode = temporaryPhoneCodeAlert(result.devCode);
+      if (temporaryCode) showTemporaryCodeToast(temporaryCode);
+      else setStatus(authAlert('auth.register.messages.otpResent', 'success'));
     } catch (error) {
       setStatus(authAlertFromError(error, 'resend-otp'));
     } finally {
@@ -233,7 +250,9 @@ export function RegisterProcurexPage() {
       setActivationExpiresAt(result.expiresAt);
       setResendAvailableAt(result.resendAvailableAt ?? '');
       setActivationCode('');
-      setStatus(authAlert('auth.register.messages.activationResent', 'success'));
+      const temporaryCode = temporaryEmailCodeAlert(result.devCode);
+      if (temporaryCode) showTemporaryCodeToast(temporaryCode);
+      else setStatus(authAlert('auth.register.messages.activationResent', 'success'));
     } catch (error) {
       setStatus(authAlertFromError(error, 'resend-activation'));
     } finally {
@@ -333,11 +352,6 @@ export function RegisterProcurexPage() {
                       <input id="register-phone" className="form-input-new" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t('auth.register.account.phonePlaceholder')} required />
                     </div>
                     <span className="form-hint-new">{t('auth.register.account.phoneHint')}</span>
-                  </div>
-                  <div className="form-group-new">
-                    <span className="form-label-new">Location in Tanzania</span>
-                    <TanzaniaLocationSelector idPrefix="register-location" value={location} onChange={setLocation} />
-                    <span className="form-hint-new">Optional during registration. You will confirm a complete location during verification.</span>
                   </div>
                   <TurnstileWidget action="registration_start" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
                   <button className="btn-continue-new" type="submit" disabled={loading || !turnstileToken}>

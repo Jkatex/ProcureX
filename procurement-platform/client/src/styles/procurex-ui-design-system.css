@@ -29884,11 +29884,19 @@ body[data-page="admin-audit"] {
 .admin-sidebar {
     max-height: calc(100vh - 72px);
     overflow-y: auto;
+    background: #ffffff !important;
 }
 
 .admin-page .app-drawer-menu {
     max-height: min(760px, calc(100vh - 84px));
     overflow-y: auto;
+    background: #ffffff !important;
+    backdrop-filter: none;
+}
+
+.admin-page .profile-menu {
+    background: #ffffff !important;
+    backdrop-filter: none;
 }
 
 .datastore-workspace {
@@ -29971,7 +29979,7 @@ body[data-page="admin-audit"] {
     width: min(440px, 100%);
     height: 100%;
     overflow: auto;
-    background: var(--surface);
+    background: #ffffff;
     border-left: 1px solid var(--border-subtle);
     box-shadow: -18px 0 48px rgba(15, 23, 42, 0.18);
     padding: 24px;
@@ -29996,7 +30004,7 @@ body[data-page="admin-audit"] {
     height: 36px;
     border-radius: 6px;
     border: 1px solid var(--border-subtle);
-    background: var(--surface-muted);
+    background: #ffffff;
     color: var(--text-primary);
     cursor: pointer;
 }

@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
-import { AuthAlert, authAlert, authAlertFromError } from './AuthAlert';
+import { AuthAlert, authAlert, authAlertFromError, authAlertText, authAlertToNotification } from './AuthAlert';
 
 function apiError(status: number, message: string) {
   return { response: { status, data: { message } }, message };
@@ -11,6 +11,10 @@ describe('AuthAlert', () => {
   beforeEach(async () => {
     window.localStorage.clear();
     await i18n.changeLanguage('en');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders error and warning messages as alerts, and success/info as status messages', () => {
@@ -24,6 +28,12 @@ describe('AuthAlert', () => {
   it('maps common auth API failures to user-friendly messages', () => {
     expect(authAlertFromError(apiError(502, 'Could not send verification SMS.'), 'registration')).toEqual({
       key: 'auth.alerts.delivery.smsUnavailable',
+      tone: 'error',
+      reason: 'The server could not complete the request.',
+      actionLabel: undefined
+    });
+    expect(authAlertFromError(apiError(502, 'Could not send activation email.'), 'otp')).toEqual({
+      key: 'auth.alerts.delivery.activationUnavailable',
       tone: 'error',
       reason: 'The server could not complete the request.',
       actionLabel: undefined
@@ -66,5 +76,34 @@ describe('AuthAlert', () => {
     render(<AuthAlert message={authAlertFromError(apiError(400, 'OTP code is incorrect.'), 'otp')} />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('Msimbo wa uthibitishaji si sahihi.');
+  });
+
+  it('keeps temporary code notifications visible longer than the default duration', () => {
+    vi.useFakeTimers();
+    render(<AuthAlert message={authAlertText('Temporary phone verification code: 123456', 'info', 30_000)} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Temporary phone verification code: 123456');
+
+    act(() => {
+      vi.advanceTimersByTime(6_500);
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Temporary phone verification code: 123456');
+
+    act(() => {
+      vi.advanceTimersByTime(23_500);
+    });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('maps temporary code alerts to long-lived floating toast notifications', () => {
+    const notification = authAlertToNotification(authAlertText('Temporary phone verification code: 123456', 'info', 30_000), i18n.t);
+
+    expect(notification).toMatchObject({
+      tone: 'info',
+      title: 'Information',
+      message: 'Temporary phone verification code: 123456',
+      dismissible: true,
+      autoDismissMs: 30_000
+    });
   });
 });

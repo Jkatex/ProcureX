@@ -1,6 +1,8 @@
 import { ModuleRepository } from './repository.js';
+import { ModuleService as IdentityService } from '../identity/service.js';
 import {
   moduleDefinition,
+  type ProcurementMarketplacePayload,
   type ModuleStatus,
   type ProcurementPlanDto,
   type ProcurementPlanLineDto,
@@ -11,11 +13,15 @@ import {
   type PublicWelcomePayload,
   type PublicWelcomeTender,
   type SaveAnnualPlanInput,
+  type TenderDetailDto,
   type UpdateProcurementPlanInput
 } from './types.js';
 
 export class ModuleService {
-  constructor(private readonly repository = new ModuleRepository()) {}
+  constructor(
+    private readonly repository = new ModuleRepository(),
+    private readonly identity = new IdentityService()
+  ) {}
 
   async status(): Promise<ModuleStatus> {
     await this.repository.health();
@@ -32,6 +38,21 @@ export class ModuleService {
     } catch {
       return defaultWelcomePayload;
     }
+  }
+
+  async marketplace(token?: string): Promise<ProcurementMarketplacePayload> {
+    try {
+      const context = await this.contextFromToken(token);
+      return await this.repository.getMarketplaceData(context);
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return { tenders: [], myTenders: [], myBids: [] };
+      throw error;
+    }
+  }
+
+  async getTenderDetail(tenderId: string, token?: string): Promise<TenderDetailDto | null> {
+    const context = await this.contextFromToken(token);
+    return this.repository.getTenderDetail(tenderId, context);
   }
 
   async planning(query: ProcurementPlanningQuery): Promise<ProcurementPlanningListDto> {
@@ -70,6 +91,16 @@ export class ModuleService {
 
   async deletePlanLine(lineId: string): Promise<ProcurementPlanLineDto | null> {
     return this.repository.deletePlanLine(lineId);
+  }
+
+  private async contextFromToken(token?: string) {
+    if (!token) return {};
+    try {
+      const session = await this.identity.requireSession(token);
+      return { organizationId: session.user.organizationId };
+    } catch {
+      return {};
+    }
   }
 
   private mapWelcomeData(data: WelcomeRepositoryData): PublicWelcomePayload {

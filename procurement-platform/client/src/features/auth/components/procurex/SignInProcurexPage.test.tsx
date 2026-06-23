@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -119,14 +118,12 @@ describe('SignInProcurexPage', () => {
     expect(screen.queryByRole('button', { name: /Sign in as demo user/i })).not.toBeInTheDocument();
   });
 
-  it('shows the local demo account icon button when enabled and keeps it available without Turnstile', () => {
+  it('prefills demo credentials when enabled but does not show a bypass button', () => {
     vi.stubEnv('VITE_DEMO_SIGN_IN_ENABLED', 'true');
 
     renderSignIn();
 
-    const demoButton = screen.getByRole('button', { name: /Sign in as demo user/i });
-    expect(demoButton).toBeEnabled();
-    expect(demoButton.querySelector('svg')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Sign in as demo user/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Email Address *')).toHaveValue('demo@procurex.tz');
     expect(screen.getByLabelText('Password *')).toHaveValue('Demo123!');
     expect(mockedAuthApi.signIn).not.toHaveBeenCalled();
@@ -142,29 +139,6 @@ describe('SignInProcurexPage', () => {
     expect(screen.getByLabelText('Email Address *')).toHaveValue('walkthrough@procurex.tz');
     expect(screen.getByLabelText('Password *')).toHaveValue('Walkthrough123!');
     expect(screen.getByText('Development demo credentials are filled in for this session. Complete the security check, then sign in.')).toBeInTheDocument();
-  });
-
-  it('signs in the local demo account without Turnstile or backend auth and routes to the dashboard', async () => {
-    vi.stubEnv('VITE_DEMO_SIGN_IN_ENABLED', 'true');
-
-    renderSignIn();
-
-    fireEvent.click(screen.getByRole('button', { name: /Sign in as demo user/i }));
-
-    await screen.findByText('User dashboard');
-    expect(mockedAuthApi.signIn).not.toHaveBeenCalled();
-    expect(window.localStorage.getItem('procurex.authToken')).toBeNull();
-    expect(store.getState().auth.user).toMatchObject({
-      trustTier: 'PLATINUM',
-      riskLevel: 'LOW',
-      screeningStatus: 'CLEAR',
-      featureGates: expect.objectContaining({
-        tenderCreation: true,
-        tenderPublication: true,
-        bidSubmission: true,
-        evaluationManagement: true
-      })
-    });
   });
 
   it('accepts typed demo credentials through the backend when local demo sign-in is enabled', async () => {
@@ -188,7 +162,6 @@ describe('SignInProcurexPage', () => {
   });
 
   it('shows the language switcher and translates sign-in copy to Swahili', async () => {
-    const user = userEvent.setup();
     renderSignIn();
 
     const actionGroup = document.querySelector('.auth-header-actions-new');
@@ -198,10 +171,9 @@ describe('SignInProcurexPage', () => {
     expect(actionGroup).toContainElement(createAccountButton);
     expect(Boolean(languageSwitcher.compareDocumentPosition(createAccountButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
 
-    await user.click(screen.getByRole('combobox', { name: 'Language' }));
-    await user.click(screen.getByRole('option', { name: 'Swahili' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Language' }), { target: { value: 'sw' } });
 
-    expect(screen.getByRole('heading', { name: 'Karibu Tena' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Karibu Tena' })).toBeInTheDocument();
     expect(screen.getByLabelText('Barua Pepe *')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ingia' })).toBeInTheDocument();
   });

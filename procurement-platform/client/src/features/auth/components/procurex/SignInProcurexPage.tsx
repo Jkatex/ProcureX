@@ -1,10 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import { useAppDispatch, useAppSelector } from '@/app/store';
-import { assumeUser, signInWithCredentials } from '@/features/auth/slice';
-import { demoUsers } from '@/shared/data/fixtures';
+import { signInWithCredentials } from '@/features/auth/slice';
 import { LanguageSwitcher } from '@/shared/components/LanguageSwitcher';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AuthAlert, authAlert, authAlertFromError, type AuthAlertMessage } from './AuthAlert';
@@ -98,15 +96,6 @@ export function SignInProcurexPage() {
     await signIn(email, password);
   }
 
-  async function submitDemoSignIn() {
-    if (loading) return;
-    setAlert(null);
-    setEmail(demoSignIn.email);
-    setPassword(demoSignIn.password);
-    dispatch(assumeUser({ ...demoUsers.user, email: demoSignIn.email }));
-    navigate('/dashboard', { replace: true });
-  }
-
   return (
     <div className="register-page-new auth-page">
       <header className="register-header-new">
@@ -197,21 +186,6 @@ export function SignInProcurexPage() {
               </button>
 
             </form>
-
-            {demoSignIn.enabled ? (
-              <div className="demo-credentials demo-credentials--auth demo-credentials--icon-only">
-                <button
-                  className="demo-account demo-account--compact demo-account--icon-only"
-                  type="button"
-                  aria-label={t('auth.signIn.demo.button')}
-                  title={t('auth.signIn.demo.securityHint')}
-                  disabled={loading}
-                  onClick={() => void submitDemoSignIn()}
-                >
-                  <LoginRoundedIcon fontSize="small" aria-hidden="true" />
-                </button>
-              </div>
-            ) : null}
 
             <div className="auth-note">
               {t('auth.signIn.note')}

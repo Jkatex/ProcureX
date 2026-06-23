@@ -33,6 +33,27 @@ npm run db:seed:twice
 npm test
 ```
 
+## Local Testing Data
+
+Registration code delivery is temporary in local development. With `IDENTITY_EMAIL_PROVIDER=dev-console` and `IDENTITY_PHONE_PROVIDER=dev-console`, the registration phone code and email activation code are shown in the UI and logged by the server. Real SMS and email delivery will replace this once those providers are fully wired.
+
+Use these dev-only TRA/BRELA identifiers during identity verification. They are served only outside production.
+
+| Applicant type | Source option | Identifier | Expected name |
+| --- | --- | --- | --- |
+| Individual | TIN / TRA | `1234567890` | Asha Juma Mwinyi |
+| Business | TIN / TRA | `1234567890` | Asha Juma Trading Enterprise |
+| Individual | TIN / TRA | `1098765432` | Neema Ally Msuya |
+| Business | TIN / TRA | `1098765432` | Neema Fresh Logistics |
+| Individual | TIN / TRA | `555666777` | Baraka Hassan Mrema |
+| Business | TIN / TRA | `555666777` | Mwanza Medical Supplies |
+| Company | BRELA | `987654321` | Local Test Supplies Limited |
+| Business | BRELA | `987654321` | Local Test Supplies Business Name |
+| Company | BRELA | `BRN-2024-001` | Kilimanjaro Works Limited |
+| Business | BRELA | `BRN-2024-001` | Kilimanjaro Works |
+| Company | BRELA | `BN-778899` | Zanzibar Digital Services Limited |
+| Business | BRELA | `BN-778899` | Zanzibar Digital Services |
+
 ## Product Rules Captured Here
 
 - Login account type is only `USER` or `ADMIN`.
@@ -40,4 +61,3 @@ npm test
 - A company can act as buyer, supplier, or both through organization capabilities and profiles.
 - Admin is a platform compliance account, not a buyer or supplier role.
 - Buyer, supplier, evaluator, and approver behavior is represented by organization capabilities and workflow assignments.
-

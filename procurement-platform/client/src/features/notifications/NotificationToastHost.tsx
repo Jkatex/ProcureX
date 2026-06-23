@@ -37,10 +37,15 @@ export function NotificationToastHost() {
   if (!notifications.length) return null;
 
   return (
-    <section className="procurex-toast-host" aria-label="Notifications">
+    <section className="procurex-toast-host" aria-label="Notifications" data-placement="top-right">
       <Suspense fallback={null}>
         {notifications.map((notification) => (
-          <NotificationCard key={notification.id} notification={{ ...notification, dismissible: true }} compact onDismiss={() => dispatch(dismissNotification(notification.id))} />
+          <NotificationCard
+            key={notification.id}
+            notification={{ ...notification, dismissible: true, autoDismissMs: 0 }}
+            compact
+            onDismiss={() => dispatch(dismissNotification(notification.id))}
+          />
         ))}
       </Suspense>
     </section>

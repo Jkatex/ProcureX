@@ -275,6 +275,10 @@ function devChallengeMetadata(receipt: DeliveryReceipt, code: string) {
   return receipt.provider === 'dev-console' ? { devCode: code } : {};
 }
 
+function devCodeFromReceipt(receipt: DeliveryReceipt, code: string) {
+  return receipt.provider === 'dev-console' ? code : undefined;
+}
+
 function appPublicUrl() {
   const raw = process.env.APP_PUBLIC_URL || 'http://localhost:5173';
   try {
@@ -384,12 +388,69 @@ function localRegistryMocksEnabled() {
   return process.env.NODE_ENV !== 'production' && process.env.APP_ENV !== 'production';
 }
 
+function localTemporaryAuthCodesEnabled() {
+  return process.env.NODE_ENV !== 'production' && process.env.APP_ENV !== 'production';
+}
+
+function localEmailValidationFallback(): EmailValidationResult {
+  return {
+    provider: 'local-temporary-code',
+    configured: false,
+    accepted: true,
+    reasons: ['Email validation unavailable; using local temporary activation code.'],
+    score: 1,
+    checks: {
+      formatValid: true,
+      mxFound: false,
+      smtpCheck: false,
+      disposable: false,
+      role: false,
+      free: false
+    }
+  };
+}
+
 function localRegistryMockPayload(input: RegistryLookupInput & { source: RegistrySource; registryNumber: string }) {
   const fetchedAt = new Date().toISOString();
 
-  if (input.source === 'TRA' && input.registryNumber === '1234567890') {
+  if (input.source === 'TRA' && ['1234567890', '1098765432', '555666777'].includes(input.registryNumber)) {
     const businessLike = input.entityType === 'business';
-    const name = businessLike ? 'Asha Juma Trading Enterprise' : 'Asha Juma Mwinyi';
+    const traRecordMap: Record<string, {
+      individualName: string;
+      businessName: string;
+      registeredOn: string;
+      taxOffice: string;
+      location: string;
+      activities: string[];
+    }> = {
+      '1234567890': {
+        individualName: 'Asha Juma Mwinyi',
+        businessName: 'Asha Juma Trading Enterprise',
+        registeredOn: '2026-06-18',
+        taxOffice: 'Ilala Tax Region',
+        location: 'Dar es Salaam, Tanzania',
+        activities: ['General supplies', 'Procurement services']
+      },
+      '1098765432': {
+        individualName: 'Neema Ally Msuya',
+        businessName: 'Neema Fresh Logistics',
+        registeredOn: '2025-11-03',
+        taxOffice: 'Arusha Tax Region',
+        location: 'Arusha, Tanzania',
+        activities: ['Cold chain logistics', 'Agricultural produce distribution']
+      },
+      '555666777': {
+        individualName: 'Baraka Hassan Mrema',
+        businessName: 'Mwanza Medical Supplies',
+        registeredOn: '2024-08-21',
+        taxOffice: 'Mwanza Tax Region',
+        location: 'Mwanza, Tanzania',
+        activities: ['Medical consumables', 'Hospital equipment distribution']
+      }
+    };
+    const traRecord = traRecordMap[input.registryNumber];
+    if (!traRecord) return null;
+    const name = businessLike ? traRecord.businessName : traRecord.individualName;
     return {
       source: 'TRA' as const,
       registryNumber: input.registryNumber,
@@ -402,27 +463,67 @@ function localRegistryMockPayload(input: RegistryLookupInput & { source: Registr
         taxpayerName: name,
         taxpayerType: businessLike ? 'Sole proprietor business' : 'Individual taxpayer',
         registrationStatus: 'Active',
-        registeredOn: '2026-06-18',
-        taxOffice: 'Ilala Tax Region',
-        location: 'Dar es Salaam, Tanzania',
+        registeredOn: traRecord.registeredOn,
+        taxOffice: traRecord.taxOffice,
+        location: traRecord.location,
         localDevelopmentRecord: true,
         mockIdentifier: true,
         provider: 'LOCAL_TRA_MOCK',
         fetchedAt,
+        businessActivities: businessLike ? traRecord.activities : [],
         summaryRows: [
           ['TIN', input.registryNumber],
           ['Taxpayer name', name],
           ['Taxpayer type', businessLike ? 'Business with TIN' : 'Individual'],
           ['Status', 'Active'],
-          ['Tax office', 'Ilala Tax Region']
+          ['Tax office', traRecord.taxOffice]
         ]
       }
     };
   }
 
-  if (input.source === 'BRELA' && input.registryNumber === '987654321') {
+  if (input.source === 'BRELA' && ['987654321', 'BRN-2024-001', 'BN-778899'].includes(input.registryNumber)) {
     const businessLike = input.entityType === 'business';
-    const name = businessLike ? 'Local Test Supplies Business Name' : 'Local Test Supplies Limited';
+    const brelaRecordMap: Record<string, {
+      companyName: string;
+      businessName: string;
+      date: string;
+      office: string;
+      taxpayerTin: string;
+      directors: string[];
+      activities: string[];
+    }> = {
+      '987654321': {
+        companyName: 'Local Test Supplies Limited',
+        businessName: 'Local Test Supplies Business Name',
+        date: '2026-06-18',
+        office: 'Dar es Salaam, Tanzania',
+        taxpayerTin: '1234567890',
+        directors: ['Asha Juma Mwinyi', 'John Joseph Mrema'],
+        activities: ['General supplies', 'Procurement services']
+      },
+      'BRN-2024-001': {
+        companyName: 'Kilimanjaro Works Limited',
+        businessName: 'Kilimanjaro Works',
+        date: '2024-04-12',
+        office: 'Moshi, Tanzania',
+        taxpayerTin: '1098765432',
+        directors: ['Neema Ally Msuya', 'Peter Elia Mosha'],
+        activities: ['Civil works', 'Facilities maintenance']
+      },
+      'BN-778899': {
+        companyName: 'Zanzibar Digital Services Limited',
+        businessName: 'Zanzibar Digital Services',
+        date: '2025-02-07',
+        office: 'Mjini Magharibi, Tanzania',
+        taxpayerTin: '555666777',
+        directors: ['Fatma Said Kombo', 'Ali Hamad Omar'],
+        activities: ['Software services', 'ICT equipment supply']
+      }
+    };
+    const brelaRecord = brelaRecordMap[input.registryNumber];
+    if (!brelaRecord) return null;
+    const name = businessLike ? brelaRecord.businessName : brelaRecord.companyName;
     return {
       source: 'BRELA' as const,
       registryNumber: input.registryNumber,
@@ -434,22 +535,22 @@ function localRegistryMockPayload(input: RegistryLookupInput & { source: Registr
         registrationNumber: input.registryNumber,
         companyName: name,
         entityCategory: businessLike ? 'Registered business name' : 'Private limited company',
-        incorporationDate: '2026-06-18',
+        incorporationDate: brelaRecord.date,
         registrationStatus: 'Active',
-        principalOffice: 'Dar es Salaam, Tanzania',
-        taxpayerTin: '1234567890',
+        principalOffice: brelaRecord.office,
+        taxpayerTin: brelaRecord.taxpayerTin,
         localDevelopmentRecord: true,
         mockIdentifier: true,
         provider: 'LOCAL_BRELA_MOCK',
         fetchedAt,
-        directors: businessLike ? ['Asha Juma Mwinyi'] : ['Asha Juma Mwinyi', 'John Joseph Mrema'],
-        businessActivities: ['General supplies', 'Procurement services'],
+        directors: businessLike ? [brelaRecord.directors[0]] : brelaRecord.directors,
+        businessActivities: brelaRecord.activities,
         summaryRows: [
           ['Registered name', name],
           ['BRELA number', input.registryNumber],
           ['Entity category', businessLike ? 'Business name' : 'Company'],
           ['Status', 'Active'],
-          ['Principal office', 'Dar es Salaam, Tanzania']
+          ['Principal office', brelaRecord.office]
         ]
       }
     };
@@ -768,7 +869,7 @@ export class ModuleService {
         })
       });
     }
-    const challenge = await this.createPhoneOtpChallenge(user.id, phone, email, audit, phoneValidation);
+    const { challenge, devCode } = await this.createPhoneOtpChallenge(user.id, phone, email, audit, phoneValidation);
     await this.recordAuthEvent('identity.auth.registration_started', {
       ...audit,
       userId: user.id,
@@ -786,7 +887,8 @@ export class ModuleService {
       challengeId: challenge.id,
       expiresAt: challenge.expiresAt.toISOString(),
       resendAvailableAt: challengeResendAvailableAt(challenge.createdAt, resendCooldownSeconds),
-      maxAttempts: maxChallengeAttempts
+      maxAttempts: maxChallengeAttempts,
+      ...(devCode ? { devCode } : {})
     };
   }
 
@@ -808,6 +910,7 @@ export class ModuleService {
 
     try {
       const receipt = await this.notifications.sendPhoneOtp({ to: phone, code, expiresInMinutes: phoneOtpMinutes });
+      const devCode = devCodeFromReceipt(receipt, code);
       await this.repository.updateChallenge(challenge.id, {
         metadata: inputJson({
           ...metadataObject(challenge.metadata),
@@ -826,6 +929,7 @@ export class ModuleService {
         target: phone,
         details: { provider: receipt.provider, messageId: receipt.messageId }
       });
+      return { challenge, devCode };
     } catch (error) {
       await this.markChallengeDeliveryFailed(challenge.id, challenge.metadata, error);
       await this.recordAuthEvent('identity.auth.phone_otp_delivery_failed', {
@@ -837,8 +941,6 @@ export class ModuleService {
       });
       throw requestError('Could not send verification SMS. Please try again later.', 502);
     }
-
-    return challenge;
   }
 
   async resendOtp(challengeId: string, audit?: AuthAuditContext) {
@@ -860,7 +962,7 @@ export class ModuleService {
       audit
     });
     await this.repository.updateChallenge(existing.id, { status: 'REPLACED', consumedAt: new Date() });
-    const next = await this.createPhoneOtpChallenge(existing.user.id, existing.target, existing.user.email, audit, phoneValidation);
+    const { challenge: next, devCode } = await this.createPhoneOtpChallenge(existing.user.id, existing.target, existing.user.email, audit, phoneValidation);
     await this.recordAuthEvent('identity.auth.phone_otp_resent', {
       ...audit,
       userId: existing.user.id,
@@ -872,18 +974,25 @@ export class ModuleService {
       challengeId: next.id,
       expiresAt: next.expiresAt.toISOString(),
       resendAvailableAt: challengeResendAvailableAt(next.createdAt, resendCooldownSeconds),
-      maxAttempts: maxChallengeAttempts
+      maxAttempts: maxChallengeAttempts,
+      ...(devCode ? { devCode } : {})
     };
   }
 
   private async createActivationChallenge(userId: string, email: string, metadata: Record<string, unknown>, audit?: AuthAuditContext) {
-    const emailValidation = await this.validateAuthEmailDelivery({
-      email,
-      userId,
-      purpose: 'email_activation',
-      audit,
-      unavailableMessage: 'Could not verify this email address. Please try again later.'
-    });
+    let emailValidation: EmailValidationResult;
+    try {
+      emailValidation = await this.validateAuthEmailDelivery({
+        email,
+        userId,
+        purpose: 'email_activation',
+        audit,
+        unavailableMessage: 'Could not verify this email address. Please try again later.'
+      });
+    } catch (error) {
+      if (!localTemporaryAuthCodesEnabled() || (error as Error & { status?: number }).status !== 502) throw error;
+      emailValidation = localEmailValidationFallback();
+    }
     await this.repository.replacePendingChallenges({ userId, purpose: emailActivationPurpose, target: email });
     const activationCode = randomToken(8);
     const activation = await this.repository.createChallenge({
@@ -904,10 +1013,11 @@ export class ModuleService {
         code: activationCode,
         expiresInMinutes: activationMinutes
       });
+      const devCode = devCodeFromReceipt(receipt, activationCode) ?? (localTemporaryAuthCodesEnabled() ? activationCode : undefined);
       await this.repository.updateChallenge(activation.id, {
         metadata: inputJson({
           ...metadataObject(activation.metadata),
-          ...devChallengeMetadata(receipt, activationCode),
+          ...(devCode ? { devCode } : {}),
           delivery: {
             channel: 'email',
             status: 'sent',
@@ -923,7 +1033,34 @@ export class ModuleService {
         target: email,
         details: { provider: receipt.provider, messageId: receipt.messageId, emailValidation: emailValidationMetadata(emailValidation) }
       });
+      return { challenge: activation, devCode };
     } catch (error) {
+      if (localTemporaryAuthCodesEnabled()) {
+        const fallbackActivation = await this.repository.updateChallenge(activation.id, {
+          metadata: inputJson({
+            ...metadataObject(activation.metadata),
+            devCode: activationCode,
+            delivery: {
+              channel: 'email',
+              status: 'sent',
+              provider: 'local-temporary-code',
+              emailValidation: emailValidationMetadata(emailValidation)
+            }
+          })
+        });
+        await this.recordAuthEvent('identity.auth.email_activation_delivery_succeeded', {
+          ...audit,
+          userId,
+          entityRef: activation.id,
+          target: email,
+          details: {
+            provider: 'local-temporary-code',
+            fallbackReason: error instanceof Error ? error.message : 'Email delivery failed.',
+            emailValidation: emailValidationMetadata(emailValidation)
+          }
+        });
+        return { challenge: fallbackActivation, devCode: activationCode };
+      }
       await this.markChallengeDeliveryFailed(activation.id, activation.metadata, error);
       await this.recordAuthEvent('identity.auth.email_activation_delivery_failed', {
         ...audit,
@@ -934,8 +1071,6 @@ export class ModuleService {
       });
       throw requestError('Could not send activation email. Please try again later.', 502);
     }
-
-    return activation;
   }
 
   async resendActivation(challengeId: string, audit?: AuthAuditContext) {
@@ -950,7 +1085,7 @@ export class ModuleService {
     assertResendAvailable(existing.createdAt);
 
     await this.repository.updateChallenge(existing.id, { status: 'REPLACED', consumedAt: new Date() });
-    const next = await this.createActivationChallenge(existing.user.id, existing.user.email, {
+    const { challenge: next, devCode } = await this.createActivationChallenge(existing.user.id, existing.user.email, {
       ...metadataObject(existing.metadata),
       previousChallengeId: existing.id
     }, audit);
@@ -964,7 +1099,8 @@ export class ModuleService {
     return {
       activationChallengeId: next.id,
       expiresAt: next.expiresAt.toISOString(),
-      resendAvailableAt: challengeResendAvailableAt(next.createdAt, resendCooldownSeconds)
+      resendAvailableAt: challengeResendAvailableAt(next.createdAt, resendCooldownSeconds),
+      ...(devCode ? { devCode } : {})
     };
   }
 
@@ -992,9 +1128,9 @@ export class ModuleService {
     }
     if (!challenge.user) throw requestError('OTP challenge is not linked to a user.', 400);
 
-    const consumed = await this.repository.consumeChallenge(challenge.id);
-    const user = consumed.user;
-    if (!user) throw requestError('OTP challenge is not linked to a user.', 400);
+    const user = challenge.user;
+    const { challenge: activation, devCode } = await this.createActivationChallenge(user.id, user.email, { phoneChallengeId: challenge.id }, audit);
+    await this.repository.consumeChallenge(challenge.id);
 
     const userMetadata = metadataObject(user.metadata);
     await this.repository.updateUser(user.id, {
@@ -1012,12 +1148,11 @@ export class ModuleService {
       target: challenge.target
     });
 
-    const activation = await this.createActivationChallenge(user.id, user.email, { phoneChallengeId: challenge.id }, audit);
-
     return {
       activationChallengeId: activation.id,
       expiresAt: activation.expiresAt.toISOString(),
-      resendAvailableAt: challengeResendAvailableAt(activation.createdAt, resendCooldownSeconds)
+      resendAvailableAt: challengeResendAvailableAt(activation.createdAt, resendCooldownSeconds),
+      ...(devCode ? { devCode } : {})
     };
   }
 

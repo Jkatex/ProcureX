@@ -336,14 +336,12 @@ export function CreateTenderProcurexPage() {
   const { notifySuccess, notifyWarning } = useNotifications();
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
   const [activeStep, setActiveStep] = useState(0);
-  const [statusMessage, setStatusMessage] = useState('');
   const [validationMessage, setValidationMessage] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
   const [newDeliverable, setNewDeliverable] = useState('');
   const [newAttachment, setNewAttachment] = useState('');
   const [planWarningFields, setPlanWarningFields] = useState<string[]>([]);
-  const [pdfWarningMessage, setPdfWarningMessage] = useState('');
 
   const selectedType = createTenderSetup.procurementTypes.find((type) => type.id === draft.procurementTypeId) ?? createTenderSetup.procurementTypes[0];
   const requirementTemplates = createTenderSetup.requirementTemplates.filter((template) => template.typeId === draft.procurementTypeId);
@@ -505,7 +503,6 @@ export function CreateTenderProcurexPage() {
     const saved = { ...draft, status: 'DRAFT' as const, updatedAt: new Date().toISOString() };
     setDraft(saved);
     dispatch(saveCreateTenderDraft(saved));
-    setStatusMessage('Draft saved for this session.');
     notifySuccess('Tender draft saved', 'Your tender draft was saved for this session.', {
       reason: 'You can continue editing it from My Tenders while this browser session is active.',
       action: { label: 'Open My Tenders', to: '/procurement/my-tenders' }
@@ -534,7 +531,6 @@ export function CreateTenderProcurexPage() {
 
   function downloadTenderPdfStub() {
     const message = 'Tender PDF generator is not available in this frontend yet.';
-    setPdfWarningMessage(message);
     notifyWarning('Tender PDF unavailable', message, {
       reason: 'The React frontend has the publication action in place, but PDF export is not wired in this pass.'
     });
@@ -577,14 +573,8 @@ export function CreateTenderProcurexPage() {
 
         <div className="wizard-workspace">
           <section className={`journey-panel active ${activeStep === 3 ? 'evaluation-criteria-panel' : ''}`}>
-            {statusMessage ? (
-              <NotificationCard notification={{ tone: 'success', title: 'Tender updated', message: statusMessage, reason: 'This confirmation applies to the current browser session.', dismissible: false }} />
-            ) : null}
             {validationMessage ? (
               <NotificationCard notification={{ tone: 'error', title: 'Action needed', message: validationMessage, reason: 'Review the current tender step and complete the missing information.', dismissible: false }} />
-            ) : null}
-            {pdfWarningMessage ? (
-              <NotificationCard notification={{ tone: 'warning', title: 'Tender PDF unavailable', message: pdfWarningMessage, reason: 'PDF export is visual-only in this frontend pass.', dismissible: false }} />
             ) : null}
             {planWarningFields.length ? <div className="planning-section planning-section-notice">Planning handoff fields were edited: {planWarningFields.join(', ')}.</div> : null}
 

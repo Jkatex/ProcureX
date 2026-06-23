@@ -9,6 +9,7 @@ import {
   planningQuerySchema,
   publicWelcomeQuerySchema,
   saveAnnualPlanBodySchema,
+  tenderParamsSchema,
   updatePlanBodySchema
 } from './validators.js';
 
@@ -34,6 +35,26 @@ export class ModuleController {
     try {
       publicWelcomeQuerySchema.parse(req.query);
       res.json(await this.service.publicWelcome());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  marketplace: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.marketplace(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getTenderDetail: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid tender id.');
+      const tender = await this.service.getTenderDetail(params.data.tenderId, bearerToken(req));
+      if (!tender) throw requestError('Tender was not found.', 404);
+      res.json(tender);
     } catch (error) {
       next(error);
     }
@@ -134,4 +155,10 @@ export class ModuleController {
       next(error);
     }
   };
+}
+
+function bearerToken(req: Parameters<RequestHandler>[0]) {
+  const header = req.header('authorization');
+  if (!header?.toLowerCase().startsWith('bearer ')) return undefined;
+  return header.slice(7).trim();
 }

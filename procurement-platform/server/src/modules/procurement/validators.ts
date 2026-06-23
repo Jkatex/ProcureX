@@ -75,6 +75,12 @@ export const planLineParamsSchema = z
   })
   .strict();
 
+export const tenderParamsSchema = z
+  .object({
+    tenderId: uuidSchema
+  })
+  .strict();
+
 const planLineFieldsSchema = z
   .object({
     tenderTitle: z.string().trim().min(1).max(220),

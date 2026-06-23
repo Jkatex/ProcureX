@@ -472,6 +472,18 @@ class FakeIdentityNotifications {
   }
 }
 
+class FakeDevConsoleIdentityNotifications extends FakeIdentityNotifications {
+  sendPhoneOtp(input: { to: string; code: string }) {
+    this.phoneOtps.push(input);
+    return Promise.resolve({ provider: 'dev-console', messageId: `dev-sms-${this.phoneOtps.length}` });
+  }
+
+  sendEmailActivation(input: { to: string; code: string; actionUrl?: string }) {
+    this.activations.push(input);
+    return Promise.resolve({ provider: 'dev-console', messageId: `dev-activation-${this.activations.length}` });
+  }
+}
+
 class FakeRegistryProvider implements RegistryProvider {
   records = new Map<string, RegistryProviderRecord>();
   failNext = false;
@@ -615,8 +627,32 @@ describe('identity production auth', () => {
 
     expect(notifications.phoneOtps).toHaveLength(1);
     expect(notifications.phoneOtps[0]).toMatchObject({ to: '+255700000001' });
+    expect(registration).not.toHaveProperty('devCode');
     expect(repository.challenges.get(registration.challengeId).codeHash).not.toBe(notifications.phoneOtps[0].code);
     await expect(service.verifyOtp(registration.challengeId, '000000')).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('exposes phone codes only for dev-console delivery and email activation codes during local registration', async () => {
+    const hidden = makeService();
+    const hiddenRegistration = await hidden.service.startRegistration({ email: 'hidden-code@example.test', phone: '+255700000021' });
+    const hiddenOtp = await hidden.service.verifyOtp(hiddenRegistration.challengeId, hidden.notifications.phoneOtps[0].code);
+    expect(hiddenRegistration).not.toHaveProperty('devCode');
+    expect(hiddenOtp.devCode).toBe(hidden.notifications.activations[0].code);
+
+    const { repository, notifications, service } = makeService(new FakeIdentityRepository(), new FakeDevConsoleIdentityNotifications());
+    const registration = await service.startRegistration({ email: 'visible-code@example.test', phone: '+255700000022' });
+    expect(registration.devCode).toBe(notifications.phoneOtps[0].code);
+
+    repository.challenges.get(registration.challengeId).createdAt = new Date(Date.now() - 31_000);
+    const resentOtp = await service.resendOtp(registration.challengeId);
+    expect(resentOtp.devCode).toBe(notifications.phoneOtps.at(-1)!.code);
+
+    const otp = await service.verifyOtp(resentOtp.challengeId, notifications.phoneOtps.at(-1)!.code);
+    expect(otp.devCode).toBe(notifications.activations[0].code);
+
+    repository.challenges.get(otp.activationChallengeId).createdAt = new Date(Date.now() - 31_000);
+    const activation = await service.resendActivation(otp.activationChallengeId);
+    expect(activation.devCode).toBe(notifications.activations.at(-1)!.code);
   });
 
   it('creates a user who can verify, activate, set a password, and sign in with delivered codes', async () => {
@@ -646,6 +682,35 @@ describe('identity production auth', () => {
 
     expect(notifications.activations).toHaveLength(2);
     expect(validator.calls.filter((email) => email === 'activation@example.test')).toHaveLength(3);
+  });
+
+  it('returns a temporary activation code when local activation email delivery fails', async () => {
+    const { repository, notifications, service } = makeService();
+    const registration = await service.startRegistration({ email: 'activation-retry@example.test', phone: '+255700000071' });
+
+    notifications.failNext = true;
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
+
+    expect(otp.activationChallengeId).toBeTruthy();
+    expect(otp.devCode).toBe(repository.challenges.get(otp.activationChallengeId).metadata.devCode);
+    expect(repository.challenges.get(registration.challengeId).status).toBe('CONSUMED');
+    expect(repository.usersByEmail.get('activation-retry@example.test').metadata.phoneVerified).toBe(true);
+    expect(notifications.activations).toHaveLength(0);
+  });
+
+  it('returns a temporary activation code when local activation email validation is unavailable', async () => {
+    const validator = new FakeEmailValidationProvider();
+    const { repository, notifications, service } = makeService(new FakeIdentityRepository(), new FakeIdentityNotifications(), undefined, validator);
+    const registration = await service.startRegistration({ email: 'activation-validation-retry@example.test', phone: '+255700000072' });
+
+    validator.failNext = true;
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
+
+    expect(otp.activationChallengeId).toBeTruthy();
+    expect(otp.devCode).toBe(notifications.activations[0].code);
+    expect(repository.challenges.get(registration.challengeId).status).toBe('CONSUMED');
+    expect(repository.usersByEmail.get('activation-validation-retry@example.test').metadata.phoneVerified).toBe(true);
+    expect(notifications.activations).toHaveLength(1);
   });
 
   it('rejects activation email delivery when Mailboxlayer rejects the address', async () => {
@@ -1085,6 +1150,29 @@ describe('identity production auth', () => {
     });
     expect(tin.payload).toMatchObject({ localDevelopmentRecord: true, mockIdentifier: true, provider: 'LOCAL_TRA_MOCK' });
 
+    const arushaTin = await service.registryLookup({
+      entityType: 'individual',
+      registryNumber: '1098765432'
+    });
+    expect(arushaTin).toMatchObject({
+      source: 'TRA',
+      registryNumber: '1098765432',
+      entityType: 'individual',
+      name: 'Neema Ally Msuya'
+    });
+
+    const mwanzaTin = await service.registryLookup({
+      entityType: 'business',
+      businessRegistrationSource: 'tin',
+      registryNumber: '555666777'
+    });
+    expect(mwanzaTin).toMatchObject({
+      source: 'TRA',
+      registryNumber: '555666777',
+      entityType: 'business',
+      name: 'Mwanza Medical Supplies'
+    });
+
     const brela = await service.registryLookup({
       entityType: 'company',
       registryNumber: '987654321'
@@ -1098,6 +1186,29 @@ describe('identity production auth', () => {
       confidence: 100
     });
     expect(brela.payload).toMatchObject({ localDevelopmentRecord: true, mockIdentifier: true, provider: 'LOCAL_BRELA_MOCK' });
+
+    const moshiBrela = await service.registryLookup({
+      entityType: 'company',
+      registryNumber: 'BRN-2024-001'
+    });
+    expect(moshiBrela).toMatchObject({
+      source: 'BRELA',
+      registryNumber: 'BRN-2024-001',
+      entityType: 'company',
+      name: 'Kilimanjaro Works Limited'
+    });
+
+    const zanzibarBusiness = await service.registryLookup({
+      entityType: 'business',
+      businessRegistrationSource: 'brela',
+      registryNumber: 'BN-778899'
+    });
+    expect(zanzibarBusiness).toMatchObject({
+      source: 'BRELA',
+      registryNumber: 'BN-778899',
+      entityType: 'business',
+      name: 'Zanzibar Digital Services'
+    });
 
     process.env.APP_ENV = 'production';
     const productionOnly = makeService(new FakeIdentityRepository(), new FakeIdentityNotifications(), new FakeRegistryProvider()).service;

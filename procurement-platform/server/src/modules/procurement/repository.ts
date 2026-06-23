@@ -1,4 +1,4 @@
-import { OrganizationKind, TenderStatus, Visibility, VerificationStatus, type Prisma, type PrismaClient } from '@prisma/client';
+import { BidStatus, OrganizationKind, TenderStatus, Visibility, VerificationStatus, type Prisma, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import type {
   ProcurementPlanLineInput,
@@ -19,6 +19,42 @@ const planInclude = {
 } satisfies Prisma.ProcurementPlanInclude;
 
 type ProcurementPlanRecord = Prisma.ProcurementPlanGetPayload<{ include: typeof planInclude }>;
+
+const marketplaceTenderInclude = {
+  buyerOrg: { select: { id: true, name: true } },
+  categories: { select: { name: true }, orderBy: { name: 'asc' } },
+  bids: {
+    select: {
+      id: true,
+      supplierOrgId: true,
+      status: true,
+      submittedAt: true,
+      totalAmount: true,
+      updatedAt: true,
+      supplierOrg: { select: { name: true } },
+      receipt: { select: { receiptHash: true } }
+    },
+    orderBy: { updatedAt: 'desc' }
+  }
+} satisfies Prisma.TenderInclude;
+
+const tenderDetailInclude = {
+  ...marketplaceTenderInclude,
+  documents: {
+    include: {
+      document: {
+        select: { id: true, name: true, documentType: true }
+      }
+    },
+    orderBy: { createdAt: 'asc' }
+  },
+  requirementRows: { orderBy: { createdAt: 'asc' } },
+  milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
+  commercialItems: { orderBy: { description: 'asc' } }
+} satisfies Prisma.TenderInclude;
+
+type MarketplaceTenderRecord = Prisma.TenderGetPayload<{ include: typeof marketplaceTenderInclude }>;
+type TenderDetailRecord = Prisma.TenderGetPayload<{ include: typeof tenderDetailInclude }>;
 
 export class ModuleRepository {
   constructor(private readonly db: PrismaClient = prisma) {}
@@ -76,6 +112,61 @@ export class ModuleRepository {
       verifiedUserCount,
       featuredTenders
     };
+  }
+
+  async getMarketplaceData(context: { organizationId?: string }) {
+    const tenders = await this.db.tender.findMany({
+      where: {
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        status: { in: [TenderStatus.PUBLISHED, TenderStatus.OPEN, TenderStatus.CLOSED, TenderStatus.EVALUATION, TenderStatus.AWARDED] }
+      },
+      include: marketplaceTenderInclude,
+      orderBy: [{ closingDate: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 200
+    });
+
+    const rows = tenders.map((tender) => toMarketplaceTenderRow(tender, context.organizationId));
+    return {
+      tenders: rows,
+      myTenders: rows
+        .filter((row) => row.createdByCurrentUser)
+        .map((row) => ({
+          id: `my-tender-${row.id}`,
+          title: row.title,
+          section: row.status === 'DRAFT' ? 'draft' as const : row.status === 'CLOSED' || row.status === 'AWARDED' ? 'completed' as const : 'posted' as const,
+          status: row.status,
+          type: row.type,
+          tender: row,
+          lastActivity: row.closingDate || new Date().toISOString(),
+          actionLabel: 'View My Tender',
+          nav: `/procurement/tender-details?tenderId=${row.id}`
+        })),
+      myBids: tenders.flatMap((tender) =>
+        tender.bids
+          .filter((bid) => bid.supplierOrgId === context.organizationId)
+          .map((bid) => ({
+            id: bid.id,
+            title: tender.title,
+            section: bid.status === BidStatus.SUBMITTED ? 'submitted' as const : 'draft' as const,
+            status: bid.status,
+            tender: toMarketplaceTenderRow(tender, context.organizationId),
+            tenderReference: tender.reference,
+            amount: bid.totalAmount ? `${tender.currency} ${Number(bid.totalAmount).toLocaleString('en-US')}` : undefined,
+            receiptHash: bid.receipt?.receiptHash,
+            lastActivity: bid.updatedAt.toISOString(),
+            actionLabel: bid.status === BidStatus.SUBMITTED ? 'Open Bid' : 'Continue Bid',
+            nav: `/bidding?tenderId=${tender.id}`
+          }))
+      )
+    };
+  }
+
+  async getTenderDetail(tenderId: string, context: { organizationId?: string }) {
+    const tender = await this.db.tender.findUnique({
+      where: { id: tenderId },
+      include: tenderDetailInclude
+    });
+    return tender ? toTenderDetailDto(tender, context.organizationId) : null;
   }
 
   async listPlans(query: ProcurementPlanningQuery) {
@@ -370,6 +461,82 @@ function toLineDto(line: LineWithPlan) {
     metadata: objectPayload(line.metadata),
     createdAt: line.createdAt.toISOString(),
     updatedAt: line.updatedAt.toISOString()
+  };
+}
+
+function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, organizationId?: string) {
+  return {
+    id: tender.id,
+    reference: tender.reference,
+    title: tender.title,
+    organization: tender.buyerOrg.name,
+    type: tender.type,
+    status: tender.status,
+    budget: decimalToNumber(tender.budget),
+    currency: tender.currency,
+    closingDate: dateOnly(tender.closingDate),
+    location: tender.location || 'Tanzania',
+    description: tender.description || '',
+    createdByCurrentUser: tender.buyerOrgId === organizationId,
+    categories: tender.categories.map((category) => category.name),
+    hasDraftBid: tender.bids.some((bid) => bid.supplierOrgId === organizationId && bid.status === BidStatus.DRAFT),
+    hasSubmittedBid: tender.bids.some((bid) => bid.supplierOrgId === organizationId && bid.status === BidStatus.SUBMITTED)
+  };
+}
+
+function toTenderDetailDto(tender: TenderDetailRecord, organizationId?: string) {
+  const base = toMarketplaceTenderRow(tender, organizationId);
+  const currentBid = tender.bids.find((bid) => bid.supplierOrgId === organizationId) ?? null;
+
+  return {
+    ...base,
+    buyerOrgId: tender.buyerOrgId,
+    ownerUserId: tender.ownerUserId,
+    method: tender.method,
+    visibility: tender.visibility,
+    publishedAt: tender.publishedAt?.toISOString() ?? null,
+    requirements: objectPayload(tender.requirements),
+    requirementRows: tender.requirementRows.map((row) => ({
+      id: row.id,
+      section: row.section,
+      payload: objectPayload(row.payload)
+    })),
+    milestones: tender.milestones.map((milestone) => ({
+      id: milestone.id,
+      name: milestone.name,
+      dueDate: milestone.dueDate?.toISOString() ?? null,
+      payload: objectPayload(milestone.payload)
+    })),
+    commercialItems: tender.commercialItems.map((item) => ({
+      id: item.id,
+      itemNo: item.itemNo,
+      description: item.description,
+      quantity: decimalToNumber(item.quantity),
+      unit: item.unit,
+      rate: decimalToNumber(item.rate),
+      total: decimalToNumber(item.total),
+      payload: objectPayload(item.payload)
+    })),
+    documents: tender.documents.map((document) => ({
+      id: document.document.id,
+      name: document.document.name,
+      documentType: document.document.documentType,
+      label: document.label
+    })),
+    bidSummary: {
+      total: tender.bids.length,
+      draft: tender.bids.filter((bid) => bid.status === BidStatus.DRAFT).length,
+      submitted: tender.bids.filter((bid) => bid.status === BidStatus.SUBMITTED).length,
+      withdrawn: tender.bids.filter((bid) => bid.status === BidStatus.WITHDRAWN).length
+    },
+    currentBid: currentBid
+      ? {
+          id: currentBid.id,
+          status: currentBid.status,
+          submittedAt: currentBid.submittedAt?.toISOString() ?? null,
+          receiptHash: currentBid.receipt?.receiptHash ?? null
+        }
+      : null
   };
 }
 

@@ -1,14 +1,30 @@
 import { mockApi } from '@/shared/api/mockApi';
+import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
 import type { Bid, Tender } from '@/shared/types/domain';
 import { toTenderType } from '../createTenderConfig';
-import type { CreateTenderDraft, MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../types';
+import type { CreateTenderDraft, MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow, TenderDetail } from '../types';
 
 export const procurementApi = {
   listTenders: mockApi.getTenders,
   async getMarketplace(): Promise<MarketplacePayload> {
-    const [tenders, bids, workItems] = await Promise.all([mockApi.getTenders(), mockApi.getBids(), mockApi.getWorkItems()]);
-    return buildMarketplacePayload(tenders, bids, workItems);
+    try {
+      const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
+      return response.data;
+    } catch {
+      const [tenders, bids, workItems] = await Promise.all([mockApi.getTenders(), mockApi.getBids(), mockApi.getWorkItems()]);
+      return buildMarketplacePayload(tenders, bids, workItems);
+    }
+  },
+  async getTenderDetail(tenderId: string): Promise<TenderDetail> {
+    try {
+      const response = await apiClient.get<TenderDetail>(`/api/procurement/tenders/${tenderId}`);
+      return response.data;
+    } catch {
+      const tenders = await mockApi.getTenders();
+      const tender = tenders.find((item) => item.id === tenderId || item.reference === tenderId) ?? tenders[0];
+      return buildTenderDetailFallback(tender);
+    }
   }
 };
 
@@ -45,7 +61,7 @@ export function mergeSessionMarketplaceData(
     tender: draft.status === 'PUBLISHED' ? createMarketplaceTenderFromDraft(draft, organization) : undefined,
     lastActivity: draft.publishedAt?.slice(0, 10) || draft.updatedAt.slice(0, 10),
     actionLabel: draft.status === 'DRAFT' ? 'Continue Draft' : 'View My Tender',
-    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : '/procurement/tender-details'
+    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=session-${draft.id}`
   }));
 
   const existingTenderIds = new Set(sessionTenderRows.map((row) => row.id));
@@ -72,7 +88,43 @@ function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization
     location: draft.location || 'Tanzania',
     description: summarizeDraft(draft),
     createdByCurrentUser: true,
-    categories: draft.categories.length ? draft.categories : [draft.procurementTypeId]
+    categories: draft.categories.length ? draft.categories : [draft.procurementTypeId],
+    hasDraftBid: false,
+    hasSubmittedBid: false
+  };
+}
+
+function buildTenderDetailFallback(tender: Tender): TenderDetail {
+  return {
+    ...tender,
+    method: 'Open Tender',
+    visibility: 'PUBLIC_MARKETPLACE',
+    publishedAt: new Date().toISOString(),
+    requirements: { summary: tender.description },
+    requirementRows: [
+      { id: 'eligibility', section: 'Eligibility', payload: { title: 'Valid business registration and tax compliance evidence required.' } },
+      { id: 'technical', section: 'Technical', payload: { title: 'Submit a technical approach, work plan, and relevant experience.' } },
+      { id: 'financial', section: 'Financial', payload: { title: 'Submit priced commercial offer in the requested currency.' } }
+    ],
+    milestones: [
+      { id: 'published', name: 'Tender published', dueDate: new Date().toISOString(), payload: {} },
+      { id: 'closing', name: 'Submission deadline', dueDate: tender.closingDate, payload: {} }
+    ],
+    commercialItems: [
+      {
+        id: 'line-1',
+        itemNo: '1',
+        description: tender.title,
+        quantity: 1,
+        unit: 'lot',
+        rate: tender.budget,
+        total: tender.budget,
+        payload: {}
+      }
+    ],
+    documents: [{ id: 'document-1', name: `${tender.reference} tender document`, documentType: 'TENDER_DOCUMENT', label: 'Tender document' }],
+    bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    currentBid: null
   };
 }
 
@@ -109,7 +161,7 @@ function buildMyTenderRows(tenders: Tender[], workItems: WorkItemFixture[]): MyT
     tender,
     lastActivity: tender.closingDate,
     actionLabel: 'View My Tender',
-    nav: '/procurement/tender-details'
+    nav: `/procurement/tender-details?tenderId=${tender.id}`
   }));
 
   return [...draftRows, ...postedRows];
@@ -132,7 +184,7 @@ function buildMyBidRows(tenders: Tender[], bids: Bid[], workItems: WorkItemFixtu
         tenderReference: tender.reference,
         lastActivity: '2026-06-09',
         actionLabel: 'Continue Bid',
-        nav: '/bidding'
+        nav: `/bidding?tenderId=${tender.id}`
       }
     ];
   });
@@ -152,7 +204,7 @@ function buildMyBidRows(tenders: Tender[], bids: Bid[], workItems: WorkItemFixtu
         receiptHash: `BID-${bid.id.toUpperCase()}`,
         lastActivity: '2026-06-09',
         actionLabel: 'Open Bid',
-        nav: '/bidding'
+        nav: `/bidding?tenderId=${tender.id}`
       }
     ];
   });

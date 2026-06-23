@@ -308,9 +308,10 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
 
 function TenderRowCard({ tender, isSaved, onToggleSaved }: TenderRowCardProps) {
   const owned = Boolean(tender.createdByCurrentUser);
-  const canBid = tender.status === 'OPEN' && !owned && !tender.hasSubmittedBid;
+  const canBid = (tender.status === 'OPEN' || tender.status === 'PUBLISHED') && !owned && !tender.hasSubmittedBid;
   const daysRemaining = getDaysRemaining(tender.closingDate);
-  const detailUrl = owned ? '/procurement/tender-details' : '/procurement/supplier-tender-detail';
+  const detailUrl = owned ? `/procurement/tender-details?tenderId=${tender.id}` : `/procurement/supplier-tender-detail?tenderId=${tender.id}`;
+  const bidUrl = `/bidding?tenderId=${tender.id}`;
   const bidLabel = tender.hasSubmittedBid ? 'Already Bid' : tender.hasDraftBid ? 'Continue Bid' : 'Bid';
 
   return (
@@ -342,7 +343,7 @@ function TenderRowCard({ tender, isSaved, onToggleSaved }: TenderRowCardProps) {
         </Link>
         {!owned ? (
           canBid ? (
-            <Link className="btn btn-primary" to={tender.hasDraftBid ? '/bidding' : detailUrl}>
+            <Link className="btn btn-primary" to={bidUrl}>
               {bidLabel}
             </Link>
           ) : (

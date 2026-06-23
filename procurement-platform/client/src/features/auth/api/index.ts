@@ -29,6 +29,7 @@ export const authApi = {
       expiresAt: string;
       resendAvailableAt?: string;
       maxAttempts?: number;
+      devCode?: string;
     }>('/api/identity/registration/start', input);
     return response.data;
   },
@@ -37,6 +38,7 @@ export const authApi = {
       activationChallengeId: string;
       expiresAt: string;
       resendAvailableAt?: string;
+      devCode?: string;
     }>('/api/identity/registration/verify-otp', input);
     return response.data;
   },
@@ -46,6 +48,7 @@ export const authApi = {
       expiresAt: string;
       resendAvailableAt?: string;
       maxAttempts?: number;
+      devCode?: string;
     }>('/api/identity/registration/resend-otp', input);
     return response.data;
   },
@@ -58,6 +61,7 @@ export const authApi = {
       activationChallengeId: string;
       expiresAt: string;
       resendAvailableAt?: string;
+      devCode?: string;
     }>('/api/identity/registration/resend-activation', input);
     return response.data;
   },

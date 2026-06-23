@@ -78,4 +78,4 @@ Frontend opens at:
 http://localhost:5173
 ```
 
-Main order: `infra:up` → `db:migrate` → backend dev server → frontend dev server.C:\Users\ADMIN\AppData\Local\Temp\procurex-server.log
+Main order: `infra:up` → `db:migrate` → backend dev server → frontend dev server.

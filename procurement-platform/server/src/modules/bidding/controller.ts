@@ -1,6 +1,24 @@
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
 import { ModuleService } from './service.js';
-import { moduleStatusQuerySchema } from './validators.js';
+import {
+  bidDocumentsBodySchema,
+  bidDraftBodySchema,
+  bidParamsSchema,
+  moduleStatusQuerySchema,
+  tenderBidParamsSchema
+} from './validators.js';
+
+function bearerToken(req: Request) {
+  const header = req.header('authorization') ?? '';
+  const [scheme, token] = header.split(/\s+/);
+  return scheme?.toLowerCase() === 'bearer' ? token : undefined;
+}
+
+function requestError(message: string, status = 400) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = status;
+  return error;
+}
 
 export class ModuleController {
   constructor(private readonly service = new ModuleService()) {}
@@ -13,5 +31,88 @@ export class ModuleController {
       next(error);
     }
   };
-}
 
+  listMine: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.listMine(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getTenderDraft: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderBidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid tender id.');
+      res.json(await this.service.getDraft(bearerToken(req), params.data.tenderId));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  saveTenderDraft: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderBidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid tender id.');
+      const body = bidDraftBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid bid draft payload.');
+      res.status(201).json(await this.service.saveDraft(bearerToken(req), params.data.tenderId, body.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getBid: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid id.');
+      res.json(await this.service.getBid(bearerToken(req), params.data.bidId));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  patchBid: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid id.');
+      const body = bidDraftBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid bid draft payload.');
+      res.json(await this.service.patchBid(bearerToken(req), params.data.bidId, body.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  addDocuments: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid id.');
+      const body = bidDocumentsBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid bid document payload.');
+      res.status(201).json(await this.service.addDocuments(bearerToken(req), params.data.bidId, body.data.documents));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  submit: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid id.');
+      res.status(201).json(await this.service.submit(bearerToken(req), params.data.bidId));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  withdraw: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid id.');
+      res.json(await this.service.withdraw(bearerToken(req), params.data.bidId));
+    } catch (error) {
+      next(error);
+    }
+  };
+}

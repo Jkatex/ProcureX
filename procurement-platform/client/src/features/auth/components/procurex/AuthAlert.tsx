@@ -13,6 +13,7 @@ export type AuthAlertMessage = {
   values?: Record<string, number | string>;
   reason?: string;
   actionLabel?: string;
+  autoDismissMs?: number | null;
 };
 
 type ApiErrorBody = {
@@ -65,7 +66,7 @@ function friendlyAuthError(context: AuthErrorContext, status?: number, message =
 
 function deliveryFailureMessage(context: AuthErrorContext): Pick<AuthAlertMessage, 'key'> {
   if (context === 'registration' || context === 'resend-otp') return { key: 'auth.alerts.delivery.smsUnavailable' };
-  if (context === 'activation' || context === 'resend-activation') return { key: 'auth.alerts.delivery.activationUnavailable' };
+  if (context === 'otp' || context === 'activation' || context === 'resend-activation') return { key: 'auth.alerts.delivery.activationUnavailable' };
   if (context === 'forgot-password' || context === 'reset-password' || context === 'resend-reset') return { key: 'auth.alerts.delivery.resetUnavailable' };
   return { key: 'auth.alerts.deliveryUnavailable' };
 }
@@ -134,22 +135,27 @@ export function authAlert(key: string, tone: AuthAlertTone, values?: Record<stri
   return { key, tone, values };
 }
 
-export function authAlertText(text: string, tone: AuthAlertTone): AuthAlertMessage {
-  return { text, tone };
+export function authAlertText(text: string, tone: AuthAlertTone, autoDismissMs?: number | null): AuthAlertMessage {
+  return { text, tone, autoDismissMs };
 }
 
-export function AuthAlert({ message }: { message: AuthAlertMessage | null }) {
-  const { t } = useTranslation();
-  if (!message) return null;
-  const text = message.key ? t(message.key, message.values) : message.text;
-  const notification: CreateNotificationInput = {
+export function authAlertToNotification(message: AuthAlertMessage, translate: (key: string, values?: Record<string, number | string>) => string): CreateNotificationInput {
+  const text = message.key ? translate(message.key, message.values) : message.text;
+  return {
     tone: message.tone,
     title: titleForTone(message.tone),
     message: text ?? '',
     reason: message.reason,
     action: message.actionLabel ? { label: message.actionLabel } : undefined,
-    dismissible: false
+    dismissible: true,
+    autoDismissMs: message.autoDismissMs
   };
+}
+
+export function AuthAlert({ message }: { message: AuthAlertMessage | null }) {
+  const { t } = useTranslation();
+  if (!message) return null;
+  const notification: CreateNotificationInput = { ...authAlertToNotification(message, t), dismissible: false };
   return <NotificationCard notification={notification} />;
 }
 
