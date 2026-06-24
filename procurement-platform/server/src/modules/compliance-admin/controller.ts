@@ -9,13 +9,17 @@ import {
   adminUserInviteSchema,
   analyticsQuerySchema,
   auditListQuerySchema,
+  appealRecordBodySchema,
   caseListQuerySchema,
   caseUpdateSchema,
+  collusionAlertBodySchema,
+  complianceReviewBodySchema,
   dataStoreCreateSchema,
   dataStoreDeleteSchema,
   dataStoreEntryQuerySchema,
   dataStoreNamespaceQuerySchema,
   dataStoreUpdateSchema,
+  enforcementRecordBodySchema,
   idParamsSchema,
   moduleStatusQuerySchema,
   communicationStateParamsSchema,
@@ -23,7 +27,11 @@ import {
   ruleListQuerySchema,
   ruleUpdateSchema,
   searchQuerySchema,
-  userListQuerySchema
+  supplierRiskProfileBodySchema,
+  userListQuerySchema,
+  violationCaseBodySchema,
+  violationEvidenceBodySchema,
+  workflowListQuerySchema
 } from './validators.js';
 
 function bearerToken(req: Request) {
@@ -169,6 +177,110 @@ export class ModuleController {
       const params = idParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid compliance rule id.');
       res.json(await this.service.updateRule(bearerToken(req), params.data.id, ruleUpdateSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  complianceReviews: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.complianceReviews(bearerToken(req), workflowListQuerySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createComplianceReview: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.createComplianceReview(bearerToken(req), complianceReviewBodySchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  violationCases: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.violationCases(bearerToken(req), workflowListQuerySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createViolationCase: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.createViolationCase(bearerToken(req), violationCaseBodySchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createViolationEvidence: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.createViolationEvidence(bearerToken(req), violationEvidenceBodySchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  enforcementRecords: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.enforcementRecords(bearerToken(req), workflowListQuerySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createEnforcementRecord: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.createEnforcementRecord(bearerToken(req), enforcementRecordBodySchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  appealRecords: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.appealRecords(bearerToken(req), workflowListQuerySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createAppealRecord: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.createAppealRecord(bearerToken(req), appealRecordBodySchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  collusionAlerts: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.collusionAlerts(bearerToken(req), workflowListQuerySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createCollusionAlert: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.createCollusionAlert(bearerToken(req), collusionAlertBodySchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  supplierRiskProfiles: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.supplierRiskProfiles(bearerToken(req), workflowListQuerySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  upsertSupplierRiskProfile: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.upsertSupplierRiskProfile(bearerToken(req), supplierRiskProfileBodySchema.parse(req.body)));
     } catch (error) {
       next(error);
     }

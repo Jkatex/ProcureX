@@ -1,4 +1,4 @@
-import { AwardResponseAction, ContractMilestoneStatus, ContractPartyRole, ContractStatus, RecommendationStatus } from '@prisma/client';
+import { AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, RecommendationStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { computeAccessContext } from '../../security/accessPolicy.js';
 import { createEncryptedSigningCredential } from '../identity/signing.js';
@@ -7,9 +7,20 @@ import { ModuleService } from './service.js';
 import {
   awardNoticeResponseBodySchema,
   awardRecommendationQuerySchema,
+  acceptanceBodySchema,
+  clauseBodySchema,
+  contractPaymentBodySchema,
+  deliverableBodySchema,
   contractMilestonePatchBodySchema,
   contractSignatureRequestBodySchema,
-  contractStatusPatchBodySchema
+  contractStatusPatchBodySchema,
+  negotiationBodySchema,
+  paymentScheduleBodySchema,
+  requiredDocumentBodySchema,
+  riskBodySchema,
+  terminationBodySchema,
+  warrantyBodySchema,
+  workflowApprovalBodySchema
 } from './validators.js';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
@@ -198,7 +209,7 @@ describe('award-contract module', () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
-  it('signs pending contract signatures with the keyphrase credential', async () => {
+  it('signs pending contract signatures and moves the contract to signed readiness', async () => {
     const credential = {
       id: 'credential-1',
       userId,
@@ -222,7 +233,102 @@ describe('award-contract module', () => {
       }
     });
     expect(updates[0].signatureHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(contractUpdates[0]).toMatchObject({ data: { status: ContractStatus.ACTIVE } });
+    expect(contractUpdates[0]).toMatchObject({ data: { status: ContractStatus.SIGNED } });
     expect(auditEvents[0].data.event).toBe('contract.signature.signed');
+  });
+
+  it('validates lifecycle risk and termination payloads', () => {
+    expect(
+      riskBodySchema.parse({
+        title: 'Delivery delay',
+        category: 'time',
+        likelihood: 3,
+        impact: 4,
+        mitigationAction: 'Weekly progress review',
+        status: ContractLifecycleItemStatus.OPEN
+      })
+    ).toMatchObject({
+      title: 'Delivery delay',
+      category: 'time',
+      likelihood: 3,
+      impact: 4,
+      payload: {}
+    });
+
+    expect(
+      terminationBodySchema.parse({
+        terminationType: ContractTerminationType.SUPPLIER_DEFAULT,
+        reason: 'Repeated failure to meet accepted milestones.',
+        contractClause: 'Default clause'
+      })
+    ).toMatchObject({
+      terminationType: ContractTerminationType.SUPPLIER_DEFAULT,
+      reason: 'Repeated failure to meet accepted milestones.',
+      payload: {}
+    });
+
+    expect(() => terminationBodySchema.parse({ terminationType: 'CANCEL', reason: '' })).toThrow();
+  });
+
+  it('validates deep contract lifecycle workflow payloads', () => {
+    expect(clauseBodySchema.parse({ clauseKey: 'termination', title: 'Termination', status: ContractLifecycleItemStatus.OPEN })).toMatchObject({
+      clauseKey: 'termination',
+      title: 'Termination',
+      category: 'general',
+      payload: {}
+    });
+
+    expect(negotiationBodySchema.parse({ raisedByRole: 'Buyer', subject: 'Payment terms' })).toMatchObject({
+      raisedByRole: 'Buyer',
+      subject: 'Payment terms',
+      payload: {}
+    });
+
+    expect(deliverableBodySchema.parse({ title: 'Delivery report', status: ContractLifecycleItemStatus.SUBMITTED })).toMatchObject({
+      title: 'Delivery report',
+      status: ContractLifecycleItemStatus.SUBMITTED,
+      payload: {}
+    });
+
+    expect(acceptanceBodySchema.parse({ certificateNo: 'ACC-1', acceptedValue: 1000 })).toMatchObject({
+      certificateNo: 'ACC-1',
+      acceptedValue: 1000,
+      currency: 'TZS',
+      payload: {}
+    });
+
+    expect(paymentScheduleBodySchema.parse({ title: 'Milestone payment', amount: 1000 })).toMatchObject({
+      title: 'Milestone payment',
+      amount: 1000,
+      currency: 'TZS',
+      payload: {}
+    });
+
+    expect(contractPaymentBodySchema.parse({ status: 'REVIEW', grossAmount: 1000, retentionAmount: 50 })).toMatchObject({
+      status: 'REVIEW',
+      grossAmount: 1000,
+      retentionAmount: 50,
+      currency: 'TZS',
+      payload: {}
+    });
+
+    expect(warrantyBodySchema.parse({ title: 'Defects period', endDate: '2026-12-31' })).toMatchObject({
+      title: 'Defects period',
+      endDate: '2026-12-31',
+      payload: {}
+    });
+
+    expect(requiredDocumentBodySchema.parse({ documentType: 'performance-security', title: 'Performance security', ownerRole: 'Supplier' })).toMatchObject({
+      documentType: 'performance-security',
+      ownerRole: 'Supplier',
+      payload: {}
+    });
+
+    expect(workflowApprovalBodySchema.parse({ stepKey: 'legal-review', role: 'Legal Officer', status: ContractLifecycleItemStatus.APPROVED })).toMatchObject({
+      stepKey: 'legal-review',
+      role: 'Legal Officer',
+      status: ContractLifecycleItemStatus.APPROVED,
+      payload: {}
+    });
   });
 });

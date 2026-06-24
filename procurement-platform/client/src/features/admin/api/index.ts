@@ -298,6 +298,26 @@ export type ComplianceRuleInput = {
   payload?: Record<string, unknown>;
 };
 
+export type WorkflowRecord = Record<string, unknown> & {
+  id: string;
+  status?: string;
+  title?: string;
+  summary?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type WorkflowListParams = {
+  status?: string;
+  supplierOrgId?: string;
+  ownerOrgId?: string;
+  tenderId?: string;
+  contractId?: string;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export const adminApi = {
   async apps() {
     const response = await apiClient.get<AdminApps>('/api/compliance-admin/apps');
@@ -353,6 +373,58 @@ export const adminApi = {
   },
   async updateComplianceRule(id: string, input: Partial<ComplianceRuleInput>) {
     const response = await apiClient.patch<ComplianceRule>(`/api/compliance-admin/compliance/rules/${id}`, input);
+    return response.data;
+  },
+  async complianceReviews(params?: WorkflowListParams) {
+    const response = await apiClient.get<PageDto<WorkflowRecord>>('/api/compliance-admin/compliance/reviews', { params });
+    return response.data;
+  },
+  async createComplianceReview(input: Record<string, unknown>) {
+    const response = await apiClient.post<WorkflowRecord>('/api/compliance-admin/compliance/reviews', input);
+    return response.data;
+  },
+  async violationCases(params?: WorkflowListParams) {
+    const response = await apiClient.get<PageDto<WorkflowRecord>>('/api/compliance-admin/compliance/violations', { params });
+    return response.data;
+  },
+  async createViolationCase(input: Record<string, unknown>) {
+    const response = await apiClient.post<WorkflowRecord>('/api/compliance-admin/compliance/violations', input);
+    return response.data;
+  },
+  async createViolationEvidence(input: Record<string, unknown>) {
+    const response = await apiClient.post<WorkflowRecord>('/api/compliance-admin/compliance/violation-evidence', input);
+    return response.data;
+  },
+  async enforcementRecords(params?: WorkflowListParams) {
+    const response = await apiClient.get<PageDto<WorkflowRecord>>('/api/compliance-admin/compliance/enforcements', { params });
+    return response.data;
+  },
+  async createEnforcementRecord(input: Record<string, unknown>) {
+    const response = await apiClient.post<WorkflowRecord>('/api/compliance-admin/compliance/enforcements', input);
+    return response.data;
+  },
+  async appealRecords(params?: WorkflowListParams) {
+    const response = await apiClient.get<PageDto<WorkflowRecord>>('/api/compliance-admin/compliance/appeals', { params });
+    return response.data;
+  },
+  async createAppealRecord(input: Record<string, unknown>) {
+    const response = await apiClient.post<WorkflowRecord>('/api/compliance-admin/compliance/appeals', input);
+    return response.data;
+  },
+  async collusionAlerts(params?: WorkflowListParams) {
+    const response = await apiClient.get<PageDto<WorkflowRecord>>('/api/compliance-admin/risk/collusion-alerts', { params });
+    return response.data;
+  },
+  async createCollusionAlert(input: Record<string, unknown>) {
+    const response = await apiClient.post<WorkflowRecord>('/api/compliance-admin/risk/collusion-alerts', input);
+    return response.data;
+  },
+  async supplierRiskProfiles(params?: WorkflowListParams) {
+    const response = await apiClient.get<PageDto<WorkflowRecord>>('/api/compliance-admin/risk/supplier-profiles', { params });
+    return response.data;
+  },
+  async upsertSupplierRiskProfile(input: Record<string, unknown>) {
+    const response = await apiClient.put<WorkflowRecord>('/api/compliance-admin/risk/supplier-profiles', input);
     return response.data;
   },
   async listAuditEvents(params?: AuditParams) {

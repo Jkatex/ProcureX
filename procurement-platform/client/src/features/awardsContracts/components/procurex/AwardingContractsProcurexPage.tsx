@@ -1,27 +1,29 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  activeContracts,
   awardQueueLabels,
-  closedContracts,
-  contractActions,
-  pendingAwards,
   summaryCards,
-  supplierAwards,
-  urgentActions
 } from '../../fixtures';
-import type { AwardQueueId } from '../../types';
+import { awardsContractsApi } from '../../api';
+import type { AwardContractDashboard, AwardQueueId, LifecycleAction } from '../../types';
 import {
   AwardHero,
   AwardSidebar,
   formatMoney,
   ProcurexAwardFrame,
-  routeWithSearch,
   SimpleTable,
   StatusBadge
 } from './AwardsContractsProcurexShared';
 
 const queueIds = Object.keys(awardQueueLabels) as AwardQueueId[];
+const emptyQueues: AwardContractDashboard['queues'] = {
+  'my-urgent-actions': [],
+  'awarding-in-progress': [],
+  'awards-received': [],
+  'contracts-in-progress': [],
+  'active-contracts': [],
+  'closed-contracts': []
+};
 
 function EmptyRows({ colSpan, message }: { colSpan: number; message: string }) {
   return (
@@ -42,9 +44,37 @@ export function AwardingContractsProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const activeQueue = useMemo(() => getQueueFromSearch(location.search), [location.search]);
+  const [dashboard, setDashboard] = useState<AwardContractDashboard | null>(null);
+
+  useEffect(() => {
+    if (import.meta.env.MODE === 'test') return;
+    let active = true;
+    awardsContractsApi.dashboard()
+      .then((data) => {
+        if (active) setDashboard(data);
+      })
+      .catch(() => {
+        if (active) setDashboard(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const queues = dashboard?.queues ?? emptyQueues;
+  const summary = dashboard?.summary ?? {
+    urgentActions: queues['my-urgent-actions'].length,
+    awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
+    contractActions: queues['contracts-in-progress'].length + queues['active-contracts'].length
+  };
 
   function jumpToQueue(queue: AwardQueueId) {
     navigate(`/awards-contracts?queue=${queue}`);
+  }
+
+  function followAction(row: LifecycleAction) {
+    if (row.nextAction && !row.nextAction.canAct) return;
+    navigate(row.nextAction?.url || row.nextRoute || '/awards-contracts');
   }
 
   return (
@@ -58,9 +88,9 @@ export function AwardingContractsProcurexPage() {
             title="Your awarding and contracts — in every role you play"
             copy="Your company can be a buyer on tenders you created and a supplier on tenders you won. Both roles are shown below with clear next actions."
             stats={[
-              { value: urgentActions.length, label: 'Urgent actions' },
-              { value: 5, label: 'Award queues' },
-              { value: contractActions.length, label: 'Contract actions' }
+              { value: summary.urgentActions, label: 'Urgent actions' },
+              { value: summary.awardQueues, label: 'Award queues' },
+              { value: summary.contractActions, label: 'Contract actions' }
             ]}
           />
 
@@ -81,7 +111,7 @@ export function AwardingContractsProcurexPage() {
                 key={item.queue}
               >
                 <span className="summary-trend" aria-hidden="true">{item.trend}</span>
-                <strong>{item.value}</strong>
+                <strong>{queues[item.queue].length}</strong>
                 <span>{item.label} <em className="summary-view">View</em></span>
                 <em>{item.detail}</em>
               </button>
@@ -117,24 +147,24 @@ export function AwardingContractsProcurexPage() {
               <div className={`tab-content ${activeQueue === 'my-urgent-actions' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="my-urgent-actions">
                 <p className="awarding-tab-note">This queue aggregates buyer and supplier work that needs attention across awards, contracts, invoices, variations, and closure.</p>
                 <SimpleTable headers={['Priority', 'Action', 'Related Tender/Contract', 'Due / Impact', 'Owner', 'Status', 'Button']} className="awarding-contracts-table">
-                  {urgentActions.length === 0 ? <EmptyRows colSpan={7} message="No urgent award or contract actions yet." /> : null}
-                  {urgentActions.map((row) => (
+                  {queues['my-urgent-actions'].length === 0 ? <EmptyRows colSpan={7} message="No urgent award or contract actions yet." /> : null}
+                  {queues['my-urgent-actions'].map((row) => (
                     <tr key={row.id}>
-                      <td><StatusBadge value={row.priority} /></td>
-                      <td><strong>{row.action}</strong></td>
-                      <td>{row.item}<span>{row.party}</span></td>
-                      <td>{row.dueDate}</td>
-                      <td><StatusBadge value={row.role} /></td>
+                      <td><StatusBadge value={row.riskLevel} /></td>
+                      <td><strong>{row.requiredAction}</strong><span>{row.currentStage}</span></td>
+                      <td>{row.title}<span>{row.otherParty}</span></td>
+                      <td>{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'Not dated'}</td>
+                      <td><StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} /></td>
                       <td><StatusBadge value={row.status} /></td>
                       <td>
                         <button
                           className="btn btn-primary btn-sm"
                           type="button"
-                          data-select-tender={row.tenderId}
-                          data-navigate={row.nav}
-                          data-route-search={row.routeSearch}
+                          disabled={row.nextAction?.canAct === false}
+                          title={row.nextAction?.disabledReason ?? row.requiredAction}
+                          onClick={() => followAction(row)}
                         >
-                          {row.buttonLabel}
+                          {row.nextAction?.label ?? 'Open'}
                         </button>
                       </td>
                     </tr>
@@ -145,24 +175,22 @@ export function AwardingContractsProcurexPage() {
               <div className={`tab-content ${activeQueue === 'awarding-in-progress' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="awarding-in-progress">
                 <div className="queue-toolbar">
                   <label>Search <input className="form-input" placeholder="Tender name or reference" aria-label="Search pending awarding tenders" /></label>
-                  <span>Showing {pendingAwards.length} of {pendingAwards.length}</span>
+                  <span>Showing {queues['awarding-in-progress'].length} of {queues['awarding-in-progress'].length}</span>
                 </div>
-                <SimpleTable headers={['Tender Title', 'Role', 'Type', 'Evaluation Results', 'Recommended Supplier', 'Award Status', 'Contract Status', 'Progress', 'Action']} className="awarding-contracts-table">
-                  {pendingAwards.length === 0 ? <EmptyRows colSpan={9} message="No buyer-side awards are in progress yet." /> : null}
-                  {pendingAwards.map((row) => (
+                <SimpleTable headers={['Tender Title', 'Role', 'Stage', 'Recommended Supplier', 'Award Status', 'Due / Risk', 'Action']} className="awarding-contracts-table">
+                  {queues['awarding-in-progress'].length === 0 ? <EmptyRows colSpan={7} message="No buyer-side awards are in progress yet." /> : null}
+                  {queues['awarding-in-progress'].map((row) => (
                     <tr key={row.id}>
-                      <td><strong>{row.title}</strong><span>{row.reference}</span></td>
-                      <td><StatusBadge value={row.role} /></td>
-                      <td>{row.procurementType}</td>
-                      <td><StatusBadge value={row.evaluationStatus} /></td>
-                      <td>{row.recommendedSupplier}</td>
-                      <td><StatusBadge value={row.awardStatus} /></td>
-                      <td><StatusBadge value={row.contractStatus} /></td>
-                      <td><StatusBadge value={row.progressStatus} /><span>{row.progressStep}</span><small>{row.progressDate}</small></td>
+                      <td><strong>{row.title}</strong><span>{row.tenderId}</span></td>
+                      <td><StatusBadge value="Buyer" /></td>
+                      <td>{row.currentStage}</td>
+                      <td>{row.otherParty}</td>
+                      <td><StatusBadge value={row.status} /></td>
+                      <td><StatusBadge value={row.riskLevel} /><span>{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'Not dated'}</span></td>
                       <td>
                         <div className="awarding-row-actions">
-                          <button className="btn btn-secondary btn-sm" type="button" data-select-tender={row.id} data-navigate="bid-evaluation">View Evaluation Report</button>
-                          <button className="btn btn-primary btn-sm" type="button" data-select-tender={row.id} data-navigate="award-recommendation">{row.action}</button>
+                          <button className="btn btn-secondary btn-sm" type="button" data-navigate="bid-evaluation">View Evaluation</button>
+                          <button className="btn btn-primary btn-sm" type="button" disabled={row.nextAction?.canAct === false} title={row.nextAction?.disabledReason ?? row.requiredAction} onClick={() => followAction(row)}>{row.nextAction?.label ?? row.requiredAction}</button>
                         </div>
                       </td>
                     </tr>
@@ -171,27 +199,23 @@ export function AwardingContractsProcurexPage() {
               </div>
 
               <div className={`tab-content ${activeQueue === 'awards-received' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="awards-received">
-                <SimpleTable headers={['Tender Title', 'Role', 'Buyer', 'Type', 'Award Value', 'Award Status', 'Contract Status', 'Progress', 'Required Action']} className="awarding-contracts-table">
-                  {supplierAwards.length === 0 ? <EmptyRows colSpan={9} message="No supplier awards have been received yet." /> : null}
-                  {supplierAwards.map((row) => (
+                <SimpleTable headers={['Tender Title', 'Role', 'Buyer', 'Award Value', 'Status', 'Stage', 'Required Action']} className="awarding-contracts-table">
+                  {queues['awards-received'].length === 0 ? <EmptyRows colSpan={7} message="No supplier awards have been received yet." /> : null}
+                  {queues['awards-received'].map((row) => (
                     <tr key={row.id}>
                       <td><strong>{row.title}</strong></td>
                       <td><StatusBadge value="Supplier" /></td>
-                      <td>{row.buyer}</td>
-                      <td>{row.procurementType}</td>
-                      <td>{formatMoney(row.awardValue, row.currency)}</td>
-                      <td><StatusBadge value={row.awardStatus} /></td>
-                      <td><StatusBadge value={row.contractStatus} /></td>
-                      <td><StatusBadge value="Not saved" /><span>Evaluation Results</span><small>Jun 3, 2026</small></td>
+                      <td>{row.otherParty}</td>
+                      <td>{row.amount === null ? 'Not priced' : formatMoney(row.amount, row.currency)}</td>
+                      <td><StatusBadge value={row.status} /></td>
+                      <td>{row.currentStage}</td>
                       <td>
                         <button
                           className="btn btn-primary btn-sm"
                           type="button"
-                          data-select-tender={row.id}
-                          data-navigate="award-response"
-                          data-route-search={`award=${row.id}`}
+                          onClick={() => followAction(row)}
                         >
-                          {row.requiredAction}
+                          {row.nextAction?.label ?? row.requiredAction}
                         </button>
                       </td>
                     </tr>
@@ -201,55 +225,53 @@ export function AwardingContractsProcurexPage() {
 
               <div className={`tab-content ${activeQueue === 'contracts-in-progress' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="contracts-in-progress">
                 <SimpleTable headers={['Contract', 'Your Role', 'Other Party', 'Current Status', 'Required Action', 'Due Date']} className="awarding-contracts-table">
-                  {contractActions.length === 0 ? <EmptyRows colSpan={6} message="No contracts are in progress yet." /> : null}
-                  {contractActions.map((row) => (
+                  {queues['contracts-in-progress'].length === 0 ? <EmptyRows colSpan={6} message="No contracts are in progress yet." /> : null}
+                  {queues['contracts-in-progress'].map((row) => (
                     <tr key={row.id}>
-                      <td><strong>{row.contract}</strong></td>
-                      <td><StatusBadge value={row.role} /></td>
+                      <td><strong>{row.title}</strong></td>
+                      <td><StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} /></td>
                       <td>{row.otherParty}</td>
                       <td><StatusBadge value={row.status} /></td>
-                      <td><button className="btn btn-primary btn-sm" type="button" data-navigate="contract-negotiation" data-route-search={row.routeSearch}>{row.requiredAction}</button></td>
-                      <td>{row.dueDate}</td>
+                      <td><button className="btn btn-primary btn-sm" type="button" disabled={row.nextAction?.canAct === false} title={row.nextAction?.disabledReason ?? row.requiredAction} onClick={() => followAction(row)}>{row.nextAction?.label ?? row.requiredAction}</button></td>
+                      <td>{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'Not dated'}</td>
                     </tr>
                   ))}
                 </SimpleTable>
               </div>
 
               <div className={`tab-content ${activeQueue === 'active-contracts' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="active-contracts">
-                <SimpleTable headers={['Contract', 'Your Role', 'Other Party', 'Progress', 'Next Milestone', 'Payment Status', 'Action']} className="awarding-contracts-table">
-                  {activeContracts.length === 0 ? <EmptyRows colSpan={7} message="No active contracts are available yet." /> : null}
-                  {activeContracts.map((row) => (
+                <SimpleTable headers={['Contract', 'Your Role', 'Other Party', 'Stage', 'Next Action', 'Risk', 'Action']} className="awarding-contracts-table">
+                  {queues['active-contracts'].length === 0 ? <EmptyRows colSpan={7} message="No active contracts are available yet." /> : null}
+                  {queues['active-contracts'].map((row) => (
                     <tr key={row.id}>
                       <td><strong>{row.title}</strong></td>
-                      <td><StatusBadge value={row.role} /></td>
+                      <td><StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} /></td>
                       <td>{row.otherParty}</td>
-                      <td><div className="awarding-mini-progress"><span style={{ width: `${row.progress}%` }} /></div><small>{row.progressLabel}</small></td>
-                      <td>{row.nextMilestone}</td>
-                      <td><StatusBadge value={row.paymentStatus} /></td>
-                      <td><button className="btn btn-primary btn-sm" type="button" data-navigate="post-award-tracking" data-route-search="mode=active&tab=milestones">Track</button></td>
+                      <td>{row.currentStage}</td>
+                      <td>{row.requiredAction}</td>
+                      <td><StatusBadge value={row.riskLevel} /></td>
+                      <td><button className="btn btn-primary btn-sm" type="button" onClick={() => followAction(row)}>Track</button></td>
                     </tr>
                   ))}
                 </SimpleTable>
               </div>
 
               <div className={`tab-content ${activeQueue === 'closed-contracts' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="closed-contracts">
-                <SimpleTable headers={['Contract', 'Your Role', 'Other Party', 'Final Value', 'Completion Date', 'Performance', 'Status', 'Action']} className="awarding-contracts-table">
-                  {closedContracts.length === 0 ? <EmptyRows colSpan={8} message="No closed contracts are archived yet." /> : null}
-                  {closedContracts.map((row) => (
+                <SimpleTable headers={['Contract', 'Your Role', 'Other Party', 'Final Value', 'Stage', 'Status', 'Action']} className="awarding-contracts-table">
+                  {queues['closed-contracts'].length === 0 ? <EmptyRows colSpan={7} message="No closed contracts are archived yet." /> : null}
+                  {queues['closed-contracts'].map((row) => (
                     <tr key={row.id}>
                       <td><strong>{row.title}</strong></td>
-                      <td><StatusBadge value={row.role} /></td>
+                      <td><StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} /></td>
                       <td>{row.otherParty}</td>
-                      <td>{formatMoney(row.finalValue, row.currency)}</td>
-                      <td>{row.completionDate}</td>
-                      <td>{row.performanceRating}</td>
+                      <td>{row.amount === null ? 'Not priced' : formatMoney(row.amount, row.currency)}</td>
+                      <td>{row.currentStage}</td>
                       <td><StatusBadge value={row.status} /></td>
                       <td>
                         <button
                           className="btn btn-primary btn-sm"
                           type="button"
-                          data-navigate="post-award-tracking"
-                          data-route-search={routeWithSearch('', `mode=closed&tab=closure&contract=${row.id}`).replace(/^\?/, '')}
+                          onClick={() => followAction(row)}
                         >
                           View Closure
                         </button>

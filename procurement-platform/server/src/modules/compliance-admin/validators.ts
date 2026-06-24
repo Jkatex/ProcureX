@@ -225,3 +225,101 @@ export const dataStoreDeleteSchema = z
     note: z.string().trim().max(500).optional()
   })
   .strict();
+
+export const workflowListQuerySchema = paginationQuerySchema
+  .extend({
+    status: z.string().trim().max(80).optional(),
+    supplierOrgId: optionalUuidSchema,
+    ownerOrgId: optionalUuidSchema,
+    tenderId: optionalUuidSchema,
+    contractId: optionalUuidSchema,
+    q: z.string().trim().max(160).optional()
+  })
+  .strict();
+
+export const complianceReviewBodySchema = z.object({
+  ownerOrgId: optionalUuidSchema,
+  entityType: z.string().trim().min(1).max(120),
+  entityRef: z.string().trim().max(160).optional(),
+  reviewType: z.string().trim().min(1).max(120),
+  status: z.nativeEnum(ComplianceCaseStatus).optional(),
+  severity: z.nativeEnum(AuditSeverity).optional(),
+  assignedUserId: optionalUuidSchema,
+  findings: z.string().trim().max(4000).optional(),
+  decision: z.string().trim().max(4000).optional(),
+  dueDate: z.string().trim().date().optional(),
+  completedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema.optional().default({})
+}).strict();
+
+export const violationCaseBodySchema = z.object({
+  reviewId: optionalUuidSchema,
+  ownerOrgId: optionalUuidSchema,
+  supplierOrgId: optionalUuidSchema,
+  title: z.string().trim().min(1).max(220),
+  violationType: z.string().trim().min(1).max(120),
+  severity: z.nativeEnum(AuditSeverity).optional(),
+  status: z.nativeEnum(ComplianceCaseStatus).optional(),
+  statement: z.string().trim().max(4000).optional(),
+  assignedUserId: optionalUuidSchema,
+  decision: z.string().trim().max(4000).optional(),
+  decidedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema.optional().default({})
+}).strict();
+
+export const violationEvidenceBodySchema = z.object({
+  violationId: uuidSchema,
+  documentId: optionalUuidSchema,
+  evidenceType: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(2000).optional(),
+  payload: jsonObjectSchema.optional().default({})
+}).strict();
+
+export const enforcementRecordBodySchema = z.object({
+  violationId: optionalUuidSchema,
+  supplierOrgId: optionalUuidSchema,
+  enforcementType: z.string().trim().min(1).max(120),
+  status: statusSchema.optional().default('PENDING'),
+  severity: z.nativeEnum(AuditSeverity).optional(),
+  effectiveFrom: z.string().trim().datetime().optional(),
+  effectiveTo: z.string().trim().datetime().optional(),
+  actionSummary: z.string().trim().max(4000).optional(),
+  payload: jsonObjectSchema.optional().default({})
+}).strict();
+
+export const appealRecordBodySchema = z.object({
+  enforcementId: optionalUuidSchema,
+  violationId: optionalUuidSchema,
+  appellantOrgId: optionalUuidSchema,
+  appealGrounds: z.string().trim().min(1).max(4000),
+  status: statusSchema.optional().default('SUBMITTED'),
+  decision: z.string().trim().max(4000).optional(),
+  decidedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema.optional().default({})
+}).strict();
+
+export const collusionAlertBodySchema = z.object({
+  tenderId: optionalUuidSchema,
+  bidId: optionalUuidSchema,
+  supplierOrgId: optionalUuidSchema,
+  alertType: z.string().trim().min(1).max(120),
+  severity: z.nativeEnum(AuditSeverity).optional(),
+  status: statusSchema.optional().default('OPEN'),
+  confidence: z.coerce.number().min(0).max(100).optional(),
+  signalSummary: z.string().trim().max(4000).optional(),
+  assignedUserId: optionalUuidSchema,
+  resolvedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema.optional().default({})
+}).strict();
+
+export const supplierRiskProfileBodySchema = z.object({
+  supplierOrgId: uuidSchema,
+  riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional().default('MEDIUM'),
+  riskScore: z.coerce.number().int().min(0).max(100).optional().default(50),
+  trustTier: z.string().trim().min(1).max(80).optional().default('UNVERIFIED'),
+  activeAlerts: z.coerce.number().int().min(0).optional().default(0),
+  openViolations: z.coerce.number().int().min(0).optional().default(0),
+  summary: z.string().trim().max(2000).optional(),
+  drivers: z.array(z.unknown()).optional().default([]),
+  payload: jsonObjectSchema.optional().default({})
+}).strict();

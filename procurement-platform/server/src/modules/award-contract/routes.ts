@@ -6,23 +6,69 @@ export function createModuleRouter() {
   const controller = new ModuleController();
 
   router.get('/', controller.status);
+  router.get('/dashboard', controller.dashboard);
 
   router.get('/recommendations', controller.listRecommendations);
   router.get('/recommendations/:id', controller.recommendation);
   router.post('/recommendations/:id/approve', controller.approveRecommendation);
   router.post('/recommendations/:id/return', controller.returnRecommendation);
+  router.put('/recommendations/:id/approval-route', controller.upsertAwardApprovalRoute);
+  router.put('/recommendations/:id/approval-steps', controller.upsertAwardApprovalStep);
+  router.post('/recommendations/:id/tie-breakers', controller.createAwardTieBreaker);
+  router.put('/recommendations/:id/delivery-feasibility', controller.upsertDeliveryFeasibility);
+  router.put('/recommendations/:id/standstill', controller.upsertStandstillPeriod);
+  router.post('/recommendations/:id/notifications', controller.createAwardNotification);
+  router.post('/recommendations/:id/budget-commitments', controller.createBudgetCommitmentForRecommendation);
 
   router.post('/notices/:id/respond', controller.respondToNotice);
 
   router.get('/contracts', controller.listContracts);
   router.get('/contracts/:id', controller.contract);
   router.post('/contracts/:id/versions', controller.createContractVersion);
+  router.put('/contracts/:id/clauses', controller.upsertClause);
+  router.post('/contracts/:id/negotiations', controller.createNegotiation);
   router.post('/contracts/:id/signatures', controller.createSignatureRequests);
   router.post('/contracts/:id/signatures/:signatureId/sign', controller.signContractSignature);
   router.post('/contracts/:id/milestones', controller.createMilestone);
   router.patch('/contracts/:id/milestones/:milestoneId', controller.updateMilestone);
   router.post('/contracts/:id/milestones/:milestoneId/evidence', controller.addMilestoneEvidence);
   router.patch('/contracts/:id/status', controller.updateContractStatus);
+  router.put('/contracts/:id/management-plan', controller.upsertManagementPlan);
+  router.patch('/contracts/:id/mobilization/:itemId', controller.updateMobilizationItem);
+  router.post('/contracts/:id/deliverables', controller.createDeliverable);
+  router.post('/contracts/:id/acceptances', controller.createAcceptance);
+  router.post('/contracts/:id/inspections', controller.createInspection);
+  router.post('/contracts/:id/goods-inspections', controller.createGoodsInspection);
+  router.post('/contracts/:id/invoices', controller.createInvoice);
+  router.post('/contracts/:id/payment-schedules', controller.createPaymentSchedule);
+  router.post('/contracts/:id/payments', controller.createPayment);
+  router.put('/contracts/:id/three-way-match', controller.upsertThreeWayMatch);
+  router.post('/contracts/:id/payment-approvals', controller.createPaymentApproval);
+  router.post('/contracts/:id/payment-confirmations', controller.createPaymentConfirmation);
+  router.post('/contracts/:id/performance-scores', controller.createPerformanceScore);
+  router.post('/contracts/:id/risk-forecasts', controller.createRiskForecast);
+  router.put('/contracts/:id/supplier-risk-profile', controller.upsertSupplierRiskProfile);
+  router.post('/contracts/:id/risks', controller.createRisk);
+  router.patch('/contracts/:id/risks/:itemId', controller.updateRisk);
+  router.post('/contracts/:id/variations', controller.createVariation);
+  router.patch('/contracts/:id/variations/:itemId', controller.updateVariation);
+  router.post('/contracts/:id/issues', controller.createIssue);
+  router.patch('/contracts/:id/issues/:itemId', controller.updateIssue);
+  router.post('/contracts/:id/disputes', controller.createDispute);
+  router.patch('/contracts/:id/disputes/:itemId', controller.updateDispute);
+  router.post('/contracts/:id/terminations', controller.createTermination);
+  router.patch('/contracts/:id/terminations/:terminationId', controller.updateTermination);
+  router.post('/contracts/:id/terminations/:terminationId/notices', controller.addTerminationNotice);
+  router.post('/contracts/:id/terminations/:terminationId/evidence', controller.addTerminationEvidence);
+  router.put('/contracts/:id/terminations/:terminationId/valuation', controller.upsertTerminationValuation);
+  router.put('/contracts/:id/terminations/:terminationId/settlement', controller.upsertTerminationSettlement);
+  router.put('/contracts/:id/terminations/:terminationId/replacement-procurement', controller.upsertReplacementProcurement);
+  router.put('/contracts/:id/closeout', controller.upsertCloseout);
+  router.put('/contracts/:id/supplier-performance', controller.upsertSupplierPerformance);
+  router.put('/contracts/:id/warranties', controller.upsertWarranty);
+  router.put('/contracts/:id/required-documents', controller.upsertRequiredDocument);
+  router.put('/contracts/:id/workflow-approvals', controller.upsertWorkflowApproval);
+  router.patch('/contracts/:id/invoices/:invoiceId/status', controller.updateInvoiceStatus);
 
   return router;
 }

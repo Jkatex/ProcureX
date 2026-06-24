@@ -10,6 +10,17 @@ import {
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
+
+const activeContractStatuses = [
+  ContractStatus.DRAFT,
+  ContractStatus.NEGOTIATION,
+  ContractStatus.SIGNATURE_PENDING,
+  ContractStatus.SIGNED,
+  ContractStatus.MOBILIZATION,
+  ContractStatus.ACTIVE,
+  ContractStatus.AT_RISK,
+  ContractStatus.TERMINATION_REVIEW
+];
 import { prisma } from '../../db/prisma.js';
 import type {
   DashboardActionDto,
@@ -68,7 +79,7 @@ export class ModuleRepository {
       this.db.tender.count({ where: withTenderScope(organizationId, { status: TenderStatus.AWARDED }) }),
       this.db.contract.count({
         where: withContractScope(organizationId, {
-          status: { in: [ContractStatus.DRAFT, ContractStatus.NEGOTIATION, ContractStatus.SIGNATURE_PENDING, ContractStatus.ACTIVE] }
+          status: { in: activeContractStatuses }
         })
       }),
       this.db.tender.count({ where: withTenderScope(organizationId, { status: TenderStatus.CLOSED }) }),
@@ -202,7 +213,7 @@ export class ModuleRepository {
       }),
       this.db.contract.findMany({
         where: withContractScope(organizationId, {
-          status: { in: [ContractStatus.DRAFT, ContractStatus.NEGOTIATION, ContractStatus.SIGNATURE_PENDING, ContractStatus.ACTIVE] }
+          status: { in: activeContractStatuses }
         }),
         select: { id: true, reference: true, title: true, status: true, updatedAt: true },
         orderBy: { updatedAt: 'desc' },
@@ -513,7 +524,9 @@ function contractNextAction(status: ContractStatus) {
   if (status === ContractStatus.DRAFT) return 'Prepare contract';
   if (status === ContractStatus.NEGOTIATION) return 'Continue negotiation';
   if (status === ContractStatus.SIGNATURE_PENDING) return 'Collect signatures';
+  if (status === ContractStatus.SIGNED || status === ContractStatus.MOBILIZATION) return 'Complete activation';
   if (status === ContractStatus.ACTIVE) return 'Track performance';
+  if (status === ContractStatus.AT_RISK || status === ContractStatus.TERMINATION_REVIEW) return 'Review contract risk';
   return 'Open contract';
 }
 
