@@ -60,6 +60,18 @@ function jsonObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function workflowDto<T extends Record<string, unknown>>(record: T) {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => {
+      if (value instanceof Date) return [key, value.toISOString()];
+      if (value && typeof value === 'object' && 'toNumber' in value && typeof (value as { toNumber: () => number }).toNumber === 'function') {
+        return [key, (value as { toNumber: () => number }).toNumber()];
+      }
+      return [key, value];
+    })
+  );
+}
+
 function page<T>(items: T[], query: { page: number; pageSize: number }, total = items.length): PageDto<T> {
   return { items, page: query.page, pageSize: query.pageSize, total };
 }
@@ -591,6 +603,172 @@ export class ModuleService {
         tx
       );
       return ruleDto(updated);
+    });
+  }
+
+  async complianceReviews(token: string | undefined, query: { page: number; pageSize: number; [key: string]: unknown }) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const result = await this.repository.complianceReviews(query, tx);
+      return page(result.items.map((item) => workflowDto(item as unknown as Record<string, unknown>)), query, result.total);
+    });
+  }
+
+  async createComplianceReview(token: string | undefined, input: Record<string, unknown>) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const item = await this.repository.createComplianceReview(input, admin.user.id, tx);
+      await this.repository.createAuditEvent({
+        actorUserId: admin.user.id,
+        ownerOrgId: typeof input.ownerOrgId === 'string' ? input.ownerOrgId : null,
+        event: 'compliance.review.created',
+        entityType: 'compliance_review',
+        entityRef: item.id,
+        severity: AuditSeverity.WARNING,
+        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+      }, tx);
+      return workflowDto(item as unknown as Record<string, unknown>);
+    });
+  }
+
+  async violationCases(token: string | undefined, query: { page: number; pageSize: number; [key: string]: unknown }) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const result = await this.repository.violationCases(query, tx);
+      return page(result.items.map((item) => workflowDto(item as unknown as Record<string, unknown>)), query, result.total);
+    });
+  }
+
+  async createViolationCase(token: string | undefined, input: Record<string, unknown>) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const item = await this.repository.createViolationCase(input, tx);
+      await this.repository.createAuditEvent({
+        actorUserId: admin.user.id,
+        ownerOrgId: typeof input.ownerOrgId === 'string' ? input.ownerOrgId : null,
+        event: 'compliance.violation.created',
+        entityType: 'violation_case',
+        entityRef: item.id,
+        severity: (input.severity as AuditSeverity | undefined) ?? AuditSeverity.WARNING,
+        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+      }, tx);
+      return workflowDto(item as unknown as Record<string, unknown>);
+    });
+  }
+
+  async createViolationEvidence(token: string | undefined, input: Record<string, unknown>) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const item = await this.repository.createViolationEvidence(input, admin.user.id, tx);
+      await this.repository.createAuditEvent({
+        actorUserId: admin.user.id,
+        event: 'compliance.violation_evidence.created',
+        entityType: 'violation_evidence',
+        entityRef: item.id,
+        severity: AuditSeverity.INFO,
+        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+      }, tx);
+      return workflowDto(item as unknown as Record<string, unknown>);
+    });
+  }
+
+  async enforcementRecords(token: string | undefined, query: { page: number; pageSize: number; [key: string]: unknown }) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const result = await this.repository.enforcementRecords(query, tx);
+      return page(result.items.map((item) => workflowDto(item as unknown as Record<string, unknown>)), query, result.total);
+    });
+  }
+
+  async createEnforcementRecord(token: string | undefined, input: Record<string, unknown>) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const item = await this.repository.createEnforcementRecord(input, admin.user.id, tx);
+      await this.repository.createAuditEvent({
+        actorUserId: admin.user.id,
+        ownerOrgId: typeof input.supplierOrgId === 'string' ? input.supplierOrgId : null,
+        event: 'compliance.enforcement.created',
+        entityType: 'enforcement_record',
+        entityRef: item.id,
+        severity: (input.severity as AuditSeverity | undefined) ?? AuditSeverity.WARNING,
+        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+      }, tx);
+      return workflowDto(item as unknown as Record<string, unknown>);
+    });
+  }
+
+  async appealRecords(token: string | undefined, query: { page: number; pageSize: number; [key: string]: unknown }) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const result = await this.repository.appealRecords(query, tx);
+      return page(result.items.map((item) => workflowDto(item as unknown as Record<string, unknown>)), query, result.total);
+    });
+  }
+
+  async createAppealRecord(token: string | undefined, input: Record<string, unknown>) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const item = await this.repository.createAppealRecord(input, admin.user.id, tx);
+      await this.repository.createAuditEvent({
+        actorUserId: admin.user.id,
+        ownerOrgId: typeof input.appellantOrgId === 'string' ? input.appellantOrgId : null,
+        event: 'compliance.appeal.created',
+        entityType: 'appeal_record',
+        entityRef: item.id,
+        severity: AuditSeverity.INFO,
+        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+      }, tx);
+      return workflowDto(item as unknown as Record<string, unknown>);
+    });
+  }
+
+  async collusionAlerts(token: string | undefined, query: { page: number; pageSize: number; [key: string]: unknown }) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const result = await this.repository.collusionAlerts(query, tx);
+      return page(result.items.map((item) => workflowDto(item as unknown as Record<string, unknown>)), query, result.total);
+    });
+  }
+
+  async createCollusionAlert(token: string | undefined, input: Record<string, unknown>) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const item = await this.repository.createCollusionAlert(input, tx);
+      await this.repository.createAuditEvent({
+        actorUserId: admin.user.id,
+        ownerOrgId: typeof input.supplierOrgId === 'string' ? input.supplierOrgId : null,
+        event: 'compliance.collusion_alert.created',
+        entityType: 'collusion_alert',
+        entityRef: item.id,
+        severity: (input.severity as AuditSeverity | undefined) ?? AuditSeverity.WARNING,
+        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+      }, tx);
+      return workflowDto(item as unknown as Record<string, unknown>);
+    });
+  }
+
+  async supplierRiskProfiles(token: string | undefined, query: { page: number; pageSize: number; [key: string]: unknown }) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const result = await this.repository.supplierRiskProfiles(query, tx);
+      return page(result.items.map((item) => workflowDto(item as unknown as Record<string, unknown>)), query, result.total);
+    });
+  }
+
+  async upsertSupplierRiskProfile(token: string | undefined, input: Record<string, unknown>) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const item = await this.repository.upsertSupplierRiskProfile(input, admin.user.id, tx);
+      await this.repository.createAuditEvent({
+        actorUserId: admin.user.id,
+        ownerOrgId: typeof input.supplierOrgId === 'string' ? input.supplierOrgId : null,
+        event: 'compliance.supplier_risk_profile.upserted',
+        entityType: 'supplier_risk_profile',
+        entityRef: item.id,
+        severity: AuditSeverity.INFO,
+        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+      }, tx);
+      return workflowDto(item as unknown as Record<string, unknown>);
     });
   }
 

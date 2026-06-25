@@ -1086,6 +1086,220 @@ export class ModuleRepository {
     });
   }
 
+  async complianceReviews(query: Record<string, unknown>, db: AdminDb = this.db) {
+    const where: Prisma.ComplianceReviewWhereInput = {
+      ...(query.status ? { status: query.status as ComplianceCaseStatus } : {}),
+      ...(query.ownerOrgId ? { ownerOrgId: query.ownerOrgId as string } : {}),
+      ...(query.q ? { OR: [{ reviewType: { contains: query.q as string, mode: 'insensitive' } }, { findings: { contains: query.q as string, mode: 'insensitive' } }] } : {})
+    };
+    const [total, items] = await Promise.all([
+      db.complianceReview.count({ where }),
+      db.complianceReview.findMany({ where, orderBy: { createdAt: 'desc' }, skip: pageOffset(query as { page: number; pageSize: number }), take: query.pageSize as number })
+    ]);
+    return { total, items };
+  }
+
+  createComplianceReview(input: Record<string, unknown>, actorUserId: string, db: AdminDb = this.db) {
+    return db.complianceReview.create({
+      data: {
+        ownerOrgId: input.ownerOrgId as string | undefined,
+        entityType: input.entityType as string,
+        entityRef: input.entityRef as string | undefined,
+        reviewType: input.reviewType as string,
+        status: (input.status as ComplianceCaseStatus | undefined) ?? ComplianceCaseStatus.OPEN,
+        severity: (input.severity as AuditSeverity | undefined) ?? AuditSeverity.WARNING,
+        assignedUserId: (input.assignedUserId as string | undefined) ?? actorUserId,
+        findings: input.findings as string | undefined,
+        decision: input.decision as string | undefined,
+        dueDate: input.dueDate ? new Date(`${input.dueDate as string}T00:00:00.000Z`) : undefined,
+        completedAt: input.completedAt ? new Date(input.completedAt as string) : undefined,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  async violationCases(query: Record<string, unknown>, db: AdminDb = this.db) {
+    const where: Prisma.ViolationCaseWhereInput = {
+      ...(query.status ? { status: query.status as ComplianceCaseStatus } : {}),
+      ...(query.ownerOrgId ? { ownerOrgId: query.ownerOrgId as string } : {}),
+      ...(query.supplierOrgId ? { supplierOrgId: query.supplierOrgId as string } : {}),
+      ...(query.q ? { OR: [{ title: { contains: query.q as string, mode: 'insensitive' } }, { violationType: { contains: query.q as string, mode: 'insensitive' } }] } : {})
+    };
+    const [total, items] = await Promise.all([
+      db.violationCase.count({ where }),
+      db.violationCase.findMany({ where, orderBy: { createdAt: 'desc' }, skip: pageOffset(query as { page: number; pageSize: number }), take: query.pageSize as number })
+    ]);
+    return { total, items };
+  }
+
+  createViolationCase(input: Record<string, unknown>, db: AdminDb = this.db) {
+    return db.violationCase.create({
+      data: {
+        reviewId: input.reviewId as string | undefined,
+        ownerOrgId: input.ownerOrgId as string | undefined,
+        supplierOrgId: input.supplierOrgId as string | undefined,
+        title: input.title as string,
+        violationType: input.violationType as string,
+        severity: (input.severity as AuditSeverity | undefined) ?? AuditSeverity.WARNING,
+        status: (input.status as ComplianceCaseStatus | undefined) ?? ComplianceCaseStatus.OPEN,
+        statement: input.statement as string | undefined,
+        assignedUserId: input.assignedUserId as string | undefined,
+        decision: input.decision as string | undefined,
+        decidedAt: input.decidedAt ? new Date(input.decidedAt as string) : undefined,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  createViolationEvidence(input: Record<string, unknown>, actorUserId: string, db: AdminDb = this.db) {
+    return db.violationEvidence.create({
+      data: {
+        violationId: input.violationId as string,
+        documentId: input.documentId as string | undefined,
+        evidenceType: input.evidenceType as string,
+        description: input.description as string | undefined,
+        submittedByUserId: actorUserId,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  async enforcementRecords(query: Record<string, unknown>, db: AdminDb = this.db) {
+    const where: Prisma.EnforcementRecordWhereInput = {
+      ...(query.status ? { status: query.status as string } : {}),
+      ...(query.supplierOrgId ? { supplierOrgId: query.supplierOrgId as string } : {}),
+      ...(query.q ? { OR: [{ enforcementType: { contains: query.q as string, mode: 'insensitive' } }, { actionSummary: { contains: query.q as string, mode: 'insensitive' } }] } : {})
+    };
+    const [total, items] = await Promise.all([
+      db.enforcementRecord.count({ where }),
+      db.enforcementRecord.findMany({ where, orderBy: { createdAt: 'desc' }, skip: pageOffset(query as { page: number; pageSize: number }), take: query.pageSize as number })
+    ]);
+    return { total, items };
+  }
+
+  createEnforcementRecord(input: Record<string, unknown>, actorUserId: string, db: AdminDb = this.db) {
+    return db.enforcementRecord.create({
+      data: {
+        violationId: input.violationId as string | undefined,
+        supplierOrgId: input.supplierOrgId as string | undefined,
+        enforcementType: input.enforcementType as string,
+        status: (input.status as string | undefined) ?? 'PENDING',
+        severity: (input.severity as AuditSeverity | undefined) ?? AuditSeverity.WARNING,
+        effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom as string) : undefined,
+        effectiveTo: input.effectiveTo ? new Date(input.effectiveTo as string) : undefined,
+        actionSummary: input.actionSummary as string | undefined,
+        issuedByUserId: actorUserId,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  async appealRecords(query: Record<string, unknown>, db: AdminDb = this.db) {
+    const where: Prisma.AppealRecordWhereInput = {
+      ...(query.status ? { status: query.status as string } : {}),
+      ...(query.ownerOrgId ? { appellantOrgId: query.ownerOrgId as string } : {}),
+      ...(query.q ? { OR: [{ appealGrounds: { contains: query.q as string, mode: 'insensitive' } }, { decision: { contains: query.q as string, mode: 'insensitive' } }] } : {})
+    };
+    const [total, items] = await Promise.all([
+      db.appealRecord.count({ where }),
+      db.appealRecord.findMany({ where, orderBy: { createdAt: 'desc' }, skip: pageOffset(query as { page: number; pageSize: number }), take: query.pageSize as number })
+    ]);
+    return { total, items };
+  }
+
+  createAppealRecord(input: Record<string, unknown>, actorUserId: string, db: AdminDb = this.db) {
+    return db.appealRecord.create({
+      data: {
+        enforcementId: input.enforcementId as string | undefined,
+        violationId: input.violationId as string | undefined,
+        appellantOrgId: input.appellantOrgId as string | undefined,
+        appealGrounds: input.appealGrounds as string,
+        status: (input.status as string | undefined) ?? 'SUBMITTED',
+        reviewerUserId: actorUserId,
+        decision: input.decision as string | undefined,
+        decidedAt: input.decidedAt ? new Date(input.decidedAt as string) : undefined,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  async collusionAlerts(query: Record<string, unknown>, db: AdminDb = this.db) {
+    const where: Prisma.CollusionAlertWhereInput = {
+      ...(query.status ? { status: query.status as string } : {}),
+      ...(query.supplierOrgId ? { supplierOrgId: query.supplierOrgId as string } : {}),
+      ...(query.tenderId ? { tenderId: query.tenderId as string } : {}),
+      ...(query.q ? { OR: [{ alertType: { contains: query.q as string, mode: 'insensitive' } }, { signalSummary: { contains: query.q as string, mode: 'insensitive' } }] } : {})
+    };
+    const [total, items] = await Promise.all([
+      db.collusionAlert.count({ where }),
+      db.collusionAlert.findMany({ where, orderBy: { createdAt: 'desc' }, skip: pageOffset(query as { page: number; pageSize: number }), take: query.pageSize as number })
+    ]);
+    return { total, items };
+  }
+
+  createCollusionAlert(input: Record<string, unknown>, db: AdminDb = this.db) {
+    return db.collusionAlert.create({
+      data: {
+        tenderId: input.tenderId as string | undefined,
+        bidId: input.bidId as string | undefined,
+        supplierOrgId: input.supplierOrgId as string | undefined,
+        alertType: input.alertType as string,
+        severity: (input.severity as AuditSeverity | undefined) ?? AuditSeverity.WARNING,
+        status: (input.status as string | undefined) ?? 'OPEN',
+        confidence: input.confidence as number | undefined,
+        signalSummary: input.signalSummary as string | undefined,
+        assignedUserId: input.assignedUserId as string | undefined,
+        resolvedAt: input.resolvedAt ? new Date(input.resolvedAt as string) : undefined,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  async supplierRiskProfiles(query: Record<string, unknown>, db: AdminDb = this.db) {
+    const where: Prisma.SupplierRiskProfileWhereInput = {
+      ...(query.supplierOrgId ? { supplierOrgId: query.supplierOrgId as string } : {}),
+      ...(query.status ? { riskLevel: query.status as any } : {}),
+      ...(query.q ? { summary: { contains: query.q as string, mode: 'insensitive' } } : {})
+    };
+    const [total, items] = await Promise.all([
+      db.supplierRiskProfile.count({ where }),
+      db.supplierRiskProfile.findMany({ where, orderBy: [{ riskScore: 'desc' }, { updatedAt: 'desc' }], skip: pageOffset(query as { page: number; pageSize: number }), take: query.pageSize as number })
+    ]);
+    return { total, items };
+  }
+
+  upsertSupplierRiskProfile(input: Record<string, unknown>, actorUserId: string, db: AdminDb = this.db) {
+    const supplierOrgId = input.supplierOrgId as string;
+    return db.supplierRiskProfile.upsert({
+      where: { supplierOrgId },
+      update: {
+        riskLevel: input.riskLevel as any,
+        riskScore: input.riskScore as number | undefined,
+        trustTier: input.trustTier as string | undefined,
+        activeAlerts: input.activeAlerts as number | undefined,
+        openViolations: input.openViolations as number | undefined,
+        lastReviewedAt: new Date(),
+        reviewerUserId: actorUserId,
+        summary: input.summary as string | undefined,
+        drivers: (input.drivers ?? []) as Prisma.InputJsonArray,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      },
+      create: {
+        supplierOrgId,
+        riskLevel: (input.riskLevel as any) ?? 'MEDIUM',
+        riskScore: (input.riskScore as number | undefined) ?? 50,
+        trustTier: (input.trustTier as string | undefined) ?? 'UNVERIFIED',
+        activeAlerts: (input.activeAlerts as number | undefined) ?? 0,
+        openViolations: (input.openViolations as number | undefined) ?? 0,
+        lastReviewedAt: new Date(),
+        reviewerUserId: actorUserId,
+        summary: input.summary as string | undefined,
+        drivers: (input.drivers ?? []) as Prisma.InputJsonArray,
+        payload: (input.payload ?? {}) as Prisma.InputJsonObject
+      }
+    });
+  }
+
   createAuditEvent(input: {
     actorUserId: string;
     ownerOrgId?: string | null;
@@ -1177,6 +1391,15 @@ function enumValue<T extends Record<string, string>>(source: T, value: string | 
 export const adminStatusFilters = {
   activeTender: [TenderStatus.DRAFT, TenderStatus.REVIEW, TenderStatus.PUBLISHED, TenderStatus.OPEN, TenderStatus.EVALUATION],
   activeBid: [BidStatus.DRAFT, BidStatus.SUBMITTED, BidStatus.OPENED, BidStatus.UNDER_EVALUATION],
-  activeContract: [ContractStatus.DRAFT, ContractStatus.NEGOTIATION, ContractStatus.SIGNATURE_PENDING, ContractStatus.ACTIVE],
+  activeContract: [
+    ContractStatus.DRAFT,
+    ContractStatus.NEGOTIATION,
+    ContractStatus.SIGNATURE_PENDING,
+    ContractStatus.SIGNED,
+    ContractStatus.MOBILIZATION,
+    ContractStatus.ACTIVE,
+    ContractStatus.AT_RISK,
+    ContractStatus.TERMINATION_REVIEW
+  ],
   adminActionReview: AdminActionType.REVIEW
 };

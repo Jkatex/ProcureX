@@ -4,9 +4,13 @@ import {
   AwardNoticeStatus,
   AwardResponseAction,
   BidStatus,
+  ContractLifecycleItemStatus,
   ContractMilestoneStatus,
   ContractPartyRole,
+  ContractRiskLevel,
   ContractStatus,
+  ContractTerminationStatus,
+  InvoiceStatus,
   RecommendationStatus,
   SignatureStatus,
   TenderStatus,
@@ -20,22 +24,65 @@ import { signCanonicalPayloadHash } from '../identity/signing.js';
 import type {
   AwardContractRequestContext,
   AwardDecisionInput,
+  AwardApprovalRouteInput,
+  AwardApprovalStepInput,
+  AwardNotificationInput,
   AwardNoticeResponseInput,
   AwardRecommendationDetailDto,
   AwardRecommendationListItemDto,
   AwardRecommendationQuery,
+  AwardTieBreakerInput,
+  BudgetCommitmentInput,
   ContractDetailDto,
+  ContractCloseoutInput,
   ContractListItemDto,
+  ContractManagementPlanInput,
   ContractMilestoneEvidenceInput,
   ContractMilestoneInput,
   ContractMilestonePatchInput,
   ContractQuery,
+  DeliveryFeasibilityInput,
+  GoodsInspectionInput,
+  InvoiceInput,
+  InspectionInput,
+  InvoiceStatusPatchInput,
+  LifecycleItemInput,
+  LifecycleItemPatchInput,
+  LifecycleQueueId,
+  ReplacementProcurementInput,
+  RiskInput,
+  SupplierPerformanceInput,
+  TerminationEvidenceInput,
+  TerminationInput,
+  TerminationNoticeInput,
+  TerminationPatchInput,
+  TerminationSettlementInput,
+  TerminationValuationInput,
+  VariationInput,
   ContractSignatureRequestInput,
   ContractSignatureSignInput,
   ContractStatusPatchInput,
   ContractVersionInput,
+  AwardContractDashboardDto,
+  AcceptanceInput,
+  ClauseInput,
+  ContractPaymentInput,
+  DeliverableInput,
+  LifecycleActionDto,
   ListAwardRecommendationsResponseDto,
-  ListContractsResponseDto
+  ListContractsResponseDto,
+  NegotiationInput,
+  PaymentScheduleInput,
+  PaymentApprovalInput,
+  PaymentConfirmationInput,
+  PerformanceScoreInput,
+  RequiredDocumentInput,
+  RiskForecastInput,
+  WarrantyInput,
+  WorkflowApprovalInput,
+  StandstillPeriodInput,
+  SupplierRiskProfileInput,
+  ThreeWayMatchInput
 } from './types.js';
 
 const recommendationInclude = {
@@ -118,6 +165,15 @@ const contractInclude = {
       versionNo: 'asc'
     }
   },
+  parties: {
+    orderBy: { role: 'asc' }
+  },
+  clauses: {
+    orderBy: [{ category: 'asc' }, { clauseKey: 'asc' }]
+  },
+  negotiations: {
+    orderBy: { updatedAt: 'desc' }
+  },
   signatures: {
     orderBy: {
       createdAt: 'asc'
@@ -140,6 +196,73 @@ const contractInclude = {
       }
     },
     orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }]
+  },
+  managementPlan: true,
+  mobilizationItems: {
+    orderBy: [{ category: 'asc' }, { createdAt: 'asc' }]
+  },
+  kpis: {
+    orderBy: [{ area: 'asc' }, { createdAt: 'asc' }]
+  },
+  deliverables: {
+    orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }]
+  },
+  acceptances: {
+    orderBy: { createdAt: 'desc' }
+  },
+  inspections: {
+    orderBy: { createdAt: 'desc' }
+  },
+  paymentSchedules: {
+    orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }]
+  },
+  invoices: {
+    orderBy: { createdAt: 'desc' }
+  },
+  payments: {
+    orderBy: { createdAt: 'desc' }
+  },
+  risks: {
+    orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }]
+  },
+  variations: {
+    orderBy: { createdAt: 'desc' }
+  },
+  issues: {
+    orderBy: { createdAt: 'desc' }
+  },
+  disputes: {
+    orderBy: { createdAt: 'desc' }
+  },
+  terminations: {
+    include: {
+      notices: { orderBy: { createdAt: 'desc' } },
+      evidence: { orderBy: { createdAt: 'desc' } },
+      valuation: true,
+      settlement: true,
+      replacementProcurement: true
+    },
+    orderBy: { createdAt: 'desc' }
+  },
+  warranties: {
+    orderBy: [{ endDate: 'asc' }, { createdAt: 'asc' }]
+  },
+  requiredDocuments: {
+    orderBy: [{ ownerRole: 'asc' }, { createdAt: 'asc' }]
+  },
+  approvalSteps: {
+    orderBy: [{ status: 'asc' }, { createdAt: 'asc' }]
+  },
+  urgentActions: {
+    orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }]
+  },
+  notifications: {
+    orderBy: { createdAt: 'desc' },
+    take: 20
+  },
+  closeout: true,
+  supplierPerformanceRecords: {
+    orderBy: { createdAt: 'desc' }
   }
 } satisfies Prisma.ContractInclude;
 
@@ -221,9 +344,45 @@ function decimalToNumber(value: unknown) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function isoDate(value: Date | null | undefined) {
+  return value ? value.toISOString() : null;
+}
+
 function toDate(value?: string) {
   return value ? new Date(`${value}T00:00:00.000Z`) : undefined;
 }
+
+function toDateTime(value?: string) {
+  return value ? new Date(value) : undefined;
+}
+
+function workflowRecordDto(record: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => {
+      if (value instanceof Date) return [key, value.toISOString()];
+      if (value && typeof value === 'object' && 'toNumber' in value && typeof (value as { toNumber: () => number }).toNumber === 'function') {
+        return [key, (value as { toNumber: () => number }).toNumber()];
+      }
+      return [key, value];
+    })
+  );
+}
+
+function commitmentNo() {
+  return `BC-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+function invoiceReference() {
+  return `INV-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+function confirmationReference() {
+  return `PAY-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+const terminalApprovalStatuses: ApprovalStatus[] = [ApprovalStatus.APPROVED, ApprovalStatus.REJECTED, ApprovalStatus.RETURNED];
+const terminalInvoiceStatuses: InvoiceStatus[] = [InvoiceStatus.MATCHED, InvoiceStatus.PAID, InvoiceStatus.REJECTED, InvoiceStatus.BLOCKED];
+const invoiceDecisionStatuses: InvoiceStatus[] = [InvoiceStatus.MATCHED, InvoiceStatus.REJECTED, InvoiceStatus.BLOCKED];
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(',')}]`;
@@ -353,12 +512,457 @@ function contractListDto(record: ContractRecord): ContractListItemDto {
   };
 }
 
+function managementPlanDto(record: ContractRecord['managementPlan']) {
+  if (!record) return null;
+  return {
+    id: record.id,
+    contractManagerId: record.contractManagerId,
+    objectives: record.objectives ?? '',
+    monitoringPlan: record.monitoringPlan ?? '',
+    reportingPlan: record.reportingPlan ?? '',
+    communicationPlan: record.communicationPlan ?? '',
+    payload: objectPayload(record.payload),
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString()
+  };
+}
+
+function lifecycleItemDto(record: {
+  id: string;
+  category?: string | null;
+  inspectionType?: string | null;
+  evidenceType?: string | null;
+  noticeType?: string | null;
+  title?: string | null;
+  status?: string | null;
+  result?: string | null;
+  dueDate?: Date | null;
+  deadline?: Date | null;
+  note?: string | null;
+  resolution?: string | null;
+  decision?: string | null;
+  reason?: string | null;
+  payload: unknown;
+  createdAt: Date;
+  updatedAt?: Date | null;
+}) {
+  return {
+    id: record.id,
+    type: record.category ?? record.inspectionType ?? record.evidenceType ?? record.noticeType ?? 'general',
+    title: record.title ?? record.noticeType ?? record.evidenceType ?? 'Lifecycle item',
+    status: record.status ?? record.result ?? 'OPEN',
+    dueDate: isoDate(record.dueDate ?? record.deadline),
+    note: record.note ?? record.resolution ?? record.decision ?? record.reason ?? '',
+    payload: objectPayload(record.payload),
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt ? record.updatedAt.toISOString() : null
+  };
+}
+
+function riskDto(record: ContractRecord['risks'][number]) {
+  return {
+    ...lifecycleItemDto(record),
+    category: record.category,
+    level: record.level,
+    score: record.score,
+    mitigationAction: record.mitigationAction ?? ''
+  };
+}
+
+function variationDto(record: ContractRecord['variations'][number]) {
+  return {
+    ...lifecycleItemDto({ ...record, category: record.changeType }),
+    changeType: record.changeType,
+    costImpact: decimalToNumber(record.costImpact),
+    timeImpactDays: record.timeImpactDays
+  };
+}
+
+function paymentDto(record: ContractRecord['payments'][number]) {
+  return {
+    id: record.id,
+    invoiceId: record.invoiceId,
+    scheduleId: record.scheduleId,
+    status: record.status,
+    grossAmount: decimalToNumber(record.grossAmount),
+    retentionAmount: decimalToNumber(record.retentionAmount),
+    advanceRecovery: decimalToNumber(record.advanceRecovery),
+    liquidatedDamages: decimalToNumber(record.liquidatedDamages),
+    taxWithholding: decimalToNumber(record.taxWithholding),
+    netAmount: decimalToNumber(record.netAmount),
+    currency: record.currency,
+    reviewedByUserId: record.reviewedByUserId,
+    approvedByUserId: record.approvedByUserId,
+    paidAt: isoDate(record.paidAt),
+    note: record.note ?? '',
+    payload: objectPayload(record.payload),
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString()
+  };
+}
+
+function terminationDto(record: ContractRecord['terminations'][number]) {
+  return {
+    id: record.id,
+    terminationType: record.terminationType,
+    status: record.status,
+    reason: record.reason,
+    contractClause: record.contractClause ?? '',
+    faultParty: record.faultParty ?? '',
+    noticeDate: isoDate(record.noticeDate),
+    cureDeadline: isoDate(record.cureDeadline),
+    terminationEffectiveDate: isoDate(record.terminationEffectiveDate),
+    supplierResponse: record.supplierResponse ?? '',
+    finalDecision: record.finalDecision ?? '',
+    payload: objectPayload(record.payload),
+    notices: record.notices.map((notice) => lifecycleItemDto(notice)),
+    evidence: record.evidence.map((evidence) => lifecycleItemDto(evidence)),
+    valuation: record.valuation ? objectPayload(record.valuation) : null,
+    settlement: record.settlement ? objectPayload(record.settlement) : null,
+    replacementProcurement: record.replacementProcurement ? objectPayload(record.replacementProcurement) : null,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString()
+  };
+}
+
+function daysFromNow(days: number) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString();
+}
+
+function urgencyFromDate(dueDate: string | null, fallback: LifecycleActionDto['riskLevel'] = 'Low'): LifecycleActionDto['riskLevel'] {
+  if (!dueDate) return fallback;
+  const delta = new Date(dueDate).getTime() - Date.now();
+  if (delta < 0) return 'Critical';
+  if (delta <= 24 * 60 * 60 * 1000) return 'High';
+  if (delta <= 3 * 24 * 60 * 60 * 1000) return 'Medium';
+  return fallback;
+}
+
+function actionKeyFrom(label: string) {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'open-record';
+}
+
+function nextAction(
+  action: Pick<LifecycleActionDto, 'requiredAction' | 'nextRoute' | 'roleContext'>,
+  options: Partial<LifecycleActionDto['nextAction']> = {}
+): LifecycleActionDto['nextAction'] {
+  return {
+    key: options.key ?? actionKeyFrom(action.requiredAction),
+    label: options.label ?? action.requiredAction,
+    url: options.url ?? action.nextRoute,
+    method: options.method ?? 'GET',
+    canAct: options.canAct ?? true,
+    disabledReason: options.disabledReason ?? null,
+    requiredRole: options.requiredRole ?? action.roleContext,
+    requiredEvidence: options.requiredEvidence ?? []
+  };
+}
+
+function recommendationAction(record: AwardRecommendationListItemDto, roleContext: 'BUYER' | 'SUPPLIER') {
+  if (roleContext === 'BUYER') {
+    if (record.status === RecommendationStatus.RECOMMENDED || record.status === RecommendationStatus.DRAFT) {
+      return {
+        stage: 'Award approval',
+        requiredAction: 'Approve award recommendation',
+        dueDate: daysFromNow(2),
+        riskLevel: 'Medium' as const,
+        nextRoute: `/awards-contracts/recommendation?recommendation=${record.id}`
+      };
+    }
+    if (record.noticeStatus === AwardNoticeStatus.PENDING_RESPONSE) {
+      return {
+        stage: 'Supplier response',
+        requiredAction: 'Track supplier award response',
+        dueDate: daysFromNow(3),
+        riskLevel: 'Medium' as const,
+        nextRoute: `/awards-contracts/recommendation?recommendation=${record.id}&tab=notices`
+      };
+    }
+    if (record.noticeStatus === AwardNoticeStatus.DECLINED) {
+      return {
+        stage: 'Award declined',
+        requiredAction: 'Select next award action',
+        dueDate: daysFromNow(1),
+        riskLevel: 'High' as const,
+        nextRoute: `/awards-contracts/recommendation?recommendation=${record.id}`
+      };
+    }
+    return {
+      stage: 'Contract formation',
+      requiredAction: record.contractId ? 'Review contract draft' : 'Generate contract draft',
+      dueDate: daysFromNow(5),
+      riskLevel: 'Low' as const,
+      nextRoute: record.contractId ? `/awards-contracts/negotiation?contract=${record.contractId}` : `/awards-contracts/recommendation?recommendation=${record.id}`
+    };
+  }
+
+  if (record.noticeStatus === AwardNoticeStatus.PENDING_RESPONSE) {
+    return {
+      stage: 'Award received',
+      requiredAction: 'Accept, clarify, or decline award',
+      dueDate: daysFromNow(2),
+      riskLevel: 'High' as const,
+      nextRoute: `/awards-contracts/award-response?award=${record.id}`
+    };
+  }
+  return {
+    stage: 'Contract preparation',
+    requiredAction: record.contractId ? 'Review contract terms' : 'Wait for buyer contract draft',
+    dueDate: daysFromNow(5),
+    riskLevel: 'Low' as const,
+    nextRoute: record.contractId ? `/awards-contracts/negotiation?contract=${record.contractId}` : `/awards-contracts/award-response?award=${record.id}`
+  };
+}
+
+function firstDueDate(records: Array<{ dueDate?: Date | null }>) {
+  return records.find((record) => record.dueDate)?.dueDate?.toISOString() ?? null;
+}
+
+function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER') {
+  if (record.status === ContractStatus.DRAFT) {
+    return {
+      stage: 'Draft contract',
+      requiredAction: roleContext === 'BUYER' ? 'Generate or update contract draft' : 'Await buyer draft',
+      dueDate: daysFromNow(3),
+      riskLevel: roleContext === 'BUYER' ? 'Medium' as const : 'Low' as const,
+      nextRoute: `/awards-contracts/negotiation?contract=${record.id}&tab=overview`
+    };
+  }
+  if (record.status === ContractStatus.NEGOTIATION) {
+    return {
+      stage: 'Negotiation',
+      requiredAction: 'Resolve clause negotiation',
+      dueDate: daysFromNow(2),
+      riskLevel: 'Medium' as const,
+      nextRoute: `/awards-contracts/negotiation?contract=${record.id}&tab=negotiation`
+    };
+  }
+  if (record.status === ContractStatus.SIGNATURE_PENDING) {
+    const pendingSignature = record.signatures.find((signature) => signature.status === SignatureStatus.PENDING);
+    return {
+      stage: 'Signature',
+      requiredAction: pendingSignature?.signerOrgId ? 'Sign contract' : 'Collect signatures',
+      dueDate: daysFromNow(1),
+      riskLevel: 'High' as const,
+      nextRoute: `/awards-contracts/negotiation?contract=${record.id}&tab=signatures`
+    };
+  }
+  if (record.status === ContractStatus.SIGNED || record.status === ContractStatus.MOBILIZATION) {
+    return {
+      stage: 'Mobilization',
+      requiredAction: 'Complete mobilization checklist',
+      dueDate: firstDueDate(record.mobilizationItems) ?? daysFromNow(5),
+      riskLevel: 'Medium' as const,
+      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=mobilization`
+    };
+  }
+  if (record.status === ContractStatus.AT_RISK || record.status === ContractStatus.TERMINATION_REVIEW) {
+    return {
+      stage: record.status === ContractStatus.AT_RISK ? 'At risk' : 'Termination review',
+      requiredAction: record.status === ContractStatus.AT_RISK ? 'Review risk and cure actions' : 'Complete termination review',
+      dueDate: daysFromNow(1),
+      riskLevel: 'Critical' as const,
+      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=termination`
+    };
+  }
+  if (record.status === ContractStatus.COMPLETED || record.status === ContractStatus.WARRANTY_DEFECTS) {
+    return {
+      stage: record.status === ContractStatus.WARRANTY_DEFECTS ? 'Warranty / defects' : 'Completion',
+      requiredAction: 'Complete close-out',
+      dueDate: daysFromNow(7),
+      riskLevel: 'Low' as const,
+      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=closure`
+    };
+  }
+  if (record.status === ContractStatus.TERMINATED || record.status === ContractStatus.CLOSED) {
+    return {
+      stage: record.status === ContractStatus.TERMINATED ? 'Terminated' : 'Closed',
+      requiredAction: 'View audit file',
+      dueDate: null,
+      riskLevel: 'Low' as const,
+      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=closure`
+    };
+  }
+  const dueDate = firstDueDate(record.milestones);
+  return {
+    stage: 'Active contract',
+    requiredAction: record.milestones.some((milestone) => milestone.status === ContractMilestoneStatus.SUBMITTED) ? 'Inspect submitted milestone' : 'Monitor contract',
+    dueDate,
+    riskLevel: urgencyFromDate(dueDate),
+    nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=milestones`
+  };
+}
+
+function isUrgent(item: LifecycleActionDto) {
+  return item.riskLevel === 'Critical' || item.riskLevel === 'High' || /approve|sign|respond|termination|risk|overdue|inspect|payment/i.test(item.requiredAction);
+}
+
+function defaultMobilizationItems(procurementType: string) {
+  const common = [
+    ['general', 'Contract signed by both parties', 'Buyer Admin'],
+    ['general', 'Contract manager assigned', 'Buyer Admin'],
+    ['general', 'Supplier representative confirmed', 'Supplier Representative'],
+    ['general', 'Performance security submitted', 'Supplier Representative'],
+    ['general', 'Payment schedule confirmed', 'Finance Officer'],
+    ['general', 'Risk register opened', 'Contract Manager']
+  ];
+  const type = procurementType.toUpperCase();
+  const categorySpecific =
+    type.includes('WORK')
+      ? [
+          ['works', 'Site handover completed', 'Technical Officer'],
+          ['works', 'Health and safety plan submitted', 'Supplier Representative'],
+          ['works', 'Work program submitted', 'Supplier Representative']
+        ]
+      : type.includes('CONSULT')
+        ? [
+            ['consultancy', 'Inception meeting held', 'Contract Manager'],
+            ['consultancy', 'Team leader confirmed', 'Supplier Representative'],
+            ['consultancy', 'Reporting schedule approved', 'Contract Manager']
+          ]
+        : type.includes('SERVICE')
+          ? [
+              ['services', 'Service level schedule confirmed', 'Contract Manager'],
+              ['services', 'Supervisor confirmation process agreed', 'Technical Officer'],
+              ['services', 'Monthly reporting template approved', 'Supplier Representative']
+            ]
+          : [
+              ['goods', 'Delivery plan confirmed', 'Supplier Representative'],
+              ['goods', 'Inspection plan approved', 'Technical Officer'],
+              ['goods', 'Warranty documents prepared', 'Supplier Representative']
+            ];
+  return [...common, ...categorySpecific].map(([category, title, responsibleRole]) => ({
+    category,
+    title,
+    responsibleRole,
+    payload: {}
+  }));
+}
+
+function defaultKpis() {
+  return [
+    ['Time', 'Delivery completed by agreed date'],
+    ['Cost', 'Contract remains within approved amount'],
+    ['Quality', 'Outputs meet specifications'],
+    ['Documentation', 'Required reports submitted on time'],
+    ['Payment', 'Certified invoices paid on time']
+  ].map(([area, title]) => ({ area, title, target: 'Configured during CMP review', payload: {} }));
+}
+
+function defaultContractClauses() {
+  return [
+    ['scope', 'Scope of contract', 'general'],
+    ['price-payment', 'Contract price and payment terms', 'financial'],
+    ['milestones', 'Milestones and deliverables', 'delivery'],
+    ['inspection-acceptance', 'Inspection and acceptance', 'quality'],
+    ['performance-security', 'Performance security', 'security'],
+    ['warranty-defects', 'Warranty and defects liability', 'quality'],
+    ['liquidated-damages', 'Liquidated damages', 'financial'],
+    ['variations', 'Variation control', 'change-control'],
+    ['disputes', 'Dispute resolution', 'legal'],
+    ['termination', 'Termination and replacement procurement', 'legal'],
+    ['anti-corruption', 'Anti-corruption and compliance', 'compliance']
+  ].map(([clauseKey, title, category]) => ({
+    clauseKey,
+    title,
+    category,
+    status: ContractLifecycleItemStatus.OPEN,
+    payload: {}
+  }));
+}
+
+function defaultRequiredDocuments(procurementType: string) {
+  const type = procurementType.toUpperCase();
+  const documents = [
+    ['performance-security', 'Performance security', 'Supplier'],
+    ['signatory-authorization', 'Signatory authorization', 'Supplier'],
+    ['bank-details', 'Bank details', 'Supplier'],
+    ['work-plan', type.includes('WORK') ? 'Work program' : 'Delivery or work plan', 'Supplier']
+  ];
+  if (type.includes('WORK')) {
+    documents.push(['insurance', 'Contractor insurance', 'Supplier'], ['health-safety-plan', 'Health and safety plan', 'Supplier']);
+  } else if (type.includes('SERVICE')) {
+    documents.push(['sla', 'Service level schedule', 'Buyer']);
+  } else if (type.includes('CONSULT')) {
+    documents.push(['team-cvs', 'Consultant team confirmation', 'Supplier']);
+  } else {
+    documents.push(['warranty-documents', 'Warranty documents', 'Supplier']);
+  }
+  return documents.map(([documentType, title, ownerRole]) => ({
+    documentType,
+    title,
+    ownerRole,
+    payload: {}
+  }));
+}
+
+function defaultWorkflowApprovals() {
+  return [
+    ['buyer-review', 'Buyer Reviewer'],
+    ['supplier-review', 'Supplier Representative'],
+    ['legal-review', 'Legal Officer'],
+    ['finance-review', 'Finance Officer'],
+    ['technical-review', 'Technical Officer'],
+    ['final-approval', 'Contract Manager']
+  ].map(([stepKey, role]) => ({
+    stepKey,
+    role,
+    payload: {}
+  }));
+}
+
+function riskLevelFromScore(score: number) {
+  if (score >= 20) return ContractRiskLevel.CRITICAL;
+  if (score >= 12) return ContractRiskLevel.HIGH;
+  if (score >= 6) return ContractRiskLevel.MEDIUM;
+  return ContractRiskLevel.LOW;
+}
+
 function contractDetailDto(record: ContractRecord, audit: Array<{ event: string; actorUserId: string | null; createdAt: Date }> = []): ContractDetailDto {
   return {
     ...contractListDto(record),
     awardId: record.awardId,
     noticeId: record.awardNotice?.id ?? null,
     payload: objectPayload(record.payload),
+    parties: record.parties.map((party) => ({
+      id: party.id,
+      role: party.role,
+      organizationId: party.organizationId,
+      displayName: party.displayName,
+      contactName: party.contactName ?? '',
+      contactEmail: party.contactEmail ?? '',
+      signatoryName: party.signatoryName ?? '',
+      signatoryTitle: party.signatoryTitle ?? '',
+      payload: objectPayload(party.payload)
+    })),
+    clauses: record.clauses.map((clause) => lifecycleItemDto({
+      ...clause,
+      category: clause.category,
+      title: clause.title,
+      note: clause.body,
+      payload: {
+        ...objectPayload(clause.payload),
+        clauseKey: clause.clauseKey,
+        buyerComment: clause.buyerComment ?? '',
+        supplierComment: clause.supplierComment ?? '',
+        legalComment: clause.legalComment ?? ''
+      }
+    })),
+    negotiations: record.negotiations.map((negotiation) => lifecycleItemDto({
+      ...negotiation,
+      category: negotiation.raisedByRole,
+      title: negotiation.subject,
+      note: negotiation.position ?? negotiation.counterOffer,
+      dueDate: negotiation.dueDate,
+      payload: {
+        ...objectPayload(negotiation.payload),
+        clauseId: negotiation.clauseId,
+        raisedByOrgId: negotiation.raisedByOrgId,
+        counterOffer: negotiation.counterOffer ?? ''
+      }
+    })),
     versions: record.versions.map((version) => ({
       id: version.id,
       versionNo: version.versionNo,
@@ -400,6 +1004,121 @@ function contractDetailDto(record: ContractRecord, audit: Array<{ event: string;
       createdAt: milestone.createdAt.toISOString(),
       updatedAt: milestone.updatedAt.toISOString()
     })),
+    managementPlan: managementPlanDto(record.managementPlan),
+    mobilizationItems: record.mobilizationItems.map(lifecycleItemDto),
+    kpis: record.kpis.map((kpi) => lifecycleItemDto({ ...kpi, category: kpi.area })),
+    deliverables: record.deliverables.map((deliverable) => lifecycleItemDto({
+      ...deliverable,
+      category: 'deliverable',
+      note: deliverable.acceptanceNote ?? deliverable.description,
+      dueDate: deliverable.dueDate,
+      payload: {
+        ...objectPayload(deliverable.payload),
+        milestoneId: deliverable.milestoneId,
+        submittedByOrgId: deliverable.submittedByOrgId,
+        submittedAt: isoDate(deliverable.submittedAt),
+        reviewedAt: isoDate(deliverable.reviewedAt)
+      }
+    })),
+    acceptances: record.acceptances.map((acceptance) => lifecycleItemDto({
+      ...acceptance,
+      category: 'acceptance',
+      title: acceptance.certificateNo ?? 'Acceptance certificate',
+      note: acceptance.note,
+      payload: {
+        ...objectPayload(acceptance.payload),
+        deliverableId: acceptance.deliverableId,
+        inspectionId: acceptance.inspectionId,
+        acceptedValue: decimalToNumber(acceptance.acceptedValue),
+        currency: acceptance.currency,
+        acceptedAt: isoDate(acceptance.acceptedAt)
+      }
+    })),
+    inspections: record.inspections.map((inspection) => lifecycleItemDto({ ...inspection, status: inspection.result, category: inspection.inspectionType })),
+    goodsInspections: [],
+    paymentSchedules: record.paymentSchedules.map((payment) => lifecycleItemDto({
+      ...payment,
+      category: 'payment',
+      note: payment.amount === null ? null : `${decimalToNumber(payment.amount)} ${payment.currency}`,
+      payload: {
+        ...objectPayload(payment.payload),
+        milestoneId: payment.milestoneId,
+        amount: decimalToNumber(payment.amount),
+        currency: payment.currency
+      }
+    })),
+    invoices: record.invoices.map((invoice) => workflowRecordDto(invoice as unknown as Record<string, unknown>)),
+    payments: record.payments.map(paymentDto),
+    threeWayMatches: [],
+    paymentApprovals: [],
+    paymentConfirmations: [],
+    risks: record.risks.map(riskDto),
+    riskForecasts: [],
+    variations: record.variations.map(variationDto),
+    issues: record.issues.map(lifecycleItemDto),
+    disputes: record.disputes.map(lifecycleItemDto),
+    terminations: record.terminations.map(terminationDto),
+    warranties: record.warranties.map((warranty) => lifecycleItemDto({
+      ...warranty,
+      category: 'warranty',
+      note: warranty.resolution,
+      dueDate: warranty.endDate,
+      payload: {
+        ...objectPayload(warranty.payload),
+        defectReference: warranty.defectReference ?? '',
+        startDate: isoDate(warranty.startDate),
+        responsibleRole: warranty.responsibleRole ?? ''
+      }
+    })),
+    requiredDocuments: record.requiredDocuments.map((document) => lifecycleItemDto({
+      ...document,
+      category: document.ownerRole,
+      title: document.title,
+      note: document.note,
+      dueDate: document.dueDate,
+      payload: {
+        ...objectPayload(document.payload),
+        documentType: document.documentType,
+        documentId: document.documentId,
+        reviewedAt: isoDate(document.reviewedAt)
+      }
+    })),
+    workflowApprovals: record.approvalSteps.map((approval) => lifecycleItemDto({
+      ...approval,
+      category: approval.role,
+      title: approval.stepKey,
+      note: approval.note,
+      payload: {
+        ...objectPayload(approval.payload),
+        actorUserId: approval.actorUserId,
+        decidedAt: isoDate(approval.decidedAt)
+      }
+    })),
+    urgentActions: record.urgentActions.map((action) => lifecycleItemDto({
+      ...action,
+      category: action.riskLevel,
+      title: action.title,
+      status: action.status,
+      note: action.requiredAction,
+      dueDate: action.dueDate,
+      payload: {
+        ...objectPayload(action.payload),
+        actionKey: action.actionKey,
+        nextRoute: action.nextRoute
+      }
+    })),
+    notifications: record.notifications.map((notification) => lifecycleItemDto({
+      ...notification,
+      category: notification.channel,
+      title: notification.title,
+      status: notification.status,
+      note: notification.body,
+      payload: objectPayload(notification.payload)
+    })),
+    closeout: record.closeout ? objectPayload(record.closeout) : null,
+    supplierPerformanceRecords: record.supplierPerformanceRecords.map((performance) => objectPayload(performance)),
+    performanceScores: [],
+    supplierRiskProfile: null,
     audit: audit.map((event) => ({
       event: event.event,
       actorUserId: event.actorUserId,
@@ -414,6 +1133,116 @@ export class ModuleRepository {
 
   async health() {
     return { ready: true };
+  }
+
+  async dashboard(context: AwardContractRequestContext): Promise<AwardContractDashboardDto> {
+    const organizationId = requireOrg(context);
+    const [recommendations, contracts] = await Promise.all([
+      this.db.awardRecommendation.findMany({
+        where: recommendationScope(context, organizationId),
+        include: recommendationInclude,
+        orderBy: { createdAt: 'desc' },
+        take: 100
+      }),
+      this.db.contract.findMany({
+        where: contractScope(context, organizationId),
+        include: contractInclude,
+        orderBy: { updatedAt: 'desc' },
+        take: 100
+      })
+    ]);
+
+    const queues: Record<LifecycleQueueId, LifecycleActionDto[]> = {
+      'my-urgent-actions': [],
+      'awarding-in-progress': [],
+      'awards-received': [],
+      'contracts-in-progress': [],
+      'active-contracts': [],
+      'closed-contracts': []
+    };
+
+    for (const recommendation of recommendations) {
+      const listItem = listRecommendationDto(recommendation);
+      const roleContext = recommendation.workspace.buyerOrgId === organizationId ? 'BUYER' : 'SUPPLIER';
+      const action = recommendationAction(listItem, roleContext);
+      const dto: LifecycleActionDto = {
+        id: `award-${recommendation.id}`,
+        roleContext,
+        sourceType: roleContext === 'BUYER' ? 'TENDER_CREATED' : 'AWARD_RECEIVED',
+        tenderId: recommendation.workspace.tenderId,
+        awardId: recommendation.id,
+        noticeId: recommendation.notice?.id ?? null,
+        contractId: listItem.contractId,
+        title: recommendation.workspace.tender.title,
+        otherParty: roleContext === 'BUYER' ? listItem.supplierName ?? 'Supplier pending' : listItem.buyerName,
+        currentStage: action.stage,
+        requiredAction: action.requiredAction,
+        dueDate: action.dueDate,
+        riskLevel: action.riskLevel,
+        status: recommendation.notice?.status ?? recommendation.status,
+        amount: decimalToNumber(recommendation.amount),
+        currency: recommendation.currency,
+        nextRoute: action.nextRoute,
+        nextAction: nextAction({
+          roleContext,
+          requiredAction: action.requiredAction,
+          nextRoute: action.nextRoute
+        })
+      };
+      if (roleContext === 'BUYER') queues['awarding-in-progress'].push(dto);
+      else queues['awards-received'].push(dto);
+      if (isUrgent(dto)) queues['my-urgent-actions'].push(dto);
+    }
+
+    for (const contract of contracts) {
+      const roleContext = contract.buyerOrgId === organizationId ? 'BUYER' : 'SUPPLIER';
+      const action = contractAction(contract, roleContext);
+      const dto: LifecycleActionDto = {
+        id: `contract-${contract.id}`,
+        roleContext,
+        sourceType: 'CONTRACT_ACTIVE',
+        tenderId: contract.tenderId,
+        awardId: contract.awardId,
+        noticeId: contract.awardNotice?.id ?? null,
+        contractId: contract.id,
+        title: contract.title,
+        otherParty: roleContext === 'BUYER' ? contract.supplierOrg?.name ?? 'Supplier pending' : contract.buyerOrg.name,
+        currentStage: action.stage,
+        requiredAction: action.requiredAction,
+        dueDate: action.dueDate,
+        riskLevel: action.riskLevel,
+        status: contract.status,
+        amount: decimalToNumber(contract.amount),
+        currency: contract.currency,
+        nextRoute: action.nextRoute,
+        nextAction: nextAction({
+          roleContext,
+          requiredAction: action.requiredAction,
+          nextRoute: action.nextRoute
+        })
+      };
+      const inProgressStatuses: ContractStatus[] = [ContractStatus.DRAFT, ContractStatus.NEGOTIATION, ContractStatus.SIGNATURE_PENDING, ContractStatus.SIGNED];
+      const closedStatuses: ContractStatus[] = [ContractStatus.COMPLETED, ContractStatus.WARRANTY_DEFECTS, ContractStatus.TERMINATED, ContractStatus.CLOSED];
+      if (inProgressStatuses.includes(contract.status)) {
+        queues['contracts-in-progress'].push(dto);
+      } else if (closedStatuses.includes(contract.status)) {
+        queues['closed-contracts'].push(dto);
+      } else {
+        queues['active-contracts'].push(dto);
+      }
+      if (isUrgent(dto)) queues['my-urgent-actions'].push(dto);
+    }
+
+    await this.syncUrgentActions(organizationId, queues['my-urgent-actions']);
+
+    return {
+      summary: {
+        urgentActions: queues['my-urgent-actions'].length,
+        awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
+        contractActions: queues['contracts-in-progress'].length + queues['active-contracts'].filter((item) => item.requiredAction !== 'Monitor contract').length
+      },
+      queues
+    };
   }
 
   async listRecommendations(query: AwardRecommendationQuery, context: AwardContractRequestContext): Promise<ListAwardRecommendationsResponseDto> {
@@ -446,23 +1275,41 @@ export class ModuleRepository {
     if (!record) return null;
     const contractId = record.notice?.contractId ?? record.contracts[0]?.id;
     const contract = contractId ? await this.getContract(contractId, context) : null;
-    const audit = await this.db.auditEvent.findMany({
-      where: {
-        OR: [
-          { entityType: 'award_recommendation', entityRef: record.id },
-          ...(record.notice ? [{ entityType: 'award_notice', entityRef: record.notice.id }] : []),
-          ...(contractId ? [{ entityType: 'contract', entityRef: contractId }] : [])
-        ]
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    });
+    const [audit, approvalRoutes, approvalSteps, tieBreakers, feasibilityChecks, standstillPeriods, awardNotifications, budgetCommitments] = await Promise.all([
+      this.db.auditEvent.findMany({
+        where: {
+          OR: [
+            { entityType: 'award_recommendation', entityRef: record.id },
+            ...(record.notice ? [{ entityType: 'award_notice', entityRef: record.notice.id }] : []),
+            ...(contractId ? [{ entityType: 'contract', entityRef: contractId }] : [])
+          ]
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      }),
+      this.db.awardApprovalRoute.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.awardApprovalStep.findMany({ where: { recommendationId: record.id }, orderBy: [{ stepOrder: 'asc' }, { createdAt: 'asc' }] }),
+      this.db.awardTieBreaker.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.deliveryFeasibilityCheck.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.standstillPeriod.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.awardNotification.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.budgetCommitment.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } })
+    ]);
 
     return {
       ...listRecommendationDto(record),
       reason: record.reason ?? '',
       notice: record.notice ? noticeDto(record.notice) : null,
       contract,
+      approvalRoutes: approvalRoutes.map((item) => ({
+        ...workflowRecordDto(item as unknown as Record<string, unknown>),
+        steps: approvalSteps.filter((step) => step.routeId === item.id).map((step) => workflowRecordDto(step as unknown as Record<string, unknown>))
+      })),
+      tieBreakers: tieBreakers.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      feasibilityChecks: feasibilityChecks.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      standstillPeriods: standstillPeriods.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      awardNotifications: awardNotifications.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      budgetCommitments: budgetCommitments.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
       approvals: record.approvals.map((approval) => ({
         id: approval.id,
         status: approval.status,
@@ -551,6 +1398,232 @@ export class ModuleRepository {
       await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.recommendation.returned', 'award_recommendation', recommendation.id, { note: input.note });
     });
 
+    return this.getRecommendation(id, context);
+  }
+
+  async upsertAwardApprovalRoute(id: string, input: AwardApprovalRouteInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      await tx.awardApprovalRoute.upsert({
+        where: { recommendationId_routeKey: { recommendationId: id, routeKey: input.routeKey } },
+        update: {
+          title: input.title,
+          status: input.status ?? 'DRAFT',
+          currentStepOrder: input.currentStepOrder ?? 1,
+          requiredQuorum: input.requiredQuorum ?? 1,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          recommendationId: id,
+          routeKey: input.routeKey,
+          title: input.title,
+          status: input.status ?? 'DRAFT',
+          currentStepOrder: input.currentStepOrder ?? 1,
+          requiredQuorum: input.requiredQuorum ?? 1,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.approval_route.upserted', 'award_recommendation', id, { routeKey: input.routeKey });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async upsertAwardApprovalStep(id: string, input: AwardApprovalStepInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      const route = await tx.awardApprovalRoute.findFirst({ where: { id: input.routeId, recommendationId: id } });
+      if (!route) throw requestError('Award approval route was not found.', 404);
+      const status = (input.status ?? ApprovalStatus.PENDING) as ApprovalStatus;
+      await tx.awardApprovalStep.upsert({
+        where: { routeId_stepKey: { routeId: input.routeId, stepKey: input.stepKey } },
+        update: {
+          stepOrder: input.stepOrder,
+          role: input.role,
+          actorUserId: input.actorUserId || context.userId || null,
+          status,
+          dueDate: toDate(input.dueDate),
+          decidedAt: terminalApprovalStatuses.includes(status) ? new Date() : null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          routeId: input.routeId,
+          recommendationId: id,
+          stepOrder: input.stepOrder,
+          stepKey: input.stepKey,
+          role: input.role,
+          actorUserId: input.actorUserId || context.userId || null,
+          status,
+          dueDate: toDate(input.dueDate),
+          decidedAt: terminalApprovalStatuses.includes(status) ? new Date() : null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (terminalApprovalStatuses.includes(status)) {
+        await tx.approvalStep.create({
+          data: {
+            recommendationId: id,
+            actorUserId: input.actorUserId || context.userId || null,
+            assignment: WorkflowAssignmentType.APPROVER,
+            status,
+            action: input.stepKey,
+            decidedAt: new Date(),
+            payload: { note: input.note, routeId: input.routeId, role: input.role } as Prisma.InputJsonObject
+          }
+        });
+      }
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.approval_step.upserted', 'award_recommendation', id, { stepKey: input.stepKey, status });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async createAwardTieBreaker(id: string, input: AwardTieBreakerInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      await tx.awardTieBreaker.create({
+        data: {
+          recommendationId: id,
+          tenderId: recommendation.workspace.tenderId,
+          triggerReason: input.triggerReason,
+          method: input.method,
+          criteria: (input.criteria ?? []) as Prisma.InputJsonArray,
+          outcomeBidId: input.outcomeBidId,
+          status: input.status ?? 'OPEN',
+          decidedByUserId: input.status === 'RESOLVED' || input.outcomeBidId ? context.userId ?? null : null,
+          decidedAt: input.status === 'RESOLVED' || input.outcomeBidId ? new Date() : null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.tie_breaker.created', 'award_recommendation', id, { method: input.method, status: input.status });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async upsertDeliveryFeasibility(id: string, input: DeliveryFeasibilityInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      const existing = await tx.deliveryFeasibilityCheck.findFirst({ where: { recommendationId: id }, orderBy: { createdAt: 'desc' } });
+      const data = {
+        tenderId: recommendation.workspace.tenderId,
+        bidId: recommendation.bidId,
+        supplierOrgId: recommendation.supplierOrgId,
+        deliveryCapacity: input.deliveryCapacity || null,
+        siteReadiness: input.siteReadiness || null,
+        resourcePlan: input.resourcePlan || null,
+        riskRating: input.riskRating ?? 'MEDIUM',
+        status: input.status ?? 'PENDING',
+        reviewerUserId: context.userId ?? null,
+        reviewedAt: input.status ? new Date() : null,
+        note: input.note || null,
+        payload: input.payload as Prisma.InputJsonObject
+      };
+      if (existing) await tx.deliveryFeasibilityCheck.update({ where: { id: existing.id }, data });
+      else await tx.deliveryFeasibilityCheck.create({ data: { recommendationId: id, ...data } });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.delivery_feasibility.upserted', 'award_recommendation', id, { status: input.status, riskRating: input.riskRating });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async upsertStandstillPeriod(id: string, input: StandstillPeriodInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      const startsAt = toDateTime(input.startsAt) ?? new Date();
+      const endsAt = toDateTime(input.endsAt) ?? new Date(startsAt.getTime() + (input.days ?? 7) * 24 * 60 * 60 * 1000);
+      const existing = await tx.standstillPeriod.findFirst({ where: { recommendationId: id }, orderBy: { createdAt: 'desc' } });
+      const data = {
+        noticeId: recommendation.notice?.id ?? null,
+        buyerOrgId: recommendation.workspace.buyerOrgId,
+        supplierOrgId: recommendation.supplierOrgId,
+        startsAt,
+        endsAt,
+        days: input.days ?? Math.max(0, Math.ceil((endsAt.getTime() - startsAt.getTime()) / (24 * 60 * 60 * 1000))),
+        status: input.waived ? 'WAIVED' : input.status ?? (endsAt.getTime() <= Date.now() ? 'EXPIRED' : 'ACTIVE'),
+        waived: input.waived ?? false,
+        waiverReason: input.waiverReason || null,
+        payload: input.payload as Prisma.InputJsonObject
+      };
+      if (existing) await tx.standstillPeriod.update({ where: { id: existing.id }, data });
+      else await tx.standstillPeriod.create({ data: { recommendationId: id, ...data } });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.standstill.upserted', 'award_recommendation', id, { status: data.status, endsAt: endsAt.toISOString() });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async createAwardNotification(id: string, input: AwardNotificationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      const recipientOrgId = input.recipientOrgId ?? recommendation.supplierOrgId ?? null;
+      await tx.awardNotification.create({
+        data: {
+          recommendationId: id,
+          noticeId: recommendation.notice?.id ?? null,
+          recipientOrgId,
+          channel: input.channel ?? 'IN_APP',
+          notificationType: input.notificationType,
+          subject: input.subject,
+          body: input.body || null,
+          status: input.status ?? 'SENT',
+          sentAt: input.status === 'DRAFT' ? null : new Date(),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (recipientOrgId) {
+        await tx.notification.create({
+          data: {
+            ownerOrgId: recipientOrgId,
+            awardId: id,
+            channel: input.channel ?? 'IN_APP',
+            title: input.subject,
+            body: input.body || null,
+            payload: { notificationType: input.notificationType, recommendationId: id } as Prisma.InputJsonObject
+          }
+        });
+      }
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.notification.created', 'award_recommendation', id, { recipientOrgId, notificationType: input.notificationType });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async createBudgetCommitmentForRecommendation(id: string, input: BudgetCommitmentInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      await tx.budgetCommitment.create({
+        data: {
+          recommendationId: id,
+          tenderId: recommendation.workspace.tenderId,
+          contractId: input.contractId ?? recommendation.notice?.contractId ?? recommendation.contracts[0]?.id ?? null,
+          buyerOrgId: recommendation.workspace.buyerOrgId,
+          commitmentNo: input.commitmentNo || commitmentNo(),
+          budgetCode: input.budgetCode,
+          amount: input.amount,
+          currency: input.currency,
+          status: input.status ?? 'RESERVED',
+          reservedAt: new Date(),
+          approvedByUserId: context.userId ?? null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.budget_commitment.created', 'award_recommendation', id, { amount: input.amount, budgetCode: input.budgetCode });
+    });
     return this.getRecommendation(id, context);
   }
 
@@ -649,12 +1722,30 @@ export class ModuleRepository {
       include: contractInclude
     });
     if (!record) return null;
-    const audit = await this.db.auditEvent.findMany({
-      where: { entityType: 'contract', entityRef: record.id },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    });
-    return contractDetailDto(record, audit);
+    const [audit, goodsInspections, threeWayMatches, paymentApprovals, paymentConfirmations, riskForecasts, performanceScores, supplierRiskProfile] = await Promise.all([
+      this.db.auditEvent.findMany({
+        where: { entityType: 'contract', entityRef: record.id },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      }),
+      this.db.goodsInspection.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.threeWayMatchResult.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.paymentApproval.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.paymentConfirmation.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.riskForecast.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.performanceScore.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      record.supplierOrgId ? this.db.supplierRiskProfile.findUnique({ where: { supplierOrgId: record.supplierOrgId } }) : Promise.resolve(null)
+    ]);
+    return {
+      ...contractDetailDto(record, audit),
+      goodsInspections: goodsInspections.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      threeWayMatches: threeWayMatches.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      paymentApprovals: paymentApprovals.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      paymentConfirmations: paymentConfirmations.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      riskForecasts: riskForecasts.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      performanceScores: performanceScores.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      supplierRiskProfile: supplierRiskProfile ? workflowRecordDto(supplierRiskProfile as unknown as Record<string, unknown>) : null
+    };
   }
 
   async createContractVersion(id: string, input: ContractVersionInput, context: AwardContractRequestContext) {
@@ -775,7 +1866,7 @@ export class ModuleRepository {
           status: { not: SignatureStatus.SIGNED }
         }
       });
-      if (pending === 0) await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.ACTIVE } });
+      if (pending === 0) await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.SIGNED } });
       await this.audit(tx, signature.contract.buyerOrgId, context.userId, 'contract.signature.signed', 'contract', contractId, {
         signatureId: signature.id,
         role: signature.role
@@ -863,17 +1954,1084 @@ export class ModuleRepository {
 
   async updateContractStatus(contractId: string, input: ContractStatusPatchInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
-      const contract = await tx.contract.findUnique({ where: { id: contractId } });
+      const contract = await tx.contract.findUnique({ where: { id: contractId }, include: contractInclude });
       if (!contract) throw requestError('Contract was not found.', 404);
       assertContractVisible(contract, context);
       assertContractManager(contract, context);
       this.assertStatusTransition(contract.status, input.status);
+      if (input.status === ContractStatus.ACTIVE) this.assertActivationReady(contract);
       await tx.contract.update({ where: { id: contract.id }, data: { status: input.status } });
+      if (input.status === ContractStatus.TERMINATION_REVIEW) {
+        await tx.invoice.updateMany({
+          where: {
+            contractId: contract.id,
+            status: { in: [InvoiceStatus.DRAFT, InvoiceStatus.SUBMITTED, InvoiceStatus.REVIEW, InvoiceStatus.MATCHED] }
+          },
+          data: {
+            status: InvoiceStatus.BLOCKED,
+            payload: {
+              reason: 'Payment on hold - termination review',
+              note: input.note
+            } as Prisma.InputJsonObject
+          }
+        });
+      }
       await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.status.updated', 'contract', contract.id, {
         from: contract.status,
         to: input.status,
         note: input.note
       });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertManagementPlan(contractId: string, input: ContractManagementPlanInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractManagementPlan.upsert({
+        where: { contractId },
+        update: {
+          contractManagerId: input.contractManagerId || null,
+          objectives: input.objectives || null,
+          monitoringPlan: input.monitoringPlan || null,
+          reportingPlan: input.reportingPlan || null,
+          communicationPlan: input.communicationPlan || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          contractManagerId: input.contractManagerId || null,
+          objectives: input.objectives || null,
+          monitoringPlan: input.monitoringPlan || null,
+          reportingPlan: input.reportingPlan || null,
+          communicationPlan: input.communicationPlan || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.cmp.upserted', 'contract', contractId, {});
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateMobilizationItem(contractId: string, itemId: string, input: LifecycleItemPatchInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const item = await tx.contractMobilizationItem.findUnique({ where: { id: itemId }, include: { contract: true } });
+      if (!item || item.contractId !== contractId) throw requestError('Mobilization item was not found.', 404);
+      assertContractVisible(item.contract, context);
+      await tx.contractMobilizationItem.update({
+        where: { id: item.id },
+        data: {
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.category !== undefined ? { category: input.category || 'general' } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.required !== undefined ? { required: input.required } : {}),
+          ...(input.dueDate !== undefined ? { dueDate: toDate(input.dueDate) ?? null } : {}),
+          ...(input.note !== undefined ? { note: input.note || null } : {}),
+          ...(input.payload !== undefined ? { payload: input.payload as Prisma.InputJsonObject } : {}),
+          ...(input.status === ContractLifecycleItemStatus.APPROVED ? { completedAt: new Date() } : {}),
+          ...(input.waived || input.status === ContractLifecycleItemStatus.WAIVED ? { status: ContractLifecycleItemStatus.WAIVED, waivedAt: new Date() } : {})
+        }
+      });
+      await this.audit(tx, item.contract.buyerOrgId, context.userId, 'contract.mobilization.updated', 'contract', contractId, { itemId });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createInspection(contractId: string, input: InspectionInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractInspection.create({
+        data: {
+          contractId,
+          milestoneId: input.milestoneId,
+          inspectionType: input.inspectionType,
+          title: input.title,
+          result: input.status ?? ContractLifecycleItemStatus.OPEN,
+          inspectedAt: toDateTime(input.inspectedAt),
+          inspectorUserId: input.inspectorUserId,
+          note: input.note || input.description || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.inspection.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createGoodsInspection(contractId: string, input: GoodsInspectionInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      const result = input.result ?? ContractLifecycleItemStatus.OPEN;
+      await tx.goodsInspection.upsert({
+        where: { contractId_inspectionNo: { contractId, inspectionNo: input.inspectionNo } },
+        update: {
+          milestoneId: input.milestoneId,
+          deliverableId: input.deliverableId,
+          goodsDescription: input.goodsDescription,
+          quantityOrdered: input.quantityOrdered,
+          quantityReceived: input.quantityReceived,
+          quantityAccepted: input.quantityAccepted,
+          quantityRejected: input.quantityRejected,
+          unit: input.unit || null,
+          location: input.location || null,
+          result,
+          inspectedByUserId: context.userId ?? null,
+          inspectedAt: toDateTime(input.inspectedAt) ?? new Date(),
+          defects: (input.defects ?? []) as Prisma.InputJsonArray,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          milestoneId: input.milestoneId,
+          deliverableId: input.deliverableId,
+          inspectionNo: input.inspectionNo,
+          goodsDescription: input.goodsDescription,
+          quantityOrdered: input.quantityOrdered,
+          quantityReceived: input.quantityReceived,
+          quantityAccepted: input.quantityAccepted,
+          quantityRejected: input.quantityRejected,
+          unit: input.unit || null,
+          location: input.location || null,
+          result,
+          inspectedByUserId: context.userId ?? null,
+          inspectedAt: toDateTime(input.inspectedAt) ?? new Date(),
+          defects: (input.defects ?? []) as Prisma.InputJsonArray,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (input.milestoneId && result === ContractLifecycleItemStatus.APPROVED) {
+        await tx.contractMilestone.update({ where: { id: input.milestoneId }, data: { status: ContractMilestoneStatus.ACCEPTED } });
+      }
+      if (input.deliverableId && result === ContractLifecycleItemStatus.APPROVED) {
+        await tx.contractDeliverable.update({ where: { id: input.deliverableId }, data: { status: ContractLifecycleItemStatus.APPROVED, reviewedAt: new Date() } });
+      }
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.goods_inspection.upserted', 'contract', contractId, { inspectionNo: input.inspectionNo, result });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createInvoice(contractId: string, input: InvoiceInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      if (contract.status === ContractStatus.TERMINATION_REVIEW && input.status !== InvoiceStatus.BLOCKED && input.status !== InvoiceStatus.REJECTED) {
+        throw requestError('Invoices are blocked while termination review is active.', 409);
+      }
+      await tx.invoice.create({
+        data: {
+          reference: input.reference || invoiceReference(),
+          purchaseOrderId: input.purchaseOrderId,
+          contractId,
+          buyerOrgId: contract.buyerOrgId,
+          supplierOrgId: input.supplierOrgId ?? contract.supplierOrgId,
+          status: input.status ?? InvoiceStatus.SUBMITTED,
+          amount: input.amount,
+          currency: input.currency,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.invoice.created', 'contract', contractId, { amount: input.amount, status: input.status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertThreeWayMatch(contractId: string, input: ThreeWayMatchInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      const matched = Boolean(input.poMatched && input.receiptMatched && input.invoiceMatched);
+      const status = input.status ?? (matched ? InvoiceStatus.MATCHED : InvoiceStatus.REVIEW);
+      await tx.threeWayMatchResult.upsert({
+        where: { invoiceId: input.invoiceId },
+        update: {
+          contractId,
+          purchaseOrderId: input.purchaseOrderId,
+          acceptanceId: input.acceptanceId,
+          status,
+          poMatched: input.poMatched ?? false,
+          receiptMatched: input.receiptMatched ?? false,
+          invoiceMatched: input.invoiceMatched ?? false,
+          varianceAmount: input.varianceAmount,
+          currency: input.currency,
+          reviewerUserId: context.userId ?? null,
+          reviewedAt: new Date(),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          invoiceId: input.invoiceId,
+          purchaseOrderId: input.purchaseOrderId,
+          acceptanceId: input.acceptanceId,
+          status,
+          poMatched: input.poMatched ?? false,
+          receiptMatched: input.receiptMatched ?? false,
+          invoiceMatched: input.invoiceMatched ?? false,
+          varianceAmount: input.varianceAmount,
+          currency: input.currency,
+          reviewerUserId: context.userId ?? null,
+          reviewedAt: new Date(),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.invoice.update({ where: { id: input.invoiceId }, data: { status } });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.three_way_match.upserted', 'contract', contractId, { invoiceId: input.invoiceId, status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createPaymentApproval(contractId: string, input: PaymentApprovalInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      const status = input.status ?? InvoiceStatus.REVIEW;
+      await tx.paymentApproval.create({
+        data: {
+          contractId,
+          invoiceId: input.invoiceId,
+          paymentId: input.paymentId,
+          stepKey: input.stepKey,
+          role: input.role,
+          status,
+          amountApproved: input.amountApproved,
+          currency: input.currency,
+          actorUserId: context.userId ?? null,
+          decidedAt: terminalInvoiceStatuses.includes(status) ? new Date() : null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (input.invoiceId && invoiceDecisionStatuses.includes(status)) {
+        await tx.invoice.update({ where: { id: input.invoiceId }, data: { status } });
+      }
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.payment_approval.created', 'contract', contractId, { stepKey: input.stepKey, status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createPaymentConfirmation(contractId: string, input: PaymentConfirmationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      if (input.evidenceDocumentId) await this.assertDocumentVisible(tx, input.evidenceDocumentId, context);
+      const paidAt = toDateTime(input.paidAt) ?? new Date();
+      await tx.paymentConfirmation.create({
+        data: {
+          contractId,
+          invoiceId: input.invoiceId,
+          paymentId: input.paymentId,
+          confirmationReference: input.confirmationReference || confirmationReference(),
+          paidAmount: input.paidAmount,
+          currency: input.currency,
+          paidAt,
+          evidenceDocumentId: input.evidenceDocumentId,
+          confirmedByUserId: context.userId ?? null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (input.invoiceId) await tx.invoice.update({ where: { id: input.invoiceId }, data: { status: InvoiceStatus.PAID } });
+      if (input.paymentId) await tx.contractPayment.update({ where: { id: input.paymentId }, data: { status: InvoiceStatus.PAID, paidAt } });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.payment_confirmation.created', 'contract', contractId, { invoiceId: input.invoiceId, paidAmount: input.paidAmount });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createPerformanceScore(contractId: string, input: PerformanceScoreInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.performanceScore.create({
+        data: {
+          contractId,
+          supplierOrgId: contract.supplierOrgId,
+          scoreType: input.scoreType,
+          score: input.score,
+          weight: input.weight,
+          periodStart: toDate(input.periodStart),
+          periodEnd: toDate(input.periodEnd),
+          evaluatorUserId: context.userId ?? null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (contract.supplierOrgId) {
+        const riskScore = Math.max(0, Math.min(100, Math.round(100 - input.score)));
+        await tx.supplierRiskProfile.upsert({
+          where: { supplierOrgId: contract.supplierOrgId },
+          update: { riskScore, lastReviewedAt: new Date(), reviewerUserId: context.userId ?? null },
+          create: {
+            supplierOrgId: contract.supplierOrgId,
+            riskScore,
+            riskLevel: riskScore >= 75 ? 'CRITICAL' : riskScore >= 50 ? 'HIGH' : riskScore >= 25 ? 'MEDIUM' : 'LOW',
+            trustTier: 'VERIFIED',
+            lastReviewedAt: new Date(),
+            reviewerUserId: context.userId ?? null,
+            summary: `Updated from ${input.scoreType} performance score.`,
+            drivers: [{ scoreType: input.scoreType, score: input.score }] as Prisma.InputJsonArray,
+            payload: {} as Prisma.InputJsonObject
+          }
+        });
+      }
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.performance_score.created', 'contract', contractId, { scoreType: input.scoreType, score: input.score });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createRiskForecast(contractId: string, input: RiskForecastInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.riskForecast.create({
+        data: {
+          contractId,
+          supplierOrgId: input.supplierOrgId ?? contract.supplierOrgId,
+          tenderId: input.tenderId ?? contract.tenderId,
+          forecastType: input.forecastType,
+          horizonDays: input.horizonDays ?? 30,
+          probability: input.probability,
+          impactLevel: (input.impactLevel ?? 'MEDIUM') as any,
+          status: input.status ?? 'OPEN',
+          drivers: (input.drivers ?? []) as Prisma.InputJsonArray,
+          recommendation: input.recommendation || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.risk_forecast.created', 'contract', contractId, { forecastType: input.forecastType, probability: input.probability });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertSupplierRiskProfile(contractId: string, input: SupplierRiskProfileInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      const supplierOrgId = input.supplierOrgId ?? contract.supplierOrgId;
+      if (!supplierOrgId) throw requestError('Supplier organization is required for risk profile.', 409);
+      await tx.supplierRiskProfile.upsert({
+        where: { supplierOrgId },
+        update: {
+          riskLevel: input.riskLevel as any,
+          riskScore: input.riskScore,
+          trustTier: input.trustTier,
+          activeAlerts: input.activeAlerts,
+          openViolations: input.openViolations,
+          lastReviewedAt: new Date(),
+          reviewerUserId: context.userId ?? null,
+          summary: input.summary || null,
+          drivers: (input.drivers ?? []) as Prisma.InputJsonArray,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          supplierOrgId,
+          riskLevel: (input.riskLevel ?? 'MEDIUM') as any,
+          riskScore: input.riskScore ?? 50,
+          trustTier: input.trustTier ?? 'UNVERIFIED',
+          activeAlerts: input.activeAlerts ?? 0,
+          openViolations: input.openViolations ?? 0,
+          lastReviewedAt: new Date(),
+          reviewerUserId: context.userId ?? null,
+          summary: input.summary || null,
+          drivers: (input.drivers ?? []) as Prisma.InputJsonArray,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.supplier_risk_profile.upserted', 'contract', contractId, { supplierOrgId, riskScore: input.riskScore });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createRisk(contractId: string, input: RiskInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractRisk.create({
+        data: {
+          contractId,
+          title: input.title,
+          category: input.category || 'general',
+          description: input.description || null,
+          likelihood: input.likelihood ?? 1,
+          impact: input.impact ?? 1,
+          score: (input.likelihood ?? 1) * (input.impact ?? 1),
+          level: input.level ?? riskLevelFromScore((input.likelihood ?? 1) * (input.impact ?? 1)),
+          responsibleUserId: input.responsibleUserId,
+          mitigationAction: input.mitigationAction || null,
+          dueDate: toDate(input.dueDate),
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.risk.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateRisk(contractId: string, itemId: string, input: LifecycleItemPatchInput, context: AwardContractRequestContext) {
+    return this.updateSimpleLifecycleItem('contractRisk', 'risk', contractId, itemId, input, context);
+  }
+
+  async createVariation(contractId: string, input: VariationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractVariation.create({
+        data: {
+          contractId,
+          requestedByOrgId: context.organizationId ?? null,
+          title: input.title,
+          changeType: input.changeType,
+          reason: input.description || input.note || input.title,
+          affectedClause: input.affectedClause || null,
+          costImpact: input.costImpact,
+          timeImpactDays: input.timeImpactDays,
+          technicalImpact: input.technicalImpact || null,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.variation.created', 'contract', contractId, { changeType: input.changeType });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateVariation(contractId: string, itemId: string, input: LifecycleItemPatchInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const variation = await tx.contractVariation.findUnique({ where: { id: itemId }, include: { contract: { include: { versions: { orderBy: { versionNo: 'desc' }, take: 1 } } } } });
+      if (!variation || variation.contractId !== contractId) throw requestError('variation item was not found.', 404);
+      assertContractVisible(variation.contract, context);
+      assertContractManager(variation.contract, context);
+      await tx.contractVariation.update({
+        where: { id: itemId },
+        data: {
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.note !== undefined ? { decision: input.note || null } : {}),
+          ...(input.payload !== undefined ? { payload: input.payload as Prisma.InputJsonObject } : {})
+        }
+      });
+      if (input.status === ContractLifecycleItemStatus.APPROVED) {
+        const currentAmount = decimalToNumber(variation.contract.amount) ?? 0;
+        const costImpact = decimalToNumber(variation.costImpact) ?? 0;
+        const versionNo = (variation.contract.versions[0]?.versionNo ?? 0) + 1;
+        await tx.contract.update({
+          where: { id: contractId },
+          data: {
+            amount: currentAmount + costImpact,
+            payload: {
+              ...objectPayload(variation.contract.payload),
+              lastApprovedVariationId: variation.id,
+              lastApprovedVariationAt: new Date().toISOString()
+            } as Prisma.InputJsonObject
+          }
+        });
+        await tx.contractVersion.create({
+          data: {
+            contractId,
+            versionNo,
+            payload: {
+              source: 'approved_variation',
+              variationId: variation.id,
+              title: variation.title,
+              costImpact,
+              timeImpactDays: variation.timeImpactDays,
+              decision: input.note ?? variation.decision ?? ''
+            } as Prisma.InputJsonObject
+          }
+        });
+      }
+      await this.audit(tx, variation.contract.buyerOrgId, context.userId, 'contract.variation.updated', 'contract', contractId, { itemId, status: input.status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createIssue(contractId: string, input: LifecycleItemInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractIssue.create({
+        data: {
+          contractId,
+          raisedByOrgId: context.organizationId ?? null,
+          title: input.title,
+          description: input.description || null,
+          category: input.category || 'general',
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          dueDate: toDate(input.dueDate),
+          resolution: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.issue.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateIssue(contractId: string, itemId: string, input: LifecycleItemPatchInput, context: AwardContractRequestContext) {
+    return this.updateSimpleLifecycleItem('contractIssue', 'issue', contractId, itemId, input, context);
+  }
+
+  async createDispute(contractId: string, input: LifecycleItemInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractDispute.create({
+        data: {
+          contractId,
+          raisedByOrgId: context.organizationId ?? null,
+          title: input.title,
+          contractClause: String(input.payload.contractClause ?? '') || null,
+          description: input.description || null,
+          route: String(input.payload.route ?? '') || null,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          decision: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.dispute.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateDispute(contractId: string, itemId: string, input: LifecycleItemPatchInput, context: AwardContractRequestContext) {
+    return this.updateSimpleLifecycleItem('contractDispute', 'dispute', contractId, itemId, input, context);
+  }
+
+  async createTermination(contractId: string, input: TerminationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractTermination.create({
+        data: {
+          contractId,
+          terminationType: input.terminationType,
+          initiatedByOrgId: context.organizationId ?? null,
+          reason: input.reason,
+          contractClause: input.contractClause || null,
+          faultParty: input.faultParty || null,
+          noticeDate: toDate(input.noticeDate),
+          cureDeadline: toDate(input.cureDeadline),
+          terminationEffectiveDate: toDate(input.terminationEffectiveDate),
+          supplierResponse: input.supplierResponse || null,
+          finalDecision: input.finalDecision || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.TERMINATION_REVIEW } });
+      await tx.invoice.updateMany({
+        where: { contractId, status: { in: [InvoiceStatus.DRAFT, InvoiceStatus.SUBMITTED, InvoiceStatus.REVIEW, InvoiceStatus.MATCHED] } },
+        data: { status: InvoiceStatus.BLOCKED }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.termination.created', 'contract', contractId, { terminationType: input.terminationType });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateTermination(contractId: string, terminationId: string, input: TerminationPatchInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const termination = await tx.contractTermination.findUnique({ where: { id: terminationId }, include: { contract: true } });
+      if (!termination || termination.contractId !== contractId) throw requestError('Termination record was not found.', 404);
+      assertContractVisible(termination.contract, context);
+      await tx.contractTermination.update({
+        where: { id: termination.id },
+        data: {
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.reason !== undefined ? { reason: input.reason } : {}),
+          ...(input.contractClause !== undefined ? { contractClause: input.contractClause || null } : {}),
+          ...(input.faultParty !== undefined ? { faultParty: input.faultParty || null } : {}),
+          ...(input.noticeDate !== undefined ? { noticeDate: toDate(input.noticeDate) ?? null } : {}),
+          ...(input.cureDeadline !== undefined ? { cureDeadline: toDate(input.cureDeadline) ?? null } : {}),
+          ...(input.terminationEffectiveDate !== undefined ? { terminationEffectiveDate: toDate(input.terminationEffectiveDate) ?? null } : {}),
+          ...(input.supplierResponse !== undefined ? { supplierResponse: input.supplierResponse || null } : {}),
+          ...(input.finalDecision !== undefined ? { finalDecision: input.finalDecision || null } : {}),
+          ...(input.payload !== undefined ? { payload: input.payload as Prisma.InputJsonObject } : {})
+        }
+      });
+      if (input.status === ContractTerminationStatus.TERMINATED) {
+        await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.TERMINATED } });
+      }
+      await this.audit(tx, termination.contract.buyerOrgId, context.userId, 'contract.termination.updated', 'contract', contractId, { terminationId, status: input.status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async addTerminationNotice(contractId: string, terminationId: string, input: TerminationNoticeInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const termination = await this.requireTermination(tx, contractId, terminationId, context);
+      await tx.terminationNotice.create({
+        data: {
+          terminationId,
+          noticeType: input.noticeType,
+          contractClause: input.contractClause || null,
+          requiredAction: input.requiredAction || null,
+          deadline: toDate(input.deadline),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.contractTermination.update({ where: { id: terminationId }, data: { status: ContractTerminationStatus.NOTICE_ISSUED, noticeDate: new Date() } });
+      await this.audit(tx, termination.contract.buyerOrgId, context.userId, 'contract.termination.notice_created', 'contract', contractId, { terminationId });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async addTerminationEvidence(contractId: string, terminationId: string, input: TerminationEvidenceInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const termination = await this.requireTermination(tx, contractId, terminationId, context);
+      if (input.documentId) await this.assertDocumentVisible(tx, input.documentId, context);
+      await tx.terminationEvidence.create({
+        data: {
+          terminationId,
+          documentId: input.documentId,
+          evidenceType: input.evidenceType,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, termination.contract.buyerOrgId, context.userId, 'contract.termination.evidence_added', 'contract', contractId, { terminationId });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertTerminationValuation(contractId: string, terminationId: string, input: TerminationValuationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const termination = await this.requireTermination(tx, contractId, terminationId, context);
+      await tx.terminationValuation.upsert({
+        where: { terminationId },
+        update: { ...input, payload: input.payload as Prisma.InputJsonObject },
+        create: { terminationId, ...input, payload: input.payload as Prisma.InputJsonObject }
+      });
+      await this.audit(tx, termination.contract.buyerOrgId, context.userId, 'contract.termination.valuation_upserted', 'contract', contractId, { terminationId });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertTerminationSettlement(contractId: string, terminationId: string, input: TerminationSettlementInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const termination = await this.requireTermination(tx, contractId, terminationId, context);
+      await tx.terminationSettlement.upsert({
+        where: { terminationId },
+        update: {
+          status: input.status,
+          settlementNote: input.settlementNote || null,
+          settledAt: toDateTime(input.settledAt),
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          terminationId,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          settlementNote: input.settlementNote || null,
+          settledAt: toDateTime(input.settledAt),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, termination.contract.buyerOrgId, context.userId, 'contract.termination.settlement_upserted', 'contract', contractId, { terminationId });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertReplacementProcurement(contractId: string, terminationId: string, input: ReplacementProcurementInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const termination = await this.requireTermination(tx, contractId, terminationId, context);
+      await tx.replacementProcurementPlan.upsert({
+        where: { terminationId },
+        update: {
+          method: input.method,
+          urgencyLevel: input.urgencyLevel ?? ContractRiskLevel.MEDIUM,
+          remainingScope: input.remainingScope || null,
+          estimatedCost: input.estimatedCost,
+          currency: input.currency,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          terminationId,
+          method: input.method,
+          urgencyLevel: input.urgencyLevel ?? ContractRiskLevel.MEDIUM,
+          remainingScope: input.remainingScope || null,
+          estimatedCost: input.estimatedCost,
+          currency: input.currency,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, termination.contract.buyerOrgId, context.userId, 'contract.termination.replacement_procurement_upserted', 'contract', contractId, { terminationId });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertCloseout(contractId: string, input: ContractCloseoutInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractCloseout.upsert({
+        where: { contractId },
+        update: {
+          status: input.status,
+          completionCertificate: input.completionCertificate,
+          finalAccountApproved: input.finalAccountApproved,
+          warrantyStartDate: toDate(input.warrantyStartDate),
+          warrantyEndDate: toDate(input.warrantyEndDate),
+          lessonsLearned: input.lessonsLearned || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          completionCertificate: input.completionCertificate ?? false,
+          finalAccountApproved: input.finalAccountApproved ?? false,
+          warrantyStartDate: toDate(input.warrantyStartDate),
+          warrantyEndDate: toDate(input.warrantyEndDate),
+          lessonsLearned: input.lessonsLearned || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (input.status === ContractLifecycleItemStatus.CLOSED) await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.CLOSED } });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.closeout.upserted', 'contract', contractId, { status: input.status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertSupplierPerformance(contractId: string, input: SupplierPerformanceInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.supplierPerformanceRecord.create({
+        data: {
+          contractId,
+          buyerOrgId: contract.buyerOrgId,
+          supplierOrgId: contract.supplierOrgId,
+          overallScore: input.overallScore,
+          timeScore: input.timeScore,
+          qualityScore: input.qualityScore,
+          costScore: input.costScore,
+          complianceScore: input.complianceScore,
+          terminationFault: input.terminationFault || null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.performance.created', 'contract', contractId, {});
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateInvoiceStatus(contractId: string, invoiceId: string, input: InvoiceStatusPatchInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: input.status,
+          payload: {
+            statusNote: input.note,
+            reviewedAt: new Date().toISOString()
+          } as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.invoice.status_updated', 'contract', contractId, { invoiceId, status: input.status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertClause(contractId: string, input: ClauseInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractClause.upsert({
+        where: { contractId_clauseKey: { contractId, clauseKey: input.clauseKey } },
+        update: {
+          title: input.title,
+          body: input.body || null,
+          category: input.category || 'general',
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          buyerComment: input.buyerComment || null,
+          supplierComment: input.supplierComment || null,
+          legalComment: input.legalComment || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          clauseKey: input.clauseKey,
+          title: input.title,
+          body: input.body || null,
+          category: input.category || 'general',
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          buyerComment: input.buyerComment || null,
+          supplierComment: input.supplierComment || null,
+          legalComment: input.legalComment || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.clause.upserted', 'contract', contractId, { clauseKey: input.clauseKey });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createNegotiation(contractId: string, input: NegotiationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractNegotiation.create({
+        data: {
+          contractId,
+          clauseId: input.clauseId,
+          raisedByRole: input.raisedByRole,
+          raisedByOrgId: context.organizationId ?? null,
+          subject: input.subject,
+          position: input.position || null,
+          counterOffer: input.counterOffer || null,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          dueDate: toDate(input.dueDate),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (contract.status === ContractStatus.DRAFT) await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.NEGOTIATION } });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.negotiation.created', 'contract', contractId, { subject: input.subject });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createDeliverable(contractId: string, input: DeliverableInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractDeliverable.create({
+        data: {
+          contractId,
+          milestoneId: input.milestoneId,
+          title: input.title,
+          description: input.description || null,
+          submittedByOrgId: context.organizationId ?? null,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          dueDate: toDate(input.dueDate),
+          submittedAt: toDateTime(input.submittedAt),
+          acceptanceNote: input.acceptanceNote || input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.deliverable.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createAcceptance(contractId: string, input: AcceptanceInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractAcceptance.create({
+        data: {
+          contractId,
+          deliverableId: input.deliverableId,
+          inspectionId: input.inspectionId,
+          certificateNo: input.certificateNo || null,
+          status: input.status ?? ContractLifecycleItemStatus.APPROVED,
+          acceptedValue: input.acceptedValue,
+          currency: input.currency,
+          acceptedAt: toDateTime(input.acceptedAt) ?? new Date(),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (input.deliverableId) {
+        await tx.contractDeliverable.update({ where: { id: input.deliverableId }, data: { status: input.status ?? ContractLifecycleItemStatus.APPROVED, reviewedAt: new Date() } });
+      }
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.acceptance.created', 'contract', contractId, { certificateNo: input.certificateNo });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createPaymentSchedule(contractId: string, input: PaymentScheduleInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractPaymentSchedule.create({
+        data: {
+          contractId,
+          milestoneId: input.milestoneId,
+          title: input.title,
+          amount: input.amount,
+          currency: input.currency,
+          dueDate: toDate(input.dueDate),
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.payment_schedule.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createPayment(contractId: string, input: ContractPaymentInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      const status = input.status ?? InvoiceStatus.REVIEW;
+      if (contract.status === ContractStatus.TERMINATION_REVIEW && status !== InvoiceStatus.BLOCKED && status !== InvoiceStatus.REJECTED) {
+        throw requestError('Payments are on hold while termination review is active.', 409);
+      }
+      const deductions = (input.retentionAmount ?? 0) + (input.advanceRecovery ?? 0) + (input.liquidatedDamages ?? 0) + (input.taxWithholding ?? 0);
+      const netAmount = input.netAmount ?? (input.grossAmount === undefined ? undefined : input.grossAmount - deductions);
+      await tx.contractPayment.create({
+        data: {
+          contractId,
+          invoiceId: input.invoiceId,
+          scheduleId: input.scheduleId,
+          status,
+          grossAmount: input.grossAmount,
+          retentionAmount: input.retentionAmount,
+          advanceRecovery: input.advanceRecovery,
+          liquidatedDamages: input.liquidatedDamages,
+          taxWithholding: input.taxWithholding,
+          netAmount,
+          currency: input.currency,
+          reviewedByUserId: context.userId ?? null,
+          approvedByUserId: status === InvoiceStatus.PAID || status === InvoiceStatus.MATCHED ? context.userId ?? null : null,
+          paidAt: toDateTime(input.paidAt) ?? (status === InvoiceStatus.PAID ? new Date() : undefined),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (input.invoiceId) {
+        await tx.invoice.update({ where: { id: input.invoiceId }, data: { status } });
+      }
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.payment.created', 'contract', contractId, { status, invoiceId: input.invoiceId });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertWarranty(contractId: string, input: WarrantyInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      await tx.contractWarranty.create({
+        data: {
+          contractId,
+          title: input.title,
+          defectReference: input.defectReference || null,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          startDate: toDate(input.startDate),
+          endDate: toDate(input.endDate ?? input.dueDate),
+          responsibleRole: input.responsibleRole || null,
+          resolution: input.note || input.description || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.warranty.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertRequiredDocument(contractId: string, input: RequiredDocumentInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context);
+      if (input.documentId) await this.assertDocumentVisible(tx, input.documentId, context);
+      await tx.contractRequiredDocument.upsert({
+        where: { contractId_documentType: { contractId, documentType: input.documentType } },
+        update: {
+          title: input.title,
+          ownerRole: input.ownerRole,
+          status: input.status ?? ContractLifecycleItemStatus.SUBMITTED,
+          documentId: input.documentId,
+          dueDate: toDate(input.dueDate),
+          reviewedAt: toDateTime(input.reviewedAt),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          documentType: input.documentType,
+          title: input.title,
+          ownerRole: input.ownerRole,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          documentId: input.documentId,
+          dueDate: toDate(input.dueDate),
+          reviewedAt: toDateTime(input.reviewedAt),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.required_document.upserted', 'contract', contractId, { documentType: input.documentType });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async upsertWorkflowApproval(contractId: string, input: WorkflowApprovalInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractWorkflowApproval.upsert({
+        where: { contractId_stepKey: { contractId, stepKey: input.stepKey } },
+        update: {
+          role: input.role,
+          status: input.status ?? ContractLifecycleItemStatus.APPROVED,
+          actorUserId: context.userId ?? null,
+          decidedAt: new Date(),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          stepKey: input.stepKey,
+          role: input.role,
+          status: input.status ?? ContractLifecycleItemStatus.APPROVED,
+          actorUserId: context.userId ?? null,
+          decidedAt: new Date(),
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.workflow_approval.upserted', 'contract', contractId, { stepKey: input.stepKey });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  private async requireContract(tx: DbClient, contractId: string, context: AwardContractRequestContext, managerOnly = false) {
+    const contract = await tx.contract.findUnique({ where: { id: contractId } });
+    if (!contract) throw requestError('Contract was not found.', 404);
+    assertContractVisible(contract, context);
+    if (managerOnly) assertContractManager(contract, context);
+    return contract;
+  }
+
+  private async requireTermination(tx: DbClient, contractId: string, terminationId: string, context: AwardContractRequestContext) {
+    const termination = await tx.contractTermination.findUnique({ where: { id: terminationId }, include: { contract: true } });
+    if (!termination || termination.contractId !== contractId) throw requestError('Termination record was not found.', 404);
+    assertContractVisible(termination.contract, context);
+    return termination;
+  }
+
+  private async updateSimpleLifecycleItem(
+    model: 'contractRisk' | 'contractVariation' | 'contractIssue' | 'contractDispute',
+    label: string,
+    contractId: string,
+    itemId: string,
+    input: LifecycleItemPatchInput,
+    context: AwardContractRequestContext
+  ) {
+    await this.db.$transaction(async (tx) => {
+      const delegate = tx[model] as any;
+      const item = await delegate.findUnique({ where: { id: itemId }, include: { contract: true } });
+      if (!item || item.contractId !== contractId) throw requestError(`${label} item was not found.`, 404);
+      assertContractVisible(item.contract, context);
+
+      const sharedData = {
+        ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.payload !== undefined ? { payload: input.payload as Prisma.InputJsonObject } : {})
+      };
+      const data =
+        model === 'contractVariation'
+          ? {
+              ...sharedData,
+              ...(input.title !== undefined ? { title: input.title } : {}),
+              ...(input.note !== undefined ? { decision: input.note || null } : {})
+            }
+          : model === 'contractIssue'
+            ? {
+                ...sharedData,
+                ...(input.title !== undefined ? { title: input.title } : {}),
+                ...(input.category !== undefined ? { category: input.category || 'general' } : {}),
+                ...(input.description !== undefined ? { description: input.description || null } : {}),
+                ...(input.dueDate !== undefined ? { dueDate: toDate(input.dueDate) ?? null } : {}),
+                ...(input.note !== undefined ? { resolution: input.note || null } : {})
+              }
+            : model === 'contractDispute'
+              ? {
+                  ...sharedData,
+                  ...(input.title !== undefined ? { title: input.title } : {}),
+                  ...(input.description !== undefined ? { description: input.description || null } : {}),
+                  ...(input.note !== undefined ? { decision: input.note || null } : {})
+                }
+              : {
+                  ...sharedData,
+                  ...(input.title !== undefined ? { title: input.title } : {}),
+                  ...(input.category !== undefined ? { category: input.category || 'general' } : {}),
+                  ...(input.description !== undefined ? { description: input.description || null } : {}),
+                  ...(input.dueDate !== undefined ? { dueDate: toDate(input.dueDate) ?? null } : {})
+                };
+      await delegate.update({ where: { id: itemId }, data });
+      await this.audit(tx, item.contract.buyerOrgId, context.userId, `contract.${label}.updated`, 'contract', contractId, { itemId, status: input.status });
     });
     return this.getContract(contractId, context);
   }
@@ -933,8 +3091,115 @@ export class ModuleRepository {
         payload: {
           source: 'award_notice',
           noticeId: notice.id,
-          bidId: notice.recommendation.bidId
-        } as Prisma.InputJsonObject
+          bidId: notice.recommendation.bidId,
+          draft: {
+            parties: {
+              buyerOrgId: notice.buyerOrgId,
+              supplierOrgId: notice.supplierOrgId
+            },
+            tender: {
+              id: notice.recommendation.workspace.tenderId,
+              reference: notice.recommendation.workspace.tender.reference,
+              title: notice.recommendation.workspace.tender.title,
+              procurementType: notice.recommendation.workspace.tender.type,
+              contractType: notice.recommendation.workspace.tender.contractType
+            },
+            financials: {
+              contractPrice: decimalToNumber(notice.recommendation.amount),
+              currency: notice.recommendation.currency,
+              budget: decimalToNumber(notice.recommendation.workspace.tender.budget)
+            },
+            clauses: {
+              inspectionAndAcceptance: true,
+              performanceSecurity: true,
+              warrantyOrDefects: true,
+              liquidatedDamages: true,
+              variationProcedure: true,
+              disputeResolution: true,
+              termination: true,
+              antiCorruption: true
+            }
+          }
+        } as Prisma.InputJsonObject,
+        versions: {
+          create: {
+            versionNo: 1,
+            payload: {
+              source: 'award_acceptance',
+              generatedAt: new Date().toISOString(),
+              tenderReference: notice.recommendation.workspace.tender.reference,
+              awardId: notice.recommendationId,
+              clauseKeys: defaultContractClauses().map((clause) => clause.clauseKey)
+            } as Prisma.InputJsonObject
+          }
+        },
+        parties: {
+          createMany: {
+            data: [
+              {
+                role: ContractPartyRole.BUYER,
+                organizationId: notice.buyerOrgId,
+                displayName: 'Buyer organization',
+                payload: {}
+              },
+              {
+                role: ContractPartyRole.SUPPLIER,
+                organizationId: notice.supplierOrgId,
+                displayName: 'Supplier organization',
+                payload: {}
+              }
+            ]
+          }
+        },
+        clauses: {
+          createMany: {
+            data: defaultContractClauses()
+          }
+        },
+        paymentSchedules: {
+          createMany: {
+            data: [
+              {
+                title: 'Initial contract payment schedule',
+                amount: notice.recommendation.amount,
+                currency: notice.recommendation.currency,
+                payload: {
+                  source: 'award_acceptance',
+                  instruction: 'Refine into milestone-based payments during contract review.'
+                }
+              }
+            ]
+          }
+        },
+        requiredDocuments: {
+          createMany: {
+            data: defaultRequiredDocuments(String(notice.recommendation.workspace.tender.type))
+          }
+        },
+        approvalSteps: {
+          createMany: {
+            data: defaultWorkflowApprovals()
+          }
+        },
+        managementPlan: {
+          create: {
+            objectives: `Deliver ${notice.recommendation.workspace.tender.title} according to the approved tender scope, winning bid, agreed time, quality, and cost.`,
+            monitoringPlan: 'Track milestones, KPIs, risks, inspections, payments, variations, disputes, and close-out actions in ProcureX.',
+            reportingPlan: 'Contract manager reviews progress and exceptions regularly with technical, finance, legal, buyer, and supplier participants.',
+            communicationPlan: 'All formal notices, evidence, comments, and decisions are recorded in ProcureX.',
+            payload: {}
+          }
+        },
+        mobilizationItems: {
+          createMany: {
+            data: defaultMobilizationItems(String(notice.recommendation.workspace.tender.type))
+          }
+        },
+        kpis: {
+          createMany: {
+            data: defaultKpis()
+          }
+        }
       }
     });
   }
@@ -949,16 +3214,92 @@ export class ModuleRepository {
 
   private assertStatusTransition(from: ContractStatus, to: ContractStatus) {
     if (from === to) return;
-    if (to === ContractStatus.TERMINATED && from !== ContractStatus.COMPLETED) return;
     const allowed: Record<ContractStatus, ContractStatus[]> = {
-      [ContractStatus.DRAFT]: [ContractStatus.NEGOTIATION],
-      [ContractStatus.NEGOTIATION]: [ContractStatus.SIGNATURE_PENDING],
-      [ContractStatus.SIGNATURE_PENDING]: [ContractStatus.ACTIVE],
-      [ContractStatus.ACTIVE]: [ContractStatus.COMPLETED],
-      [ContractStatus.COMPLETED]: [],
-      [ContractStatus.TERMINATED]: []
+      [ContractStatus.DRAFT]: [ContractStatus.NEGOTIATION, ContractStatus.SIGNATURE_PENDING],
+      [ContractStatus.NEGOTIATION]: [ContractStatus.SIGNATURE_PENDING, ContractStatus.DRAFT],
+      [ContractStatus.SIGNATURE_PENDING]: [ContractStatus.SIGNED],
+      [ContractStatus.SIGNED]: [ContractStatus.MOBILIZATION, ContractStatus.ACTIVE, ContractStatus.TERMINATION_REVIEW],
+      [ContractStatus.MOBILIZATION]: [ContractStatus.ACTIVE, ContractStatus.AT_RISK, ContractStatus.TERMINATION_REVIEW],
+      [ContractStatus.ACTIVE]: [ContractStatus.AT_RISK, ContractStatus.COMPLETED, ContractStatus.TERMINATION_REVIEW],
+      [ContractStatus.AT_RISK]: [ContractStatus.ACTIVE, ContractStatus.TERMINATION_REVIEW],
+      [ContractStatus.COMPLETED]: [ContractStatus.WARRANTY_DEFECTS, ContractStatus.CLOSED],
+      [ContractStatus.WARRANTY_DEFECTS]: [ContractStatus.CLOSED],
+      [ContractStatus.TERMINATION_REVIEW]: [ContractStatus.TERMINATED, ContractStatus.ACTIVE, ContractStatus.AT_RISK],
+      [ContractStatus.TERMINATED]: [ContractStatus.CLOSED],
+      [ContractStatus.CLOSED]: []
     };
     if (!allowed[from].includes(to)) throw requestError(`Invalid contract status transition from ${from} to ${to}.`, 409);
+  }
+
+  private assertActivationReady(contract: ContractRecord) {
+    if (!contract.managementPlan) throw requestError('Contract Management Plan is required before activation.', 409);
+    if (contract.milestones.length === 0) throw requestError('At least one contract milestone is required before activation.', 409);
+    const completedMobilizationStatuses: ContractLifecycleItemStatus[] = [
+      ContractLifecycleItemStatus.APPROVED,
+      ContractLifecycleItemStatus.WAIVED,
+      ContractLifecycleItemStatus.CLOSED
+    ];
+    const blockingMobilization = contract.mobilizationItems.filter((item) => item.required && !completedMobilizationStatuses.includes(item.status));
+    if (blockingMobilization.length > 0) {
+      throw requestError('Required mobilization checklist items must be approved or waived before activation.', 409);
+    }
+  }
+
+  private async syncUrgentActions(ownerOrgId: string, actions: LifecycleActionDto[]) {
+    const keys = actions.map((item) => item.nextAction.key ? `${item.id}:${item.nextAction.key}` : item.id);
+    await Promise.all(actions.map((item) => {
+      const actionKey = item.nextAction.key ? `${item.id}:${item.nextAction.key}` : item.id;
+      return this.db.urgentAction.upsert({
+        where: {
+          ownerOrgId_actionKey: {
+            ownerOrgId,
+            actionKey
+          }
+        },
+        update: {
+          title: item.title,
+          requiredAction: item.requiredAction,
+          riskLevel: item.riskLevel,
+          dueDate: item.dueDate ? new Date(item.dueDate) : null,
+          status: 'OPEN',
+          nextRoute: item.nextAction.url,
+          contractId: item.contractId,
+          awardId: item.awardId,
+          noticeId: item.noticeId,
+          payload: {
+            currentStage: item.currentStage,
+            roleContext: item.roleContext,
+            nextAction: item.nextAction
+          } as Prisma.InputJsonObject
+        },
+        create: {
+          ownerOrgId,
+          actionKey,
+          title: item.title,
+          requiredAction: item.requiredAction,
+          riskLevel: item.riskLevel,
+          dueDate: item.dueDate ? new Date(item.dueDate) : null,
+          status: 'OPEN',
+          nextRoute: item.nextAction.url,
+          contractId: item.contractId,
+          awardId: item.awardId,
+          noticeId: item.noticeId,
+          payload: {
+            currentStage: item.currentStage,
+            roleContext: item.roleContext,
+            nextAction: item.nextAction
+          } as Prisma.InputJsonObject
+        }
+      });
+    }));
+    await this.db.urgentAction.updateMany({
+      where: {
+        ownerOrgId,
+        status: 'OPEN',
+        ...(keys.length > 0 ? { actionKey: { notIn: keys } } : {})
+      },
+      data: { status: 'RESOLVED' }
+    });
   }
 
   private async audit(tx: DbClient, ownerOrgId: string | null, actorUserId: string | undefined, event: string, entityType: string, entityRef: string, payload: Record<string, unknown>) {
@@ -973,5 +3314,23 @@ export class ModuleRepository {
         payload: payload as Prisma.InputJsonObject
       }
     });
+    const notificationDelegate = (tx as DbClient & { notification?: { create: (args: unknown) => Promise<unknown> } }).notification;
+    if (ownerOrgId && notificationDelegate) {
+      await notificationDelegate.create({
+        data: {
+          ownerOrgId,
+          userId: actorUserId ?? null,
+          contractId: entityType === 'contract' ? entityRef : null,
+          awardId: entityType === 'award_recommendation' ? entityRef : null,
+          title: event,
+          body: typeof payload.note === 'string' ? payload.note : null,
+          payload: {
+            entityType,
+            entityRef,
+            ...payload
+          } as Prisma.InputJsonObject
+        }
+      });
+    }
   }
 }
