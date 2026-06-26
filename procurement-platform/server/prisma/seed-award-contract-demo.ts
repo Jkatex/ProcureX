@@ -42,6 +42,30 @@ const scrypt = promisify(scryptCallback);
 export const AWARD_CONTRACT_DEMO_DATASET = 'award-contract-full';
 export const AWARD_CONTRACT_DEMO_PREFIX = 'PX-DEMO-AC';
 
+const demoOrganizationNames = [
+  'ProcureX Demo Compliance Authority',
+  'PX Demo National Procurement Authority',
+  'PX Demo Accepted Supplier Ltd',
+  'PX Demo Declined Supplier Ltd',
+  'PX Demo Risky Supplier Ltd',
+  'PX Demo Terminated Supplier Ltd',
+  'PX Demo Closed Supplier Ltd'
+];
+
+const demoUserEmails = [
+  'award-admin@procurex.tz',
+  'award-buyer@procurex.tz',
+  'contract-manager@procurex.tz',
+  'legal-review@procurex.tz',
+  'finance-review@procurex.tz',
+  'technical-review@procurex.tz',
+  'award-supplier@procurex.tz',
+  'declined-supplier@procurex.tz',
+  'risky-supplier@procurex.tz',
+  'terminated-supplier@procurex.tz',
+  'closed-supplier@procurex.tz'
+];
+
 type AnyDb = Record<string, any>;
 
 type DemoActor = {
@@ -240,6 +264,29 @@ async function resetDemoDataset(db: AnyDb) {
   await deleteIfIds(db, 'evaluationWorkspace', 'id', workspaceIds);
   await deleteIfIds(db, 'tender', 'id', tenderIds);
   await db.documentObject.deleteMany({ where: { objectKey: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } } });
+}
+
+async function cleanupDemoActors(db: AnyDb) {
+  const users = await db.user.findMany({ where: { email: { in: demoUserEmails } }, select: { id: true } });
+  const userIds = users.map((item: { id: string }) => item.id);
+  const organizations = await db.organization.findMany({ where: { name: { in: demoOrganizationNames } }, select: { id: true } });
+  const organizationIds = organizations.map((item: { id: string }) => item.id);
+
+  await deleteIfIds(db, 'trustTierHistory', 'userId', userIds);
+  await deleteIfIds(db, 'trustTierHistory', 'organizationId', organizationIds);
+  await deleteIfIds(db, 'permissionOverride', 'userId', userIds);
+  await deleteIfIds(db, 'permissionOverride', 'organizationId', organizationIds);
+  await deleteIfIds(db, 'session', 'userId', userIds);
+  await deleteIfIds(db, 'identityChallenge', 'userId', userIds);
+  await deleteIfIds(db, 'account', 'userId', userIds);
+  await deleteIfIds(db, 'organizationMember', 'userId', userIds);
+  await deleteIfIds(db, 'organizationMember', 'organizationId', organizationIds);
+  await deleteIfIds(db, 'organizationCapability', 'organizationId', organizationIds);
+  await deleteIfIds(db, 'buyerProfile', 'organizationId', organizationIds);
+  await deleteIfIds(db, 'supplierProfile', 'organizationId', organizationIds);
+  await deleteIfIds(db, 'organizationProfile', 'organizationId', organizationIds);
+  await deleteIfIds(db, 'user', 'id', userIds);
+  await deleteIfIds(db, 'organization', 'id', organizationIds);
 }
 
 async function upsertOrganization(db: AnyDb, name: string, kind: OrganizationKind, capabilities: OrganizationCapabilityName[]) {
@@ -1685,10 +1732,21 @@ export async function seedAwardContractDemo() {
   }
 }
 
+export async function cleanupAwardContractDemo() {
+  const adminContext = { accountType: AccountType.ADMIN };
+  await withDbContext(adminContext, async (tx) => {
+    const db = tx as AnyDb;
+    await resetDemoDataset(db);
+    await cleanupDemoActors(db);
+  });
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  seedAwardContractDemo()
+  const command = process.argv[2];
+  const action = command === 'cleanup' ? cleanupAwardContractDemo : seedAwardContractDemo;
+  action()
     .then(async () => {
-      console.log(`Seeded ${AWARD_CONTRACT_DEMO_DATASET} demo records.`);
+      console.log(command === 'cleanup' ? `Removed ${AWARD_CONTRACT_DEMO_DATASET} demo records.` : `Seeded ${AWARD_CONTRACT_DEMO_DATASET} demo records.`);
       await prisma.$disconnect();
     })
     .catch(async (error) => {
