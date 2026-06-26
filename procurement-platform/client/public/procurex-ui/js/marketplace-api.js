@@ -6,33 +6,42 @@
     const fallbackGetMyTenderRows = window.getProcurexMyTenderRows;
     const fallbackGetMyBidRows = window.getProcurexMyBidRows;
     const fallbackTenderOwnership = window.isProcurexTenderOwnedByCurrentUser;
+    const fallbackGetCurrentAccount = window.getProcurexCurrentAccount;
 
-    const emptyPayload = () => ({
-        tenders: [],
-        myTenders: [],
-        myBids: [],
-        summary: null
-    });
-
-    const state = window.procurexMarketplaceState || {
-        loading: false,
-        error: null,
-        payload: emptyPayload(),
-        loadedAt: null,
-        requestId: 0
-    };
-
-    state.payload = sanitizeMarketplacePayload(state.payload);
+    const state = sanitizeMarketplaceState(window.procurexMarketplaceState);
     window.procurexMarketplaceState = state;
+
+    let latestRequestId = 0;
+    let hasBackendData = false;
 
     function sanitizeMarketplacePayload(payload) {
         const source = payload && typeof payload === 'object' ? payload : {};
         return {
-            tenders: Array.isArray(source.tenders) ? source.tenders : [],
-            myTenders: Array.isArray(source.myTenders) ? source.myTenders : [],
-            myBids: Array.isArray(source.myBids) ? source.myBids : [],
-            summary: source.summary && typeof source.summary === 'object' ? source.summary : null
+            marketplaceTenders: Array.isArray(source.tenders) ? source.tenders : [],
+            myTenderRows: Array.isArray(source.myTenders) ? source.myTenders : [],
+            myBidRows: Array.isArray(source.myBids) ? source.myBids : [],
+            summary: source.summary && typeof source.summary === 'object' ? source.summary : {}
         };
+    }
+
+    function sanitizeMarketplaceState(source) {
+        const current = source && typeof source === 'object' ? source : {};
+        return {
+            marketplaceTenders: Array.isArray(current.marketplaceTenders) ? current.marketplaceTenders : [],
+            myTenderRows: Array.isArray(current.myTenderRows) ? current.myTenderRows : [],
+            myBidRows: Array.isArray(current.myBidRows) ? current.myBidRows : [],
+            summary: current.summary && typeof current.summary === 'object' ? current.summary : {},
+            loading: current.loading === true,
+            error: typeof current.error === 'string' ? current.error : null
+        };
+    }
+
+    function applyMarketplacePayload(payload) {
+        const sanitized = sanitizeMarketplacePayload(payload);
+        state.marketplaceTenders = sanitized.marketplaceTenders;
+        state.myTenderRows = sanitized.myTenderRows;
+        state.myBidRows = sanitized.myBidRows;
+        state.summary = sanitized.summary;
     }
 
     function getStoredAuthToken() {
@@ -91,10 +100,6 @@
         return typeof fallbackGetMyBidRows === 'function' ? fallbackGetMyBidRows() : [];
     }
 
-    function shouldUsePayload() {
-        return Boolean(state.loadedAt);
-    }
-
     function dispatchMarketplaceEvent(name, detail = {}) {
         window.dispatchEvent(new CustomEvent(name, {
             detail: {
@@ -113,8 +118,8 @@
     }
 
     async function refreshProcurexMarketplaceData(options = {}) {
-        const requestId = state.requestId + 1;
-        state.requestId = requestId;
+        const requestId = latestRequestId + 1;
+        latestRequestId = requestId;
         state.loading = true;
         state.error = null;
         dispatchMarketplaceEvent('procurex:marketplace-loading', { requestId });
@@ -133,37 +138,37 @@
                 throw new Error(`Marketplace request failed with status ${response.status}.`);
             }
 
-            const payload = sanitizeMarketplacePayload(await response.json());
-            if (state.requestId !== requestId) return state;
+            const payload = await response.json();
+            if (latestRequestId !== requestId) return state;
 
-            state.payload = payload;
+            applyMarketplacePayload(payload);
+            hasBackendData = true;
             state.loading = false;
             state.error = null;
-            state.loadedAt = new Date().toISOString();
-            dispatchMarketplaceEvent('procurex:marketplace-data', { requestId, payload });
+            dispatchMarketplaceEvent('procurex:marketplace-data', { requestId, payload, state });
             rerenderMarketplacePage();
             return state;
         } catch (error) {
-            if (state.requestId !== requestId) return state;
+            if (latestRequestId !== requestId) return state;
 
             state.loading = false;
             state.error = error instanceof Error ? error.message : 'Unable to load marketplace data.';
-            dispatchMarketplaceEvent('procurex:marketplace-error', { requestId, error: state.error });
+            dispatchMarketplaceEvent('procurex:marketplace-error', { requestId, error: state.error, state });
             rerenderMarketplacePage();
             return state;
         }
     }
 
     function getProcurexMarketplaceTenders() {
-        return shouldUsePayload() ? state.payload.tenders : fallbackMarketplaceTenders();
+        return hasBackendData ? state.marketplaceTenders : fallbackMarketplaceTenders();
     }
 
     function getProcurexMyTenderRows() {
-        return shouldUsePayload() ? state.payload.myTenders : fallbackMyTenderRowsValue();
+        return hasBackendData ? state.myTenderRows : fallbackMyTenderRowsValue();
     }
 
     function getProcurexMyBidRows() {
-        return shouldUsePayload() ? state.payload.myBids : fallbackMyBidRowsValue();
+        return hasBackendData ? state.myBidRows : fallbackMyBidRowsValue();
     }
 
     function isProcurexTenderOwnedByCurrentUser(tender = {}) {
@@ -173,11 +178,16 @@
         return typeof fallbackTenderOwnership === 'function' ? fallbackTenderOwnership(tender) : false;
     }
 
+    function getProcurexCurrentAccount() {
+        return typeof fallbackGetCurrentAccount === 'function' ? fallbackGetCurrentAccount() || {} : {};
+    }
+
     window.refreshProcurexMarketplaceData = refreshProcurexMarketplaceData;
     window.getProcurexMarketplaceTenders = getProcurexMarketplaceTenders;
     window.getProcurexMyTenderRows = getProcurexMyTenderRows;
     window.getProcurexMyBidRows = getProcurexMyBidRows;
     window.isProcurexTenderOwnedByCurrentUser = isProcurexTenderOwnedByCurrentUser;
+    window.getProcurexCurrentAccount = getProcurexCurrentAccount;
 
     document.addEventListener('DOMContentLoaded', () => {
         refreshProcurexMarketplaceData();

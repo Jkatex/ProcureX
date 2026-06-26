@@ -1,8 +1,15 @@
 import { TenderStatus, TenderType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleService } from './service.js';
-import { createTenderBodySchema, marketplaceQuerySchema, planLineBodySchema, planningQuerySchema, saveAnnualPlanBodySchema } from './validators.js';
-import type { CreateTenderInput, ProcurementPlanningQuery } from './types.js';
+import {
+  createTenderBodySchema,
+  marketplaceQuerySchema,
+  planLineBodySchema,
+  planningQuerySchema,
+  saveAnnualPlanBodySchema,
+  updateTenderBodySchema
+} from './validators.js';
+import type { CreateTenderInput, MarketplaceQuery, ProcurementPlanningQuery, UpdateTenderInput } from './types.js';
 
 function createServiceWithRepository(repositoryData: any) {
   return new ModuleService({
@@ -123,6 +130,8 @@ describe('procurement planning service', () => {
 
     expect(() => marketplaceQuerySchema.parse({ budgetBand: 'large' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ sort: 'random' })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ page: '0' })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ limit: '101' })).toThrow();
   });
 
   it('normalizes planning query defaults', () => {
@@ -244,6 +253,37 @@ describe('procurement planning service', () => {
       totalPages: 1
     });
   });
+
+  it('returns an empty marketplace contract when the database is unavailable', async () => {
+    const query: MarketplaceQuery = {
+      search: '',
+      type: '',
+      budgetBand: '',
+      status: '',
+      sort: 'deadline',
+      page: 1,
+      limit: 20
+    };
+    const service = new ModuleService({
+      getMarketplaceData: async () => {
+        throw new Error("Can't reach database server");
+      }
+    } as any);
+
+    await expect(service.marketplace(undefined, query)).resolves.toEqual({
+      tenders: [],
+      myTenders: [],
+      myBids: [],
+      summary: {
+        openTenders: 0,
+        myTenders: 0,
+        myBids: 0,
+        totalBudgetValue: 0,
+        categoryCounts: [],
+        closingSoon: 0
+      }
+    });
+  });
 });
 
 describe('procurement tender write service', () => {
@@ -254,7 +294,7 @@ describe('procurement tender write service', () => {
     budget: 250000000,
     currency: 'TZS',
     location: 'Dar es Salaam',
-    closingDate: '2026-08-30',
+    closingDate: '2099-08-30',
     categories: ['Health', 'Equipment'],
     requirements: {},
     metadata: {}
@@ -269,14 +309,30 @@ describe('procurement tender write service', () => {
         budget: '120000000',
         currency: 'tzs',
         location: 'Dodoma',
-        closingDate: '2026-08-30',
-        categories: [' Services ']
+        closingDate: '2099-08-30',
+        category: ' Consulting ',
+        categories: [' Services ', 'consulting']
       })
     ).toMatchObject({
       type: TenderType.SERVICE,
       budget: 120000000,
       currency: 'TZS',
-      categories: ['Services']
+      categories: ['Consulting', 'Services']
+    });
+
+    expect(
+      createTenderBodySchema.parse({
+        title: 'Works draft tender',
+        type: 'Works',
+        description: 'Routine road maintenance works',
+        location: 'Dodoma'
+      })
+    ).toMatchObject({
+      type: TenderType.WORKS,
+      currency: 'TZS',
+      categories: [],
+      requirements: {},
+      metadata: {}
     });
 
     expect(() =>
@@ -285,10 +341,57 @@ describe('procurement tender write service', () => {
         type: 'Lease'
       })
     ).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, title: 'Bad' })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, budget: 0 })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, closingDate: '2020-08-30' })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, metadata: [] })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, buyerOrgId: 'org-2' })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, ownerUserId: 'user-2' })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, status: 'OPEN' })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, visibility: 'PUBLIC_MARKETPLACE' })).toThrow();
+  });
+
+  it('validates draft tender update payloads', () => {
+    expect(
+      updateTenderBodySchema.parse({
+        title: 'Updated tender title',
+        type: 'Non Consultancy',
+        budget: '275000000',
+        currency: 'tzs',
+        closingDate: '2099-09-30',
+        category: ' Health ',
+        categories: ['Equipment', 'health'],
+        metadata: { source: 'buyer-workspace' }
+      })
+    ).toMatchObject({
+      title: 'Updated tender title',
+      type: TenderType.SERVICE,
+      budget: 275000000,
+      currency: 'TZS',
+      closingDate: '2099-09-30',
+      categories: ['Health', 'Equipment'],
+      metadata: { source: 'buyer-workspace' }
+    });
+
+    expect(updateTenderBodySchema.parse({ location: 'Dodoma' })).toEqual({ location: 'Dodoma' });
+    expect(() => updateTenderBodySchema.parse({})).toThrow();
+    expect(() => updateTenderBodySchema.parse({ title: 'Bad' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ budget: 0 })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ closingDate: '2020-08-30' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ type: 'Lease' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ metadata: [] })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ buyerOrgId: 'org-2' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ ownerUserId: 'user-2' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ reference: 'PX-NEW' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ createdAt: '2026-01-01T00:00:00.000Z' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ status: 'OPEN' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ visibility: 'PUBLIC_MARKETPLACE' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ bids: [] })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ bidSummary: {} })).toThrow();
   });
 
   it('creates draft tenders for the authenticated organization', async () => {
-    const createdTender = { id: 'tender-1' };
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-1' } };
     const repository = {
       createTender: vi.fn().mockResolvedValue(createdTender)
     };
@@ -315,6 +418,39 @@ describe('procurement tender write service', () => {
     });
   });
 
+  it('updates draft tenders for the authenticated organization', async () => {
+    const updateInput: UpdateTenderInput = {
+      title: 'Updated tender title',
+      type: TenderType.GOODS,
+      categories: ['Health']
+    };
+    const updatedTender = { success: true, message: 'Tender updated successfully', data: { id: 'tender-1' } };
+    const repository = {
+      updateTender: vi.fn().mockResolvedValue(updatedTender)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.updateTender('tender-1', 'token-1', updateInput)).resolves.toBe(updatedTender);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.updateTender).toHaveBeenCalledWith('tender-1', updateInput, { organizationId: 'org-1', userId: 'user-1' });
+  });
+
+  it('requires organization context before tender updates', async () => {
+    const service = new ModuleService({} as any, {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1' } })
+    } as any);
+
+    await expect(service.updateTender('tender-1', 'token-1', { title: 'Updated title' })).rejects.toMatchObject({
+      status: 409,
+      message: 'An organization profile is required.'
+    });
+  });
+
   it('publishes owner organization tenders only when the draft is complete', async () => {
     const tender = {
       id: 'tender-1',
@@ -325,9 +461,22 @@ describe('procurement tender write service', () => {
       budget: 250000000,
       status: TenderStatus.DRAFT,
       location: 'Dar es Salaam',
-      closingDate: new Date(Date.now() + 86400000)
+      closingDate: new Date(Date.now() + 86400000),
+      requirements: { technical: true }
     };
-    const publishedTender = { id: 'tender-1', status: 'Open' };
+    const publishedTender = {
+      success: true,
+      message: 'Tender published successfully',
+      data: {
+        id: 'tender-1',
+        reference: 'PX-GDS-2026-001',
+        title: 'Supply of laboratory equipment',
+        status: 'Open',
+        visibility: 'PUBLIC_MARKETPLACE',
+        publishedAt: '2026-07-01T08:00:00.000Z',
+        closingDate: '2099-08-30'
+      }
+    };
     const repository = {
       getTenderForPublication: vi.fn().mockResolvedValue(tender),
       publishTender: vi.fn().mockResolvedValue(publishedTender)
@@ -354,7 +503,8 @@ describe('procurement tender write service', () => {
         budget: 1,
         status: TenderStatus.DRAFT,
         location: 'Dar es Salaam',
-        closingDate: new Date(Date.now() + 86400000)
+        closingDate: new Date(Date.now() + 86400000),
+        requirements: { technical: true }
       }),
       publishTender: vi.fn()
     };
@@ -375,7 +525,8 @@ describe('procurement tender write service', () => {
       budget: 1,
       status: TenderStatus.DRAFT,
       location: 'Dar es Salaam',
-      closingDate: new Date(Date.now() + 86400000)
+      closingDate: new Date(Date.now() + 86400000),
+      requirements: { technical: true }
     };
     const identity = {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
@@ -383,10 +534,18 @@ describe('procurement tender write service', () => {
 
     for (const tender of [
       { ...baseTender, status: TenderStatus.OPEN },
+      { ...baseTender, status: TenderStatus.PUBLISHED },
+      { ...baseTender, status: TenderStatus.CLOSED },
+      { ...baseTender, status: TenderStatus.EVALUATION },
+      { ...baseTender, status: TenderStatus.AWARDED },
+      { ...baseTender, status: TenderStatus.CANCELLED },
+      { ...baseTender, title: '' },
       { ...baseTender, description: '' },
       { ...baseTender, budget: 0 },
       { ...baseTender, location: '' },
-      { ...baseTender, closingDate: new Date(Date.now() - 86400000) }
+      { ...baseTender, closingDate: null },
+      { ...baseTender, closingDate: new Date(Date.now() - 86400000) },
+      { ...baseTender, requirements: {} }
     ]) {
       const service = new ModuleService(
         {
@@ -397,6 +556,103 @@ describe('procurement tender write service', () => {
       );
 
       await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({ status: expect.any(Number) });
+    }
+  });
+
+  it('closes open tenders for the authenticated owner organization', async () => {
+    const closedTender = {
+      success: true,
+      message: 'Tender closed successfully',
+      data: {
+        id: 'tender-1',
+        reference: 'PX-GDS-2026-001',
+        title: 'Supply of laboratory equipment',
+        status: 'Closed',
+        closingDate: '2099-09-30',
+        updatedAt: '2026-06-26T09:00:00.000Z'
+      }
+    };
+    const repository = {
+      getTenderForClose: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        status: TenderStatus.OPEN
+      }),
+      closeTender: vi.fn().mockResolvedValue(closedTender)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.closeTender('tender-1', 'token-1')).resolves.toBe(closedTender);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.closeTender).toHaveBeenCalledWith('tender-1', 'org-1');
+  });
+
+  it('requires organization context before closing tenders', async () => {
+    const service = new ModuleService({} as any, {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1' } })
+    } as any);
+
+    await expect(service.closeTender('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'An organization profile is required.'
+    });
+  });
+
+  it('rejects close attempts from another organization', async () => {
+    const repository = {
+      getTenderForClose: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-2',
+        status: TenderStatus.OPEN
+      }),
+      closeTender: vi.fn()
+    };
+    const service = new ModuleService(repository as any, {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.closeTender('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 403,
+      message: 'Only the owner organization can close this tender.'
+    });
+    expect(repository.closeTender).not.toHaveBeenCalled();
+  });
+
+  it('rejects close attempts for missing or non-open tenders', async () => {
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    };
+
+    const missingService = new ModuleService(
+      {
+        getTenderForClose: vi.fn().mockResolvedValue(null),
+        closeTender: vi.fn()
+      } as any,
+      identity as any
+    );
+    await expect(missingService.closeTender('missing-tender', 'token-1')).rejects.toMatchObject({ status: 404 });
+
+    for (const status of [TenderStatus.DRAFT, TenderStatus.REVIEW, TenderStatus.CANCELLED, TenderStatus.AWARDED, TenderStatus.EVALUATION, TenderStatus.CLOSED]) {
+      const repository = {
+        getTenderForClose: vi.fn().mockResolvedValue({
+          id: 'tender-1',
+          buyerOrgId: 'org-1',
+          status
+        }),
+        closeTender: vi.fn()
+      };
+      const service = new ModuleService(repository as any, identity as any);
+
+      await expect(service.closeTender('tender-1', 'token-1')).rejects.toMatchObject({
+        status: 409,
+        message: 'Only open or published tenders can be closed.'
+      });
+      expect(repository.closeTender).not.toHaveBeenCalled();
     }
   });
 });

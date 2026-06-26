@@ -2,11 +2,14 @@ import { TenderStatus } from '@prisma/client';
 import { ModuleRepository } from './repository.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import {
+  type CloseTenderResponseDto,
   type CreateTenderInput,
+  type CreateTenderResponseDto,
   moduleDefinition,
   type MarketplaceQuery,
   type ProcurementMarketplacePayload,
   type ModuleStatus,
+  type PublishTenderResponseDto,
   type ProcurementPlanDto,
   type ProcurementPlanLineDto,
   type ProcurementPlanLineInput,
@@ -17,6 +20,8 @@ import {
   type PublicWelcomeTender,
   type SaveAnnualPlanInput,
   type TenderDetailDto,
+  type UpdateTenderInput,
+  type UpdateTenderResponseDto,
   type UpdateProcurementPlanInput
 } from './types.js';
 
@@ -64,13 +69,19 @@ export class ModuleService {
     return this.repository.getTenderDetail(tenderId, context);
   }
 
-  async createTender(token: string | undefined, input: CreateTenderInput): Promise<TenderDetailDto> {
+  async createTender(token: string | undefined, input: CreateTenderInput): Promise<CreateTenderResponseDto> {
     const session = await this.identity.requirePermission(token, 'procurement.create');
     const organizationId = requireOrganization(session.user.organizationId);
     return this.repository.createTender(input, { organizationId, userId: session.user.id });
   }
 
-  async publishTender(tenderId: string, token: string | undefined): Promise<TenderDetailDto> {
+  async updateTender(tenderId: string, token: string | undefined, input: UpdateTenderInput): Promise<UpdateTenderResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.updateTender(tenderId, input, { organizationId, userId: session.user.id });
+  }
+
+  async publishTender(tenderId: string, token: string | undefined): Promise<PublishTenderResponseDto> {
     const session = await this.identity.requirePermission(token, 'procurement.publish');
     const organizationId = requireOrganization(session.user.organizationId);
     const tender = await this.repository.getTenderForPublication(tenderId);
@@ -80,6 +91,18 @@ export class ModuleService {
     const published = await this.repository.publishTender(tenderId, organizationId);
     if (!published) throw requestError('Tender was not found.', 404);
     return published;
+  }
+
+  async closeTender(tenderId: string, token: string | undefined): Promise<CloseTenderResponseDto> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    const tender = await this.repository.getTenderForClose(tenderId);
+    if (!tender) throw requestError('Tender was not found.', 404);
+    if (tender.buyerOrgId !== organizationId) throw requestError('Only the owner organization can close this tender.', 403);
+    assertTenderClosable(tender);
+    const closed = await this.repository.closeTender(tenderId, organizationId);
+    if (!closed) throw requestError('Tender was not found.', 404);
+    return closed;
   }
 
   async planning(query: ProcurementPlanningQuery): Promise<ProcurementPlanningListDto> {
@@ -221,18 +244,12 @@ function emptyMarketplace(query: MarketplaceQuery): ProcurementMarketplacePayloa
     myTenders: [],
     myBids: [],
     summary: {
-      total: 0,
-      matching: 0,
-      page: query.page,
-      limit: query.limit,
-      totalPages: 1,
-      openCount: 0,
-      myTenderCount: 0,
-      myBidCount: 0,
-      totalBudget: 0,
-      byStatus: [],
-      byType: [],
-      byCategory: []
+      openTenders: 0,
+      myTenders: 0,
+      myBids: 0,
+      totalBudgetValue: 0,
+      categoryCounts: [],
+      closingSoon: 0
     }
   };
 }
@@ -250,6 +267,7 @@ function assertTenderPublishable(tender: {
   status: TenderStatus;
   location: string | null;
   closingDate: Date | null;
+  requirements: unknown;
 }) {
   if (tender.status !== TenderStatus.DRAFT && tender.status !== TenderStatus.REVIEW) {
     throw requestError('Only draft or review tenders can be published.', 409);
@@ -261,6 +279,17 @@ function assertTenderPublishable(tender: {
   if (!tender.location?.trim()) throw requestError('Tender location is required before publishing.', 400);
   if (!tender.closingDate) throw requestError('Tender closing date is required before publishing.', 400);
   if (tender.closingDate.getTime() <= Date.now()) throw requestError('Tender closing date must be in the future.', 400);
+  if (!hasRequirements(tender.requirements)) throw requestError('Tender requirements are required before publishing.', 400);
+}
+
+function assertTenderClosable(tender: { status: TenderStatus }) {
+  if (tender.status !== TenderStatus.OPEN && tender.status !== TenderStatus.PUBLISHED) {
+    throw requestError('Only open or published tenders can be closed.', 409);
+  }
+}
+
+function hasRequirements(value: unknown) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0);
 }
 
 function emptyPlanningList(query: ProcurementPlanningQuery): ProcurementPlanningListDto {

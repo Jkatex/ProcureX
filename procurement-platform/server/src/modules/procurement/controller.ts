@@ -12,6 +12,7 @@ import {
   publicWelcomeQuerySchema,
   saveAnnualPlanBodySchema,
   tenderParamsSchema,
+  updateTenderBodySchema,
   updatePlanBodySchema
 } from './validators.js';
 
@@ -62,6 +63,20 @@ export class ModuleController {
     }
   };
 
+  updateTender: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid tender id.');
+      const body = updateTenderBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid tender update payload.');
+      const tender = await this.service.updateTender(params.data.tenderId, bearerToken(req), body.data);
+      if (!tender) throw requestError('Tender was not found.', 404);
+      res.json(tender);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getTenderDetail: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderParamsSchema.safeParse(req.params);
@@ -79,6 +94,16 @@ export class ModuleController {
       const params = tenderParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid tender id.');
       res.json(await this.service.publishTender(params.data.tenderId, bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  closeTender: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid tender id.');
+      res.json(await this.service.closeTender(params.data.tenderId, bearerToken(req)));
     } catch (error) {
       next(error);
     }

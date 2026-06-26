@@ -112,35 +112,94 @@ export const tenderParamsSchema = z
   .strict();
 
 const tenderTypeInputSchema = z.preprocess((value) => normalizedTenderType(value), z.nativeEnum(TenderType));
-const requiredDateSchema = z
+const draftClosingDateSchema = z
   .string()
   .trim()
   .min(1)
   .max(40)
   .refine((value) => Number.isFinite(Date.parse(value)), {
     message: 'Date must be parseable.'
+  })
+  .refine((value) => new Date(value).getTime() > Date.now(), {
+    message: 'Closing date must be in the future.'
   });
+const categoryInputSchema = z.string().trim().min(1).max(120);
 
 export const createTenderBodySchema = z
   .object({
-    title: z.string().trim().min(1).max(220),
+    title: z.string().trim().min(5).max(220),
     type: tenderTypeInputSchema,
     description: z.string().trim().min(1).max(5000),
-    budget: z.coerce.number().positive().max(999999999999999.99),
+    budget: z.coerce.number().positive().max(999999999999999.99).optional(),
     currency: z
       .string()
       .trim()
       .min(3)
       .max(8)
+      .optional()
+      .default('TZS')
       .transform((value) => value.toUpperCase()),
     location: z.string().trim().min(1).max(180),
-    closingDate: requiredDateSchema,
-    categories: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
+    closingDate: draftClosingDateSchema.optional(),
+    categories: z.array(categoryInputSchema).max(20).optional().default([]),
+    category: categoryInputSchema.optional(),
     requirements: metadataSchema,
     metadata: metadataSchema,
     reference: z.string().trim().min(1).max(80).optional()
   })
-  .strict();
+  .strict()
+  .transform(({ category, categories, ...input }) => {
+    const combinedCategories = [...(category ? [category] : []), ...categories];
+    const seen = new Set<string>();
+    return {
+      ...input,
+      categories: combinedCategories.filter((item) => {
+        const key = item.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+    };
+  });
+
+export const updateTenderBodySchema = z
+  .object({
+    title: z.string().trim().min(5).max(220).optional(),
+    type: tenderTypeInputSchema.optional(),
+    description: z.string().trim().min(1).max(5000).optional(),
+    budget: z.coerce.number().positive().max(999999999999999.99).optional(),
+    currency: z
+      .string()
+      .trim()
+      .min(3)
+      .max(8)
+      .optional()
+      .transform((value) => value?.toUpperCase()),
+    location: z.string().trim().min(1).max(180).optional(),
+    closingDate: draftClosingDateSchema.optional(),
+    categories: z.array(categoryInputSchema).max(20).optional(),
+    category: categoryInputSchema.optional(),
+    requirements: metadataSchema.optional(),
+    metadata: metadataSchema.optional()
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'At least one editable field is required.'
+  })
+  .transform(({ category, categories, ...input }) => {
+    if (category === undefined && categories === undefined) return input;
+    const combinedCategories = [...(category ? [category] : []), ...(categories ?? [])];
+    const seen = new Set<string>();
+    return {
+      ...input,
+      categories: combinedCategories.filter((item) => {
+        const key = item.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+    };
+  });
 
 const planLineFieldsSchema = z
   .object({

@@ -175,6 +175,7 @@ export type MarketplaceTenderRow = {
   publishedAt: string;
   closingDate: string;
   createdByCurrentUser: boolean;
+  isSaved: boolean;
 };
 
 export type MyTenderRow = {
@@ -183,7 +184,7 @@ export type MyTenderRow = {
   section: 'draft' | 'posted' | 'completed';
   status: string;
   type: string;
-  tender?: MarketplaceTenderRow;
+  tender: MarketplaceTenderRow;
   lastActivity: string;
   actionLabel: string;
   nav: string;
@@ -223,29 +224,88 @@ export type CreateTenderInput = {
   title: string;
   type: TenderType;
   description: string;
-  budget: number;
+  budget?: number;
   currency: string;
   location: string;
-  closingDate: string;
+  closingDate?: string;
   categories: string[];
   requirements: Record<string, unknown>;
   metadata: Record<string, unknown>;
   reference?: string;
 };
 
+export type UpdateTenderInput = {
+  title?: string;
+  type?: TenderType;
+  description?: string;
+  budget?: number;
+  currency?: string;
+  location?: string;
+  closingDate?: string;
+  categories?: string[];
+  requirements?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export type CreateTenderResponseDto = {
+  success: true;
+  message: 'Tender draft created successfully';
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    type: string;
+    createdAt: string;
+  };
+};
+
+export type UpdateTenderResponseDto = {
+  success: true;
+  message: 'Tender updated successfully';
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    updatedAt: string;
+  };
+};
+
+export type PublishTenderResponseDto = {
+  success: true;
+  message: 'Tender published successfully';
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    visibility: string;
+    publishedAt: string;
+    closingDate: string;
+  };
+};
+
+export type CloseTenderResponseDto = {
+  success: true;
+  message: 'Tender closed successfully';
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    closingDate: string;
+    updatedAt: string;
+  };
+};
+
 export type ProcurementMarketplaceSummary = {
-  total: number;
-  matching: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  openCount: number;
-  myTenderCount: number;
-  myBidCount: number;
-  totalBudget: number;
-  byStatus: PlanningBreakdownDto[];
-  byType: PlanningBreakdownDto[];
-  byCategory: PlanningBreakdownDto[];
+  openTenders: number;
+  myTenders: number;
+  myBids: number;
+  totalBudgetValue: number;
+  categoryCounts: PlanningBreakdownDto[];
+  closingSoon: number;
 };
 
 export type ProcurementMarketplacePayload = {
@@ -255,36 +315,26 @@ export type ProcurementMarketplacePayload = {
   summary: ProcurementMarketplaceSummary;
 };
 
-export type TenderDetailDto = MarketplaceTenderRow & {
-  buyerOrgId: string;
-  ownerUserId: string | null;
-  method: string;
+export type TenderDetailDto = {
+  id: string;
+  title: string;
+  reference: string;
+  organization: string;
+  ownerOrganization: string;
+  type: string;
+  category: string;
+  description: string;
+  location: string;
+  budget: number;
+  currency: string;
+  status: string;
   visibility: string;
   publishedAt: string;
+  closingDate: string;
   requirements: Record<string, unknown>;
-  requirementRows: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
-  milestones: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
-  commercialItems: Array<{
-    id: string;
-    itemNo: string | null;
-    description: string;
-    quantity: number;
-    unit: string | null;
-    rate: number;
-    total: number;
-    payload: Record<string, unknown>;
-  }>;
   documents: Array<{ id: string; name: string; documentType: string; label: string | null }>;
-  bidSummary: {
-    total: number;
-    draft: number;
-    submitted: number;
-    withdrawn: number;
-  };
-  currentBid: {
-    id: string;
-    status: string;
-    submittedAt: string | null;
-    receiptHash: string | null;
-  } | null;
+  createdByCurrentUser: boolean;
+  canBid: boolean;
+  hasDraftBid: boolean;
+  hasSubmittedBid: boolean;
 };
