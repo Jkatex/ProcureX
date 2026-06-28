@@ -188,6 +188,7 @@ export class ModuleRepository {
 
     const sortedTenders = sortMarketplaceTenders(matchingTenders, query.sort);
     const pagedTenders = sortedTenders.slice((query.page - 1) * query.limit, query.page * query.limit);
+    const pagination = marketplacePagination(sortedTenders.length, query);
     const savedTenderIds = new Set(savedTenderRecords.map((record) => record.tenderId));
     const rows = pagedTenders.map((tender) => toMarketplaceTenderRow(tender, context.organizationId, savedTenderIds));
     const myTenders = myTenderRecords.map((tender) => toMyTenderRow(tender, context.organizationId, savedTenderIds));
@@ -197,7 +198,8 @@ export class ModuleRepository {
       tenders: rows,
       myTenders,
       myBids,
-      summary: marketplaceSummary(sortedTenders, myTenders, myBids)
+      summary: marketplaceSummary(sortedTenders, myTenders, myBids),
+      pagination
     };
   }
 
@@ -881,6 +883,18 @@ function marketplaceSummary(tenders: MarketplaceTenderRecord[], myTenders: MyTen
     totalBudgetValue: rows.reduce((sum, row) => sum + row.budget, 0),
     categoryCounts: groupCount(rows, (row) => row.category),
     closingSoon: closingSoonCount(rows)
+  };
+}
+
+function marketplacePagination(matching: number, query: MarketplaceQuery) {
+  const totalPages = Math.ceil(matching / query.limit);
+  return {
+    page: query.page,
+    limit: query.limit,
+    matching,
+    totalPages,
+    hasNextPage: query.page < totalPages,
+    hasPreviousPage: query.page > 1 && totalPages > 0
   };
 }
 

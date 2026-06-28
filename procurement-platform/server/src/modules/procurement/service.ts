@@ -256,7 +256,7 @@ const defaultMarketplaceQuery: MarketplaceQuery = {
   status: '',
   sort: 'deadline',
   page: 1,
-  limit: 50
+  limit: 20
 };
 
 function emptyMarketplace(query: MarketplaceQuery): ProcurementMarketplacePayload {
@@ -271,6 +271,14 @@ function emptyMarketplace(query: MarketplaceQuery): ProcurementMarketplacePayloa
       totalBudgetValue: 0,
       categoryCounts: [],
       closingSoon: 0
+    },
+    pagination: {
+      page: query.page,
+      limit: query.limit,
+      matching: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false
     }
   };
 }

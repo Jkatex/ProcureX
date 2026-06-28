@@ -196,6 +196,14 @@ describe('procurement marketplace repository', () => {
       totalBudgetValue: 250000000,
       closingSoon: 0
     });
+    expect(payload.pagination).toEqual({
+      page: 1,
+      limit: 20,
+      matching: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false
+    });
     expect(payload.summary.categoryCounts).toEqual([{ label: 'Health / Goods', value: 1, amount: 250000000 }]);
     expect(db.tender.findMany).toHaveBeenNthCalledWith(
       1,
@@ -275,6 +283,14 @@ describe('procurement marketplace repository', () => {
       totalBudgetValue: 2000000000,
       closingSoon: 0
     });
+    expect(payload.pagination).toEqual({
+      page: 2,
+      limit: 1,
+      matching: 3,
+      totalPages: 3,
+      hasNextPage: true,
+      hasPreviousPage: true
+    });
     expect(Object.keys(payload.summary).sort()).toEqual(
       ['categoryCounts', 'closingSoon', 'myBids', 'myTenders', 'openTenders', 'totalBudgetValue'].sort()
     );
@@ -329,6 +345,14 @@ describe('procurement marketplace repository', () => {
     expect(payload.tenders).toMatchObject([{ id: 'tender-1', status: 'Open', createdByCurrentUser: false, isSaved: false }]);
     expect(payload.myTenders).toEqual([]);
     expect(payload.myBids).toEqual([]);
+    expect(payload.pagination).toEqual({
+      page: 1,
+      limit: 20,
+      matching: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false
+    });
     expect(db.tender.findMany).toHaveBeenCalledTimes(1);
     expect(db.tender.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

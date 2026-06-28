@@ -322,11 +322,21 @@ export type ProcurementMarketplaceSummary = {
   closingSoon: number;
 };
 
+export type MarketplacePaginationDto = {
+  page: number;
+  limit: number;
+  matching: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
 export type ProcurementMarketplacePayload = {
   tenders: MarketplaceTenderRow[];
   myTenders: MyTenderRow[];
   myBids: MyBidRow[];
   summary: ProcurementMarketplaceSummary;
+  pagination: MarketplacePaginationDto;
 };
 
 export type TenderDetailDto = {

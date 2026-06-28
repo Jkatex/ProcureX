@@ -285,6 +285,14 @@ describe('procurement planning service', () => {
         totalBudgetValue: 0,
         categoryCounts: [],
         closingSoon: 0
+      },
+      pagination: {
+        page: 1,
+        limit: 20,
+        matching: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false
       }
     });
   });
