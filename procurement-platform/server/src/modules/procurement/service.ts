@@ -182,7 +182,7 @@ export class ModuleService {
     if (!token) return {};
     try {
       const session = await this.identity.requireSession(token);
-      return { organizationId: session.user.organizationId };
+      return { organizationId: session.user.organizationId, userId: session.user.id };
     } catch {
       return {};
     }

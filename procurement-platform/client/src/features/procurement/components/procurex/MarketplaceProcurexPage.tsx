@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { demoUsers } from '@/shared/data/fixtures';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
+import { procurementApi } from '../../api';
 import { useMarketplaceData } from '../../hooks';
 import type { MarketplaceTenderRow } from '../../types';
 import {
@@ -49,6 +50,8 @@ export function MarketplaceProcurexPage() {
   const { data, isLoading, isError } = useMarketplaceData();
   const [filters, setFilters] = useState<MarketplaceFiltersState>(emptyFilters);
   const [savedTenderIds, setSavedTenderIds] = useState<Set<string>>(() => new Set());
+  const [savingTenderIds, setSavingTenderIds] = useState<Set<string>>(() => new Set());
+  const [saveError, setSaveError] = useState('');
   const activeTab = getActiveTab(location.pathname);
   const organization = user?.organization || demoUsers.user.organization;
   const canCreateTender = !user || user.capabilities.includes('BUYER');
@@ -66,13 +69,41 @@ export function MarketplaceProcurexPage() {
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
-  function toggleSaved(tenderId: string) {
+  useEffect(() => {
+    const savedIds = new Set((data?.tenders ?? []).filter((tender) => tender.isSaved).map((tender) => tender.id));
+    setSavedTenderIds(savedIds);
+  }, [data?.tenders]);
+
+  async function toggleSaved(tender: MarketplaceTenderRow) {
+    const tenderId = tender.id;
+    const wasSaved = savedTenderIds.has(tenderId);
+    setSaveError('');
     setSavedTenderIds((current) => {
       const next = new Set(current);
-      if (next.has(tenderId)) next.delete(tenderId);
+      if (wasSaved) next.delete(tenderId);
       else next.add(tenderId);
       return next;
     });
+    setSavingTenderIds((current) => new Set(current).add(tenderId));
+
+    try {
+      if (wasSaved) await procurementApi.unsaveTender(tenderId);
+      else await procurementApi.saveTender(tenderId);
+    } catch {
+      setSavedTenderIds((current) => {
+        const next = new Set(current);
+        if (wasSaved) next.add(tenderId);
+        else next.delete(tenderId);
+        return next;
+      });
+      setSaveError('Saved tender status could not be updated. Sign in and try again.');
+    } finally {
+      setSavingTenderIds((current) => {
+        const next = new Set(current);
+        next.delete(tenderId);
+        return next;
+      });
+    }
   }
 
   return (
@@ -83,6 +114,7 @@ export function MarketplaceProcurexPage() {
 
           {isLoading ? <div className="scope-empty">Loading marketplace...</div> : null}
           {isError ? <div className="scope-empty">Marketplace data could not be loaded. Try refreshing the page.</div> : null}
+          {saveError ? <div className="scope-empty">{saveError}</div> : null}
 
           {data ? (
             <>
@@ -106,7 +138,12 @@ export function MarketplaceProcurexPage() {
                         onSortChange={(value) => updateFilter('sort', value)}
                       />
                       <MarketplaceCategoryGrid tenders={data.tenders} onSelectType={(value) => updateFilter('type', value)} />
-                      <TenderListPanel tenders={visibleTenders} savedTenderIds={savedTenderIds} onToggleSaved={toggleSaved} />
+                      <TenderListPanel
+                        tenders={visibleTenders}
+                        savedTenderIds={savedTenderIds}
+                        savingTenderIds={savingTenderIds}
+                        onToggleSaved={toggleSaved}
+                      />
                     </section>
                   ) : null}
 

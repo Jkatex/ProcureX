@@ -430,9 +430,11 @@ export type CreateTenderSubmissionResult = {
 };
 
 export type MarketplaceTenderRow = Tender & {
-  saved?: boolean;
+  ownedByCurrentOrganization?: boolean;
+  canBid?: boolean;
   hasDraftBid?: boolean;
   hasSubmittedBid?: boolean;
+  isSaved?: boolean;
 };
 
 export type MyTenderRow = {
@@ -487,6 +489,7 @@ export type TenderDetail = MarketplaceTenderRow & {
     payload: Record<string, unknown>;
   }>;
   documents?: Array<{ id: string; name: string; documentType: string; label: string | null }>;
+  canBid?: boolean;
   bidSummary?: {
     total: number;
     draft: number;

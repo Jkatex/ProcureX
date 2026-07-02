@@ -5,25 +5,30 @@ import {
   AccountType,
   BidStatus,
   EnvelopeType,
+  EvaluationStage,
+  EvaluationStatus,
   OrganizationCapabilityName,
   OrganizationKind,
   ProcurementMethod,
+  RecommendationStatus,
   RiskLevel,
   TenderStatus,
   TenderType,
   TrustTier,
   VerificationStatus,
-  Visibility
+  Visibility,
+  WorkflowAssignmentType
 } from '@prisma/client';
 import { prisma } from '../src/db/prisma.js';
 import { withDbContext } from '../src/db/context.js';
 
 const scrypt = promisify(scryptCallback);
 
-const DATASET = 'marketplace-production-demo';
-const PREFIX = 'PX-MKT-DEMO';
+export const MARKETPLACE_DEMO_DATASET = 'marketplace-production-demo';
+export const MARKETPLACE_DEMO_PREFIX = 'PX-MKT-DEMO';
 const SUPPLIER_PASSWORD = 'Supplier123!';
 const BUYER_PASSWORD = 'Market123!';
+const HUUI_PASSWORD = '55566677';
 
 type AnyDb = Record<string, any>;
 type Actor = { org: any; user: any };
@@ -50,6 +55,17 @@ const actorSpecs = [
     capabilities: [OrganizationCapabilityName.BUYER],
     summary: 'Municipal buyer for works and facilities services marketplace scenarios.',
     profile: { regions: ['Dodoma', 'Mwanza'], focus: ['works', 'services'] }
+  },
+  {
+    key: 'huuiBuyer',
+    orgName: 'Huui Demo Buyer Authority',
+    email: 'huui@gmail.com',
+    displayName: 'Huui Buyer Demo',
+    title: 'Evaluation and awards owner',
+    password: HUUI_PASSWORD,
+    capabilities: [OrganizationCapabilityName.BUYER],
+    summary: 'Buyer account for evaluation and awarding mock tender testing.',
+    profile: { regions: ['Dar es Salaam'], focus: ['evaluation testing', 'award recommendation testing'] }
   },
   {
     key: 'ictSupplier',
@@ -110,13 +126,13 @@ function assertSafeEnvironment() {
 
 function demoPayload(extra: Record<string, unknown> = {}) {
   return {
-    demoDataset: DATASET,
+    demoDataset: MARKETPLACE_DEMO_DATASET,
     ...extra
   };
 }
 
 function ref(suffix: string) {
-  return `${PREFIX}-${suffix}`;
+  return `${MARKETPLACE_DEMO_PREFIX}-${suffix}`;
 }
 
 function daysFromNow(days: number, hour = 9) {
@@ -143,13 +159,13 @@ async function deleteIfIds(db: AnyDb, model: string, field: string, ids: string[
 
 async function resetMarketplaceRecords(db: AnyDb) {
   const tenders = await db.tender.findMany({
-    where: { reference: { startsWith: PREFIX } },
+    where: { reference: { startsWith: MARKETPLACE_DEMO_PREFIX } },
     select: { id: true }
   });
   const tenderIds = tenders.map((item: { id: string }) => item.id);
   const bids = await db.bid.findMany({
     where: {
-      OR: [{ reference: { startsWith: PREFIX } }, ...(tenderIds.length ? [{ tenderId: { in: tenderIds } }] : [])]
+      OR: [{ reference: { startsWith: MARKETPLACE_DEMO_PREFIX } }, ...(tenderIds.length ? [{ tenderId: { in: tenderIds } }] : [])]
     },
     select: { id: true }
   });
@@ -362,15 +378,18 @@ async function upsertBid(
     responses: Record<string, unknown>[];
   }
 ) {
+  const hasSubmittedEnvelope = input.status !== BidStatus.DRAFT;
+  const submittedByUserId = hasSubmittedEnvelope ? input.supplier.user.id : null;
+  const submittedAt = input.submittedAt ?? (hasSubmittedEnvelope ? daysFromNow(-5, 10) : null);
   const bid = await db.bid.upsert({
     where: { reference: input.reference },
     update: {
       tenderId: input.tender.id,
       buyerOrgId: input.tender.buyerOrgId,
       supplierOrgId: input.supplier.org.id,
-      submittedByUserId: input.status === BidStatus.SUBMITTED ? input.supplier.user.id : null,
+      submittedByUserId,
       status: input.status,
-      submittedAt: input.submittedAt ?? null,
+      submittedAt,
       totalAmount: input.totalAmount,
       currency: 'TZS',
       payload: demoPayload({
@@ -384,10 +403,10 @@ async function upsertBid(
       tenderId: input.tender.id,
       buyerOrgId: input.tender.buyerOrgId,
       supplierOrgId: input.supplier.org.id,
-      submittedByUserId: input.status === BidStatus.SUBMITTED ? input.supplier.user.id : null,
+      submittedByUserId,
       reference: input.reference,
       status: input.status,
-      submittedAt: input.submittedAt ?? null,
+      submittedAt,
       totalAmount: input.totalAmount,
       currency: 'TZS',
       payload: demoPayload({
@@ -408,8 +427,8 @@ async function upsertBid(
     }))
   });
 
-  if (input.status === BidStatus.SUBMITTED) {
-    const sealedHash = sha256(`${input.reference}:${input.totalAmount}:${input.submittedAt?.toISOString() ?? ''}`);
+  if (hasSubmittedEnvelope) {
+    const sealedHash = sha256(`${input.reference}:${input.totalAmount}:${submittedAt?.toISOString() ?? ''}`);
     await db.bidVersion.upsert({
       where: { bidId_versionNo_envelope: { bidId: bid.id, versionNo: 1, envelope: EnvelopeType.COMBINED } },
       update: { sealedHash, payload: demoPayload({ snapshot: 'Submitted marketplace demo bid' }) },
@@ -430,6 +449,115 @@ async function upsertBid(
   }
 
   return bid;
+}
+
+async function seedEvaluationWorkflow(
+  db: AnyDb,
+  input: {
+    key: string;
+    tender: any;
+    buyer: Actor;
+    evaluator: Actor;
+    bids: any[];
+    status: EvaluationStatus;
+    currentStage: EvaluationStage;
+    progress: number;
+    recommendation?: {
+      bid: any;
+      status: RecommendationStatus;
+      reason: string;
+    };
+  }
+) {
+  const workspace = await db.evaluationWorkspace.upsert({
+    where: { tenderId: input.tender.id },
+    update: {
+      buyerOrgId: input.buyer.org.id,
+      status: input.status,
+      currentStage: input.currentStage,
+      progress: input.progress,
+      payload: demoPayload({ workflow: input.key })
+    },
+    create: {
+      tenderId: input.tender.id,
+      buyerOrgId: input.buyer.org.id,
+      status: input.status,
+      currentStage: input.currentStage,
+      progress: input.progress,
+      payload: demoPayload({ workflow: input.key })
+    }
+  });
+
+  await db.awardRecommendation.deleteMany({ where: { workspaceId: workspace.id } });
+  await db.evaluationScore.deleteMany({ where: { workspaceId: workspace.id } });
+  await db.evaluationCriterion.deleteMany({ where: { workspaceId: workspace.id } });
+  await db.workflowAssignment.deleteMany({ where: { workspaceId: workspace.id } });
+
+  await db.workflowAssignment.createMany({
+    data: [
+      {
+        workspaceId: workspace.id,
+        userId: input.evaluator.user.id,
+        assignment: WorkflowAssignmentType.EVALUATOR,
+        status: 'ACTIVE',
+        payload: demoPayload({ workflow: input.key })
+      },
+      {
+        workspaceId: workspace.id,
+        userId: input.buyer.user.id,
+        assignment: WorkflowAssignmentType.APPROVER,
+        status: 'ACTIVE',
+        payload: demoPayload({ workflow: input.key })
+      }
+    ]
+  });
+
+  const criteria = await Promise.all(
+    [
+      { stage: EvaluationStage.TECHNICAL, name: 'Technical responsiveness', weight: 60, maxScore: 100 },
+      { stage: EvaluationStage.FINANCIAL, name: 'Financial competitiveness', weight: 40, maxScore: 100 }
+    ].map((criterion) =>
+      db.evaluationCriterion.create({
+        data: {
+          workspaceId: workspace.id,
+          ...criterion,
+          payload: demoPayload({ workflow: input.key })
+        }
+      })
+    )
+  );
+
+  const scores = input.bids.flatMap((bid, bidIndex) =>
+    criteria.map((criterion, criterionIndex) => ({
+      workspaceId: workspace.id,
+      criterionId: criterion.id,
+      bidId: bid.id,
+      evaluatorUserId: input.evaluator.user.id,
+      score: Math.max(68, 91 - bidIndex * 6 - criterionIndex * 3),
+      comment: 'Seeded score for Huui evaluation and award workflow testing.',
+      lockedAt: input.status === EvaluationStatus.COMPLETED ? daysFromNow(-3, 12) : null,
+      payload: demoPayload({ workflow: input.key })
+    }))
+  );
+  await db.evaluationScore.createMany({ data: scores });
+
+  if (input.recommendation) {
+    await db.awardRecommendation.create({
+      data: {
+        reference: ref(`AWD-${input.key}`),
+        workspaceId: workspace.id,
+        bidId: input.recommendation.bid.id,
+        supplierOrgId: input.recommendation.bid.supplierOrgId,
+        status: input.recommendation.status,
+        amount: input.recommendation.bid.totalAmount,
+        currency: input.recommendation.bid.currency,
+        reason: input.recommendation.reason,
+        payload: demoPayload({ workflow: input.key, tenderReference: input.tender.reference })
+      }
+    });
+  }
+
+  return workspace;
 }
 
 async function seedMarketplaceDemo() {
@@ -518,6 +646,42 @@ async function seedMarketplaceDemo() {
         publishedAt: daysFromNow(-5),
         categories: ['Consultancy', 'System Audit', 'Training'],
         requirements: { experts: ['CISA certified lead consultant', 'Training facilitator'], deliverables: ['Audit report', 'Training materials'] }
+      }),
+      huuiEvaluation: await upsertTender(db, {
+        reference: ref('HUUI-EVALUATION-ICT-SUPPORT'),
+        buyer: actors.huuiBuyer,
+        title: 'Evaluation mock tender for ICT support services',
+        description: 'Submitted ICT support bids ready for buyer-side technical and financial evaluation testing.',
+        type: TenderType.SERVICE,
+        status: TenderStatus.EVALUATION,
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        budget: 240000000,
+        location: 'Dar es Salaam',
+        closingDate: daysFromNow(-7),
+        publishedAt: daysFromNow(-45),
+        categories: ['ICT', 'Support Services', 'Evaluation'],
+        requirements: {
+          technical: ['Helpdesk coverage plan', 'Escalation matrix', 'Named service manager'],
+          financial: 'Monthly service fee and implementation cost breakdown'
+        }
+      }),
+      huuiAwarding: await upsertTender(db, {
+        reference: ref('HUUI-AWARDING-OFFICE-FITOUT'),
+        buyer: actors.huuiBuyer,
+        title: 'Awarding mock tender for office fit-out works',
+        description: 'Completed evaluation package with a recommended supplier ready for award review.',
+        type: TenderType.WORKS,
+        status: TenderStatus.EVALUATION,
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        budget: 520000000,
+        location: 'Dodoma',
+        closingDate: daysFromNow(-14),
+        publishedAt: daysFromNow(-60),
+        categories: ['Works', 'Office Fit Out', 'Award Recommendation'],
+        requirements: {
+          technical: ['Site method statement', 'Completion schedule', 'Health and safety plan'],
+          financial: 'Lump sum priced bill of quantities'
+        }
       }),
       draftIct: await upsertTender(db, {
         reference: ref('DRAFT-GOODS-NETWORK'),
@@ -615,6 +779,84 @@ async function seedMarketplaceDemo() {
       submittedAt: daysFromNow(-1, 10),
       responses: [{ staffing: 'Forty trained cleaners and three supervisors.' }, { equipment: 'Dedicated cleaning equipment and PPE included.' }]
     });
+    const huuiEvaluationBids = [
+      await upsertBid(db, {
+        reference: ref('BID-HUUI-EVAL-ICT'),
+        tender: tenders.huuiEvaluation,
+        supplier: actors.ictSupplier,
+        status: BidStatus.UNDER_EVALUATION,
+        totalAmount: 228000000,
+        submittedAt: daysFromNow(-6, 10),
+        responses: [
+          { supportModel: 'Tiered helpdesk with onsite escalation in Dar es Salaam.' },
+          { financial: 'Fixed monthly support package with onboarding included.' }
+        ]
+      }),
+      await upsertBid(db, {
+        reference: ref('BID-HUUI-EVAL-SERVICES'),
+        tender: tenders.huuiEvaluation,
+        supplier: actors.servicesSupplier,
+        status: BidStatus.UNDER_EVALUATION,
+        totalAmount: 236000000,
+        submittedAt: daysFromNow(-6, 11),
+        responses: [
+          { supportModel: 'Shared support desk with named account supervisor.' },
+          { financial: 'Monthly fee plus separate mobilization line.' }
+        ]
+      })
+    ];
+    const huuiAwardingBids = [
+      await upsertBid(db, {
+        reference: ref('BID-HUUI-AWARD-WORKS'),
+        tender: tenders.huuiAwarding,
+        supplier: actors.worksSupplier,
+        status: BidStatus.UNDER_EVALUATION,
+        totalAmount: 498000000,
+        submittedAt: daysFromNow(-12, 10),
+        responses: [
+          { method: 'Phased office fit-out with weekend work windows.' },
+          { financial: 'Lump sum offer with provisional sums identified.' }
+        ]
+      }),
+      await upsertBid(db, {
+        reference: ref('BID-HUUI-AWARD-SERVICES'),
+        tender: tenders.huuiAwarding,
+        supplier: actors.servicesSupplier,
+        status: BidStatus.UNDER_EVALUATION,
+        totalAmount: 515000000,
+        submittedAt: daysFromNow(-12, 11),
+        responses: [
+          { method: 'Subcontracted fit-out supervision with facilities handover.' },
+          { financial: 'Lump sum plus optional maintenance support.' }
+        ]
+      })
+    ];
+
+    await seedEvaluationWorkflow(db, {
+      key: 'HUUI-EVALUATION',
+      tender: tenders.huuiEvaluation,
+      buyer: actors.huuiBuyer,
+      evaluator: actors.huuiBuyer,
+      bids: huuiEvaluationBids,
+      status: EvaluationStatus.IN_PROGRESS,
+      currentStage: EvaluationStage.TECHNICAL,
+      progress: 55
+    });
+    await seedEvaluationWorkflow(db, {
+      key: 'HUUI-AWARDING',
+      tender: tenders.huuiAwarding,
+      buyer: actors.huuiBuyer,
+      evaluator: actors.huuiBuyer,
+      bids: huuiAwardingBids,
+      status: EvaluationStatus.COMPLETED,
+      currentStage: EvaluationStage.RECOMMENDATION,
+      progress: 100,
+      recommendation: {
+        bid: huuiAwardingBids[0],
+        status: RecommendationStatus.RECOMMENDED,
+        reason: 'Dar Works and Interiors Limited is recommended after technical and financial evaluation.'
+      }
+    });
 
     for (const saved of [
       { tender: tenders.renovation, actor: actors.ictSupplier },
@@ -635,7 +877,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const action = command === 'cleanup' ? cleanupMarketplaceDemo : seedMarketplaceDemo;
   action()
     .then(async () => {
-      console.log(command === 'cleanup' ? `Removed ${DATASET} demo records.` : `Seeded ${DATASET} demo records.`);
+      console.log(command === 'cleanup' ? `Removed ${MARKETPLACE_DEMO_DATASET} demo records.` : `Seeded ${MARKETPLACE_DEMO_DATASET} demo records.`);
       await prisma.$disconnect();
     })
     .catch(async (error) => {

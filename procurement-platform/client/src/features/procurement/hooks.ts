@@ -13,14 +13,15 @@ export function useMarketplaceData() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const drafts = useAppSelector((state) => state.procurement.createTenderDrafts);
   const publishedTenders = useAppSelector((state) => state.procurement.publishedTenders);
-  const organization = useAppSelector((state) => state.auth.user?.organization) || demoUsers.user.organization;
+  const user = useAppSelector((state) => state.auth.user);
+  const organization = user?.organization || demoUsers.user.organization;
 
   useEffect(() => {
     let isMounted = true;
 
     setStatus('loading');
     procurementApi
-      .getMarketplace()
+      .getMarketplace(user)
       .then((payload) => {
         if (!isMounted) return;
         setData(payload);
@@ -34,7 +35,7 @@ export function useMarketplaceData() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user]);
 
   const mergedData = useMemo(() => {
     if (!data) return null;

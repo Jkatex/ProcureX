@@ -33,13 +33,15 @@ type MarketplaceFiltersProps = MarketplaceFiltersValue & {
 type TenderListPanelProps = {
   tenders: MarketplaceTenderRow[];
   savedTenderIds: Set<string>;
-  onToggleSaved: (tenderId: string) => void;
+  savingTenderIds?: Set<string>;
+  onToggleSaved: (tender: MarketplaceTenderRow) => void;
 };
 
 type TenderRowCardProps = {
   tender: MarketplaceTenderRow;
   isSaved: boolean;
-  onToggleSaved: (tenderId: string) => void;
+  isSaving?: boolean;
+  onToggleSaved: (tender: MarketplaceTenderRow) => void;
 };
 
 export function MarketplaceHero({ organization, canCreateTender }: MarketplaceHeroProps) {
@@ -197,7 +199,7 @@ export function MarketplaceCategoryGrid({ tenders, onSelectType }: { tenders: Ma
   );
 }
 
-export function TenderListPanel({ tenders, savedTenderIds, onToggleSaved }: TenderListPanelProps) {
+export function TenderListPanel({ tenders, savedTenderIds, savingTenderIds = new Set(), onToggleSaved }: TenderListPanelProps) {
   return (
     <section className="procurement-list-panel">
       <div className="panel-heading">
@@ -210,7 +212,13 @@ export function TenderListPanel({ tenders, savedTenderIds, onToggleSaved }: Tend
       <div className="procurement-tender-list market-list">
         {tenders.length ? (
           tenders.map((tender) => (
-            <TenderRowCard key={tender.id} tender={tender} isSaved={savedTenderIds.has(tender.id)} onToggleSaved={onToggleSaved} />
+            <TenderRowCard
+              key={tender.id}
+              tender={tender}
+              isSaved={savedTenderIds.has(tender.id)}
+              isSaving={savingTenderIds.has(tender.id)}
+              onToggleSaved={onToggleSaved}
+            />
           ))
         ) : (
           <div className="scope-empty">No active marketplace tenders right now. Create a tender to start a compliant procurement.</div>
@@ -306,22 +314,25 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
   );
 }
 
-function TenderRowCard({ tender, isSaved, onToggleSaved }: TenderRowCardProps) {
-  const owned = Boolean(tender.createdByCurrentUser);
-  const canBid = (tender.status === 'OPEN' || tender.status === 'PUBLISHED') && !owned && !tender.hasSubmittedBid;
+function TenderRowCard({ tender, isSaved, isSaving = false, onToggleSaved }: TenderRowCardProps) {
+  const createdByCurrentUser = Boolean(tender.createdByCurrentUser);
+  const ownedByCurrentOrganization = Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser);
+  const canBid = Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !ownedByCurrentOrganization && !tender.hasSubmittedBid));
   const daysRemaining = getDaysRemaining(tender.closingDate);
-  const detailUrl = owned ? `/procurement/tender-details?tenderId=${tender.id}` : `/procurement/supplier-tender-detail?tenderId=${tender.id}`;
+  const detailUrl = ownedByCurrentOrganization ? `/procurement/tender-details?tenderId=${tender.id}` : `/procurement/supplier-tender-detail?tenderId=${tender.id}`;
   const bidUrl = `/bidding?tenderId=${tender.id}`;
   const bidLabel = tender.hasSubmittedBid ? 'Already Bid' : tender.hasDraftBid ? 'Continue Bid' : 'Bid';
+  const saveDisabled = ownedByCurrentOrganization || isSaving;
 
   return (
-    <article className={`procurement-tender-row market-row ${owned ? 'is-owned' : ''}`}>
+    <article className={`procurement-tender-row market-row ${ownedByCurrentOrganization ? 'is-owned' : ''}`}>
       <div>
         <div className="tender-row-title">
           <strong>{tender.title}</strong>
           <span className="badge badge-info">{tender.reference}</span>
           <span className={`badge ${statusBadgeClass(tender.status)}`}>{formatStatus(tender.status)}</span>
-          {owned ? <span className="badge badge-info">Created by you</span> : null}
+          {createdByCurrentUser ? <span className="badge badge-info">Created by you</span> : null}
+          {ownedByCurrentOrganization && !createdByCurrentUser ? <span className="badge badge-info">Your organization</span> : null}
           {tender.hasSubmittedBid ? <span className="badge badge-success">You already bid</span> : null}
           {tender.hasDraftBid && !tender.hasSubmittedBid ? <span className="badge badge-warning">Draft bid saved</span> : null}
         </div>
@@ -335,13 +346,13 @@ function TenderRowCard({ tender, isSaved, onToggleSaved }: TenderRowCardProps) {
         </div>
       </div>
       <div className="tender-row-actions">
-        <button className="btn btn-secondary" type="button" onClick={() => onToggleSaved(tender.id)}>
-          {isSaved ? 'Saved' : 'Save'}
+        <button className="btn btn-secondary" type="button" disabled={saveDisabled} onClick={() => onToggleSaved(tender)}>
+          {ownedByCurrentOrganization ? 'Own Org' : isSaving ? 'Saving...' : isSaved ? 'Saved' : 'Save'}
         </button>
-        <Link className={owned ? 'btn btn-primary' : 'btn btn-secondary'} to={detailUrl}>
-          {owned ? 'View My Tender' : 'View Tender'}
+        <Link className={ownedByCurrentOrganization ? 'btn btn-primary' : 'btn btn-secondary'} to={detailUrl}>
+          {createdByCurrentUser ? 'View My Tender' : ownedByCurrentOrganization ? 'View Org Tender' : 'View Tender'}
         </Link>
-        {!owned ? (
+        {!ownedByCurrentOrganization ? (
           canBid ? (
             <Link className="btn btn-primary" to={bidUrl}>
               {bidLabel}
@@ -353,7 +364,7 @@ function TenderRowCard({ tender, isSaved, onToggleSaved }: TenderRowCardProps) {
           )
         ) : (
           <button className="btn btn-primary" type="button" disabled>
-            Your Tender
+            {createdByCurrentUser ? 'Your Tender' : 'Org Tender'}
           </button>
         )}
       </div>
@@ -395,6 +406,10 @@ function statusBadgeClass(value: string) {
   if (/open|published|posted/i.test(value)) return 'badge-success';
   if (/draft|pending|evaluation|review/i.test(value)) return 'badge-warning';
   return 'badge-info';
+}
+
+function isOpenStatus(value: string) {
+  return /^(open|published)$/i.test(value.trim());
 }
 
 function getDaysRemaining(closingDate: string) {

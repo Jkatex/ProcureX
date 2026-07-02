@@ -13,6 +13,7 @@ export function SupplierTenderDetailProcurexPage() {
 
   const bidUrl = `/bidding?tenderId=${tender.id}`;
   const alreadyBid = tender.currentBid?.status === 'SUBMITTED' || tender.hasSubmittedBid;
+  const canBid = Boolean(tender.canBid ?? (!tender.ownedByCurrentOrganization && !alreadyBid));
 
   return (
     <div className="procurement-app-page supplier-tender-detail-page">
@@ -28,10 +29,14 @@ export function SupplierTenderDetailProcurexPage() {
               <Link className="btn btn-secondary" to={bidUrl}>
                 Open Submitted Bid
               </Link>
-            ) : (
+            ) : canBid ? (
               <Link className="btn btn-primary" to={bidUrl}>
-                {tender.currentBid ? 'Continue Bid' : 'Start Bid'}
+                {tender.currentBid || tender.hasDraftBid ? 'Continue Bid' : 'Start Bid'}
               </Link>
+            ) : (
+              <button className="btn btn-primary" type="button" disabled>
+                Bidding unavailable
+              </button>
             )}
             <Link className="btn btn-secondary" to="/procurement/marketplace">
               Marketplace

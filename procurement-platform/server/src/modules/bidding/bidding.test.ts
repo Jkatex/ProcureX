@@ -69,6 +69,24 @@ describe('bidding service rules', () => {
     expect(repository.saveDraft).not.toHaveBeenCalled();
   });
 
+  it('allows supplier organizations to bid tenders owned by a different buyer organization', async () => {
+    const tender = tenderRecord({ buyerOrgId: 'buyer-org-1', bids: [] });
+    const repository = {
+      findTenderForBid: vi.fn().mockResolvedValue(tender),
+      saveDraft: vi.fn().mockResolvedValue({ id: 'bid-1' })
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.saveDraft('token-1', 'tender-1', draftInput())).resolves.toEqual({ id: 'bid-1' });
+    expect(repository.saveDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tender,
+        supplierOrgId: 'supplier-org-1',
+        userId: 'user-1'
+      })
+    );
+  });
+
   it('rejects non-open or expired tenders before draft creation', async () => {
     for (const tender of [
       tenderRecord({ status: TenderStatus.CLOSED }),

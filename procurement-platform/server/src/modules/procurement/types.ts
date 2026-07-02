@@ -175,6 +175,10 @@ export type MarketplaceTenderRow = {
   publishedAt: string;
   closingDate: string;
   createdByCurrentUser: boolean;
+  ownedByCurrentOrganization: boolean;
+  canBid: boolean;
+  hasDraftBid: boolean;
+  hasSubmittedBid: boolean;
   isSaved: boolean;
 };
 
@@ -358,6 +362,7 @@ export type TenderDetailDto = {
   requirements: Record<string, unknown>;
   documents: Array<{ id: string; name: string; documentType: string; label: string | null }>;
   createdByCurrentUser: boolean;
+  ownedByCurrentOrganization: boolean;
   canBid: boolean;
   hasDraftBid: boolean;
   hasSubmittedBid: boolean;
