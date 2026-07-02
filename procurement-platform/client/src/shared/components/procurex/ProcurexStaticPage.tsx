@@ -1582,6 +1582,33 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     onInitialize(root);
   }, [pageKey, staticHtml, i18n.language, location.key, location.search, languageMount, onInitialize]);
 
+  useEffect(() => {
+    if (pageKey !== 'communication-center' || !onInitialize) return;
+
+    const initialize = onInitialize;
+    let cancelled = false;
+    let attempts = 0;
+    let frame = 0;
+
+    function initializeWhenReady() {
+      if (cancelled) return;
+      const root = rootRef.current;
+      if (root?.querySelector('[data-communication-center]')) {
+        initialize(root);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 10) frame = window.requestAnimationFrame(initializeWhenReady);
+    }
+
+    frame = window.requestAnimationFrame(initializeWhenReady);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [pageKey, staticHtml, location.key, location.search, onInitialize]);
+
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
     const navTarget = target.closest<HTMLElement>('[data-navigate]');
