@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
 import { registeredModules } from '../modules/index.js';
 import { resetAuthRateLimitState } from '../security/rateLimit.js';
+import { verifyTurnstileToken } from '../security/turnstile.js';
 
 const originalDatabaseUrl = process.env.DATABASE_URL;
 const originalDirectUrl = process.env.DIRECT_URL;
+const originalAppEnv = process.env.APP_ENV;
 
 describe('ProcureX server skeleton', () => {
   beforeEach(async () => {
@@ -19,6 +21,7 @@ describe('ProcureX server skeleton', () => {
     delete process.env.AUTH_RATE_LIMIT_DISABLED;
     delete process.env.CORS_ORIGINS;
     delete process.env.TURNSTILE_SECRET_KEY;
+    process.env.APP_ENV = 'local';
   });
 
   afterEach(() => {
@@ -26,6 +29,8 @@ describe('ProcureX server skeleton', () => {
     else process.env.DATABASE_URL = originalDatabaseUrl;
     if (originalDirectUrl === undefined) delete process.env.DIRECT_URL;
     else process.env.DIRECT_URL = originalDirectUrl;
+    if (originalAppEnv === undefined) delete process.env.APP_ENV;
+    else process.env.APP_ENV = originalAppEnv;
   });
 
   it('returns health with all registered modules', async () => {
@@ -82,6 +87,18 @@ describe('ProcureX server skeleton', () => {
       .expect(403);
 
     expect(response.body.message).toContain('Security check failed');
+  });
+
+  it('accepts the local Cloudflare testing secret without a network call', async () => {
+    process.env.TURNSTILE_SECRET_KEY = '1x0000000000000000000000000000000AA';
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(verifyTurnstileToken({ token: 'local-test-token' })).resolves.toEqual({
+      success: true,
+      errorCodes: []
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rate limits public auth endpoints before repeated security checks', async () => {

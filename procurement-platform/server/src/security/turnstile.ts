@@ -1,5 +1,8 @@
 import { securityConfig } from './config.js';
 
+const localDevelopmentTokenPrefix = 'local-dev-turnstile:';
+const cloudflareAlwaysPassTestingSecret = '1x0000000000000000000000000000000AA';
+
 type TurnstileResponse = {
   success?: boolean;
   'error-codes'?: string[];
@@ -12,8 +15,29 @@ function requestError(message: string, status = 403) {
 }
 
 export async function verifyTurnstileToken(input: { token: string; remoteIp?: string }) {
-  const secret = securityConfig().turnstileSecretKey;
+  const config = securityConfig();
+  if (!config.production && input.token.startsWith(localDevelopmentTokenPrefix)) {
+    return {
+      success: true,
+      errorCodes: []
+    };
+  }
+
+  const secret = config.turnstileSecretKey;
+  if (!config.production && secret === cloudflareAlwaysPassTestingSecret) {
+    return {
+      success: true,
+      errorCodes: []
+    };
+  }
+
   if (!secret) {
+    if (!config.production) {
+      return {
+        success: false,
+        errorCodes: ['local-development-token-required']
+      };
+    }
     throw requestError('Security check is not configured.', 403);
   }
 

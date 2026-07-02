@@ -338,6 +338,7 @@
       "missing": "Complete the security check before continuing.",
       "missingSignIn": "Complete the security check before signing in.",
       "notConfigured": "Security check is not configured.",
+      "localDevelopment": "Local development security check is active.",
       "ariaLabel": "Security check"
     },
     "register": {

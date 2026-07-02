@@ -30,6 +30,7 @@ declare global {
 }
 
 const scriptId = 'procurex-turnstile-script';
+const localDevelopmentTokenPrefix = 'local-dev-turnstile:';
 
 function ensureTurnstileScript() {
   if (document.getElementById(scriptId)) return;
@@ -49,6 +50,7 @@ export function TurnstileWidget({ action, resetKey, onVerify, onExpire }: Turnst
   const onExpireRef = useRef(onExpire);
   const [ready, setReady] = useState(false);
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+  const useLocalDevelopmentToken = !siteKey && import.meta.env.MODE === 'development';
 
   useEffect(() => {
     onVerifyRef.current = onVerify;
@@ -66,6 +68,11 @@ export function TurnstileWidget({ action, resetKey, onVerify, onExpire }: Turnst
     }, 100);
     return () => window.clearInterval(timer);
   }, [siteKey]);
+
+  useEffect(() => {
+    if (!useLocalDevelopmentToken) return;
+    onVerifyRef.current(`${localDevelopmentTokenPrefix}${action}:${resetKey}`);
+  }, [action, resetKey, useLocalDevelopmentToken]);
 
   useEffect(() => {
     if (!siteKey || !ready || !containerRef.current || !window.turnstile) return;
@@ -89,6 +96,10 @@ export function TurnstileWidget({ action, resetKey, onVerify, onExpire }: Turnst
       }
     };
   }, [action, ready, resetKey, siteKey]);
+
+  if (useLocalDevelopmentToken) {
+    return <AuthAlert message={authAlert('auth.security.localDevelopment', 'info')} />;
+  }
 
   if (!siteKey) {
     return <AuthAlert message={authAlert('auth.security.notConfigured', 'error')} />;
