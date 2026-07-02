@@ -105,7 +105,7 @@ export function TenderDetailsProcurexPage() {
                       <span className="section-kicker">Clarifications</span>
                       <h2>Supplier questions</h2>
                       <p>No open clarification questions are awaiting buyer response.</p>
-                      <Link className="btn btn-secondary" to="/communication-center">
+                      <Link className="btn btn-secondary" to="/communication">
                         Communication Center
                       </Link>
                     </article>

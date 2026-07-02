@@ -101,6 +101,7 @@ export const routes = [
   { path: '/awards-contracts/negotiation', element: verifiedPage('contract-negotiation', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/post-award', element: verifiedPage('post-award-tracking', { adminRedirectTo: '/admin/search' }) },
   { path: '/communication', element: verifiedPage('communication-center', { adminRedirectTo: '/admin/communication' }) },
+  { path: '/communication-center', element: <Navigate to="/communication" replace /> },
   { path: '/records', element: verifiedPage('records-history', { adminRedirectTo: '/admin/audit' }) },
   { path: '/documents', element: verifiedPage('tender-document', { adminRedirectTo: '/admin/search' }) },
 

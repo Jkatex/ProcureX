@@ -11,6 +11,11 @@ import {
   tenderLinkQuerySchema
 } from './validators.js';
 
+function bearerToken(req: Parameters<RequestHandler>[0]) {
+  const header = req.header('authorization') ?? '';
+  return header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : undefined;
+}
+
 function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
@@ -33,7 +38,7 @@ export class ModuleController {
     try {
       const query = communicationQuerySchema.safeParse(req.query);
       if (!query.success) throw requestError('Invalid communication query parameters.');
-      res.json(await this.service.listMessages(query.data));
+      res.json(await this.service.listMessages(bearerToken(req), query.data));
     } catch (error) {
       next(error);
     }
@@ -43,7 +48,7 @@ export class ModuleController {
     try {
       const params = messageParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid message id.');
-      const message = await this.service.getMessage(params.data.messageId);
+      const message = await this.service.getMessage(bearerToken(req), params.data.messageId);
       if (!message) throw requestError('Communication message was not found.', 404);
       res.json(message);
     } catch (error) {
@@ -55,7 +60,7 @@ export class ModuleController {
     try {
       const body = composeMessageBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid communication message payload.');
-      const result = await this.service.composeMessage(body.data);
+      const result = await this.service.composeMessage(bearerToken(req), body.data);
       res.status(201).json(result);
     } catch (error) {
       next(error);
@@ -68,7 +73,7 @@ export class ModuleController {
       if (!params.success) throw requestError('Invalid message id.');
       const body = replyMessageBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid communication reply payload.');
-      const result = await this.service.reply(params.data.messageId, body.data);
+      const result = await this.service.reply(bearerToken(req), params.data.messageId, body.data);
       if (!result) throw requestError('Communication message was not found.', 404);
       res.status(201).json(result);
     } catch (error) {
@@ -82,7 +87,7 @@ export class ModuleController {
       if (!params.success) throw requestError('Invalid message id.');
       const body = patchMessageBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid communication patch payload.');
-      const result = await this.service.patchMessage(params.data.messageId, body.data);
+      const result = await this.service.patchMessage(bearerToken(req), params.data.messageId, body.data);
       if (!result) throw requestError('Communication message was not found.', 404);
       res.json(result);
     } catch (error) {
@@ -94,7 +99,7 @@ export class ModuleController {
     try {
       const params = messageParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid message id.');
-      const result = await this.service.markRead(params.data.messageId);
+      const result = await this.service.markRead(bearerToken(req), params.data.messageId);
       if (!result) throw requestError('Communication message was not found.', 404);
       res.json(result);
     } catch (error) {
@@ -106,7 +111,7 @@ export class ModuleController {
     try {
       const params = messageParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid message id.');
-      const result = await this.service.archive(params.data.messageId);
+      const result = await this.service.archive(bearerToken(req), params.data.messageId);
       if (!result) throw requestError('Communication message was not found.', 404);
       res.json(result);
     } catch (error) {
@@ -118,7 +123,7 @@ export class ModuleController {
     try {
       const params = messageParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid message id.');
-      const result = await this.service.softDelete(params.data.messageId);
+      const result = await this.service.softDelete(bearerToken(req), params.data.messageId);
       if (!result) throw requestError('Communication message was not found.', 404);
       res.json(result);
     } catch (error) {
@@ -130,7 +135,7 @@ export class ModuleController {
     try {
       const query = recipientQuerySchema.safeParse(req.query);
       if (!query.success) throw requestError('Invalid communication recipient query parameters.');
-      res.json({ recipients: await this.service.listRecipients(query.data) });
+      res.json({ recipients: await this.service.listRecipients(bearerToken(req), query.data) });
     } catch (error) {
       next(error);
     }
@@ -140,7 +145,7 @@ export class ModuleController {
     try {
       const query = tenderLinkQuerySchema.safeParse(req.query);
       if (!query.success) throw requestError('Invalid communication tender query parameters.');
-      res.json({ tenders: await this.service.listTenderLinks(query.data) });
+      res.json({ tenders: await this.service.listTenderLinks(bearerToken(req), query.data) });
     } catch (error) {
       next(error);
     }

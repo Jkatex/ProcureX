@@ -1,4 +1,5 @@
 import { ModuleRepository } from './repository.js';
+import { ModuleService as IdentityService } from '../identity/service.js';
 import {
   moduleDefinition,
   type CommunicationListDto,
@@ -13,8 +14,22 @@ import {
   type ReplyMessageInput
 } from './types.js';
 
+function requestError(message: string, status = 400) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = status;
+  return error;
+}
+
+type CommunicationAccessContext = {
+  isAdmin: boolean;
+  organizationId: string;
+};
+
 export class ModuleService {
-  constructor(private readonly repository = new ModuleRepository()) {}
+  constructor(
+    private readonly repository = new ModuleRepository(),
+    private readonly identity = new IdentityService()
+  ) {}
 
   async status(): Promise<ModuleStatus> {
     await this.repository.health();
@@ -25,44 +40,64 @@ export class ModuleService {
     };
   }
 
-  async listMessages(query: CommunicationQuery): Promise<CommunicationListDto> {
+  async listMessages(token: string | undefined, query: CommunicationQuery): Promise<CommunicationListDto> {
+    const context = await this.accessContext(token);
+    const scopedQuery = this.scopeQuery(context, query);
     try {
-      return await this.repository.listMessages(query);
+      return await this.repository.listMessages(scopedQuery);
     } catch (error) {
-      if (isDatabaseUnavailable(error)) return emptyList(query);
+      if (isDatabaseUnavailable(error)) return emptyList(scopedQuery);
       throw error;
     }
   }
 
-  async getMessage(messageId: string): Promise<CommunicationMessageDto | null> {
-    return this.repository.getMessage(messageId);
+  async getMessage(token: string | undefined, messageId: string): Promise<CommunicationMessageDto | null> {
+    const context = await this.accessContext(token);
+    return this.visibleMessage(context, messageId);
   }
 
-  async composeMessage(input: ComposeMessageInput): Promise<ComposeMessageResultDto> {
-    return this.repository.createMessage(input);
+  async composeMessage(token: string | undefined, input: ComposeMessageInput): Promise<ComposeMessageResultDto> {
+    const context = await this.accessContext(token);
+    return this.repository.createMessage(this.scopeComposeInput(context, input));
   }
 
-  async reply(messageId: string, input: ReplyMessageInput): Promise<ComposeMessageResultDto | null> {
-    return this.repository.reply(messageId, input);
+  async reply(token: string | undefined, messageId: string, input: ReplyMessageInput): Promise<ComposeMessageResultDto | null> {
+    const context = await this.accessContext(token);
+    const original = await this.visibleMessage(context, messageId);
+    if (!original) return null;
+    return this.repository.reply(messageId, this.scopeReplyInput(context, input));
   }
 
-  async patchMessage(messageId: string, input: PatchMessageInput): Promise<CommunicationMessageDto | null> {
+  async patchMessage(token: string | undefined, messageId: string, input: PatchMessageInput): Promise<CommunicationMessageDto | null> {
+    const context = await this.accessContext(token);
+    const original = await this.visibleMessage(context, messageId);
+    if (!original) return null;
     return this.repository.patchMessage(messageId, input);
   }
 
-  async markRead(messageId: string): Promise<CommunicationMessageDto | null> {
+  async markRead(token: string | undefined, messageId: string): Promise<CommunicationMessageDto | null> {
+    const context = await this.accessContext(token);
+    const original = await this.visibleMessage(context, messageId);
+    if (!original) return null;
     return this.repository.markRead(messageId);
   }
 
-  async archive(messageId: string): Promise<CommunicationMessageDto | null> {
+  async archive(token: string | undefined, messageId: string): Promise<CommunicationMessageDto | null> {
+    const context = await this.accessContext(token);
+    const original = await this.visibleMessage(context, messageId);
+    if (!original) return null;
     return this.repository.archive(messageId);
   }
 
-  async softDelete(messageId: string): Promise<CommunicationMessageDto | null> {
+  async softDelete(token: string | undefined, messageId: string): Promise<CommunicationMessageDto | null> {
+    const context = await this.accessContext(token);
+    const original = await this.visibleMessage(context, messageId);
+    if (!original) return null;
     return this.repository.softDelete(messageId);
   }
 
-  async listRecipients(input: { search: string; capability?: 'BUYER' | 'SUPPLIER'; pageSize: number }): Promise<CommunicationRecipientDto[]> {
+  async listRecipients(token: string | undefined, input: { search: string; capability?: 'BUYER' | 'SUPPLIER'; pageSize: number }): Promise<CommunicationRecipientDto[]> {
+    await this.accessContext(token);
     try {
       return await this.repository.listRecipients(input);
     } catch (error) {
@@ -71,13 +106,57 @@ export class ModuleService {
     }
   }
 
-  async listTenderLinks(input: { search: string; organizationId: string; pageSize: number }): Promise<CommunicationTenderLinkDto[]> {
+  async listTenderLinks(token: string | undefined, input: { search: string; organizationId: string; pageSize: number }): Promise<CommunicationTenderLinkDto[]> {
+    const context = await this.accessContext(token);
+    const scopedInput = {
+      ...input,
+      organizationId: context.isAdmin ? input.organizationId : context.organizationId
+    };
     try {
-      return await this.repository.listTenderLinks(input);
+      return await this.repository.listTenderLinks(scopedInput);
     } catch (error) {
       if (isDatabaseUnavailable(error)) return [];
       throw error;
     }
+  }
+
+  private async accessContext(token: string | undefined): Promise<CommunicationAccessContext> {
+    const session = await this.identity.requireSession(token);
+    const isAdmin = session.user.accountType === 'ADMIN';
+    const organizationId = session.user.organizationId ?? '';
+    if (!isAdmin && !organizationId) throw requestError('An organization profile is required.', 409);
+    return { isAdmin, organizationId };
+  }
+
+  private scopeQuery(context: CommunicationAccessContext, query: CommunicationQuery): CommunicationQuery {
+    return {
+      ...query,
+      organizationId: context.isAdmin ? query.organizationId : context.organizationId
+    };
+  }
+
+  private scopeComposeInput(context: CommunicationAccessContext, input: ComposeMessageInput): ComposeMessageInput {
+    if (context.isAdmin) return input;
+    return {
+      ...input,
+      senderOrgId: context.organizationId,
+      ownerOrgId: context.organizationId
+    };
+  }
+
+  private scopeReplyInput(context: CommunicationAccessContext, input: ReplyMessageInput): ReplyMessageInput {
+    if (context.isAdmin) return input;
+    return {
+      ...input,
+      senderOrgId: context.organizationId
+    };
+  }
+
+  private async visibleMessage(context: CommunicationAccessContext, messageId: string) {
+    const message = await this.repository.getMessage(messageId);
+    if (!message) return null;
+    if (!context.isAdmin && message.ownerOrgId !== context.organizationId) return null;
+    return message;
   }
 }
 

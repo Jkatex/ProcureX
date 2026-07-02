@@ -105,7 +105,7 @@ export function SupplierTenderDetailProcurexPage() {
                 <strong>Ask buyer a question</strong>
                 <p>Supplier clarification messages are tracked in the communication center and linked to this tender record.</p>
               </div>
-              <Link className="btn btn-secondary" to="/communication-center">
+              <Link className="btn btn-secondary" to="/communication">
                 Ask Buyer
               </Link>
             </div>
