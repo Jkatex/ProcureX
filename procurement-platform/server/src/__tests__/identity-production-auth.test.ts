@@ -223,6 +223,10 @@ class FakeIdentityRepository {
     return Promise.resolve(session);
   }
 
+  hasPriorSession(userId: string) {
+    return Promise.resolve(Array.from(this.sessions.values()).some((session) => session.userId === userId));
+  }
+
   findActiveSession(tokenHash: string) {
     const session = this.sessions.get(tokenHash);
     return Promise.resolve(session?.status === 'ACTIVE' && session.expiresAt > new Date() ? session : null);
@@ -666,6 +670,10 @@ describe('identity production auth', () => {
 
     expect(session.user.email).toBe('walkthrough@example.test');
     expect(session.user.verificationStatus).toBe(VerificationStatus.NOT_STARTED);
+    expect(session.isFirstSignIn).toBe(true);
+
+    const nextSession = await service.signIn('walkthrough@example.test', 'Strong123!');
+    expect(nextSession.isFirstSignIn).toBe(false);
   });
 
   it('validates email deliverability before sending activation emails and resends', async () => {

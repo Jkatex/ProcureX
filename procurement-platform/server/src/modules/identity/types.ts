@@ -44,6 +44,7 @@ export type AuthSessionDto = {
   token: string;
   user: SessionUserDto;
   expiresAt: string;
+  isFirstSignIn: boolean;
 };
 
 export type RegistryRecordDto = {

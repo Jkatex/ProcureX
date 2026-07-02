@@ -303,6 +303,13 @@ export class ModuleRepository {
     });
   }
 
+  async hasPriorSession(userId: string) {
+    const count = await this.db.session.count({
+      where: { userId }
+    });
+    return count > 0;
+  }
+
   findActiveSession(tokenHash: string) {
     return this.db.session.findFirst({
       where: {

@@ -8,6 +8,7 @@ import { signOut } from '@/features/auth/slice';
 import { store } from '@/app/store';
 import { demoUsers } from '@/shared/data/fixtures';
 import { SignInProcurexPage } from './SignInProcurexPage';
+import type { AuthSessionResponse } from '@/features/auth/api';
 
 vi.mock('@/features/auth/api', () => ({
   authApi: {
@@ -29,7 +30,17 @@ function apiError(status: number, message: string) {
   return { response: { status, data: { message } }, message };
 }
 
-function renderSignIn(initialEntry = '/sign-in') {
+function authSession(input: Partial<AuthSessionResponse> = {}): AuthSessionResponse {
+  return {
+    token: 'token',
+    expiresAt: '2026-06-13T00:00:00.000Z',
+    user: demoUsers.user,
+    isFirstSignIn: true,
+    ...input
+  };
+}
+
+function renderSignIn(initialEntry: string | { pathname: string; state?: unknown } = '/sign-in') {
   return render(
     <Provider store={store}>
       <MemoryRouter initialEntries={[initialEntry]}>
@@ -38,6 +49,7 @@ function renderSignIn(initialEntry = '/sign-in') {
           <Route path="/identity/verification" element={<div>Identity verification</div>} />
           <Route path="/apps" element={<div>Apps</div>} />
           <Route path="/dashboard" element={<div>User dashboard</div>} />
+          <Route path="/procurement/marketplace" element={<div>Marketplace</div>} />
           <Route path="/admin" element={<div>Admin</div>} />
           <Route path="/account-locked" element={<div>Account locked page</div>} />
         </Routes>
@@ -56,9 +68,7 @@ describe('SignInProcurexPage', () => {
   });
 
   it('trims email, signs in with real credentials, and routes unverified users to verification', async () => {
-    mockedAuthApi.signIn.mockResolvedValueOnce({
-      token: 'token',
-      expiresAt: '2026-06-13T00:00:00.000Z',
+    mockedAuthApi.signIn.mockResolvedValueOnce(authSession({
       user: {
         id: 'user-1',
         email: 'user@example.test',
@@ -69,7 +79,7 @@ describe('SignInProcurexPage', () => {
         verificationStatus: 'NOT_STARTED',
         capabilities: []
       }
-    });
+    }));
 
     renderSignIn();
 
@@ -143,11 +153,10 @@ describe('SignInProcurexPage', () => {
 
   it('accepts typed demo credentials through the backend when local demo sign-in is enabled', async () => {
     vi.stubEnv('VITE_DEMO_SIGN_IN_ENABLED', 'true');
-    mockedAuthApi.signIn.mockResolvedValueOnce({
+    mockedAuthApi.signIn.mockResolvedValueOnce(authSession({
       token: 'typed-demo-token',
-      expiresAt: '2026-06-13T00:00:00.000Z',
       user: demoUsers.user
-    });
+    }));
 
     renderSignIn();
 
@@ -159,6 +168,45 @@ describe('SignInProcurexPage', () => {
     await screen.findByText('Apps');
     expect(mockedAuthApi.signIn).toHaveBeenCalledWith({ email: 'demo@procurex.tz', password: 'Demo123!', turnstileToken: 'turnstile-token' });
     expect(window.localStorage.getItem('procurex.authToken')).toBe('typed-demo-token');
+  });
+
+  it('routes approved returning users to the dashboard after normal sign-in', async () => {
+    mockedAuthApi.signIn.mockResolvedValueOnce(authSession({ isFirstSignIn: false }));
+
+    renderSignIn();
+
+    fireEvent.change(screen.getByLabelText('Email Address *'), { target: { value: 'demo@procurex.tz' } });
+    fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'Demo123!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    await screen.findByText('User dashboard');
+  });
+
+  it('routes admin users to the admin dashboard regardless of first sign-in status', async () => {
+    mockedAuthApi.signIn.mockResolvedValueOnce(authSession({ user: demoUsers.admin, isFirstSignIn: true }));
+
+    renderSignIn();
+
+    fireEvent.change(screen.getByLabelText('Email Address *'), { target: { value: 'admin@procurex.tz' } });
+    fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'Admin123!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    await screen.findByText('Admin');
+  });
+
+  it('preserves protected-route deep links after sign-in', async () => {
+    mockedAuthApi.signIn.mockResolvedValueOnce(authSession({ isFirstSignIn: true }));
+
+    renderSignIn({ pathname: '/sign-in', state: { from: { pathname: '/procurement/marketplace' } } });
+
+    fireEvent.change(screen.getByLabelText('Email Address *'), { target: { value: 'demo@procurex.tz' } });
+    fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'Demo123!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    await screen.findByText('Marketplace');
   });
 
   it('shows the language switcher and translates sign-in copy to Swahili', async () => {
