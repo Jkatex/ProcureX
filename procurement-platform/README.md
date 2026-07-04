@@ -46,7 +46,7 @@ The demo seed is idempotent and only recreates records marked as the `award-cont
 
 ## Local Testing Data
 
-Registration code delivery is temporary in local development. With `IDENTITY_EMAIL_PROVIDER=dev-console` and `IDENTITY_PHONE_PROVIDER=dev-console`, the registration phone code and email activation code are shown in the UI and logged by the server. Real SMS and email delivery will replace this once those providers are fully wired.
+Registration code delivery can stay local during development. With `IDENTITY_EMAIL_PROVIDER=dev-console` and `IDENTITY_PHONE_PROVIDER=dev-console`, the registration phone code and email activation code are shown in the UI and logged by the server. Production delivery uses Resend for email and Beem Africa for SMS or WhatsApp.
 
 Use these dev-only TRA/BRELA identifiers during identity verification. They are served only outside production.
 

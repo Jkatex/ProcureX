@@ -129,7 +129,7 @@ Registered API module boundaries include identity, organization, procurement, bi
 | Layer | Tools |
 | --- | --- |
 | Frontend | React 19, Vite, TypeScript, React Router, Redux Toolkit, MUI, Emotion, i18next, Recharts, Axios |
-| Backend | Node.js, Express, TypeScript, Prisma, Zod, Helmet, CORS, dotenv, Nodemailer, Twilio, AWS S3 SDK |
+| Backend | Node.js, Express, TypeScript, Prisma, Zod, Helmet, CORS, dotenv, Resend, Beem Africa, AWS S3 SDK |
 | Data and infra | PostgreSQL 16, Redis 7, Elasticsearch 8, MinIO, Docker Compose |
 | Testing | Vitest, React Testing Library, Supertest, Playwright screenshot capture |
 | Shared package | TypeScript contracts consumed by client and server workspaces |

@@ -516,8 +516,8 @@ export function RegisterProcurexPage() {
                       <span>{t('auth.register.password.confirmAgreement')}</span>
                     </label>
                     <p className="confirm-action-note">
-                      {t('auth.register.password.agreementNoteStart')} <Link className="link-new" to="/terms">{t('auth.register.password.terms')}</Link> {t('auth.register.password.agreementAnd')}{' '}
-                      <Link className="link-new" to="/privacy">{t('auth.register.password.privacy')}</Link>.
+                      {t('auth.register.password.agreementNoteStart')} <Link className="link-new" to="/terms" target="_blank" rel="noopener noreferrer">{t('auth.register.password.terms')}</Link> {t('auth.register.password.agreementAnd')}{' '}
+                      <Link className="link-new" to="/privacy" target="_blank" rel="noopener noreferrer">{t('auth.register.password.privacy')}</Link>.
                     </p>
                   </div>
                   <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep(3)}>

@@ -1,23 +1,61 @@
-import nodemailer from 'nodemailer';
-import twilio from 'twilio';
+import { randomUUID } from 'node:crypto';
+import { Resend, type CreateEmailOptions, type CreateEmailRequestOptions } from 'resend';
 import { isProductionRuntime } from '../../security/config.js';
 
 export type DeliveryReceipt = {
   provider: string;
   messageId?: string;
+  providerMetadata?: Record<string, unknown>;
 };
 
-type EmailCodeInput = {
+type DeliveryInput = {
+  metadata?: Record<string, unknown>;
+  idempotencyKey?: string;
+};
+
+type EmailCodeInput = DeliveryInput & {
   to: string;
   code: string;
   expiresInMinutes: number;
   actionUrl?: string;
 };
 
+export type EmailSendInput = DeliveryInput & {
+  to: string | string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  templateId?: string;
+  templateParams?: Record<string, string | number>;
+};
+
+export type BeemSmsInput = DeliveryInput & {
+  to: string | string[];
+  message: string;
+  scheduleTime?: string;
+};
+
+export type BeemWhatsAppTemplateInput = DeliveryInput & {
+  to: string | Array<{ phoneNumber: string; params?: string[] }>;
+  templateId: string | number;
+  params?: string[];
+  mediaUrl?: string;
+};
+
+export type BeemWhatsAppSessionInput = DeliveryInput & {
+  to: string;
+  messageType?: 'text' | 'image' | 'document' | 'list' | 'quick_reply' | 'location';
+  text?: string;
+  payload?: Record<string, unknown>;
+  callbackUrl?: string;
+};
+
 export type IdentityNotificationProvider = {
   sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt>;
   sendEmailActivation(input: EmailCodeInput): Promise<DeliveryReceipt>;
   sendPasswordReset(input: EmailCodeInput): Promise<DeliveryReceipt>;
+  sendWhatsAppTemplate?(input: BeemWhatsAppTemplateInput): Promise<DeliveryReceipt>;
+  sendWhatsAppSessionMessage?(input: BeemWhatsAppSessionInput): Promise<DeliveryReceipt>;
 };
 
 function devConsoleEnabled(config = process.env) {
@@ -28,17 +66,8 @@ function providerName(value: string | undefined) {
   return value?.trim().toLowerCase();
 }
 
-function boolEnv(value: string | undefined, fallback: boolean) {
-  if (value === undefined || value === '') return fallback;
-  return value === 'true' || value === '1';
-}
-
 function productionRuntimeFor(config = process.env) {
   return config.NODE_ENV === 'production' || config.APP_ENV === 'production';
-}
-
-function emailCodeLogCopyEnabled(config = process.env) {
-  return !productionRuntimeFor(config) && !isProductionRuntime() && boolEnv(config.IDENTITY_EMAIL_CODE_LOG_COPY, true);
 }
 
 function deliveryConfigError(message: string) {
@@ -47,212 +76,303 @@ function deliveryConfigError(message: string) {
   return error;
 }
 
-export class TwilioSmsProvider {
-  private readonly client;
-  private readonly fromNumber?: string;
-  private readonly messagingServiceSid?: string;
-
-  constructor(config = process.env) {
-    const accountSid = config.TWILIO_ACCOUNT_SID;
-    const authToken = config.TWILIO_AUTH_TOKEN;
-    this.messagingServiceSid = config.TWILIO_MESSAGING_SERVICE_SID;
-    this.fromNumber = config.TWILIO_FROM_NUMBER;
-
-    if (!accountSid || !authToken) {
-      throw deliveryConfigError('Twilio credentials are not configured.');
-    }
-    if (!this.messagingServiceSid && !this.fromNumber) {
-      throw deliveryConfigError('Twilio sender is not configured.');
-    }
-
-    this.client = twilio(accountSid, authToken);
-  }
-
-  async sendOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
-    const message = await this.client.messages.create({
-      to: input.to,
-      body: `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`,
-      ...(this.messagingServiceSid ? { messagingServiceSid: this.messagingServiceSid } : { from: this.fromNumber })
-    });
-
-    return { provider: 'twilio', messageId: message.sid };
-  }
-}
-
-type SendchampSmsResponse = {
-  id?: unknown;
-  reference?: unknown;
-  message_id?: unknown;
-  messageId?: unknown;
-  data?: unknown;
-};
-
-function sendchampEndpoint(baseUrl: string, path: string) {
+function endpoint(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
 function firstString(...values: unknown[]) {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   }
   return undefined;
 }
 
-function sendchampMessageId(body: SendchampSmsResponse): string | undefined {
-  const data = body.data;
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    const item = data as SendchampSmsResponse & { messages?: unknown };
-    const direct = firstString(item.id, item.reference, item.message_id, item.messageId);
-    if (direct) return direct;
-    if (Array.isArray(item.messages)) {
-      const [message] = item.messages;
-      if (message && typeof message === 'object' && !Array.isArray(message)) {
-        const messageItem = message as SendchampSmsResponse;
-        return firstString(messageItem.id, messageItem.reference, messageItem.message_id, messageItem.messageId);
-      }
-    }
-  }
-  if (Array.isArray(data)) {
-    const [item] = data;
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const message = item as SendchampSmsResponse;
-      return firstString(message.id, message.reference, message.message_id, message.messageId);
-    }
-  }
-  return firstString(body.id, body.reference, body.message_id, body.messageId);
+function normalizeRecipient(phone: string) {
+  return phone.replace(/^\+/, '').trim();
 }
 
-export class SendchampSmsProvider {
-  private readonly baseUrl: string;
-  private readonly accessKey: string;
-  private readonly senderName: string;
-  private readonly route: string;
+function beemBasicAuth(config: NodeJS.ProcessEnv) {
+  const apiKey = config.BEEM_API_KEY?.trim();
+  const secretKey = config.BEEM_SECRET_KEY?.trim();
+  if (!apiKey || !secretKey) {
+    throw deliveryConfigError('Beem API key and secret key are not configured.');
+  }
+  return `Basic ${Buffer.from(`${apiKey}:${secretKey}`).toString('base64')}`;
+}
 
-  constructor(config = process.env) {
-    this.baseUrl = config.SENDCHAMP_BASE_URL || 'https://api.sendchamp.com/api/v1';
-    this.accessKey = config.SENDCHAMP_ACCESS_KEY?.trim() ?? '';
-    this.senderName = config.SENDCHAMP_SMS_SENDER?.trim() ?? '';
-    this.route = config.SENDCHAMP_SMS_ROUTE?.trim() ?? '';
+async function jsonResponse(response: Response) {
+  return (await response.json().catch(() => ({}))) as Record<string, unknown>;
+}
 
-    if (!this.accessKey) {
-      throw deliveryConfigError('Sendchamp access key is not configured.');
+function beemMessageId(body: Record<string, unknown>) {
+  const data = body.data;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const item = data as Record<string, unknown>;
+    return firstString(item.request_id, item.requestId, item.jobId, item.message_id, item.messageId, item.id);
+  }
+  return firstString(body.request_id, body.requestId, body.jobId, body.message_id, body.messageId, body.id);
+}
+
+export class ResendEmailProvider {
+  private readonly client: Resend;
+  private readonly from: string;
+  private readonly replyTo?: string;
+
+  constructor(private readonly config = process.env) {
+    const apiKey = config.RESEND_API_KEY?.trim();
+    this.from = config.RESEND_FROM?.trim() ?? '';
+    this.replyTo = config.RESEND_REPLY_TO?.trim() || undefined;
+
+    if (!apiKey) {
+      throw deliveryConfigError('Resend API key is not configured.');
     }
-    if (!this.senderName || !this.route) {
-      throw deliveryConfigError('Sendchamp sender and route are not configured.');
+    if (!this.from) {
+      throw deliveryConfigError('Resend sender is not configured.');
+    }
+
+    this.client = new Resend(apiKey);
+  }
+
+  async send(input: EmailSendInput): Promise<DeliveryReceipt> {
+    const base = {
+      from: this.from,
+      to: input.to,
+      subject: input.subject,
+      ...(this.replyTo ? { replyTo: this.replyTo } : {}),
+      ...(input.metadata
+        ? {
+            tags: Object.entries(input.metadata).flatMap(([name, value]) => {
+              const tagName = name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 256);
+              const tagValue = String(value).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 256);
+              return tagName && tagValue ? [{ name: tagName, value: tagValue }] : [];
+            })
+          }
+        : {})
+    };
+    const payload: CreateEmailOptions = input.templateId
+      ? {
+          ...base,
+          template: {
+            id: input.templateId,
+            variables: input.templateParams ?? {}
+          }
+        }
+      : {
+          ...base,
+          html: input.html ?? '',
+          ...(input.text !== undefined ? { text: input.text } : {})
+        };
+    const requestOptions: CreateEmailRequestOptions | undefined = input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined;
+    const { data, error } = await this.client.emails.send(payload, requestOptions);
+
+    if (error) {
+      throw deliveryConfigError(error.message || 'Resend email request failed.');
+    }
+
+    return { provider: 'resend', messageId: data?.id };
+  }
+
+  sendActivation(input: EmailCodeInput) {
+    const actionText = input.actionUrl ? `\n\nOpen this link to continue: ${input.actionUrl}` : '';
+    const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Continue in ProcureX</a></p>` : '';
+    return this.send({
+      to: input.to,
+      subject: 'Activate your ProcureX account',
+      text: `Your ProcureX activation code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
+      html: `<p>Your ProcureX activation code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`,
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_activation', ...(input.metadata ?? {}) }
+    });
+  }
+
+  sendPasswordReset(input: EmailCodeInput) {
+    const actionText = input.actionUrl ? `\n\nOpen this link to reset your password: ${input.actionUrl}` : '';
+    const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Reset your password</a></p>` : '';
+    return this.send({
+      to: input.to,
+      subject: 'Reset your ProcureX password',
+      text: `Your ProcureX password reset code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
+      html: `<p>Your ProcureX password reset code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`,
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_password_reset', ...(input.metadata ?? {}) }
+    });
+  }
+}
+
+export class BeemSmsProvider {
+  private readonly baseUrl: string;
+  private readonly senderName: string;
+  private readonly authorization: string;
+
+  constructor(private readonly config = process.env) {
+    this.baseUrl = config.BEEM_SMS_BASE_URL || 'https://apisms.beem.africa';
+    this.senderName = config.BEEM_SMS_SENDER?.trim() ?? '';
+    this.authorization = beemBasicAuth(config);
+
+    if (!this.senderName) {
+      throw deliveryConfigError('Beem SMS sender is not configured.');
     }
   }
 
-  async sendOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
-    const response = await fetch(sendchampEndpoint(this.baseUrl, '/sms/send'), {
+  async send(input: BeemSmsInput): Promise<DeliveryReceipt> {
+    const recipients = (Array.isArray(input.to) ? input.to : [input.to]).map((to, index) => ({
+      recipient_id: index + 1,
+      dest_addr: normalizeRecipient(to)
+    }));
+
+    const response = await fetch(endpoint(this.baseUrl, '/v1/send'), {
       method: 'POST',
       headers: {
         accept: 'application/json',
         'content-type': 'application/json',
-        authorization: `Bearer ${this.accessKey}`
+        authorization: this.authorization
       },
       body: JSON.stringify({
-        to: [input.to.replace(/^\+/, '')],
-        message: `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`,
-        sender_name: this.senderName,
-        route: this.route
+        source_addr: this.senderName,
+        schedule_time: input.scheduleTime ?? '',
+        encoding: 0,
+        message: input.message,
+        recipients
       })
     }).catch((error: unknown) => {
-      throw deliveryConfigError(error instanceof Error ? error.message : 'Sendchamp SMS request failed.');
+      throw deliveryConfigError(error instanceof Error ? error.message : 'Beem SMS request failed.');
     });
 
     if (!response.ok) {
-      throw deliveryConfigError(`Sendchamp SMS returned ${response.status}.`);
+      throw deliveryConfigError(`Beem SMS returned ${response.status}.`);
     }
 
-    const body = (await response.json().catch(() => ({}))) as SendchampSmsResponse;
-    return { provider: 'sendchamp', messageId: sendchampMessageId(body) };
+    const body = await jsonResponse(response);
+    return { provider: 'beem-sms', messageId: beemMessageId(body), providerMetadata: body };
+  }
+
+  sendOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+    return this.send({
+      to: input.to,
+      message: `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`
+    });
   }
 }
 
-export class SmtpEmailProvider {
-  private readonly transporter;
+export class BeemWhatsAppProvider {
+  private readonly chatBaseUrl: string;
+  private readonly broadcastBaseUrl: string;
   private readonly from: string;
-  private readonly logCodeCopy: boolean;
+  private readonly authorization: string;
 
-  constructor(config = process.env) {
-    const host = config.SMTP_HOST;
-    const port = Number(config.SMTP_PORT ?? 587);
-    const user = config.SMTP_USER;
-    const pass = config.SMTP_PASS;
-    this.from = config.SMTP_FROM ?? '';
-    this.logCodeCopy = emailCodeLogCopyEnabled(config);
+  constructor(private readonly config = process.env) {
+    this.chatBaseUrl = config.BEEM_CHAT_BASE_URL || 'https://apichatcore.beem.africa';
+    this.broadcastBaseUrl = config.BEEM_BROADCAST_BASE_URL || 'https://apibroadcast.beem.africa';
+    this.from = config.BEEM_WHATSAPP_FROM?.trim() ?? '';
+    this.authorization = beemBasicAuth(config);
 
-    if (!host || !this.from) {
-      throw deliveryConfigError('SMTP host and sender are not configured.');
+    if (!this.from) {
+      throw deliveryConfigError('Beem WhatsApp sender is not configured.');
     }
-
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: config.SMTP_SECURE === 'true' || port === 465,
-      auth: user && pass ? { user, pass } : undefined
-    });
   }
 
-  async sendActivation(input: EmailCodeInput): Promise<DeliveryReceipt> {
-    const actionText = input.actionUrl ? `\n\nOpen this link to continue: ${input.actionUrl}` : '';
-    const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Continue in ProcureX</a></p>` : '';
-    const result = await this.transporter.sendMail({
-      from: this.from,
-      to: input.to,
-      subject: 'Activate your ProcureX account',
-      text: `Your ProcureX activation code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
-      html: `<p>Your ProcureX activation code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`
+  async sendTemplate(input: BeemWhatsAppTemplateInput): Promise<DeliveryReceipt> {
+    const destination = Array.isArray(input.to)
+      ? input.to.map((item) =>
+          typeof item === 'string'
+            ? { phoneNumber: normalizeRecipient(item), params: input.params ?? [] }
+            : { phoneNumber: normalizeRecipient(item.phoneNumber), params: item.params ?? input.params ?? [] }
+        )
+      : [{ phoneNumber: normalizeRecipient(input.to), params: input.params ?? [] }];
+
+    const response = await fetch(endpoint(this.broadcastBaseUrl, '/v1/broadcast/template/api-send'), {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: this.authorization
+      },
+      body: JSON.stringify({
+        from_addr: normalizeRecipient(this.from),
+        destination_addr: destination,
+        channel: 'whatsapp',
+        ...(input.mediaUrl ? { content: { mediaUrl: input.mediaUrl } } : {}),
+        messageTemplateData: { id: input.templateId }
+      })
+    }).catch((error: unknown) => {
+      throw deliveryConfigError(error instanceof Error ? error.message : 'Beem WhatsApp template request failed.');
     });
 
-    if (this.logCodeCopy) {
-      console.info(`[identity:smtp-log-copy] email activation for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)${input.actionUrl ? ` ${input.actionUrl}` : ''}`);
+    if (!response.ok) {
+      throw deliveryConfigError(`Beem WhatsApp template returned ${response.status}.`);
     }
 
-    return { provider: 'smtp', messageId: result.messageId };
+    const body = await jsonResponse(response);
+    return { provider: 'beem-whatsapp-template', messageId: beemMessageId(body), providerMetadata: body };
   }
 
-  async sendPasswordReset(input: EmailCodeInput): Promise<DeliveryReceipt> {
-    const actionText = input.actionUrl ? `\n\nOpen this link to reset your password: ${input.actionUrl}` : '';
-    const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Reset your password</a></p>` : '';
-    const result = await this.transporter.sendMail({
-      from: this.from,
-      to: input.to,
-      subject: 'Reset your ProcureX password',
-      text: `Your ProcureX password reset code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
-      html: `<p>Your ProcureX password reset code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`
+  async sendSessionMessage(input: BeemWhatsAppSessionInput): Promise<DeliveryReceipt> {
+    const messageType = input.messageType ?? 'text';
+    const response = await fetch(endpoint(this.chatBaseUrl, '/v1/chatapi'), {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: this.authorization
+      },
+      body: JSON.stringify({
+        from: normalizeRecipient(this.from),
+        to: normalizeRecipient(input.to),
+        channel: 'whatsapp',
+        transaction_id: input.idempotencyKey ?? randomUUID(),
+        message_type: messageType,
+        ...(input.callbackUrl ? { callback_url: input.callbackUrl } : {}),
+        ...(messageType === 'text' ? { text: input.text ?? '' } : {}),
+        ...(input.payload ?? {})
+      })
+    }).catch((error: unknown) => {
+      throw deliveryConfigError(error instanceof Error ? error.message : 'Beem WhatsApp session request failed.');
     });
 
-    if (this.logCodeCopy) {
-      console.info(`[identity:smtp-log-copy] password reset for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)${input.actionUrl ? ` ${input.actionUrl}` : ''}`);
+    if (!response.ok) {
+      throw deliveryConfigError(`Beem WhatsApp session message returned ${response.status}.`);
     }
 
-    return { provider: 'smtp', messageId: result.messageId };
+    const body = await jsonResponse(response);
+    return { provider: 'beem-whatsapp-session', messageId: beemMessageId(body), providerMetadata: body };
   }
 }
 
 export class ProductionIdentityNotifications implements IdentityNotificationProvider {
-  private sms?: TwilioSmsProvider | SendchampSmsProvider;
-  private email?: SmtpEmailProvider;
+  private sms?: BeemSmsProvider;
+  private email?: ResendEmailProvider;
+  private whatsApp?: BeemWhatsAppProvider;
 
   constructor(private readonly config = process.env) {}
 
   sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }) {
-    if (!this.sms) {
-      const provider = (this.config.IDENTITY_SMS_PROVIDER || 'sendchamp').trim().toLowerCase();
-      this.sms = provider === 'twilio' ? new TwilioSmsProvider(this.config) : new SendchampSmsProvider(this.config);
+    const provider = (this.config.IDENTITY_SMS_PROVIDER || 'beem').trim().toLowerCase();
+    if (provider !== 'beem') {
+      throw deliveryConfigError(`Unsupported identity SMS provider: ${provider}.`);
     }
+    this.sms ??= new BeemSmsProvider(this.config);
     return this.sms.sendOtp(input);
   }
 
   sendEmailActivation(input: EmailCodeInput) {
-    this.email ??= new SmtpEmailProvider(this.config);
+    this.email ??= new ResendEmailProvider(this.config);
     return this.email.sendActivation(input);
   }
 
   sendPasswordReset(input: EmailCodeInput) {
-    this.email ??= new SmtpEmailProvider(this.config);
+    this.email ??= new ResendEmailProvider(this.config);
     return this.email.sendPasswordReset(input);
+  }
+
+  sendWhatsAppTemplate(input: BeemWhatsAppTemplateInput) {
+    this.whatsApp ??= new BeemWhatsAppProvider(this.config);
+    return this.whatsApp.sendTemplate(input);
+  }
+
+  sendWhatsAppSessionMessage(input: BeemWhatsAppSessionInput) {
+    this.whatsApp ??= new BeemWhatsAppProvider(this.config);
+    return this.whatsApp.sendSessionMessage(input);
   }
 }
 
@@ -264,7 +384,7 @@ export class RoutedIdentityNotifications implements IdentityNotificationProvider
 
   constructor(private readonly config = process.env) {
     const legacyDevConsole = devConsoleEnabled(config);
-    this.emailProvider = providerName(config.IDENTITY_EMAIL_PROVIDER) ?? (legacyDevConsole ? 'dev-console' : 'smtp');
+    this.emailProvider = providerName(config.IDENTITY_EMAIL_PROVIDER) ?? (legacyDevConsole ? 'dev-console' : 'resend');
     this.phoneProvider = providerName(config.IDENTITY_PHONE_PROVIDER) ?? (legacyDevConsole ? 'dev-console' : 'sms');
     this.production = new ProductionIdentityNotifications(config);
 
@@ -281,14 +401,22 @@ export class RoutedIdentityNotifications implements IdentityNotificationProvider
 
   sendEmailActivation(input: EmailCodeInput) {
     if (this.emailProvider === 'dev-console') return this.devConsole!.sendEmailActivation(input);
-    if (this.emailProvider !== 'smtp') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
+    if (this.emailProvider !== 'resend') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
     return this.production.sendEmailActivation(input);
   }
 
   sendPasswordReset(input: EmailCodeInput) {
     if (this.emailProvider === 'dev-console') return this.devConsole!.sendPasswordReset(input);
-    if (this.emailProvider !== 'smtp') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
+    if (this.emailProvider !== 'resend') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
     return this.production.sendPasswordReset(input);
+  }
+
+  sendWhatsAppTemplate(input: BeemWhatsAppTemplateInput) {
+    return this.production.sendWhatsAppTemplate(input);
+  }
+
+  sendWhatsAppSessionMessage(input: BeemWhatsAppSessionInput) {
+    return this.production.sendWhatsAppSessionMessage(input);
   }
 }
 

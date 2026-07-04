@@ -23,7 +23,7 @@ import {
   type EmailValidationResult
 } from './emailValidation.js';
 import {
-  SendchampNumberInsightProvider,
+  BeemPhoneValidationProvider,
   isPhoneValidationProviderFailure,
   type PhoneValidationProvider,
   type PhoneValidationResult
@@ -610,7 +610,7 @@ export class ModuleService {
     private readonly registryProvider: RegistryProvider = new ProductionRegistryProvider(),
     private readonly screeningProvider: ScreeningProvider = new DeterministicScreeningProvider(),
     private readonly emailValidationProvider: EmailValidationProvider = new MailboxlayerEmailValidationProvider(),
-    private readonly phoneValidationProvider: PhoneValidationProvider = new SendchampNumberInsightProvider()
+    private readonly phoneValidationProvider: PhoneValidationProvider = new BeemPhoneValidationProvider()
   ) {}
 
   async status(): Promise<ModuleStatus> {
@@ -811,7 +811,7 @@ export class ModuleService {
         target: input.phone,
         severity: AuditSeverity.ERROR,
         details: {
-          provider: 'sendchamp-number-insight',
+          provider: 'beem-phone-validation',
           providerError: error instanceof Error ? error.message : 'Phone validation failed.'
         }
       });
@@ -1011,7 +1011,8 @@ export class ModuleService {
       const receipt = await this.notifications.sendEmailActivation({
         to: email,
         code: activationCode,
-        expiresInMinutes: activationMinutes
+        expiresInMinutes: activationMinutes,
+        idempotencyKey: `identity-email-activation/${activation.id}`
       });
       const devCode = devCodeFromReceipt(receipt, activationCode) ?? (localTemporaryAuthCodesEnabled() ? activationCode : undefined);
       await this.repository.updateChallenge(activation.id, {
@@ -1367,7 +1368,8 @@ export class ModuleService {
         to: email,
         code,
         expiresInMinutes: passwordResetMinutes,
-        actionUrl: passwordResetActionUrl(challenge.id, code)
+        actionUrl: passwordResetActionUrl(challenge.id, code),
+        idempotencyKey: `identity-password-reset/${challenge.id}`
       });
       await this.repository.updateChallenge(challenge.id, {
         metadata: inputJson({

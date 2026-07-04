@@ -552,7 +552,7 @@ class FakePhoneValidationProvider implements PhoneValidationProvider {
     this.calls.push(input.phone);
     if (this.failNext) {
       this.failNext = false;
-      const error = new Error('sendchamp unavailable') as Error & { providerFailure?: true };
+      const error = new Error('beem phone validation unavailable') as Error & { providerFailure?: true };
       error.providerFailure = true;
       return Promise.reject(error);
     }
@@ -902,7 +902,7 @@ describe('identity production auth', () => {
     expect(repository.usersByEmail.has('phone-provider-fail@example.test')).toBe(false);
     expect(repository.challenges.size).toBe(0);
     expect(repository.auditEvents.some((event) => event.event === 'identity.auth.registration_start.phone_validation_failed')).toBe(true);
-    expect(JSON.stringify(repository.auditEvents)).not.toContain('sendchamp_live_');
+    expect(JSON.stringify(repository.auditEvents)).not.toContain('beem_live_');
   });
 
   it('rejects duplicate active account emails', async () => {
