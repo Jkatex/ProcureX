@@ -445,6 +445,50 @@ function getSupplierTenderSavedIds() {
     }
 }
 
+function getSupplierTenderSelectedId() {
+    try {
+        return String(mockData.selectedTenderId || localStorage.getItem('procurex.marketplace.selectedTenderId') || '');
+    } catch (error) {
+        return String(mockData.selectedTenderId || '');
+    }
+}
+
+function getSupplierTenderFromMarketplace(tenderId = '') {
+    const normalizedTenderId = String(tenderId || '');
+    if (!normalizedTenderId || typeof getProcurexMarketplaceTenders !== 'function') return null;
+    return getProcurexMarketplaceTenders().find(tender => (
+        [tender.id, tender.tenderId, tender.reference]
+            .filter(Boolean)
+            .map(value => String(value))
+            .includes(normalizedTenderId)
+    )) || null;
+}
+
+function getSupplierTenderDetailSource() {
+    const selectedId = getSupplierTenderSelectedId();
+    const marketplaceTender = getSupplierTenderFromMarketplace(selectedId);
+    if (marketplaceTender) return marketplaceTender;
+    if (typeof getProcurexSelectedTender === 'function') return getProcurexSelectedTender();
+    return mockData.tenders[0];
+}
+
+function isSupplierTenderSaved(tender = {}) {
+    if (Object.prototype.hasOwnProperty.call(tender, 'isSaved')) {
+        return tender.isSaved === true;
+    }
+    return getSupplierTenderSavedIds().includes(tender.id);
+}
+
+function setSupplierTenderSavedFallback(tenderId = '', isSaved = false) {
+    const saved = new Set(getSupplierTenderSavedIds());
+    if (isSaved) {
+        saved.add(tenderId);
+    } else {
+        saved.delete(tenderId);
+    }
+    localStorage.setItem(supplierTenderSavedStorageKey, JSON.stringify([...saved]));
+}
+
 function getSupplierTenderStoredClarifications(tenderId = '') {
     try {
         const parsed = JSON.parse(localStorage.getItem(supplierTenderClarificationStorageKey) || '{}');
@@ -1334,7 +1378,7 @@ function renderSupplierTenderTabbedDetail(tender = {}, profile = {}, options = {
 }
 
 function renderSupplierTenderDetail() {
-    const baseTender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders[0];
+    const baseTender = getSupplierTenderDetailSource();
     const tender = typeof getEffectiveTender === 'function' ? getEffectiveTender(baseTender) : baseTender;
     const profile = typeof getCreateTenderTypeProfile === 'function'
         ? getCreateTenderTypeProfile(tender)
@@ -1342,7 +1386,8 @@ function renderSupplierTenderDetail() {
     const documents = tender.documents?.length ? tender.documents : profile.documentLabels || ['Tender document'];
     const clarifications = getSupplierTenderClarifications(tender);
     const requirementSet = getSupplierTenderRequirementSet(tender, profile);
-    const saved = getSupplierTenderSavedIds().includes(tender.id);
+    const saved = isSupplierTenderSaved(tender);
+    const owned = typeof isProcurexTenderOwnedByCurrentUser === 'function' ? isProcurexTenderOwnedByCurrentUser(tender) : tender.createdByCurrentUser === true;
     const daysRemaining = Math.max(0, Math.ceil((Date.parse(`${tender.closingDate}T23:59:59`) - Date.now()) / 86400000)) || 0;
     const clarificationDeadline = getSupplierTenderClarificationDeadlineState(tender);
     const publishedAmendments = (tender.amendments || []).filter(item => !/ready|draft/i.test(String(item.status || '')));
@@ -1378,7 +1423,7 @@ function renderSupplierTenderDetail() {
                                 <button class="btn btn-secondary" type="button" data-tender-pdf="download" data-tender-id="${escapeSupplierTenderDetailHtml(tender.id)}" data-document-audience="supplier">Download Document</button>
                             </div>
                             <div class="supplier-detail-action-row">
-                                <button class="btn btn-secondary" type="button" data-supplier-save-tender>${saved ? 'Saved' : 'Save Tender'}</button>
+                                <button class="btn btn-secondary" type="button" data-supplier-save-tender="${escapeSupplierTenderDetailHtml(tender.id || '')}" data-supplier-saved="${saved ? 'true' : 'false'}" ${owned ? 'disabled title="You cannot save your own tender."' : ''}>${owned ? 'Own Tender' : saved ? 'Saved' : 'Save Tender'}</button>
                                 <button class="btn btn-secondary" type="button" data-supplier-focus-clarification>Ask Buyer</button>
                             </div>
                         </div>
@@ -1415,7 +1460,7 @@ function initializeSupplierTenderDetail() {
     const root = document.querySelector('[data-supplier-tender-detail]');
     if (!root || root.dataset.ready === 'true') return;
     const tenderId = root.dataset.tenderId;
-    const baseTender = typeof getProcurexSelectedTender === 'function' ? getProcurexSelectedTender() : mockData.tenders.find(item => item.id === tenderId);
+    const baseTender = getSupplierTenderDetailSource() || mockData.tenders.find(item => item.id === tenderId);
     const tender = typeof getEffectiveTender === 'function' ? getEffectiveTender(baseTender) : baseTender;
 
     const openClarificationInCommunicationCenter = (context = '', category = 'Technical') => {
@@ -1481,15 +1526,39 @@ function initializeSupplierTenderDetail() {
 
         const saveButton = event.target.closest('[data-supplier-save-tender]');
         if (saveButton) {
-            const saved = new Set(getSupplierTenderSavedIds());
-            if (saved.has(tenderId)) {
-                saved.delete(tenderId);
-                saveButton.textContent = 'Save Tender';
-            } else {
-                saved.add(tenderId);
-                saveButton.textContent = 'Saved';
-            }
-            localStorage.setItem(supplierTenderSavedStorageKey, JSON.stringify([...saved]));
+            const targetTenderId = saveButton.dataset.supplierSaveTender || tenderId;
+            const nextSaved = saveButton.dataset.supplierSaved !== 'true';
+            const previousText = saveButton.textContent;
+            const previousDisabled = saveButton.disabled;
+            saveButton.disabled = true;
+            saveButton.textContent = nextSaved ? 'Saving...' : 'Removing...';
+
+            Promise.resolve()
+                .then(() => {
+                    if (typeof window.toggleProcurexTenderSave === 'function') {
+                        return window.toggleProcurexTenderSave(targetTenderId, nextSaved);
+                    }
+                    setSupplierTenderSavedFallback(targetTenderId, nextSaved);
+                    return null;
+                })
+                .then(() => {
+                    if (!saveButton.isConnected) return;
+                    saveButton.dataset.supplierSaved = nextSaved ? 'true' : 'false';
+                    saveButton.textContent = nextSaved ? 'Saved' : 'Save Tender';
+                })
+                .catch(error => {
+                    if (saveButton.isConnected) {
+                        saveButton.textContent = previousText;
+                    }
+                    if (!error?.userNotified) {
+                        alert(error instanceof Error ? error.message : 'Unable to update saved tender.');
+                    }
+                })
+                .finally(() => {
+                    if (saveButton.isConnected) {
+                        saveButton.disabled = previousDisabled;
+                    }
+                });
             return;
         }
 

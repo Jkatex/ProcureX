@@ -71,6 +71,7 @@ function renderMarketplaceTenderRow(tender = {}) {
     const hasSubmittedBid = hasMarketplaceBidState(tender, 'submitted');
     const hasDraftBid = hasMarketplaceBidState(tender, 'draft');
     const canBid = tender.status === 'Open' && !owned && !hasSubmittedBid;
+    const isSaved = tender.isSaved === true;
     const searchable = [
         tender.id,
         tender.title,
@@ -90,7 +91,8 @@ function renderMarketplaceTenderRow(tender = {}) {
             data-budget-band="${getMarketplaceBudgetBand(tender.budget)}"
             data-budget="${Number(tender.budget || 0)}"
             data-closing="${escapeMarketplaceHtml(tender.closingDate || '')}"
-            data-created="${escapeMarketplaceHtml(tender.publishedAt || tender.closingDate || '')}">
+            data-created="${escapeMarketplaceHtml(tender.publishedAt || tender.closingDate || '')}"
+            data-tender-id="${escapeMarketplaceHtml(tenderId)}">
             <div>
                 <div class="tender-row-title">
                     <strong>${escapeMarketplaceHtml(tender.title)}</strong>
@@ -107,7 +109,7 @@ function renderMarketplaceTenderRow(tender = {}) {
                 </div>
             </div>
             <div class="tender-row-actions">
-                <button class="btn btn-secondary" type="button" data-marketplace-save>Save</button>
+                <button class="btn btn-secondary" type="button" data-marketplace-save data-select-tender="${escapeMarketplaceHtml(tenderId)}" data-marketplace-saved="${isSaved ? 'true' : 'false'}" ${owned ? 'disabled title="You cannot save your own tender."' : ''}>${owned ? 'Own Tender' : isSaved ? 'Saved' : 'Save'}</button>
                 ${owned
                     ? `<button class="btn btn-primary" type="button" data-select-tender="${escapeMarketplaceHtml(tenderId)}" data-navigate="tender-details">View My Tender</button>`
                     : `
@@ -375,7 +377,39 @@ function initializeProcurexMarketplace() {
         }
         const saveButton = event.target.closest('[data-marketplace-save]');
         if (saveButton) {
-            saveButton.textContent = saveButton.textContent === 'Saved' ? 'Save' : 'Saved';
+            event.preventDefault();
+            const tenderId = saveButton.dataset.selectTender || saveButton.closest('[data-marketplace-row]')?.dataset.tenderId || saveButton.dataset.marketplaceSave || '';
+            const nextSaved = saveButton.dataset.marketplaceSaved !== 'true';
+            const previousText = saveButton.textContent;
+            const previousDisabled = saveButton.disabled;
+            saveButton.disabled = true;
+            saveButton.textContent = nextSaved ? 'Saving...' : 'Removing...';
+
+            Promise.resolve()
+                .then(() => {
+                    if (typeof window.toggleProcurexTenderSave !== 'function') {
+                        throw new Error('Saved tender service is unavailable.');
+                    }
+                    return window.toggleProcurexTenderSave(tenderId, nextSaved);
+                })
+                .then(() => {
+                    if (!saveButton.isConnected) return;
+                    saveButton.dataset.marketplaceSaved = nextSaved ? 'true' : 'false';
+                    saveButton.textContent = nextSaved ? 'Saved' : 'Save';
+                })
+                .catch(error => {
+                    if (saveButton.isConnected) {
+                        saveButton.textContent = previousText;
+                    }
+                    if (!error?.userNotified) {
+                        alert(error instanceof Error ? error.message : 'Unable to update saved tender.');
+                    }
+                })
+                .finally(() => {
+                    if (saveButton.isConnected) {
+                        saveButton.disabled = previousDisabled;
+                    }
+                });
         }
     });
 

@@ -1,5 +1,6 @@
-import type { RequestHandler } from 'express';
-import { ModuleService } from './service.js';
+import type { RequestHandler, Response } from 'express';
+import type { ZodError } from 'zod';
+import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService } from './service.js';
 import {
   createTenderBodySchema,
   moduleStatusQuerySchema,
@@ -10,6 +11,7 @@ import {
   planParamsSchema,
   planningQuerySchema,
   publicWelcomeQuerySchema,
+  publishTenderBodySchema,
   saveAnnualPlanBodySchema,
   tenderParamsSchema,
   updateTenderBodySchema,
@@ -20,6 +22,24 @@ function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
   return error;
+}
+
+function validationResponse(res: Response, error: ZodError) {
+  return res.status(400).json({
+    success: false,
+    message: 'Validation failed',
+    errors: error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message,
+      code: issue.code
+    }))
+  });
+}
+
+function isMarketplaceUnavailableError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; status?: unknown; message?: unknown };
+  return candidate.code === MARKETPLACE_UNAVAILABLE_CODE && candidate.status === 503;
 }
 
 export class ModuleController {
@@ -46,9 +66,16 @@ export class ModuleController {
   marketplace: RequestHandler = async (req, res, next) => {
     try {
       const query = marketplaceQuerySchema.safeParse(req.query);
-      if (!query.success) throw requestError('Invalid marketplace query parameters.');
+      if (!query.success) return validationResponse(res, query.error);
       res.json(await this.service.marketplace(bearerToken(req), query.data));
     } catch (error) {
+      if (isMarketplaceUnavailableError(error)) {
+        res.status(503).json({
+          success: false,
+          message: MARKETPLACE_UNAVAILABLE_MESSAGE
+        });
+        return;
+      }
       next(error);
     }
   };
@@ -56,7 +83,7 @@ export class ModuleController {
   createTender: RequestHandler = async (req, res, next) => {
     try {
       const body = createTenderBodySchema.safeParse(req.body);
-      if (!body.success) throw requestError('Invalid tender creation payload.');
+      if (!body.success) return validationResponse(res, body.error);
       res.status(201).json(await this.service.createTender(bearerToken(req), body.data));
     } catch (error) {
       next(error);
@@ -66,9 +93,9 @@ export class ModuleController {
   updateTender: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderParamsSchema.safeParse(req.params);
-      if (!params.success) throw requestError('Invalid tender id.');
+      if (!params.success) return validationResponse(res, params.error);
       const body = updateTenderBodySchema.safeParse(req.body);
-      if (!body.success) throw requestError('Invalid tender update payload.');
+      if (!body.success) return validationResponse(res, body.error);
       const tender = await this.service.updateTender(params.data.tenderId, bearerToken(req), body.data);
       if (!tender) throw requestError('Tender was not found.', 404);
       res.json(tender);
@@ -80,7 +107,7 @@ export class ModuleController {
   getTenderDetail: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderParamsSchema.safeParse(req.params);
-      if (!params.success) throw requestError('Invalid tender id.');
+      if (!params.success) return validationResponse(res, params.error);
       const tender = await this.service.getTenderDetail(params.data.tenderId, bearerToken(req));
       if (!tender) throw requestError('Tender was not found.', 404);
       res.json(tender);
@@ -89,10 +116,40 @@ export class ModuleController {
     }
   };
 
+  savedTenders: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.savedTenders(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  saveTender: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      res.json(await this.service.saveTender(params.data.tenderId, bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  unsaveTender: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      res.json(await this.service.unsaveTender(params.data.tenderId, bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   publishTender: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderParamsSchema.safeParse(req.params);
-      if (!params.success) throw requestError('Invalid tender id.');
+      if (!params.success) return validationResponse(res, params.error);
+      const body = publishTenderBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
       res.json(await this.service.publishTender(params.data.tenderId, bearerToken(req)));
     } catch (error) {
       next(error);
@@ -102,7 +159,7 @@ export class ModuleController {
   closeTender: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderParamsSchema.safeParse(req.params);
-      if (!params.success) throw requestError('Invalid tender id.');
+      if (!params.success) return validationResponse(res, params.error);
       res.json(await this.service.closeTender(params.data.tenderId, bearerToken(req)));
     } catch (error) {
       next(error);

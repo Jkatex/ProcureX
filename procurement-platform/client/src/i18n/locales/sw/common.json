@@ -338,6 +338,7 @@
       "missing": "Kamilisha ukaguzi wa usalama kabla ya kuendelea.",
       "missingSignIn": "Kamilisha ukaguzi wa usalama kabla ya kuingia.",
       "notConfigured": "Ukaguzi wa usalama haujasanidiwa.",
+      "localDevelopment": "Ukaguzi wa usalama wa mazingira ya ndani umewezeshwa.",
       "ariaLabel": "Ukaguzi wa usalama"
     },
     "register": {

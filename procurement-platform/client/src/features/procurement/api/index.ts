@@ -1,19 +1,19 @@
 import { mockApi } from '@/shared/api/mockApi';
 import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
-import type { Bid, Tender } from '@/shared/types/domain';
+import type { Bid, SessionUser, Tender } from '@/shared/types/domain';
 import { toTenderType } from '../createTenderConfig';
 import type { CreateTenderDraft, MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow, TenderDetail } from '../types';
 
 export const procurementApi = {
   listTenders: mockApi.getTenders,
-  async getMarketplace(): Promise<MarketplacePayload> {
+  async getMarketplace(currentUser?: SessionUser | null): Promise<MarketplacePayload> {
     try {
       const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
       return response.data;
     } catch {
       const [tenders, bids, workItems] = await Promise.all([mockApi.getTenders(), mockApi.getBids(), mockApi.getWorkItems()]);
-      return buildMarketplacePayload(tenders, bids, workItems);
+      return buildMarketplacePayload(tenders, bids, workItems, currentUser);
     }
   },
   async getTenderDetail(tenderId: string): Promise<TenderDetail> {
@@ -25,20 +25,30 @@ export const procurementApi = {
       const tender = tenders.find((item) => item.id === tenderId || item.reference === tenderId) ?? tenders[0];
       return buildTenderDetailFallback(tender);
     }
+  },
+  async saveTender(tenderId: string) {
+    const response = await apiClient.post<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/save`);
+    return response.data;
+  },
+  async unsaveTender(tenderId: string) {
+    const response = await apiClient.delete<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/save`);
+    return response.data;
   }
 };
 
 type WorkItemFixture = Awaited<ReturnType<typeof mockApi.getWorkItems>>[number];
 
-function buildMarketplacePayload(tenders: Tender[], bids: Bid[], workItems: WorkItemFixture[]): MarketplacePayload {
-  const myTenderRows = buildMyTenderRows(tenders, workItems);
-  const myBidRows = buildMyBidRows(tenders, bids, workItems);
+function buildMarketplacePayload(tenders: Tender[], bids: Bid[], workItems: WorkItemFixture[], currentUser?: SessionUser | null): MarketplacePayload {
+  const normalizedTenders = tenders.map((tender) => normalizeFixtureTender(tender, currentUser));
+  const myTenderRows = buildMyTenderRows(normalizedTenders, workItems, currentUser);
+  const myBidRows = buildMyBidRows(normalizedTenders, bids, workItems, currentUser);
 
   return {
-    tenders: tenders.map((tender) => ({
+    tenders: normalizedTenders.map((tender) => ({
       ...tender,
       hasDraftBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'draft'),
-      hasSubmittedBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted')
+      hasSubmittedBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted'),
+      canBid: canBidOnFixtureTender(tender, myBidRows)
     })),
     myTenders: myTenderRows,
     myBids: myBidRows
@@ -88,9 +98,12 @@ function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization
     location: draft.location || 'Tanzania',
     description: summarizeDraft(draft),
     createdByCurrentUser: true,
-    categories: draft.categories.length ? draft.categories : [draft.procurementTypeId],
+    ownedByCurrentOrganization: true,
+    canBid: false,
     hasDraftBid: false,
-    hasSubmittedBid: false
+    hasSubmittedBid: false,
+    isSaved: false,
+    categories: draft.categories.length ? draft.categories : [draft.procurementTypeId]
   };
 }
 
@@ -133,7 +146,8 @@ function summarizeDraft(draft: CreateTenderDraft) {
   return draft.description || firstRequirement || draft.deliverables[0] || `Published ${draft.procurementTypeId} tender created in the React workflow.`;
 }
 
-function buildMyTenderRows(tenders: Tender[], workItems: WorkItemFixture[]): MyTenderRow[] {
+function buildMyTenderRows(tenders: Tender[], workItems: WorkItemFixture[], currentUser?: SessionUser | null): MyTenderRow[] {
+  if (!isDemoFixtureUser(currentUser)) return [];
   const ownedTenders = tenders.filter((tender) => tender.createdByCurrentUser);
   const draftWorkItems = workItems.filter((item) => /tender draft|publish tender/i.test(`${item.title} ${item.subtitle}`));
 
@@ -167,9 +181,10 @@ function buildMyTenderRows(tenders: Tender[], workItems: WorkItemFixture[]): MyT
   return [...draftRows, ...postedRows];
 }
 
-function buildMyBidRows(tenders: Tender[], bids: Bid[], workItems: WorkItemFixture[]): MyBidRow[] {
+function buildMyBidRows(tenders: Tender[], bids: Bid[], workItems: WorkItemFixture[], currentUser?: SessionUser | null): MyBidRow[] {
+  if (!currentUser) return [];
   const tenderByReference = new Map(tenders.map((tender) => [tender.reference, tender]));
-  const draftBidWorkItems = workItems.filter((item) => /bid package|continue bid/i.test(`${item.title} ${item.subtitle}`));
+  const draftBidWorkItems = isDemoFixtureUser(currentUser) ? workItems.filter((item) => /bid package|continue bid/i.test(`${item.title} ${item.subtitle}`)) : [];
 
   const draftRows = draftBidWorkItems.flatMap((item): MyBidRow[] => {
     const tender = findTenderForWorkItem(tenders, item);
@@ -191,7 +206,7 @@ function buildMyBidRows(tenders: Tender[], bids: Bid[], workItems: WorkItemFixtu
 
   const submittedRows = bids.flatMap((bid): MyBidRow[] => {
     const tender = tenderByReference.get(bid.tenderReference);
-    if (!tender || bid.status === 'DRAFT' || bid.supplier !== demoUsers.user.organization) return [];
+    if (!tender || bid.status === 'DRAFT' || bid.supplier !== currentUser.organization) return [];
     return [
       {
         id: `my-bid-submitted-${bid.id}`,
@@ -215,4 +230,31 @@ function buildMyBidRows(tenders: Tender[], bids: Bid[], workItems: WorkItemFixtu
 function findTenderForWorkItem(tenders: Tender[], item: WorkItemFixture) {
   const haystack = `${item.title} ${item.subtitle}`.toLowerCase();
   return tenders.find((tender) => haystack.includes(tender.title.toLowerCase()) || tender.title.toLowerCase().includes(item.subtitle.toLowerCase()));
+}
+
+function normalizeFixtureTender(tender: Tender, currentUser?: SessionUser | null): MarketplaceTenderRow {
+  const createdByCurrentUser = Boolean(tender.createdByCurrentUser && isDemoFixtureUser(currentUser));
+  const ownedByCurrentOrganization = Boolean(currentUser?.organization && tender.organization === currentUser.organization);
+  return {
+    ...tender,
+    createdByCurrentUser,
+    ownedByCurrentOrganization,
+    canBid: false,
+    hasDraftBid: false,
+    hasSubmittedBid: false,
+    isSaved: false
+  };
+}
+
+function canBidOnFixtureTender(tender: Tender, myBidRows: MyBidRow[]) {
+  const status = String(tender.status).toUpperCase();
+  const hasSubmittedBid = myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted');
+  if (tender.ownedByCurrentOrganization) return false;
+  if (status !== 'OPEN' && status !== 'PUBLISHED') return false;
+  if (hasSubmittedBid) return false;
+  return Date.parse(`${tender.closingDate}T23:59:59.999Z`) > Date.now();
+}
+
+function isDemoFixtureUser(user?: SessionUser | null) {
+  return Boolean(user && (user.id === demoUsers.user.id || user.email === demoUsers.user.email));
 }

@@ -14,10 +14,11 @@ type LocationState = {
   };
 };
 
-function destinationFor(user: { accountType: string; verificationStatus: string }, intendedPath?: string) {
+function destinationFor(user: { accountType: string; verificationStatus: string }, isFirstSignIn: boolean, intendedPath?: string) {
   if (user.accountType === 'ADMIN') return '/admin';
   if (user.verificationStatus !== 'APPROVED') return '/identity/verification';
-  return intendedPath && intendedPath !== '/sign-in' ? intendedPath : '/apps';
+  if (intendedPath && intendedPath !== '/sign-in') return intendedPath;
+  return isFirstSignIn ? '/apps' : '/dashboard';
 }
 
 function demoSignInConfig() {
@@ -79,7 +80,7 @@ export function SignInProcurexPage() {
     try {
       const session = await dispatch(signInWithCredentials({ email: emailValue.trim(), password: passwordValue, turnstileToken })).unwrap();
       const intendedPath = locationState?.from?.pathname;
-      navigate(destinationOverride ?? destinationFor(session.user, intendedPath), { replace: true });
+      navigate(destinationOverride ?? destinationFor(session.user, session.isFirstSignIn, intendedPath), { replace: true });
     } catch (caughtError) {
       if (isLockedAccountError(caughtError)) {
         navigate('/account-locked', { replace: true });

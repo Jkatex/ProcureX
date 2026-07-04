@@ -3,10 +3,13 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { store } from '@/app/store';
+import { assumeUser, signOut } from '@/features/auth/slice';
+import { demoUsers } from '@/shared/data/fixtures';
 import { procurexTheme } from '@/styles/mui-theme';
+import { procurementApi } from '../../api';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 
 function LocationProbe() {
@@ -28,6 +31,14 @@ function renderMarketplace(route = '/procurement/marketplace') {
 }
 
 describe('MarketplaceProcurexPage', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    store.dispatch(signOut());
+    store.dispatch(assumeUser(demoUsers.user));
+    vi.spyOn(procurementApi, 'saveTender').mockResolvedValue({ success: true, message: 'Tender saved successfully' });
+    vi.spyOn(procurementApi, 'unsaveTender').mockResolvedValue({ success: true, message: 'Tender removed from saved tenders' });
+  });
+
   it('opens the top-right ProcureX apps drawer and navigates to an app', async () => {
     const user = userEvent.setup();
     renderMarketplace();
@@ -127,15 +138,33 @@ describe('MarketplaceProcurexPage', () => {
     expect(screen.getByRole('button', { name: 'Your Tender' })).toBeDisabled();
   });
 
-  it('toggles saved state locally', async () => {
+  it('does not show another same-organization user exact-user tenders as my tenders', async () => {
+    store.dispatch(signOut());
+    store.dispatch(
+      assumeUser({
+        ...demoUsers.user,
+        id: 'demo-coworker',
+        email: 'coworker@procurex.tz',
+        displayName: 'Demo Coworker'
+      })
+    );
+    renderMarketplace('/procurement/my-tenders');
+
+    expect(await screen.findByRole('tab', { name: 'My Tenders', selected: true })).toBeInTheDocument();
+    expect(screen.queryByText('Facilities Maintenance Services Framework')).not.toBeInTheDocument();
+  });
+
+  it('toggles saved state through the procurement API', async () => {
     const user = userEvent.setup();
     renderMarketplace();
 
     await screen.findByText('Construction of District Maternal Health Wing');
-    const firstSaveButton = screen.getAllByRole('button', { name: 'Save' })[0];
+    const tenderRow = screen.getByText('Supply of Hospital Diagnostic Equipment').closest('article');
+    const firstSaveButton = within(tenderRow!).getByRole('button', { name: 'Save' });
 
     await user.click(firstSaveButton);
 
-    expect(screen.getByRole('button', { name: 'Saved' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Saved' })).toBeInTheDocument();
+    expect(procurementApi.saveTender).toHaveBeenCalledWith('tender-2');
   });
 });

@@ -1,6 +1,7 @@
 import { TenderStatus } from '@prisma/client';
 import { ModuleRepository } from './repository.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
+import { isProductionRuntime } from '../../security/config.js';
 import {
   type CloseTenderResponseDto,
   type CreateTenderInput,
@@ -19,15 +20,27 @@ import {
   type PublicWelcomePayload,
   type PublicWelcomeTender,
   type SaveAnnualPlanInput,
+  type SavedTendersPayload,
+  type SaveTenderResponseDto,
   type TenderDetailDto,
+  type UnsaveTenderResponseDto,
   type UpdateTenderInput,
   type UpdateTenderResponseDto,
   type UpdateProcurementPlanInput
 } from './types.js';
 
+export const MARKETPLACE_UNAVAILABLE_MESSAGE = 'Marketplace is temporarily unavailable. Please try again later.';
+export const MARKETPLACE_UNAVAILABLE_CODE = 'MARKETPLACE_UNAVAILABLE';
+
 function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
+  return error;
+}
+
+function marketplaceUnavailableError() {
+  const error = requestError(MARKETPLACE_UNAVAILABLE_MESSAGE, 503) as Error & { code?: string };
+  error.code = MARKETPLACE_UNAVAILABLE_CODE;
   return error;
 }
 
@@ -59,7 +72,11 @@ export class ModuleService {
       const context = await this.contextFromToken(token);
       return await this.repository.getMarketplaceData(context, query);
     } catch (error) {
-      if (isDatabaseUnavailable(error)) return emptyMarketplace(query);
+      if (isDatabaseUnavailable(error)) {
+        if (!isProductionRuntime()) return emptyMarketplace(query);
+        console.error('[procurement.marketplace] Database unavailable while loading marketplace.', error);
+        throw marketplaceUnavailableError();
+      }
       throw error;
     }
   }
@@ -105,6 +122,24 @@ export class ModuleService {
     return closed;
   }
 
+  async saveTender(tenderId: string, token: string | undefined): Promise<SaveTenderResponseDto> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.saveTender(tenderId, { organizationId, userId: session.user.id });
+  }
+
+  async unsaveTender(tenderId: string, token: string | undefined): Promise<UnsaveTenderResponseDto> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.unsaveTender(tenderId, organizationId);
+  }
+
+  async savedTenders(token: string | undefined): Promise<SavedTendersPayload> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.getSavedTenders(organizationId);
+  }
+
   async planning(query: ProcurementPlanningQuery): Promise<ProcurementPlanningListDto> {
     try {
       return await this.repository.listPlans(query);
@@ -147,7 +182,7 @@ export class ModuleService {
     if (!token) return {};
     try {
       const session = await this.identity.requireSession(token);
-      return { organizationId: session.user.organizationId };
+      return { organizationId: session.user.organizationId, userId: session.user.id };
     } catch {
       return {};
     }
@@ -235,7 +270,7 @@ const defaultMarketplaceQuery: MarketplaceQuery = {
   status: '',
   sort: 'deadline',
   page: 1,
-  limit: 50
+  limit: 20
 };
 
 function emptyMarketplace(query: MarketplaceQuery): ProcurementMarketplacePayload {
@@ -250,6 +285,14 @@ function emptyMarketplace(query: MarketplaceQuery): ProcurementMarketplacePayloa
       totalBudgetValue: 0,
       categoryCounts: [],
       closingSoon: 0
+    },
+    pagination: {
+      page: query.page,
+      limit: query.limit,
+      matching: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false
     }
   };
 }

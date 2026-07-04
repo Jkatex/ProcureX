@@ -1,11 +1,30 @@
 import { CommunicationKind, CommunicationPriority, CommunicationStatus } from '@prisma/client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ModuleService } from './service.js';
 import { communicationQuerySchema, composeMessageBodySchema, patchMessageBodySchema } from './validators.js';
 import type { CommunicationQuery } from './types.js';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const recipientOrgId = '22222222-2222-4222-8222-222222222222';
+const otherOrgId = '33333333-3333-4333-8333-333333333333';
+
+const userIdentity = {
+  requireSession: async () => ({
+    user: {
+      accountType: 'USER',
+      organizationId
+    }
+  })
+};
+
+const adminIdentity = {
+  requireSession: async () => ({
+    user: {
+      accountType: 'ADMIN',
+      organizationId: otherOrgId
+    }
+  })
+};
 
 describe('communication module', () => {
   it('normalizes mailbox query defaults', () => {
@@ -104,9 +123,9 @@ describe('communication module', () => {
       listMessages: async () => {
         throw new Error("Can't reach database server");
       }
-    } as any);
+    } as any, userIdentity as any);
 
-    await expect(service.listMessages(query)).resolves.toEqual({
+    await expect(service.listMessages('session-token', query)).resolves.toEqual({
       messages: [],
       counts: {
         total: 0,
@@ -124,4 +143,119 @@ describe('communication module', () => {
       totalPages: 1
     });
   });
+
+  it('scopes non-admin mailbox queries to the session organization', async () => {
+    const listMessages = vi.fn().mockResolvedValue(emptyMailbox());
+    const service = new ModuleService({ listMessages } as any, userIdentity as any);
+
+    await service.listMessages('session-token', {
+      organizationId: recipientOrgId,
+      folder: 'all',
+      search: '',
+      kind: 'all',
+      status: 'all',
+      priority: 'all',
+      category: '',
+      tenderId: '',
+      page: 1,
+      pageSize: 20,
+      sortBy: 'date',
+      sortDirection: 'desc'
+    });
+
+    expect(listMessages).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
+  });
+
+  it('keeps admin mailbox queries filterable', async () => {
+    const listMessages = vi.fn().mockResolvedValue(emptyMailbox());
+    const service = new ModuleService({ listMessages } as any, adminIdentity as any);
+
+    await service.listMessages('admin-token', {
+      organizationId: recipientOrgId,
+      folder: 'all',
+      search: '',
+      kind: 'all',
+      status: 'all',
+      priority: 'all',
+      category: '',
+      tenderId: '',
+      page: 1,
+      pageSize: 20,
+      sortBy: 'date',
+      sortDirection: 'desc'
+    });
+
+    expect(listMessages).toHaveBeenCalledWith(expect.objectContaining({ organizationId: recipientOrgId }));
+  });
+
+  it('blocks non-admin access to messages owned by another organization', async () => {
+    const patchMessage = vi.fn();
+    const service = new ModuleService(
+      {
+        getMessage: vi.fn().mockResolvedValue({ id: 'message-1', ownerOrgId: recipientOrgId }),
+        patchMessage
+      } as any,
+      userIdentity as any
+    );
+
+    await expect(service.getMessage('session-token', 'message-1')).resolves.toBeNull();
+    await expect(service.patchMessage('session-token', 'message-1', { read: true })).resolves.toBeNull();
+    expect(patchMessage).not.toHaveBeenCalled();
+  });
+
+  it('derives non-admin compose and reply sender organization from the session', async () => {
+    const createMessage = vi.fn().mockResolvedValue({ message: {}, deliveries: [] });
+    const reply = vi.fn().mockResolvedValue({ message: {}, deliveries: [] });
+    const service = new ModuleService(
+      {
+        createMessage,
+        getMessage: vi.fn().mockResolvedValue({ id: 'message-1', ownerOrgId: organizationId }),
+        reply
+      } as any,
+      userIdentity as any
+    );
+
+    await service.composeMessage('session-token', {
+      senderOrgId: otherOrgId,
+      recipientOrgId,
+      ownerOrgId: otherOrgId,
+      kind: CommunicationKind.MESSAGE,
+      category: 'General Message',
+      subject: 'Hello',
+      body: 'A live platform message.',
+      priority: CommunicationPriority.NORMAL,
+      actionRequired: false,
+      attachments: [],
+      metadata: {}
+    });
+    await service.reply('session-token', 'message-1', {
+      senderOrgId: otherOrgId,
+      body: 'Reply body.',
+      attachments: [],
+      metadata: {}
+    });
+
+    expect(createMessage).toHaveBeenCalledWith(expect.objectContaining({ senderOrgId: organizationId, ownerOrgId: organizationId }));
+    expect(reply).toHaveBeenCalledWith('message-1', expect.objectContaining({ senderOrgId: organizationId }));
+  });
 });
+
+function emptyMailbox() {
+  return {
+    messages: [],
+    counts: {
+      total: 0,
+      inbox: 0,
+      sent: 0,
+      drafts: 0,
+      archived: 0,
+      trash: 0,
+      unread: 0,
+      actionRequired: 0
+    },
+    totalMessages: 0,
+    page: 1,
+    pageSize: 20,
+    totalPages: 1
+  };
+}

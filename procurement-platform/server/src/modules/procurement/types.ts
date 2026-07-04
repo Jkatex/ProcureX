@@ -175,6 +175,10 @@ export type MarketplaceTenderRow = {
   publishedAt: string;
   closingDate: string;
   createdByCurrentUser: boolean;
+  ownedByCurrentOrganization: boolean;
+  canBid: boolean;
+  hasDraftBid: boolean;
+  hasSubmittedBid: boolean;
   isSaved: boolean;
 };
 
@@ -299,6 +303,20 @@ export type CloseTenderResponseDto = {
   };
 };
 
+export type SaveTenderResponseDto = {
+  success: true;
+  message: 'Tender saved successfully';
+};
+
+export type UnsaveTenderResponseDto = {
+  success: true;
+  message: 'Tender removed from saved tenders';
+};
+
+export type SavedTendersPayload = {
+  tenders: MarketplaceTenderRow[];
+};
+
 export type ProcurementMarketplaceSummary = {
   openTenders: number;
   myTenders: number;
@@ -308,11 +326,21 @@ export type ProcurementMarketplaceSummary = {
   closingSoon: number;
 };
 
+export type MarketplacePaginationDto = {
+  page: number;
+  limit: number;
+  matching: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
 export type ProcurementMarketplacePayload = {
   tenders: MarketplaceTenderRow[];
   myTenders: MyTenderRow[];
   myBids: MyBidRow[];
   summary: ProcurementMarketplaceSummary;
+  pagination: MarketplacePaginationDto;
 };
 
 export type TenderDetailDto = {
@@ -334,6 +362,7 @@ export type TenderDetailDto = {
   requirements: Record<string, unknown>;
   documents: Array<{ id: string; name: string; documentType: string; label: string | null }>;
   createdByCurrentUser: boolean;
+  ownedByCurrentOrganization: boolean;
   canBid: boolean;
   hasDraftBid: boolean;
   hasSubmittedBid: boolean;

@@ -26,6 +26,7 @@
     "db:migrate": "npm --workspace server run db:migrate",
     "db:deploy": "npm --workspace server run db:deploy",
     "db:seed": "npm --workspace server run db:seed",
+    "db:seed:marketplace-demo": "npm --workspace server run db:seed:marketplace-demo",
     "db:seed:awards-demo": "npm --workspace server run db:seed:award-contract-demo",
     "db:cleanup:demo-admin": "npm --workspace server run db:cleanup:demo-admin",
     "db:seed:twice": "npm --workspace server run db:seed:twice"

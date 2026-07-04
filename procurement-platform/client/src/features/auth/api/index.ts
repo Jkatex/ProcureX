@@ -6,6 +6,7 @@ export type AuthSessionResponse = {
   token: string;
   user: SessionUser;
   expiresAt: string;
+  isFirstSignIn: boolean;
 };
 
 export type SessionResponse = {

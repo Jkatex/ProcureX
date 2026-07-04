@@ -83,6 +83,19 @@ export class ModuleRepository {
     });
   }
 
+  async hasSubmittedBidForTenderSupplier(input: { tenderId: string; supplierOrgId: string; excludingBidId?: string }) {
+    const existing = await this.db.bid.findFirst({
+      where: {
+        tenderId: input.tenderId,
+        supplierOrgId: input.supplierOrgId,
+        status: BidStatus.SUBMITTED,
+        ...(input.excludingBidId ? { id: { not: input.excludingBidId } } : {})
+      },
+      select: { id: true }
+    });
+    return Boolean(existing);
+  }
+
   async saveDraft(input: {
     tender: TenderBidGuardRecord;
     supplierOrgId: string;
@@ -95,45 +108,50 @@ export class ModuleRepository {
     const totalAmount = input.draft.totalAmount ?? deriveTotalAmount(input.draft);
     const currency = input.draft.currency || input.tender.currency || 'TZS';
 
-    const bid = await this.db.$transaction(async (tx) => {
-      const saved = existing
-        ? await tx.bid.update({
-            where: { id: existing.id },
-            data: {
-              totalAmount,
-              currency,
-              payload: payload as Prisma.InputJsonObject,
-              submittedByUserId: input.userId
-            }
-          })
-        : await tx.bid.create({
-            data: {
-              tenderId: input.tender.id,
-              buyerOrgId: input.tender.buyerOrgId,
-              supplierOrgId: input.supplierOrgId,
-              submittedByUserId: input.userId,
-              reference: await this.nextBidReference(tx),
-              totalAmount,
-              currency,
-              payload: payload as Prisma.InputJsonObject
-            }
-          });
+    try {
+      const bid = await this.db.$transaction(async (tx) => {
+        const saved = existing
+          ? await tx.bid.update({
+              where: { id: existing.id },
+              data: {
+                totalAmount,
+                currency,
+                payload: payload as Prisma.InputJsonObject,
+                submittedByUserId: input.userId
+              }
+            })
+          : await tx.bid.create({
+              data: {
+                tenderId: input.tender.id,
+                buyerOrgId: input.tender.buyerOrgId,
+                supplierOrgId: input.supplierOrgId,
+                submittedByUserId: input.userId,
+                reference: await this.nextBidReference(tx),
+                totalAmount,
+                currency,
+                payload: payload as Prisma.InputJsonObject
+              }
+            });
 
-      await replaceResponses(tx, saved.id, input.draft.responses);
-      await replaceDocuments(tx, saved.id, input.supplierOrgId, input.userId, input.draft.documents);
-      await audit(tx, input.tender.buyerOrgId, input.userId, 'bidding.bid_draft_saved', saved.id, {
-        tenderId: input.tender.id,
-        supplierOrgId: input.supplierOrgId,
-        validationIssues: input.draft.validationIssues
+        await replaceResponses(tx, saved.id, input.draft.responses);
+        await replaceDocuments(tx, saved.id, input.supplierOrgId, input.userId, input.draft.documents);
+        await audit(tx, input.tender.buyerOrgId, input.userId, 'bidding.bid_draft_saved', saved.id, {
+          tenderId: input.tender.id,
+          supplierOrgId: input.supplierOrgId,
+          validationIssues: input.draft.validationIssues
+        });
+
+        return tx.bid.findUniqueOrThrow({
+          where: { id: saved.id },
+          include: bidInclude
+        });
       });
 
-      return tx.bid.findUniqueOrThrow({
-        where: { id: saved.id },
-        include: bidInclude
-      });
-    });
-
-    return toBidDto(bid);
+      return toBidDto(bid);
+    } catch (error) {
+      if (isUniqueConstraintError(error)) throw requestError('A bid already exists for this tender.', 409);
+      throw error;
+    }
   }
 
   async addDocuments(input: { bid: BidRecord; supplierOrgId: string; userId: string; documents: BidDocumentInput[] }) {
@@ -150,53 +168,58 @@ export class ModuleRepository {
 
   async submit(input: { bid: BidRecord; userId: string }) {
     const submittedAt = new Date();
-    const bid = await this.db.$transaction(async (tx) => {
-      const fullBid = await tx.bid.findUniqueOrThrow({ where: { id: input.bid.id }, include: bidInclude });
-      const nextVersion = (await tx.bidVersion.count({ where: { bidId: fullBid.id } })) + 1;
-      const canonical = canonicalBidPayload(fullBid, submittedAt.toISOString());
-      const sealedHash = sha256(JSON.stringify(canonical));
-      const receiptRef = `BID-${fullBid.reference}-${String(nextVersion).padStart(2, '0')}`;
+    try {
+      const bid = await this.db.$transaction(async (tx) => {
+        const fullBid = await tx.bid.findUniqueOrThrow({ where: { id: input.bid.id }, include: bidInclude });
+        const nextVersion = (await tx.bidVersion.count({ where: { bidId: fullBid.id } })) + 1;
+        const canonical = canonicalBidPayload(fullBid, submittedAt.toISOString());
+        const sealedHash = sha256(JSON.stringify(canonical));
+        const receiptRef = `BID-${fullBid.reference}-${String(nextVersion).padStart(2, '0')}`;
 
-      await tx.bidVersion.create({
-        data: {
-          bidId: fullBid.id,
-          versionNo: nextVersion,
-          envelope: EnvelopeType.COMBINED,
-          sealedHash,
-          payload: canonical as Prisma.InputJsonObject
-        }
-      });
-      await tx.bid.update({
-        where: { id: fullBid.id },
-        data: {
-          status: BidStatus.SUBMITTED,
-          submittedAt,
-          submittedByUserId: input.userId
-        }
-      });
-      await tx.bidReceipt.upsert({
-        where: { bidId: fullBid.id },
-        update: {
+        await tx.bidVersion.create({
+          data: {
+            bidId: fullBid.id,
+            versionNo: nextVersion,
+            envelope: EnvelopeType.COMBINED,
+            sealedHash,
+            payload: canonical as Prisma.InputJsonObject
+          }
+        });
+        await tx.bid.update({
+          where: { id: fullBid.id },
+          data: {
+            status: BidStatus.SUBMITTED,
+            submittedAt,
+            submittedByUserId: input.userId
+          }
+        });
+        await tx.bidReceipt.upsert({
+          where: { bidId: fullBid.id },
+          update: {
+            receiptRef,
+            receiptHash: sealedHash
+          },
+          create: {
+            bidId: fullBid.id,
+            receiptRef,
+            receiptHash: sealedHash
+          }
+        });
+        await audit(tx, fullBid.buyerOrgId, input.userId, 'bidding.bid_submitted', fullBid.id, {
+          tenderId: fullBid.tenderId,
+          supplierOrgId: fullBid.supplierOrgId,
           receiptRef,
           receiptHash: sealedHash
-        },
-        create: {
-          bidId: fullBid.id,
-          receiptRef,
-          receiptHash: sealedHash
-        }
-      });
-      await audit(tx, fullBid.buyerOrgId, input.userId, 'bidding.bid_submitted', fullBid.id, {
-        tenderId: fullBid.tenderId,
-        supplierOrgId: fullBid.supplierOrgId,
-        receiptRef,
-        receiptHash: sealedHash
+        });
+
+        return tx.bid.findUniqueOrThrow({ where: { id: fullBid.id }, include: bidInclude });
       });
 
-      return tx.bid.findUniqueOrThrow({ where: { id: fullBid.id }, include: bidInclude });
-    });
-
-    return toBidDto(bid);
+      return toBidDto(bid);
+    } catch (error) {
+      if (isUniqueConstraintError(error)) throw requestError('A submitted bid already exists for this tender.', 409);
+      throw error;
+    }
   }
 
   async withdraw(input: { bid: BidRecord; userId: string }) {
@@ -374,4 +397,14 @@ function sha256(value: string) {
 function objectPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+function requestError(message: string, status = 400) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = status;
+  return error;
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'P2002');
 }

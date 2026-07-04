@@ -1,0 +1,9 @@
+services:
+  postgres:
+    ports: !override
+      - "55432:5432"
+
+  minio:
+    ports: !override
+      - "9000:9000"
+      - "9002:9001"

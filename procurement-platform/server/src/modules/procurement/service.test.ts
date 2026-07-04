@@ -1,11 +1,12 @@
 import { TenderStatus, TenderType } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
-import { ModuleService } from './service.js';
+import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService } from './service.js';
 import {
   createTenderBodySchema,
   marketplaceQuerySchema,
   planLineBodySchema,
   planningQuerySchema,
+  publishTenderBodySchema,
   saveAnnualPlanBodySchema,
   updateTenderBodySchema
 } from './validators.js';
@@ -105,24 +106,24 @@ describe('procurement planning service', () => {
       status: '',
       sort: 'deadline',
       page: 1,
-      limit: 50
+      limit: 20
     });
 
     expect(
       marketplaceQuerySchema.parse({
         search: 'water',
-        type: 'Works',
+        type: 'GOODS',
         budgetBand: 'hundred-million-plus',
-        status: 'Open',
+        status: 'PUBLISHED',
         sort: 'budget-desc',
         page: '2',
         limit: '25'
       })
     ).toMatchObject({
       search: 'water',
-      type: 'Works',
+      type: 'GOODS',
       budgetBand: 'hundred-million-plus',
-      status: 'Open',
+      status: 'PUBLISHED',
       sort: 'budget-desc',
       page: 2,
       limit: 25
@@ -130,6 +131,9 @@ describe('procurement planning service', () => {
 
     expect(() => marketplaceQuerySchema.parse({ budgetBand: 'large' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ sort: 'random' })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ search: 'x'.repeat(101) })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ type: 'Lease' })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ status: 'Review' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ page: '0' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ limit: '101' })).toThrow();
   });
@@ -281,8 +285,58 @@ describe('procurement planning service', () => {
         totalBudgetValue: 0,
         categoryCounts: [],
         closingSoon: 0
+      },
+      pagination: {
+        page: 1,
+        limit: 20,
+        matching: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false
       }
     });
+  });
+
+  it('logs and rejects with a sanitized marketplace outage error in production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalAppEnv = process.env.APP_ENV;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const databaseError = new Error("Can't reach database server at db.internal");
+    const query: MarketplaceQuery = {
+      search: '',
+      type: '',
+      budgetBand: '',
+      status: '',
+      sort: 'deadline',
+      page: 1,
+      limit: 20
+    };
+    const service = new ModuleService({
+      getMarketplaceData: async () => {
+        throw databaseError;
+      }
+    } as any);
+
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.APP_ENV;
+
+      await expect(service.marketplace(undefined, query)).rejects.toMatchObject({
+        status: 503,
+        code: MARKETPLACE_UNAVAILABLE_CODE,
+        message: MARKETPLACE_UNAVAILABLE_MESSAGE
+      });
+      expect(consoleError).toHaveBeenCalledWith(
+        '[procurement.marketplace] Database unavailable while loading marketplace.',
+        databaseError
+      );
+    } finally {
+      if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = originalNodeEnv;
+      if (originalAppEnv === undefined) delete process.env.APP_ENV;
+      else process.env.APP_ENV = originalAppEnv;
+      consoleError.mockRestore();
+    }
   });
 });
 
@@ -342,9 +396,12 @@ describe('procurement tender write service', () => {
       })
     ).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, title: 'Bad' })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, title: 'x'.repeat(201) })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, description: 'Too short' })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, budget: 0 })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, closingDate: '2020-08-30' })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, metadata: [] })).toThrow();
+    expect(() => createTenderBodySchema.parse({ ...createInput, requirements: [] })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, buyerOrgId: 'org-2' })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, ownerUserId: 'user-2' })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, status: 'OPEN' })).toThrow();
@@ -376,10 +433,13 @@ describe('procurement tender write service', () => {
     expect(updateTenderBodySchema.parse({ location: 'Dodoma' })).toEqual({ location: 'Dodoma' });
     expect(() => updateTenderBodySchema.parse({})).toThrow();
     expect(() => updateTenderBodySchema.parse({ title: 'Bad' })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ title: 'x'.repeat(201) })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ description: 'Too short' })).toThrow();
     expect(() => updateTenderBodySchema.parse({ budget: 0 })).toThrow();
     expect(() => updateTenderBodySchema.parse({ closingDate: '2020-08-30' })).toThrow();
     expect(() => updateTenderBodySchema.parse({ type: 'Lease' })).toThrow();
     expect(() => updateTenderBodySchema.parse({ metadata: [] })).toThrow();
+    expect(() => updateTenderBodySchema.parse({ requirements: [] })).toThrow();
     expect(() => updateTenderBodySchema.parse({ buyerOrgId: 'org-2' })).toThrow();
     expect(() => updateTenderBodySchema.parse({ ownerUserId: 'user-2' })).toThrow();
     expect(() => updateTenderBodySchema.parse({ reference: 'PX-NEW' })).toThrow();
@@ -388,6 +448,12 @@ describe('procurement tender write service', () => {
     expect(() => updateTenderBodySchema.parse({ visibility: 'PUBLIC_MARKETPLACE' })).toThrow();
     expect(() => updateTenderBodySchema.parse({ bids: [] })).toThrow();
     expect(() => updateTenderBodySchema.parse({ bidSummary: {} })).toThrow();
+  });
+
+  it('validates publish payloads as empty objects only', () => {
+    expect(publishTenderBodySchema.parse({})).toEqual({});
+    expect(() => publishTenderBodySchema.parse({ status: 'OPEN' })).toThrow();
+    expect(() => publishTenderBodySchema.parse({ publishedAt: '2099-09-30T00:00:00.000Z' })).toThrow();
   });
 
   it('creates draft tenders for the authenticated organization', async () => {
@@ -405,6 +471,23 @@ describe('procurement tender write service', () => {
     await expect(service.createTender('token-1', createInput)).resolves.toBe(createdTender);
     expect(identity.requirePermission).toHaveBeenCalledWith('token-1', 'procurement.create');
     expect(repository.createTender).toHaveBeenCalledWith(createInput, { organizationId: 'org-1', userId: 'user-1' });
+  });
+
+  it('rejects unauthenticated tender creation before repository writes', async () => {
+    const repository = {
+      createTender: vi.fn()
+    };
+    const identity = {
+      requirePermission: vi.fn().mockRejectedValue(Object.assign(new Error('Authentication is required.'), { status: 401 }))
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.createTender(undefined, createInput)).rejects.toMatchObject({
+      status: 401,
+      message: 'Authentication is required.'
+    });
+    expect(identity.requirePermission).toHaveBeenCalledWith(undefined, 'procurement.create');
+    expect(repository.createTender).not.toHaveBeenCalled();
   });
 
   it('requires organization context before tender creation', async () => {
@@ -654,5 +737,76 @@ describe('procurement tender write service', () => {
       });
       expect(repository.closeTender).not.toHaveBeenCalled();
     }
+  });
+
+  it('saves tenders for the authenticated organization and user', async () => {
+    const saved = {
+      success: true,
+      message: 'Tender saved successfully'
+    };
+    const repository = {
+      saveTender: vi.fn().mockResolvedValue(saved)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.saveTender('tender-1', 'token-1')).resolves.toBe(saved);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.saveTender).toHaveBeenCalledWith('tender-1', { organizationId: 'org-1', userId: 'user-1' });
+  });
+
+  it('removes saved tenders idempotently for the authenticated organization', async () => {
+    const removed = {
+      success: true,
+      message: 'Tender removed from saved tenders'
+    };
+    const repository = {
+      unsaveTender: vi.fn().mockResolvedValue(removed)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.unsaveTender('tender-1', 'token-1')).resolves.toBe(removed);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.unsaveTender).toHaveBeenCalledWith('tender-1', 'org-1');
+  });
+
+  it('lists saved tenders for the authenticated organization', async () => {
+    const payload = { tenders: [] };
+    const repository = {
+      getSavedTenders: vi.fn().mockResolvedValue(payload)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.savedTenders('token-1')).resolves.toBe(payload);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.getSavedTenders).toHaveBeenCalledWith('org-1');
+  });
+
+  it('requires organization context for saved tender operations', async () => {
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1' } })
+    };
+    const service = new ModuleService({} as any, identity as any);
+
+    await expect(service.saveTender('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'An organization profile is required.'
+    });
+    await expect(service.unsaveTender('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'An organization profile is required.'
+    });
+    await expect(service.savedTenders('token-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'An organization profile is required.'
+    });
   });
 });

@@ -8,13 +8,25 @@ export const publicWelcomeQuerySchema = z.object({}).passthrough();
 
 export const marketplaceQuerySchema = z
   .object({
-    search: z.string().trim().max(160).optional().default(''),
-    type: z.string().trim().max(80).optional().default(''),
+    search: z.string().trim().max(100).optional().default(''),
+    type: z
+      .string()
+      .trim()
+      .max(80)
+      .refine((value) => isAllowedMarketplaceType(value), { message: 'Invalid tender type filter.' })
+      .optional()
+      .default(''),
     budgetBand: z.enum(marketplaceBudgetBandValues).or(z.literal('')).optional().default(''),
-    status: z.string().trim().max(80).optional().default(''),
+    status: z
+      .string()
+      .trim()
+      .max(80)
+      .refine((value) => isAllowedMarketplaceStatus(value), { message: 'Invalid tender status filter.' })
+      .optional()
+      .default(''),
     sort: z.enum(marketplaceSortValues).optional().default('deadline'),
     page: z.coerce.number().int().min(1).max(10000).optional().default(1),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(50)
+    limit: z.coerce.number().int().min(1).max(100).optional().default(20)
   })
   .strict();
 
@@ -63,12 +75,7 @@ function hasChronologicalPlanningDates(line: PlanLineDateInput) {
 }
 
 function normalizedTenderType(value: unknown) {
-  const normalized = String(value ?? '')
-    .trim()
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    .replace(/[\s-]+/g, '_')
-    .replace(/_+/g, '_')
-    .toUpperCase();
+  const normalized = normalizedLabel(value);
 
   if (normalized === 'GOODS') return TenderType.GOODS;
   if (normalized === 'WORKS') return TenderType.WORKS;
@@ -77,6 +84,32 @@ function normalizedTenderType(value: unknown) {
   }
   if (normalized === 'CONSULTANCY') return TenderType.CONSULTANCY;
   return normalized;
+}
+
+function normalizedLabel(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .replace(/[\s-]+/g, '_')
+    .replace(/_+/g, '_')
+    .toUpperCase();
+}
+
+function isAllowedMarketplaceType(value: string) {
+  if (!value) return true;
+  return Object.values(TenderType).includes(normalizedTenderType(value) as TenderType);
+}
+
+function isAllowedMarketplaceStatus(value: string) {
+  const normalized = normalizedLabel(value);
+  if (!normalized) return true;
+  if (normalized === 'OPEN' || normalized === 'PUBLISHED') return true;
+  if (normalized === 'EVALUATION' || normalized === 'UNDER_EVALUATION') return true;
+  if (normalized === 'AWARDED') return true;
+  if (normalized === 'CLOSED') return true;
+  if (normalized === 'DRAFT') return true;
+  if (normalized === 'CANCELLED') return true;
+  return false;
 }
 
 export const planningQuerySchema = z
@@ -127,9 +160,9 @@ const categoryInputSchema = z.string().trim().min(1).max(120);
 
 export const createTenderBodySchema = z
   .object({
-    title: z.string().trim().min(5).max(220),
+    title: z.string().trim().min(5).max(200),
     type: tenderTypeInputSchema,
-    description: z.string().trim().min(1).max(5000),
+    description: z.string().trim().min(20).max(5000),
     budget: z.coerce.number().positive().max(999999999999999.99).optional(),
     currency: z
       .string()
@@ -164,9 +197,9 @@ export const createTenderBodySchema = z
 
 export const updateTenderBodySchema = z
   .object({
-    title: z.string().trim().min(5).max(220).optional(),
+    title: z.string().trim().min(5).max(200).optional(),
     type: tenderTypeInputSchema.optional(),
-    description: z.string().trim().min(1).max(5000).optional(),
+    description: z.string().trim().min(20).max(5000).optional(),
     budget: z.coerce.number().positive().max(999999999999999.99).optional(),
     currency: z
       .string()
@@ -200,6 +233,8 @@ export const updateTenderBodySchema = z
       })
     };
   });
+
+export const publishTenderBodySchema = z.object({}).strict();
 
 const planLineFieldsSchema = z
   .object({

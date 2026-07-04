@@ -1279,6 +1279,7 @@ export class ModuleService {
 
     const token = randomToken();
     const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
+    const isFirstSignIn = !(await this.repository.hasPriorSession(user.id));
     const session = await this.repository.createSession({
       userId: user.id,
       organizationId: user.memberships[0]?.organization.id,
@@ -1297,7 +1298,8 @@ export class ModuleService {
     return {
       token,
       user: toSessionUserFromSession(session),
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
+      isFirstSignIn
     };
   }
 

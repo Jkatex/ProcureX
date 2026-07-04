@@ -223,6 +223,10 @@ class FakeIdentityRepository {
     return Promise.resolve(session);
   }
 
+  hasPriorSession(userId: string) {
+    return Promise.resolve(Array.from(this.sessions.values()).some((session) => session.userId === userId));
+  }
+
   findActiveSession(tokenHash: string) {
     const session = this.sessions.get(tokenHash);
     return Promise.resolve(session?.status === 'ACTIVE' && session.expiresAt > new Date() ? session : null);
@@ -329,6 +333,14 @@ class FakeIdentityRepository {
     const organization = {
       id: this.nextId('org'),
       name: input.organizationName,
+      buyerProfile: {
+        procuringType: input.entityType === 'individual' ? 'Verified individual buyer' : 'Verified procuring entity',
+        payload: {
+          entityType: input.entityType,
+          registrySource: input.registrySource,
+          registryNumber: input.registryNumber
+        }
+      },
       supplierProfile: {
         trustTier: TrustTier.UNVERIFIED,
         riskLevel: RiskLevel.MEDIUM
@@ -666,6 +678,10 @@ describe('identity production auth', () => {
 
     expect(session.user.email).toBe('walkthrough@example.test');
     expect(session.user.verificationStatus).toBe(VerificationStatus.NOT_STARTED);
+    expect(session.isFirstSignIn).toBe(true);
+
+    const nextSession = await service.signIn('walkthrough@example.test', 'Strong123!');
+    expect(nextSession.isFirstSignIn).toBe(false);
   });
 
   it('validates email deliverability before sending activation emails and resends', async () => {
@@ -1279,6 +1295,39 @@ describe('identity production auth', () => {
     expect(JSON.stringify(repository.profiles)).not.toContain(keyphrase);
   });
 
+  it('auto-approves individual users with buyer and supplier capabilities', async () => {
+    const { repository, notifications, service } = makeService();
+    const registration = await service.startRegistration({ email: 'individual@example.test', phone: '+255700000081' });
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
+    await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
+    await service.setPassword('individual@example.test', 'Strong123!', legalAcceptance());
+    const session = await service.signIn('individual@example.test', 'Strong123!');
+    const keyphrase = await requestSignatureForSession(service, session.token);
+    const registry = await service.registryLookup({ entityType: 'individual', registryNumber: '1234567890' });
+
+    const result = await service.submitVerification(session.token, {
+      entityType: 'individual',
+      registrySource: registry.source,
+      registryNumber: registry.registryNumber,
+      registryVerified: true,
+      registryRecordId: registry.id,
+      signatureName: 'Asha Juma Mwinyi',
+      signatureConsent: true,
+      signatureKeyphrase: keyphrase,
+      location: testLocation
+    });
+
+    expect(result.autoApproved).toBe(true);
+    expect(result.user.capabilities).toEqual(expect.arrayContaining(['BUYER', 'SUPPLIER']));
+    const organization = repository.usersByEmail.get('individual@example.test').memberships[0].organization;
+    expect(organization.buyerProfile).toMatchObject({ procuringType: 'Verified individual buyer' });
+    expect(organization.supplierProfile).toMatchObject({ trustTier: TrustTier.SILVER, riskLevel: RiskLevel.LOW });
+
+    const refreshedSession = await service.signIn('individual@example.test', 'Strong123!');
+    expect(refreshedSession.user.capabilities).toEqual(expect.arrayContaining(['BUYER', 'SUPPLIER']));
+    expect(refreshedSession.user.permissions).toEqual(expect.arrayContaining(['procurement.create', 'bidding.submit']));
+  });
+
   it('requires an active signing credential and matching keyphrase for eKYC submission', async () => {
     const { repository, notifications, service } = makeService();
     repository.registry.set('TRA:TIN-KEYPHRASE', {
@@ -1470,8 +1519,8 @@ describe('identity production auth', () => {
       id: 'registry-pending',
       source: 'TRA',
       registryNumber: 'TIN-300',
-      entityType: 'business',
-      name: 'Pending Business',
+      entityType: 'individual',
+      name: 'Pending Individual',
       status: 'MATCHED',
       confidence: 80,
       payload: {}
@@ -1482,10 +1531,9 @@ describe('identity production auth', () => {
     await service.setPassword('pending@example.test', 'Strong123!', legalAcceptance());
     const session = await service.signIn('pending@example.test', 'Strong123!');
     const keyphrase = await requestSignatureForSession(service, session.token);
-    const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-300' });
+    const registry = await service.registryLookup({ entityType: 'individual', registryNumber: 'TIN-300' });
     const submitted = await service.submitVerification(session.token, {
-      entityType: 'business',
-      businessRegistrationSource: 'tin',
+      entityType: 'individual',
       registrySource: registry.source,
       registryNumber: registry.registryNumber,
       registryVerified: true,
@@ -1508,5 +1556,9 @@ describe('identity production auth', () => {
 
     expect(repository.history.some((entry) => entry.event === 'admin_approve' && entry.verificationProfileId === submitted.verification.id)).toBe(true);
     expect(repository.auditEvents.some((event) => event.event === 'identity.verification.admin_approve')).toBe(true);
+    const approvedOrganization = repository.usersByEmail.get('pending@example.test').memberships[0].organization;
+    const capabilities = approvedOrganization.capabilities.map((item: { capability: string }) => item.capability);
+    expect(capabilities).toEqual(expect.arrayContaining(['BUYER', 'SUPPLIER']));
+    expect(approvedOrganization.buyerProfile).toMatchObject({ procuringType: 'Verified individual buyer' });
   });
 });

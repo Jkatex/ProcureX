@@ -99,6 +99,12 @@ export class ModuleService {
     assertSupplierOwnsBid(bid, session.user.organizationId);
     if (bid.status === BidStatus.SUBMITTED) throw requestError('This bid has already been submitted.', 409);
     if (!tenderAcceptsBids(bid.tender)) throw requestError('This tender is not open for bid submission.', 409);
+    const hasSubmittedBid = await this.repository.hasSubmittedBidForTenderSupplier({
+      tenderId: bid.tenderId,
+      supplierOrgId: bid.supplierOrgId,
+      excludingBidId: bid.id
+    });
+    if (hasSubmittedBid) throw requestError('A submitted bid already exists for this tender.', 409);
     const issues = validateBidForSubmission(bid.payload, bid.responses.length, Number(bid.totalAmount ?? 0));
     if (issues.length) throw requestError(`Complete required bid sections before submitting: ${issues.join(', ')}.`, 400);
     const submitted = await this.repository.submit({ bid, userId: session.user.id });

@@ -44,6 +44,17 @@ npm run db:seed:awards-demo
 
 The demo seed is idempotent and only recreates records marked as the `award-contract-full` dataset or references prefixed with `PX-DEMO-AC-`. Use `award-buyer@procurex.tz`, `award-supplier@procurex.tz`, or `award-admin@procurex.tz` with the normal demo passwords to inspect populated award queues, contract formation, post-award tracking, payment, risk, termination, close-out, supplier performance, and compliance screens.
 
+To load mock marketplace tenders that supplier users can bid:
+
+```powershell
+npm run infra:up
+npm run db:migrate
+npm run db:seed
+npm run db:seed:marketplace-demo
+```
+
+The marketplace demo seed creates separate buyer and supplier organizations so ownership and bidding rules are realistic. Sign in as `market-buyer@procurex.tz` or `market-buyer2@procurex.tz` with `Market123!` to inspect buyer-owned tenders. Sign in as `huui@gmail.com` with `55566677` to inspect Huui-owned mock tenders for evaluation and award recommendation review. Sign in as `ict-supplier@procurex.tz`, `works-supplier@procurex.tz`, or `services-supplier@procurex.tz` with `Supplier123!` to save public tenders, prepare draft bids, and submit bids on tenders owned by other organizations. `My Tenders` shows only tenders created by the exact logged-in user; another user in the same organization should not see that tender as their own.
+
 ## Local Testing Data
 
 Registration code delivery can stay local during development. With `IDENTITY_EMAIL_PROVIDER=dev-console` and `IDENTITY_PHONE_PROVIDER=dev-console`, the registration phone code and email activation code are shown in the UI and logged by the server. Production delivery uses Resend for email and Beem Africa for SMS or WhatsApp.

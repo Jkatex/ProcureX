@@ -41,6 +41,11 @@ export type Tender = {
   location: string;
   description: string;
   createdByCurrentUser?: boolean;
+  ownedByCurrentOrganization?: boolean;
+  canBid?: boolean;
+  hasDraftBid?: boolean;
+  hasSubmittedBid?: boolean;
+  isSaved?: boolean;
   categories: string[];
 };
 

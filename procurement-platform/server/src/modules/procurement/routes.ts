@@ -10,7 +10,10 @@ export function createModuleRouter() {
   router.get('/marketplace', controller.marketplace);
   router.post('/tenders', controller.createTender);
   router.patch('/tenders/:tenderId', controller.updateTender);
+  router.get('/saved-tenders', controller.savedTenders);
   router.get('/tenders/:tenderId', controller.getTenderDetail);
+  router.post('/tenders/:tenderId/save', controller.saveTender);
+  router.delete('/tenders/:tenderId/save', controller.unsaveTender);
   router.post('/tenders/:tenderId/publish', controller.publishTender);
   router.post('/tenders/:tenderId/close', controller.closeTender);
   router.get('/planning', controller.planning);

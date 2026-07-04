@@ -47,7 +47,7 @@ describe('procurement marketplace repository', () => {
       id: 'tender-1',
       reference: 'PX-2026-001',
       buyerOrgId,
-      ownerUserId: 'user-1',
+      ownerUserId: 'buyer-user-1',
       title: 'Supply of medical equipment',
       description: 'Diagnostic equipment package',
       type: TenderType.GOODS,
@@ -73,6 +73,7 @@ describe('procurement marketplace repository', () => {
       id: 'tender-2',
       reference: 'PX-2026-002',
       buyerOrgId: supplierOrgId,
+      ownerUserId: 'user-1',
       title: 'Draft road maintenance tender',
       type: TenderType.WORKS,
       status: TenderStatus.DRAFT,
@@ -103,12 +104,15 @@ describe('procurement marketplace repository', () => {
       },
       bid: {
         findMany: vi.fn().mockResolvedValue([submittedBid])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([{ tenderId: publicTender.id }])
       }
     };
     const repository = new ModuleRepository(db as any);
 
     const payload = await repository.getMarketplaceData(
-      { organizationId: supplierOrgId },
+      { organizationId: supplierOrgId, userId: 'user-1' },
       { search: 'medical', type: 'Goods', budgetBand: 'hundred-million-plus', status: 'Open', sort: 'deadline', page: 1, limit: 20 }
     );
 
@@ -128,22 +132,28 @@ describe('procurement marketplace repository', () => {
         publishedAt: '2026-07-01T08:00:00.000Z',
         closingDate: '2026-08-30',
         createdByCurrentUser: false,
-        isSaved: false
+        ownedByCurrentOrganization: false,
+        canBid: false,
+        hasDraftBid: false,
+        hasSubmittedBid: true,
+        isSaved: true
       }
     ]);
-    expect(payload.tenders[0]).not.toHaveProperty('hasDraftBid');
-    expect(payload.tenders[0]).not.toHaveProperty('hasSubmittedBid');
     expect(Object.keys(payload.tenders[0]).sort()).toEqual(
       [
         'budget',
+        'canBid',
         'category',
         'closingDate',
         'createdByCurrentUser',
         'description',
+        'hasDraftBid',
+        'hasSubmittedBid',
         'id',
         'isSaved',
         'location',
         'organization',
+        'ownedByCurrentOrganization',
         'ownerOrganization',
         'publishedAt',
         'reference',
@@ -163,6 +173,10 @@ describe('procurement marketplace repository', () => {
         actionLabel: 'Continue Draft'
       }
     ]);
+    expect(payload.myTenders[0].tender.createdByCurrentUser).toBe(true);
+    expect(payload.myTenders[0].tender.ownedByCurrentOrganization).toBe(true);
+    expect(payload.myTenders[0].tender.canBid).toBe(false);
+    expect(payload.myTenders[0].tender.isSaved).toBe(false);
     expect(Object.keys(payload.myTenders[0]).sort()).toEqual(
       ['actionLabel', 'id', 'lastActivity', 'nav', 'section', 'status', 'tender', 'title', 'type'].sort()
     );
@@ -191,6 +205,14 @@ describe('procurement marketplace repository', () => {
       totalBudgetValue: 250000000,
       closingSoon: 0
     });
+    expect(payload.pagination).toEqual({
+      page: 1,
+      limit: 20,
+      matching: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false
+    });
     expect(payload.summary.categoryCounts).toEqual([{ label: 'Health / Goods', value: 1, amount: 250000000 }]);
     expect(db.tender.findMany).toHaveBeenNthCalledWith(
       1,
@@ -207,6 +229,49 @@ describe('procurement marketplace repository', () => {
         })
       })
     );
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          ownerUserId: 'user-1'
+        })
+      })
+    );
+  });
+
+  it('scopes my tenders to the exact creator user instead of every user in the buyer organization', async () => {
+    const ownedTender = tenderDetailRecord({
+      id: 'tender-created-by-user-a',
+      buyerOrgId: 'shared-buyer-org',
+      ownerUserId: 'user-a',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      buyerOrg: { id: 'shared-buyer-org', name: 'Shared Buyer Org' }
+    });
+    const db = {
+      tender: {
+        findMany: vi.fn(({ where }) => {
+          if (where?.ownerUserId) return Promise.resolve(where.ownerUserId === ownedTender.ownerUserId ? [ownedTender] : []);
+          return Promise.resolve([]);
+        })
+      },
+      bid: {
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+    const query = { search: '', type: '', budgetBand: '', status: '', sort: 'deadline', page: 1, limit: 20 } as const;
+
+    await expect(repository.getMarketplaceData({ organizationId: 'shared-buyer-org', userId: 'user-a' }, query)).resolves.toMatchObject({
+      myTenders: [{ id: 'tender-created-by-user-a' }]
+    });
+    await expect(repository.getMarketplaceData({ organizationId: 'shared-buyer-org', userId: 'user-b' }, query)).resolves.toMatchObject({
+      myTenders: []
+    });
   });
 
   it('sorts and paginates marketplace tenders while summarizing the full filtered result set', async () => {
@@ -270,6 +335,14 @@ describe('procurement marketplace repository', () => {
       totalBudgetValue: 2000000000,
       closingSoon: 0
     });
+    expect(payload.pagination).toEqual({
+      page: 2,
+      limit: 1,
+      matching: 3,
+      totalPages: 3,
+      hasNextPage: true,
+      hasPreviousPage: true
+    });
     expect(Object.keys(payload.summary).sort()).toEqual(
       ['categoryCounts', 'closingSoon', 'myBids', 'myTenders', 'openTenders', 'totalBudgetValue'].sort()
     );
@@ -281,6 +354,25 @@ describe('procurement marketplace repository', () => {
       ])
     );
     expect(db.tender.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies production marketplace sort modes to repository queries', async () => {
+    const db = {
+      tender: {
+        findMany: vi.fn().mockResolvedValue([])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'deadline', page: 1, limit: 20 });
+    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'newest', page: 1, limit: 20 });
+    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'budget-desc', page: 1, limit: 20 });
+    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'budget-asc', page: 1, limit: 20 });
+
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ orderBy: [{ closingDate: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }] }));
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }] }));
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(3, expect.objectContaining({ orderBy: [{ budget: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }] }));
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(4, expect.objectContaining({ orderBy: [{ budget: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }] }));
   });
 
   it('returns only public marketplace rows for unauthenticated requests', async () => {
@@ -305,6 +397,14 @@ describe('procurement marketplace repository', () => {
     expect(payload.tenders).toMatchObject([{ id: 'tender-1', status: 'Open', createdByCurrentUser: false, isSaved: false }]);
     expect(payload.myTenders).toEqual([]);
     expect(payload.myBids).toEqual([]);
+    expect(payload.pagination).toEqual({
+      page: 1,
+      limit: 20,
+      matching: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false
+    });
     expect(db.tender.findMany).toHaveBeenCalledTimes(1);
     expect(db.tender.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -845,6 +945,199 @@ describe('procurement tender write repository', () => {
     await expect(repository.closeTender('tender-1', 'org-1')).resolves.toBeNull();
     expect(db.tender.findUnique).not.toHaveBeenCalled();
   });
+
+  it('saves eligible public open tenders for the authenticated organization', async () => {
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tender-1',
+          buyerOrgId: 'buyer-org-1',
+          status: TenderStatus.OPEN,
+          visibility: Visibility.PUBLIC_MARKETPLACE
+        })
+      },
+      savedTender: {
+        create: vi.fn().mockResolvedValue({ id: 'saved-1' })
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await expect(repository.saveTender('tender-1', { organizationId: 'supplier-org-1', userId: 'user-1' })).resolves.toEqual({
+      success: true,
+      message: 'Tender saved successfully'
+    });
+    expect(db.savedTender.create).toHaveBeenCalledWith({
+      data: {
+        tenderId: 'tender-1',
+        organizationId: 'supplier-org-1',
+        userId: 'user-1'
+      }
+    });
+  });
+
+  it('treats duplicate saved tenders as idempotent success', async () => {
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tender-1',
+          buyerOrgId: 'buyer-org-1',
+          status: TenderStatus.PUBLISHED,
+          visibility: Visibility.PUBLIC_MARKETPLACE
+        })
+      },
+      savedTender: {
+        create: vi.fn().mockRejectedValue({ code: 'P2002' })
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await expect(repository.saveTender('tender-1', { organizationId: 'supplier-org-1', userId: 'user-1' })).resolves.toEqual({
+      success: true,
+      message: 'Tender saved successfully'
+    });
+  });
+
+  it('rejects ineligible saved tender requests', async () => {
+    const repositoryForTender = (tender: unknown) =>
+      new ModuleRepository({
+        tender: { findUnique: vi.fn().mockResolvedValue(tender) },
+        savedTender: { create: vi.fn() }
+      } as any);
+
+    await expect(repositoryForTender(null).saveTender('missing-tender', { organizationId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject({
+      status: 404
+    });
+    await expect(
+      repositoryForTender({
+        id: 'tender-1',
+        buyerOrgId: 'supplier-org-1',
+        status: TenderStatus.OPEN,
+        visibility: Visibility.PUBLIC_MARKETPLACE
+      }).saveTender('tender-1', { organizationId: 'supplier-org-1', userId: 'user-1' })
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'You cannot save your own tender.'
+    });
+
+    for (const tender of [
+      { status: TenderStatus.DRAFT, visibility: Visibility.PUBLIC_MARKETPLACE },
+      { status: TenderStatus.CLOSED, visibility: Visibility.PUBLIC_MARKETPLACE },
+      { status: TenderStatus.AWARDED, visibility: Visibility.PUBLIC_MARKETPLACE },
+      { status: TenderStatus.CANCELLED, visibility: Visibility.PUBLIC_MARKETPLACE },
+      { status: TenderStatus.EVALUATION, visibility: Visibility.PUBLIC_MARKETPLACE },
+      { status: TenderStatus.OPEN, visibility: Visibility.PRIVATE }
+    ]) {
+      await expect(
+        repositoryForTender({
+          id: 'tender-1',
+          buyerOrgId: 'buyer-org-1',
+          ...tender
+        }).saveTender('tender-1', { organizationId: 'supplier-org-1', userId: 'user-1' })
+      ).rejects.toMatchObject({
+        status: 409,
+        message: 'Only public open tenders can be saved.'
+      });
+    }
+  });
+
+  it('removes saved tenders idempotently', async () => {
+    const db = {
+      savedTender: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 })
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await expect(repository.unsaveTender('tender-1', 'supplier-org-1')).resolves.toEqual({
+      success: true,
+      message: 'Tender removed from saved tenders'
+    });
+    expect(db.savedTender.deleteMany).toHaveBeenCalledWith({
+      where: {
+        tenderId: 'tender-1',
+        organizationId: 'supplier-org-1'
+      }
+    });
+  });
+
+  it('lists saved tenders as marketplace-compatible safe rows', async () => {
+    const savedTender = {
+      id: 'saved-1',
+      tenderId: 'tender-1',
+      organizationId: 'supplier-org-1',
+      userId: 'user-1',
+      createdAt: new Date('2026-07-15T08:00:00.000Z'),
+      tender: tenderDetailRecord({
+        id: 'tender-1',
+        buyerOrgId: 'buyer-org-1',
+        status: TenderStatus.OPEN,
+        publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+        categories: [{ name: 'Health' }]
+      })
+    };
+    const db = {
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([savedTender])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const result = await repository.getSavedTenders('supplier-org-1');
+
+    expect(db.savedTender.findMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: 'supplier-org-1',
+        tender: {
+          visibility: Visibility.PUBLIC_MARKETPLACE
+        }
+      },
+      include: {
+        tender: {
+          include: expect.objectContaining({
+            buyerOrg: { select: { id: true, name: true } },
+            categories: { select: { name: true }, orderBy: { name: 'asc' } }
+          })
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500
+    });
+    expect(result.tenders).toMatchObject([
+      {
+        id: 'tender-1',
+        status: 'Open',
+        isSaved: true,
+        createdByCurrentUser: false,
+        ownedByCurrentOrganization: false,
+        canBid: true,
+        hasDraftBid: false,
+        hasSubmittedBid: false
+      }
+    ]);
+    expect(Object.keys(result.tenders[0]).sort()).toEqual(
+      [
+        'budget',
+        'canBid',
+        'category',
+        'closingDate',
+        'createdByCurrentUser',
+        'description',
+        'hasDraftBid',
+        'hasSubmittedBid',
+        'id',
+        'isSaved',
+        'location',
+        'organization',
+        'ownedByCurrentOrganization',
+        'ownerOrganization',
+        'publishedAt',
+        'reference',
+        'status',
+        'title',
+        'type'
+      ].sort()
+    );
+  });
 });
 
 describe('procurement tender detail repository', () => {
@@ -898,6 +1191,7 @@ describe('procurement tender detail repository', () => {
         'id',
         'location',
         'organization',
+        'ownedByCurrentOrganization',
         'ownerOrganization',
         'publishedAt',
         'reference',
@@ -925,6 +1219,7 @@ describe('procurement tender detail repository', () => {
       requirements: { technical: ['ISO 13485 certification'] },
       documents: [{ id: 'doc-1', name: 'Medical equipment tender.pdf', documentType: 'PDF', label: 'Tender document' }],
       createdByCurrentUser: false,
+      ownedByCurrentOrganization: false,
       canBid: false,
       hasDraftBid: false,
       hasSubmittedBid: false
@@ -968,6 +1263,7 @@ describe('procurement tender detail repository', () => {
     const draftTender = tenderDetailRecord({
       id: 'tender-owned-draft',
       buyerOrgId: 'owner-org-1',
+      ownerUserId: 'owner-user-1',
       status: TenderStatus.DRAFT,
       publishedAt: null,
       buyerOrg: { id: 'owner-org-1', name: 'Owner Authority' }
@@ -979,7 +1275,7 @@ describe('procurement tender detail repository', () => {
     };
     const repository = new ModuleRepository(db as any);
 
-    const result = await repository.getTenderDetail('tender-owned-draft', { organizationId: 'owner-org-1' });
+    const result = await repository.getTenderDetail('tender-owned-draft', { organizationId: 'owner-org-1', userId: 'owner-user-1' });
 
     expect(result).toMatchObject({
       id: 'tender-owned-draft',
@@ -987,6 +1283,7 @@ describe('procurement tender detail repository', () => {
       status: 'Draft',
       publishedAt: '',
       createdByCurrentUser: true,
+      ownedByCurrentOrganization: true,
       canBid: false,
       hasDraftBid: false,
       hasSubmittedBid: false
@@ -1016,6 +1313,22 @@ describe('procurement tender detail repository', () => {
       closingDate: new Date('2020-08-30T00:00:00.000Z'),
       bids: []
     });
+    const buyerTender = tenderDetailRecord({
+      ...openTender,
+      buyerOrgId: supplierOrgId,
+      bids: []
+    });
+    const closedTender = tenderDetailRecord({
+      ...openTender,
+      buyerOrgId: supplierOrgId,
+      status: TenderStatus.CLOSED,
+      bids: []
+    });
+    const privateTender = tenderDetailRecord({
+      ...openTender,
+      visibility: Visibility.PRIVATE,
+      bids: []
+    });
     const db = {
       tender: {
         findUnique: vi
@@ -1024,6 +1337,9 @@ describe('procurement tender detail repository', () => {
           .mockResolvedValueOnce(draftBidTender)
           .mockResolvedValueOnce(submittedBidTender)
           .mockResolvedValueOnce(expiredTender)
+          .mockResolvedValueOnce(buyerTender)
+          .mockResolvedValueOnce(closedTender)
+          .mockResolvedValueOnce(privateTender)
       }
     };
     const repository = new ModuleRepository(db as any);
@@ -1048,6 +1364,19 @@ describe('procurement tender detail repository', () => {
       hasDraftBid: false,
       hasSubmittedBid: false
     });
+    await expect(repository.getTenderDetail('tender-open', { organizationId: supplierOrgId })).resolves.toMatchObject({
+      canBid: false,
+      createdByCurrentUser: false,
+      ownedByCurrentOrganization: true,
+      hasDraftBid: false,
+      hasSubmittedBid: false
+    });
+    await expect(repository.getTenderDetail('tender-open', { organizationId: supplierOrgId })).resolves.toMatchObject({
+      canBid: false,
+      hasDraftBid: false,
+      hasSubmittedBid: false
+    });
+    await expect(repository.getTenderDetail('tender-open', { organizationId: supplierOrgId })).resolves.toBeNull();
     expect(db.tender.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         include: expect.objectContaining({

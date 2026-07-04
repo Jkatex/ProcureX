@@ -1,7 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { assumeUser, signOut } from '@/features/auth/slice';
 import authReducer from '@/features/auth/slice';
@@ -130,6 +130,21 @@ describe('route guards', () => {
     );
 
     expect(screen.getByText('Admin communication')).toBeInTheDocument();
+  });
+
+  it('redirects legacy communication center links to the user communication route', () => {
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/communication-center']}>
+          <Routes>
+            <Route path="/communication" element={<div>User communication</div>} />
+            <Route path="/communication-center" element={<Navigate to="/communication" replace />} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByText('User communication')).toBeInTheDocument();
   });
 
   it('allows signed-in low-trust users through temporary auth-only procurement core routes', () => {
