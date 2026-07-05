@@ -42,4 +42,4 @@ ALTER TABLE "organization"."permission_overrides" ALTER COLUMN "id" DROP DEFAULT
 ALTER TABLE "organization"."trust_tier_history" ALTER COLUMN "id" DROP DEFAULT;
 
 -- RenameIndex
-ALTER INDEX "identity"."verification_profile_history_verification_profile_id_created_at" RENAME TO "verification_profile_history_verification_profile_id_create_idx";
+ALTER INDEX IF EXISTS "identity"."verification_profile_history_verification_profile_id_created_at" RENAME TO "verification_profile_history_verification_profile_id_create_idx";

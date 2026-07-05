@@ -91,6 +91,11 @@ export function ForgotPasswordProcurexPage() {
 
     try {
       const response = await authApi.forgotPassword({ email: email.trim(), turnstileToken });
+      if (response.challengeId) {
+        setChallengeId(response.challengeId);
+        setResendAvailableAt(response.resendAvailableAt ?? '');
+        setStep('reset');
+      }
       setMessage(authAlert('auth.forgotPassword.messages.resetRequested', 'info'));
     } catch (error) {
       setMessage(authAlertFromError(error, 'forgot-password'));

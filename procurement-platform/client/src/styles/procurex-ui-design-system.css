@@ -1187,7 +1187,7 @@ textarea.form-input {
 }
 
 .benefits-list li::before {
-    content: 'â€¢';
+    content: '\2022';
     color: var(--primary-blue);
     font-size: 1.4rem;
     line-height: 1;
@@ -24946,6 +24946,149 @@ fieldset.award-form-field {
     overflow-wrap: anywhere;
 }
 
+.award-action-review-summary,
+.award-command-strip,
+.post-award-health-grid,
+.award-lifecycle-timeline,
+.contract-clause-review-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.award-action-review-summary,
+.award-command-strip,
+.post-award-health-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.award-action-review-summary article,
+.award-command-strip article,
+.post-award-health-grid article,
+.award-lifecycle-timeline article,
+.contract-clause-review-grid article {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--design-hairline, var(--border-soft));
+    border-radius: var(--radius-lg);
+    background: var(--surface-soft);
+}
+
+.award-action-review-summary span,
+.award-command-strip span,
+.post-award-health-grid span,
+.award-lifecycle-timeline span,
+.award-detail-list dt {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.award-action-review-summary strong,
+.award-command-strip strong,
+.post-award-health-grid strong {
+    color: var(--text-primary);
+    font-size: 18px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.award-filter-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.award-filter-chip {
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.award-filter-chip:hover,
+.award-filter-chip.active {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+    background: var(--primary-blue-light);
+}
+
+.award-lifecycle-timeline {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.award-lifecycle-timeline article {
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: center;
+}
+
+.award-lifecycle-timeline article strong:first-child {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--surface-muted, #eef2f7);
+    color: var(--text-primary);
+}
+
+.award-lifecycle-timeline article.complete strong:first-child {
+    background: var(--success-green-light, #dcfce7);
+    color: var(--success-green, #15803d);
+}
+
+.award-lifecycle-timeline article div {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.contract-clause-review-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.contract-clause-review-grid p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.award-detail-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.award-detail-list div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.award-detail-list dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.award-record-register-wrap {
+    display: grid;
+    gap: 10px;
+}
+
+.award-register-toolbar {
+    margin: 0;
+}
+
 .award-workflow-tabs {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
@@ -25282,14 +25425,25 @@ fieldset.award-form-field {
         white-space: nowrap;
     }
 
+    .awarding-contracts-page .awarding-contract-tabs {
+        flex-wrap: wrap;
+        overflow-x: visible;
+    }
+
+    .awarding-contracts-page .awarding-contract-tabs .supplier-detail-tab {
+        flex: 1 1 160px;
+        white-space: normal;
+    }
+
     .award-workflow-tabs {
-        display: flex;
-        overflow-x: auto;
-        padding-bottom: 10px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        overflow-x: visible;
+        padding-bottom: 8px;
     }
 
     .award-workflow-tab {
-        flex: 0 0 170px;
+        min-height: 70px;
     }
 
     .award-register-grid {

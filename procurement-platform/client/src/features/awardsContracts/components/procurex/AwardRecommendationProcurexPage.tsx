@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
 import type { AwardRecommendationDetailDto, LifecycleAction } from '../../types';
 import { ActionFormPanel, option, riskLevelOptions } from './AwardContractActionForms';
@@ -11,6 +12,7 @@ import {
   RecordRegister,
   formatMoney,
   ProcurexAwardFrame,
+  RemoteStatePanel,
   SimpleTable,
   shortId,
   StatusBadge,
@@ -57,6 +59,7 @@ function AwardSectionTabs({
           className={`award-workflow-tab${activeGroup === group.id ? ' active' : ''}`}
           type="button"
           role="tab"
+          aria-label={group.label}
           aria-selected={activeGroup === group.id}
           onClick={() => onSelect(group.id)}
           key={group.id}
@@ -118,6 +121,47 @@ function AwardActionWorkspace({
   );
 }
 
+function singleLinkedOption(value: string | null | undefined, label: string, description: string, emptyLabel: string) {
+  return [
+    option('', emptyLabel),
+    ...(value ? [{ value, label, description }] : [])
+  ];
+}
+
+function AwardLifecycleTimeline({
+  recommendation,
+  detail
+}: {
+  recommendation: LifecycleAction;
+  detail: AwardRecommendationDetailDto | null;
+}) {
+  const hasApproval = /approved|notice|response|contract|accepted/i.test(recommendation.status) || Boolean(detail?.notice);
+  const hasNotice = Boolean(detail?.notice);
+  const hasResponse = /accepted|declined|clarification/i.test(detail?.notice?.status ?? recommendation.status);
+  const hasContract = Boolean(detail?.notice?.contractId ?? recommendation.contractId ?? detail?.contract?.id);
+  const steps = [
+    { label: 'Evaluation result', status: 'Complete', done: true },
+    { label: 'Award decision', status: hasApproval ? 'Approved' : recommendation.status, done: hasApproval },
+    { label: 'Notice', status: detail?.notice?.status ?? 'Pending', done: hasNotice },
+    { label: 'Supplier response', status: hasResponse ? (detail?.notice?.status ?? recommendation.status) : 'Awaiting response', done: hasResponse },
+    { label: 'Contract handoff', status: hasContract ? 'Linked' : 'Pending', done: hasContract }
+  ];
+
+  return (
+    <section className="award-lifecycle-timeline" aria-label="Award lifecycle timeline">
+      {steps.map((step, index) => (
+        <article className={step.done ? 'complete' : ''} key={step.label}>
+          <strong>{index + 1}</strong>
+          <div>
+            <span>{step.label}</span>
+            <StatusBadge value={step.status} />
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 export function AwardRecommendationProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -125,20 +169,27 @@ export function AwardRecommendationProcurexPage() {
   const [recommendations, setRecommendations] = useState<LifecycleAction[]>([]);
   const [recommendationDetail, setRecommendationDetail] = useState<AwardRecommendationDetailDto | null>(null);
   const [activeGroup, setActiveGroup] = useState<AwardWorkflowGroupId>('readiness');
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [detailError, setDetailError] = useState('');
+
+  const loadRecommendations = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError('');
+    try {
+      const data = await awardsContractsApi.dashboard();
+      setRecommendations(data.queues['awarding-in-progress']);
+    } catch (error) {
+      setRecommendations([]);
+      setLoadError(apiErrorMessage(error, 'Award recommendations could not be loaded.'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    awardsContractsApi.dashboard()
-      .then((data) => {
-        if (active) setRecommendations(data.queues['awarding-in-progress']);
-      })
-      .catch(() => {
-        if (active) setRecommendations([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadRecommendations();
+  }, [loadRecommendations]);
 
   const activeRecommendation =
     recommendations.find((item) => item.awardId === selectedRecommendationId || item.id === selectedRecommendationId) ?? recommendations[0] ?? null;
@@ -164,36 +215,52 @@ export function AwardRecommendationProcurexPage() {
       (recommendationDetail?.awardNotifications?.length ?? 0) +
       (recommendationDetail?.budgetCommitments?.length ?? 0)
   } satisfies Record<AwardWorkflowGroupId, number>;
+  const selectedContractId = recommendationDetail?.notice?.contractId ?? recommendationDetail?.contract?.id ?? activeRecommendation?.contractId ?? '';
+  const bidOptions = singleLinkedOption(
+    recommendationDetail?.bidId,
+    `${recommendationDetail?.supplierName ?? activeRecommendation?.otherParty ?? 'Recommended supplier'} bid`,
+    `${recommendationDetail?.tenderReference ?? activeRecommendation?.reference ?? 'Evaluation outcome'} for ${activeRecommendation?.title ?? 'selected tender'}`,
+    'Use the awarded bid from this recommendation'
+  );
+  const recipientOptions = singleLinkedOption(
+    recommendationDetail?.supplierOrgId,
+    recommendationDetail?.supplierName ?? activeRecommendation?.otherParty ?? 'Recommended supplier',
+    'Supplier organization linked to this recommendation',
+    'Use the recommended supplier from this award'
+  );
+  const contractOptions = singleLinkedOption(
+    selectedContractId,
+    recommendationDetail?.contract?.reference ?? activeRecommendation?.noticeReference ?? 'Linked contract',
+    recommendationDetail?.contract?.title ?? activeRecommendation?.title ?? 'Contract generated from this award',
+    'No linked contract yet'
+  );
 
-  useEffect(() => {
+  const loadRecommendationDetail = useCallback(async () => {
     if (!activeRecommendationId) {
       setRecommendationDetail(null);
+      setDetailError('');
       return;
     }
-    let active = true;
-    awardsContractsApi.recommendation(activeRecommendationId)
-      .then((data) => {
-        if (active) setRecommendationDetail(data);
-      })
-      .catch(() => {
-        if (active) setRecommendationDetail(null);
-      });
-    return () => {
-      active = false;
-    };
+    setDetailError('');
+    try {
+      setRecommendationDetail(await awardsContractsApi.recommendation(activeRecommendationId));
+    } catch (error) {
+      setRecommendationDetail(null);
+      setDetailError(apiErrorMessage(error, 'Award recommendation detail could not be loaded.'));
+    }
   }, [activeRecommendationId]);
+
+  useEffect(() => {
+    void loadRecommendationDetail();
+  }, [loadRecommendationDetail]);
 
   function selectRecommendation(row: LifecycleAction) {
     navigate(`/awards-contracts/recommendation?recommendation=${row.awardId ?? row.id}`);
   }
 
   async function refreshRecommendations() {
-    const dashboard = await awardsContractsApi.dashboard();
-    setRecommendations(dashboard.queues['awarding-in-progress']);
-    if (activeRecommendationId) {
-      const detail = await awardsContractsApi.recommendation(activeRecommendationId);
-      setRecommendationDetail(detail);
-    }
+    await loadRecommendations();
+    await loadRecommendationDetail();
   }
 
   function refreshRecommendationDetail(result: unknown) {
@@ -207,7 +274,7 @@ export function AwardRecommendationProcurexPage() {
       <div className="main-layout procurement-layout evaluation-app-layout award-page" data-award-contract-workspace>
         <AwardSidebar
           title="Awarding in Progress"
-          subtitle="Buyer award workspace"
+          subtitle={activeRecommendation?.title ?? 'Buyer award workspace'}
           activeQueue="awarding-in-progress"
           extraItems={<li><a href="#" data-navigate="awarding-contracts" data-route-search="queue=awarding-in-progress">Back to Award Queue</a></li>}
         />
@@ -225,16 +292,39 @@ export function AwardRecommendationProcurexPage() {
           />
 
           {activeRecommendation ? (
-            <TopSummary
-              items={[
-                { label: 'Award No', value: recommendationDetail?.reference ?? activeRecommendation.reference ?? activeRecommendation.id },
-                { label: 'Notice No', value: recommendationDetail?.notice?.reference ?? activeRecommendation.noticeReference ?? 'Not issued' },
-                { label: 'Tender', value: activeRecommendation.title },
-                { label: 'Recommended Supplier', value: activeRecommendation.otherParty },
-                { label: 'Award Value', value: activeRecommendation.amount === null ? 'Not priced' : formatMoney(activeRecommendation.amount, activeRecommendation.currency) },
-                { label: 'Current Stage', value: activeRecommendation.currentStage },
-                { label: 'Status', value: <StatusBadge value={activeRecommendation.status} /> }
-              ]}
+            <>
+              <TopSummary
+                items={[
+                  { label: 'Award No', value: recommendationDetail?.reference ?? activeRecommendation.reference ?? activeRecommendation.id },
+                  { label: 'Notice No', value: recommendationDetail?.notice?.reference ?? activeRecommendation.noticeReference ?? 'Not issued' },
+                  { label: 'Tender', value: recommendationDetail?.tenderReference ?? activeRecommendation.title },
+                  { label: 'Recommended Supplier', value: recommendationDetail?.supplierName ?? activeRecommendation.otherParty },
+                  { label: 'Award Value', value: activeRecommendation.amount === null ? 'Not priced' : formatMoney(activeRecommendation.amount, activeRecommendation.currency) },
+                  { label: 'Current Stage', value: activeRecommendation.currentStage },
+                  { label: 'Status', value: <StatusBadge value={activeRecommendation.status} /> }
+                ]}
+              />
+              <AwardLifecycleTimeline recommendation={activeRecommendation} detail={recommendationDetail} />
+            </>
+          ) : null}
+
+          {isLoading ? (
+            <RemoteStatePanel
+              kicker="Loading"
+              title="Loading award recommendations"
+              message="ProcureX is fetching completed evaluations that are ready for award action."
+              status="Loading"
+            />
+          ) : null}
+
+          {loadError ? (
+            <RemoteStatePanel
+              kicker="Service status"
+              title="Award recommendations could not be loaded"
+              message={loadError}
+              status="Error"
+              actionLabel="Retry loading"
+              onAction={() => void loadRecommendations()}
             />
           ) : null}
 
@@ -246,8 +336,15 @@ export function AwardRecommendationProcurexPage() {
               </div>
               <StatusBadge value={activeRecommendation?.riskLevel ?? 'No records'} />
             </div>
-            {recommendations.length === 0 ? (
-              <div className="scope-empty">When a tender evaluation is completed and routed to award, the recommendation workflow will appear here.</div>
+            {isLoading || loadError ? (
+              <div className="scope-empty">{isLoading ? 'Loading award recommendations...' : 'Resolve the loading error above, then retry this workspace.'}</div>
+            ) : recommendations.length === 0 ? (
+              <>
+                <div className="scope-empty">When a tender evaluation is completed and routed to award, the recommendation workflow will appear here.</div>
+                <div className="inline-actions">
+                  <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=awarding-in-progress">Back to Award Queue</button>
+                </div>
+              </>
             ) : (
               <SimpleTable headers={['Tender', 'Recommended supplier', 'Stage', 'Required action', 'Status']}>
                 {recommendations.map((row) => (
@@ -263,7 +360,18 @@ export function AwardRecommendationProcurexPage() {
             )}
           </section>
 
-          {activeRecommendation ? (
+          {activeRecommendation && detailError ? (
+            <RemoteStatePanel
+              kicker="Award detail"
+              title="Selected award detail could not be loaded"
+              message={detailError}
+              status="Error"
+              actionLabel="Retry detail"
+              onAction={() => void loadRecommendationDetail()}
+            />
+          ) : null}
+
+          {activeRecommendation && !detailError ? (
             <AwardContractAccessProvider access={access}>
             <section className="procurement-panel evaluation-panel">
               <div className="panel-heading">
@@ -340,12 +448,12 @@ export function AwardRecommendationProcurexPage() {
                       { name: 'triggerReason', label: 'Trigger reason', kind: 'textarea', required: true },
                       { name: 'method', label: 'Method', kind: 'text', required: true },
                       { name: 'criteria', label: 'Criteria JSON array', kind: 'json', rows: 4 },
-                      { name: 'outcomeBidId', label: 'Outcome bid ID', kind: 'uuid' },
+                      { name: 'outcomeBidId', label: 'Tie-break outcome bid', kind: 'select', options: bidOptions, helpText: 'Choose from the selected recommendation context when a bid is available.' },
                       { name: 'status', label: 'Status', kind: 'select', required: true, options: statusOptions },
                       { name: 'note', label: 'Decision note', kind: 'textarea' },
                       { name: 'payload', label: 'Tie-breaker payload', kind: 'json', rows: 4 }
                     ]}
-                    initialValues={{ triggerReason: 'Equal evaluated score requires tie-break resolution.', method: 'Best delivery and compliance score', criteria: '[]', status: 'PENDING', payload: '{}' }}
+                    initialValues={{ triggerReason: 'Equal evaluated score requires tie-break resolution.', method: 'Best delivery and compliance score', criteria: '[]', outcomeBidId: recommendationDetail?.bidId ?? '', status: 'PENDING', payload: '{}' }}
                     onSubmit={(payload) => awardsContractsApi.createAwardTieBreaker(activeRecommendationId, payload)}
                     onComplete={refreshRecommendationDetail}
                   />
@@ -403,7 +511,7 @@ export function AwardRecommendationProcurexPage() {
                     badge="Notice"
                     submitLabel="Send Notification"
                     fields={[
-                      { name: 'recipientOrgId', label: 'Recipient organization ID', kind: 'uuid' },
+                      { name: 'recipientOrgId', label: 'Notice recipient', kind: 'select', options: recipientOptions, helpText: 'Leave as the recommended supplier unless this notice must go to another linked organization.' },
                       { name: 'channel', label: 'Channel', kind: 'text' },
                       { name: 'notificationType', label: 'Notification type', kind: 'text', required: true },
                       { name: 'subject', label: 'Subject', kind: 'text', required: true },
@@ -411,7 +519,7 @@ export function AwardRecommendationProcurexPage() {
                       { name: 'status', label: 'Status', kind: 'select', required: true, options: statusOptions },
                       { name: 'payload', label: 'Notification payload', kind: 'json', rows: 4 }
                     ]}
-                    initialValues={{ channel: 'IN_APP', notificationType: 'AWARD_NOTICE', subject: `Award notice for ${activeRecommendation.title}`, status: 'SENT', payload: '{}' }}
+                    initialValues={{ recipientOrgId: recommendationDetail?.supplierOrgId ?? '', channel: 'IN_APP', notificationType: 'AWARD_NOTICE', subject: `Award notice for ${activeRecommendation.title}`, status: 'SENT', payload: '{}' }}
                     onSubmit={(payload) => awardsContractsApi.createAwardNotification(activeRecommendationId, payload)}
                     onComplete={refreshRecommendationDetail}
                   />
@@ -429,7 +537,7 @@ export function AwardRecommendationProcurexPage() {
                         items={[
                           { label: 'Award value', value: activeRecommendation.amount === null ? 'Not priced' : formatMoney(activeRecommendation.amount, activeRecommendation.currency) },
                           { label: 'Currency', value: activeRecommendation.currency },
-                          { label: 'Contract ID', value: activeRecommendation.contractId ? shortId(activeRecommendation.contractId) : 'Not formed' }
+                          { label: 'Contract handoff', value: selectedContractId ? shortId(selectedContractId) : 'Not formed' }
                         ]}
                       />
                       <RecordRegister title="Budget commitments" records={recommendationDetail?.budgetCommitments ?? []} />
@@ -441,7 +549,7 @@ export function AwardRecommendationProcurexPage() {
                     badge="Budget"
                     submitLabel="Commit Budget"
                     fields={[
-                      { name: 'contractId', label: 'Contract ID', kind: 'uuid' },
+                      { name: 'contractId', label: 'Linked contract handoff', kind: 'select', options: contractOptions, helpText: 'Budget can be committed before a contract exists; linked contract context is used when available.' },
                       { name: 'commitmentNo', label: 'Commitment number', kind: 'text' },
                       { name: 'budgetCode', label: 'Budget code', kind: 'text', required: true },
                       { name: 'amount', label: 'Amount', kind: 'number', min: 0, step: '0.01', required: true },
@@ -450,7 +558,7 @@ export function AwardRecommendationProcurexPage() {
                       { name: 'note', label: 'Commitment note', kind: 'textarea' },
                       { name: 'payload', label: 'Budget payload', kind: 'json', rows: 4 }
                     ]}
-                    initialValues={{ contractId: activeRecommendation.contractId ?? '', budgetCode: 'PROCUREMENT.AWARD', amount: activeRecommendation.amount === null ? '' : String(activeRecommendation.amount), currency: activeRecommendation.currency, status: 'PENDING', payload: '{}' }}
+                    initialValues={{ contractId: selectedContractId, budgetCode: 'PROCUREMENT.AWARD', amount: activeRecommendation.amount === null ? '' : String(activeRecommendation.amount), currency: activeRecommendation.currency, status: 'PENDING', payload: '{}' }}
                     onSubmit={(payload) => awardsContractsApi.createBudgetCommitmentForRecommendation(activeRecommendationId, payload)}
                     onComplete={refreshRecommendationDetail}
                   />
@@ -468,9 +576,9 @@ export function AwardRecommendationProcurexPage() {
                 </div>
               ) : null}
 
-              {activeRecommendation.contractId ? (
+              {selectedContractId ? (
                 <div className="inline-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${activeRecommendation.contractId}`)}>Open Contract</button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${selectedContractId}`)}>Open Contract</button>
                 </div>
               ) : null}
             </section>

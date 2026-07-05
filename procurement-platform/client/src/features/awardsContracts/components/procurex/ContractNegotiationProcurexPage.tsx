@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
-import type { ContractDetailDto, ContractLifecycleItemDto } from '../../types';
+import type { ContractDetailDto } from '../../types';
 import {
   ActionFormPanel,
   itemOptions,
@@ -13,11 +14,14 @@ import {
   ActionWorkspace,
   AwardHero,
   AwardSidebar,
+  formatMoney,
   ProcurexAwardFrame,
   RecordRegister,
+  RemoteStatePanel,
   RegisterCard,
   SimpleTable,
   StatusBadge,
+  TopSummary,
   WorkflowSectionTabs,
   type WorkflowSection
 } from './AwardsContractsProcurexShared';
@@ -28,33 +32,79 @@ function getContractId(search: string) {
 
 type ContractFormationGroupId = 'draft' | 'clauses' | 'negotiation' | 'approval' | 'signatures' | 'readiness' | 'registers';
 
+function draftValue(value: unknown, fallback = 'Pending') {
+  if (value === null || value === undefined || value === '') return fallback;
+  if (Array.isArray(value)) return value.length ? `${value.length} item${value.length === 1 ? '' : 's'}` : fallback;
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== null && entry !== undefined && entry !== '')
+      .slice(0, 4)
+      .map(([key, entry]) => `${key}: ${Array.isArray(entry) ? `${entry.length} items` : String(entry)}`);
+    return entries.length ? entries.join(' | ') : fallback;
+  }
+  return String(value);
+}
+
+function ClauseReviewGrid({ clauses }: { clauses: ContractDetailDto['clauses'] }) {
+  if (!clauses?.length) {
+    return <div className="scope-empty">Clauses generated from the award will appear here for buyer, supplier, and legal review.</div>;
+  }
+  return (
+    <div className="contract-clause-review-grid">
+      {clauses.map((clause) => {
+        const payload = clause.payload ?? {};
+        return (
+          <article key={clause.id}>
+            <div className="contract-clause-card-head">
+              <h3>{clause.title}</h3>
+              <StatusBadge value={clause.status} />
+            </div>
+            <p>{clause.note || 'No clause body captured yet.'}</p>
+            <dl className="award-detail-list">
+              <div><dt>Buyer</dt><dd>{String(payload.buyerComment || 'No buyer comment')}</dd></div>
+              <div><dt>Supplier</dt><dd>{String(payload.supplierComment || 'No supplier comment')}</dd></div>
+              <div><dt>Legal</dt><dd>{String(payload.legalComment || 'No legal comment')}</dd></div>
+            </dl>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ContractNegotiationProcurexPage() {
   const location = useLocation();
   const contractId = useMemo(() => getContractId(location.search), [location.search]);
   const [contract, setContract] = useState<ContractDetailDto | null>(null);
   const [activeGroup, setActiveGroup] = useState<ContractFormationGroupId>('draft');
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const loadContract = useCallback(async () => {
     if (!contractId) {
       setContract(null);
-      return () => {
-        active = false;
-      };
+      setLoadError('');
+      setIsLoading(false);
+      return;
     }
-    awardsContractsApi.contract(contractId)
-      .then((data) => {
-        if (active) setContract(data);
-      })
-      .catch(() => {
-        if (active) setContract(null);
-      });
-    return () => {
-      active = false;
-    };
+    setIsLoading(true);
+    setLoadError('');
+    try {
+      setContract(await awardsContractsApi.contract(contractId));
+    } catch (error) {
+      setContract(null);
+      setLoadError(apiErrorMessage(error, 'Contract detail could not be loaded.'));
+    } finally {
+      setIsLoading(false);
+    }
   }, [contractId]);
 
+  useEffect(() => {
+    void loadContract();
+  }, [loadContract]);
+
   const draft = contract?.payload?.draft as Record<string, unknown> | undefined;
+  const pendingSignatures = contract?.signatures?.filter((signature) => signature.status !== 'SIGNED') ?? [];
 
   function refreshContract(result: unknown) {
     setContract(result as ContractDetailDto);
@@ -75,7 +125,7 @@ export function ContractNegotiationProcurexPage() {
       <div className="main-layout procurement-layout evaluation-app-layout contract-page" data-award-contract-workspace>
         <AwardSidebar
           title="Contracts in Progress"
-          subtitle="No contract selected"
+          subtitle={contract?.reference ?? contract?.title ?? (contractId ? 'Loading contract workspace' : 'Select a contract')}
           activeQueue="contracts-in-progress"
           extraItems={<li><a href="#" data-navigate="awarding-contracts" data-route-search="queue=contracts-in-progress">Back to Contract Queue</a></li>}
         />
@@ -92,7 +142,40 @@ export function ContractNegotiationProcurexPage() {
             ]}
           />
 
-          {!contract ? (
+          {contract ? (
+            <TopSummary
+              items={[
+                { label: 'Selected Contract', value: contract.reference },
+                { label: 'Buyer', value: contract.buyerName },
+                { label: 'Supplier', value: contract.supplierName ?? 'Supplier pending' },
+                { label: 'Contract Value', value: contract.amount === null ? 'Not priced' : formatMoney(contract.amount, contract.currency) },
+                { label: 'Tender', value: contract.tenderReference ?? contract.tenderId ?? 'Not linked' },
+                { label: 'Status', value: <StatusBadge value={contract.status} /> }
+              ]}
+            />
+          ) : null}
+
+          {isLoading ? (
+            <RemoteStatePanel
+              kicker="Loading"
+              title="Loading contract workspace"
+              message="ProcureX is fetching the selected contract, draft, negotiation records, approvals, and signatures."
+              status="Loading"
+            />
+          ) : null}
+
+          {loadError ? (
+            <RemoteStatePanel
+              kicker="Service status"
+              title="Contract workspace could not be loaded"
+              message={loadError}
+              status="Error"
+              actionLabel="Retry loading"
+              onAction={() => void loadContract()}
+            />
+          ) : null}
+
+          {!isLoading && !loadError && !contract ? (
             <section className="procurement-panel evaluation-panel post-award-panel">
               <div className="panel-heading">
                 <div><span className="section-kicker">Contract workflow</span><h2>No contract is in progress.</h2></div>
@@ -103,7 +186,7 @@ export function ContractNegotiationProcurexPage() {
                 <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=contracts-in-progress">Back to Contract Queue</button>
               </div>
             </section>
-          ) : (
+          ) : !isLoading && !loadError && contract ? (
             <AwardContractAccessProvider access={contract.access}>
             <section className="procurement-panel evaluation-panel post-award-panel">
               <div className="panel-heading">
@@ -129,13 +212,31 @@ export function ContractNegotiationProcurexPage() {
                         <article><span>Currency</span><strong>{contract.currency}</strong></article>
                       </section>
                       <SimpleTable headers={['Draft area', 'Captured content', 'Status']}>
-                        {['parties', 'tender', 'financials', 'clauses'].map((key) => (
-                          <tr key={key}>
-                            <td><strong>{key}</strong></td>
-                            <td>{JSON.stringify(draft?.[key] ?? {}, null, 0)}</td>
-                            <td><StatusBadge value={draft?.[key] ? 'Generated' : 'Pending'} /></td>
-                          </tr>
-                        ))}
+                        <tr>
+                          <td><strong>Parties</strong></td>
+                          <td>{contract.buyerName} / {contract.supplierName ?? draftValue(draft?.parties)}</td>
+                          <td><StatusBadge value={contract.supplierName ? 'Generated' : 'Pending'} /></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Tender</strong></td>
+                          <td>{contract.tenderReference ?? draftValue(draft?.tender)}</td>
+                          <td><StatusBadge value={contract.tenderReference || draft?.tender ? 'Generated' : 'Pending'} /></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Commercial terms</strong></td>
+                          <td>{contract.amount === null ? draftValue(draft?.financials) : formatMoney(contract.amount, contract.currency)}</td>
+                          <td><StatusBadge value={contract.amount !== null || draft?.financials ? 'Generated' : 'Pending'} /></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Clauses</strong></td>
+                          <td>{contract.clauses?.length ? `${contract.clauses.length} structured clauses ready for review` : draftValue(draft?.clauses)}</td>
+                          <td><StatusBadge value={contract.clauses?.length ? 'Generated' : 'Pending'} /></td>
+                        </tr>
+                        <tr>
+                          <td><strong>Documents</strong></td>
+                          <td>{contract.versions?.length ? `${contract.versions.length} contract version records` : 'No external contract version linked'}</td>
+                          <td><StatusBadge value={contract.versions?.length ? 'Recorded' : 'Optional'} /></td>
+                        </tr>
                       </SimpleTable>
                     </>
                   }
@@ -145,7 +246,7 @@ export function ContractNegotiationProcurexPage() {
                     badge="Version"
                     submitLabel="Create Version"
                     fields={[
-                      { name: 'documentId', label: 'Document ID', kind: 'uuid', placeholder: 'Optional document UUID' },
+                      { name: 'documentId', label: 'External document ID (optional)', kind: 'uuid', placeholder: 'Optional external document UUID', helpText: 'Use only when referencing a document stored outside this workflow.' },
                       { name: 'payload', label: 'Version payload', kind: 'json', required: true, rows: 7 }
                     ]}
                     initialValues={{
@@ -168,7 +269,7 @@ export function ContractNegotiationProcurexPage() {
                   kicker="Clauses"
                   title="Structured clause review"
                   badge={`${contract.clauses?.length ?? 0} clauses`}
-                  context={<RecordRegister title="Contract clauses" records={(contract.clauses ?? []) as unknown as Array<Record<string, unknown>>} />}
+                  context={<ClauseReviewGrid clauses={contract.clauses} />}
                 >
                   <ActionFormPanel
                     title="Contract clause"
@@ -267,18 +368,26 @@ export function ContractNegotiationProcurexPage() {
                   title="Digital signing status"
                   badge={`${contract.signatures?.length ?? 0} signature records`}
                   context={
-                    <SimpleTable headers={['Role', 'Signer', 'Status', 'Signed at']}>
-                      {(contract.signatures ?? []).length === 0 ? (
-                        <tr><td colSpan={4}><div className="scope-empty">No signature requests have been created yet.</div></td></tr>
-                      ) : contract.signatures.map((signature) => (
-                        <tr key={signature.id}>
-                          <td>{signature.role}</td>
-                          <td>{signature.signerName || 'Pending signer'}</td>
-                          <td><StatusBadge value={signature.status} /></td>
-                          <td>{signature.signedAt ? new Date(signature.signedAt).toLocaleString() : 'Not signed'}</td>
-                        </tr>
-                      ))}
-                    </SimpleTable>
+                    <>
+                      <section className="contract-overview-grid">
+                        <article><span>Required parties</span><strong>Buyer and supplier</strong></article>
+                        <article><span>Pending signatures</span><strong>{pendingSignatures.length}</strong></article>
+                        <article><span>Signature method</span><strong>ProcureX keyphrase</strong></article>
+                        <article><span>Blocked reason</span><strong>{pendingSignatures.length ? 'Awaiting signer action' : 'None'}</strong></article>
+                      </section>
+                      <SimpleTable headers={['Role', 'Signer', 'Status', 'Signed at']}>
+                        {(contract.signatures ?? []).length === 0 ? (
+                          <tr><td colSpan={4}><div className="scope-empty">No signature requests have been created yet.</div></td></tr>
+                        ) : contract.signatures.map((signature) => (
+                          <tr key={signature.id}>
+                            <td>{signature.role}</td>
+                            <td>{signature.signerName || 'Pending signer'}</td>
+                            <td><StatusBadge value={signature.status} /></td>
+                            <td>{signature.signedAt ? new Date(signature.signedAt).toLocaleString() : 'Not signed'}</td>
+                          </tr>
+                        ))}
+                      </SimpleTable>
+                    </>
                   }
                 >
                   <ActionFormPanel
@@ -349,7 +458,7 @@ export function ContractNegotiationProcurexPage() {
               ) : null}
             </section>
             </AwardContractAccessProvider>
-          )}
+          ) : null}
         </main>
       </div>
     </ProcurexAwardFrame>
