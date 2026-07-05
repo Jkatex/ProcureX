@@ -224,6 +224,9 @@ describe('intelligence supplier recommendations repository', () => {
       tender: {
         findMany: vi.fn().mockResolvedValue([zeroScoreTender, locationOnlyTender, ...extraTenders, topTender])
       },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([{ tenderId: 'tender-top' }])
+      },
       $transaction: vi.fn((callback) => callback(tx))
     };
     const repository = new ModuleRepository(db as any);
@@ -245,6 +248,10 @@ describe('intelligence supplier recommendations repository', () => {
         take: 1000
       })
     );
+    expect(db.savedTender.findMany).toHaveBeenCalledWith({
+      where: { organizationId: 'supplier-org-1' },
+      select: { tenderId: true }
+    });
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(20);
     expect(result.data[0]).toMatchObject({
@@ -262,6 +269,7 @@ describe('intelligence supplier recommendations repository', () => {
       publishedAt: '2026-07-01T08:00:00.000Z',
       closingDate: '2099-08-30',
       createdByCurrentUser: false,
+      isSaved: true,
       matchScore: 100,
       matchReasons: [
         'Category matches supplier profile',
@@ -271,6 +279,8 @@ describe('intelligence supplier recommendations repository', () => {
         'Similar previous bid history'
       ]
     });
+    const unsavedRow = result.data.find((row) => row.id !== 'tender-top');
+    expect(unsavedRow?.isSaved).toBe(false);
     expect(result.data.some((row) => row.id === 'tender-zero')).toBe(false);
     expect(Object.keys(result.data[0]).sort()).toEqual(
       [
@@ -280,6 +290,7 @@ describe('intelligence supplier recommendations repository', () => {
         'createdByCurrentUser',
         'description',
         'id',
+        'isSaved',
         'location',
         'matchReasons',
         'matchScore',
@@ -340,6 +351,9 @@ describe('intelligence supplier recommendations repository', () => {
       },
       tender: {
         findMany: vi.fn().mockResolvedValue([tenderRecord({ id: 'tender-zero', categories: [{ name: 'Roads' }] })])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([{ tenderId: 'other-tender' }])
       },
       $transaction: vi.fn((callback) => callback(tx))
     };

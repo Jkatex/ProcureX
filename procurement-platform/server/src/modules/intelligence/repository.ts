@@ -154,7 +154,7 @@ export class ModuleRepository {
 
   async recommendedTenders(context: { organizationId: string; userId: string }): Promise<RecommendedTendersResponseDto> {
     const now = new Date();
-    const [organization, bidHistory, tenders] = await Promise.all([
+    const [organization, bidHistory, tenders, savedTenderRecords] = await Promise.all([
       this.db.organization.findUnique({
         where: { id: context.organizationId },
         include: supplierContextInclude
@@ -184,12 +184,17 @@ export class ModuleRepository {
         include: recommendedTenderInclude,
         orderBy: [{ closingDate: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
         take: 1000
+      }),
+      this.db.savedTender.findMany({
+        where: { organizationId: context.organizationId },
+        select: { tenderId: true }
       })
     ]);
 
     const supplierSignals = supplierSignalsFrom(organization, bidHistory);
+    const savedTenderIds = new Set(savedTenderRecords.map((record) => record.tenderId));
     const scoredRows = tenders
-      .map((tender) => scoreTender(tender, context.organizationId, supplierSignals))
+      .map((tender) => scoreTender(tender, context.organizationId, supplierSignals, savedTenderIds))
       .filter((scored) => scored.row.matchScore > 0)
       .sort(compareScoredTenders)
       .slice(0, maxRecommendations);
@@ -396,7 +401,7 @@ function analyticsMonth(tender: MarketplaceAnalyticsTenderRecord) {
   return (tender.publishedAt ?? tender.createdAt).toISOString().slice(0, 7);
 }
 
-function scoreTender(tender: RecommendedTenderRecord, organizationId: string, signals: SupplierSignals): ScoredTender {
+function scoreTender(tender: RecommendedTenderRecord, organizationId: string, signals: SupplierSignals, savedTenderIds: Set<string> = new Set()): ScoredTender {
   const reasons: string[] = [];
   let score = 0;
   const categoryTokens = new Set(tender.categories.map((category) => normalizeToken(category.name)).filter(Boolean));
@@ -432,7 +437,7 @@ function scoreTender(tender: RecommendedTenderRecord, organizationId: string, si
   return {
     tender,
     row: {
-      ...toRecommendedTenderRow(tender, organizationId),
+      ...toRecommendedTenderRow(tender, organizationId, savedTenderIds),
       matchScore: Math.min(score, 100),
       matchReasons: reasons
     }
@@ -584,7 +589,7 @@ function compareScoredSuppliers(left: ScoredSupplier, right: ScoredSupplier) {
   return right.row.matchScore - left.row.matchScore || left.row.supplierName.localeCompare(right.row.supplierName);
 }
 
-function toRecommendedTenderRow(tender: RecommendedTenderRecord, organizationId: string) {
+function toRecommendedTenderRow(tender: RecommendedTenderRecord, organizationId: string, savedTenderIds: Set<string> = new Set()) {
   const category = marketplaceCategory(tender);
   return {
     id: tender.id,
@@ -600,7 +605,8 @@ function toRecommendedTenderRow(tender: RecommendedTenderRecord, organizationId:
     reference: tender.reference,
     publishedAt: tender.publishedAt?.toISOString() ?? '',
     closingDate: dateOnly(tender.closingDate),
-    createdByCurrentUser: tender.buyerOrgId === organizationId
+    createdByCurrentUser: tender.buyerOrgId === organizationId,
+    isSaved: savedTenderIds.has(tender.id)
   };
 }
 

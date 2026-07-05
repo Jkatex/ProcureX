@@ -26,6 +26,7 @@ export type RecommendedTenderRow = {
   publishedAt: string;
   closingDate: string;
   createdByCurrentUser: boolean;
+  isSaved: boolean;
   matchScore: number;
   matchReasons: string[];
 };
