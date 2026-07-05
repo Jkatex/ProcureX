@@ -1,6 +1,8 @@
-import { BidStatus, OrganizationKind, TenderStatus, TenderType, Visibility, VerificationStatus, type Prisma, type PrismaClient } from '@prisma/client';
+import { BidStatus, OrganizationKind, RiskLevel, TenderStatus, TenderType, Visibility, VerificationStatus, type Prisma, type PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
+import { categorySearchTerms, standardizeCategoryName } from './category-taxonomy.js';
+import { tenderLanguageScannerVersion } from './design-language-scanner.js';
 import type {
   CloseTenderResponseDto,
   CreateTenderInput,
@@ -18,6 +20,7 @@ import type {
   SavedTendersPayload,
   SaveTenderResponseDto,
   TenderDetailDto,
+  TenderLanguageScanDto,
   UnsaveTenderResponseDto,
   UpdateTenderInput,
   UpdateTenderResponseDto,
@@ -247,7 +250,22 @@ export class ModuleRepository {
         reference: true,
         visibility: true,
         publishedAt: true,
-        requirements: true
+        requirements: true,
+        metadata: true,
+        categories: { select: { name: true }, orderBy: { name: 'asc' } }
+      }
+    });
+  }
+
+  async getTenderForUpdate(tenderId: string) {
+    return this.db.tender.findUnique({
+      where: { id: tenderId },
+      select: {
+        id: true,
+        buyerOrgId: true,
+        status: true,
+        type: true,
+        metadata: true
       }
     });
   }
@@ -394,6 +412,42 @@ export class ModuleRepository {
       }
     });
     return tender ? toPublishTenderResponseDto(tender) : null;
+  }
+
+  async recordTenderLanguageScan(tenderId: string, scan: TenderLanguageScanDto) {
+    await this.db.riskSignal.create({
+      data: {
+        tenderId,
+        riskLevel: riskLevelFromScan(scan),
+        score: scan.score,
+        driver: 'tender_language_scan',
+        payload: {
+          source: 'publish',
+          scannerVersion: tenderLanguageScannerVersion,
+          riskLevel: scan.riskLevel,
+          issues: scan.issues
+        } as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  async applyTenderCategoryStandardization(tenderId: string, categories: string[], metadata: Record<string, unknown>) {
+    await this.db.$transaction(async (tx) => {
+      await tx.tenderCategory.deleteMany({ where: { tenderId } });
+      const normalizedCategories = normalizeCategoryInputs(categories);
+      if (normalizedCategories.length > 0) {
+        await tx.tenderCategory.createMany({
+          data: normalizedCategories.map((name) => ({ tenderId, name })),
+          skipDuplicates: true
+        });
+      }
+      await tx.tender.update({
+        where: { id: tenderId },
+        data: {
+          metadata: metadata as Prisma.InputJsonObject
+        }
+      });
+    });
   }
 
   async closeTender(tenderId: string, organizationId: string): Promise<CloseTenderResponseDto | null> {
@@ -798,6 +852,7 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   ];
 
   if (query.search) {
+    const categoryTerms = categorySearchTerms(query.search);
     activeFilters.push({
       OR: [
         { title: { contains: query.search, mode: 'insensitive' } },
@@ -805,7 +860,8 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
         { reference: { contains: query.search, mode: 'insensitive' } },
         { location: { contains: query.search, mode: 'insensitive' } },
         { buyerOrg: { name: { contains: query.search, mode: 'insensitive' } } },
-        { categories: { some: { name: { contains: query.search, mode: 'insensitive' } } } }
+        { categories: { some: { name: { contains: query.search, mode: 'insensitive' } } } },
+        ...categoryTerms.map((term) => ({ categories: { some: { name: { contains: term, mode: 'insensitive' as const } } } }))
       ]
     });
   }
@@ -978,6 +1034,12 @@ function toPublishTenderResponseDto(tender: {
   };
 }
 
+function riskLevelFromScan(scan: TenderLanguageScanDto) {
+  if (scan.riskLevel === 'High') return RiskLevel.HIGH;
+  if (scan.riskLevel === 'Medium') return RiskLevel.MEDIUM;
+  return RiskLevel.LOW;
+}
+
 function toCloseTenderResponseDto(tender: {
   id: string;
   reference: string;
@@ -1092,9 +1154,19 @@ function bidStateFromStatus(status: BidStatus): MarketplaceBidState {
 }
 
 function marketplaceCategory(tender: MarketplaceTenderRecord) {
-  const categoryNames = tender.categories.map((category) => category.name).filter(Boolean);
+  const categoryNames = uniqueCategoryNames(tender.categories.map((category) => standardizeCategoryName(category.name, tender.type)).filter(Boolean));
   if (categoryNames.length > 0) return categoryNames.join(' / ');
   return frontendTenderType(tender.type);
+}
+
+function uniqueCategoryNames(categories: string[]) {
+  const seen = new Set<string>();
+  return categories.filter((category) => {
+    const key = normalizeLabel(category);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function frontendTenderStatus(status: unknown) {

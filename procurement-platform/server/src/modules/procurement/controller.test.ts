@@ -36,6 +36,143 @@ function expectValidationResponse(res: ReturnType<typeof mockResponse>, next: Re
 }
 
 describe('procurement controller validation responses', () => {
+  it('returns procurement master data from the service', async () => {
+    const payload = { success: true, data: { groups: [{ group: 'tender-types', items: [] }] } };
+    const service = { masterData: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.masterData(mockRequest({ query: {} }) as any, res as any, next);
+
+    expect(service.masterData).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns a master data group from the service', async () => {
+    const payload = { success: true, data: { group: 'tender-types', items: [] } };
+    const service = { masterDataGroup: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.masterDataGroup(mockRequest({ params: { group: 'tender-types' } }) as any, res as any, next);
+
+    expect(service.masterDataGroup).toHaveBeenCalledWith('tender-types');
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns not found for unknown master data groups', async () => {
+    const service = { masterDataGroup: vi.fn().mockResolvedValue(null) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.masterDataGroup(mockRequest({ params: { group: 'unknown-group' } }) as any, res as any, next);
+
+    expect(service.masterDataGroup).toHaveBeenCalledWith('unknown-group');
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 404, message: 'Master data group was not found.' }));
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it('returns procurement design form schemas from the service', async () => {
+    const payload = { success: true, data: { schemaVersion: 'procurement-design-v1', schemas: [] } };
+    const service = { designFormSchemas: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.designFormSchemas(mockRequest({ query: {} }) as any, res as any, next);
+
+    expect(service.designFormSchemas).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns one procurement design form schema from the service', async () => {
+    const payload = { success: true, data: { schemaVersion: 'procurement-design-v1', type: 'goods', sections: [] } };
+    const service = { designFormSchema: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.designFormSchema(mockRequest({ params: { type: 'Goods' } }) as any, res as any, next);
+
+    expect(service.designFormSchema).toHaveBeenCalledWith('goods');
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns not found for unknown procurement design form schema types', async () => {
+    const service = { designFormSchema: vi.fn().mockResolvedValue(null) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.designFormSchema(mockRequest({ params: { type: 'lease' } }) as any, res as any, next);
+
+    expect(service.designFormSchema).toHaveBeenCalledWith('lease');
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 404, message: 'Form schema type was not found.' }));
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it('returns a tender language scan from the service', async () => {
+    const payload = { success: true, data: { riskLevel: 'Low', score: 0, issues: [] } };
+    const service = { scanTenderLanguage: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.scanLanguage(
+      mockRequest({
+        token: 'token-1',
+        body: {
+          title: 'Supply of ICT equipment',
+          description: 'Open and measurable specifications.',
+          requirements: {},
+          evaluationCriteria: {},
+          metadata: {}
+        }
+      }) as any,
+      res as any,
+      next
+    );
+
+    expect(service.scanTenderLanguage).toHaveBeenCalledWith('token-1', expect.objectContaining({ title: 'Supply of ICT equipment' }));
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns the procurement taxonomy from the service', async () => {
+    const payload = { success: true, data: { taxonomyVersion: 'procurement-taxonomy-v1', categories: [] } };
+    const service = { taxonomy: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.taxonomy(mockRequest({ query: {} }) as any, res as any, next);
+
+    expect(service.taxonomy).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns standardized category results from the service', async () => {
+    const payload = { success: true, data: { rawCategory: 'laptops', standardCategory: 'ICT Equipment', type: 'Goods', confidence: 0.98, synonymsMatched: ['laptops'] } };
+    const service = { standardizeCategory: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.standardizeCategory(mockRequest({ body: { rawCategory: 'laptops', type: 'Goods' } }) as any, res as any, next);
+
+    expect(service.standardizeCategory).toHaveBeenCalledWith(expect.objectContaining({ rawCategory: 'laptops' }));
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('returns structured validation errors for invalid marketplace queries', async () => {
     const service = { marketplace: vi.fn() };
     const controller = new ModuleController(service as any);

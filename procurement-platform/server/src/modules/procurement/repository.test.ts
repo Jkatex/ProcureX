@@ -1,4 +1,4 @@
-import { BidStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
+import { BidStatus, RiskLevel, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleRepository } from './repository.js';
 
@@ -123,7 +123,7 @@ describe('procurement marketplace repository', () => {
         organization: 'Medical Stores Department',
         ownerOrganization: 'Medical Stores Department',
         type: 'Goods',
-        category: 'Health / Goods',
+        category: 'Medical Equipment / Other Goods',
         description: 'Diagnostic equipment package',
         location: 'Dar es Salaam',
         budget: 250000000,
@@ -213,7 +213,7 @@ describe('procurement marketplace repository', () => {
       hasNextPage: false,
       hasPreviousPage: false
     });
-    expect(payload.summary.categoryCounts).toEqual([{ label: 'Health / Goods', value: 1, amount: 250000000 }]);
+    expect(payload.summary.categoryCounts).toEqual([{ label: 'Medical Equipment / Other Goods', value: 1, amount: 250000000 }]);
     expect(db.tender.findMany).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -348,8 +348,8 @@ describe('procurement marketplace repository', () => {
     );
     expect(payload.summary.categoryCounts).toEqual(
       expect.arrayContaining([
-        { label: 'Goods', value: 1, amount: 250000000 },
-        { label: 'Works', value: 1, amount: 1000000000 },
+        { label: 'Other Goods', value: 1, amount: 250000000 },
+        { label: 'Other Works', value: 1, amount: 1000000000 },
         { label: 'Consultancy', value: 1, amount: 750000000 }
       ])
     );
@@ -877,6 +877,94 @@ describe('procurement tender write repository', () => {
     expect(db.tender.findUnique).not.toHaveBeenCalled();
   });
 
+  it('persists tender language scan snapshots as risk signals', async () => {
+    const db = {
+      riskSignal: {
+        create: vi.fn().mockResolvedValue({ id: 'risk-1' })
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await repository.recordTenderLanguageScan('tender-1', {
+      riskLevel: 'High',
+      score: 70,
+      issues: [
+        {
+          type: 'brand-only-restriction',
+          severity: 'High',
+          field: 'description',
+          text: 'Only HP brand',
+          suggestion: 'Use equivalent specifications.'
+        }
+      ]
+    });
+
+    expect(db.riskSignal.create).toHaveBeenCalledWith({
+      data: {
+        tenderId: 'tender-1',
+        riskLevel: RiskLevel.HIGH,
+        score: 70,
+        driver: 'tender_language_scan',
+        payload: {
+          source: 'publish',
+          scannerVersion: 'tender-language-rules-v1',
+          riskLevel: 'High',
+          issues: [
+            {
+              type: 'brand-only-restriction',
+              severity: 'High',
+              field: 'description',
+              text: 'Only HP brand',
+              suggestion: 'Use equivalent specifications.'
+            }
+          ]
+        }
+      }
+    });
+  });
+
+  it('replaces tender categories with standardized names and stores taxonomy metadata', async () => {
+    const tx = {
+      tenderCategory: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
+        createMany: vi.fn().mockResolvedValue({ count: 1 })
+      },
+      tender: {
+        update: vi.fn().mockResolvedValue({ id: 'tender-1' })
+      }
+    };
+    const db = {
+      $transaction: vi.fn((callback) => callback(tx))
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await repository.applyTenderCategoryStandardization('tender-1', ['ICT Equipment', 'ICT Equipment'], {
+      categoryStandardization: {
+        taxonomyVersion: 'procurement-taxonomy-v1',
+        standardCategories: ['ICT Equipment'],
+        mappings: []
+      }
+    });
+
+    expect(tx.tenderCategory.deleteMany).toHaveBeenCalledWith({ where: { tenderId: 'tender-1' } });
+    expect(tx.tenderCategory.createMany).toHaveBeenCalledWith({
+      data: [{ tenderId: 'tender-1', name: 'ICT Equipment' }],
+      skipDuplicates: true
+    });
+    expect(tx.tender.update).toHaveBeenCalledWith({
+      where: { id: 'tender-1' },
+      data: {
+        metadata: {
+          categoryStandardization: {
+            taxonomyVersion: 'procurement-taxonomy-v1',
+            standardCategories: ['ICT Equipment'],
+            mappings: []
+          }
+        }
+      }
+    });
+  });
+
   it('closes owner open tenders without touching bids', async () => {
     const closedTender = tenderDetailRecord({
       id: 'tender-1',
@@ -1209,7 +1297,7 @@ describe('procurement tender detail repository', () => {
       organization: 'Medical Stores Department',
       ownerOrganization: 'Medical Stores Department',
       type: 'Goods',
-      category: 'Health / Goods',
+      category: 'Medical Equipment / Other Goods',
       budget: 250000000,
       currency: 'TZS',
       status: 'Open',

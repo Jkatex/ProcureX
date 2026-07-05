@@ -260,7 +260,7 @@ describe('intelligence supplier recommendations repository', () => {
       organization: 'Medical Stores Department',
       ownerOrganization: 'Medical Stores Department',
       type: 'Goods',
-      category: 'Health / Equipment',
+      category: 'Medical Equipment / ICT Equipment',
       description: 'Diagnostic equipment package',
       location: 'Dar es Salaam',
       budget: 250000000,
@@ -538,7 +538,7 @@ describe('intelligence supplier recommendations repository', () => {
         'Budget is within supplier capacity',
         'Previous relevant procurement history'
       ],
-      categories: ['Health', 'Equipment'],
+      categories: ['Medical Equipment', 'ICT Equipment'],
       locations: ['Dar es Salaam'],
       capabilitySummary: 'Medical equipment supplier'
     });
@@ -667,8 +667,8 @@ describe('intelligence supplier recommendations repository', () => {
         ],
         tendersByCategory: [
           { label: 'Works', value: 1, amount: 1500000000 },
-          { label: 'Services', value: 1, amount: 250000000 },
-          { label: 'Health', value: 1, amount: 50000000 }
+          { label: 'Other Non Consultancy', value: 1, amount: 250000000 },
+          { label: 'Medical Equipment', value: 1, amount: 50000000 }
         ],
         tendersByLocation: [
           { label: 'Tanzania', value: 1, amount: 1500000000 },

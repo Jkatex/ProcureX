@@ -1,5 +1,6 @@
 import { BidStatus, OrganizationCapabilityName, TenderStatus, Visibility, type Prisma, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { standardizeCategoryName } from '../procurement/category-taxonomy.js';
 import type {
   AnalyticsBreakdownRow,
   AnalyticsBudgetBand,
@@ -392,7 +393,7 @@ function closingSoonTenderCount(tenders: MarketplaceAnalyticsTenderRecord[]) {
 }
 
 function analyticsCategory(tender: MarketplaceAnalyticsTenderRecord) {
-  const categoryNames = tender.categories.map((category) => category.name).filter(Boolean);
+  const categoryNames = uniqueDisplayStrings(tender.categories.map((category) => standardizeCategoryName(category.name, tender.type)).filter(Boolean));
   if (categoryNames.length > 0) return categoryNames.join(' / ');
   return frontendTenderType(tender.type);
 }
@@ -404,7 +405,7 @@ function analyticsMonth(tender: MarketplaceAnalyticsTenderRecord) {
 function scoreTender(tender: RecommendedTenderRecord, organizationId: string, signals: SupplierSignals, savedTenderIds: Set<string> = new Set()): ScoredTender {
   const reasons: string[] = [];
   let score = 0;
-  const categoryTokens = new Set(tender.categories.map((category) => normalizeToken(category.name)).filter(Boolean));
+  const categoryTokens = new Set(tender.categories.map((category) => normalizeToken(standardizeCategoryName(category.name, tender.type))).filter(Boolean));
   const typeToken = normalizeToken(frontendTenderType(tender.type));
   const budget = decimalToNumber(tender.budget);
 
@@ -449,7 +450,7 @@ function supplierSignalsFrom(organization: SupplierContextRecord | null, bidHist
     ...stringValues(organization?.supplierProfile?.categories),
     ...stringsForKeys(organization?.profile?.payload, categoryKey),
     ...stringsForKeys(organization?.metadata, categoryKey)
-  ]);
+  ].map((category) => standardizeCategoryName(category)));
   const typeTokens = new Set(
     [
       ...stringsForKeys(organization?.profile?.payload, typeKey),
@@ -465,7 +466,7 @@ function supplierSignalsFrom(organization: SupplierContextRecord | null, bidHist
   for (const bid of bidHistory) {
     historyTypeTokens.add(normalizeToken(frontendTenderType(bid.tender.type)));
     for (const category of bid.tender.categories) {
-      const token = normalizeToken(category.name);
+      const token = normalizeToken(standardizeCategoryName(category.name, bid.tender.type));
       if (token) historyCategoryTokens.add(token);
     }
   }
@@ -532,7 +533,7 @@ function supplierCandidateSignalsFrom(supplier: SupplierCandidateRecord): Suppli
     ...stringValues(supplier.supplierProfile?.categories),
     ...stringsForKeys(supplier.profile?.payload, categoryKey),
     ...stringsForKeys(supplier.metadata, categoryKey)
-  ]);
+  ].map((category) => standardizeCategoryName(category)));
   const locations = uniqueDisplayStrings([...stringsForKeys(supplier.profile?.payload, locationKey), ...stringsForKeys(supplier.metadata, locationKey)]);
   const categoryTokens = tokenSet(categories);
   const typeTokens = new Set(
@@ -559,7 +560,7 @@ function supplierCandidateSignalsFrom(supplier: SupplierCandidateRecord): Suppli
 
 function tenderSignalsFrom(tender: SupplierRecommendationTenderRecord): TenderSignals {
   return {
-    categoryTokens: tokenSet(tender.categories.map((category) => category.name)),
+    categoryTokens: tokenSet(tender.categories.map((category) => standardizeCategoryName(category.name, tender.type))),
     typeToken: normalizeToken(frontendTenderType(tender.type)),
     locationToken: normalizeToken(tender.location),
     budget: decimalToNumber(tender.budget)
@@ -568,7 +569,7 @@ function tenderSignalsFrom(tender: SupplierRecommendationTenderRecord): TenderSi
 
 function hasRelevantSupplierHistory(bidHistory: BuyerSupplierBidHistoryRecord[], tender: TenderSignals) {
   return bidHistory.some((bid) => {
-    const historyCategories = tokenSet(bid.tender.categories.map((category) => category.name));
+    const historyCategories = tokenSet(bid.tender.categories.map((category) => standardizeCategoryName(category.name, bid.tender.type)));
     return (
       intersects(historyCategories, tender.categoryTokens) ||
       normalizeToken(frontendTenderType(bid.tender.type)) === tender.typeToken ||
@@ -619,7 +620,7 @@ function compareScoredTenders(left: ScoredTender, right: ScoredTender) {
 }
 
 function marketplaceCategory(tender: RecommendedTenderRecord) {
-  const categoryNames = tender.categories.map((category) => category.name).filter(Boolean);
+  const categoryNames = uniqueDisplayStrings(tender.categories.map((category) => standardizeCategoryName(category.name, tender.type)).filter(Boolean));
   if (categoryNames.length > 0) return categoryNames.join(' / ');
   return frontendTenderType(tender.type);
 }

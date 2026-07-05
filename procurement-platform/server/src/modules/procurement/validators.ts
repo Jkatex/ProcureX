@@ -6,6 +6,34 @@ export const moduleStatusQuerySchema = z.object({}).passthrough();
 
 export const publicWelcomeQuerySchema = z.object({}).passthrough();
 
+export const masterDataQuerySchema = z.object({}).passthrough();
+
+export const masterDataGroupParamsSchema = z
+  .object({
+    group: z.string().trim().min(1).max(80)
+  })
+  .strict();
+
+export const designFormSchemasQuerySchema = z.object({}).passthrough();
+
+export const designFormSchemaParamsSchema = z
+  .object({
+    type: z.string().trim().min(1).max(40).transform((value) => value.toLowerCase())
+  })
+  .strict();
+
+export const scanLanguageBodySchema = z
+  .object({
+    title: z.string().trim().max(300).optional().default(''),
+    description: z.string().trim().max(10000).optional().default(''),
+    requirements: z.record(z.unknown()).optional().default({}),
+    evaluationCriteria: z.record(z.unknown()).optional().default({}),
+    metadata: z.record(z.unknown()).optional().default({})
+  })
+  .strict();
+
+export const taxonomyQuerySchema = z.object({}).passthrough();
+
 export const marketplaceQuerySchema = z
   .object({
     search: z.string().trim().max(100).optional().default(''),
@@ -157,6 +185,13 @@ const draftClosingDateSchema = z
     message: 'Closing date must be in the future.'
   });
 const categoryInputSchema = z.string().trim().min(1).max(120);
+
+export const standardizeCategoryBodySchema = z
+  .object({
+    rawCategory: categoryInputSchema,
+    type: tenderTypeInputSchema.optional()
+  })
+  .strict();
 
 export const createTenderBodySchema = z
   .object({

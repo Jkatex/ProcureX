@@ -1,14 +1,26 @@
 import { TenderStatus } from '@prisma/client';
+import { getProcurementTaxonomy, standardizeCategory, standardizeCategoryList } from './category-taxonomy.js';
+import { getProcurementDesignFormSchema, getProcurementDesignFormSchemas, procurementDesignSchemaVersion } from './design-form-schemas.js';
+import { scanTenderLanguage } from './design-language-scanner.js';
+import { responseValidation, schemaMetadata, tenderTypeProfile, validateTenderDraftRequirements } from './design-validation.js';
+import { getProcurementMasterDataGroup, getProcurementMasterDataGroups } from './master-data.js';
 import { ModuleRepository } from './repository.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { isProductionRuntime } from '../../security/config.js';
 import {
   type CloseTenderResponseDto,
+  type CategoryStandardizationResultDto,
+  type CategoryStandardizationResponseDto,
   type CreateTenderInput,
   type CreateTenderResponseDto,
+  type DesignFormSchemaListResponseDto,
+  type DesignFormSchemaResponseDto,
+  type MasterDataGroupResponseDto,
+  type MasterDataListResponseDto,
   moduleDefinition,
   type MarketplaceQuery,
   type ProcurementMarketplacePayload,
+  type ProcurementTaxonomyResponseDto,
   type ModuleStatus,
   type PublishTenderResponseDto,
   type ProcurementPlanDto,
@@ -23,6 +35,8 @@ import {
   type SavedTendersPayload,
   type SaveTenderResponseDto,
   type TenderDetailDto,
+  type TenderLanguageScanInput,
+  type TenderLanguageScanResponseDto,
   type UnsaveTenderResponseDto,
   type UpdateTenderInput,
   type UpdateTenderResponseDto,
@@ -67,6 +81,54 @@ export class ModuleService {
     }
   }
 
+  async masterData(): Promise<MasterDataListResponseDto> {
+    return {
+      success: true,
+      data: {
+        groups: getProcurementMasterDataGroups()
+      }
+    };
+  }
+
+  async masterDataGroup(group: string): Promise<MasterDataGroupResponseDto | null> {
+    const data = getProcurementMasterDataGroup(group);
+    return data ? { success: true, data } : null;
+  }
+
+  async designFormSchemas(): Promise<DesignFormSchemaListResponseDto> {
+    return {
+      success: true,
+      data: {
+        schemaVersion: procurementDesignSchemaVersion,
+        schemas: getProcurementDesignFormSchemas()
+      }
+    };
+  }
+
+  async designFormSchema(type: string): Promise<DesignFormSchemaResponseDto | null> {
+    const data = getProcurementDesignFormSchema(type);
+    return data ? { success: true, data } : null;
+  }
+
+  async taxonomy(): Promise<ProcurementTaxonomyResponseDto> {
+    return getProcurementTaxonomy();
+  }
+
+  async standardizeCategory(input: { rawCategory: string; type?: CreateTenderInput['type'] }): Promise<CategoryStandardizationResponseDto> {
+    return {
+      success: true,
+      data: standardizeCategory(input.rawCategory, input.type)
+    };
+  }
+
+  async scanTenderLanguage(token: string | undefined, input: TenderLanguageScanInput): Promise<TenderLanguageScanResponseDto> {
+    await this.identity.requireSession(token);
+    return {
+      success: true,
+      data: scanTenderLanguage(input)
+    };
+  }
+
   async marketplace(token?: string, query: MarketplaceQuery = defaultMarketplaceQuery): Promise<ProcurementMarketplacePayload> {
     try {
       const context = await this.contextFromToken(token);
@@ -89,13 +151,55 @@ export class ModuleService {
   async createTender(token: string | undefined, input: CreateTenderInput): Promise<CreateTenderResponseDto> {
     const session = await this.identity.requirePermission(token, 'procurement.create');
     const organizationId = requireOrganization(session.user.organizationId);
-    return this.repository.createTender(input, { organizationId, userId: session.user.id });
+    const validation = validateTenderDraftRequirements(input.type, input.requirements);
+    if (validation.errors.length > 0) throw requestError(validation.errors[0], 400);
+    const categoryStandardization = standardizeCategoryList(input.categories, input.type);
+    const tender = await this.repository.createTender(
+      {
+        ...input,
+        categories: categoryStandardization.standardCategories,
+        metadata: schemaMetadata(withCategoryStandardization(input.metadata, categoryStandardization), input.type)
+      },
+      { organizationId, userId: session.user.id }
+    );
+    return { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) };
   }
 
   async updateTender(tenderId: string, token: string | undefined, input: UpdateTenderInput): Promise<UpdateTenderResponseDto | null> {
     const session = await this.identity.requireSession(token);
     const organizationId = requireOrganization(session.user.organizationId);
-    return this.repository.updateTender(tenderId, input, { organizationId, userId: session.user.id });
+    const existing = await this.repository.getTenderForUpdate(tenderId);
+    if (!existing) return null;
+    if (existing.buyerOrgId !== organizationId) throw requestError('Only the owner organization can update this tender.', 403);
+    if (!isEditableTenderStatus(existing.status)) throw requestError('Only draft or review tenders can be updated.', 409);
+
+    const effectiveType = input.type ?? existing.type;
+    const categoryStandardization =
+      input.categories === undefined ? null : standardizeCategoryList(input.categories, effectiveType);
+    const validation = input.requirements === undefined
+      ? {
+          warnings: [],
+          missingRequiredFields: [],
+          schemaVersion: procurementDesignSchemaVersion,
+          errors: [],
+          typeProfile: tenderTypeProfile(effectiveType)
+        }
+      : validateTenderDraftRequirements(effectiveType, input.requirements);
+    if (validation.errors.length > 0) throw requestError(validation.errors[0], 400);
+
+    const tender = await this.repository.updateTender(
+      tenderId,
+      {
+        ...input,
+        categories: categoryStandardization?.standardCategories ?? input.categories,
+        metadata: schemaMetadata(
+          withCategoryStandardization({ ...objectMetadata(existing.metadata), ...(input.metadata ?? {}) }, categoryStandardization),
+          effectiveType
+        )
+      },
+      { organizationId, userId: session.user.id }
+    );
+    return tender ? { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) } : null;
   }
 
   async publishTender(tenderId: string, token: string | undefined): Promise<PublishTenderResponseDto> {
@@ -105,9 +209,21 @@ export class ModuleService {
     if (!tender) throw requestError('Tender was not found.', 404);
     if (tender.buyerOrgId !== organizationId) throw requestError('Only the owner organization can publish this tender.', 403);
     assertTenderPublishable(tender);
+    assertTenderDesignComplete(tender);
+    const languageScan = scanTenderLanguage(languageScanInputFromTender(tender));
+    await this.repository.recordTenderLanguageScan(tender.id, languageScan);
+    if (languageScan.riskLevel === 'High') {
+      throw requestError('Tender language scan identified high-risk issues. Resolve them before publishing.', 409);
+    }
+    const categoryStandardization = standardizeCategoryList(tender.categories.map((category) => category.name), tender.type);
+    await this.repository.applyTenderCategoryStandardization(
+      tenderId,
+      categoryStandardization.standardCategories,
+      withCategoryStandardization(objectMetadata(tender.metadata), categoryStandardization)
+    );
     const published = await this.repository.publishTender(tenderId, organizationId);
     if (!published) throw requestError('Tender was not found.', 404);
-    return published;
+    return { ...published, languageScan };
   }
 
   async closeTender(tenderId: string, token: string | undefined): Promise<CloseTenderResponseDto> {
@@ -302,6 +418,18 @@ function requireOrganization(organizationId?: string) {
   return organizationId;
 }
 
+function objectMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function withCategoryStandardization(metadata: Record<string, unknown>, standardization: CategoryStandardizationResultDto | null) {
+  if (!standardization) return metadata;
+  return {
+    ...metadata,
+    categoryStandardization: standardization
+  };
+}
+
 function assertTenderPublishable(tender: {
   title: string;
   type: unknown;
@@ -329,6 +457,40 @@ function assertTenderClosable(tender: { status: TenderStatus }) {
   if (tender.status !== TenderStatus.OPEN && tender.status !== TenderStatus.PUBLISHED) {
     throw requestError('Only open or published tenders can be closed.', 409);
   }
+}
+
+function assertTenderDesignComplete(tender: { type: CreateTenderInput['type']; requirements: unknown }) {
+  const validation = validateTenderDraftRequirements(tender.type, tender.requirements);
+  if (validation.errors.length > 0) throw requestError(validation.errors[0], 400);
+  if (validation.missingRequiredFields.length > 0) {
+    const labels = validation.missingRequiredFields.map((field) => field.label).join(', ');
+    throw requestError(`Tender requirements are incomplete: ${labels}.`, 400);
+  }
+}
+
+function languageScanInputFromTender(tender: {
+  title: string;
+  description: string | null;
+  requirements: unknown;
+  metadata: unknown;
+  closingDate: Date | null;
+}): TenderLanguageScanInput {
+  const metadata = objectMetadata(tender.metadata);
+  const evaluationCriteria = objectMetadata(metadata.evaluationCriteria);
+  return {
+    title: tender.title,
+    description: tender.description ?? '',
+    requirements: objectMetadata(tender.requirements),
+    evaluationCriteria,
+    metadata: {
+      ...metadata,
+      closingDate: tender.closingDate?.toISOString() ?? ''
+    }
+  };
+}
+
+function isEditableTenderStatus(status: TenderStatus) {
+  return status === TenderStatus.DRAFT || status === TenderStatus.REVIEW;
 }
 
 function hasRequirements(value: unknown) {

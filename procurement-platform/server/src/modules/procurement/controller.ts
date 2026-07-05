@@ -3,6 +3,10 @@ import type { ZodError } from 'zod';
 import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService } from './service.js';
 import {
   createTenderBodySchema,
+  designFormSchemaParamsSchema,
+  designFormSchemasQuerySchema,
+  masterDataGroupParamsSchema,
+  masterDataQuerySchema,
   moduleStatusQuerySchema,
   marketplaceQuerySchema,
   patchPlanLineBodySchema,
@@ -12,7 +16,10 @@ import {
   planningQuerySchema,
   publicWelcomeQuerySchema,
   publishTenderBodySchema,
+  scanLanguageBodySchema,
   saveAnnualPlanBodySchema,
+  standardizeCategoryBodySchema,
+  taxonomyQuerySchema,
   tenderParamsSchema,
   updateTenderBodySchema,
   updatePlanBodySchema
@@ -58,6 +65,77 @@ export class ModuleController {
     try {
       publicWelcomeQuerySchema.parse(req.query);
       res.json(await this.service.publicWelcome());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  masterData: RequestHandler = async (req, res, next) => {
+    try {
+      masterDataQuerySchema.parse(req.query);
+      res.json(await this.service.masterData());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  masterDataGroup: RequestHandler = async (req, res, next) => {
+    try {
+      const params = masterDataGroupParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const group = await this.service.masterDataGroup(params.data.group);
+      if (!group) throw requestError('Master data group was not found.', 404);
+      res.json(group);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  designFormSchemas: RequestHandler = async (req, res, next) => {
+    try {
+      designFormSchemasQuerySchema.parse(req.query);
+      res.json(await this.service.designFormSchemas());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  designFormSchema: RequestHandler = async (req, res, next) => {
+    try {
+      const params = designFormSchemaParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const schema = await this.service.designFormSchema(params.data.type);
+      if (!schema) throw requestError('Form schema type was not found.', 404);
+      res.json(schema);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  taxonomy: RequestHandler = async (req, res, next) => {
+    try {
+      taxonomyQuerySchema.parse(req.query);
+      res.json(await this.service.taxonomy());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  standardizeCategory: RequestHandler = async (req, res, next) => {
+    try {
+      const body = standardizeCategoryBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      res.json(await this.service.standardizeCategory(body.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  scanLanguage: RequestHandler = async (req, res, next) => {
+    try {
+      const body = scanLanguageBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      res.json(await this.service.scanTenderLanguage(bearerToken(req), body.data));
     } catch (error) {
       next(error);
     }
