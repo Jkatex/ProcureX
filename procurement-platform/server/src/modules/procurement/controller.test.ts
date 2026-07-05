@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleController } from './controller.js';
-import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE } from './service.js';
+import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, PUBLISH_VALIDATION_FAILED_CODE } from './service.js';
 
 const validTenderId = '11111111-1111-4111-8111-111111111111';
 
@@ -270,6 +270,32 @@ describe('procurement controller validation responses', () => {
 
     expectValidationResponse(res, next);
     expect(service.publishTender).not.toHaveBeenCalled();
+  });
+
+  it('returns publish validation failures with the production publish envelope', async () => {
+    const error = Object.assign(new Error('Tender cannot be published'), {
+      status: 400,
+      code: PUBLISH_VALIDATION_FAILED_CODE,
+      errors: [{ step: 'basic-fields', field: 'budget', message: 'Tender budget is required before publishing.', severity: 'error' }]
+    });
+    const service = {
+      publishTender: vi.fn(async () => {
+        throw error;
+      })
+    };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.publishTender(mockRequest({ params: { tenderId: validTenderId }, body: {}, token: 'token-1' }) as any, res as any, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Tender cannot be published',
+      errors: error.errors
+    });
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('returns structured validation errors for invalid save tender ids', async () => {

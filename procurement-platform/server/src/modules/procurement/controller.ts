@@ -1,6 +1,6 @@
 import type { RequestHandler, Response } from 'express';
 import type { ZodError } from 'zod';
-import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService } from './service.js';
+import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService, PUBLISH_VALIDATION_FAILED_CODE } from './service.js';
 import {
   createTenderBodySchema,
   designFormSchemaParamsSchema,
@@ -47,6 +47,12 @@ function isMarketplaceUnavailableError(error: unknown) {
   if (!error || typeof error !== 'object') return false;
   const candidate = error as { code?: unknown; status?: unknown; message?: unknown };
   return candidate.code === MARKETPLACE_UNAVAILABLE_CODE && candidate.status === 503;
+}
+
+function isPublishValidationError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; errors?: unknown };
+  return candidate.code === PUBLISH_VALIDATION_FAILED_CODE && Array.isArray(candidate.errors);
 }
 
 export class ModuleController {
@@ -230,6 +236,15 @@ export class ModuleController {
       if (!body.success) return validationResponse(res, body.error);
       res.json(await this.service.publishTender(params.data.tenderId, bearerToken(req)));
     } catch (error) {
+      if (isPublishValidationError(error)) {
+        const candidate = error as { status?: number; errors: unknown[] };
+        res.status(candidate.status ?? 400).json({
+          success: false,
+          message: 'Tender cannot be published',
+          errors: candidate.errors
+        });
+        return;
+      }
       next(error);
     }
   };

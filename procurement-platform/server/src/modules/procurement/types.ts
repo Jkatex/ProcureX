@@ -410,15 +410,20 @@ export type MyBidRow = {
 
 export const marketplaceSortValues = ['deadline', 'newest', 'budget-desc', 'budget-asc'] as const;
 export const marketplaceBudgetBandValues = ['under-hundred-million', 'hundred-million-plus', 'billion-plus'] as const;
+export const marketplaceVisibilityFilterValues = ['PUBLIC_MARKETPLACE', 'INVITED', 'PRIVATE'] as const;
 
 export type MarketplaceSort = (typeof marketplaceSortValues)[number];
 export type MarketplaceBudgetBand = (typeof marketplaceBudgetBandValues)[number];
+export type MarketplaceVisibilityFilter = (typeof marketplaceVisibilityFilterValues)[number];
 
 export type MarketplaceQuery = {
   search: string;
+  category: string;
   type: string;
   budgetBand: '' | MarketplaceBudgetBand;
   status: string;
+  includeClosed: boolean;
+  visibility: '' | MarketplaceVisibilityFilter;
   sort: MarketplaceSort;
   page: number;
   limit: number;
@@ -490,7 +495,25 @@ export type PublishTenderResponseDto = {
     publishedAt: string;
     closingDate: string;
   };
+  validation: {
+    warnings: string[];
+    scannerIssues: TenderLanguageScanIssueDto[];
+    standardizedCategories: string[];
+  };
   languageScan?: TenderLanguageScanDto;
+};
+
+export type PublishValidationIssueDto = {
+  step: string;
+  field?: string;
+  message: string;
+  severity: 'error' | 'warning';
+};
+
+export type PublishValidationFailureDto = {
+  success: false;
+  message: 'Tender cannot be published';
+  errors: PublishValidationIssueDto[];
 };
 
 export type CloseTenderResponseDto = {

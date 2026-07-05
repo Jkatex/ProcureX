@@ -113,7 +113,18 @@ describe('procurement marketplace repository', () => {
 
     const payload = await repository.getMarketplaceData(
       { organizationId: supplierOrgId, userId: 'user-1' },
-      { search: 'medical', type: 'Goods', budgetBand: 'hundred-million-plus', status: 'Open', sort: 'deadline', page: 1, limit: 20 }
+      {
+        search: 'medical',
+        category: '',
+        type: 'Goods',
+        budgetBand: 'hundred-million-plus',
+        status: 'Open',
+        includeClosed: false,
+        visibility: '',
+        sort: 'deadline',
+        page: 1,
+        limit: 20
+      }
     );
 
     expect(payload.tenders).toEqual([
@@ -233,13 +244,13 @@ describe('procurement marketplace repository', () => {
       2,
       expect.objectContaining({
         where: expect.objectContaining({
-          ownerUserId: 'user-1'
+          buyerOrgId: supplierOrgId
         })
       })
     );
   });
 
-  it('scopes my tenders to the exact creator user instead of every user in the buyer organization', async () => {
+  it('scopes my tenders to the authenticated buyer organization', async () => {
     const ownedTender = tenderDetailRecord({
       id: 'tender-created-by-user-a',
       buyerOrgId: 'shared-buyer-org',
@@ -252,7 +263,7 @@ describe('procurement marketplace repository', () => {
     const db = {
       tender: {
         findMany: vi.fn(({ where }) => {
-          if (where?.ownerUserId) return Promise.resolve(where.ownerUserId === ownedTender.ownerUserId ? [ownedTender] : []);
+          if (where?.buyerOrgId) return Promise.resolve(where.buyerOrgId === ownedTender.buyerOrgId ? [ownedTender] : []);
           return Promise.resolve([]);
         })
       },
@@ -264,12 +275,15 @@ describe('procurement marketplace repository', () => {
       }
     };
     const repository = new ModuleRepository(db as any);
-    const query = { search: '', type: '', budgetBand: '', status: '', sort: 'deadline', page: 1, limit: 20 } as const;
+    const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
 
     await expect(repository.getMarketplaceData({ organizationId: 'shared-buyer-org', userId: 'user-a' }, query)).resolves.toMatchObject({
       myTenders: [{ id: 'tender-created-by-user-a' }]
     });
     await expect(repository.getMarketplaceData({ organizationId: 'shared-buyer-org', userId: 'user-b' }, query)).resolves.toMatchObject({
+      myTenders: [{ id: 'tender-created-by-user-a' }]
+    });
+    await expect(repository.getMarketplaceData({ organizationId: 'other-org', userId: 'user-a' }, query)).resolves.toMatchObject({
       myTenders: []
     });
   });
@@ -288,7 +302,7 @@ describe('procurement marketplace repository', () => {
       reference: 'PX-2026-002',
       title: 'Road works package',
       type: TenderType.WORKS,
-      status: TenderStatus.EVALUATION,
+      status: TenderStatus.OPEN,
       budget: 1000000000,
       publishedAt: new Date('2026-07-05T08:00:00.000Z'),
       closingDate: new Date('2026-10-15T00:00:00.000Z'),
@@ -299,7 +313,7 @@ describe('procurement marketplace repository', () => {
       reference: 'PX-2026-003',
       title: 'Consultancy support',
       type: TenderType.CONSULTANCY,
-      status: TenderStatus.AWARDED,
+      status: TenderStatus.OPEN,
       budget: 750000000,
       publishedAt: new Date('2026-07-03T08:00:00.000Z'),
       closingDate: new Date('2026-09-01T00:00:00.000Z'),
@@ -314,7 +328,7 @@ describe('procurement marketplace repository', () => {
 
     const payload = await repository.getMarketplaceData(
       {},
-      { search: '', type: '', budgetBand: '', status: '', sort: 'deadline', page: 2, limit: 1 }
+      { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 2, limit: 1 }
     );
 
     expect(payload.tenders).toHaveLength(1);
@@ -322,14 +336,14 @@ describe('procurement marketplace repository', () => {
       id: 'tender-3',
       type: 'Consultancy',
       category: 'Consultancy',
-      status: 'Awarded',
+      status: 'Open',
       createdByCurrentUser: false,
       isSaved: false
     });
     expect(payload.myTenders).toEqual([]);
     expect(payload.myBids).toEqual([]);
     expect(payload.summary).toMatchObject({
-      openTenders: 1,
+      openTenders: 3,
       myTenders: 0,
       myBids: 0,
       totalBudgetValue: 2000000000,
@@ -364,10 +378,10 @@ describe('procurement marketplace repository', () => {
     };
     const repository = new ModuleRepository(db as any);
 
-    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'deadline', page: 1, limit: 20 });
-    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'newest', page: 1, limit: 20 });
-    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'budget-desc', page: 1, limit: 20 });
-    await repository.getMarketplaceData({}, { search: '', type: '', budgetBand: '', status: '', sort: 'budget-asc', page: 1, limit: 20 });
+    await repository.getMarketplaceData({}, { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 });
+    await repository.getMarketplaceData({}, { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'newest', page: 1, limit: 20 });
+    await repository.getMarketplaceData({}, { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'budget-desc', page: 1, limit: 20 });
+    await repository.getMarketplaceData({}, { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'budget-asc', page: 1, limit: 20 });
 
     expect(db.tender.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ orderBy: [{ closingDate: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }] }));
     expect(db.tender.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }] }));
@@ -391,7 +405,7 @@ describe('procurement marketplace repository', () => {
 
     const payload = await repository.getMarketplaceData(
       {},
-      { search: '', type: '', budgetBand: '', status: 'PUBLISHED', sort: 'newest', page: 1, limit: 20 }
+      { search: '', category: '', type: '', budgetBand: '', status: 'PUBLISHED', includeClosed: false, visibility: '', sort: 'newest', page: 1, limit: 20 }
     );
 
     expect(payload.tenders).toMatchObject([{ id: 'tender-1', status: 'Open', createdByCurrentUser: false, isSaved: false }]);
@@ -409,7 +423,122 @@ describe('procurement marketplace repository', () => {
     expect(db.tender.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          AND: expect.arrayContaining([expect.objectContaining({ status: { in: [TenderStatus.OPEN, TenderStatus.PUBLISHED] } })])
+          visibility: Visibility.PUBLIC_MARKETPLACE,
+          status: { in: [TenderStatus.OPEN, TenderStatus.PUBLISHED] }
+        })
+      })
+    );
+  });
+
+  it('includes closed marketplace rows only when includeClosed is requested', async () => {
+    const closedTender = tenderDetailRecord({
+      id: 'tender-closed',
+      status: TenderStatus.CLOSED,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      closingDate: new Date('2026-07-15T00:00:00.000Z')
+    });
+    const db = {
+      tender: {
+        findMany: vi.fn().mockResolvedValue([closedTender])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const payload = await repository.getMarketplaceData(
+      {},
+      { search: '', category: '', type: '', budgetBand: '', status: 'Closed', includeClosed: true, visibility: '', sort: 'newest', page: 1, limit: 20 }
+    );
+
+    expect(payload.tenders).toMatchObject([{ id: 'tender-closed', status: 'Closed' }]);
+    expect(db.tender.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          visibility: Visibility.PUBLIC_MARKETPLACE,
+          status: { in: [TenderStatus.CLOSED] }
+        })
+      })
+    );
+  });
+
+  it('filters marketplace rows by standardized category synonyms', async () => {
+    const ictTender = tenderDetailRecord({
+      id: 'tender-ict',
+      title: 'Supply of laptops',
+      type: TenderType.GOODS,
+      status: TenderStatus.OPEN,
+      categories: [{ name: 'laptops' }]
+    });
+    const cleaningTender = tenderDetailRecord({
+      id: 'tender-cleaning',
+      title: 'Office cleaning services',
+      type: TenderType.SERVICE,
+      status: TenderStatus.OPEN,
+      categories: [{ name: 'janitorial' }]
+    });
+    const db = {
+      tender: {
+        findMany: vi.fn().mockResolvedValue([ictTender, cleaningTender])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const payload = await repository.getMarketplaceData(
+      {},
+      { search: '', category: 'computer supplies', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 }
+    );
+
+    expect(payload.tenders).toMatchObject([{ id: 'tender-ict', category: 'ICT Equipment' }]);
+    expect(db.tender.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { categories: { some: { name: { contains: 'computer supplies', mode: 'insensitive' } } } },
+                { categories: { some: { name: { contains: 'ICT Equipment', mode: 'insensitive' } } } },
+                { categories: { some: { name: { contains: 'laptops', mode: 'insensitive' } } } }
+              ])
+            })
+          ])
+        })
+      })
+    );
+  });
+
+  it('applies visibility filters only to owner organization history', async () => {
+    const invitedOwnedTender = tenderDetailRecord({
+      id: 'tender-invited-owner',
+      buyerOrgId: 'buyer-org-1',
+      ownerUserId: 'user-a',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.INVITED
+    });
+    const db = {
+      tender: {
+        findMany: vi.fn(({ where }) => {
+          if (where?.buyerOrgId) return Promise.resolve([invitedOwnedTender]);
+          return Promise.resolve([]);
+        })
+      },
+      bid: { findMany: vi.fn().mockResolvedValue([]) },
+      savedTender: { findMany: vi.fn().mockResolvedValue([]) }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const payload = await repository.getMarketplaceData(
+      { organizationId: 'buyer-org-1', userId: 'user-a' },
+      { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: 'INVITED', sort: 'deadline', page: 1, limit: 20 }
+    );
+
+    expect(payload.tenders).toEqual([]);
+    expect(payload.myTenders).toMatchObject([{ id: 'tender-invited-owner' }]);
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          buyerOrgId: 'buyer-org-1',
+          visibility: Visibility.INVITED
         })
       })
     );
@@ -427,9 +556,12 @@ describe('procurement marketplace repository', () => {
       {},
       {
         search: 'maintenance',
+        category: '',
         type: 'SERVICES',
         budgetBand: 'billion-plus',
-        status: 'UNDER_EVALUATION',
+        status: 'Open',
+        includeClosed: false,
+        visibility: '',
         sort: 'budget-desc',
         page: 1,
         limit: 20
@@ -442,7 +574,7 @@ describe('procurement marketplace repository', () => {
         where: expect.objectContaining({
           AND: expect.arrayContaining([
             expect.objectContaining({ type: { in: [TenderType.SERVICE] } }),
-            expect.objectContaining({ status: { in: [TenderStatus.EVALUATION] } }),
+            expect.objectContaining({ status: { in: [TenderStatus.OPEN, TenderStatus.PUBLISHED] } }),
             expect.objectContaining({ budget: { gte: 1000000000 } }),
             expect.objectContaining({
               OR: expect.arrayContaining([
@@ -820,7 +952,7 @@ describe('procurement tender write repository', () => {
     };
     const repository = new ModuleRepository(db as any);
 
-    const result = await repository.publishTender('tender-1', 'org-1');
+    const result = await repository.publishTender('tender-1', 'org-1', Visibility.PUBLIC_MARKETPLACE);
 
     expect(db.tender.updateMany).toHaveBeenCalledWith({
       where: {
@@ -857,6 +989,11 @@ describe('procurement tender write repository', () => {
         visibility: Visibility.PUBLIC_MARKETPLACE,
         publishedAt: '2026-07-01T08:00:00.000Z',
         closingDate: '2026-08-30'
+      },
+      validation: {
+        warnings: [],
+        scannerIssues: [],
+        standardizedCategories: []
       }
     });
     expect(result?.data).not.toHaveProperty('createdByCurrentUser');
@@ -873,8 +1010,40 @@ describe('procurement tender write repository', () => {
     };
     const repository = new ModuleRepository(db as any);
 
-    await expect(repository.publishTender('tender-1', 'org-1')).resolves.toBeNull();
+    await expect(repository.publishTender('tender-1', 'org-1', Visibility.PUBLIC_MARKETPLACE)).resolves.toBeNull();
     expect(db.tender.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('publishes invited tenders with invited visibility when requested', async () => {
+    const publishedTender = tenderDetailRecord({
+      id: 'tender-1',
+      buyerOrgId: 'org-1',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.INVITED,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z')
+    });
+    const db = {
+      tender: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn().mockResolvedValue(publishedTender)
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const result = await repository.publishTender('tender-1', 'org-1', Visibility.INVITED);
+
+    expect(db.tender.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: TenderStatus.OPEN,
+          visibility: Visibility.INVITED
+        })
+      })
+    );
+    expect(result?.data).toMatchObject({
+      status: 'Open',
+      visibility: Visibility.INVITED
+    });
   });
 
   it('persists tender language scan snapshots as risk signals', async () => {

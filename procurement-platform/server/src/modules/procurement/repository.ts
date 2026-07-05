@@ -151,10 +151,11 @@ export class ModuleRepository {
         orderBy: marketplaceOrderBy(query.sort),
         take: 1000
       }),
-      context.userId
+      context.organizationId
         ? this.db.tender.findMany({
             where: {
-              ownerUserId: context.userId,
+              buyerOrgId: context.organizationId,
+              ...(query.visibility ? { visibility: query.visibility as Visibility } : {}),
               status: {
                 in: [
                   TenderStatus.DRAFT,
@@ -195,7 +196,8 @@ export class ModuleRepository {
         : Promise.resolve([])
     ]);
 
-    const sortedTenders = sortMarketplaceTenders(matchingTenders, query.sort);
+    const filteredTenders = filterMarketplaceTenders(matchingTenders, query);
+    const sortedTenders = sortMarketplaceTenders(filteredTenders, query.sort);
     const pagedTenders = sortedTenders.slice((query.page - 1) * query.limit, query.page * query.limit);
     const pagination = marketplacePagination(sortedTenders.length, query);
     const savedTenderIds = new Set(savedTenderRecords.map((record) => record.tenderId));
@@ -242,6 +244,7 @@ export class ModuleRepository {
         buyerOrgId: true,
         title: true,
         type: true,
+        method: true,
         description: true,
         budget: true,
         status: true,
@@ -383,7 +386,7 @@ export class ModuleRepository {
     });
   }
 
-  async publishTender(tenderId: string, organizationId: string): Promise<PublishTenderResponseDto | null> {
+  async publishTender(tenderId: string, organizationId: string, visibility: Visibility): Promise<PublishTenderResponseDto | null> {
     const publishedAt = new Date();
     const update = await this.db.tender.updateMany({
       where: {
@@ -393,7 +396,7 @@ export class ModuleRepository {
       },
       data: {
         status: TenderStatus.OPEN,
-        visibility: Visibility.PUBLIC_MARKETPLACE,
+        visibility,
         publishedAt
       }
     });
@@ -835,24 +838,17 @@ function toLineDto(line: LineWithPlan) {
 function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   const statusFilter = statusFilterValues(query.status);
   const typeFilter = typeFilterValues(query.type);
+  const allowedStatuses = marketplaceStatusValues(query.includeClosed);
+  const statuses = statusFilter.length > 0 ? intersectTenderStatuses(statusFilter, allowedStatuses) : allowedStatuses;
   const activeFilters: Prisma.TenderWhereInput[] = [
     {
       visibility: Visibility.PUBLIC_MARKETPLACE,
-      status: {
-        in: [
-          TenderStatus.PUBLISHED,
-          TenderStatus.OPEN,
-          TenderStatus.CLOSED,
-          TenderStatus.EVALUATION,
-          TenderStatus.AWARDED,
-          TenderStatus.CANCELLED
-        ]
-      }
+      status: { in: statuses }
     }
   ];
 
   if (query.search) {
-    const categoryTerms = categorySearchTerms(query.search);
+    const categoryTerms = marketplaceCategorySearchTerms(query.search, typeFilter[0]);
     activeFilters.push({
       OR: [
         { title: { contains: query.search, mode: 'insensitive' } },
@@ -866,8 +862,17 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
     });
   }
 
+  if (query.category) {
+    const categoryTerms = marketplaceCategorySearchTerms(query.category, typeFilter[0]);
+    activeFilters.push({
+      OR: [
+        { categories: { some: { name: { contains: query.category, mode: 'insensitive' } } } },
+        ...categoryTerms.map((term) => ({ categories: { some: { name: { contains: term, mode: 'insensitive' as const } } } }))
+      ]
+    });
+  }
+
   if (typeFilter.length > 0) activeFilters.push({ type: { in: typeFilter } });
-  if (statusFilter.length > 0) activeFilters.push({ status: { in: statusFilter } });
 
   if (query.budgetBand === 'under-hundred-million') {
     activeFilters.push({ budget: { lt: 100000000 } });
@@ -878,6 +883,65 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   }
 
   return activeFilters.length === 1 ? activeFilters[0] : { AND: activeFilters };
+}
+
+function marketplaceStatusValues(includeClosed: boolean) {
+  return includeClosed ? [TenderStatus.OPEN, TenderStatus.PUBLISHED, TenderStatus.CLOSED] : [TenderStatus.OPEN, TenderStatus.PUBLISHED];
+}
+
+function intersectTenderStatuses(left: TenderStatus[], right: TenderStatus[]) {
+  const allowed = new Set(right);
+  return left.filter((status) => allowed.has(status));
+}
+
+function filterMarketplaceTenders(tenders: MarketplaceTenderRecord[], query: MarketplaceQuery) {
+  return tenders.filter((tender) => matchesMarketplaceSearch(tender, query.search) && matchesMarketplaceCategory(tender, query.category));
+}
+
+function matchesMarketplaceSearch(tender: MarketplaceTenderRecord, search: string) {
+  if (!search) return true;
+  return marketplaceTextValues(tender).some((value) => containsSearch(value, search));
+}
+
+function matchesMarketplaceCategory(tender: MarketplaceTenderRecord, category: string) {
+  if (!category) return true;
+  const terms = marketplaceCategorySearchTerms(category, tender.type);
+  const categoryValues = marketplaceCategoryValues(tender);
+  return [category, ...terms].some((term) => categoryValues.some((value) => containsSearch(value, term)));
+}
+
+function marketplaceTextValues(tender: MarketplaceTenderRecord) {
+  return [
+    tender.title,
+    tender.description,
+    tender.reference,
+    tender.buyerOrg.name,
+    tender.location,
+    ...marketplaceCategoryValues(tender)
+  ];
+}
+
+function marketplaceCategoryValues(tender: MarketplaceTenderRecord) {
+  return tender.categories.flatMap((category) => [category.name, standardizeCategoryName(category.name, tender.type)]);
+}
+
+function marketplaceCategorySearchTerms(value: string, type?: TenderType) {
+  const terms = [value, standardizeCategoryName(value, type), ...categorySearchTerms(value)];
+  return uniqueCategoryNames(terms.filter(Boolean));
+}
+
+function containsSearch(value: unknown, search: string) {
+  return normalizeSearchText(value).includes(normalizeSearchText(search));
+}
+
+function normalizeSearchText(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_/-]+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 }
 
 function marketplaceOrderBy(sort: MarketplaceQuery['sort']): Prisma.TenderOrderByWithRelationInput[] {
@@ -1030,6 +1094,11 @@ function toPublishTenderResponseDto(tender: {
       visibility: tender.visibility,
       publishedAt: tender.publishedAt?.toISOString() ?? '',
       closingDate: dateOnly(tender.closingDate)
+    },
+    validation: {
+      warnings: [],
+      scannerIssues: [],
+      standardizedCategories: []
     }
   };
 }
