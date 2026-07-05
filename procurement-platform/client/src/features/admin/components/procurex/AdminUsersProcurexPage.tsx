@@ -200,37 +200,6 @@ export function AdminUsersProcurexPage() {
     }
   }
 
-  async function recordUserAction(actionType: string, target: AdminUser | null, summary: string) {
-    setLoading(true);
-    setMessage(null);
-    try {
-      await adminApi.recordAction({
-        actionType,
-        entityType: 'user',
-        entityRef: target?.id ?? null,
-        ownerOrgId: target?.organization?.id ?? null,
-        summary
-      });
-      if (actionType === 'HOLD' && target) {
-        setPlatformUsers((current) =>
-          current
-            ? {
-                ...current,
-                items: current.items.map((item) => (item.id === target.id ? { ...item, membershipStatus: 'SUSPENDED' } : item))
-              }
-            : current
-        );
-      }
-      notifySuccess('Admin action recorded', summary, { reason: 'The action was saved to the admin audit trail.' });
-    } catch (error) {
-      const notification = notificationFromApiError(error, { title: 'Could not record admin action', fallback: 'Could not record admin action.' });
-      setMessage(notification);
-      notifyError(notification.title, notification.message, { reason: notification.reason, action: notification.action });
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function updatePlatformUser(updated: AdminUser) {
     setPlatformUsers((current) =>
       current

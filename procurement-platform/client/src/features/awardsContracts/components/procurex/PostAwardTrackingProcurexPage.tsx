@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
 import type { ContractDetailDto, ContractLifecycleItemDto } from '../../types';
 import {
@@ -9,6 +10,7 @@ import {
   itemOptions,
   lifecycleStatusOptions,
   milestoneStatusOptions,
+  option,
   recordPickerOptions,
   riskLevelOptions,
   terminationStatusOptions,
@@ -18,10 +20,13 @@ import { AwardContractAccessProvider } from './AwardContractRoleAccess';
 import {
   AwardHero,
   AwardSidebar,
+  formatMoney,
   ProcurexAwardFrame,
+  RemoteStatePanel,
   RegisterCard,
   SimpleTable,
   StatusBadge,
+  TopSummary,
   WorkflowSectionTabs,
   type WorkflowSection
 } from './AwardsContractsProcurexShared';
@@ -36,31 +41,45 @@ function asRecords(items: Array<Record<string, unknown>> | ContractLifecycleItem
   return (items ?? []) as Array<Record<string, unknown>>;
 }
 
+function overdueCount(items: Array<{ dueDate?: string | null; status?: string | null }>) {
+  const today = new Date();
+  return items.filter((item) => {
+    if (!item.dueDate || /complete|completed|approved|accepted|closed|paid/i.test(item.status ?? '')) return false;
+    const due = new Date(item.dueDate);
+    return Number.isFinite(due.getTime()) && due < today;
+  }).length;
+}
+
 export function PostAwardTrackingProcurexPage() {
   const location = useLocation();
   const contractId = useMemo(() => getContractId(location.search), [location.search]);
   const [contract, setContract] = useState<ContractDetailDto | null>(null);
   const [activeGroup, setActiveGroup] = useState<PostAwardGroupId>('cmp');
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const loadContract = useCallback(async () => {
     if (!contractId) {
       setContract(null);
-      return () => {
-        active = false;
-      };
+      setLoadError('');
+      setIsLoading(false);
+      return;
     }
-    awardsContractsApi.contract(contractId)
-      .then((data) => {
-        if (active) setContract(data);
-      })
-      .catch(() => {
-        if (active) setContract(null);
-      });
-    return () => {
-      active = false;
-    };
+    setIsLoading(true);
+    setLoadError('');
+    try {
+      setContract(await awardsContractsApi.contract(contractId));
+    } catch (error) {
+      setContract(null);
+      setLoadError(apiErrorMessage(error, 'Post-award contract detail could not be loaded.'));
+    } finally {
+      setIsLoading(false);
+    }
   }, [contractId]);
+
+  useEffect(() => {
+    void loadContract();
+  }, [loadContract]);
 
   function refreshContract(result: unknown) {
     setContract(result as ContractDetailDto);
@@ -73,6 +92,30 @@ export function PostAwardTrackingProcurexPage() {
   const invoiceOptions = recordPickerOptions(invoices, 'Select invoice');
   const paymentOptions = recordPickerOptions(payments, 'Select payment');
   const purchaseOrderOptions = recordPickerOptions(purchaseOrders, 'No linked purchase order');
+  const contractManagerOptions = [
+    option('', contract?.managementPlan?.contractManagerId ? 'Keep current manager' : 'Assign later from user administration'),
+    ...(contract?.managementPlan?.contractManagerId ? [option(contract.managementPlan.contractManagerId, 'Current contract manager')] : [])
+  ];
+  const userOwnerOptions = [option('', 'Use logged-in owner / assign later')];
+  const supplierOrgOptions = [
+    option('', 'Use selected contract supplier'),
+    ...(contract?.supplierOrgId ? [option(contract.supplierOrgId, contract.supplierName ?? 'Selected contract supplier')] : [])
+  ];
+  const tenderOptions = [
+    option('', 'Use tender from selected contract'),
+    ...(contract?.tenderId ? [option(contract.tenderId, contract.tenderReference ?? 'Selected contract tender')] : [])
+  ];
+  const openRiskCount = contract?.risks.filter((risk) => !/closed|complete|completed|accepted|approved/i.test(risk.status)).length ?? 0;
+  const overdueWorkCount = overdueCount([
+    ...(contract?.milestones ?? []),
+    ...(contract?.deliverables ?? []),
+    ...(contract?.inspections ?? []),
+    ...(contract?.risks ?? []),
+    ...(contract?.issues ?? [])
+  ]);
+  const blockedPaymentCount = invoices.filter((invoice) => /blocked|rejected|review/i.test(String(invoice.status ?? ''))).length;
+  const changeCount = (contract?.variations.length ?? 0) + (contract?.issues.length ?? 0) + (contract?.disputes.length ?? 0);
+  const closeoutState = contract?.closeout ? 'Started' : contract?.status === 'COMPLETED' ? 'Ready' : 'Not ready';
   const sections: Array<WorkflowSection<PostAwardGroupId>> = [
     { id: 'cmp', label: 'CMP', description: 'Plan and status.', count: contract?.managementPlan ? 1 : 0 },
     { id: 'delivery', label: 'Delivery', description: 'Mobilization and milestones.', count: (contract?.mobilizationItems.length ?? 0) + (contract?.milestones.length ?? 0) + (contract?.deliverables?.length ?? 0) },
@@ -92,7 +135,7 @@ export function PostAwardTrackingProcurexPage() {
       <div className="main-layout procurement-layout evaluation-app-layout post-award-page" data-award-contract-workspace>
         <AwardSidebar
           title="Post-Award Tracking"
-          subtitle="No contract selected"
+          subtitle={contract?.reference ?? contract?.title ?? (contractId ? 'Loading contract workspace' : 'Select a contract')}
           activeQueue="active-contracts"
           extraItems={<li><a href="#" data-navigate="awarding-contracts" data-route-search="queue=active-contracts">Back to Active Contracts</a></li>}
         />
@@ -109,7 +152,50 @@ export function PostAwardTrackingProcurexPage() {
             ]}
           />
 
-          {!contract ? (
+          {contract ? (
+            <>
+              <TopSummary
+                items={[
+                  { label: 'Selected Contract', value: contract.reference },
+                  { label: 'Buyer', value: contract.buyerName },
+                  { label: 'Supplier', value: contract.supplierName ?? 'Supplier pending' },
+                  { label: 'Contract Value', value: contract.amount === null ? 'Not priced' : formatMoney(contract.amount, contract.currency) },
+                  { label: 'Tender', value: contract.tenderReference ?? contract.tenderId ?? 'Not linked' },
+                  { label: 'Status', value: <StatusBadge value={contract.status} /> }
+                ]}
+              />
+              <section className="post-award-health-grid" aria-label="Post-award health summary">
+                <article><span>Milestone progress</span><strong>{contract.milestones.length} tracked</strong></article>
+                <article><span>Overdue work</span><strong>{overdueWorkCount}</strong></article>
+                <article><span>Payment blockers</span><strong>{blockedPaymentCount}</strong></article>
+                <article><span>Open risks</span><strong>{openRiskCount}</strong></article>
+                <article><span>Changes/issues</span><strong>{changeCount}</strong></article>
+                <article><span>Close-out readiness</span><strong>{closeoutState}</strong></article>
+              </section>
+            </>
+          ) : null}
+
+          {isLoading ? (
+            <RemoteStatePanel
+              kicker="Loading"
+              title="Loading post-award workspace"
+              message="ProcureX is fetching the selected contract, execution records, payment controls, risk registers, and close-out status."
+              status="Loading"
+            />
+          ) : null}
+
+          {loadError ? (
+            <RemoteStatePanel
+              kicker="Service status"
+              title="Post-award workspace could not be loaded"
+              message={loadError}
+              status="Error"
+              actionLabel="Retry loading"
+              onAction={() => void loadContract()}
+            />
+          ) : null}
+
+          {!isLoading && !loadError && !contract ? (
             <section className="procurement-panel evaluation-panel post-award-panel">
               <div className="panel-heading">
                 <div><span className="section-kicker">Execution workspace</span><h2>No post-award records are available yet.</h2></div>
@@ -120,7 +206,7 @@ export function PostAwardTrackingProcurexPage() {
                 <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=active-contracts">Back to Active Contracts</button>
               </div>
             </section>
-          ) : (
+          ) : !isLoading && !loadError && contract ? (
             <AwardContractAccessProvider access={contract.access}>
           <section className="procurement-panel evaluation-panel post-award-panel post-award-cmp-panel">
             <div className="panel-heading">
@@ -151,7 +237,7 @@ export function PostAwardTrackingProcurexPage() {
                 badge="CMP"
                 submitLabel="Save CMP"
                 fields={[
-                  { name: 'contractManagerId', label: 'Contract manager ID', kind: 'uuid' },
+                  { name: 'contractManagerId', label: 'Contract manager', kind: 'select', options: contractManagerOptions, helpText: 'Use the current manager when present, or assign later from user administration.' },
                   { name: 'objectives', label: 'Objectives', kind: 'textarea', rows: 4 },
                   { name: 'monitoringPlan', label: 'Monitoring plan', kind: 'textarea', rows: 4 },
                   { name: 'reportingPlan', label: 'Reporting plan', kind: 'textarea', rows: 4 },
@@ -268,7 +354,7 @@ export function PostAwardTrackingProcurexPage() {
                 badge="Evidence"
                 fields={[
                   { name: 'milestoneId', label: 'Milestone', kind: 'select', required: true, options: itemOptions(contract.milestones as ContractLifecycleItemDto[], 'Select milestone') },
-                  { name: 'documentId', label: 'Document ID', kind: 'uuid', required: true },
+                  { name: 'documentId', label: 'External evidence document ID', kind: 'uuid', required: true, helpText: 'Required external document reference until a document picker is available.' },
                   { name: 'note', label: 'Note', kind: 'textarea' }
                 ]}
                 initialValues={{ milestoneId: contract.milestones[0]?.id ?? '' }}
@@ -313,7 +399,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'status', label: 'Result status', kind: 'select', options: lifecycleStatusOptions },
                   { name: 'dueDate', label: 'Due date', kind: 'date' },
                   { name: 'inspectedAt', label: 'Inspected at', kind: 'datetime' },
-                  { name: 'inspectorUserId', label: 'Inspector user ID', kind: 'uuid' },
+                  { name: 'inspectorUserId', label: 'Inspector', kind: 'select', options: userOwnerOptions, helpText: 'Leave blank to use the logged-in inspection owner.' },
                   { name: 'note', label: 'Note', kind: 'textarea' },
                   { name: 'payload', label: 'Inspection payload', kind: 'json', rows: 4 }
                 ]}
@@ -389,7 +475,7 @@ export function PostAwardTrackingProcurexPage() {
                 fields={[
                   { name: 'reference', label: 'Invoice reference', kind: 'text' },
                   { name: 'purchaseOrderId', label: 'Purchase order', kind: 'select', options: purchaseOrderOptions },
-                  { name: 'supplierOrgId', label: 'Supplier organization ID', kind: 'uuid' },
+                  { name: 'supplierOrgId', label: 'Supplier organization', kind: 'select', options: supplierOrgOptions, helpText: 'Leave blank to use the supplier linked to this contract.' },
                   { name: 'amount', label: 'Amount', kind: 'number', min: 0, step: '0.01', required: true },
                   { name: 'currency', label: 'Currency', kind: 'currency' },
                   { name: 'status', label: 'Status', kind: 'select', options: invoiceStatusOptions },
@@ -423,7 +509,7 @@ export function PostAwardTrackingProcurexPage() {
                 title="Payment review"
                 badge="Payment"
                 fields={[
-                  { name: 'invoiceId', label: 'Invoice ID', kind: 'uuid' },
+                  { name: 'invoiceId', label: 'Invoice', kind: 'select', options: invoiceOptions },
                   { name: 'scheduleId', label: 'Schedule', kind: 'select', options: itemOptions(contract.paymentSchedules ?? [], 'No linked schedule') },
                   { name: 'status', label: 'Status', kind: 'select', options: invoiceStatusOptions },
                   { name: 'grossAmount', label: 'Gross amount', kind: 'number', min: 0, step: '0.01' },
@@ -437,7 +523,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'note', label: 'Note', kind: 'textarea' },
                   { name: 'payload', label: 'Payment payload', kind: 'json', rows: 4 }
                 ]}
-                initialValues={{ status: contract.status === 'TERMINATION_REVIEW' ? 'BLOCKED' : 'REVIEW', grossAmount: contract.amount === null ? '' : String(contract.amount), currency: contract.currency, payload: '{}' }}
+                initialValues={{ invoiceId: invoiceOptions[1]?.value ?? '', status: contract.status === 'TERMINATION_REVIEW' ? 'BLOCKED' : 'REVIEW', grossAmount: contract.amount === null ? '' : String(contract.amount), currency: contract.currency, payload: '{}' }}
                 onSubmit={(payload) => awardsContractsApi.createPayment(contract.id, payload)}
                 onComplete={refreshContract}
               />
@@ -484,7 +570,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'paidAmount', label: 'Paid amount', kind: 'number', min: 0, step: '0.01', required: true },
                   { name: 'currency', label: 'Currency', kind: 'currency' },
                   { name: 'paidAt', label: 'Paid at', kind: 'datetime' },
-                  { name: 'evidenceDocumentId', label: 'Evidence document ID', kind: 'uuid' },
+                  { name: 'evidenceDocumentId', label: 'External evidence document ID (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded payment document outside this workflow.' },
                   { name: 'note', label: 'Payment note', kind: 'textarea' },
                   { name: 'payload', label: 'Payment confirmation payload', kind: 'json', rows: 4 }
                 ]}
@@ -509,7 +595,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'likelihood', label: 'Likelihood', kind: 'number', min: 1, max: 5 },
                   { name: 'impact', label: 'Impact', kind: 'number', min: 1, max: 5 },
                   { name: 'level', label: 'Risk level', kind: 'select', options: riskLevelOptions },
-                  { name: 'responsibleUserId', label: 'Responsible user ID', kind: 'uuid' },
+                  { name: 'responsibleUserId', label: 'Responsible owner', kind: 'select', options: userOwnerOptions, helpText: 'Leave blank to assign responsibility from the current workflow owner.' },
                   { name: 'mitigationAction', label: 'Mitigation action', kind: 'textarea' },
                   { name: 'payload', label: 'Risk payload', kind: 'json', rows: 4 }
                 ]}
@@ -541,8 +627,8 @@ export function PostAwardTrackingProcurexPage() {
                 title="Risk forecast"
                 badge="Forecast"
                 fields={[
-                  { name: 'supplierOrgId', label: 'Supplier organization ID', kind: 'uuid' },
-                  { name: 'tenderId', label: 'Tender ID', kind: 'uuid' },
+                  { name: 'supplierOrgId', label: 'Supplier organization', kind: 'select', options: supplierOrgOptions, helpText: 'Leave blank to use the supplier linked to this contract.' },
+                  { name: 'tenderId', label: 'Tender', kind: 'select', options: tenderOptions, helpText: 'Leave blank to use the tender linked to this contract.' },
                   { name: 'forecastType', label: 'Forecast type', kind: 'text', required: true },
                   { name: 'horizonDays', label: 'Horizon days', kind: 'number', min: 1, max: 365 },
                   { name: 'probability', label: 'Probability', kind: 'number', min: 0, max: 100, required: true },
@@ -746,7 +832,7 @@ export function PostAwardTrackingProcurexPage() {
                 badge="Evidence"
                 fields={[
                   { name: 'terminationId', label: 'Termination', kind: 'select', required: true, options: itemOptions(contract.terminations as ContractLifecycleItemDto[], 'Select termination') },
-                  { name: 'documentId', label: 'Document ID', kind: 'uuid' },
+                  { name: 'documentId', label: 'External evidence document ID (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded termination document outside this workflow.' },
                   { name: 'evidenceType', label: 'Evidence type', kind: 'text', required: true },
                   { name: 'note', label: 'Note', kind: 'textarea' },
                   { name: 'payload', label: 'Evidence payload', kind: 'json', rows: 4 }
@@ -851,7 +937,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'title', label: 'Title', kind: 'text', required: true },
                   { name: 'ownerRole', label: 'Owner role', kind: 'text', required: true },
                   { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
-                  { name: 'documentId', label: 'Document ID', kind: 'uuid' },
+                  { name: 'documentId', label: 'External document ID (optional)', kind: 'uuid', helpText: 'Use only when referencing a document stored outside this workflow.' },
                   { name: 'dueDate', label: 'Due date', kind: 'date' },
                   { name: 'reviewedAt', label: 'Reviewed at', kind: 'datetime' },
                   { name: 'note', label: 'Note', kind: 'textarea' },
@@ -922,7 +1008,7 @@ export function PostAwardTrackingProcurexPage() {
                 title="Supplier risk profile"
                 badge="Supplier risk"
                 fields={[
-                  { name: 'supplierOrgId', label: 'Supplier organization ID', kind: 'uuid' },
+                  { name: 'supplierOrgId', label: 'Supplier organization', kind: 'select', options: supplierOrgOptions, helpText: 'Leave blank to use the supplier linked to this contract.' },
                   { name: 'riskLevel', label: 'Risk level', kind: 'select', options: riskLevelOptions },
                   { name: 'riskScore', label: 'Risk score', kind: 'number', min: 0, max: 100 },
                   { name: 'trustTier', label: 'Trust tier', kind: 'text' },
@@ -1043,7 +1129,7 @@ export function PostAwardTrackingProcurexPage() {
           ) : null}
           </div>
             </AwardContractAccessProvider>
-          )}
+          ) : null}
         </main>
       </div>
     </ProcurexAwardFrame>

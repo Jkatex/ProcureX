@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { PickerOption } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
 import { actionDefinitionForTitle } from './AwardContractActionCatalogue';
@@ -267,6 +267,34 @@ function formCounts(fields: AwardContractFieldConfig[]) {
   return { required, linked, advanced };
 }
 
+function reviewValue(field: AwardContractFieldConfig, value: FormValue | undefined) {
+  if (value === undefined || value === false || value === '') return 'Not set';
+  if (Array.isArray(value)) return value.length ? value.map(displayLabel).join(', ') : 'Not set';
+  if (field.kind === 'checkbox') return value ? 'Yes' : 'No';
+  const text = String(value);
+  const selected = pickerOptions(field).find((item) => item.value === text);
+  return selected?.label ?? (text.length > 80 ? `${text.slice(0, 77)}...` : text);
+}
+
+function ActionReviewSummary({ fields, values }: { fields: AwardContractFieldConfig[]; values: AwardContractFormValues }) {
+  const visibleFields = fields
+    .filter((field) => field.kind !== 'json' && !field.advanced)
+    .slice(0, 6);
+
+  if (visibleFields.length === 0) return null;
+
+  return (
+    <section className="award-action-review-summary" aria-label="Action summary">
+      {visibleFields.map((field) => (
+        <article key={field.name}>
+          <span>{field.label}</span>
+          <strong>{reviewValue(field, values[field.name])}</strong>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 export function buildAwardContractPayload(fields: AwardContractFieldConfig[], values: AwardContractFormValues) {
   const payload: AwardContractPayload = {};
   const errors: string[] = [];
@@ -325,6 +353,9 @@ export function ActionFormPanel({
   const allowed = canUseWorkflowOwner(access, owner);
   const [open, setOpen] = useState(false);
   const formKey = useMemo(() => slug(title), [title]);
+  const drawerTitleId = `award-action-${formKey}-title`;
+  const openButtonRef = useRef<HTMLButtonElement | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
   const defaults = useMemo(
     () => Object.fromEntries(fields.map((field) => [field.name, initialValues?.[field.name] ?? defaultValue(field)])) as AwardContractFormValues,
     [fields, initialValues]
@@ -337,6 +368,53 @@ export function ActionFormPanel({
     setValues(defaults);
     setMessage('');
   }, [defaults]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const launcherButton = openButtonRef.current;
+    const focusableSelector = [
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      'a[href]',
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+    const focusables = () => Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
+    window.requestAnimationFrame(() => {
+      focusables()[0]?.focus();
+    });
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      const restoreTarget = previouslyFocused && previouslyFocused !== document.body ? previouslyFocused : launcherButton;
+      if (restoreTarget && document.contains(restoreTarget)) {
+        window.requestAnimationFrame(() => restoreTarget.focus());
+      }
+    };
+  }, [open]);
 
   const built = buildAwardContractPayload(fields, values);
   const blocked = saving || built.errors.length > 0;
@@ -385,7 +463,7 @@ export function ActionFormPanel({
         <div>
           {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
           <h2>{title}</h2>
-          <p>{counts.linked ? `${counts.linked} linked selector${counts.linked === 1 ? '' : 's'}` : 'Direct workflow action'}{counts.required ? ` · ${counts.required} required` : ''}</p>
+          <p>{counts.linked ? `${counts.linked} linked selector${counts.linked === 1 ? '' : 's'}` : 'Direct workflow action'}{counts.required ? ` - ${counts.required} required` : ''}</p>
         </div>
         <StatusBadge value={badge} />
       </div>
@@ -395,16 +473,16 @@ export function ActionFormPanel({
         {counts.advanced ? <span>{counts.advanced} advanced field{counts.advanced === 1 ? '' : 's'}</span> : null}
       </div>
       <div className="inline-actions">
-        <button className="btn btn-primary btn-sm" type="button" onClick={() => setOpen(true)}>Open action</button>
+        <button className="btn btn-primary btn-sm" type="button" ref={openButtonRef} onClick={() => setOpen(true)}>Open action</button>
       </div>
       {open ? (
         <div className="award-action-drawer-backdrop" role="presentation">
-          <aside className="award-action-drawer" role="dialog" aria-modal="true" aria-label={title}>
+          <aside className="award-action-drawer" role="dialog" aria-modal="true" aria-labelledby={drawerTitleId} ref={drawerRef}>
             <form className="award-action-form award-action-form-drawer" noValidate onSubmit={submit}>
               <div className="award-drawer-heading">
                 <div>
                   {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
-                  <h2>{title}</h2>
+                  <h2 id={drawerTitleId}>{title}</h2>
                   <p>{owner === 'ANY' ? 'Shared workflow action' : owner === 'BUYER' ? 'Buyer-owned workflow action' : owner === 'SUPPLIER' ? 'Supplier-owned workflow action' : 'Admin-owned workflow action'}</p>
                 </div>
                 <div className="award-drawer-heading-actions">
@@ -412,7 +490,7 @@ export function ActionFormPanel({
                   <button className="btn btn-secondary btn-sm" type="button" onClick={() => setOpen(false)}>Close</button>
                 </div>
               </div>
-              {drawerSummary ?? children}
+              {drawerSummary ?? children ?? <ActionReviewSummary fields={fields} values={values} />}
               {Array.from(fieldsBySection.entries()).map(([section, sectionFields]) => {
                 const content = (
                   <div className="award-form-grid">

@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { AccountMenu } from '@/shared/components/AccountMenu';
@@ -47,6 +47,26 @@ export function routeWithSearch(path: string, routeSearch = '') {
 
 export function formatMoney(value: number, currency = 'TZS') {
   return `${currency} ${value.toLocaleString()}`;
+}
+
+export function lifecycleActionMatches(row: LifecycleAction, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return [
+    row.title,
+    row.reference,
+    row.noticeReference,
+    row.tenderId,
+    row.roleContext,
+    row.sourceType,
+    row.otherParty,
+    row.currentStage,
+    row.requiredAction,
+    row.status,
+    row.riskLevel
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalized));
 }
 
 export type WorkflowSection<TId extends string> = {
@@ -266,6 +286,7 @@ export function WorkflowSectionTabs<TId extends string>({
           className={`award-workflow-tab${active === section.id ? ' active' : ''}`}
           type="button"
           role="tab"
+          aria-label={section.label}
           aria-selected={active === section.id}
           onClick={() => onSelect(section.id)}
           key={section.id}
@@ -320,24 +341,51 @@ export function RecordRegister({
   headers?: string[];
   emptyMessage?: string;
 }) {
+  const [search, setSearch] = useState('');
+  const filteredRecords = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+    if (!normalized) return records;
+    return records.filter((record) => JSON.stringify(record).toLowerCase().includes(normalized));
+  }, [records, search]);
+
   return (
-    <SimpleTable headers={headers} className="award-record-register">
-      {records.length === 0 ? (
-        <tr><td colSpan={headers.length}><div className="scope-empty award-register-empty">{emptyMessage ?? `No ${title.toLowerCase()} records yet.`}</div></td></tr>
-      ) : records.map((record) => (
-        <tr key={recordText(record, 'id', JSON.stringify(record))}>
-          <td>
-            <div className="award-record-title">
-              <strong>{recordTitle(record)}</strong>
-              {recordText(record, 'id') ? <span>ID {shortId(recordText(record, 'id'))}</span> : null}
-            </div>
-          </td>
-          <td><StatusBadge value={recordText(record, 'status', recordText(record, 'riskLevel', 'Recorded'))} /></td>
-          <td>{recordText(record, 'note', recordText(record, 'summary', recordText(record, 'amount', recordText(record, 'paidAmount', recordText(record, 'score', recordText(record, 'probability', '-'))))))}</td>
-          <td>{recordText(record, 'createdAt') ? new Date(recordText(record, 'createdAt')).toLocaleDateString() : '-'}</td>
-        </tr>
-      ))}
-    </SimpleTable>
+    <div className="award-record-register-wrap">
+      {records.length > 0 ? (
+        <div className="queue-toolbar award-register-toolbar">
+          <label>
+            Search
+            <input
+              className="form-input"
+              type="search"
+              aria-label={`Search ${title}`}
+              placeholder="Reference, status, note, amount, or owner"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <span>Showing {filteredRecords.length} of {records.length}</span>
+        </div>
+      ) : null}
+      <SimpleTable headers={headers} className="award-record-register">
+        {records.length === 0 ? (
+          <tr><td colSpan={headers.length}><div className="scope-empty award-register-empty">{emptyMessage ?? `No ${title.toLowerCase()} records yet.`}</div></td></tr>
+        ) : filteredRecords.length === 0 ? (
+          <tr><td colSpan={headers.length}><div className="scope-empty award-register-empty">No {title.toLowerCase()} records match the current search.</div></td></tr>
+        ) : filteredRecords.map((record) => (
+          <tr key={recordText(record, 'id', JSON.stringify(record))}>
+            <td>
+              <div className="award-record-title">
+                <strong>{recordTitle(record)}</strong>
+                {recordText(record, 'id') ? <span>ID {shortId(recordText(record, 'id'))}</span> : null}
+              </div>
+            </td>
+            <td><StatusBadge value={recordText(record, 'status', recordText(record, 'riskLevel', 'Recorded'))} /></td>
+            <td>{recordText(record, 'note', recordText(record, 'summary', recordText(record, 'amount', recordText(record, 'paidAmount', recordText(record, 'score', recordText(record, 'probability', '-'))))))}</td>
+            <td>{recordText(record, 'createdAt') ? new Date(recordText(record, 'createdAt')).toLocaleDateString() : '-'}</td>
+          </tr>
+        ))}
+      </SimpleTable>
+    </div>
   );
 }
 
@@ -362,6 +410,42 @@ export function RegisterCard({
         <StatusBadge value={`${records.length} ${countLabel}`} />
       </div>
       <RecordRegister title={title} records={records} />
+    </section>
+  );
+}
+
+export function RemoteStatePanel({
+  kicker = 'Workspace status',
+  title,
+  message,
+  status = 'Attention',
+  actionLabel,
+  onAction
+}: {
+  kicker?: string;
+  title: string;
+  message: string;
+  status?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <section className="procurement-panel evaluation-panel award-remote-state-panel">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">{kicker}</span>
+          <h2>{title}</h2>
+        </div>
+        <StatusBadge value={status} />
+      </div>
+      <div className="scope-empty">{message}</div>
+      {onAction ? (
+        <div className="inline-actions">
+          <button className="btn btn-secondary btn-sm" type="button" onClick={onAction}>
+            {actionLabel ?? 'Retry'}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

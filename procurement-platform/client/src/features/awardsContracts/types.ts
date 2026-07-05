@@ -126,7 +126,25 @@ export type ContractLifecycleItemDto = {
 
 export type AwardRecommendationDetailDto = LifecycleAction & {
   reference?: string | null;
-  notice?: { id: string; reference?: string | null; status: string; contractId: string | null } | null;
+  tenderReference?: string | null;
+  tenderTitle?: string | null;
+  buyerOrgId?: string | null;
+  buyerName?: string | null;
+  supplierOrgId?: string | null;
+  supplierName?: string | null;
+  bidId?: string | null;
+  notice?: {
+    id: string;
+    reference?: string | null;
+    status: string;
+    contractId: string | null;
+    buyerNote?: string;
+    supplierNote?: string;
+    issuedAt?: string;
+    respondedAt?: string | null;
+    responses?: Array<{ id: string; action: string; note: string; actorOrgId?: string | null; actorUserId?: string | null; createdAt: string }>;
+  } | null;
+  contract?: ContractDetailDto | null;
   access?: WorkflowAccess;
   approvalRoutes?: Array<Record<string, unknown>>;
   tieBreakers?: Array<Record<string, unknown>>;
@@ -141,6 +159,12 @@ export type ContractDetailDto = {
   access?: WorkflowAccess;
   id: string;
   reference: string;
+  tenderId?: string | null;
+  tenderReference?: string | null;
+  buyerOrgId?: string | null;
+  supplierOrgId?: string | null;
+  awardId?: string | null;
+  noticeId?: string | null;
   title: string;
   status: string;
   buyerName: string;
@@ -149,6 +173,7 @@ export type ContractDetailDto = {
   currency: string;
   payload: Record<string, unknown>;
   parties?: Array<Record<string, unknown>>;
+  versions?: Array<Record<string, unknown>>;
   clauses?: ContractLifecycleItemDto[];
   negotiations?: ContractLifecycleItemDto[];
   signatures: Array<{ id: string; role: string; status: string; signerName: string; signedAt: string | null }>;
