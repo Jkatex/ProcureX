@@ -69,12 +69,36 @@ Use these dev-only TRA/BRELA identifiers during identity verification. They are 
 | Business | TIN / TRA | `1098765432` | Neema Fresh Logistics |
 | Individual | TIN / TRA | `555666777` | Baraka Hassan Mrema |
 | Business | TIN / TRA | `555666777` | Mwanza Medical Supplies |
+| Individual | TIN / TRA | `2046813579` | Grace Paulo Mwakalinga |
+| Business | TIN / TRA | `2046813579` | Grace Stationery and Office Supplies |
+| Individual | TIN / TRA | `3102468975` | Moses Daniel Komba |
+| Business | TIN / TRA | `3102468975` | Komba Building Materials |
+| Individual | TIN / TRA | `448812006` | Rehema Said Ngalawa |
+| Business | TIN / TRA | `448812006` | Pwani Catering Services |
+| Individual | TIN / TRA | `6723459012` | Hassan Omari Mdee |
+| Business | TIN / TRA | `6723459012` | Mdee Transport Solutions |
+| Individual | TIN / TRA | `7901234568` | Rosemary Elias Sanga |
+| Business | TIN / TRA | `7901234568` | Sanga Agro Inputs |
+| Individual | TIN / TRA | `8642097531` | Yusuf Rajabu Khamis |
+| Business | TIN / TRA | `8642097531` | Tanga Marine Supplies |
 | Company | BRELA | `987654321` | Local Test Supplies Limited |
 | Business | BRELA | `987654321` | Local Test Supplies Business Name |
 | Company | BRELA | `BRN-2024-001` | Kilimanjaro Works Limited |
 | Business | BRELA | `BRN-2024-001` | Kilimanjaro Works |
 | Company | BRELA | `BN-778899` | Zanzibar Digital Services Limited |
 | Business | BRELA | `BN-778899` | Zanzibar Digital Services |
+| Company | BRELA | `BRN-2025-014` | Serengeti Office Solutions Limited |
+| Business | BRELA | `BRN-2025-014` | Serengeti Office Solutions |
+| Company | BRELA | `BN-240681` | Kisarawe Food Logistics Limited |
+| Business | BRELA | `BN-240681` | Kisarawe Food Logistics |
+| Company | BRELA | `BRN-2023-088` | Dodoma Fleet Services Limited |
+| Business | BRELA | `BRN-2023-088` | Dodoma Fleet Services |
+| Company | BRELA | `BN-661204` | Mbeya Agro Traders Limited |
+| Business | BRELA | `BN-661204` | Mbeya Agro Traders |
+| Company | BRELA | `BRN-2026-032` | Tanga Safety Equipment Limited |
+| Business | BRELA | `BRN-2026-032` | Tanga Safety Equipment |
+| Company | BRELA | `BN-902468` | Temeke Hardware Supplies Limited |
+| Business | BRELA | `BN-902468` | Temeke Hardware Supplies |
 
 ## Product Rules Captured Here
 
