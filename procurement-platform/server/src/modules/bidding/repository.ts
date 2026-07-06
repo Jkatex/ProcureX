@@ -1,4 +1,4 @@
-import { BidStatus, EnvelopeType, TenderStatus, Visibility, type Prisma, type PrismaClient } from '@prisma/client';
+import { BidStatus, EnvelopeType, TenderStatus, TenderType, Visibility, type Prisma, type PrismaClient } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
 import type { BidDocumentInput, BidDraftInput, BidDto } from './types.js';
@@ -178,15 +178,17 @@ export class ModuleRepository {
         const sealedHash = sha256(JSON.stringify({ bidId: fullBid.id, envelopes: envelopes.map((item) => ({ envelope: item.envelope, sealedHash: item.sealedHash })) }));
         const receiptRef = `BID-${fullBid.reference}-${String(nextVersion).padStart(2, '0')}`;
 
-        await tx.bidVersion.createMany({
-          data: envelopes.map((envelope) => ({
-            bidId: fullBid.id,
-            versionNo: nextVersion,
-            envelope: envelope.envelope,
-            sealedHash: envelope.sealedHash,
-            payload: envelope.payload as Prisma.InputJsonObject
-          }))
-        });
+        for (const envelope of envelopes) {
+          await tx.bidVersion.create({
+            data: {
+              bidId: fullBid.id,
+              versionNo: nextVersion,
+              envelope: envelope.envelope,
+              sealedHash: envelope.sealedHash,
+              payload: envelope.payload as Prisma.InputJsonObject
+            }
+          });
+        }
         await tx.bid.update({
           where: { id: fullBid.id },
           data: {
@@ -392,7 +394,7 @@ function canonicalBidPayload(bid: BidRecord, submittedAt: string) {
 
 function bidEnvelopes(bid: BidRecord, canonical: ReturnType<typeof canonicalBidPayload>) {
   const payload = objectPayload(bid.payload);
-  if (bid.tender.type !== 'Consultancy') {
+  if (bid.tender.type !== TenderType.CONSULTANCY) {
     return [
       {
         envelope: EnvelopeType.COMBINED,

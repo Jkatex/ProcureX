@@ -60,7 +60,7 @@ function tenderDetailInclude() {
     },
     requirementRows: { orderBy: [{ section: 'asc' }, { createdAt: 'asc' }] },
     milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
-    commercialItems: { orderBy: [{ itemNo: 'asc' }, { createdAt: 'asc' }] },
+    commercialItems: { orderBy: { itemNo: 'asc' } },
     documents: {
       include: {
         document: {
@@ -68,10 +68,7 @@ function tenderDetailInclude() {
         }
       },
       orderBy: { createdAt: 'asc' }
-    },
-    requirementRows: { orderBy: [{ section: 'asc' }, { createdAt: 'asc' }] },
-    milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
-    commercialItems: { orderBy: [{ itemNo: 'asc' }, { createdAt: 'asc' }] }
+    }
   } satisfies Prisma.TenderInclude;
 }
 
