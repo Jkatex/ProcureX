@@ -814,6 +814,72 @@ describe('procurement tender write service', () => {
     expect(repository.createTender).toHaveBeenCalled();
   });
 
+  it('accepts financial evidence tag arrays and legacy strings during draft schema validation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-evidence' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Each', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] },
+              financialRequirementRows: [
+                { requirementType: 'Access to Credit', evidenceRequired: ['Bank statement'], mandatory: true },
+                { requirementType: 'Minimum Annual Turnover', evidenceRequired: 'Audited accounts', mandatory: true }
+              ]
+            }
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalled();
+  });
+
+  it('rejects invalid financial evidence tag options before repository writes', async () => {
+    const repository = {
+      createTender: vi.fn()
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Each', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] },
+              financialRequirementRows: [{ requirementType: 'Access to Credit', evidenceRequired: ['Unsupported evidence'], mandatory: true }]
+            }
+          }
+        }
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Evidence required must be one of the configured options.'
+    });
+    expect(repository.createTender).not.toHaveBeenCalled();
+  });
+
   it('rejects clearly malformed draft schema field values before repository writes', async () => {
     const repository = {
       createTender: vi.fn()

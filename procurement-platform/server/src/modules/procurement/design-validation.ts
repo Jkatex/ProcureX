@@ -128,8 +128,13 @@ function validateFieldValue(control: DesignFormControlDto, value: unknown, path:
     return;
   }
 
-  if (control.options?.length && isOptionControl(control.type) && typeof value === 'string' && value && !optionValueAllowed(control, value)) {
-    result.errors.push(`${control.label} must be one of the configured options.`);
+  if (control.options?.length && isOptionControl(control.type)) {
+    for (const optionValue of optionValues(value)) {
+      if (optionValue && !optionValueAllowed(control, optionValue)) {
+        result.errors.push(`${control.label} must be one of the configured options.`);
+        break;
+      }
+    }
   }
 
   if (path && control.type === 'date' && typeof value === 'string' && Number.isNaN(Date.parse(value))) {
@@ -154,7 +159,8 @@ function valueMatchesType(type: string, value: unknown) {
   if (type === 'date') return value instanceof Date || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
   if (type === 'toggle') return typeof value === 'boolean';
   if (type === 'yesno') return typeof value === 'boolean' || value === 'Yes' || value === 'No';
-  if (['multiselect', 'tag-select', 'list', 'repeatable-certification'].includes(type)) return Array.isArray(value);
+  if (type === 'tag-select') return Array.isArray(value) || typeof value === 'string';
+  if (['multiselect', 'list', 'repeatable-certification'].includes(type)) return Array.isArray(value);
   if (isTableLike(type)) return Array.isArray(value);
   if (type === 'accordion') return isRecord(value);
   if (type === 'index') return typeof value === 'string' || typeof value === 'number';
@@ -171,6 +177,12 @@ function optionValueAllowed(control: DesignFormControlDto, value: string) {
   if (!isUnitControl(control)) return false;
   const canonicalUnit = normalizeUnitAlias(value);
   return canonicalUnit ? options.includes(canonicalUnit) : false;
+}
+
+function optionValues(value: unknown) {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  return [];
 }
 
 function isUnitControl(control: DesignFormControlDto) {

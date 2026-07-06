@@ -560,6 +560,15 @@ export function CreateTenderProcurexPage() {
       });
       return;
     }
+    if (!parsePositiveNumber(draft.estimatedBudget)) {
+      const message = 'Add a positive estimated budget before publishing this tender.';
+      setValidationMessage(message);
+      notifyWarning('Tender budget required', message, {
+        reason: 'The backend publication pipeline requires a tender budget before a draft can become visible in the marketplace.'
+      });
+      setActiveStep(0);
+      return;
+    }
     if (isPersisting) return;
 
     setIsPersisting(true);
@@ -891,6 +900,20 @@ function BasicInfoStep({
                 type="date"
                 value={draft.submissionDate}
                 onChange={(event) => onPatch('submissionDate', event.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="create-tender-estimated-budget">
+                Estimated budget
+              </label>
+              <input
+                id="create-tender-estimated-budget"
+                className="form-input"
+                aria-label="Estimated budget"
+                inputMode="numeric"
+                placeholder="Example: 250000000"
+                value={draft.estimatedBudget}
+                onChange={(event) => onPatch('estimatedBudget', event.target.value)}
               />
             </div>
             <div className="form-group">
@@ -5094,7 +5117,7 @@ function buildGoodsRequirementFields(draft: CreateTenderDraft): Record<string, u
     })),
     productSpecificationTemplate: draft.productSpecifications,
     sampleRequirementRows: draft.sampleRequirements,
-    financialRequirementRows: draft.financialRequirements,
+    financialRequirementRows: normalizeFinancialRequirementRows(draft.financialRequirements),
     eligibilityRequirementCards: draft.eligibilityRequirements,
     regulatoryLicenseRequirementRows: draft.regulatoryLicenseRequirements
   };
@@ -5205,6 +5228,13 @@ function multiplyNumericStrings(left: string | number | undefined, right: string
   const rightNumber = Number(String(right ?? '').replace(/,/g, '').trim());
   if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) return '';
   return Math.round(leftNumber * rightNumber * 100) / 100;
+}
+
+function normalizeFinancialRequirementRows(rows: CreateTenderFinancialRequirementRow[]) {
+  return rows.map((row) => ({
+    ...row,
+    evidenceRequired: normalizeTextList(row.evidenceRequired)
+  }));
 }
 
 function normalizeBackendUnit(value: string | undefined) {
