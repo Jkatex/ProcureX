@@ -44,19 +44,22 @@ const marketplaceTenderInclude = {
   categories: { select: { name: true }, orderBy: { name: 'asc' } }
 } satisfies Prisma.TenderInclude;
 
-function tenderDetailInclude(organizationId?: string) {
+function tenderDetailInclude() {
   return {
     ...marketplaceTenderInclude,
     bids: {
-      where: {
-        supplierOrgId: organizationId ?? '00000000-0000-0000-0000-000000000000'
-      },
       select: {
+        id: true,
         supplierOrgId: true,
-        status: true
+        status: true,
+        submittedAt: true,
+        receipt: { select: { receiptHash: true } }
       },
       orderBy: { updatedAt: 'desc' }
     },
+    requirementRows: { orderBy: { createdAt: 'asc' } },
+    milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
+    commercialItems: { orderBy: { itemNo: 'asc' } },
     documents: {
       include: {
         document: {
@@ -230,7 +233,7 @@ export class ModuleRepository {
   async getTenderDetail(tenderId: string, context: MarketplaceContext) {
     const tender = await this.db.tender.findUnique({
       where: { id: tenderId },
-      include: tenderDetailInclude(context.organizationId)
+      include: tenderDetailInclude()
     });
     if (!tender || !canViewTenderDetail(tender, context.organizationId)) return null;
     return toTenderDetailDto(tender, context);
@@ -998,7 +1001,7 @@ function toMyTenderRow(tender: MarketplaceTenderRecord, context: MarketplaceTend
     status: frontendTenderStatus(tender.status),
     type: frontendTenderType(tender.type),
     lastActivity: tender.updatedAt.toISOString(),
-    nav: section === 'draft' ? 'create-tender' : 'tender-details',
+    nav: section === 'draft' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=${tender.id}`,
     actionLabel: section === 'draft' ? 'Continue Draft' : section === 'completed' ? 'View Record' : 'View My Tender',
     tender: toMarketplaceTenderRow(tender, context)
   };
@@ -1148,8 +1151,10 @@ function unsaveTenderResponse(): UnsaveTenderResponseDto {
 function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceContext = {}): TenderDetailDto {
   const createdByCurrentUser = Boolean(context.userId && tender.ownerUserId === context.userId);
   const ownedByCurrentOrganization = Boolean(context.organizationId && tender.buyerOrgId === context.organizationId);
-  const hasDraftBid = Boolean(context.organizationId && tender.bids.some((bid) => bid.status === BidStatus.DRAFT));
-  const hasSubmittedBid = Boolean(context.organizationId && tender.bids.some((bid) => isSubmittedBidStatus(bid.status)));
+  const currentOrganizationBids = context.organizationId ? tender.bids.filter((bid) => bid.supplierOrgId === context.organizationId) : [];
+  const hasDraftBid = currentOrganizationBids.some((bid) => bid.status === BidStatus.DRAFT);
+  const hasSubmittedBid = currentOrganizationBids.some((bid) => isSubmittedBidStatus(bid.status));
+  const currentBid = currentOrganizationBids[0];
 
   return {
     id: tender.id,
@@ -1168,6 +1173,27 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     publishedAt: tender.publishedAt?.toISOString() ?? '',
     closingDate: dateOnly(tender.closingDate),
     requirements: objectPayload(tender.requirements),
+    requirementRows: tender.requirementRows.map((row) => ({
+      id: row.id,
+      section: row.section,
+      payload: objectPayload(row.payload)
+    })),
+    milestones: tender.milestones.map((milestone) => ({
+      id: milestone.id,
+      name: milestone.name,
+      dueDate: dateOnly(milestone.dueDate),
+      payload: objectPayload(milestone.payload)
+    })),
+    commercialItems: tender.commercialItems.map((item) => ({
+      id: item.id,
+      itemNo: item.itemNo,
+      description: item.description,
+      quantity: decimalToNumber(item.quantity),
+      unit: item.unit,
+      rate: decimalToNumber(item.rate),
+      total: decimalToNumber(item.total),
+      payload: objectPayload(item.payload)
+    })),
     documents: tender.documents.map((document) => ({
       id: document.document.id,
       name: document.document.name,
@@ -1178,7 +1204,16 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     ownedByCurrentOrganization,
     canBid: canBidOnTender(tender, context.organizationId, hasSubmittedBid),
     hasDraftBid,
-    hasSubmittedBid
+    hasSubmittedBid,
+    bidSummary: bidSummary(tender.bids),
+    currentBid: currentBid
+      ? {
+          id: currentBid.id,
+          status: frontendBidStatus(currentBid.status),
+          submittedAt: currentBid.submittedAt?.toISOString() ?? null,
+          receiptHash: currentBid.receipt?.receiptHash ?? null
+        }
+      : null
   };
 }
 
@@ -1220,6 +1255,19 @@ function bidStateFromStatus(status: BidStatus): MarketplaceBidState {
     hasDraftBid: status === BidStatus.DRAFT,
     hasSubmittedBid: isSubmittedBidStatus(status)
   };
+}
+
+function bidSummary(bids: Array<{ status: BidStatus }>) {
+  return bids.reduce(
+    (summary, bid) => {
+      summary.total += 1;
+      if (bid.status === BidStatus.DRAFT) summary.draft += 1;
+      else if (bid.status === BidStatus.WITHDRAWN) summary.withdrawn += 1;
+      else if (isSubmittedBidStatus(bid.status)) summary.submitted += 1;
+      return summary;
+    },
+    { total: 0, draft: 0, submitted: 0, withdrawn: 0 }
+  );
 }
 
 function marketplaceCategory(tender: MarketplaceTenderRecord) {

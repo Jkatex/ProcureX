@@ -34,7 +34,8 @@ export const procurementApi = {
       return response.data;
     } catch {
       const tenders = await mockApi.getTenders();
-      const tender = tenders.find((item) => item.id === tenderId || item.reference === tenderId) ?? tenders[0];
+      const tender = tenders.find((item) => item.id === tenderId || item.reference === tenderId);
+      if (!tender) throw new Error('Tender not found');
       return buildTenderDetailFallback(tender);
     }
   },
@@ -87,7 +88,7 @@ export function mergeSessionMarketplaceData(
 ): MarketplacePayload {
   const sessionTenderRows = publishedTenders.map((draft): MarketplaceTenderRow => createMarketplaceTenderFromDraft(draft, organization));
   const sessionMyTenderRows = drafts.map((draft): MyTenderRow => ({
-    id: `my-tender-${draft.status.toLowerCase()}-${draft.id}`,
+    id: draft.id,
     title: draft.title || 'Untitled tender draft',
     section: draft.status === 'DRAFT' ? 'draft' : 'posted',
     status: draft.status === 'DRAFT' ? 'Draft' : 'Posted',
@@ -95,7 +96,7 @@ export function mergeSessionMarketplaceData(
     tender: draft.status === 'PUBLISHED' ? createMarketplaceTenderFromDraft(draft, organization) : undefined,
     lastActivity: draft.publishedAt?.slice(0, 10) || draft.updatedAt.slice(0, 10),
     actionLabel: draft.status === 'DRAFT' ? 'Continue Draft' : 'View My Tender',
-    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=session-${draft.id}`
+    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=${draft.id}`
   }));
 
   const existingTenderIds = new Set(sessionTenderRows.map((row) => row.id));
@@ -110,7 +111,7 @@ export function mergeSessionMarketplaceData(
 
 function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization: string): MarketplaceTenderRow {
   return {
-    id: `session-${draft.id}`,
+    id: draft.id,
     reference: draft.reference,
     title: draft.title || 'Untitled tender',
     organization: draft.procuringEntity || organization,

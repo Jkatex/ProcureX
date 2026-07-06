@@ -180,7 +180,7 @@ describe('procurement marketplace repository', () => {
         title: 'Draft road maintenance tender',
         status: 'Draft',
         type: 'Works',
-        nav: 'create-tender',
+        nav: '/procurement/create-tender',
         actionLabel: 'Continue Draft'
       }
     ]);
@@ -1427,9 +1427,11 @@ describe('procurement tender detail repository', () => {
         buyerOrg: { select: { id: true, name: true } },
         categories: { select: { name: true }, orderBy: { name: 'asc' } },
         bids: expect.objectContaining({
-          where: { supplierOrgId: '00000000-0000-0000-0000-000000000000' },
-          select: { supplierOrgId: true, status: true }
+          select: expect.objectContaining({ id: true, supplierOrgId: true, status: true })
         }),
+        requirementRows: { orderBy: { createdAt: 'asc' } },
+        milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
+        commercialItems: { orderBy: { itemNo: 'asc' } },
         documents: expect.any(Object)
       })
     });
@@ -1443,15 +1445,20 @@ describe('procurement tender detail repository', () => {
         'currency',
         'description',
         'documents',
+        'bidSummary',
+        'commercialItems',
+        'currentBid',
         'hasDraftBid',
         'hasSubmittedBid',
         'id',
         'location',
+        'milestones',
         'organization',
         'ownedByCurrentOrganization',
         'ownerOrganization',
         'publishedAt',
         'reference',
+        'requirementRows',
         'requirements',
         'status',
         'title',
@@ -1479,18 +1486,63 @@ describe('procurement tender detail repository', () => {
       ownedByCurrentOrganization: false,
       canBid: false,
       hasDraftBid: false,
-      hasSubmittedBid: false
+      hasSubmittedBid: false,
+      requirementRows: [],
+      milestones: [],
+      commercialItems: [],
+      bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+      currentBid: null
     });
     expect(result).not.toHaveProperty('isSaved');
     expect(result).not.toHaveProperty('buyerOrgId');
     expect(result).not.toHaveProperty('ownerUserId');
     expect(result).not.toHaveProperty('method');
     expect(result).not.toHaveProperty('metadata');
-    expect(result).not.toHaveProperty('requirementRows');
-    expect(result).not.toHaveProperty('milestones');
-    expect(result).not.toHaveProperty('commercialItems');
-    expect(result).not.toHaveProperty('bidSummary');
-    expect(result).not.toHaveProperty('currentBid');
+  });
+
+  it('returns real tender detail rows and bid summary counts', async () => {
+    const detailedTender = tenderDetailRecord({
+      id: 'tender-with-detail',
+      status: TenderStatus.OPEN,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      requirementRows: [{ id: 'req-1', section: 'Technical', payload: { title: 'Desktop computers specification' } }],
+      milestones: [{ id: 'milestone-1', name: 'Submission deadline', dueDate: new Date('2026-08-30T00:00:00.000Z'), payload: { type: 'closing' } }],
+      commercialItems: [
+        {
+          id: 'item-1',
+          itemNo: '1',
+          description: 'Desktop computer',
+          quantity: 10,
+          unit: 'pcs',
+          rate: 1200000,
+          total: 12000000,
+          payload: { processor: 'Core i5 or equivalent' }
+        }
+      ],
+      bids: [
+        { id: 'bid-1', supplierOrgId: 'supplier-org-1', status: BidStatus.DRAFT, submittedAt: null, receipt: null },
+        { id: 'bid-2', supplierOrgId: 'supplier-org-2', status: BidStatus.SUBMITTED, submittedAt: new Date('2026-07-10T08:00:00.000Z'), receipt: { receiptHash: 'hash-2' } },
+        { id: 'bid-3', supplierOrgId: 'supplier-org-3', status: BidStatus.WITHDRAWN, submittedAt: null, receipt: null }
+      ]
+    });
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue(detailedTender)
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const result = await repository.getTenderDetail('tender-with-detail', { organizationId: 'supplier-org-1' });
+
+    expect(result).toMatchObject({
+      requirementRows: [{ id: 'req-1', section: 'Technical', payload: { title: 'Desktop computers specification' } }],
+      milestones: [{ id: 'milestone-1', name: 'Submission deadline', dueDate: '2026-08-30', payload: { type: 'closing' } }],
+      commercialItems: [{ id: 'item-1', itemNo: '1', description: 'Desktop computer', quantity: 10, unit: 'pcs', rate: 1200000, total: 12000000 }],
+      bidSummary: { total: 3, draft: 1, submitted: 1, withdrawn: 1 },
+      currentBid: { id: 'bid-1', status: 'Draft', submittedAt: null, receiptHash: null },
+      hasDraftBid: true,
+      hasSubmittedBid: false
+    });
   });
 
   it('hides draft and private tenders from public and non-owner users', async () => {
@@ -1638,7 +1690,7 @@ describe('procurement tender detail repository', () => {
       expect.objectContaining({
         include: expect.objectContaining({
           bids: expect.objectContaining({
-            where: { supplierOrgId }
+            select: expect.objectContaining({ supplierOrgId: true })
           })
         })
       })
