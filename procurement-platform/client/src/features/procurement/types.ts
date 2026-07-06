@@ -469,6 +469,80 @@ export type MarketplacePayload = {
   myBids: MyBidRow[];
 };
 
+export type TenderDraftValidation = {
+  warnings: string[];
+  missingRequiredFields: Array<{ path: string; label: string; section: string }>;
+  schemaVersion: string;
+};
+
+export type CreateTenderPayload = {
+  title: string;
+  description: string;
+  type: 'Goods' | 'Works' | 'Non Consultancy' | 'Consultancy';
+  categories: string[];
+  budget?: number;
+  currency: string;
+  location: string;
+  closingDate?: string;
+  requirements: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+};
+
+export type UpdateTenderPayload = Partial<CreateTenderPayload>;
+
+export type CreateTenderResponse = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    type: string;
+    createdAt: string;
+  };
+  validation?: TenderDraftValidation;
+};
+
+export type UpdateTenderResponse = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    updatedAt: string;
+  };
+  validation?: TenderDraftValidation;
+};
+
+export type PublishTenderResponse = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    visibility: string;
+    publishedAt: string;
+    closingDate: string;
+  };
+  validation?: {
+    warnings: string[];
+    scannerIssues: Array<Record<string, unknown>>;
+    standardizedCategories: string[];
+  };
+  languageScan?: Record<string, unknown>;
+};
+
+export type PublishTenderFailure = {
+  success: false;
+  message: string;
+  errors: Array<{ step?: string; field?: string; message: string; severity?: string }>;
+};
+
 export type TenderDetail = MarketplaceTenderRow & {
   buyerOrgId?: string;
   ownerUserId?: string | null;

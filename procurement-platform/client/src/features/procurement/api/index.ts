@@ -3,7 +3,19 @@ import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
 import type { Bid, SessionUser, Tender } from '@/shared/types/domain';
 import { toTenderType } from '../createTenderConfig';
-import type { CreateTenderDraft, MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow, TenderDetail } from '../types';
+import type {
+  CreateTenderDraft,
+  CreateTenderPayload,
+  CreateTenderResponse,
+  MarketplacePayload,
+  MarketplaceTenderRow,
+  MyBidRow,
+  MyTenderRow,
+  PublishTenderResponse,
+  TenderDetail,
+  UpdateTenderPayload,
+  UpdateTenderResponse
+} from '../types';
 
 export const procurementApi = {
   listTenders: mockApi.getTenders,
@@ -32,6 +44,18 @@ export const procurementApi = {
   },
   async unsaveTender(tenderId: string) {
     const response = await apiClient.delete<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/save`);
+    return response.data;
+  },
+  async createTender(payload: CreateTenderPayload): Promise<CreateTenderResponse> {
+    const response = await apiClient.post<CreateTenderResponse>('/api/procurement/tenders', payload);
+    return response.data;
+  },
+  async updateTender(tenderId: string, payload: UpdateTenderPayload): Promise<UpdateTenderResponse> {
+    const response = await apiClient.patch<UpdateTenderResponse>(`/api/procurement/tenders/${tenderId}`, payload);
+    return response.data;
+  },
+  async publishTender(tenderId: string): Promise<PublishTenderResponse> {
+    const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, {});
     return response.data;
   }
 };

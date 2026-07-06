@@ -1,15 +1,36 @@
 import { ThemeProvider } from '@mui/material';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { store } from '@/app/store';
 import { procurexTheme } from '@/styles/mui-theme';
 import { resetCreateTenderDrafts } from '../../slice';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 import { CreateTenderProcurexPage } from './CreateTenderProcurexPage';
+
+const procurementApiMock = vi.hoisted(() => ({
+  createTender: vi.fn(),
+  updateTender: vi.fn(),
+  publishTender: vi.fn(),
+  getMarketplace: vi.fn(),
+  getTenderDetail: vi.fn(),
+  saveTender: vi.fn(),
+  unsaveTender: vi.fn()
+}));
+
+vi.mock('../../api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api')>();
+  return {
+    ...actual,
+    procurementApi: {
+      ...actual.procurementApi,
+      ...procurementApiMock
+    }
+  };
+});
 
 function renderCreateTender(route = '/procurement/create-tender') {
   return render(
@@ -54,8 +75,55 @@ async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, cate
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   store.dispatch(resetCreateTenderDrafts());
   window.localStorage.clear();
+  procurementApiMock.createTender.mockResolvedValue({
+    success: true,
+    message: 'Tender draft saved successfully',
+    data: {
+      id: '11111111-1111-4111-8111-111111111111',
+      reference: 'PX-GDS-2026-001',
+      title: 'Backend Tender',
+      status: 'Draft',
+      type: 'Goods',
+      createdAt: '2026-07-01T08:00:00.000Z'
+    },
+    validation: { warnings: [], missingRequiredFields: [], schemaVersion: 'procurement-design-v1' }
+  });
+  procurementApiMock.updateTender.mockResolvedValue({
+    success: true,
+    message: 'Tender updated successfully',
+    data: {
+      id: '11111111-1111-4111-8111-111111111111',
+      reference: 'PX-GDS-2026-001',
+      title: 'Backend Tender',
+      status: 'Draft',
+      updatedAt: '2026-07-01T08:30:00.000Z'
+    },
+    validation: { warnings: [], missingRequiredFields: [], schemaVersion: 'procurement-design-v1' }
+  });
+  procurementApiMock.publishTender.mockResolvedValue({
+    success: true,
+    message: 'Tender published successfully',
+    data: {
+      id: '11111111-1111-4111-8111-111111111111',
+      reference: 'PX-GDS-2026-001',
+      title: 'Backend Tender',
+      status: 'Open',
+      visibility: 'PUBLIC_MARKETPLACE',
+      publishedAt: '2026-07-01T09:00:00.000Z',
+      closingDate: '2026-08-20'
+    },
+    validation: { warnings: [], scannerIssues: [], standardizedCategories: ['Medical equipment'] }
+  });
+  procurementApiMock.getMarketplace.mockResolvedValue({
+    tenders: [],
+    myTenders: [],
+    myBids: [],
+    summary: {},
+    pagination: { page: 1, limit: 20, matching: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false }
+  });
 });
 
 describe('CreateTenderProcurexPage', () => {
@@ -1123,30 +1191,50 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.queryByText('Installed pilot system')).not.toBeInTheDocument();
   }, 10000);
 
-  it('save draft creates a My Tenders draft visible through marketplace state', async () => {
+  it('save draft creates a backend draft and stores the returned id/reference', async () => {
     const user = userEvent.setup();
-    const { unmount } = renderWithRoutes();
+    renderWithRoutes();
 
-    await fillBasicStep(user, 'Session Saved Generator Tender');
+    await fillBasicStep(user, 'Backend Saved Generator Tender');
     await user.click(screen.getByRole('button', { name: 'Save Draft' }));
 
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender draft was saved for this session.')).toBe(true);
-    unmount();
-
-    render(
-      <Provider store={store}>
-        <ThemeProvider theme={procurexTheme}>
-          <MemoryRouter initialEntries={['/procurement/my-tenders']}>
-            <MarketplaceProcurexPage />
-          </MemoryRouter>
-        </ThemeProvider>
-      </Provider>
+    await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
+    expect(procurementApiMock.createTender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Backend Saved Generator Tender',
+        type: 'Goods',
+        closingDate: '2026-08-20',
+        location: 'Dodoma'
+      })
     );
-
-    expect(await screen.findByText('Session Saved Generator Tender')).toBeInTheDocument();
+    expect(store.getState().procurement.createTenderDrafts[0]).toMatchObject({
+      id: '11111111-1111-4111-8111-111111111111',
+      reference: 'PX-GDS-2026-001',
+      status: 'DRAFT'
+    });
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender draft was saved to the backend.')).toBe(true);
   });
 
-  it('submit requires confirmations, then creates posted and marketplace tender records', async () => {
+  it('second save patches the existing backend draft', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Backend Patch Generator Tender');
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+    await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+    await waitFor(() => expect(procurementApiMock.updateTender).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      expect.objectContaining({
+        title: 'Backend Patch Generator Tender',
+        type: 'Goods'
+      })
+    ));
+  });
+
+  it('submit requires confirmations, then saves and publishes through backend APIs', async () => {
     const user = userEvent.setup();
     renderWithRoutes();
 
@@ -1174,20 +1262,51 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
 
-    expect(await screen.findByText('Published React Tender')).toBeInTheDocument();
-    expect(screen.getAllByText('Posted').length).toBeGreaterThan(0);
+    await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
+    expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender was saved to the backend and published to the marketplace.')).toBe(true);
+  });
 
-    render(
-      <Provider store={store}>
-        <ThemeProvider theme={procurexTheme}>
-          <MemoryRouter initialEntries={['/procurement/marketplace']}>
-            <MarketplaceProcurexPage />
-          </MemoryRouter>
-        </ThemeProvider>
-      </Provider>
-    );
+  it('shows backend publish validation errors', async () => {
+    procurementApiMock.publishTender.mockRejectedValueOnce({
+      response: {
+        data: {
+          success: false,
+          message: 'Tender cannot be published',
+          errors: [{ message: 'Tender requirements are required before publishing.' }]
+        }
+      }
+    });
+    const user = userEvent.setup();
+    renderCreateTender();
 
-    const marketplace = await screen.findByRole('tabpanel', { name: 'Marketplace tenders' });
-    expect(within(marketplace).getByText('Published React Tender')).toBeInTheDocument();
+    await fillBasicStep(user, 'Invalid Publish Tender');
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
+
+    expect(await screen.findByText('Tender requirements are required before publishing.')).toBeInTheDocument();
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
+  });
+
+  it('blocks invited tender publish until backend method persistence is available', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Invited Backend Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await user.selectOptions(screen.getByLabelText('Procurement method'), 'Invited Tender');
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
+
+    expect(await screen.findByText('Invited Tender publishing is not yet supported by the backend. Select Open Tender before publishing.')).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
 });
