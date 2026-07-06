@@ -5087,7 +5087,7 @@ function buildGoodsRequirementFields(draft: CreateTenderDraft): Record<string, u
     quantityScheduleRows: draft.commercialItems.map((item, index) => ({
       itemNumber: index + 1,
       itemDescription: item.description,
-      unitOfMeasure: item.unit,
+      unitOfMeasure: normalizeBackendUnit(item.unit),
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       totalPrice: multiplyNumericStrings(item.quantity, item.unitPrice)
@@ -5113,7 +5113,7 @@ function buildWorksRequirementFields(draft: CreateTenderDraft): Record<string, u
     technicalSpecificationDocuments: works.technicalSpecificationDocuments,
     drawingDesignRows: works.drawingDesignRows,
     lumpSumPricingRows: works.lumpSumPricingRows,
-    boqRows: works.boqRows,
+    boqRows: works.boqRows.map((row) => ({ ...row, unit: normalizeBackendUnit(row.unit) })),
     commencementDate: works.commencementDate,
     worksCompletionPeriod: works.worksCompletionPeriod,
     worksMilestoneRows: works.worksMilestoneRows,
@@ -5132,7 +5132,7 @@ function buildServiceRequirementFields(draft: CreateTenderDraft): Record<string,
     scopeOfServices: services.scopeOfServices || draft.description,
     serviceLocations: services.serviceLocations,
     duration: services.duration,
-    serviceBoqRows: services.serviceBoqRows,
+    serviceBoqRows: services.serviceBoqRows.map((row) => ({ ...row, unit: normalizeBackendUnit(row.unit) })),
     personnelRequirementRows: services.personnelRequirementRows,
     equipmentRequirementRows: services.equipmentRequirementRows,
     supportingDocumentRows: services.supportingDocumentRows,
@@ -5205,6 +5205,28 @@ function multiplyNumericStrings(left: string | number | undefined, right: string
   const rightNumber = Number(String(right ?? '').replace(/,/g, '').trim());
   if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) return '';
   return Math.round(leftNumber * rightNumber * 100) / 100;
+}
+
+function normalizeBackendUnit(value: string | undefined) {
+  const unit = String(value ?? '').trim();
+  const normalized = unit.toLowerCase();
+  const aliases: Record<string, string> = {
+    pc: 'Piece',
+    pcs: 'Piece',
+    piece: 'Piece',
+    pieces: 'Piece',
+    unit: 'Each',
+    units: 'Each',
+    each: 'Each',
+    sqm: 'Square Meter',
+    sq: 'Square Meter',
+    'sq m': 'Square Meter',
+    'square metre': 'Square Meter',
+    'square meter': 'Square Meter',
+    meter: 'Meter',
+    metre: 'Meter'
+  };
+  return aliases[normalized] ?? unit;
 }
 
 function removeUndefinedValues(value: Record<string, unknown>) {

@@ -783,6 +783,37 @@ describe('procurement tender write service', () => {
     );
   });
 
+  it('accepts legacy unit aliases during draft schema validation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-units' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Pcs', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] }
+            }
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalled();
+  });
+
   it('rejects clearly malformed draft schema field values before repository writes', async () => {
     const repository = {
       createTender: vi.fn()

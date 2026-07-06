@@ -128,7 +128,7 @@ function validateFieldValue(control: DesignFormControlDto, value: unknown, path:
     return;
   }
 
-  if (control.options?.length && isOptionControl(control.type) && typeof value === 'string' && value && !control.options.includes(value)) {
+  if (control.options?.length && isOptionControl(control.type) && typeof value === 'string' && value && !optionValueAllowed(control, value)) {
     result.errors.push(`${control.label} must be one of the configured options.`);
   }
 
@@ -163,6 +163,41 @@ function valueMatchesType(type: string, value: unknown) {
 
 function isOptionControl(type: string) {
   return ['select', 'source-select', 'multiselect', 'tag-select'].includes(type);
+}
+
+function optionValueAllowed(control: DesignFormControlDto, value: string) {
+  const options = control.options ?? [];
+  if (options.includes(value)) return true;
+  if (!isUnitControl(control)) return false;
+  const canonicalUnit = normalizeUnitAlias(value);
+  return canonicalUnit ? options.includes(canonicalUnit) : false;
+}
+
+function isUnitControl(control: DesignFormControlDto) {
+  const id = String(control.id ?? '').toLowerCase();
+  const label = String(control.label ?? '').toLowerCase();
+  return id === 'unit' || id === 'unitofmeasure' || label === 'unit';
+}
+
+function normalizeUnitAlias(value: string) {
+  const normalized = value.trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    pc: 'Piece',
+    pcs: 'Piece',
+    piece: 'Piece',
+    pieces: 'Piece',
+    unit: 'Each',
+    units: 'Each',
+    each: 'Each',
+    sqm: 'Square Meter',
+    sq: 'Square Meter',
+    'sq m': 'Square Meter',
+    'square metre': 'Square Meter',
+    'square meter': 'Square Meter',
+    meter: 'Meter',
+    metre: 'Meter'
+  };
+  return aliases[normalized] ?? '';
 }
 
 function isTableLike(type: string) {

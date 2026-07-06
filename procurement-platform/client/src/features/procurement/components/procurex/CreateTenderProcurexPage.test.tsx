@@ -1246,6 +1246,36 @@ describe('CreateTenderProcurexPage', () => {
     ));
   });
 
+  it('normalizes shorthand BOQ units before saving to the backend', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Backend Unit Normalization Tender');
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add Item' }));
+    fireEvent.change(screen.getByLabelText('Item 1 description'), {
+      target: { value: 'Laptop computer' }
+    });
+    await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+    fireEvent.change(screen.getByLabelText('Item 1 quantity'), {
+      target: { value: '12' }
+    });
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+    await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
+    expect(procurementApiMock.createTender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requirements: expect.objectContaining({
+          goods: {
+            fields: expect.objectContaining({
+              quantityScheduleRows: [expect.objectContaining({ unitOfMeasure: 'Piece' })]
+            })
+          }
+        })
+      })
+    );
+  });
+
   it('submit requires confirmations, then saves and publishes through backend APIs', async () => {
     const user = userEvent.setup();
     renderWithRoutes();
