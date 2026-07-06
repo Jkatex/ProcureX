@@ -1,11 +1,29 @@
+import { useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTenderDetail } from '../../hooks';
 import type { TenderDetail } from '../../types';
+
+const tabs = [
+  { id: 'procurement', label: 'Procurement details' },
+  { id: 'requirements', label: 'Questions and requirements' },
+  { id: 'complaints', label: 'Complaints' },
+  { id: 'monitoring', label: 'Monitoring and reporting' }
+];
+
+const documentSections = [
+  'Customer information',
+  'Purchase information',
+  'Tender documentation',
+  'Documents',
+  'Contracts'
+];
 
 export function SupplierTenderDetailProcurexPage() {
   const [params] = useSearchParams();
   const tenderId = params.get('tenderId');
   const { data: tender, isLoading, isError } = useTenderDetail(tenderId);
+  const [activeTab, setActiveTab] = useState('procurement');
+  const [activeSection, setActiveSection] = useState(documentSections[0]);
 
   if (!tenderId) return <EmptyTenderDetail message="Open a tender from the marketplace to view its supplier tender pack." />;
   if (isLoading) return <EmptyTenderDetail message="Loading tender detail..." />;
@@ -24,23 +42,24 @@ export function SupplierTenderDetailProcurexPage() {
             <h1>{tender.title}</h1>
             <p>{tender.description || 'Review the complete tender document, required evidence, commercial schedule, and timeline before preparing a sealed bid.'}</p>
           </div>
-          <div className="hero-action-stack">
+          <div className="hero-action-stack supplier-detail-actions">
             {alreadyBid ? (
-              <Link className="btn btn-secondary" to={bidUrl}>
+              <Link className="btn btn-secondary supplier-detail-primary-action" to={bidUrl}>
                 Open Submitted Bid
               </Link>
             ) : canBid ? (
-              <Link className="btn btn-primary" to={bidUrl}>
+              <Link className="btn btn-primary supplier-detail-primary-action" to={bidUrl}>
                 {tender.currentBid || tender.hasDraftBid ? 'Continue Bid' : 'Start Bid'}
               </Link>
             ) : (
-              <button className="btn btn-primary" type="button" disabled>
+              <button className="btn btn-primary supplier-detail-primary-action" type="button" disabled>
                 Bidding unavailable
               </button>
             )}
-            <Link className="btn btn-secondary" to="/procurement/marketplace">
-              Marketplace
-            </Link>
+            <div className="supplier-detail-action-row">
+              <Link className="btn btn-secondary" to="/procurement/marketplace">Marketplace</Link>
+              <Link className="btn btn-secondary" to="/communication">Ask Buyer</Link>
+            </div>
           </div>
         </section>
 
@@ -51,72 +70,129 @@ export function SupplierTenderDetailProcurexPage() {
           <Kpi label="Closing" value={formatDate(tender.closingDate)} />
         </section>
 
-        <article className="tender-document-view">
-          <section className="tender-document-cover">
-            <div>
-              <span className="tender-document-stamp">
-                <strong>{tender.reference}</strong>
-                <span>{formatStatus(tender.status)}</span>
-              </span>
-              <h2>Tender Document</h2>
-              <p>{tender.organization} / {formatTenderType(tender.type)} / {tender.location}</p>
-            </div>
-          </section>
-
-          <section className="tender-document-meta-table">
-            <div className="record-summary tender-detail-summary">
-              <SummaryItem label="Procurement method" value={tender.method || 'Open Tender'} />
-              <SummaryItem label="Visibility" value={formatStatus(tender.visibility || 'PUBLIC_MARKETPLACE')} />
-              <SummaryItem label="Published" value={formatDate(tender.publishedAt || '')} />
-              <SummaryItem label="Bid state" value={tender.currentBid ? formatStatus(tender.currentBid.status) : 'Not started'} />
-            </div>
-          </section>
-
-          <TenderSection index="01" kicker="Scope" title="Requirements and eligibility">
-            <div className="tender-detail-field-grid">
-              <FieldCard label="Location" value={tender.location} />
-              <FieldCard label="Tender type" value={formatTenderType(tender.type)} />
-              <FieldCard label="Categories" value={tender.categories.join(', ') || 'Not specified'} />
-              <FieldCard label="Currency" value={tender.currency} />
-            </div>
-            <RequirementRows tender={tender} />
-          </TenderSection>
-
-          <TenderSection index="02" kicker="Commercial" title="Commercial schedule">
-            <CommercialTable tender={tender} />
-          </TenderSection>
-
-          <TenderSection index="03" kicker="Documents" title="Tender documents and required uploads">
-            <div className="tender-detail-attachment-grid">
-              {(tender.documents ?? []).length ? (
-                tender.documents?.map((document) => (
-                  <article className="supplier-requirement-preview" key={document.id}>
-                    <span>{document.documentType}</span>
-                    <strong>{document.name}</strong>
-                    <p>{document.label || 'Tender document'}</p>
-                  </article>
-                ))
+        <section className="supplier-detail-tabbed-view">
+          <div className="supplier-detail-tabs" role="tablist" aria-label="Supplier tender detail sections">
+            {tabs.map((tab) => (
+              <button className={`supplier-detail-tab ${tab.id === activeTab ? 'active' : ''}`} type="button" role="tab" aria-selected={tab.id === activeTab} key={tab.id} onClick={() => setActiveTab(tab.id)}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="supplier-detail-tab-panels">
+            <section className="supplier-detail-tab-panel" role="tabpanel">
+              {activeTab === 'procurement' ? (
+                <ProcurementDocument tender={tender} activeSection={activeSection} setActiveSection={setActiveSection} />
+              ) : activeTab === 'requirements' ? (
+                <QuestionsAndRequirements tender={tender} />
+              ) : activeTab === 'complaints' ? (
+                <InfoPanel title="Complaints and Review" kicker="Supplier rights">
+                  <p>Complaint notices and review requests are filed through the communication center and linked to this tender reference.</p>
+                  <Link className="btn btn-secondary" to="/communication">Open Communication Center</Link>
+                </InfoPanel>
               ) : (
-                <div className="scope-empty">No tender documents are attached.</div>
+                <InfoPanel title="Monitoring and Reporting" kicker="Post-submission">
+                  <p>Submission receipt, clarification history, evaluation notices, and award updates remain attached to the supplier bid record.</p>
+                  <Link className="btn btn-secondary" to={bidUrl}>Open Bid Workspace</Link>
+                </InfoPanel>
               )}
-            </div>
-          </TenderSection>
-
-          <TenderSection index="04" kicker="Timeline" title="Tender timeline and clarifications">
-            <Timeline tender={tender} />
-            <div className="clarification-deadline-card">
-              <div>
-                <span className="section-kicker">Clarifications</span>
-                <strong>Ask buyer a question</strong>
-                <p>Supplier clarification messages are tracked in the communication center and linked to this tender record.</p>
-              </div>
-              <Link className="btn btn-secondary" to="/communication">
-                Ask Buyer
-              </Link>
-            </div>
-          </TenderSection>
-        </article>
+            </section>
+          </div>
+        </section>
       </main>
+    </div>
+  );
+}
+
+function ProcurementDocument({ tender, activeSection, setActiveSection }: { tender: TenderDetail; activeSection: string; setActiveSection: (section: string) => void }) {
+  return (
+    <div className="supplier-detail-procurement-document">
+      <div className="supplier-detail-subtabs supplier-detail-document-index">
+        <div className="supplier-detail-tabs">
+          {documentSections.map((section) => (
+            <button className={`supplier-detail-tab ${section === activeSection ? 'active' : ''}`} type="button" key={section} onClick={() => setActiveSection(section)}>
+              {section}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <section className="tender-document-cover">
+        <div>
+          <span className="tender-document-stamp">
+            <strong>{tender.reference}</strong>
+            <span>{formatStatus(tender.status)}</span>
+          </span>
+          <h2>Tender Document</h2>
+          <p>{tender.organization} / {formatTenderType(tender.type)} / {tender.location}</p>
+        </div>
+      </section>
+
+      {activeSection === 'Customer information' ? (
+        <TenderSection index="01" kicker="Instructions and Tender Scope" title="Customer information">
+          <div className="tender-detail-field-grid">
+            <FieldCard label="Procuring entity" value={tender.organization} />
+            <FieldCard label="Reference" value={tender.reference} />
+            <FieldCard label="Tender type" value={formatTenderType(tender.type)} />
+            <FieldCard label="Location" value={tender.location} />
+          </div>
+          <p>{tender.description}</p>
+        </TenderSection>
+      ) : null}
+
+      {activeSection === 'Purchase information' ? (
+        <TenderSection index="02" kicker="Eligibility and Compliance" title="Purchase information">
+          <div className="record-summary tender-detail-summary">
+            <SummaryItem label="Procurement method" value={tender.method || 'OPEN_TENDER'} />
+            <SummaryItem label="Contract type" value={tender.contractType || 'Not specified'} />
+            <SummaryItem label="Currency" value={tender.currency} />
+            <SummaryItem label="Closing" value={formatDate(tender.closingDate)} />
+          </div>
+          <RequirementRows tender={tender} />
+        </TenderSection>
+      ) : null}
+
+      {activeSection === 'Tender documentation' ? (
+        <TenderSection index="03" kicker="Documents and Annexes" title="Tender documentation">
+          <CommercialTable tender={tender} />
+        </TenderSection>
+      ) : null}
+
+      {activeSection === 'Documents' ? (
+        <TenderSection index="04" kicker="Evaluation Criteria and Submission Responses" title="Documents">
+          <DocumentGrid tender={tender} />
+        </TenderSection>
+      ) : null}
+
+      {activeSection === 'Contracts' ? (
+        <TenderSection index="05" kicker="Programme and Key Dates" title="Contracts">
+          <Timeline tender={tender} />
+          <div className="clarification-deadline-card">
+            <div>
+              <span className="section-kicker">Clarifications</span>
+              <strong>Ask buyer a question</strong>
+              <p>Supplier clarification messages are tracked in the communication center and linked to this tender record.</p>
+            </div>
+            <Link className="btn btn-secondary" to="/communication">Ask Buyer</Link>
+          </div>
+        </TenderSection>
+      ) : null}
+    </div>
+  );
+}
+
+function QuestionsAndRequirements({ tender }: { tender: TenderDetail }) {
+  return (
+    <div className="journey-grid three-col">
+      <InfoPanel title="Required Responses" kicker="Supplier checklist">
+        <RequirementRows tender={tender} />
+      </InfoPanel>
+      <InfoPanel title="Clarifications" kicker="Public Q&A">
+        <p>No published clarification answers are attached to this tender yet.</p>
+        <Link className="btn btn-secondary" to="/communication">Ask Buyer</Link>
+      </InfoPanel>
+      <InfoPanel title="Amendments" kicker="Tender updates">
+        <p>Published addenda and buyer amendments will appear here and remain part of the tender record.</p>
+      </InfoPanel>
     </div>
   );
 }
@@ -132,13 +208,21 @@ function EmptyTenderDetail({ message }: { message: string }) {
             <p>{message}</p>
           </div>
           <div className="hero-action-stack">
-            <Link className="btn btn-secondary" to="/procurement/marketplace">
-              Marketplace
-            </Link>
+            <Link className="btn btn-secondary" to="/procurement/marketplace">Marketplace</Link>
           </div>
         </section>
       </main>
     </div>
+  );
+}
+
+function InfoPanel({ title, kicker, children }: { title: string; kicker: string; children: ReactNode }) {
+  return (
+    <article className="journey-panel control-panel">
+      <span className="section-kicker">{kicker}</span>
+      <h2>{title}</h2>
+      {children}
+    </article>
   );
 }
 
@@ -160,7 +244,7 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TenderSection({ index, kicker, title, children }: { index: string; kicker: string; title: string; children: React.ReactNode }) {
+function TenderSection({ index, kicker, title, children }: { index: string; kicker: string; title: string; children: ReactNode }) {
   return (
     <section className="tender-document-section">
       <div className="tender-document-section-heading">
@@ -185,21 +269,15 @@ function FieldCard({ label, value }: { label: string; value: string }) {
 }
 
 function RequirementRows({ tender }: { tender: TenderDetail }) {
-  const rows = tender.requirementRows ?? [];
-  if (!rows.length && !Object.keys(tender.requirements ?? {}).length) return <div className="scope-empty">No structured requirement fields configured.</div>;
+  const rows = tender.requirementRows?.length ? tender.requirementRows : requirementRowsFromJson(tender.requirements);
+  if (!rows.length) return <div className="scope-empty">No structured requirement fields configured.</div>;
   return (
     <div className="tender-detail-card-list">
       {rows.map((row) => (
         <article className="supplier-requirement-preview" key={row.id}>
-          <span>{row.section}</span>
+          <span>{humanize(row.section)}</span>
           <strong>{payloadTitle(row.payload, row.section)}</strong>
           <p>{payloadSummary(row.payload)}</p>
-        </article>
-      ))}
-      {Object.entries(tender.requirements ?? {}).map(([key, value]) => (
-        <article className="supplier-requirement-preview" key={key}>
-          <span>{humanize(key)}</span>
-          <strong>{formatUnknown(value)}</strong>
         </article>
       ))}
     </div>
@@ -218,7 +296,7 @@ function CommercialTable({ tender }: { tender: TenderDetail }) {
             <th>Requirement</th>
             <th>Qty</th>
             <th>Unit</th>
-            <th>Rate</th>
+            <th>Estimate</th>
             <th>Total</th>
           </tr>
         </thead>
@@ -235,6 +313,24 @@ function CommercialTable({ tender }: { tender: TenderDetail }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function DocumentGrid({ tender }: { tender: TenderDetail }) {
+  return (
+    <div className="tender-detail-attachment-grid">
+      {(tender.documents ?? []).length ? (
+        tender.documents?.map((document) => (
+          <article className="supplier-requirement-preview" key={document.id}>
+            <span>{document.documentType}</span>
+            <strong>{document.name}</strong>
+            <p>{document.label || 'Tender document'}</p>
+          </article>
+        ))
+      ) : (
+        <div className="scope-empty">No tender documents are attached.</div>
+      )}
     </div>
   );
 }
@@ -258,8 +354,21 @@ function Timeline({ tender }: { tender: TenderDetail }) {
   );
 }
 
+function requirementRowsFromJson(requirements?: Record<string, unknown>) {
+  if (!requirements) return [];
+  return Object.entries(requirements).flatMap(([section, value]) => {
+    if (Array.isArray(value)) return value.map((item, index) => ({ id: `${section}-${index}`, section, payload: objectPayload(item) }));
+    if (value && typeof value === 'object') return [{ id: section, section, payload: objectPayload(value) }];
+    return [{ id: section, section, payload: { value } }];
+  });
+}
+
+function objectPayload(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
 function payloadTitle(payload: Record<string, unknown>, fallback: string) {
-  return String(payload.title || payload.name || payload.requirementName || payload.text || fallback);
+  return String(payload.title || payload.name || payload.requirementName || payload.description || payload.value || fallback);
 }
 
 function payloadSummary(payload: Record<string, unknown>) {

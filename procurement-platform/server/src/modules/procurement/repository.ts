@@ -50,21 +50,17 @@ function tenderDetailInclude() {
     bids: {
       select: {
         id: true,
-        id: true,
         reference: true,
         supplierOrgId: true,
-        status: true,
-        submittedAt: true,
-        receipt: { select: { receiptHash: true } }
         status: true,
         submittedAt: true,
         receipt: { select: { receiptHash: true } }
       },
       orderBy: { updatedAt: 'desc' }
     },
-    requirementRows: { orderBy: { createdAt: 'asc' } },
+    requirementRows: { orderBy: [{ section: 'asc' }, { createdAt: 'asc' }] },
     milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
-    commercialItems: { orderBy: { itemNo: 'asc' } },
+    commercialItems: { orderBy: [{ itemNo: 'asc' }, { createdAt: 'asc' }] },
     documents: {
       include: {
         document: {
@@ -1159,15 +1155,11 @@ function unsaveTenderResponse(): UnsaveTenderResponseDto {
 function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceContext = {}): TenderDetailDto {
   const createdByCurrentUser = Boolean(context.userId && tender.ownerUserId === context.userId);
   const ownedByCurrentOrganization = Boolean(context.organizationId && tender.buyerOrgId === context.organizationId);
-  const currentOrganizationBids = context.organizationId ? tender.bids.filter((bid) => bid.supplierOrgId === context.organizationId) : [];
-  const hasDraftBid = currentOrganizationBids.some((bid) => bid.status === BidStatus.DRAFT);
-  const hasSubmittedBid = currentOrganizationBids.some((bid) => isSubmittedBidStatus(bid.status));
-  const currentBid = currentOrganizationBids[0];
   const currentOrgBids = context.organizationId ? tender.bids.filter((bid) => bid.supplierOrgId === context.organizationId) : [];
   const currentBid = currentOrgBids.find((bid) => bid.status !== BidStatus.WITHDRAWN) ?? currentOrgBids[0] ?? null;
   const hasDraftBid = currentOrgBids.some((bid) => bid.status === BidStatus.DRAFT);
   const hasSubmittedBid = currentOrgBids.some((bid) => isSubmittedBidStatus(bid.status));
-  const bidSummary = {
+  const summary = {
     total: tender.bids.length,
     draft: tender.bids.filter((bid) => bid.status === BidStatus.DRAFT).length,
     submitted: tender.bids.filter((bid) => isSubmittedBidStatus(bid.status)).length,
@@ -1195,27 +1187,6 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     publishedAt: tender.publishedAt?.toISOString() ?? '',
     closingDate: dateOnly(tender.closingDate),
     requirements: objectPayload(tender.requirements),
-    requirementRows: tender.requirementRows.map((row) => ({
-      id: row.id,
-      section: row.section,
-      payload: objectPayload(row.payload)
-    })),
-    milestones: tender.milestones.map((milestone) => ({
-      id: milestone.id,
-      name: milestone.name,
-      dueDate: dateOnly(milestone.dueDate),
-      payload: objectPayload(milestone.payload)
-    })),
-    commercialItems: tender.commercialItems.map((item) => ({
-      id: item.id,
-      itemNo: item.itemNo,
-      description: item.description,
-      quantity: decimalToNumber(item.quantity),
-      unit: item.unit,
-      rate: decimalToNumber(item.rate),
-      total: decimalToNumber(item.total),
-      payload: objectPayload(item.payload)
-    })),
     metadata: objectPayload(tender.metadata),
     requirementRows: tender.requirementRows.map((row) => ({
       id: row.id,
@@ -1249,17 +1220,7 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     canBid: canBidOnTender(tender, context.organizationId, hasSubmittedBid),
     hasDraftBid,
     hasSubmittedBid,
-    bidSummary: bidSummary(tender.bids),
-    currentBid: currentBid
-      ? {
-          id: currentBid.id,
-          status: frontendBidStatus(currentBid.status),
-          submittedAt: currentBid.submittedAt?.toISOString() ?? null,
-          receiptHash: currentBid.receipt?.receiptHash ?? null
-        }
-      : null
-    hasSubmittedBid,
-    bidSummary: ownedByCurrentOrganization ? bidSummary : { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    bidSummary: ownedByCurrentOrganization ? summary : { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
     currentBid: currentBid
       ? {
           id: currentBid.id,
