@@ -32,7 +32,8 @@ const catalog = {
     item('TRAINING', 'Training', 60),
     item('MEDICAL_EQUIPMENT', 'Medical Equipment', 70),
     item('CONSTRUCTION_WORKS', 'Construction Works', 80),
-    item('CONSULTANCY_SERVICES', 'Consultancy Services', 90)
+    item('CONSULTANCY_SERVICES', 'Consultancy Services', 90),
+    item('OTHERS', 'Others', 100)
   ],
   currencies: [
     item('TZS', 'TZS', 10, { value: 'TZS' }),

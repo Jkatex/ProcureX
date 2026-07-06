@@ -24,7 +24,8 @@ export const createTenderSetup: CreateTenderSetup = {
       'Construction materials',
       'Classroom furniture',
       'Telecommunication equipment',
-      'Cleaning equipment and supplies'
+      'Cleaning equipment and supplies',
+      'Others'
     ],
     works: [
       'Healthcare infrastructure',
@@ -34,7 +35,8 @@ export const createTenderSetup: CreateTenderSetup = {
       'Electrical works',
       'Civil works',
       'Mechanical installations',
-      'Renovation and finishing'
+      'Renovation and finishing',
+      'Others'
     ],
     services: [
       'Facilities maintenance',
@@ -44,7 +46,8 @@ export const createTenderSetup: CreateTenderSetup = {
       'Catering services',
       'ICT support',
       'Waste management',
-      'Training services'
+      'Training services',
+      'Others'
     ],
     consultancy: [
       'Feasibility study',
@@ -54,7 +57,8 @@ export const createTenderSetup: CreateTenderSetup = {
       'Environmental assessment',
       'Project management',
       'Research services',
-      'Training consultancy'
+      'Training consultancy',
+      'Others'
     ]
   },
   fundingSources: ['Government budget', 'Development partner grant', 'Internally generated funds', 'Project loan', 'Corporate operating budget', 'Other'],

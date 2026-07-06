@@ -590,6 +590,18 @@ export type TenderDetailDto = {
   publishedAt: string;
   closingDate: string;
   requirements: Record<string, unknown>;
+  requirementRows: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
+  milestones: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
+  commercialItems: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: number;
+    unit: string | null;
+    rate: number;
+    total: number;
+    payload: Record<string, unknown>;
+  }>;
   metadata: Record<string, unknown>;
   requirementRows: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
   milestones: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
@@ -609,6 +621,18 @@ export type TenderDetailDto = {
   canBid: boolean;
   hasDraftBid: boolean;
   hasSubmittedBid: boolean;
+  bidSummary: {
+    total: number;
+    draft: number;
+    submitted: number;
+    withdrawn: number;
+  };
+  currentBid: {
+    id: string;
+    status: string;
+    submittedAt: string | null;
+    receiptHash: string | null;
+  } | null;
   bidSummary: {
     total: number;
     draft: number;

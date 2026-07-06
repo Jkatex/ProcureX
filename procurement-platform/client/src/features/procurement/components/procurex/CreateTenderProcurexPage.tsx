@@ -405,9 +405,11 @@ export function CreateTenderProcurexPage() {
     patchDraft(normalizeDraftForType({ ...draft, procurementTypeId: typeId }, typeId));
   }
 
-  function addCategory() {
-    if (!newCategory || draft.categories.includes(newCategory)) return;
-    patchDraft({ categories: [...draft.categories, newCategory] });
+  function selectCategory(category: string) {
+    const selectedCategory = category.trim();
+    if (selectedCategory && !draft.categories.includes(selectedCategory)) {
+      patchDraft({ categories: [...draft.categories, selectedCategory] });
+    }
     setNewCategory('');
   }
 
@@ -558,6 +560,15 @@ export function CreateTenderProcurexPage() {
       });
       return;
     }
+    if (!parsePositiveNumber(draft.estimatedBudget)) {
+      const message = 'Add a positive estimated budget before publishing this tender.';
+      setValidationMessage(message);
+      notifyWarning('Tender budget required', message, {
+        reason: 'The backend publication pipeline requires a tender budget before a draft can become visible in the marketplace.'
+      });
+      setActiveStep(0);
+      return;
+    }
     if (isPersisting) return;
 
     setIsPersisting(true);
@@ -662,8 +673,7 @@ export function CreateTenderProcurexPage() {
                   newSupplier={newSupplier}
                   onTypeChange={changeType}
                   onPatch={patchPlanAware}
-                  onNewCategory={setNewCategory}
-                  onAddCategory={addCategory}
+                  onNewCategory={selectCategory}
                   onRemoveCategory={removeCategory}
                   onNewSupplier={setNewSupplier}
                   onAddSupplier={addSupplier}
@@ -893,6 +903,20 @@ function BasicInfoStep({
               />
             </div>
             <div className="form-group">
+              <label className="form-label" htmlFor="create-tender-estimated-budget">
+                Estimated budget
+              </label>
+              <input
+                id="create-tender-estimated-budget"
+                className="form-input"
+                aria-label="Estimated budget"
+                inputMode="numeric"
+                placeholder="Example: 250000000"
+                value={draft.estimatedBudget}
+                onChange={(event) => onPatch('estimatedBudget', event.target.value)}
+              />
+            </div>
+            <div className="form-group">
               <label className="form-label" htmlFor="create-tender-opening-date">
                 Opening date
               </label>
@@ -921,7 +945,6 @@ function PlanningStep({
   onTypeChange,
   onPatch,
   onNewCategory,
-  onAddCategory,
   onRemoveCategory,
   onNewSupplier,
   onAddSupplier
@@ -934,7 +957,6 @@ function PlanningStep({
   onTypeChange: (typeId: CreateTenderProcurementTypeId) => void;
   onPatch: (field: keyof CreateTenderDraft, value: CreateTenderDraft[keyof CreateTenderDraft]) => void;
   onNewCategory: (value: string) => void;
-  onAddCategory: () => void;
   onRemoveCategory: (category: string) => void;
   onNewSupplier: (value: string) => void;
   onAddSupplier: () => void;
@@ -978,9 +1000,6 @@ function PlanningStep({
               ))}
             </select>
           </label>
-          <button className="btn btn-secondary" type="button" onClick={onAddCategory}>
-            Add Category
-          </button>
           <label>
             Procurement method
             <select value={draft.method} onChange={(event) => onPatch('method', event.target.value)}>
@@ -5091,14 +5110,14 @@ function buildGoodsRequirementFields(draft: CreateTenderDraft): Record<string, u
     quantityScheduleRows: draft.commercialItems.map((item, index) => ({
       itemNumber: index + 1,
       itemDescription: item.description,
-      unitOfMeasure: item.unit,
+      unitOfMeasure: normalizeBackendUnit(item.unit),
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       totalPrice: multiplyNumericStrings(item.quantity, item.unitPrice)
     })),
     productSpecificationTemplate: draft.productSpecifications,
     sampleRequirementRows: draft.sampleRequirements,
-    financialRequirementRows: draft.financialRequirements,
+    financialRequirementRows: normalizeFinancialRequirementRows(draft.financialRequirements),
     eligibilityRequirementCards: draft.eligibilityRequirements,
     regulatoryLicenseRequirementRows: draft.regulatoryLicenseRequirements
   };
@@ -5117,7 +5136,7 @@ function buildWorksRequirementFields(draft: CreateTenderDraft): Record<string, u
     technicalSpecificationDocuments: works.technicalSpecificationDocuments,
     drawingDesignRows: works.drawingDesignRows,
     lumpSumPricingRows: works.lumpSumPricingRows,
-    boqRows: works.boqRows,
+    boqRows: works.boqRows.map((row) => ({ ...row, unit: normalizeBackendUnit(row.unit) })),
     commencementDate: works.commencementDate,
     worksCompletionPeriod: works.worksCompletionPeriod,
     worksMilestoneRows: works.worksMilestoneRows,
@@ -5136,7 +5155,7 @@ function buildServiceRequirementFields(draft: CreateTenderDraft): Record<string,
     scopeOfServices: services.scopeOfServices || draft.description,
     serviceLocations: services.serviceLocations,
     duration: services.duration,
-    serviceBoqRows: services.serviceBoqRows,
+    serviceBoqRows: services.serviceBoqRows.map((row) => ({ ...row, unit: normalizeBackendUnit(row.unit) })),
     personnelRequirementRows: services.personnelRequirementRows,
     equipmentRequirementRows: services.equipmentRequirementRows,
     supportingDocumentRows: services.supportingDocumentRows,
@@ -5209,6 +5228,35 @@ function multiplyNumericStrings(left: string | number | undefined, right: string
   const rightNumber = Number(String(right ?? '').replace(/,/g, '').trim());
   if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) return '';
   return Math.round(leftNumber * rightNumber * 100) / 100;
+}
+
+function normalizeFinancialRequirementRows(rows: CreateTenderFinancialRequirementRow[]) {
+  return rows.map((row) => ({
+    ...row,
+    evidenceRequired: normalizeTextList(row.evidenceRequired)
+  }));
+}
+
+function normalizeBackendUnit(value: string | undefined) {
+  const unit = String(value ?? '').trim();
+  const normalized = unit.toLowerCase();
+  const aliases: Record<string, string> = {
+    pc: 'Piece',
+    pcs: 'Piece',
+    piece: 'Piece',
+    pieces: 'Piece',
+    unit: 'Each',
+    units: 'Each',
+    each: 'Each',
+    sqm: 'Square Meter',
+    sq: 'Square Meter',
+    'sq m': 'Square Meter',
+    'square metre': 'Square Meter',
+    'square meter': 'Square Meter',
+    meter: 'Meter',
+    metre: 'Meter'
+  };
+  return aliases[normalized] ?? unit;
 }
 
 function removeUndefinedValues(value: Record<string, unknown>) {

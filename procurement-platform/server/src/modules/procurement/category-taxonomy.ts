@@ -50,6 +50,16 @@ export function standardizeCategory(rawCategory: string, type?: TenderType | str
   const raw = rawCategory.trim();
   const tenderType = normalizeTenderType(type);
   const normalizedRaw = normalizeText(raw);
+  const explicitOtherType = explicitOtherCategoryType(normalizedRaw, tenderType);
+  if (explicitOtherType) {
+    return {
+      rawCategory: raw,
+      standardCategory: fallbackByType[explicitOtherType],
+      type: frontendTenderType(explicitOtherType),
+      confidence: 1,
+      synonymsMatched: normalizedRaw === normalizeText(fallbackByType[explicitOtherType]) ? [] : [raw]
+    };
+  }
   const candidates = tenderType ? prioritizeByType(tenderType) : taxonomy;
 
   let best: { entry: TaxonomyEntry; confidence: number; synonymsMatched: string[] } | null = null;
@@ -126,6 +136,15 @@ export function normalizeTenderType(value: TenderType | string | null | undefine
 
 function entry(code: string, label: string, type: TenderType, sortOrder: number, synonyms: string[]): TaxonomyEntry {
   return { code, label, type, sortOrder, synonyms };
+}
+
+function explicitOtherCategoryType(normalizedRaw: string, tenderType: TenderType | null) {
+  if (!normalizedRaw) return null;
+  if (normalizedRaw === 'other' || normalizedRaw === 'others') return tenderType ?? TenderType.GOODS;
+  for (const [type, label] of Object.entries(fallbackByType) as Array<[TenderType, string]>) {
+    if (normalizedRaw === normalizeText(label)) return tenderType ?? type;
+  }
+  return null;
 }
 
 function taxonomyCategoryDto(item: TaxonomyEntry): ProcurementTaxonomyCategoryDto {

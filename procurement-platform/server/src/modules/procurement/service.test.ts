@@ -134,6 +134,20 @@ describe('procurement master data service', () => {
     });
   });
 
+  it('returns Others as the final category master data option', async () => {
+    const service = new ModuleService({} as any);
+
+    const payload = await service.masterDataGroup('categories');
+
+    expect(payload?.data.items.at(-1)).toEqual({
+      code: 'OTHERS',
+      label: 'Others',
+      value: 'Others',
+      isActive: true,
+      sortOrder: 100
+    });
+  });
+
   it('returns null for unknown master data groups', async () => {
     const service = new ModuleService({} as any);
 
@@ -257,6 +271,27 @@ describe('procurement design form schema service', () => {
         confidence: 0.98,
         synonymsMatched: ['computer supplies']
       })
+    });
+  });
+
+  it('standardizes explicit Others categories to type-specific fallback categories', async () => {
+    const service = new ModuleService({} as any);
+
+    await expect(service.standardizeCategory({ rawCategory: 'Others', type: TenderType.GOODS })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Goods', type: 'Goods', confidence: 1 }
+    });
+    await expect(service.standardizeCategory({ rawCategory: 'Other', type: TenderType.WORKS })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Works', type: 'Works', confidence: 1 }
+    });
+    await expect(service.standardizeCategory({ rawCategory: 'Other Non Consultancy', type: TenderType.SERVICE })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Non Consultancy', type: 'Non Consultancy', confidence: 1 }
+    });
+    await expect(service.standardizeCategory({ rawCategory: 'Other Consultancy', type: TenderType.CONSULTANCY })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Consultancy', type: 'Consultancy', confidence: 1 }
     });
   });
 });
@@ -716,6 +751,133 @@ describe('procurement tender write service', () => {
       },
       { organizationId: 'org-1', userId: 'user-1' }
     );
+  });
+
+  it('standardizes Others during draft tender creation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-other' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.createTender('token-1', { ...createInput, categories: ['Others'] })).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        categories: ['Other Goods'],
+        metadata: expect.objectContaining({
+          categoryStandardization: expect.objectContaining({
+            standardCategories: ['Other Goods'],
+            mappings: [expect.objectContaining({ rawCategory: 'Others', standardCategory: 'Other Goods', confidence: 1 })]
+          })
+        })
+      }),
+      { organizationId: 'org-1', userId: 'user-1' }
+    );
+  });
+
+  it('accepts legacy unit aliases during draft schema validation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-units' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Pcs', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] }
+            }
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalled();
+  });
+
+  it('accepts financial evidence tag arrays and legacy strings during draft schema validation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-evidence' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Each', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] },
+              financialRequirementRows: [
+                { requirementType: 'Access to Credit', evidenceRequired: ['Bank statement'], mandatory: true },
+                { requirementType: 'Minimum Annual Turnover', evidenceRequired: 'Audited accounts', mandatory: true }
+              ]
+            }
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalled();
+  });
+
+  it('rejects invalid financial evidence tag options before repository writes', async () => {
+    const repository = {
+      createTender: vi.fn()
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Each', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] },
+              financialRequirementRows: [{ requirementType: 'Access to Credit', evidenceRequired: ['Unsupported evidence'], mandatory: true }]
+            }
+          }
+        }
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Evidence required must be one of the configured options.'
+    });
+    expect(repository.createTender).not.toHaveBeenCalled();
   });
 
   it('rejects clearly malformed draft schema field values before repository writes', async () => {

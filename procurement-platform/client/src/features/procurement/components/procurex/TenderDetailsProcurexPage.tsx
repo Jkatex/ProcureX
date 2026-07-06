@@ -11,7 +11,7 @@ export function TenderDetailsProcurexPage() {
 
   if (!tenderId) return <BuyerEmpty message="Open one of your tenders from My Tenders to view buyer details." />;
   if (isLoading) return <BuyerEmpty message="Loading buyer tender detail..." />;
-  if (isError || !tender) return <BuyerEmpty message="Tender detail could not be loaded. Return to My Tenders and try again." />;
+  if (isError || !tender) return <BuyerEmpty title="Tender not found" message="Return to My Tenders and choose an available tender." />;
 
   const submitted = tender.bidSummary?.submitted ?? 0;
   const draft = tender.bidSummary?.draft ?? 0;
@@ -136,14 +136,14 @@ export function TenderDetailsProcurexPage() {
   );
 }
 
-function BuyerEmpty({ message }: { message: string }) {
+function BuyerEmpty({ message, title = 'Tender detail' }: { message: string; title?: string }) {
   return (
     <div className="procurement-app-page tender-detail-page">
       <main className="procurement-market-shell">
         <section className="journey-hero compact">
           <div>
             <span className="section-kicker">Buyer tender detail</span>
-            <h1>Tender detail</h1>
+            <h1>{title}</h1>
             <p>{message}</p>
           </div>
           <div className="hero-action-stack">

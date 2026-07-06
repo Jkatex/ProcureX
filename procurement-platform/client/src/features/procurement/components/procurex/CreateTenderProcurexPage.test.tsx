@@ -65,13 +65,13 @@ async function fillBasicStep(user: ReturnType<typeof userEvent.setup>, title = '
   await user.selectOptions(screen.getByLabelText('Funding source'), 'Government budget');
   fireEvent.change(screen.getByLabelText('Delivery Point'), { target: { value: 'Dodoma' } });
   fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
+  fireEvent.change(screen.getByLabelText('Estimated budget'), { target: { value: '250000000' } });
   fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-21' } });
   fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
 }
 
 async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, category = 'Medical equipment') {
   await user.selectOptions(screen.getByLabelText('Category'), category);
-  await user.click(screen.getByRole('button', { name: 'Add Category' }));
 }
 
 beforeEach(() => {
@@ -164,6 +164,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByLabelText('Tender title')).toBeInTheDocument();
     expect(screen.getByLabelText('Funding source')).toBeInTheDocument();
     expect(screen.getByLabelText('Submission deadline')).toBeInTheDocument();
+    expect(screen.getByLabelText('Estimated budget')).toBeInTheDocument();
     expect(screen.getByLabelText('Opening date')).toBeInTheDocument();
     expect(screen.queryByLabelText('Procuring entity')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Basic information preview')).not.toBeInTheDocument();
@@ -787,19 +788,32 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Conformity to technical specifications')).toBeInTheDocument();
   }, 10000);
 
-  it('category selection supports adding and removing categories', async () => {
+  it('category selection auto-adds, prevents duplicates, includes Others last, and supports removing categories', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
-    await addDefaultCategory(user);
+    const categorySelect = screen.getByLabelText('Category') as HTMLSelectElement;
+    const options = within(categorySelect).getAllByRole('option').map((option) => option.textContent);
+    expect(options.at(-1)).toBe('Others');
+    expect(screen.queryByRole('button', { name: 'Add Category' })).not.toBeInTheDocument();
+
+    await user.selectOptions(categorySelect, 'Medical equipment');
 
     const categoryButton = screen.getByRole('button', { name: 'Medical equipment x' });
     expect(categoryButton).toBeInTheDocument();
+    expect(categorySelect).toHaveValue('');
+
+    await user.selectOptions(categorySelect, 'Medical equipment');
+    expect(screen.getAllByRole('button', { name: 'Medical equipment x' })).toHaveLength(1);
+
+    await user.selectOptions(categorySelect, 'Others');
+    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
 
     await user.click(categoryButton);
 
     expect(screen.queryByRole('button', { name: 'Medical equipment x' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
   });
 
   it('invited tender reveals invited supplier controls', async () => {
@@ -1232,6 +1246,85 @@ describe('CreateTenderProcurexPage', () => {
         type: 'Goods'
       })
     ));
+  });
+
+  it('normalizes shorthand BOQ units before saving to the backend', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Backend Unit Normalization Tender');
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add Item' }));
+    fireEvent.change(screen.getByLabelText('Item 1 description'), {
+      target: { value: 'Laptop computer' }
+    });
+    await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+    fireEvent.change(screen.getByLabelText('Item 1 quantity'), {
+      target: { value: '12' }
+    });
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+    await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
+    expect(procurementApiMock.createTender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requirements: expect.objectContaining({
+          goods: {
+            fields: expect.objectContaining({
+              quantityScheduleRows: [expect.objectContaining({ unitOfMeasure: 'Piece' })]
+            })
+          }
+        })
+      })
+    );
+  });
+
+  it('normalizes financial evidence into tag arrays before saving to the backend', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Backend Evidence Normalization Tender');
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
+    await user.selectOptions(screen.getByLabelText('Requirement type 1'), 'Minimum Annual Turnover');
+    await user.type(screen.getByLabelText('Minimum value 1'), '20000000');
+    await user.selectOptions(screen.getByLabelText('Period 1'), 'Annual');
+    await user.selectOptions(screen.getByLabelText('Evidence required 1'), 'Bank statement');
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+    await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
+    expect(procurementApiMock.createTender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requirements: expect.objectContaining({
+          goods: {
+            fields: expect.objectContaining({
+              financialRequirementRows: [expect.objectContaining({ evidenceRequired: ['Bank statement'] })]
+            })
+          }
+        })
+      })
+    );
+  });
+
+  it('blocks publish before backend calls when estimated budget is missing', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: 'No Budget Publish Tender' } });
+    await user.selectOptions(screen.getByLabelText('Funding source'), 'Government budget');
+    fireEvent.change(screen.getByLabelText('Delivery Point'), { target: { value: 'Dodoma' } });
+    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
+    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-21' } });
+    fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
+
+    expect(await screen.findByText('Add a positive estimated budget before publishing this tender.')).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
 
   it('submit requires confirmations, then saves and publishes through backend APIs', async () => {
