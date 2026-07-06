@@ -547,9 +547,11 @@ export type TenderDetail = MarketplaceTenderRow & {
   buyerOrgId?: string;
   ownerUserId?: string | null;
   method?: string;
+  contractType?: string | null;
   visibility?: string;
   publishedAt?: string | null;
   requirements?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   requirementRows?: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
   milestones?: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
   commercialItems?: Array<{
@@ -572,6 +574,7 @@ export type TenderDetail = MarketplaceTenderRow & {
   };
   currentBid?: {
     id: string;
+    reference?: string;
     status: string;
     submittedAt: string | null;
     receiptHash: string | null;

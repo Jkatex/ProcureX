@@ -25,11 +25,11 @@ procurement-platform/
 ```powershell
 cd procurement-platform
 npm install
-Copy-Item server/.env.example server/.env
 npm run infra:up
 npm run db:validate
 npm run db:migrate
 npm run db:seed:twice
+npm run dev
 npm test
 ```
 

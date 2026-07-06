@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const serverRoot = resolve(serverDir, '..');
-const envFile = process.env.PROCUREX_SERVER_ENV_FILE ?? '.env';
+const envFile = process.env.PROCUREX_SERVER_ENV_FILE ?? '.env.example';
 const envPath = isAbsolute(envFile) ? envFile : resolve(serverRoot, envFile);
 dotenv.config({ path: envPath });
 

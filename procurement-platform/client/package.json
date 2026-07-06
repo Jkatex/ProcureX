@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "node ../scripts/run-with-env.mjs client .env.example -- vite --host 0.0.0.0",
+    "dev:example": "node ../scripts/run-with-env.mjs client .env.example -- vite --host 0.0.0.0",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",

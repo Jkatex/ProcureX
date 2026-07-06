@@ -573,6 +573,8 @@ export type TenderDetailDto = {
   id: string;
   title: string;
   reference: string;
+  buyerOrgId: string;
+  ownerUserId: string | null;
   organization: string;
   ownerOrganization: string;
   type: string;
@@ -582,14 +584,42 @@ export type TenderDetailDto = {
   budget: number;
   currency: string;
   status: string;
+  method: string;
+  contractType: string | null;
   visibility: string;
   publishedAt: string;
   closingDate: string;
   requirements: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  requirementRows: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
+  milestones: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
+  commercialItems: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: number;
+    unit: string | null;
+    rate: number;
+    total: number;
+    payload: Record<string, unknown>;
+  }>;
   documents: Array<{ id: string; name: string; documentType: string; label: string | null }>;
   createdByCurrentUser: boolean;
   ownedByCurrentOrganization: boolean;
   canBid: boolean;
   hasDraftBid: boolean;
   hasSubmittedBid: boolean;
+  bidSummary: {
+    total: number;
+    draft: number;
+    submitted: number;
+    withdrawn: number;
+  };
+  currentBid: {
+    id: string;
+    reference: string;
+    status: string;
+    submittedAt: string | null;
+    receiptHash: string | null;
+  } | null;
 };

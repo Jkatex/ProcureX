@@ -1,5 +1,5 @@
 import { BidStatus, EnvelopeType, TenderStatus, Visibility, type Prisma, type PrismaClient } from '@prisma/client';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
 import type { BidDocumentInput, BidDraftInput, BidDto } from './types.js';
 
@@ -9,6 +9,7 @@ const bidInclude = {
       id: true,
       reference: true,
       title: true,
+      type: true,
       status: true,
       visibility: true,
       closingDate: true,
@@ -173,17 +174,18 @@ export class ModuleRepository {
         const fullBid = await tx.bid.findUniqueOrThrow({ where: { id: input.bid.id }, include: bidInclude });
         const nextVersion = (await tx.bidVersion.count({ where: { bidId: fullBid.id } })) + 1;
         const canonical = canonicalBidPayload(fullBid, submittedAt.toISOString());
-        const sealedHash = sha256(JSON.stringify(canonical));
+        const envelopes = bidEnvelopes(fullBid, canonical);
+        const sealedHash = sha256(JSON.stringify({ bidId: fullBid.id, envelopes: envelopes.map((item) => ({ envelope: item.envelope, sealedHash: item.sealedHash })) }));
         const receiptRef = `BID-${fullBid.reference}-${String(nextVersion).padStart(2, '0')}`;
 
-        await tx.bidVersion.create({
-          data: {
+        await tx.bidVersion.createMany({
+          data: envelopes.map((envelope) => ({
             bidId: fullBid.id,
             versionNo: nextVersion,
-            envelope: EnvelopeType.COMBINED,
-            sealedHash,
-            payload: canonical as Prisma.InputJsonObject
-          }
+            envelope: envelope.envelope,
+            sealedHash: envelope.sealedHash,
+            payload: envelope.payload as Prisma.InputJsonObject
+          }))
         });
         await tx.bid.update({
           where: { id: fullBid.id },
@@ -209,7 +211,8 @@ export class ModuleRepository {
           tenderId: fullBid.tenderId,
           supplierOrgId: fullBid.supplierOrgId,
           receiptRef,
-          receiptHash: sealedHash
+          receiptHash: sealedHash,
+          envelopeHashes: envelopes.map((envelope) => ({ envelope: envelope.envelope, sealedHash: envelope.sealedHash }))
         });
 
         return tx.bid.findUniqueOrThrow({ where: { id: fullBid.id }, include: bidInclude });
@@ -240,7 +243,8 @@ export class ModuleRepository {
 
   private async nextBidReference(tx: Prisma.TransactionClient) {
     const count = await tx.bid.count();
-    return `PX-BID-${new Date().getUTCFullYear()}-${String(count + 1).padStart(6, '0')}`;
+    const suffix = randomBytes(3).toString('hex').toUpperCase();
+    return `PX-BID-${new Date().getUTCFullYear()}-${String(count + 1).padStart(6, '0')}-${suffix}`;
   }
 }
 
@@ -295,10 +299,15 @@ export function tenderAcceptsBids(tender: { status: TenderStatus; visibility: Vi
 
 function buildPayload(draft: BidDraftInput) {
   return {
+    workflowType: draft.workflowType ?? 'generic',
+    workflowVersion: draft.workflowVersion ?? 'procurex-v1',
     administrative: draft.administrative,
     technical: draft.technical,
     financial: draft.financial,
     declarations: draft.declarations,
+    fileManifest: draft.fileManifest ?? {},
+    envelopes: draft.envelopes ?? {},
+    reviewReadiness: draft.reviewReadiness ?? {},
     completeness: draft.completeness,
     validationIssues: draft.validationIssues
   };
@@ -341,10 +350,14 @@ async function appendDocuments(tx: Prisma.TransactionClient, bidId: string, owne
         ownerOrgId,
         uploadedByUserId: userId,
         name: document.name,
-        objectKey: `bid/${bidId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${document.name}`,
+        objectKey: document.objectKey || `bid/${bidId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${document.name}`,
         documentType: document.documentType,
         checksum: document.checksum,
-        metadata: (document.metadata ?? {}) as Prisma.InputJsonObject
+        metadata: {
+          ...(document.metadata ?? {}),
+          ...(document.size !== undefined ? { size: document.size } : {}),
+          ...(document.mimeType ? { mimeType: document.mimeType } : {})
+        } as Prisma.InputJsonObject
       }
     });
     await tx.bidDocument.create({
@@ -375,6 +388,60 @@ function canonicalBidPayload(bid: BidRecord, submittedAt: string) {
       checksum: item.document.checksum
     }))
   };
+}
+
+function bidEnvelopes(bid: BidRecord, canonical: ReturnType<typeof canonicalBidPayload>) {
+  const payload = objectPayload(bid.payload);
+  if (bid.tender.type !== 'Consultancy') {
+    return [
+      {
+        envelope: EnvelopeType.COMBINED,
+        sealedHash: sha256(JSON.stringify(canonical)),
+        payload: canonical
+      }
+    ];
+  }
+
+  const technicalPayload = {
+    ...canonical,
+    envelope: EnvelopeType.TECHNICAL,
+    payload: {
+      workflowType: payload.workflowType,
+      workflowVersion: payload.workflowVersion,
+      administrative: payload.administrative,
+      technical: payload.technical,
+      declarations: payload.declarations,
+      completeness: payload.completeness
+    },
+    documents: canonical.documents.filter((document) => document.envelope !== EnvelopeType.FINANCIAL),
+    responses: canonical.responses.filter(([key]) => !String(key).toLowerCase().includes('financial'))
+  };
+  const financialPayload = {
+    ...canonical,
+    envelope: EnvelopeType.FINANCIAL,
+    payload: {
+      workflowType: payload.workflowType,
+      workflowVersion: payload.workflowVersion,
+      financial: payload.financial,
+      declarations: payload.declarations,
+      completeness: payload.completeness
+    },
+    documents: canonical.documents.filter((document) => document.envelope === EnvelopeType.FINANCIAL),
+    responses: canonical.responses.filter(([key]) => String(key).toLowerCase().includes('financial'))
+  };
+
+  return [
+    {
+      envelope: EnvelopeType.TECHNICAL,
+      sealedHash: sha256(JSON.stringify(technicalPayload)),
+      payload: technicalPayload
+    },
+    {
+      envelope: EnvelopeType.FINANCIAL,
+      sealedHash: sha256(JSON.stringify(financialPayload)),
+      payload: financialPayload
+    }
+  ];
 }
 
 async function audit(tx: Prisma.TransactionClient, ownerOrgId: string, actorUserId: string, event: string, entityRef: string, payload: Record<string, unknown>) {
