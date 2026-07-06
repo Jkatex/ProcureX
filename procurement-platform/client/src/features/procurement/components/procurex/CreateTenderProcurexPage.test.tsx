@@ -71,7 +71,6 @@ async function fillBasicStep(user: ReturnType<typeof userEvent.setup>, title = '
 
 async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, category = 'Medical equipment') {
   await user.selectOptions(screen.getByLabelText('Category'), category);
-  await user.click(screen.getByRole('button', { name: 'Add Category' }));
 }
 
 beforeEach(() => {
@@ -787,19 +786,32 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Conformity to technical specifications')).toBeInTheDocument();
   }, 10000);
 
-  it('category selection supports adding and removing categories', async () => {
+  it('category selection auto-adds, prevents duplicates, includes Others last, and supports removing categories', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
-    await addDefaultCategory(user);
+    const categorySelect = screen.getByLabelText('Category') as HTMLSelectElement;
+    const options = within(categorySelect).getAllByRole('option').map((option) => option.textContent);
+    expect(options.at(-1)).toBe('Others');
+    expect(screen.queryByRole('button', { name: 'Add Category' })).not.toBeInTheDocument();
+
+    await user.selectOptions(categorySelect, 'Medical equipment');
 
     const categoryButton = screen.getByRole('button', { name: 'Medical equipment x' });
     expect(categoryButton).toBeInTheDocument();
+    expect(categorySelect).toHaveValue('');
+
+    await user.selectOptions(categorySelect, 'Medical equipment');
+    expect(screen.getAllByRole('button', { name: 'Medical equipment x' })).toHaveLength(1);
+
+    await user.selectOptions(categorySelect, 'Others');
+    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
 
     await user.click(categoryButton);
 
     expect(screen.queryByRole('button', { name: 'Medical equipment x' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
   });
 
   it('invited tender reveals invited supplier controls', async () => {

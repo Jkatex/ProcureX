@@ -405,9 +405,11 @@ export function CreateTenderProcurexPage() {
     patchDraft(normalizeDraftForType({ ...draft, procurementTypeId: typeId }, typeId));
   }
 
-  function addCategory() {
-    if (!newCategory || draft.categories.includes(newCategory)) return;
-    patchDraft({ categories: [...draft.categories, newCategory] });
+  function selectCategory(category: string) {
+    const selectedCategory = category.trim();
+    if (selectedCategory && !draft.categories.includes(selectedCategory)) {
+      patchDraft({ categories: [...draft.categories, selectedCategory] });
+    }
     setNewCategory('');
   }
 
@@ -662,8 +664,7 @@ export function CreateTenderProcurexPage() {
                   newSupplier={newSupplier}
                   onTypeChange={changeType}
                   onPatch={patchPlanAware}
-                  onNewCategory={setNewCategory}
-                  onAddCategory={addCategory}
+                  onNewCategory={selectCategory}
                   onRemoveCategory={removeCategory}
                   onNewSupplier={setNewSupplier}
                   onAddSupplier={addSupplier}
@@ -921,7 +922,6 @@ function PlanningStep({
   onTypeChange,
   onPatch,
   onNewCategory,
-  onAddCategory,
   onRemoveCategory,
   onNewSupplier,
   onAddSupplier
@@ -934,7 +934,6 @@ function PlanningStep({
   onTypeChange: (typeId: CreateTenderProcurementTypeId) => void;
   onPatch: (field: keyof CreateTenderDraft, value: CreateTenderDraft[keyof CreateTenderDraft]) => void;
   onNewCategory: (value: string) => void;
-  onAddCategory: () => void;
   onRemoveCategory: (category: string) => void;
   onNewSupplier: (value: string) => void;
   onAddSupplier: () => void;
@@ -978,9 +977,6 @@ function PlanningStep({
               ))}
             </select>
           </label>
-          <button className="btn btn-secondary" type="button" onClick={onAddCategory}>
-            Add Category
-          </button>
           <label>
             Procurement method
             <select value={draft.method} onChange={(event) => onPatch('method', event.target.value)}>
