@@ -135,6 +135,7 @@ describe('MarketplaceProcurexPage', () => {
     await user.selectOptions(screen.getByLabelText('Status'), 'PUBLISHED');
 
     expect(screen.getByRole('link', { name: 'View My Tender' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View My Tender' })).toHaveAttribute('href', '/procurement/tender-details?tenderId=tender-3');
     expect(screen.getByRole('button', { name: 'Your Tender' })).toBeDisabled();
   });
 
