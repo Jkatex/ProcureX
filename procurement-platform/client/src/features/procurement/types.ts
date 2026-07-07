@@ -430,6 +430,8 @@ export type CreateTenderSubmissionResult = {
 };
 
 export type MarketplaceTenderRow = Tender & {
+  category?: string;
+  ownerOrganization?: string;
   ownedByCurrentOrganization?: boolean;
   canBid?: boolean;
   hasDraftBid?: boolean;
