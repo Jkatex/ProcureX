@@ -42,6 +42,16 @@ export type DashboardMetricDto = {
   note: string;
 };
 
+export type DashboardExecutiveDto = {
+  transactionValue: number;
+  completedOrders: number;
+  activeOrders: number;
+  orderSuccessRate: number;
+  transactionGrowthRate: number;
+  averageOrderValue: number;
+  currency: string;
+};
+
 export type DashboardActionDto = {
   id: string;
   title: string;
@@ -73,6 +83,7 @@ export type DashboardActiveWorkDto = {
 
 export type WorkspaceDashboardDto = {
   summary: DashboardSummaryDto;
+  executive: DashboardExecutiveDto;
   pipeline: DashboardPipelineStageDto[];
   metrics: DashboardMetricDto[];
   actionQueue: DashboardActionDto[];

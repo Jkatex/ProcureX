@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, type AdminApp, type AdminDashboard } from '@/features/admin/api';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AdminCommandDrawer, AdminError, AdminHero, AdminPanel, AdminShell, AdminUndoBanner, adminAppRegistry, badgeClass, compactNumber, displayLabel, formatDate, useAdminCommand } from './AdminShared';
+import { AdminCommandDrawer, AdminError, AdminShell, AdminUndoBanner, adminAppRegistry, badgeClass, compactNumber, displayLabel, formatDate, useAdminCommand } from './AdminShared';
+
+type AdminQueueItem = AdminDashboard['adminActionQueue'][number];
 
 export function AdminDashboardProcurexPage() {
   const navigate = useNavigate();
@@ -34,10 +36,22 @@ export function AdminDashboardProcurexPage() {
   }, []);
 
   const counts = dashboard?.counts ?? {};
-  const riskEntries = Object.entries(dashboard?.riskSummary ?? {});
+  const metrics = dashboard?.metrics ?? fallbackMetrics(counts);
   const appList = apps.length ? apps : adminAppRegistry;
+  const queue = dashboard?.adminActionQueue ?? [];
+  const riskEntries = Object.entries(dashboard?.riskSummary ?? {});
+  const weeklyActions = dashboard?.weeklyComplianceActions ?? [];
+  const evaluationOversight = dashboard?.evaluationOversight ?? [];
+  const exceptionLog = dashboard?.exceptionLog ?? [];
+  const checklistPreview = dashboard?.checklistPreview ?? [];
+  const recentActions = dashboard?.recentActions ?? [];
+  const platformRows = platformStatusRows(counts);
+  const platformMax = Math.max(1, ...platformRows.map((item) => item.value));
+  const riskMax = Math.max(1, ...riskEntries.map(([, value]) => value));
+  const weeklyMax = Math.max(1, ...weeklyActions.map((item) => item.count));
+  const hasRiskSignals = riskEntries.length > 0 || weeklyActions.length > 0;
 
-  async function recordQueueAction(actionType: string, item: NonNullable<AdminDashboard['adminActionQueue']>[number], note: string) {
+  async function recordQueueAction(actionType: string, item: AdminQueueItem, note: string) {
     setSavingAction(`${actionType}:${item.id}`);
     setError(null);
     try {
@@ -58,7 +72,7 @@ export function AdminDashboardProcurexPage() {
     }
   }
 
-  function openQueueAction(actionType: string, item: NonNullable<AdminDashboard['adminActionQueue']>[number]) {
+  function openQueueAction(actionType: string, item: AdminQueueItem) {
     openCommand({
       title: `${displayLabel(actionType)} ${item.title}`,
       summary: `${displayLabel(actionType)} updates the target record and writes an audit entry.`,
@@ -70,181 +84,282 @@ export function AdminDashboardProcurexPage() {
 
   return (
     <AdminShell currentPath="/admin" title="Admin Command Center">
-      <AdminHero
-        badge={loading ? 'Loading' : 'Live platform'}
-        heading="Admin Command Center"
-        body="Platform-wide oversight for accounts, compliance, audit evidence, and procurement activity."
-        actions={
-          <button className="btn btn-primary" type="button" disabled={loading} onClick={() => void loadDashboard()}>
-            Refresh
-          </button>
-        }
-      />
-
-      {error ? <AdminError error={error} /> : null}
-      <AdminUndoBanner action={undoAction} onDismiss={() => setUndoAction(null)} onUndo={async (id) => {
-        await adminApi.undoAction(id, { note: 'Undone from command center.' });
-        await loadDashboard();
-      }} />
-
-      <section className="admin-kpi-grid six-col">
-        {(dashboard?.metrics ?? [
-          { label: 'Active Tenders', value: counts.activeTenders ?? 0, detail: 'Current database count' },
-          { label: 'Pending Compliance Reviews', value: counts.pendingReviews ?? 0, detail: 'Current database count' },
-          { label: 'Flagged Issues', value: counts.flaggedIssues ?? 0, detail: 'Current database count' },
-          { label: 'Compliance Rate', value: counts.complianceRate ?? 0, detail: 'Percent' },
-          { label: 'Evaluation Drafts', value: counts.evaluationDrafts ?? 0, detail: 'Current database count' },
-          { label: 'Audit Events Today', value: counts.auditEventsToday ?? 0, detail: 'Current database count' }
-        ]).map((metric) => (
-          <article className="admin-kpi-card" key={metric.label}>
-            <span>{metric.label}</span>
-            <strong>{metric.label === 'Compliance Rate' ? `${metric.value}%` : compactNumber(metric.value)}</strong>
-            <em>{loading ? 'Loading' : metric.detail}</em>
-          </article>
-        ))}
-      </section>
-
-      <AdminPanel kicker="Apps" title="Admin app list" badge={`${appList.length} tools`}>
-        <div className="admin-rule-list">
-          {appList.map((app) => (
-            <article key={app.route}>
-              <div>
-                <span className={badgeClass(app.backend.status)}>{displayLabel(app.backend.status)}</span>
-                <strong>{app.title}</strong>
-                <em>{app.description} / {appBackendHint(app, counts)}</em>
+      <div className="dashboard-command-center admin-dashboard-intelligence">
+        <div className="workspace-home">
+          <section className="dashboard-welcome-card dashboard-reference-welcome dashboard-admin-reference">
+            <div className="dashboard-reference-copy">
+              <span className="section-kicker">{loading ? 'Loading platform intelligence' : 'Live platform intelligence'}</span>
+              <h1>Admin Command Center</h1>
+              <p>Monitor account risk, compliance action, evaluation health, audit activity, and platform operations from one clear command surface.</p>
+              <div className="inline-actions dashboard-welcome-actions">
+                <button className="btn btn-primary" type="button" disabled={loading} onClick={() => void loadDashboard()}>
+                  Refresh
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={() => navigate('/admin/search')}>
+                  Search Platform
+                </button>
               </div>
-              <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate(app.route)}>
-                Open
-              </button>
-            </article>
-          ))}
-        </div>
-      </AdminPanel>
+            </div>
+            <div className="dashboard-reference-visual" aria-label="Platform admin overview">
+              <div className="dashboard-reference-avatar" aria-hidden="true">PX</div>
+              <article className="dashboard-reference-profile">
+                <span className={queue.length ? 'badge badge-warning' : 'badge badge-success'}>
+                  {queue.length ? `${queue.length} admin actions` : 'Queue clear'}
+                </span>
+                <strong>Platform operations</strong>
+                <p>{compactNumber(counts.users ?? 0)} users / {compactNumber(counts.activeTenders ?? counts.tenders ?? 0)} active tenders</p>
+              </article>
+              <div className="dashboard-reference-pills" aria-label="Admin dashboard totals">
+                <span>{compactNumber(counts.pendingReviews ?? 0)} reviews</span>
+                <span>{compactNumber(counts.flaggedIssues ?? 0)} flags</span>
+                <span>{compactNumber(counts.auditEventsToday ?? 0)} audit today</span>
+              </div>
+            </div>
+          </section>
 
-      <section className="journey-grid two-column">
-        <AdminPanel kicker="Actions" title="Prioritized admin actions" badge={`${dashboard?.adminActionQueue.length ?? 0} items`}>
-          <div className="admin-queue-list">
-            {(dashboard?.adminActionQueue ?? []).map((item) => (
-              <article className={`admin-urgency-card ${item.severity === 'CRITICAL' || item.severity === 'ERROR' ? 'urgency-high' : 'urgency-medium'}`} key={item.id}>
+          {error ? <AdminError error={error} /> : null}
+          <AdminUndoBanner action={undoAction} onDismiss={() => setUndoAction(null)} onUndo={async (id) => {
+            await adminApi.undoAction(id, { note: 'Undone from command center.' });
+            await loadDashboard();
+          }} />
+
+          <section className="dashboard-intelligence-strip admin-dashboard-metrics">
+            {metrics.map((metric) => (
+              <article className="dashboard-intelligence-metric" key={metric.label}>
+                <span>{metric.label}</span>
+                <strong>{metric.label === 'Compliance Rate' ? `${metric.value}%` : compactNumber(metric.value)}</strong>
+                <p>{loading ? 'Loading live platform data.' : metric.detail}</p>
+              </article>
+            ))}
+          </section>
+
+          <section className="dashboard-intelligence-grid">
+            <article className={`dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel ${queue.length ? 'dashboard-intelligence-panel-critical' : 'dashboard-intelligence-panel-compact'}`}>
+              <div className="panel-heading">
                 <div>
-                  <span className={badgeClass(item.severity)}>{displayLabel(item.severity)}</span>
-                  <h3>{item.title}</h3>
-                  <p>{item.summary}</p>
-                  <small>{item.owner} / {displayLabel(item.status)} / {formatDate(item.createdAt)}</small>
-                  <div className="admin-table-actions">
-                    {(['APPROVE', 'FLAG', 'HOLD', 'RETURN'] as const).map((action) => (
-                      <button
-                        className={action === 'APPROVE' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-                        type="button"
-                        key={action}
-                        disabled={loading || Boolean(savingAction)}
-                        onClick={() => openQueueAction(action, item)}
-                      >
-                        {savingAction === `${action}:${item.id}` ? 'Saving' : displayLabel(action)}
-                      </button>
-                    ))}
+                  <span className="section-kicker">Action required</span>
+                  <h2>Prioritized admin actions</h2>
+                </div>
+                <span className={queue.length ? 'badge badge-warning' : 'badge badge-success'}>{queue.length} items</span>
+              </div>
+              <div className="dashboard-action-queue">
+                {queue.length ? (
+                  queue.map((item) => (
+                    <article className={`admin-dashboard-action-card ${item.severity === 'CRITICAL' || item.severity === 'ERROR' ? 'urgent' : ''}`} key={item.id}>
+                      <div>
+                        <span className={badgeClass(item.severity)}>{displayLabel(item.severity)}</span>
+                        <strong>{item.title}</strong>
+                        <p>{item.summary}</p>
+                        <small>{item.owner} / {displayLabel(item.status)} / {formatDate(item.createdAt)}</small>
+                      </div>
+                      <div className="admin-table-actions">
+                        {(['APPROVE', 'FLAG', 'HOLD', 'RETURN'] as const).map((action) => (
+                          <button
+                            className={action === 'APPROVE' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                            type="button"
+                            key={action}
+                            disabled={loading || Boolean(savingAction)}
+                            onClick={() => openQueueAction(action, item)}
+                          >
+                            {savingAction === `${action}:${item.id}` ? 'Saving' : displayLabel(action)}
+                          </button>
+                        ))}
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="dashboard-empty-state">
+                    <strong>No prioritized actions</strong>
+                    <span>The queue is clear. New reviews, flags, holds, and escalations will appear here.</span>
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <article className="dashboard-intelligence-panel dashboard-status-overview dashboard-intelligence-panel-wide dashboard-horizontal-panel">
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">Platform intelligence</span>
+                  <h2>Platform Status Overview</h2>
+                </div>
+              </div>
+              <div className="dashboard-status-stack">
+                {platformRows.map((item) => (
+                  <button className="dashboard-status-line" type="button" key={item.label} onClick={() => navigate(item.route)}>
+                    <span>{item.label}</span>
+                    <i><b style={{ width: `${Math.max(8, (item.value / platformMax) * 100)}%` }} /></i>
+                    <strong>{compactNumber(item.value)}</strong>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            {hasRiskSignals ? (
+              <article className="dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Risk and compliance</span>
+                    <h2>Signal distribution</h2>
                   </div>
                 </div>
-                <span className="admin-urgency-dot" aria-hidden="true"></span>
-              </article>
-            ))}
-            {!dashboard?.adminActionQueue.length ? <div className="admin-mini-record"><strong>No prioritized actions</strong><em>Queue is clear</em></div> : null}
-          </div>
-        </AdminPanel>
-
-        <AdminPanel kicker="Risk" title="Risk signal distribution" badge={`${riskEntries.length} levels`}>
-          <div className="admin-horizontal-bars">
-            {riskEntries.map(([level, count]) => (
-              <div key={level}>
-                <strong>{displayLabel(level)}</strong>
-                <span>{count}</span>
-                <i style={{ width: `${Math.max(8, (count / Math.max(1, ...riskEntries.map(([, value]) => value))) * 100)}%` }}></i>
-              </div>
-            ))}
-            {!riskEntries.length ? <div className="admin-mini-record"><strong>No risk signals</strong><em>Risk monitor is empty</em></div> : null}
-          </div>
-        </AdminPanel>
-      </section>
-
-      <section className="journey-grid two-column">
-        <AdminPanel kicker="Compliance" title="Compliance actions this week" badge={`${dashboard?.weeklyComplianceActions.reduce((sum, item) => sum + item.count, 0) ?? 0} actions`}>
-          <div className="admin-horizontal-bars">
-            {(dashboard?.weeklyComplianceActions ?? []).map((item) => (
-              <div key={item.label}>
-                <strong>{item.label}</strong>
-                <span>{item.count}</span>
-                <i style={{ width: `${Math.max(8, (item.count / Math.max(1, ...(dashboard?.weeklyComplianceActions ?? []).map((row) => row.count))) * 100)}%` }}></i>
-              </div>
-            ))}
-          </div>
-        </AdminPanel>
-
-        <AdminPanel kicker="Evaluation" title="Evaluation oversight" badge={`${dashboard?.evaluationOversight.length ?? 0} drafts`}>
-          <div className="admin-mini-list">
-            {(dashboard?.evaluationOversight ?? []).map((item) => (
-              <article className="admin-mini-record" key={item.id}>
-                <div>
-                  <strong>{item.reference} / {item.tenderTitle}</strong>
-                  <em>{item.buyer} / {displayLabel(item.status)} / {displayLabel(item.stage)}</em>
+                <div className="dashboard-status-stack">
+                  {riskEntries.map(([level, count]) => (
+                    <div className="dashboard-status-line" key={level}>
+                      <span>{displayLabel(level)}</span>
+                      <i><b style={{ width: `${Math.max(8, (count / riskMax) * 100)}%` }} /></i>
+                      <strong>{count}</strong>
+                    </div>
+                  ))}
+                  {weeklyActions.map((item) => (
+                    <div className="dashboard-status-line" key={item.label}>
+                      <span>{item.label}</span>
+                      <i><b style={{ width: `${Math.max(8, (item.count / weeklyMax) * 100)}%` }} /></i>
+                      <strong>{item.count}</strong>
+                    </div>
+                  ))}
                 </div>
-                <span>{item.progress}%</span>
               </article>
-            ))}
-            {!dashboard?.evaluationOversight.length ? <article className="admin-mini-record"><strong>No evaluation drafts</strong><em>Oversight queue is clear</em></article> : null}
-          </div>
-        </AdminPanel>
-      </section>
+            ) : null}
 
-      <section className="journey-grid two-column">
-        <AdminPanel kicker="Exceptions" title="Exception log" badge={`${dashboard?.exceptionLog.length ?? 0} flags`}>
-          <div className="admin-mini-list">
-            {(dashboard?.exceptionLog ?? []).map((item) => (
-              <article className="admin-mini-record" key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <em>{item.owner} / {item.summary}</em>
+            {evaluationOversight.length ? (
+              <article className="dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Evaluation</span>
+                    <h2>Evaluation oversight</h2>
+                  </div>
+                  <span className="badge badge-info">{evaluationOversight.length} drafts</span>
                 </div>
-                <span className={badgeClass(item.severity)}>{displayLabel(item.severity)}</span>
-              </article>
-            ))}
-            {!dashboard?.exceptionLog.length ? <article className="admin-mini-record"><strong>No exceptions</strong><em>No flagged issues found</em></article> : null}
-          </div>
-        </AdminPanel>
-
-        <AdminPanel kicker="Controls" title="Compliance controls" badge={`${dashboard?.checklistPreview.length ?? 0} checks`}>
-          <div className="admin-rule-list">
-            {(dashboard?.checklistPreview ?? []).map((item) => (
-              <article key={item.id}>
-                <div>
-                  <span className={badgeClass(item.severity)}>{displayLabel(item.severity)}</span>
-                  <strong>{item.code}</strong>
-                  <em>{item.title}</em>
+                <div className="dashboard-activity-feed">
+                  {evaluationOversight.map((item) => (
+                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/search')}>
+                      <div>
+                        <strong>{item.reference} / {item.tenderTitle}</strong>
+                        <span>{item.buyer} / {displayLabel(item.status)} / {displayLabel(item.stage)}</span>
+                      </div>
+                      <time>{item.progress}%</time>
+                    </button>
+                  ))}
                 </div>
-                <span className={badgeClass(item.status)}>{displayLabel(item.status)}</span>
               </article>
-            ))}
-            {!dashboard?.checklistPreview.length ? <article><strong>No active controls</strong><em>Create compliance rules to populate this checklist.</em></article> : null}
-          </div>
-        </AdminPanel>
-      </section>
+            ) : null}
 
-      <AdminPanel kicker="Activity" title="Recent admin actions" badge={dashboard ? formatDate(dashboard.generatedAt) : 'Loading'}>
-        <div className="admin-mini-list">
-          {(dashboard?.recentActions ?? []).map((item) => (
-            <article className="admin-mini-record" key={item.id}>
-              <div>
-                <strong>{displayLabel(item.actionType)} / {displayLabel(item.entityType)}</strong>
-                <em>{item.summary ?? item.actorUser?.displayName ?? 'Recorded admin action'}</em>
+            {exceptionLog.length ? (
+              <article className="dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Exceptions</span>
+                    <h2>Exception log</h2>
+                  </div>
+                  <span className="badge badge-info">{exceptionLog.length} flags</span>
+                </div>
+                <div className="dashboard-activity-feed">
+                  {exceptionLog.map((item) => (
+                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/compliance')}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <span>{item.owner} / {item.summary}</span>
+                      </div>
+                      <span className={badgeClass(item.severity)}>{displayLabel(item.severity)}</span>
+                    </button>
+                  ))}
+                </div>
+              </article>
+            ) : null}
+
+            {checklistPreview.length ? (
+              <article className="dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Controls</span>
+                    <h2>Compliance controls</h2>
+                  </div>
+                  <span className="badge badge-info">{checklistPreview.length} checks</span>
+                </div>
+                <div className="dashboard-activity-feed">
+                  {checklistPreview.map((item) => (
+                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/compliance')}>
+                      <div>
+                        <strong>{item.code}</strong>
+                        <span>{item.title}</span>
+                      </div>
+                      <span className={badgeClass(item.status)}>{displayLabel(item.status)}</span>
+                    </button>
+                  ))}
+                </div>
+              </article>
+            ) : null}
+
+            <article className="dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel">
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">Admin apps</span>
+                  <h2>App health and shortcuts</h2>
+                </div>
+                <span className="badge badge-info">{appList.length} tools</span>
               </div>
-              <span>{formatDate(item.createdAt)}</span>
+              <div className="dashboard-activity-feed">
+                {appList.map((app) => (
+                  <button className="dashboard-activity-item" type="button" key={app.route} onClick={() => navigate(app.route)}>
+                    <div>
+                      <strong>{app.title}</strong>
+                      <span>{app.description} / {appBackendHint(app, counts)}</span>
+                    </div>
+                    <span className={badgeClass(app.backend.status)}>{displayLabel(app.backend.status)}</span>
+                  </button>
+                ))}
+              </div>
             </article>
-          ))}
-          {!dashboard?.recentActions.length ? <article className="admin-mini-record"><strong>No admin actions</strong><em>Actions will appear after reviews</em></article> : null}
+
+            {recentActions.length ? (
+              <article className="dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Activity</span>
+                    <h2>Recent admin actions</h2>
+                  </div>
+                  <span className="badge badge-info">{dashboard ? formatDate(dashboard.generatedAt) : 'Loading'}</span>
+                </div>
+                <div className="dashboard-activity-feed">
+                  {recentActions.map((item) => (
+                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/audit')}>
+                      <div>
+                        <strong>{displayLabel(item.actionType)} / {displayLabel(item.entityType)}</strong>
+                        <span>{item.summary ?? item.actorUser?.displayName ?? 'Recorded admin action'}</span>
+                      </div>
+                      <time>{formatDate(item.createdAt)}</time>
+                    </button>
+                  ))}
+                </div>
+              </article>
+            ) : null}
+          </section>
         </div>
-      </AdminPanel>
+      </div>
       <AdminCommandDrawer command={command} onClose={closeCommand} onUndoAvailable={setUndoAction} />
     </AdminShell>
   );
+}
+
+function fallbackMetrics(counts: Record<string, number>) {
+  return [
+    { label: 'Active Tenders', value: counts.activeTenders ?? 0, detail: 'Current database count' },
+    { label: 'Pending Compliance Reviews', value: counts.pendingReviews ?? 0, detail: 'Current database count' },
+    { label: 'Flagged Issues', value: counts.flaggedIssues ?? 0, detail: 'Current database count' },
+    { label: 'Compliance Rate', value: counts.complianceRate ?? 0, detail: 'Percent' },
+    { label: 'Evaluation Drafts', value: counts.evaluationDrafts ?? 0, detail: 'Current database count' },
+    { label: 'Audit Events Today', value: counts.auditEventsToday ?? 0, detail: 'Current database count' }
+  ];
+}
+
+function platformStatusRows(counts: Record<string, number>) {
+  return [
+    { label: 'Active tenders', value: counts.activeTenders ?? counts.tenders ?? 0, route: '/admin/search' },
+    { label: 'Pending reviews', value: counts.pendingReviews ?? 0, route: '/admin/compliance' },
+    { label: 'Flagged issues', value: counts.flaggedIssues ?? 0, route: '/admin/compliance' },
+    { label: 'Evaluation drafts', value: counts.evaluationDrafts ?? 0, route: '/admin/search' },
+    { label: 'Audit events today', value: counts.auditEventsToday ?? 0, route: '/admin/audit' }
+  ];
 }
 
 function appBackendHint(app: AdminApp, counts: Record<string, number>) {

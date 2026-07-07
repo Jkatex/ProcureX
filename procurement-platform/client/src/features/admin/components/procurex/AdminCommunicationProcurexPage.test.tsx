@@ -1,13 +1,28 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ThemeProvider } from '@mui/material';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { store } from '@/app/store';
+import { adminApi } from '@/features/admin/api';
 import { assumeUser, signOut } from '@/features/auth/slice';
 import { communicationApi } from '@/features/communication/api';
 import type { CommunicationListResponse, CommunicationMailboxMessage } from '@/features/communication/types';
-import { CommunicationCenterProcurexPage } from './CommunicationCenterProcurexPage';
+import { procurexTheme } from '@/styles/mui-theme';
+import { AdminCommunicationProcurexPage } from './AdminCommunicationProcurexPage';
+
+vi.mock('@/features/admin/api', async () => {
+  const actual = await vi.importActual<typeof import('@/features/admin/api')>('@/features/admin/api');
+  return {
+    ...actual,
+    adminApi: {
+      ...actual.adminApi,
+      apps: vi.fn(),
+      updateCommunicationState: vi.fn()
+    }
+  };
+});
 
 vi.mock('@/features/communication/api', () => ({
   communicationApi: {
@@ -23,6 +38,7 @@ vi.mock('@/features/communication/api', () => ({
   }
 }));
 
+const apps = vi.mocked(adminApi.apps);
 const listMailbox = vi.mocked(communicationApi.listMailbox);
 const getMessage = vi.mocked(communicationApi.getMessage);
 const markRead = vi.mocked(communicationApi.markRead);
@@ -39,7 +55,7 @@ const message: CommunicationMailboxMessage = {
   id: '11111111-1111-4111-8111-111111111111',
   kind: 'MESSAGE',
   folder: 'inbox',
-  category: 'General Message',
+  category: 'Admin Notice',
   subject: 'Site visit schedule',
   body: 'Please confirm whether the site visit is still available on Friday.',
   status: 'UNREAD',
@@ -68,27 +84,18 @@ const message: CommunicationMailboxMessage = {
       createdAt: now
     }
   ],
-  attachments: [
-    {
-      id: 'attachment-1',
-      documentId: 'document-1',
-      name: 'agenda.pdf',
-      documentType: 'PDF',
-      objectKey: 'documents/agenda.pdf',
-      checksum: null,
-      createdAt: now
-    }
-  ],
+  attachments: [],
   metadata: {},
   createdAt: now,
   updatedAt: now
 };
 
-const readMessage = { ...message, read: true, status: 'READ' as const };
-const sentMessage = {
-  ...readMessage,
+const sentMessage: CommunicationMailboxMessage = {
+  ...message,
   id: '33333333-3333-4333-8333-333333333333',
   folder: 'sent',
+  read: true,
+  status: 'READ',
   senderOrgId: 'org-1',
   senderName: 'Kilimanjaro Supplies Limited',
   recipientOrgId: 'org-2',
@@ -105,8 +112,8 @@ function mailbox(messages: CommunicationMailboxMessage[] = [message]): Communica
       inbox: messages.filter((item) => item.folder === 'inbox').length,
       sent: messages.filter((item) => item.folder === 'sent').length,
       drafts: 0,
-      archived: 0,
-      trash: 0,
+      archived: messages.filter((item) => item.folder === 'archived').length,
+      trash: messages.filter((item) => item.folder === 'trash').length,
       unread: messages.filter((item) => !item.read).length,
       actionRequired: messages.filter((item) => item.actionRequired).length
     },
@@ -117,19 +124,19 @@ function mailbox(messages: CommunicationMailboxMessage[] = [message]): Communica
   };
 }
 
-function renderPage(initialEntries = ['/communication']) {
+function renderPage(initialEntries = ['/admin/communication']) {
   store.dispatch(signOut());
   store.dispatch(
     assumeUser({
-      id: 'user-1',
-      displayName: 'Demo User',
-      email: 'demo@procurex.tz',
+      id: 'admin-1',
+      displayName: 'Platform Admin',
+      email: 'admin@procurex.tz',
       phone: null,
-      accountType: 'USER',
-      organization: 'Kilimanjaro Supplies Limited',
-      organizationId: 'org-1',
-      capabilities: ['BUYER', 'SUPPLIER'],
-      permissions: ['identity.verify'],
+      accountType: 'ADMIN',
+      organization: 'ProcureX Administration',
+      organizationId: 'platform',
+      capabilities: ['BUYER'],
+      permissions: ['admin.access'],
       verificationStatus: 'APPROVED',
       preferences: { preferredLanguage: 'en', timezone: 'Africa/Dar_es_Salaam' }
     })
@@ -137,23 +144,27 @@ function renderPage(initialEntries = ['/communication']) {
 
   return render(
     <Provider store={store}>
-      <MemoryRouter initialEntries={initialEntries}>
-        <CommunicationCenterProcurexPage />
-      </MemoryRouter>
+      <ThemeProvider theme={procurexTheme}>
+        <MemoryRouter initialEntries={initialEntries}>
+          <AdminCommunicationProcurexPage />
+        </MemoryRouter>
+      </ThemeProvider>
     </Provider>
   );
 }
 
-describe('CommunicationCenterProcurexPage', () => {
+describe('AdminCommunicationProcurexPage', () => {
   beforeEach(() => {
+    apps.mockResolvedValue({ items: [], generatedAt: now });
     listMailbox.mockResolvedValue(mailbox());
-    getMessage.mockImplementation(async (messageId: string) => (messageId === sentMessage.id ? sentMessage : readMessage));
-    markRead.mockResolvedValue(readMessage);
+    getMessage.mockResolvedValue(message);
+    markRead.mockResolvedValue({ ...message, read: true, status: 'READ' as const });
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
-    archive.mockResolvedValue({ ...readMessage, folder: 'archived', status: 'ARCHIVED' });
-    deleteMessage.mockResolvedValue({ ...readMessage, folder: 'trash', status: 'DELETED' });
+    archive.mockResolvedValue({ ...message, folder: 'archived', status: 'ARCHIVED', read: true, actionRequired: false });
+    deleteMessage.mockResolvedValue({ ...message, folder: 'trash', status: 'DELETED', read: true, actionRequired: false });
     listRecipients.mockResolvedValue([
+      { id: 'org-1', name: 'Kilimanjaro Supplies Limited', kind: 'COMPANY', country: 'TZ', capabilities: ['SUPPLIER'] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
       { id: 'org-3', name: 'Tanzania Ports Authority', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] }
     ]);
@@ -167,42 +178,29 @@ describe('CommunicationCenterProcurexPage', () => {
     store.dispatch(signOut());
   });
 
-  it('renders the live user mailbox and marks opened unread messages as read', async () => {
+  it('opens a mailbox row as a complete admin message page', async () => {
     renderPage();
 
-    expect(await screen.findByRole('button', { name: /site visit schedule/i })).toBeInTheDocument();
-    expect(listMailbox).toHaveBeenCalledWith(expect.objectContaining({ folder: 'inbox' }));
-
-    await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
 
     await waitFor(() => expect(markRead).toHaveBeenCalledWith(message.id));
     expect(screen.getByRole('button', { name: 'Back to inbox' })).toBeInTheDocument();
-    expect(screen.getByText('agenda.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Next action')).toBeInTheDocument();
+    expect(screen.getByText('Medical supplies')).toBeInTheDocument();
   });
 
-  it('reloads mailbox data for search and folder changes', async () => {
-    renderPage();
-    await screen.findByRole('button', { name: /site visit schedule/i });
-
-    fireEvent.change(screen.getByPlaceholderText(/Search sender/i), { target: { value: 'site' } });
-
-    await waitFor(() => expect(listMailbox).toHaveBeenCalledWith(expect.objectContaining({ search: 'site' })));
-
-    fireEvent.click(screen.getByRole('button', { name: /^Sent$/i }));
-    await waitFor(() => expect(listMailbox).toHaveBeenCalledWith(expect.objectContaining({ folder: 'sent' })));
-  });
-
-  it('composes messages through the communication API', async () => {
+  it('opens compose as a full page and sends an admin message', async () => {
     renderPage();
     await screen.findByRole('button', { name: /site visit schedule/i });
 
     await userEvent.click(screen.getByRole('button', { name: 'New Message' }));
-    expect(screen.getByLabelText('From mailbox')).toHaveValue('Kilimanjaro Supplies Limited');
+    expect(await screen.findByRole('option', { name: /PX-2026-001/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('From mailbox')).toHaveValue('ProcureX Administration');
     expect(screen.queryByLabelText('Priority')).not.toBeInTheDocument();
     expect(screen.queryByText('Requires action')).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
-    const recipientSearch = await screen.findByLabelText('Find recipients');
+    const recipientSearch = screen.getByLabelText('Find recipients');
     fireEvent.change(recipientSearch, { target: { value: 'Ministry' } });
     await userEvent.click(await screen.findByRole('button', { name: /Add Ministry of Health/i }));
     expect(screen.getByRole('button', { name: /Remove Ministry of Health/i })).toBeInTheDocument();
@@ -212,27 +210,27 @@ describe('CommunicationCenterProcurexPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Add Tanzania Ports Authority/i }));
     expect(screen.getByRole('button', { name: /Remove Tanzania Ports Authority/i })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tender link'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
-    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification request' } });
-    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the meeting location.' } });
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification follow-up' } });
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the updated site visit time.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
 
     await waitFor(() => expect(composeMessage).toHaveBeenCalledTimes(2));
     expect(composeMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        senderOrgId: 'org-1',
+        senderOrgId: 'platform',
         recipientOrgId: 'org-2',
         tenderId: '22222222-2222-4222-8222-222222222222',
-        subject: 'Clarification request'
+        subject: 'Clarification follow-up'
       })
     );
     expect(composeMessage).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        senderOrgId: 'org-1',
+        senderOrgId: 'platform',
         recipientOrgId: 'org-3',
         tenderId: '22222222-2222-4222-8222-222222222222',
-        subject: 'Clarification request'
+        subject: 'Clarification follow-up'
       })
     );
     expect(composeMessage).not.toHaveBeenCalledWith(
@@ -243,27 +241,28 @@ describe('CommunicationCenterProcurexPage', () => {
     );
   });
 
-  it('replies, archives, and deletes through the communication API', async () => {
+  it('replies from the full message page', async () => {
     renderPage();
-    await screen.findByRole('button', { name: /site visit schedule/i });
-    await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
 
     fireEvent.change(screen.getByPlaceholderText('Write a reply'), { target: { value: 'Confirmed for Friday.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send Reply' }));
     await waitFor(() => expect(replyToMessage).toHaveBeenCalledWith(message.id, { body: 'Confirmed for Friday.' }));
+  });
 
-    listMailbox.mockResolvedValue(mailbox([readMessage]));
-    await screen.findByText('Await recipient response');
-    await userEvent.click(await screen.findByRole('button', { name: 'Back to inbox' }));
-    await screen.findByRole('button', { name: /site visit schedule/i });
-
-    await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
-    await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
-    await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
-
-    listMailbox.mockResolvedValue(mailbox([readMessage]));
+  it('archives from the full message page', async () => {
+    renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
-    await userEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
+    await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
+  });
+
+  it('moves messages to trash from the full message page', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
     await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(message.id));
   });
 });
