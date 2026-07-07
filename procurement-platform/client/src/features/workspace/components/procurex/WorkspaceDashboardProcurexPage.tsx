@@ -5,6 +5,7 @@ import { AppMenuIcon } from '@/features/tenderPlanning/components/procurex/icons
 import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
 import { workspaceDashboardApi } from '@/features/workspace/api';
 import type { DashboardPriority, WorkspaceDashboardData } from '@/features/workspace/types';
+import { platformAppItems } from '@/shared/components/procurex/PlatformAppsDrawer';
 
 const pageToRoute: Record<string, string> = {
   'account-profile': '/identity/profile',
@@ -77,45 +78,6 @@ const startActions = [
     icon: 'procurement',
     title: 'Prepare a tender workspace',
     description: 'Start a tender when your plan line is ready for drafting.'
-  }
-] as const;
-
-const otherAppActions = [
-  {
-    page: 'tender-planning',
-    icon: 'planning',
-    title: 'Create plan',
-    description: 'Build or upload procurement plan lines.'
-  },
-  {
-    page: 'communication-center',
-    icon: 'communication',
-    title: 'Create message',
-    description: 'Open communication, clarifications, and notices.'
-  },
-  {
-    page: 'create-tender',
-    icon: 'procurement',
-    title: 'Create tender',
-    description: 'Prepare a new buyer procurement workspace.'
-  },
-  {
-    page: 'marketplace',
-    icon: 'procurement',
-    title: 'View marketplace',
-    description: 'Browse published procurement opportunities.'
-  },
-  {
-    page: 'bid-evaluation',
-    icon: 'evaluation',
-    title: 'Evaluate bids',
-    description: 'Review supplier submissions and scoring.'
-  },
-  {
-    page: 'records-history',
-    icon: 'records',
-    title: 'Records and history',
-    description: 'Open procurement records and past activity.'
   }
 ] as const;
 
@@ -272,14 +234,12 @@ export function WorkspaceDashboardProcurexPage() {
                         <h2>Workspace apps</h2>
                       </div>
                     </div>
-                    <div className="dashboard-first-run-actions dashboard-first-run-actions-dense">
-                      {otherAppActions.map((action) => (
-                        <button className="dashboard-first-run-action" type="button" key={action.page} onClick={() => navigateToPage(action.page)}>
-                          <AppMenuIcon kind={action.icon} />
-                          <span>
-                            <strong>{action.title}</strong>
-                            <em>{action.description}</em>
-                          </span>
+                    <div className="dashboard-app-grid" aria-label="Workspace app shortcuts">
+                      {platformAppItems.map((app) => (
+                        <button className="dashboard-app-card" type="button" key={app.page} onClick={() => navigateToPage(app.page)}>
+                          <AppMenuIcon kind={app.icon} />
+                          <strong>{app.title}</strong>
+                          <em>{app.description}</em>
                         </button>
                       ))}
                     </div>

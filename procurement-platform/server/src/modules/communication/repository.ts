@@ -5,6 +5,7 @@ import {
   CommunicationPriority,
   CommunicationStatus,
   OrganizationCapabilityName,
+  OrganizationKind,
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
@@ -348,11 +349,17 @@ export class ModuleRepository {
   }
 
   async listRecipients(input: { search: string; capability?: 'BUYER' | 'SUPPLIER'; pageSize: number }): Promise<CommunicationRecipientDto[]> {
+    const search = input.search.trim();
+    const normalizedSearch = search.toLowerCase();
+    const adminAliasMatches = Boolean(search) && ['admin', 'administration', 'platform', 'procurex'].some((alias) => alias.includes(normalizedSearch));
     const organizations = await this.db.organization.findMany({
       where: {
-        ...(input.search
+        ...(search
           ? {
-              name: { contains: input.search, mode: 'insensitive' }
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                ...(adminAliasMatches ? [{ kind: OrganizationKind.PLATFORM }] : [])
+              ]
             }
           : {}),
         ...(input.capability
@@ -378,7 +385,7 @@ export class ModuleRepository {
 
     return organizations.map((organization) => ({
       id: organization.id,
-      name: organization.name,
+      name: organization.kind === OrganizationKind.PLATFORM ? 'Admin' : organization.name,
       kind: organization.kind,
       country: organization.country,
       capabilities: organization.capabilities.map((item) => item.capability)

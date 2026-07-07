@@ -161,6 +161,9 @@ describe('WorkspaceDashboardProcurexPage', () => {
     expect(screen.queryByRole('heading', { name: 'Procurement lifecycle status' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Recommended first actions' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Workspace apps' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Workspace app shortcuts')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Registration and Verification/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Awarding and Contract/i })).toBeInTheDocument();
   });
 
   it('treats created tenders as continuing activity even when no queue rows exist', async () => {

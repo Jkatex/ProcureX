@@ -196,6 +196,7 @@ describe('AdminCommunicationProcurexPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New Message' }));
     expect(await screen.findByRole('option', { name: /PX-2026-001/i })).toBeInTheDocument();
     expect(screen.getByLabelText('From mailbox')).toHaveValue('ProcureX Administration');
+    expect(screen.queryByLabelText('Category')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Priority')).not.toBeInTheDocument();
     expect(screen.queryByText('Requires action')).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();

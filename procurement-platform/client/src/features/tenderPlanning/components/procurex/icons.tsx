@@ -1,3 +1,5 @@
+import { resolveAppIconAsset } from '@/shared/components/procurex/appIconAssets';
+
 type PlanningActionIconProps = {
   kind: 'create' | 'upload' | 'download' | 'view';
 };
@@ -40,6 +42,16 @@ export function PlanningActionIcon({ kind }: PlanningActionIconProps) {
 }
 
 export function AppMenuIcon({ kind }: AppMenuIconProps) {
+  const imageSrc = resolveAppIconAsset(kind);
+
+  if (imageSrc) {
+    return (
+      <span className="app-menu-icon app-menu-icon-image">
+        <img className="app-menu-image" src={imageSrc} alt="" aria-hidden="true" />
+      </span>
+    );
+  }
+
   return (
     <span className="app-menu-icon">
       <svg

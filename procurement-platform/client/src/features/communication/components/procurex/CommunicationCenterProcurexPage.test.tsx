@@ -154,6 +154,7 @@ describe('CommunicationCenterProcurexPage', () => {
     archive.mockResolvedValue({ ...readMessage, folder: 'archived', status: 'ARCHIVED' });
     deleteMessage.mockResolvedValue({ ...readMessage, folder: 'trash', status: 'DELETED' });
     listRecipients.mockResolvedValue([
+      { id: 'platform', name: 'Admin', kind: 'PLATFORM', country: 'TZ', capabilities: [] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
       { id: 'org-3', name: 'Tanzania Ports Authority', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] }
     ]);
@@ -198,11 +199,14 @@ describe('CommunicationCenterProcurexPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'New Message' }));
     expect(screen.getByLabelText('From mailbox')).toHaveValue('Kilimanjaro Supplies Limited');
+    expect(screen.queryByLabelText('Category')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Priority')).not.toBeInTheDocument();
     expect(screen.queryByText('Requires action')).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
     const recipientSearch = await screen.findByLabelText('Find recipients');
+    fireEvent.change(recipientSearch, { target: { value: 'Admin' } });
+    expect(await screen.findByRole('button', { name: /Add Admin/i })).toBeInTheDocument();
     fireEvent.change(recipientSearch, { target: { value: 'Ministry' } });
     await userEvent.click(await screen.findByRole('button', { name: /Add Ministry of Health/i }));
     expect(screen.getByRole('button', { name: /Remove Ministry of Health/i })).toBeInTheDocument();

@@ -50,7 +50,6 @@ const folders: Array<{ key: MailboxFolder; label: string }> = [
   { key: 'trash', label: 'Trash' }
 ];
 
-const categories = ['General Message', 'Tender Clarification', 'System Notification', 'Evaluation Update', 'Award Notification', 'Deadline Reminder'];
 const pageSize = 30;
 
 function initialComposeState(): ComposeState {
@@ -406,15 +405,9 @@ export function AdminCommunicationProcurexPage() {
                 </button>
               </div>
               <div className="communication-compose-grid">
-                <label>
+                <label className="span-2">
                   <span>From mailbox</span>
                   <input className="form-input" value={senderMailboxName} readOnly />
-                </label>
-                <label>
-                  <span>Category</span>
-                  <select className="form-input" value={compose.category} onChange={(event) => setCompose((current) => ({ ...current, category: event.target.value }))}>
-                    {categories.map((category) => <option key={category}>{category}</option>)}
-                  </select>
                 </label>
                 <div className="communication-recipient-combobox span-2">
                   <label>
