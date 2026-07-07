@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
-import type { ContractDetailDto } from '../../types';
+import type { ContractDetailDto, FlowStep } from '../../types';
 import {
   ActionFormPanel,
   itemOptions,
   lifecycleStatusOptions,
+  option,
   signatureOptions
 } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
+import { AwardContractFlowBar, LockedFlowStepPanel, flowStepFromSearch, searchWithFlowStep } from './AwardContractFlow';
 import {
   ActionWorkspace,
   AwardHero,
@@ -22,7 +24,6 @@ import {
   SimpleTable,
   StatusBadge,
   TopSummary,
-  WorkflowSectionTabs,
   type WorkflowSection
 } from './AwardsContractsProcurexShared';
 
@@ -31,6 +32,8 @@ function getContractId(search: string) {
 }
 
 type ContractFormationGroupId = 'draft' | 'clauses' | 'negotiation' | 'approval' | 'signatures' | 'readiness' | 'registers';
+const contractFlowStepIds = ['draft', 'clauses', 'negotiation', 'approval', 'signatures', 'readiness', 'registers'] as const;
+type ContractFlowStepId = (typeof contractFlowStepIds)[number];
 
 function draftValue(value: unknown, fallback = 'Pending') {
   if (value === null || value === undefined || value === '') return fallback;
@@ -74,11 +77,12 @@ function ClauseReviewGrid({ clauses }: { clauses: ContractDetailDto['clauses'] }
 
 export function ContractNegotiationProcurexPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const contractId = useMemo(() => getContractId(location.search), [location.search]);
   const [contract, setContract] = useState<ContractDetailDto | null>(null);
-  const [activeGroup, setActiveGroup] = useState<ContractFormationGroupId>('draft');
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const activeGroup = useMemo(() => flowStepFromSearch(location.search, contractFlowStepIds, 'draft'), [location.search]);
 
   const loadContract = useCallback(async () => {
     if (!contractId) {
@@ -105,9 +109,20 @@ export function ContractNegotiationProcurexPage() {
 
   const draft = contract?.payload?.draft as Record<string, unknown> | undefined;
   const pendingSignatures = contract?.signatures?.filter((signature) => signature.status !== 'SIGNED') ?? [];
+  const activeFlowLock = useMemo(() => {
+    const noContract = { message: 'Select a contract before continuing the contract formation flow.', actionLabel: 'Back to Contract Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=contracts-in-progress' };
+    const signaturesPending = { message: 'Activation readiness is locked until required contract signatures are completed.', actionLabel: 'Go to Signatures', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
+    if (!contract) return noContract;
+    if (activeGroup === 'readiness' && pendingSignatures.length > 0) return signaturesPending;
+    return null;
+  }, [activeGroup, contract, contractId, pendingSignatures.length]);
 
   function refreshContract(result: unknown) {
     setContract(result as ContractDetailDto);
+  }
+
+  function selectFlowStep(step: ContractFlowStepId) {
+    navigate({ pathname: '/awards-contracts/negotiation', search: searchWithFlowStep(location.search, step) });
   }
 
   const sections: Array<WorkflowSection<ContractFormationGroupId>> = [
@@ -119,6 +134,20 @@ export function ContractNegotiationProcurexPage() {
     { id: 'readiness', label: 'Readiness', description: 'Activation checks.', count: contract ? 3 : 0 },
     { id: 'registers', label: 'Registers', description: 'All formation records.', count: (contract?.clauses?.length ?? 0) + (contract?.negotiations?.length ?? 0) + (contract?.signatures?.length ?? 0) }
   ];
+  const flowSteps = useMemo<Array<FlowStep<ContractFlowStepId>>>(() => {
+    const noContract = { message: 'Select a contract before continuing the contract formation flow.', actionLabel: 'Back to Contract Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=contracts-in-progress' };
+    const signaturesPending = { message: 'Activation readiness is locked until required contract signatures are completed.', actionLabel: 'Go to Signatures', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
+    const registerCount = sections.find((section) => section.id === 'registers')?.count ?? 0;
+    return [
+      { id: 'draft', label: 'Draft', description: 'Generated contract content', summary: 'Review the generated contract draft, parties, commercial terms, dates, and document context.', status: contract ? 'complete' : 'locked', statusLabel: contract ? 'Complete' : 'Locked', count: contract ? 1 : 0, countLabel: 'drafts', lockReason: noContract },
+      { id: 'clauses', label: 'Clauses', description: 'Buyer, supplier, and legal review', summary: 'Review clause ownership, comments, status, and the next negotiation action.', status: contract ? 'available' : 'locked', statusLabel: (contract?.clauses?.length ?? 0) > 0 ? 'Needs review' : 'Ready', count: contract?.clauses?.length ?? 0, countLabel: 'clauses', lockReason: noContract },
+      { id: 'negotiation', label: 'Negotiation', description: 'Open negotiation points', summary: 'Track open negotiation points and record buyer, supplier, or legal responses.', status: contract ? 'available' : 'locked', statusLabel: (contract?.negotiations?.length ?? 0) > 0 ? 'Needs action' : 'Ready', count: contract?.negotiations?.length ?? 0, countLabel: 'points', lockReason: noContract },
+      { id: 'approval', label: 'Approval', description: 'Owner approval', summary: 'Capture owner, legal, finance, or technical approval before signatures.', status: contract?.workflowApprovals?.length ? 'complete' : contract ? 'available' : 'locked', statusLabel: contract?.workflowApprovals?.length ? 'Complete' : 'Needs action', count: contract?.workflowApprovals?.length ?? 0, countLabel: 'approvals', lockReason: noContract },
+      { id: 'signatures', label: 'Signatures', description: 'Request and complete signing', summary: 'Request signatures and complete buyer or supplier signing without leaving the flow.', status: !contract ? 'locked' : pendingSignatures.length === 0 && contract.signatures.length > 0 ? 'complete' : 'available', statusLabel: pendingSignatures.length === 0 && (contract?.signatures.length ?? 0) > 0 ? 'Complete' : contract ? 'Needs action' : 'Locked', count: contract?.signatures?.length ?? 0, countLabel: 'signatures', lockReason: noContract },
+      { id: 'readiness', label: 'Activation readiness', description: 'Final checks before execution', summary: 'Confirm signatures and activation requirements before post-award execution begins.', status: !contract ? 'locked' : pendingSignatures.length > 0 ? 'locked' : 'available', statusLabel: !contract ? 'Locked' : pendingSignatures.length > 0 ? 'Locked' : 'Ready', count: contract ? 3 : 0, countLabel: 'readiness checks', lockReason: !contract ? noContract : signaturesPending },
+      { id: 'registers', label: 'Records', description: 'Formation history', summary: 'Review all contract formation records and audit context in one place.', status: contract ? 'available' : 'locked', statusLabel: contract ? 'Ready' : 'Locked', count: registerCount, countLabel: 'records', lockReason: noContract }
+    ];
+  }, [contract, contractId, pendingSignatures.length, sections]);
 
   return (
     <ProcurexAwardFrame pageKey="contract-negotiation">
@@ -149,7 +178,7 @@ export function ContractNegotiationProcurexPage() {
                 { label: 'Buyer', value: contract.buyerName },
                 { label: 'Supplier', value: contract.supplierName ?? 'Supplier pending' },
                 { label: 'Contract Value', value: contract.amount === null ? 'Not priced' : formatMoney(contract.amount, contract.currency) },
-                { label: 'Tender', value: contract.tenderReference ?? contract.tenderId ?? 'Not linked' },
+                { label: 'Tender', value: contract.tenderReference ?? 'Not linked' },
                 { label: 'Status', value: <StatusBadge value={contract.status} /> }
               ]}
             />
@@ -185,6 +214,10 @@ export function ContractNegotiationProcurexPage() {
               <div className="inline-actions">
                 <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=contracts-in-progress">Back to Contract Queue</button>
               </div>
+              <LockedFlowStepPanel
+                title="Contract formation is locked"
+                reason={{ message: 'Select a contract from the contract queue to resume formation without restarting.' }}
+              />
             </section>
           ) : !isLoading && !loadError && contract ? (
             <AwardContractAccessProvider access={contract.access}>
@@ -192,13 +225,17 @@ export function ContractNegotiationProcurexPage() {
               <div className="panel-heading">
                 <div>
                   <span className="section-kicker">Contract formation workspace</span>
-                  <h2>Draft, negotiation, approval, and signature</h2>
+                  <h2>Contract formation wizard</h2>
                 </div>
                 <StatusBadge value={sections.find((section) => section.id === activeGroup)?.label ?? 'Draft'} />
               </div>
-              <WorkflowSectionTabs sections={sections} active={activeGroup} onSelect={setActiveGroup} label="Contract formation sections" />
+              <AwardContractFlowBar steps={flowSteps} active={activeGroup} onSelect={selectFlowStep} label="Contract formation flow" />
 
-              {activeGroup === 'draft' ? (
+              {activeFlowLock ? (
+                <LockedFlowStepPanel title={`${flowSteps.find((step) => step.id === activeGroup)?.label ?? 'Workflow'} is locked`} reason={activeFlowLock} />
+              ) : null}
+
+              {!activeFlowLock && activeGroup === 'draft' ? (
                 <ActionWorkspace
                   kicker="Draft contract"
                   title="Generated from the winning award and tender record"
@@ -246,7 +283,7 @@ export function ContractNegotiationProcurexPage() {
                     badge="Version"
                     submitLabel="Create Version"
                     fields={[
-                      { name: 'documentId', label: 'External document ID (optional)', kind: 'uuid', placeholder: 'Optional external document UUID', helpText: 'Use only when referencing a document stored outside this workflow.' },
+                      { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid', placeholder: 'Optional external document reference', helpText: 'Use only when referencing a document stored outside this workflow.' },
                       { name: 'payload', label: 'Version payload', kind: 'json', required: true, rows: 7 }
                     ]}
                     initialValues={{
@@ -264,7 +301,7 @@ export function ContractNegotiationProcurexPage() {
                 </ActionWorkspace>
               ) : null}
 
-              {activeGroup === 'clauses' ? (
+              {!activeFlowLock && activeGroup === 'clauses' ? (
                 <ActionWorkspace
                   kicker="Clauses"
                   title="Structured clause review"
@@ -299,7 +336,7 @@ export function ContractNegotiationProcurexPage() {
                 </ActionWorkspace>
               ) : null}
 
-              {activeGroup === 'negotiation' ? (
+              {!activeFlowLock && activeGroup === 'negotiation' ? (
                 <ActionWorkspace
                   kicker="Negotiation"
                   title="Structured negotiation points"
@@ -312,7 +349,7 @@ export function ContractNegotiationProcurexPage() {
                     submitLabel="Create Negotiation"
                     fields={[
                       { name: 'clauseId', label: 'Clause', kind: 'select', options: itemOptions(contract.clauses ?? [], 'No linked clause') },
-                      { name: 'raisedByRole', label: 'Raised by role', kind: 'text', required: true },
+                      { name: 'raisedByRole', label: 'Raised by', kind: 'select', required: true, options: [option('Buyer'), option('Supplier'), option('Legal'), option('Contract Owner')] },
                       { name: 'subject', label: 'Subject', kind: 'text', required: true },
                       { name: 'position', label: 'Position', kind: 'textarea' },
                       { name: 'counterOffer', label: 'Counter offer', kind: 'textarea' },
@@ -332,7 +369,7 @@ export function ContractNegotiationProcurexPage() {
                 </ActionWorkspace>
               ) : null}
 
-              {activeGroup === 'approval' ? (
+              {!activeFlowLock && activeGroup === 'approval' ? (
                 <ActionWorkspace
                   kicker="Owner approval"
                   title="Single-user contract approval"
@@ -344,8 +381,8 @@ export function ContractNegotiationProcurexPage() {
                     badge="Owner"
                     submitLabel="Save Owner Approval"
                     fields={[
-                      { name: 'stepKey', label: 'Step key', kind: 'text', required: true },
-                      { name: 'role', label: 'Owner role', kind: 'text', required: true },
+                      { name: 'stepKey', label: 'Step key', kind: 'text', required: true, technical: true },
+                      { name: 'role', label: 'Approver role', kind: 'select', required: true, options: [option('Contract Owner'), option('Legal'), option('Finance'), option('Technical')] },
                       { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
                       { name: 'note', label: 'Note', kind: 'textarea' },
                       { name: 'payload', label: 'Approval payload', kind: 'json', rows: 4 }
@@ -362,7 +399,7 @@ export function ContractNegotiationProcurexPage() {
                 </ActionWorkspace>
               ) : null}
 
-              {activeGroup === 'signatures' ? (
+              {!activeFlowLock && activeGroup === 'signatures' ? (
                 <ActionWorkspace
                   kicker="Signatures"
                   title="Digital signing status"
@@ -430,7 +467,7 @@ export function ContractNegotiationProcurexPage() {
                 </ActionWorkspace>
               ) : null}
 
-              {activeGroup === 'readiness' ? (
+              {!activeFlowLock && activeGroup === 'readiness' ? (
                 <ActionWorkspace
                   kicker="Contract readiness"
                   title="Activation checks before implementation"
@@ -447,7 +484,7 @@ export function ContractNegotiationProcurexPage() {
                 </ActionWorkspace>
               ) : null}
 
-              {activeGroup === 'registers' ? (
+              {!activeFlowLock && activeGroup === 'registers' ? (
                 <div className="award-register-grid">
                   <RegisterCard kicker="Clauses" title="Contract clauses" records={(contract.clauses ?? []) as unknown as Array<Record<string, unknown>>} />
                   <RegisterCard kicker="Negotiation" title="Negotiation points" records={(contract.negotiations ?? []) as unknown as Array<Record<string, unknown>>} />

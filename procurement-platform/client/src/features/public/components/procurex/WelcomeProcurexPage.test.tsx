@@ -124,8 +124,7 @@ describe('WelcomeProcurexPage', () => {
 
     expect(document.querySelector('.procurex-language-inline--welcome')).toContainElement(screen.getByRole('combobox', { name: 'Language' }));
 
-    await user.click(screen.getByRole('combobox', { name: 'Language' }));
-    await user.click(screen.getByRole('option', { name: 'Swahili' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'sw');
 
     expect(await screen.findByRole('heading', { name: 'Nunua. Toa Huduma. Unganika. Kua.' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Anza Sasa' }).length).toBeGreaterThan(0);

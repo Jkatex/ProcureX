@@ -44,7 +44,7 @@ export function SidebarNav() {
         <img src="/assets/logo.svg" alt="" />
         <span>{t('brand')}</span>
       </NavLink>
-      <nav aria-label="Workspace">
+      <nav aria-label={t('nav.workspace')}>
         {links.map(({ to, labelKey, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/admin' || to === '/dashboard'}>
             <Icon fontSize="small" />

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation } from 'react-router-dom';
 import { ProcurexLoadingPage } from '@/shared/components/ProcurexLoadingPage';
 import { useAppSelector } from './store';
@@ -23,7 +24,8 @@ const trustRank: Record<TrustTier, number> = {
 };
 
 function LoadingGate() {
-  return <ProcurexLoadingPage title="Restoring session" message="Checking your ProcureX sign-in state." />;
+  const { t } = useTranslation();
+  return <ProcurexLoadingPage title={t('loading.restoringSession')} message={t('loading.checkingSession')} />;
 }
 
 export function ProtectedRoute({ children, requireVerified = false, requiredPermission, requiredGate, minimumTrustTier, adminRedirectTo }: GuardProps) {

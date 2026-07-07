@@ -54,6 +54,29 @@ describeDb('award-contract demo seed', () => {
     expect(rich?.closeout).toBeTruthy();
     expect(rich?.supplierPerformanceRecords.length).toBeGreaterThan(0);
 
+    await expect(db.user.count({ where: { email: 'award-demo@procurex.tz' } })).resolves.toBe(1);
+    await expect(
+      db.user.count({
+        where: {
+          email: {
+            in: [
+              'award-admin@procurex.tz',
+              'award-buyer@procurex.tz',
+              'contract-manager@procurex.tz',
+              'legal-review@procurex.tz',
+              'finance-review@procurex.tz',
+              'technical-review@procurex.tz',
+              'award-supplier@procurex.tz',
+              'declined-supplier@procurex.tz',
+              'risky-supplier@procurex.tz',
+              'terminated-supplier@procurex.tz',
+              'closed-supplier@procurex.tz'
+            ]
+          }
+        }
+      })
+    ).resolves.toBe(0);
+
     await expect(db.urgentAction.count({ where: { payload: { path: ['demoDataset'], equals: 'award-contract-full' } } })).resolves.toBeGreaterThan(0);
     await expect(db.collusionAlert.count({ where: { payload: { path: ['demoDataset'], equals: 'award-contract-full' } } })).resolves.toBeGreaterThan(0);
     await expect(db.complianceReview.count({ where: { payload: { path: ['demoDataset'], equals: 'award-contract-full' } } })).resolves.toBeGreaterThan(0);

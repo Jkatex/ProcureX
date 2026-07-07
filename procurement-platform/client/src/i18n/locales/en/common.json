@@ -32,7 +32,224 @@
     "awards": "Awards and Contracts",
     "communication": "Communication Center",
     "records": "Records and History",
-    "admin": "Admin"
+    "admin": "Admin",
+    "primary": "Primary navigation",
+    "workspace": "Workspace navigation"
+  },
+  "admin": {
+    "commandCenter": "Command Center",
+    "deepSearch": "Deep Search"
+  },
+  "loading": {
+    "title": "Loading ProcureX...",
+    "message": "Preparing the procurement workspace.",
+    "restoringSession": "Restoring session",
+    "checkingSession": "Checking your ProcureX sign-in state."
+  },
+  "accountMenu": {
+    "title": "Account menu",
+    "open": "Open account menu",
+    "procurexAccount": "ProcureX account",
+    "procurexUser": "ProcureX user",
+    "profile": "Profile",
+    "messages": "Messages",
+    "help": "Help",
+    "badges": {
+      "admin": "Admin",
+      "verified": "Verified",
+      "account": "Account"
+    }
+  },
+  "platformApps": {
+    "title": "ProcureX Apps",
+    "openApps": "Open apps",
+    "accountTools": "ProcureX account tools",
+    "adminTools": "Platform admin tools",
+    "items": {
+      "accountProfile": {
+        "title": "Registration and Verification",
+        "description": "Account and identity verification"
+      },
+      "tenderPlanning": {
+        "title": "Procurement Planning",
+        "description": "APP, SPP, budgets, approvals"
+      },
+      "procurement": {
+        "title": "Procurement",
+        "description": "Marketplace, create tender, bid"
+      },
+      "communication": {
+        "title": "Communication Center",
+        "description": "Messages, clarifications, alerts"
+      },
+      "evaluation": {
+        "title": "Evaluation",
+        "description": "Evaluate bids on your tenders"
+      },
+      "awarding": {
+        "title": "Awarding and Contract",
+        "description": "Awards, negotiations, signatures"
+      },
+      "records": {
+        "title": "Records and History",
+        "description": "Past tenders, bids, awards"
+      }
+    }
+  },
+  "launcher": {
+    "kicker": "Welcome to ProcureX",
+    "title": "{{name}}, choose where to start.",
+    "body": "Your workspace is ready and starts clean. Procurement activity, messages, records, and audit trails will appear after this account begins real platform work.",
+    "verificationNeeded": "Verification needed",
+    "noActivity": "No activity yet",
+    "continueToDashboard": "Continue to Dashboard",
+    "badges": {
+      "verified": "Verified",
+      "startHere": "Start here",
+      "marketplace": "Marketplace",
+      "messages": "Messages",
+      "later": "Later",
+      "archive": "Archive"
+    },
+    "apps": {
+      "accountProfile": {
+        "description": "Review identity, profile, and organization details."
+      },
+      "tenderPlanning": {
+        "description": "Create plan lines before preparing tenders."
+      },
+      "procurement": {
+        "description": "Browse opportunities or create your first tender."
+      },
+      "communication": {
+        "description": "Manage clarifications, notices, and platform messages."
+      },
+      "evaluation": {
+        "description": "Evaluate bids after tenders receive submissions."
+      },
+      "awarding": {
+        "description": "Handle awards, contracts, and post-award tracking."
+      },
+      "records": {
+        "description": "Review generated records once activity begins."
+      }
+    }
+  },
+  "workspaceDashboard": {
+    "yourOrganization": "Your organization",
+    "accountOverview": "Account overview",
+    "dashboardTotals": "Dashboard totals",
+    "hero": {
+      "liveKicker": "Live workspace dashboard",
+      "firstRunKicker": "First run dashboard",
+      "welcome": "Welcome,",
+      "liveBody": "Your procurement work, messages, deadlines, and compliance actions are summarized from live ProcureX records.",
+      "firstRunBody": "This dashboard will fill with procurement work, messages, deadlines, and compliance actions as your team starts using ProcureX."
+    },
+    "actions": {
+      "viewMarketplace": "View marketplace",
+      "createTender": "Create tender"
+    },
+    "counts": {
+      "urgent": "{{count}} urgent",
+      "workflows": "{{count}} workflows",
+      "unread": "{{count}} unread",
+      "active": "{{count}} active"
+    },
+    "noUrgentActivity": "No urgent activity",
+    "complianceClear": "Compliance status is clear.",
+    "complianceNeeded": "Compliance attention is needed.",
+    "pipeline": {
+      "kicker": "Pipeline overview",
+      "title": "Procurement lifecycle status",
+      "stages": {
+        "draft": "Draft",
+        "published": "Published",
+        "evaluation": "Evaluation",
+        "award": "Award",
+        "contract": "Contract",
+        "completed": "Completed"
+      }
+    },
+    "metrics": {
+      "myTenders": "My tenders",
+      "myBids": "My bids",
+      "recordedValue": "Recorded value",
+      "unreadMessages": "Unread messages"
+    },
+    "metricNotes": {
+      "myTenders": "Tenders you create will be counted here.",
+      "myBids": "Bid drafts and submissions will appear after activity starts.",
+      "recordedValue": "Procurement value is calculated from real plan and tender records.",
+      "unreadMessages": "New platform communication will be surfaced here."
+    },
+    "queue": {
+      "kicker": "Action queue",
+      "title": "Items requiring attention",
+      "empty": "No action queue yet. Create a tender or send a message to start real work."
+    },
+    "deadlines": {
+      "kicker": "Upcoming dates",
+      "title": "Deadline timeline",
+      "emptyTitle": "No deadlines yet.",
+      "emptyBody": "Planning dates, tender closing dates, and contract milestones will appear here once created.",
+      "addPlanDates": "Add Plan Dates"
+    },
+    "activeWork": {
+      "kicker": "My active work",
+      "title": "Continue where you left off",
+      "type": "Type",
+      "item": "Item",
+      "nextAction": "Next action",
+      "deadline": "Deadline",
+      "empty": "No active work yet. Try another app or create a tender to generate workflow rows."
+    },
+    "startHere": "Start here",
+    "recommendedFirstActions": "Recommended first actions",
+    "guidedSetup": "Guided setup",
+    "moreApps": "More ProcureX apps",
+    "tryOtherApps": "Try other apps",
+    "allWorkspaceApps": "All workspace apps",
+    "startActions": {
+      "plan": {
+        "title": "Create your first procurement plan",
+        "description": "Set up the annual plan before tenders move into publication."
+      },
+      "message": {
+        "title": "Send your first platform message",
+        "description": "Use the mailbox for procurement questions, clarifications, and notices."
+      },
+      "tender": {
+        "title": "Prepare a tender workspace",
+        "description": "Start a tender when your plan line is ready for drafting."
+      }
+    },
+    "otherActions": {
+      "createPlan": {
+        "title": "Create plan",
+        "description": "Build or upload procurement plan lines."
+      },
+      "createMessage": {
+        "title": "Create message",
+        "description": "Open communication, clarifications, and notices."
+      },
+      "createTender": {
+        "title": "Create tender",
+        "description": "Prepare a new buyer procurement workspace."
+      },
+      "viewMarketplace": {
+        "title": "View marketplace",
+        "description": "Browse published procurement opportunities."
+      },
+      "evaluateBids": {
+        "title": "Evaluate bids",
+        "description": "Review supplier submissions and scoring."
+      },
+      "records": {
+        "title": "Records and history",
+        "description": "Open procurement records and past activity."
+      }
+    }
   },
   "pages": {
     "welcome": {
@@ -282,6 +499,172 @@
       "support": "Support",
       "helpCenter": "Help Center",
       "contactSupport": "Contact Support"
+    }
+  },
+  "support": {
+    "nav": {
+      "ariaLabel": "Support navigation",
+      "openTenders": "Open tenders",
+      "status": "Status"
+    },
+    "categories": {
+      "general": "General",
+      "accountAccess": "Account access",
+      "identity": "Identity",
+      "identityVerification": "Identity verification",
+      "procurement": "Procurement",
+      "evaluation": "Evaluation",
+      "awardingContract": "Awarding and contract",
+      "technical": "Technical",
+      "compliance": "Compliance"
+    },
+    "priorities": {
+      "LOW": "Low",
+      "NORMAL": "Normal",
+      "HIGH": "High",
+      "URGENT": "Urgent"
+    },
+    "quickLinks": {
+      "verification": "Verification",
+      "systemStatus": "System Status",
+      "awardingContracts": "Awarding and Contracts"
+    },
+    "ticket": {
+      "createdTitle": "Support ticket created",
+      "createdMessage": "Ticket {{id}} is now with ProcureX support.",
+      "failedTitle": "Ticket could not be created",
+      "failedMessage": "Please check your session and try again.",
+      "create": "Create support ticket",
+      "creating": "Creating...",
+      "accountSpecificTitle": "Send an account-specific support request",
+      "createRequest": "Create support request",
+      "kicker": "Support ticket",
+      "subject": "Subject",
+      "category": "Category",
+      "priority": "Priority",
+      "description": "Description",
+      "descriptionPlaceholder": "Tell support which workflow you were using, what happened, and the record reference if available."
+    },
+    "help": {
+      "eyebrow": "ProcureX Help Center",
+      "title": "Help for registration, verification, tenders, and bids.",
+      "body": "Find practical guidance for the first ProcureX workflows. For account-specific issues, contact support with the email address used on your organization profile.",
+      "optionsAria": "Support options",
+      "options": {
+        "identity": {
+          "title": "Identity and access",
+          "body": "Registration, OTP verification, registry checks, trust tier status, and role-based access questions.",
+          "link": "Open verification"
+        },
+        "tender": {
+          "title": "Tender workflow",
+          "body": "Create tenders, publish procurement opportunities, review requirements, and keep tender records together.",
+          "link": "Browse tenders"
+        },
+        "channels": {
+          "title": "Support channels",
+          "body": "Send onboarding, compliance, or technical questions to the ProcureX support team.",
+          "link": "Contact support"
+        }
+      },
+      "faq": {
+        "label": "Frequently asked",
+        "title": "Procurement support questions",
+        "items": {
+          "verification": {
+            "question": "How do I get verified on ProcureX?",
+            "answer": "Create an account, complete contact verification, then submit your registry details, authorized signatory information, and supporting documents from the identity verification workspace."
+          },
+          "dualRole": {
+            "question": "Can one organization buy and supply?",
+            "answer": "Yes. ProcureX supports buyer, supplier, and combined capabilities. Available tools are controlled by verification, permissions, and trust tier rules."
+          },
+          "bidTiming": {
+            "question": "When can suppliers submit bids?",
+            "answer": "Suppliers can submit bids after their organization is approved and the tender is open for participation. Restricted actions stay gated until verification and trust checks pass."
+          },
+          "records": {
+            "question": "Where do procurement records go?",
+            "answer": "Tender activity, clarification messages, bids, evaluations, awards, contracts, and audit events are retained in the platform record views as activity is created."
+          }
+        }
+      }
+    },
+    "desk": {
+      "title": "Help Desk",
+      "kicker": "Signed-in support",
+      "body": "Send account-specific support requests from your ProcureX workspace. Include the workflow, record reference, and what you expected to happen.",
+      "prioritiesAria": "Support priorities",
+      "useCategory": "Use this category",
+      "quickLinks": "Quick links",
+      "openRelated": "Open related workspace",
+      "nav": {
+        "request": "Support request",
+        "publicHelp": "Public help center"
+      },
+      "cards": {
+        "account": {
+          "title": "Account access",
+          "description": "Sign-in, profile, language, password, organization access, and session issues."
+        },
+        "verification": {
+          "title": "Verification",
+          "description": "Identity, organization approval, trust tier, KYB/KYC, and blocked verification steps."
+        },
+        "procurement": {
+          "title": "Procurement workflows",
+          "description": "Planning, tender creation, marketplace visibility, bidding, and evaluation questions."
+        },
+        "awarding": {
+          "title": "Awarding and contract support",
+          "description": "Award notices, supplier responses, contract negotiation, signatures, and post-award tracking."
+        },
+        "technical": {
+          "title": "Technical issue",
+          "description": "Blank pages, upload trouble, unavailable services, browser issues, or unexpected errors."
+        }
+      }
+    },
+    "status": {
+      "unreachable": "The ProcureX API health check is not reachable from this browser right now.",
+      "operational": "Operational",
+      "connectionIssue": "Connection issue",
+      "checking": "Checking",
+      "responding": "Health check for {{service}} is responding. {{count}} service modules are registered.",
+      "procurexServer": "ProcureX server",
+      "modulesAria": "Service modules",
+      "failed": "Health check failed",
+      "failedReason": "The browser could not reach the public /health endpoint.",
+      "refresh": "Refresh status",
+      "apiHealth": "API health",
+      "checkingModules": "Checking registered modules...",
+      "retry": "Retry by refreshing this page after the API is available."
+    },
+    "actions": {
+      "goHome": "Go home",
+      "openHelp": "Open help",
+      "getHelp": "Get help",
+      "readHelp": "Read help",
+      "notFound": {
+        "title": "That ProcureX page was not found.",
+        "body": "The link may be old, mistyped, or no longer available. You can return home or open the help center."
+      },
+      "sessionExpired": {
+        "eyebrow": "Session expired",
+        "title": "Please sign in again.",
+        "body": "Your saved session could not be restored. Sign in again to continue with your ProcureX workspace."
+      },
+      "accountLocked": {
+        "eyebrow": "Account access",
+        "title": "This account needs support review.",
+        "body": "The sign-in response indicates the account may be locked or suspended. Contact ProcureX support before trying again."
+      }
+    },
+    "cookie": {
+      "ariaLabel": "Cookie notice",
+      "message": "ProcureX uses essential browser storage for sign-in, language, security checks, and service reliability. See our",
+      "shortMessage": "ProcureX uses local storage and essential cookies to keep sessions, preferences, and demo workflows working.",
+      "accept": "Accept"
     }
   },
   "auth": {

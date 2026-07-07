@@ -32,7 +32,224 @@
     "awards": "Tuzo na Mikataba",
     "communication": "Kituo cha Mawasiliano",
     "records": "Kumbukumbu na Historia",
-    "admin": "Msimamizi"
+    "admin": "Msimamizi",
+    "primary": "Urambazaji mkuu",
+    "workspace": "Urambazaji wa eneo la kazi"
+  },
+  "admin": {
+    "commandCenter": "Kituo cha Amri",
+    "deepSearch": "Utafutaji wa Kina"
+  },
+  "loading": {
+    "title": "Inapakia ProcureX...",
+    "message": "Inaandaa eneo la kazi la ununuzi.",
+    "restoringSession": "Inarejesha kikao",
+    "checkingSession": "Inakagua hali yako ya kuingia ProcureX."
+  },
+  "accountMenu": {
+    "title": "Menyu ya akaunti",
+    "open": "Fungua menyu ya akaunti",
+    "procurexAccount": "Akaunti ya ProcureX",
+    "procurexUser": "Mtumiaji wa ProcureX",
+    "profile": "Wasifu",
+    "messages": "Ujumbe",
+    "help": "Msaada",
+    "badges": {
+      "admin": "Msimamizi",
+      "verified": "Imethibitishwa",
+      "account": "Akaunti"
+    }
+  },
+  "platformApps": {
+    "title": "Programu za ProcureX",
+    "openApps": "Fungua programu",
+    "accountTools": "Zana za akaunti ya ProcureX",
+    "adminTools": "Zana za msimamizi wa jukwaa",
+    "items": {
+      "accountProfile": {
+        "title": "Usajili na Uthibitishaji",
+        "description": "Akaunti na uthibitishaji wa utambulisho"
+      },
+      "tenderPlanning": {
+        "title": "Mipango ya Ununuzi",
+        "description": "APP, SPP, bajeti, idhini"
+      },
+      "procurement": {
+        "title": "Ununuzi",
+        "description": "Soko, tengeneza zabuni, wasilisha zabuni"
+      },
+      "communication": {
+        "title": "Kituo cha Mawasiliano",
+        "description": "Ujumbe, ufafanuzi, tahadhari"
+      },
+      "evaluation": {
+        "title": "Tathmini",
+        "description": "Tathmini zabuni kwenye zabuni zako"
+      },
+      "awarding": {
+        "title": "Tuzo na Mkataba",
+        "description": "Tuzo, majadiliano, saini"
+      },
+      "records": {
+        "title": "Kumbukumbu na Historia",
+        "description": "Zabuni, mawasilisho, na tuzo zilizopita"
+      }
+    }
+  },
+  "launcher": {
+    "kicker": "Karibu ProcureX",
+    "title": "{{name}}, chagua pa kuanzia.",
+    "body": "Eneo lako la kazi liko tayari na linaanza bila shughuli. Shughuli za ununuzi, ujumbe, kumbukumbu, na historia ya ukaguzi zitaonekana baada ya akaunti hii kuanza kazi halisi za jukwaa.",
+    "verificationNeeded": "Uthibitishaji unahitajika",
+    "noActivity": "Bado hakuna shughuli",
+    "continueToDashboard": "Endelea kwenye Dashibodi",
+    "badges": {
+      "verified": "Imethibitishwa",
+      "startHere": "Anzia hapa",
+      "marketplace": "Soko",
+      "messages": "Ujumbe",
+      "later": "Baadaye",
+      "archive": "Jalada"
+    },
+    "apps": {
+      "accountProfile": {
+        "description": "Hakiki utambulisho, wasifu, na taarifa za shirika."
+      },
+      "tenderPlanning": {
+        "description": "Tengeneza mistari ya mpango kabla ya kuandaa zabuni."
+      },
+      "procurement": {
+        "description": "Tazama fursa au tengeneza zabuni yako ya kwanza."
+      },
+      "communication": {
+        "description": "Simamia ufafanuzi, taarifa, na ujumbe wa jukwaa."
+      },
+      "evaluation": {
+        "description": "Tathmini zabuni baada ya zabuni kupokea mawasilisho."
+      },
+      "awarding": {
+        "description": "Shughulikia tuzo, mikataba, na ufuatiliaji baada ya tuzo."
+      },
+      "records": {
+        "description": "Hakiki kumbukumbu zilizotengenezwa shughuli zikianza."
+      }
+    }
+  },
+  "workspaceDashboard": {
+    "yourOrganization": "Shirika lako",
+    "accountOverview": "Muhtasari wa akaunti",
+    "dashboardTotals": "Jumla za dashibodi",
+    "hero": {
+      "liveKicker": "Dashibodi hai ya eneo la kazi",
+      "firstRunKicker": "Dashibodi ya mwanzo",
+      "welcome": "Karibu,",
+      "liveBody": "Kazi zako za ununuzi, ujumbe, muda wa mwisho, na hatua za uzingatiaji zimefupishwa kutoka rekodi hai za ProcureX.",
+      "firstRunBody": "Dashibodi hii itajazwa na kazi za ununuzi, ujumbe, muda wa mwisho, na hatua za uzingatiaji kadri timu yako inavyoanza kutumia ProcureX."
+    },
+    "actions": {
+      "viewMarketplace": "Tazama soko",
+      "createTender": "Tengeneza zabuni"
+    },
+    "counts": {
+      "urgent": "{{count}} za haraka",
+      "workflows": "Mtiririko {{count}}",
+      "unread": "{{count}} hazijasomwa",
+      "active": "{{count}} hai"
+    },
+    "noUrgentActivity": "Hakuna shughuli ya haraka",
+    "complianceClear": "Hali ya uzingatiaji iko sawa.",
+    "complianceNeeded": "Uzingatiaji unahitaji uangalizi.",
+    "pipeline": {
+      "kicker": "Muhtasari wa mtiririko",
+      "title": "Hali ya mzunguko wa ununuzi",
+      "stages": {
+        "draft": "Rasimu",
+        "published": "Imechapishwa",
+        "evaluation": "Tathmini",
+        "award": "Tuzo",
+        "contract": "Mkataba",
+        "completed": "Imekamilika"
+      }
+    },
+    "metrics": {
+      "myTenders": "Zabuni zangu",
+      "myBids": "Mawasilisho yangu",
+      "recordedValue": "Thamani iliyorekodiwa",
+      "unreadMessages": "Ujumbe ambao haujasomwa"
+    },
+    "metricNotes": {
+      "myTenders": "Zabuni unazotengeneza zitahesabiwa hapa.",
+      "myBids": "Rasimu na mawasilisho ya zabuni yataonekana baada ya shughuli kuanza.",
+      "recordedValue": "Thamani ya ununuzi huhesabiwa kutoka rekodi halisi za mpango na zabuni.",
+      "unreadMessages": "Mawasiliano mapya ya jukwaa yataonyeshwa hapa."
+    },
+    "queue": {
+      "kicker": "Foleni ya vitendo",
+      "title": "Vipengele vinavyohitaji uangalizi",
+      "empty": "Bado hakuna foleni ya vitendo. Tengeneza zabuni au tuma ujumbe ili kuanza kazi halisi."
+    },
+    "deadlines": {
+      "kicker": "Tarehe zijazo",
+      "title": "Ratiba ya muda wa mwisho",
+      "emptyTitle": "Bado hakuna muda wa mwisho.",
+      "emptyBody": "Tarehe za mipango, tarehe za kufungwa kwa zabuni, na hatua za mikataba zitaonekana hapa zikishaundwa.",
+      "addPlanDates": "Ongeza Tarehe za Mpango"
+    },
+    "activeWork": {
+      "kicker": "Kazi zangu hai",
+      "title": "Endelea ulipoishia",
+      "type": "Aina",
+      "item": "Kipengele",
+      "nextAction": "Hatua inayofuata",
+      "deadline": "Muda wa mwisho",
+      "empty": "Bado hakuna kazi hai. Jaribu programu nyingine au tengeneza zabuni ili kupata safu za mtiririko."
+    },
+    "startHere": "Anzia hapa",
+    "recommendedFirstActions": "Hatua za kwanza zinazopendekezwa",
+    "guidedSetup": "Usanidi elekezi",
+    "moreApps": "Programu zaidi za ProcureX",
+    "tryOtherApps": "Jaribu programu nyingine",
+    "allWorkspaceApps": "Programu zote za eneo la kazi",
+    "startActions": {
+      "plan": {
+        "title": "Tengeneza mpango wako wa kwanza wa ununuzi",
+        "description": "Sanidi mpango wa mwaka kabla ya zabuni kwenda kwenye uchapishaji."
+      },
+      "message": {
+        "title": "Tuma ujumbe wako wa kwanza wa jukwaa",
+        "description": "Tumia kisanduku cha ujumbe kwa maswali ya ununuzi, ufafanuzi, na taarifa."
+      },
+      "tender": {
+        "title": "Andaa eneo la kazi la zabuni",
+        "description": "Anza zabuni wakati mstari wa mpango uko tayari kwa rasimu."
+      }
+    },
+    "otherActions": {
+      "createPlan": {
+        "title": "Tengeneza mpango",
+        "description": "Jenga au pakia mistari ya mpango wa ununuzi."
+      },
+      "createMessage": {
+        "title": "Tengeneza ujumbe",
+        "description": "Fungua mawasiliano, ufafanuzi, na taarifa."
+      },
+      "createTender": {
+        "title": "Tengeneza zabuni",
+        "description": "Andaa eneo jipya la kazi la ununuzi la mnunuzi."
+      },
+      "viewMarketplace": {
+        "title": "Tazama soko",
+        "description": "Tazama fursa za ununuzi zilizochapishwa."
+      },
+      "evaluateBids": {
+        "title": "Tathmini zabuni",
+        "description": "Hakiki mawasilisho ya wazabuni na uwekaji alama."
+      },
+      "records": {
+        "title": "Kumbukumbu na historia",
+        "description": "Fungua kumbukumbu za ununuzi na shughuli zilizopita."
+      }
+    }
   },
   "pages": {
     "welcome": {
@@ -282,6 +499,172 @@
       "support": "Msaada",
       "helpCenter": "Kituo cha Msaada",
       "contactSupport": "Wasiliana na Msaada"
+    }
+  },
+  "support": {
+    "nav": {
+      "ariaLabel": "Urambazaji wa msaada",
+      "openTenders": "Zabuni zilizo wazi",
+      "status": "Hali"
+    },
+    "categories": {
+      "general": "Jumla",
+      "accountAccess": "Ufikiaji wa akaunti",
+      "identity": "Utambulisho",
+      "identityVerification": "Uthibitishaji wa utambulisho",
+      "procurement": "Ununuzi",
+      "evaluation": "Tathmini",
+      "awardingContract": "Tuzo na mkataba",
+      "technical": "Kiufundi",
+      "compliance": "Uzingatiaji"
+    },
+    "priorities": {
+      "LOW": "Chini",
+      "NORMAL": "Kawaida",
+      "HIGH": "Juu",
+      "URGENT": "Haraka"
+    },
+    "quickLinks": {
+      "verification": "Uthibitishaji",
+      "systemStatus": "Hali ya Mfumo",
+      "awardingContracts": "Tuzo na Mikataba"
+    },
+    "ticket": {
+      "createdTitle": "Tiketi ya msaada imetengenezwa",
+      "createdMessage": "Tiketi {{id}} sasa iko kwa timu ya msaada ya ProcureX.",
+      "failedTitle": "Tiketi haikuweza kutengenezwa",
+      "failedMessage": "Tafadhali kagua kikao chako kisha ujaribu tena.",
+      "create": "Tengeneza tiketi ya msaada",
+      "creating": "Inatengeneza...",
+      "accountSpecificTitle": "Tuma ombi la msaada linalohusu akaunti",
+      "createRequest": "Tengeneza ombi la msaada",
+      "kicker": "Tiketi ya msaada",
+      "subject": "Kichwa",
+      "category": "Kategoria",
+      "priority": "Kipaumbele",
+      "description": "Maelezo",
+      "descriptionPlaceholder": "Eleza mtiririko uliokuwa unatumia, kilichotokea, na rejea ya rekodi kama ipo."
+    },
+    "help": {
+      "eyebrow": "Kituo cha Msaada cha ProcureX",
+      "title": "Msaada kwa usajili, uthibitishaji, zabuni, na mawasilisho.",
+      "body": "Pata mwongozo wa vitendo kwa michakato ya kwanza ya ProcureX. Kwa masuala yanayohusu akaunti, wasiliana na msaada ukitumia barua pepe iliyo kwenye wasifu wa shirika lako.",
+      "optionsAria": "Chaguo za msaada",
+      "options": {
+        "identity": {
+          "title": "Utambulisho na ufikiaji",
+          "body": "Usajili, uthibitishaji wa OTP, ukaguzi wa sajili, hali ya daraja la uaminifu, na maswali ya ufikiaji kulingana na majukumu.",
+          "link": "Fungua uthibitishaji"
+        },
+        "tender": {
+          "title": "Mtiririko wa zabuni",
+          "body": "Tengeneza zabuni, chapisha fursa za ununuzi, hakiki mahitaji, na tunza kumbukumbu za zabuni pamoja.",
+          "link": "Tazama zabuni"
+        },
+        "channels": {
+          "title": "Njia za msaada",
+          "body": "Tuma maswali ya kujiunga, uzingatiaji, au kiufundi kwa timu ya msaada ya ProcureX.",
+          "link": "Wasiliana na msaada"
+        }
+      },
+      "faq": {
+        "label": "Yanayoulizwa mara kwa mara",
+        "title": "Maswali ya msaada wa ununuzi",
+        "items": {
+          "verification": {
+            "question": "Nitajithibitishaje kwenye ProcureX?",
+            "answer": "Fungua akaunti, kamilisha uthibitishaji wa mawasiliano, kisha wasilisha taarifa za sajili, taarifa za mtia saini aliyeidhinishwa, na nyaraka za ushahidi kutoka eneo la uthibitishaji wa utambulisho."
+          },
+          "dualRole": {
+            "question": "Je, shirika moja linaweza kununua na kusambaza?",
+            "answer": "Ndiyo. ProcureX inasaidia uwezo wa mnunuzi, mzabuni, na uwezo wa pamoja. Zana zinazopatikana hudhibitiwa na uthibitishaji, ruhusa, na kanuni za daraja la uaminifu."
+          },
+          "bidTiming": {
+            "question": "Wazabuni wanaweza kuwasilisha zabuni lini?",
+            "answer": "Wazabuni wanaweza kuwasilisha zabuni baada ya shirika lao kuidhinishwa na zabuni kuwa wazi kwa ushiriki. Vitendo vilivyozuiliwa hubaki vimefungwa hadi uthibitishaji na ukaguzi wa uaminifu ukamilike."
+          },
+          "records": {
+            "question": "Kumbukumbu za ununuzi huenda wapi?",
+            "answer": "Shughuli za zabuni, ujumbe wa ufafanuzi, mawasilisho, tathmini, tuzo, mikataba, na matukio ya ukaguzi huhifadhiwa kwenye sehemu za kumbukumbu za jukwaa kadri shughuli zinavyoundwa."
+          }
+        }
+      }
+    },
+    "desk": {
+      "title": "Dawati la Msaada",
+      "kicker": "Msaada kwa walioingia",
+      "body": "Tuma maombi ya msaada yanayohusu akaunti kutoka eneo lako la kazi la ProcureX. Jumuisha mtiririko, rejea ya rekodi, na ulichotarajia kitokee.",
+      "prioritiesAria": "Vipaumbele vya msaada",
+      "useCategory": "Tumia kategoria hii",
+      "quickLinks": "Viungo vya haraka",
+      "openRelated": "Fungua eneo husika la kazi",
+      "nav": {
+        "request": "Ombi la msaada",
+        "publicHelp": "Kituo cha msaada cha umma"
+      },
+      "cards": {
+        "account": {
+          "title": "Ufikiaji wa akaunti",
+          "description": "Kuingia, wasifu, lugha, nenosiri, ufikiaji wa shirika, na masuala ya kikao."
+        },
+        "verification": {
+          "title": "Uthibitishaji",
+          "description": "Utambulisho, idhini ya shirika, daraja la uaminifu, KYB/KYC, na hatua za uthibitishaji zilizokwama."
+        },
+        "procurement": {
+          "title": "Michakato ya ununuzi",
+          "description": "Mipango, utengenezaji wa zabuni, mwonekano sokoni, uwasilishaji zabuni, na maswali ya tathmini."
+        },
+        "awarding": {
+          "title": "Msaada wa tuzo na mikataba",
+          "description": "Taarifa za tuzo, majibu ya wazabuni, majadiliano ya mkataba, saini, na ufuatiliaji baada ya tuzo."
+        },
+        "technical": {
+          "title": "Tatizo la kiufundi",
+          "description": "Kurasa tupu, matatizo ya upakiaji, huduma zisizopatikana, matatizo ya kivinjari, au hitilafu zisizotarajiwa."
+        }
+      }
+    },
+    "status": {
+      "unreachable": "Ukaguzi wa afya wa API ya ProcureX haupatikani kutoka kwenye kivinjari hiki kwa sasa.",
+      "operational": "Inafanya kazi",
+      "connectionIssue": "Tatizo la muunganisho",
+      "checking": "Inakagua",
+      "responding": "Ukaguzi wa afya wa {{service}} unajibu. Moduli {{count}} za huduma zimesajiliwa.",
+      "procurexServer": "Seva ya ProcureX",
+      "modulesAria": "Moduli za huduma",
+      "failed": "Ukaguzi wa afya umeshindikana",
+      "failedReason": "Kivinjari hakikuweza kufikia endpoint ya umma ya /health.",
+      "refresh": "Onyesha hali upya",
+      "apiHealth": "Afya ya API",
+      "checkingModules": "Inakagua moduli zilizosajiliwa...",
+      "retry": "Jaribu tena kwa kuonyesha upya ukurasa huu baada ya API kupatikana."
+    },
+    "actions": {
+      "goHome": "Nenda nyumbani",
+      "openHelp": "Fungua msaada",
+      "getHelp": "Pata msaada",
+      "readHelp": "Soma msaada",
+      "notFound": {
+        "title": "Ukurasa huo wa ProcureX haukupatikana.",
+        "body": "Kiungo kinaweza kuwa cha zamani, kimeandikwa vibaya, au hakipatikani tena. Unaweza kurudi nyumbani au kufungua kituo cha msaada."
+      },
+      "sessionExpired": {
+        "eyebrow": "Kikao kimeisha",
+        "title": "Tafadhali ingia tena.",
+        "body": "Kikao chako kilichohifadhiwa hakikuweza kurejeshwa. Ingia tena ili kuendelea na eneo lako la kazi la ProcureX."
+      },
+      "accountLocked": {
+        "eyebrow": "Ufikiaji wa akaunti",
+        "title": "Akaunti hii inahitaji ukaguzi wa msaada.",
+        "body": "Jibu la kuingia linaonyesha kuwa akaunti inaweza kuwa imefungwa au kusimamishwa. Wasiliana na msaada wa ProcureX kabla ya kujaribu tena."
+      }
+    },
+    "cookie": {
+      "ariaLabel": "Taarifa ya vidakuzi",
+      "message": "ProcureX hutumia hifadhi muhimu ya kivinjari kwa kuingia, lugha, ukaguzi wa usalama, na kutegemewa kwa huduma. Tazama",
+      "shortMessage": "ProcureX hutumia hifadhi ya ndani na vidakuzi muhimu ili kuweka vikao, mapendeleo, na mitiririko ya onyesho ikifanya kazi.",
+      "accept": "Kubali"
     }
   },
   "auth": {

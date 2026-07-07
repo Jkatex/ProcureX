@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import type { PickerOption } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
 import { actionDefinitionForTitle } from './AwardContractActionCatalogue';
+import { FlowChangeAlert, clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlow';
 import { canUseWorkflowOwner, inferActionOwner, LockedWorkflowPanel, ownerLockedReason, useAwardContractAccess } from './AwardContractRoleAccess';
 
 export type FieldOption = {
@@ -40,6 +41,8 @@ export type AwardContractFieldConfig = {
   helpText?: string;
   section?: 'basics' | 'linked' | 'dates' | 'amounts' | 'decision' | 'evidence' | 'payload';
   advanced?: boolean;
+  technical?: boolean;
+  transform?: 'lineArray' | 'driverArray';
   picker?: boolean | { options?: PickerOption[]; emptyLabel?: string };
 };
 
@@ -133,10 +136,6 @@ type PickerRecord = {
   createdAt?: string | null;
 };
 
-function shortRecordId(value: string) {
-  return value.length <= 12 ? value : `${value.slice(0, 8)}...${value.slice(-4)}`;
-}
-
 function dateLabel(value?: string | null) {
   if (!value) return '';
   const date = new Date(value);
@@ -144,7 +143,7 @@ function dateLabel(value?: string | null) {
 }
 
 function pickerRecordTitle(item: PickerRecord) {
-  return item.title || item.subject || item.reference || item.inspectionNo || item.certificateNo || item.confirmationReference || item.commitmentNo || item.scoreType || item.forecastType || item.type || shortRecordId(item.id);
+  return item.title || item.subject || item.reference || item.inspectionNo || item.certificateNo || item.confirmationReference || item.commitmentNo || item.scoreType || item.forecastType || item.type || 'Linked record';
 }
 
 function pickerRecordDescription(item: PickerRecord) {
@@ -155,8 +154,7 @@ function pickerRecordDescription(item: PickerRecord) {
     item.score !== null && item.score !== undefined ? `Score ${item.score}` : '',
     item.probability !== null && item.probability !== undefined ? `Probability ${item.probability}` : '',
     item.dueDate ? `Due ${dateLabel(item.dueDate)}` : '',
-    item.createdAt ? `Created ${dateLabel(item.createdAt)}` : '',
-    `ID ${shortRecordId(item.id)}`
+    item.createdAt ? `Created ${dateLabel(item.createdAt)}` : ''
   ].filter(Boolean);
   return parts.join(' | ');
 }
@@ -232,12 +230,12 @@ function slug(value: string) {
 function fieldSection(field: AwardContractFieldConfig) {
   if (field.section) return field.section;
   if (field.kind === 'json' || field.advanced) return 'payload';
+  if (/document|evidence|certificate|proof/i.test(field.name)) return 'evidence';
   if (field.kind === 'uuid' && !field.options?.length && !field.picker) return 'payload';
   if (/id$/i.test(field.name) || field.kind === 'picker' || field.picker) return 'linked';
   if (/date|at$/i.test(field.name) || field.kind === 'date' || field.kind === 'datetime') return 'dates';
   if (/amount|cost|price|currency|score|quantity|days|weight|tax|retention|advance|damages|withholding|probability/i.test(field.name)) return 'amounts';
   if (/status|note|reason|decision|response|comment|approval|result/i.test(field.name)) return 'decision';
-  if (/document|evidence|certificate|proof/i.test(field.name)) return 'evidence';
   return 'basics';
 }
 
@@ -261,10 +259,15 @@ function pickerOptions(field: AwardContractFieldConfig) {
 }
 
 function formCounts(fields: AwardContractFieldConfig[]) {
-  const required = fields.filter((field) => field.required).length;
-  const linked = fields.filter((field) => fieldSection(field) === 'linked').length;
-  const advanced = fields.filter((field) => fieldSection(field) === 'payload').length;
+  const visibleFields = fields.filter((field) => !isTechnicalField(field));
+  const required = visibleFields.filter((field) => field.required).length;
+  const linked = visibleFields.filter((field) => fieldSection(field) === 'linked').length;
+  const advanced = visibleFields.filter((field) => fieldSection(field) === 'payload').length;
   return { required, linked, advanced };
+}
+
+function isTechnicalField(field: AwardContractFieldConfig) {
+  return Boolean(field.technical || field.advanced) || (field.kind === 'json' && field.name === 'payload');
 }
 
 function reviewValue(field: AwardContractFieldConfig, value: FormValue | undefined) {
@@ -278,7 +281,7 @@ function reviewValue(field: AwardContractFieldConfig, value: FormValue | undefin
 
 function ActionReviewSummary({ fields, values }: { fields: AwardContractFieldConfig[]; values: AwardContractFormValues }) {
   const visibleFields = fields
-    .filter((field) => field.kind !== 'json' && !field.advanced)
+    .filter((field) => field.kind !== 'json' && !field.advanced && !isTechnicalField(field))
     .slice(0, 6);
 
   if (visibleFields.length === 0) return null;
@@ -302,6 +305,16 @@ export function buildAwardContractPayload(fields: AwardContractFieldConfig[], va
   for (const field of fields) {
     const raw = values[field.name] ?? defaultValue(field);
     if (field.required && isBlank(raw)) errors.push(`${field.label} is required.`);
+
+    if (field.transform === 'lineArray') {
+      payload[field.name] = splitLines(raw);
+      continue;
+    }
+
+    if (field.transform === 'driverArray') {
+      payload[field.name] = splitLines(raw).map((driver) => ({ driver }));
+      continue;
+    }
 
     if (field.kind === 'json') {
       const text = String(raw || '{}').trim() || '{}';
@@ -335,6 +348,14 @@ export function buildAwardContractPayload(fields: AwardContractFieldConfig[], va
   return { payload, errors };
 }
 
+function splitLines(value: FormValue | undefined) {
+  if (Array.isArray(value)) return value.map(String).map((line) => line.trim()).filter(Boolean);
+  return String(value ?? '')
+    .split(/\r?\n|,/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 export function ActionFormPanel({
   title,
   eyebrow,
@@ -363,11 +384,18 @@ export function ActionFormPanel({
   const [values, setValues] = useState<AwardContractFormValues>(defaults);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const dirtyRef = useRef(false);
+  const isDirty = useMemo(() => JSON.stringify(values) !== JSON.stringify(defaults), [defaults, values]);
+  useAwardContractFlowGuard(open && isDirty);
 
   useEffect(() => {
     setValues(defaults);
     setMessage('');
   }, [defaults]);
+
+  useEffect(() => {
+    dirtyRef.current = open && isDirty;
+  }, [isDirty, open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -389,6 +417,7 @@ export function ActionFormPanel({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (dirtyRef.current && !confirmAwardContractNavigation()) return;
         setOpen(false);
         return;
       }
@@ -421,7 +450,7 @@ export function ActionFormPanel({
   const counts = formCounts(fields);
   const fieldsBySection = useMemo(() => {
     const grouped = new Map<string, AwardContractFieldConfig[]>();
-    for (const field of fields) {
+    for (const field of fields.filter((entry) => !isTechnicalField(entry))) {
       const section = fieldSection(field);
       grouped.set(section, [...(grouped.get(section) ?? []), field]);
     }
@@ -434,6 +463,12 @@ export function ActionFormPanel({
 
   function setValue(name: string, value: FormValue) {
     setValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function closeDrawer() {
+    if (saving) return;
+    if (open && isDirty && !confirmAwardContractNavigation()) return;
+    setOpen(false);
   }
 
   async function submit(event: FormEvent) {
@@ -449,6 +484,7 @@ export function ActionFormPanel({
       const result = await onSubmit(next.payload, values);
       setMessage(`${title} saved.`);
       onComplete?.(result);
+      clearAwardContractDirtyWork();
       setOpen(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `${title} could not be saved.`);
@@ -475,6 +511,7 @@ export function ActionFormPanel({
       <div className="inline-actions">
         <button className="btn btn-primary btn-sm" type="button" ref={openButtonRef} onClick={() => setOpen(true)}>Open action</button>
       </div>
+      {!open && message ? <FlowChangeAlert message={message} /> : null}
       {open ? (
         <div className="award-action-drawer-backdrop" role="presentation">
           <aside className="award-action-drawer" role="dialog" aria-modal="true" aria-labelledby={drawerTitleId} ref={drawerRef}>
@@ -487,7 +524,7 @@ export function ActionFormPanel({
                 </div>
                 <div className="award-drawer-heading-actions">
                   <StatusBadge value={badge} />
-                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => setOpen(false)}>Close</button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={closeDrawer}>Close</button>
                 </div>
               </div>
               {drawerSummary ?? children ?? <ActionReviewSummary fields={fields} values={values} />}
@@ -529,7 +566,7 @@ export function ActionFormPanel({
                 <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setValues(defaults)}>
                   Reset
                 </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setOpen(false)}>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={closeDrawer}>
                   Cancel
                 </button>
               </div>
@@ -614,7 +651,7 @@ function AwardContractField({
               key={item.value}
             >
               <strong>{item.label}</strong>
-              <span>{item.description || (item.value ? `ID ${shortRecordId(item.value)}` : 'No selection')}</span>
+              <span>{item.description || (item.value ? 'Linked record' : 'No selection')}</span>
               {item.status ? <StatusBadge value={item.status} /> : null}
             </button>
           ))}

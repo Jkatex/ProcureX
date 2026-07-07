@@ -21,6 +21,7 @@ import {
   type SelectChangeEvent
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { accountApi, type AccountActivityEvent } from '@/features/account/api';
@@ -32,12 +33,8 @@ type AccountMenuProps = {
   buttonClassName?: string;
 };
 
-const languageLabels: Record<SupportedLanguage, string> = {
-  en: 'English',
-  sw: 'Kiswahili'
-};
-
 export function AccountMenu({ buttonClassName }: AccountMenuProps) {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.user);
@@ -102,17 +99,22 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
       });
   }
 
-  const badgeLabel = user.accountType === 'ADMIN' ? 'Admin' : user.verificationStatus === 'APPROVED' ? 'Verified' : 'Account';
+  const badgeLabel =
+    user.accountType === 'ADMIN'
+      ? t('accountMenu.badges.admin')
+      : user.verificationStatus === 'APPROVED'
+        ? t('accountMenu.badges.verified')
+        : t('accountMenu.badges.account');
   const profileRoute = user.accountType === 'ADMIN' ? '/admin/profile' : '/identity/profile';
   const messagesRoute = user.accountType === 'ADMIN' ? '/admin/communication' : '/communication';
 
   return (
     <>
-      <Tooltip title="Account menu">
+      <Tooltip title={t('accountMenu.title')}>
         <IconButton
           className={buttonClassName}
           type="button"
-          aria-label="Open account menu"
+          aria-label={t('accountMenu.open')}
           aria-controls={open ? 'account-menu' : undefined}
           aria-haspopup="menu"
           aria-expanded={open ? 'true' : 'false'}
@@ -129,7 +131,7 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
         anchorEl={anchorEl}
         open={open}
         onClose={closeMenu}
-        MenuListProps={{ 'aria-label': 'Account menu' }}
+        MenuListProps={{ 'aria-label': t('accountMenu.title') }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
       >
@@ -141,7 +143,7 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
                 {user.displayName}
               </Typography>
               <Typography variant="body2" color="text.secondary" noWrap>
-                {user.organization || 'ProcureX account'}
+                {user.organization || t('accountMenu.procurexAccount')}
               </Typography>
             </Box>
           </Box>
@@ -155,28 +157,28 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
           <ListItemIcon>
             <AccountCircleRoundedIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Profile</ListItemText>
+          <ListItemText>{t('accountMenu.profile')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => navigateFromMenu(messagesRoute, 'communication.messages.opened')}>
           <ListItemIcon>
             <MarkEmailUnreadRoundedIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Messages</ListItemText>
+          <ListItemText>{t('accountMenu.messages')}</ListItemText>
           {unreadCount ? <Typography variant="caption">{unreadCount}</Typography> : null}
         </MenuItem>
-        <MenuItem onClick={() => navigateFromMenu('/help', 'support.help.opened')}>
+        <MenuItem onClick={() => navigateFromMenu('/support', 'support.help.opened')}>
           <ListItemIcon>
             <HelpOutlineRoundedIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Help</ListItemText>
+          <ListItemText>{t('accountMenu.help')}</ListItemText>
         </MenuItem>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1 }} onClick={(event) => event.stopPropagation()}>
           <LanguageRoundedIcon fontSize="small" />
           <FormControl size="small" fullWidth>
-            <Select value={language} onChange={changeLanguage} aria-label="Language" inputProps={{ 'data-testid': 'account-language-select' }}>
+            <Select value={language} onChange={changeLanguage} aria-label={t('language')} inputProps={{ 'data-testid': 'account-language-select' }}>
               {supportedLanguages.map((item) => (
                 <MenuItem key={item} value={item}>
-                  {languageLabels[item]}
+                  {t(item === 'sw' ? 'swahili' : 'english')}
                 </MenuItem>
               ))}
             </Select>
@@ -187,7 +189,7 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
           <ListItemIcon>
             <LogoutRoundedIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Logout</ListItemText>
+          <ListItemText>{t('actions.logout')}</ListItemText>
         </MenuItem>
       </Menu>
     </>

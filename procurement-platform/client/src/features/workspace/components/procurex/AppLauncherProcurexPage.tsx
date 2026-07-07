@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { AppMenuIcon } from '@/features/tenderPlanning/components/procurex/icons';
@@ -32,65 +33,66 @@ const apps = [
     className: 'app-tone-iam',
     page: 'account-profile',
     icon: 'iam',
-    badge: 'Verified',
-    title: 'Registration and Verification',
-    description: 'Review identity, profile, and organization details.'
+    badgeKey: 'launcher.badges.verified',
+    titleKey: 'platformApps.items.accountProfile.title',
+    descriptionKey: 'launcher.apps.accountProfile.description'
   },
   {
     className: 'app-tone-procurement',
     page: 'tender-planning',
     icon: 'planning',
-    badge: 'Start here',
-    title: 'Procurement Planning',
-    description: 'Create plan lines before preparing tenders.'
+    badgeKey: 'launcher.badges.startHere',
+    titleKey: 'platformApps.items.tenderPlanning.title',
+    descriptionKey: 'launcher.apps.tenderPlanning.description'
   },
   {
     className: 'app-tone-procurement',
     page: 'marketplace',
     icon: 'procurement',
-    badge: 'Marketplace',
-    title: 'Procurement',
-    description: 'Browse opportunities or create your first tender.'
+    badgeKey: 'launcher.badges.marketplace',
+    titleKey: 'platformApps.items.procurement.title',
+    descriptionKey: 'launcher.apps.procurement.description'
   },
   {
     className: 'app-tone-communication',
     page: 'communication-center',
     icon: 'communication',
-    badge: 'Messages',
-    title: 'Communication Center',
-    description: 'Manage clarifications, notices, and platform messages.'
+    badgeKey: 'launcher.badges.messages',
+    titleKey: 'platformApps.items.communication.title',
+    descriptionKey: 'launcher.apps.communication.description'
   },
   {
     className: 'app-tone-evaluation',
     page: 'bid-evaluation',
     icon: 'evaluation',
-    badge: 'Later',
-    title: 'Evaluation',
-    description: 'Evaluate bids after tenders receive submissions.'
+    badgeKey: 'launcher.badges.later',
+    titleKey: 'platformApps.items.evaluation.title',
+    descriptionKey: 'launcher.apps.evaluation.description'
   },
   {
     className: 'app-tone-awarding',
     page: 'awarding-contracts',
     icon: 'awarding',
-    badge: 'Later',
-    title: 'Awarding and Contract',
-    description: 'Handle awards, contracts, and post-award tracking.'
+    badgeKey: 'launcher.badges.later',
+    titleKey: 'platformApps.items.awarding.title',
+    descriptionKey: 'launcher.apps.awarding.description'
   },
   {
     className: 'app-tone-contracts',
     page: 'records-history',
     icon: 'records',
-    badge: 'Archive',
-    title: 'Records and History',
-    description: 'Review generated records once activity begins.'
+    badgeKey: 'launcher.badges.archive',
+    titleKey: 'platformApps.items.records.title',
+    descriptionKey: 'launcher.apps.records.description'
   }
 ] as const;
 
 export function AppLauncherProcurexPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.user);
-  const displayName = user?.displayName || 'ProcureX user';
-  const organization = user?.organization || 'Your organization';
+  const displayName = user?.displayName || t('accountMenu.procurexUser');
+  const organization = user?.organization || t('workspaceDashboard.yourOrganization');
 
   useEffect(() => {
     const previousPage = document.body.dataset.page;
@@ -110,24 +112,21 @@ export function AppLauncherProcurexPage() {
 
   return (
     <>
-      <PlanningTopBar title="Apps" onNavigate={navigateToPage} />
+      <PlanningTopBar title={t('pages.launcher.title')} onNavigate={navigateToPage} />
       <div className="workspace-home launcher-intro-page">
         <main className="workspace-shell launcher-shell">
           <section className="launcher-intro-hero">
             <div>
-              <span className="section-kicker">Welcome to ProcureX</span>
-              <h1>{displayName}, choose where to start.</h1>
-              <p>
-                Your workspace is ready and starts clean. Procurement activity, messages, records, and audit trails will
-                appear after this account begins real platform work.
-              </p>
+              <span className="section-kicker">{t('launcher.kicker')}</span>
+              <h1>{t('launcher.title', { name: displayName })}</h1>
+              <p>{t('launcher.body')}</p>
             </div>
             <div className="launcher-intro-card">
-              <span className="badge badge-success">{user?.verificationStatus === 'APPROVED' ? 'Verified' : 'Verification needed'}</span>
+              <span className="badge badge-success">{user?.verificationStatus === 'APPROVED' ? t('status.verified') : t('launcher.verificationNeeded')}</span>
               <strong>{organization}</strong>
-              <span>No activity yet</span>
+              <span>{t('launcher.noActivity')}</span>
               <button className="btn btn-primary" type="button" onClick={() => navigateToPage('workspace-dashboard')}>
-                Continue to Dashboard
+                {t('launcher.continueToDashboard')}
               </button>
             </div>
           </section>
@@ -139,12 +138,12 @@ export function AppLauncherProcurexPage() {
                   <span className="app-icon">
                     <AppMenuIcon kind={app.icon} />
                   </span>
-                  <span className="badge badge-info">{app.badge}</span>
+                  <span className="badge badge-info">{t(app.badgeKey)}</span>
                 </div>
-                <h2>{app.title}</h2>
-                <p>{app.description}</p>
+                <h2>{t(app.titleKey)}</h2>
+                <p>{t(app.descriptionKey)}</p>
                 <button className="btn btn-primary" type="button" onClick={() => navigateToPage(app.page)}>
-                  Open
+                  {t('actions.open')}
                 </button>
               </article>
             ))}

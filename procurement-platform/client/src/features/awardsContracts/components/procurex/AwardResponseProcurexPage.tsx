@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
-import type { AwardRecommendationDetailDto, LifecycleAction } from '../../types';
+import type { AwardRecommendationDetailDto, FlowStep, LifecycleAction } from '../../types';
 import { ActionFormPanel, lifecycleStatusOptions, option } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
+import { AwardContractFlowBar, FlowChangeAlert, LockedFlowStepPanel, flowStepFromSearch, searchWithFlowStep } from './AwardContractFlow';
 import {
   ActionWorkspace,
   AwardHero,
@@ -17,9 +18,7 @@ import {
   RemoteStatePanel,
   SimpleTable,
   StatusBadge,
-  TopSummary,
-  WorkflowSectionTabs,
-  type WorkflowSection
+  TopSummary
 } from './AwardsContractsProcurexShared';
 
 function getAwardId(search: string) {
@@ -41,6 +40,15 @@ const preContractDocuments = [
 ];
 
 type AwardResponseGroupId = 'awards' | 'response' | 'documents' | 'registers';
+const awardResponseStepIds = ['award-notice', 'response', 'required-documents', 'activity', 'contract-handoff'] as const;
+type AwardResponseStepId = (typeof awardResponseStepIds)[number];
+const awardResponseStepToGroup: Record<AwardResponseStepId, AwardResponseGroupId> = {
+  'award-notice': 'awards',
+  response: 'response',
+  'required-documents': 'documents',
+  activity: 'registers',
+  'contract-handoff': 'documents'
+};
 
 export function AwardResponseProcurexPage() {
   const location = useLocation();
@@ -51,9 +59,11 @@ export function AwardResponseProcurexPage() {
   const [awardDetail, setAwardDetail] = useState<AwardRecommendationDetailDto | null>(null);
   const [detailError, setDetailError] = useState('');
   const [responseMessages, setResponseMessages] = useState<Record<string, string>>({});
-  const [activeGroup, setActiveGroup] = useState<AwardResponseGroupId>('awards');
+  const [flowAlert, setFlowAlert] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const activeStep = useMemo(() => flowStepFromSearch(location.search, awardResponseStepIds, 'award-notice'), [location.search]);
+  const activeGroup = awardResponseStepToGroup[activeStep];
 
   const loadAwards = useCallback(async () => {
     setIsLoading(true);
@@ -111,6 +121,8 @@ export function AwardResponseProcurexPage() {
   const responseStatus = latestPersistedResponse?.action ?? responseMessages[activeAward?.id ?? ''] ?? activeAward?.requiredAction ?? 'No response due';
   const contractHandoffId = awardDetail?.notice?.contractId ?? activeAward?.contractId;
   const contractHandoffStatus = contractHandoffId ? 'Contract linked' : 'Pending contract handoff';
+  const hasNotice = Boolean(activeAward?.noticeId ?? awardDetail?.notice?.id);
+  const hasResponse = Boolean(latestPersistedResponse) || /accepted|declined|clarification/i.test(noticeStatus);
   const responseActivityRecords = useMemo(() => {
     const records: Array<Record<string, unknown>> = [];
     const localMessage = activeAward ? responseMessages[activeAward.id] : '';
@@ -130,7 +142,7 @@ export function AwardResponseProcurexPage() {
         id: awardDetail.notice.id,
         title: awardDetail.notice.reference ?? 'Award notice',
         status: awardDetail.notice.status,
-        note: awardDetail.notice.contractId ? `Contract handoff ${awardDetail.notice.contractId}` : 'Contract handoff pending',
+        note: awardDetail.notice.contractId ? 'Linked contract is ready for negotiation' : 'Contract handoff pending',
         createdAt: awardDetail.notice.issuedAt
       });
     }
@@ -157,15 +169,40 @@ export function AwardResponseProcurexPage() {
 
     return records;
   }, [activeAward, awardDetail, responseMessages]);
-  const sections: Array<WorkflowSection<AwardResponseGroupId>> = [
-    { id: 'awards', label: 'Awards', description: 'Received award list.', count: awards.length },
-    { id: 'response', label: 'Response', description: 'Accept, clarify, or decline.', count: activeAward ? 1 : 0 },
-    { id: 'documents', label: 'Documents', description: 'Pre-contract checklist.', count: preContractDocuments.length },
-    { id: 'registers', label: 'Registers', description: 'Saved response state.', count: responseActivityRecords.length }
-  ];
+  const activeFlowLock = useMemo(() => {
+    const noAward = { message: 'Select an award notice before continuing the supplier response flow.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
+    const missingNotice = { message: 'The selected award does not have an issued notice yet, so supplier response actions are locked.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
+    const pendingResponse = { message: 'Record a supplier response before contract handoff can continue.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
+    const missingContract = { message: 'Contract handoff is not linked yet. Complete or refresh the response workflow after the buyer creates the draft contract.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
+    if (!activeAward) return noAward;
+    if (activeStep === 'response' && !hasNotice) return missingNotice;
+    if (activeStep === 'required-documents' && !contractHandoffId) return missingContract;
+    if (activeStep === 'contract-handoff') {
+      if (!hasResponse) return pendingResponse;
+      if (!contractHandoffId) return missingContract;
+    }
+    return null;
+  }, [activeAward, activeAwardId, activeStep, contractHandoffId, hasNotice, hasResponse]);
+  const flowSteps = useMemo<Array<FlowStep<AwardResponseStepId>>>(() => {
+    const noAward = { message: 'Select an award notice before continuing the supplier response flow.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
+    const missingNotice = { message: 'The selected award does not have an issued notice yet, so supplier response actions are locked.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
+    const pendingResponse = { message: 'Record a supplier response before contract handoff can continue.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
+    const missingContract = { message: 'Contract handoff is not linked yet. Required documents can continue after the buyer creates the draft contract.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
+    return [
+      { id: 'award-notice', label: 'Award notice', description: 'Review received award', summary: 'Confirm the received award notice, deadline, buyer, value, and response state.', status: activeAward ? 'complete' : 'locked', statusLabel: activeAward ? 'Complete' : 'Locked', count: awards.length, countLabel: 'awards received', lockReason: noAward },
+      { id: 'response', label: 'Response', description: 'Accept, clarify, or decline', summary: 'Submit the supplier response and keep the selected award in the same flow.', status: !activeAward ? 'locked' : !hasNotice ? 'locked' : hasResponse ? 'complete' : 'available', statusLabel: hasResponse ? 'Response submitted' : hasNotice ? 'Needs action' : 'Locked', count: activeAward ? 1 : 0, countLabel: 'selected award', lockReason: !activeAward ? noAward : missingNotice },
+      { id: 'required-documents', label: 'Required documents', description: 'Prepare pre-contract files', summary: 'Prepare required supplier documents after the contract handoff exists.', status: !activeAward ? 'locked' : !contractHandoffId ? 'locked' : 'available', statusLabel: contractHandoffId ? 'Ready' : 'Locked', count: preContractDocuments.length, countLabel: 'documents', lockReason: !activeAward ? noAward : missingContract },
+      { id: 'activity', label: 'Activity', description: 'Notice, response, and audit history', summary: 'Review notice events, response history, and contract handoff activity.', status: activeAward ? 'available' : 'locked', statusLabel: activeAward ? 'Ready' : 'Locked', count: responseActivityRecords.length, countLabel: 'activity records', lockReason: noAward },
+      { id: 'contract-handoff', label: 'Contract handoff', description: 'Move to draft contract', summary: 'Continue to contract formation once the response and linked contract are ready.', status: !activeAward ? 'locked' : !hasResponse || !contractHandoffId ? 'locked' : 'complete', statusLabel: contractHandoffId ? 'Linked' : hasResponse ? 'Pending contract' : 'Pending response', count: contractHandoffId ? 1 : 0, countLabel: 'linked contracts', lockReason: !activeAward ? noAward : !hasResponse ? pendingResponse : missingContract }
+    ];
+  }, [activeAward, activeAwardId, awards.length, contractHandoffId, hasNotice, hasResponse, responseActivityRecords.length]);
 
   function selectAward(award: LifecycleAction) {
-    navigate(`/awards-contracts/award-response?award=${award.awardId ?? award.id}`);
+    navigate(`/awards-contracts/award-response?award=${award.awardId ?? award.id}&step=award-notice`);
+  }
+
+  function selectFlowStep(step: AwardResponseStepId) {
+    navigate({ pathname: '/awards-contracts/award-response', search: searchWithFlowStep(location.search, step) });
   }
 
   async function refreshAwards(awardId = activeAwardId) {
@@ -181,6 +218,7 @@ export function AwardResponseProcurexPage() {
     const responseAction = String(payload.action) as 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE';
     await awardsContractsApi.respondToNotice(award.noticeId, responseAction, String(payload.note ?? ''), payload.payload as Record<string, unknown>);
     setResponseMessages((current) => ({ ...current, [award.id]: `Supplier response submitted: ${responseAction}` }));
+    setFlowAlert(`Supplier response submitted: ${responseAction}. The award detail has been refreshed.`);
     await refreshAwards(recommendationIdForAward(award));
   }
 
@@ -215,6 +253,7 @@ export function AwardResponseProcurexPage() {
               ]}
             />
           ) : null}
+          <FlowChangeAlert message={flowAlert} />
 
           {isLoading ? (
             <RemoteStatePanel
@@ -251,11 +290,11 @@ export function AwardResponseProcurexPage() {
             <div className="panel-heading">
               <div>
                 <span className="section-kicker">Supplier award workspace</span>
-                <h2>Select an award, respond, and prepare contract documents</h2>
+                <h2>Supplier response wizard</h2>
               </div>
-              <StatusBadge value={sections.find((section) => section.id === activeGroup)?.label ?? 'Awards'} />
+              <StatusBadge value={flowSteps.find((step) => step.id === activeStep)?.label ?? 'Awards'} />
             </div>
-            <WorkflowSectionTabs sections={sections} active={activeGroup} onSelect={setActiveGroup} label="Supplier award response sections" />
+            <AwardContractFlowBar steps={flowSteps} active={activeStep} onSelect={selectFlowStep} label="Supplier award response flow" />
           </section>
 
           {!isLoading && !loadError && !activeAward ? (
@@ -273,6 +312,25 @@ export function AwardResponseProcurexPage() {
           </AwardContractAccessProvider>
           ) : !isLoading && !loadError ? (
             <>
+              {activeFlowLock ? (
+                <LockedFlowStepPanel title={`${flowSteps.find((step) => step.id === activeStep)?.label ?? 'Workflow'} is locked`} reason={activeFlowLock} />
+              ) : null}
+
+              {!activeFlowLock && activeStep === 'contract-handoff' && contractHandoffId ? (
+                <section className="procurement-panel evaluation-panel">
+                  <div className="panel-heading">
+                    <div><span className="section-kicker">Contract handoff</span><h2>Continue to contract formation</h2></div>
+                    <StatusBadge value="Ready" />
+                  </div>
+                  <div className="scope-empty">The award response is linked to a draft contract. Continue without restarting the supplier flow.</div>
+                  <div className="inline-actions">
+                    <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${contractHandoffId}&step=draft`)}>Open Contract</button>
+                  </div>
+                </section>
+              ) : null}
+
+              {!activeFlowLock && activeStep !== 'contract-handoff' ? (
+              <>
               {activeGroup === 'awards' ? (
                 <section className="procurement-panel evaluation-panel">
                   <div className="panel-heading">
@@ -375,9 +433,9 @@ export function AwardResponseProcurexPage() {
                     fields={[
                       { name: 'documentType', label: 'Document type', kind: 'text', required: true },
                       { name: 'title', label: 'Title', kind: 'text', required: true },
-                      { name: 'ownerRole', label: 'Owner role', kind: 'text', required: true },
+                      { name: 'ownerRole', label: 'Document owner', kind: 'select', required: true, options: [option('Supplier Representative'), option('Buyer Representative'), option('Contract Manager')] },
                       { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
-                      { name: 'documentId', label: 'External document ID (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded document outside this workflow.' },
+                      { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded document outside this workflow.' },
                       { name: 'dueDate', label: 'Due date', kind: 'date' },
                       { name: 'reviewedAt', label: 'Reviewed at', kind: 'datetime' },
                       { name: 'note', label: 'Note', kind: 'textarea' },
@@ -409,6 +467,8 @@ export function AwardResponseProcurexPage() {
                     emptyMessage="No persisted supplier response activity is available yet."
                   />
                 </section>
+              ) : null}
+              </>
               ) : null}
             </>
           ) : null}

@@ -42,7 +42,7 @@ npm run db:seed
 npm run db:seed:awards-demo
 ```
 
-The demo seed is idempotent and only recreates records marked as the `award-contract-full` dataset or references prefixed with `PX-DEMO-AC-`. Use `award-buyer@procurex.tz`, `award-supplier@procurex.tz`, or `award-admin@procurex.tz` with the normal demo passwords to inspect populated award queues, contract formation, post-award tracking, payment, risk, termination, close-out, supplier performance, and compliance screens.
+The demo seed is idempotent and only recreates records marked as the `award-contract-full` dataset or references prefixed with `PX-DEMO-AC-`. Use `award-demo@procurex.tz` with password `Demo123!` to inspect populated buyer and supplier award queues, contract formation, post-award tracking, payment, risk, termination, close-out, supplier performance, and compliance screens.
 
 To load mock marketplace tenders that supplier users can bid:
 

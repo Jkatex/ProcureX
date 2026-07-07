@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import '@/i18n';
 
 export function CookieConsentBanner() {
+  const { t } = useTranslation();
   const storageKey = 'procurex.cookieConsent.v1';
   const [visible, setVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -10,8 +13,8 @@ export function CookieConsentBanner() {
   if (!visible) return null;
 
   return (
-    <section className="cookie-consent" aria-label="Cookie notice">
-      <p>ProcureX uses local storage and essential cookies to keep sessions, preferences, and demo workflows working.</p>
+    <section className="cookie-consent" aria-label={t('support.cookie.ariaLabel')}>
+      <p>{t('support.cookie.shortMessage')}</p>
       <button
         className="btn btn-primary"
         type="button"
@@ -20,7 +23,7 @@ export function CookieConsentBanner() {
           setVisible(false);
         }}
       >
-        Accept
+        {t('support.cookie.accept')}
       </button>
     </section>
   );

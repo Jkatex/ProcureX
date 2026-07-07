@@ -11,6 +11,7 @@ import {
 } from '@/shared/components/procurex/PlatformAppsDrawer';
 import type { AwardQueueId, BadgeTone, LifecycleAction } from '../../types';
 import { awardQueueLabels } from '../../fixtures';
+import { confirmAwardContractNavigation } from './AwardContractFlow';
 
 type FrameProps = {
   pageKey: string;
@@ -47,6 +48,52 @@ export function routeWithSearch(path: string, routeSearch = '') {
 
 export function formatMoney(value: number, currency = 'TZS') {
   return `${currency} ${value.toLocaleString()}`;
+}
+
+const workflowStatusLabels: Record<string, string> = {
+  DRAFT: 'Draft',
+  RECOMMENDED: 'Recommended',
+  APPROVED: 'Approved',
+  RETURNED: 'Returned for review',
+  SENT: 'Sent',
+  FAILED: 'Failed',
+  ACCEPTED: 'Accepted',
+  DECLINED: 'Declined',
+  PENDING: 'Pending',
+  PENDING_RESPONSE: 'Awaiting supplier response',
+  REQUEST_CLARIFICATION: 'Clarification requested',
+  CLARIFICATION_REQUESTED: 'Clarification requested',
+  CONTRACT_FORMATION: 'Contract formation',
+  NEGOTIATION: 'In negotiation',
+  SIGNATURE_PENDING: 'Awaiting signatures',
+  SIGNED: 'Signed',
+  ACTIVE: 'Active',
+  COMPLETED: 'Completed',
+  CLOSED: 'Closed',
+  TERMINATION_REVIEW: 'Termination review',
+  TERMINATED: 'Terminated',
+  BLOCKED: 'Blocked',
+  OPEN: 'Open',
+  IN_PROGRESS: 'In progress',
+  REVIEW: 'In review',
+  SUBMITTED: 'Submitted',
+  MATCHED: 'Matched',
+  PAID: 'Paid',
+  WAIVED: 'Waived',
+  EXPIRED: 'Expired'
+};
+
+export function humanizeWorkflowStatus(value?: string | null) {
+  if (!value) return 'Not set';
+  const normalized = String(value).trim();
+  const mapped = workflowStatusLabels[normalized.toUpperCase()];
+  if (mapped) return mapped;
+  return normalized
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function lifecycleActionMatches(row: LifecycleAction, query: string) {
@@ -94,6 +141,33 @@ export function recordTitle(record: Record<string, unknown>) {
   );
 }
 
+function recordSearchText(record: Record<string, unknown>) {
+  const keys = [
+    'title',
+    'subject',
+    'reference',
+    'noticeReference',
+    'inspectionNo',
+    'certificateNo',
+    'confirmationReference',
+    'commitmentNo',
+    'documentType',
+    'type',
+    'status',
+    'riskLevel',
+    'note',
+    'summary',
+    'amount',
+    'paidAmount',
+    'score',
+    'probability',
+    'currency',
+    'dueDate',
+    'createdAt'
+  ];
+  return keys.map((key) => recordText(record, key)).filter(Boolean).join(' ').toLowerCase();
+}
+
 export function badgeTone(value: string): BadgeTone {
   if (/blocked|closed|declined|high|error|failed/i.test(value)) return 'error';
   if (/pending|awaiting|draft|review|warning|invoice|change|required/i.test(value)) return 'warning';
@@ -102,10 +176,11 @@ export function badgeTone(value: string): BadgeTone {
 }
 
 export function StatusBadge({ value, tone }: { value: string; tone?: BadgeTone }) {
-  const resolvedTone = tone ?? badgeTone(value);
+  const displayValue = humanizeWorkflowStatus(value);
+  const resolvedTone = tone ?? badgeTone(displayValue);
   return (
-    <span className={`badge badge-${resolvedTone} `} aria-label={`Status: ${value}`}>
-      {value}
+    <span className={`badge badge-${resolvedTone} `} aria-label={`Status: ${displayValue}`}>
+      {displayValue}
     </span>
   );
 }
@@ -154,6 +229,7 @@ export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
     if (navTarget) {
       if (navTarget.closest('[data-app-menu]')) return;
       event.preventDefault();
+      if (!confirmAwardContractNavigation()) return;
       const page = navTarget.getAttribute('data-navigate') || 'workspace-dashboard';
       const routeSearch = navTarget.getAttribute('data-route-search') || '';
       navigate(routeWithSearch(routeByPage[page] || '/', routeSearch));
@@ -345,7 +421,7 @@ export function RecordRegister({
   const filteredRecords = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     if (!normalized) return records;
-    return records.filter((record) => JSON.stringify(record).toLowerCase().includes(normalized));
+    return records.filter((record) => recordSearchText(record).includes(normalized));
   }, [records, search]);
 
   return (
@@ -371,12 +447,12 @@ export function RecordRegister({
           <tr><td colSpan={headers.length}><div className="scope-empty award-register-empty">{emptyMessage ?? `No ${title.toLowerCase()} records yet.`}</div></td></tr>
         ) : filteredRecords.length === 0 ? (
           <tr><td colSpan={headers.length}><div className="scope-empty award-register-empty">No {title.toLowerCase()} records match the current search.</div></td></tr>
-        ) : filteredRecords.map((record) => (
-          <tr key={recordText(record, 'id', JSON.stringify(record))}>
+        ) : filteredRecords.map((record, index) => (
+          <tr key={recordText(record, 'id', `${recordTitle(record)}-${recordText(record, 'createdAt')}-${index}`)}>
             <td>
               <div className="award-record-title">
                 <strong>{recordTitle(record)}</strong>
-                {recordText(record, 'id') ? <span>ID {shortId(recordText(record, 'id'))}</span> : null}
+                {recordText(record, 'reference') ? <span>{recordText(record, 'reference')}</span> : null}
               </div>
             </td>
             <td><StatusBadge value={recordText(record, 'status', recordText(record, 'riskLevel', 'Recorded'))} /></td>

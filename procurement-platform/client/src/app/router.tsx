@@ -9,6 +9,7 @@ const ForgotPasswordProcurexPage = lazy(() =>
   import('@/features/auth/components/procurex/ForgotPasswordProcurexPage').then((module) => ({ default: module.ForgotPasswordProcurexPage }))
 );
 const HelpCenterProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.HelpCenterProcurexPage })));
+const SignedInHelpDeskProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.SignedInHelpDeskProcurexPage })));
 const SystemStatusProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.SystemStatusProcurexPage })));
 const SessionExpiredProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.SessionExpiredProcurexPage })));
 const AccountLockedProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.AccountLockedProcurexPage })));
@@ -83,6 +84,7 @@ export const routes = [
   { path: '/dashboard', element: verifiedPage('workspace-dashboard', { adminRedirectTo: '/admin' }) },
   { path: '/identity/verification', element: protectedPage('identity-verification', { adminRedirectTo: '/admin/profile' }) },
   { path: '/identity/profile', element: protectedPage('account-profile', { adminRedirectTo: '/admin/profile' }) },
+  { path: '/support', element: <ProtectedRoute>{lazyElement(SignedInHelpDeskProcurexPage)}</ProtectedRoute> },
   { path: '/tender-planning', element: verifiedPage('tender-planning', { adminRedirectTo: '/admin' }) },
   { path: '/procurement/guide', element: verifiedPage('procurement-guide', { adminRedirectTo: '/admin' }) },
   { path: '/procurement/marketplace', element: verifiedPage('marketplace', { adminRedirectTo: '/admin/search' }) },

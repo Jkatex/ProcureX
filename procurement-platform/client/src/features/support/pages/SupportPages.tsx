@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
 import { supportApi, type SupportTicketPriority } from '@/features/support/api';
 import { apiClient } from '@/shared/api/http';
 import { NotificationCard } from '@/shared/components/NotificationCard';
+import '@/i18n';
 
 type HealthResponse = {
   status: string;
@@ -13,44 +15,78 @@ type HealthResponse = {
 };
 
 const faqItems = [
+  { questionKey: 'support.help.faq.items.verification.question', answerKey: 'support.help.faq.items.verification.answer' },
+  { questionKey: 'support.help.faq.items.dualRole.question', answerKey: 'support.help.faq.items.dualRole.answer' },
+  { questionKey: 'support.help.faq.items.bidTiming.question', answerKey: 'support.help.faq.items.bidTiming.answer' },
+  { questionKey: 'support.help.faq.items.records.question', answerKey: 'support.help.faq.items.records.answer' }
+];
+
+const supportDeskCategories = [
+  { value: 'General', labelKey: 'support.categories.general' },
+  { value: 'Account access', labelKey: 'support.categories.accountAccess' },
+  { value: 'Identity verification', labelKey: 'support.categories.identityVerification' },
+  { value: 'Procurement', labelKey: 'support.categories.procurement' },
+  { value: 'Evaluation', labelKey: 'support.categories.evaluation' },
+  { value: 'Awarding and contract', labelKey: 'support.categories.awardingContract' },
+  { value: 'Technical', labelKey: 'support.categories.technical' },
+  { value: 'Compliance', labelKey: 'support.categories.compliance' }
+];
+
+const supportDeskCards = [
   {
-    question: 'How do I get verified on ProcureX?',
-    answer:
-      'Create an account, complete contact verification, then submit your registry details, authorized signatory information, and supporting documents from the identity verification workspace.'
+    titleKey: 'support.desk.cards.account.title',
+    descriptionKey: 'support.desk.cards.account.description',
+    category: 'Account access'
   },
   {
-    question: 'Can one organization buy and supply?',
-    answer:
-      'Yes. ProcureX supports buyer, supplier, and combined capabilities. Available tools are controlled by verification, permissions, and trust tier rules.'
+    titleKey: 'support.desk.cards.verification.title',
+    descriptionKey: 'support.desk.cards.verification.description',
+    category: 'Identity verification'
   },
   {
-    question: 'When can suppliers submit bids?',
-    answer:
-      'Suppliers can submit bids after their organization is approved and the tender is open for participation. Restricted actions stay gated until verification and trust checks pass.'
+    titleKey: 'support.desk.cards.procurement.title',
+    descriptionKey: 'support.desk.cards.procurement.description',
+    category: 'Procurement'
   },
   {
-    question: 'Where do procurement records go?',
-    answer:
-      'Tender activity, clarification messages, bids, evaluations, awards, contracts, and audit events are retained in the platform record views as activity is created.'
+    titleKey: 'support.desk.cards.awarding.title',
+    descriptionKey: 'support.desk.cards.awarding.description',
+    category: 'Awarding and contract'
+  },
+  {
+    titleKey: 'support.desk.cards.technical.title',
+    descriptionKey: 'support.desk.cards.technical.description',
+    category: 'Technical'
   }
 ];
 
+const supportQuickLinks = [
+  { labelKey: 'accountMenu.profile', route: '/identity/profile' },
+  { labelKey: 'support.quickLinks.verification', route: '/identity/verification' },
+  { labelKey: 'nav.dashboard', route: '/dashboard' },
+  { labelKey: 'nav.communication', route: '/communication' },
+  { labelKey: 'support.quickLinks.awardingContracts', route: '/awards-contracts' },
+  { labelKey: 'support.quickLinks.systemStatus', route: '/status' }
+];
+
 function SupportShell({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
+
   return (
     <div className="launch-support-page">
       <header className="launch-support-nav">
-        <Link className="brand welcome-brand-v2" to="/" aria-label="ProcureX home">
+        <Link className="brand welcome-brand-v2" to="/" aria-label={t('welcomeLanding.brandHome')}>
           <span className="platform-logo">
             <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
           </span>
           <span className="brand-text">ProcureX</span>
         </Link>
-        <nav aria-label="Support navigation">
-          <Link to="/guest-marketplace">Open tenders</Link>
-          <Link to="/help">Help</Link>
-          <Link to="/status">Status</Link>
+        <nav aria-label={t('support.nav.ariaLabel')}>
+          <Link to="/guest-marketplace">{t('support.nav.openTenders')}</Link>
+          <Link to="/help">{t('accountMenu.help')}</Link>
+          <Link to="/status">{t('support.nav.status')}</Link>
           <Link className="btn btn-primary" to="/sign-in">
-            Sign In
+            {t('actions.signIn')}
           </Link>
         </nav>
       </header>
@@ -60,6 +96,7 @@ function SupportShell({ children }: { children: ReactNode }) {
 }
 
 export function HelpCenterProcurexPage() {
+  const { t } = useTranslation();
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
   const { notifyError, notifySuccess } = useNotifications();
   const [subject, setSubject] = useState('');
@@ -77,9 +114,9 @@ export function HelpCenterProcurexPage() {
       setCategory('General');
       setPriority('NORMAL');
       setDescription('');
-      notifySuccess('Support ticket created', `Ticket ${ticket.id.slice(0, 8)} is now with ProcureX support.`);
+      notifySuccess(t('support.ticket.createdTitle'), t('support.ticket.createdMessage', { id: ticket.id.slice(0, 8) }));
     } catch {
-      notifyError('Ticket could not be created', 'Please check your session and try again.');
+      notifyError(t('support.ticket.failedTitle'), t('support.ticket.failedMessage'));
     } finally {
       setSubmitting(false);
     }
@@ -88,67 +125,65 @@ export function HelpCenterProcurexPage() {
   return (
     <SupportShell>
       <section className="launch-support-hero">
-        <span className="eyebrow">ProcureX Help Center</span>
-        <h1>Help for registration, verification, tenders, and bids.</h1>
-        <p>
-          Find practical guidance for the first ProcureX workflows. For account-specific issues, contact support with the email address used on your organization profile.
-        </p>
+        <span className="eyebrow">{t('support.help.eyebrow')}</span>
+        <h1>{t('support.help.title')}</h1>
+        <p>{t('support.help.body')}</p>
       </section>
 
-      <section className="launch-support-grid" aria-label="Support options">
+      <section className="launch-support-grid" aria-label={t('support.help.optionsAria')}>
         <article>
-          <strong>Identity and access</strong>
-          <p>Registration, OTP verification, registry checks, trust tier status, and role-based access questions.</p>
-          <Link to="/identity/verification">Open verification</Link>
+          <strong>{t('support.help.options.identity.title')}</strong>
+          <p>{t('support.help.options.identity.body')}</p>
+          <Link to="/identity/verification">{t('support.help.options.identity.link')}</Link>
         </article>
         <article>
-          <strong>Tender workflow</strong>
-          <p>Create tenders, publish procurement opportunities, review requirements, and keep tender records together.</p>
-          <Link to="/guest-marketplace">Browse tenders</Link>
+          <strong>{t('support.help.options.tender.title')}</strong>
+          <p>{t('support.help.options.tender.body')}</p>
+          <Link to="/guest-marketplace">{t('support.help.options.tender.link')}</Link>
         </article>
         <article>
-          <strong>Support channels</strong>
-          <p>Send onboarding, compliance, or technical questions to the ProcureX support team.</p>
-          <Link to="/contact">Contact support</Link>
+          <strong>{t('support.help.options.channels.title')}</strong>
+          <p>{t('support.help.options.channels.body')}</p>
+          <Link to="/contact">{t('support.help.options.channels.link')}</Link>
         </article>
       </section>
 
       {isAuthenticated ? (
         <section className="launch-support-faq" aria-labelledby="support-ticket-title">
           <div className="section-header welcome-centered-v2">
-            <span className="section-label">Create support ticket</span>
-            <h2 id="support-ticket-title">Send an account-specific support request</h2>
+            <span className="section-label">{t('support.ticket.create')}</span>
+            <h2 id="support-ticket-title">{t('support.ticket.accountSpecificTitle')}</h2>
           </div>
           <form className="launch-contact-form" onSubmit={submitTicket}>
             <label>
-              Subject
+              {t('support.ticket.subject')}
               <input value={subject} onChange={(event) => setSubject(event.target.value)} required minLength={3} maxLength={180} />
             </label>
             <label>
-              Category
+              {t('support.ticket.category')}
               <select value={category} onChange={(event) => setCategory(event.target.value)}>
-                <option value="General">General</option>
-                <option value="Identity">Identity</option>
-                <option value="Procurement">Procurement</option>
-                <option value="Technical">Technical</option>
-                <option value="Compliance">Compliance</option>
+                <option value="General">{t('support.categories.general')}</option>
+                <option value="Identity">{t('support.categories.identity')}</option>
+                <option value="Procurement">{t('support.categories.procurement')}</option>
+                <option value="Technical">{t('support.categories.technical')}</option>
+                <option value="Compliance">{t('support.categories.compliance')}</option>
               </select>
             </label>
             <label>
-              Priority
+              {t('support.ticket.priority')}
               <select value={priority} onChange={(event) => setPriority(event.target.value as SupportTicketPriority)}>
-                <option value="LOW">Low</option>
-                <option value="NORMAL">Normal</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
+                <option value="LOW">{t('support.priorities.LOW')}</option>
+                <option value="NORMAL">{t('support.priorities.NORMAL')}</option>
+                <option value="HIGH">{t('support.priorities.HIGH')}</option>
+                <option value="URGENT">{t('support.priorities.URGENT')}</option>
               </select>
             </label>
             <label>
-              Description
+              {t('support.ticket.description')}
               <textarea value={description} onChange={(event) => setDescription(event.target.value)} required minLength={10} maxLength={5000} rows={5} />
             </label>
             <button className="btn btn-primary" type="submit" disabled={submitting}>
-              {submitting ? 'Creating...' : 'Create support ticket'}
+              {submitting ? t('support.ticket.creating') : t('support.ticket.create')}
             </button>
           </form>
         </section>
@@ -156,14 +191,14 @@ export function HelpCenterProcurexPage() {
 
       <section className="launch-support-faq" aria-labelledby="support-faq-title">
         <div className="section-header welcome-centered-v2">
-          <span className="section-label">Frequently asked</span>
-          <h2 id="support-faq-title">Procurement support questions</h2>
+          <span className="section-label">{t('support.help.faq.label')}</span>
+          <h2 id="support-faq-title">{t('support.help.faq.title')}</h2>
         </div>
         <div className="launch-faq-list">
           {faqItems.map((item) => (
-            <details key={item.question}>
-              <summary>{item.question}</summary>
-              <p>{item.answer}</p>
+            <details key={item.questionKey}>
+              <summary>{t(item.questionKey)}</summary>
+              <p>{t(item.answerKey)}</p>
             </details>
           ))}
         </div>
@@ -172,7 +207,180 @@ export function HelpCenterProcurexPage() {
   );
 }
 
+export function SignedInHelpDeskProcurexPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const user = useAppSelector((state) => state.auth.user);
+  const { notifyError, notifySuccess } = useNotifications();
+  const [subject, setSubject] = useState('');
+  const [category, setCategory] = useState('General');
+  const [priority, setPriority] = useState<SupportTicketPriority>('NORMAL');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const previousPage = document.body.dataset.page;
+    document.body.dataset.page = 'support-desk';
+    document.body.dataset.procurexReactPage = 'true';
+    return () => {
+      if (previousPage) document.body.dataset.page = previousPage;
+      else delete document.body.dataset.page;
+      delete document.body.dataset.procurexReactPage;
+    };
+  }, []);
+
+  async function submitTicket(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    try {
+      const ticket = await supportApi.createTicket({ subject, category, priority, description });
+      setSubject('');
+      setCategory('General');
+      setPriority('NORMAL');
+      setDescription('');
+      notifySuccess(t('support.ticket.createdTitle'), t('support.ticket.createdMessage', { id: ticket.id.slice(0, 8) }));
+    } catch {
+      notifyError(t('support.ticket.failedTitle'), t('support.ticket.failedMessage'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function selectCategory(nextCategory: string) {
+    setCategory(nextCategory);
+    const form = document.getElementById('support-desk-ticket-form');
+    form?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  return (
+    <div className="procurex-react-page support-desk-page">
+      <header className="app-topbar">
+        <div className="app-topbar-left">
+          <button className="app-brand-button" type="button" onClick={() => navigate('/dashboard')}>
+            <span className="platform-logo">
+              <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
+            </span>
+            <span>{t('support.desk.title')}</span>
+          </button>
+        </div>
+        <div className="app-topbar-actions">
+          <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate('/dashboard')}>
+            {t('nav.dashboard')}
+          </button>
+        </div>
+      </header>
+
+      <div className="main-layout support-desk-layout">
+        <aside className="sidebar support-desk-sidebar">
+          <div className="sidebar-heading">
+            <h3>{t('support.desk.title')}</h3>
+            <div>{user?.organization || t('accountMenu.procurexAccount')}</div>
+          </div>
+          <ul className="sidebar-nav">
+            <li><button type="button" className="active" onClick={() => navigate('/support')}>{t('support.desk.nav.request')}</button></li>
+            <li><button type="button" onClick={() => navigate('/communication')}>{t('accountMenu.messages')}</button></li>
+            <li><button type="button" onClick={() => navigate('/status')}>{t('support.quickLinks.systemStatus')}</button></li>
+            <li><button type="button" onClick={() => navigate('/help')}>{t('support.desk.nav.publicHelp')}</button></li>
+          </ul>
+        </aside>
+
+        <main className="main-content support-desk-content">
+          <section className="support-desk-hero">
+            <div>
+              <span className="section-kicker">{t('support.desk.kicker')}</span>
+              <h1>{t('support.desk.title')}</h1>
+              <p>{t('support.desk.body')}</p>
+            </div>
+            <div className="support-desk-account">
+              <span>{t('common.organization')}</span>
+              <strong>{user?.organization || t('accountMenu.procurexAccount')}</strong>
+              <em>{user?.email}</em>
+            </div>
+          </section>
+
+          <section className="support-desk-card-grid" aria-label={t('support.desk.prioritiesAria')}>
+            {supportDeskCards.map((card) => (
+              <article key={card.titleKey}>
+                <strong>{t(card.titleKey)}</strong>
+                <p>{t(card.descriptionKey)}</p>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => selectCategory(card.category)}>
+                  {t('support.desk.useCategory')}
+                </button>
+              </article>
+            ))}
+          </section>
+
+          <section className="support-desk-panel" aria-labelledby="support-desk-ticket-title">
+            <div className="panel-heading">
+              <div>
+                <span className="section-kicker">{t('support.ticket.kicker')}</span>
+                <h2 id="support-desk-ticket-title">{t('support.ticket.createRequest')}</h2>
+              </div>
+              <span className="badge badge-info">{t(`support.priorities.${priority}`)}</span>
+            </div>
+            <form id="support-desk-ticket-form" className="support-desk-form" onSubmit={submitTicket}>
+              <label>
+                {t('support.ticket.subject')}
+                <input value={subject} onChange={(event) => setSubject(event.target.value)} required minLength={3} maxLength={180} />
+              </label>
+              <label>
+                {t('support.ticket.category')}
+                <select value={category} onChange={(event) => setCategory(event.target.value)}>
+                  {supportDeskCategories.map((item) => (
+                    <option key={item.value} value={item.value}>{t(item.labelKey)}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t('support.ticket.priority')}
+                <select value={priority} onChange={(event) => setPriority(event.target.value as SupportTicketPriority)}>
+                  <option value="LOW">{t('support.priorities.LOW')}</option>
+                  <option value="NORMAL">{t('support.priorities.NORMAL')}</option>
+                  <option value="HIGH">{t('support.priorities.HIGH')}</option>
+                  <option value="URGENT">{t('support.priorities.URGENT')}</option>
+                </select>
+              </label>
+              <label>
+                {t('support.ticket.description')}
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  required
+                  minLength={10}
+                  maxLength={5000}
+                  rows={6}
+                  placeholder={t('support.ticket.descriptionPlaceholder')}
+                />
+              </label>
+              <button className="btn btn-primary" type="submit" disabled={submitting}>
+                {submitting ? t('support.ticket.creating') : t('support.ticket.create')}
+              </button>
+            </form>
+          </section>
+
+          <section className="support-desk-panel" aria-labelledby="support-desk-links-title">
+            <div className="panel-heading">
+              <div>
+                <span className="section-kicker">{t('support.desk.quickLinks')}</span>
+                <h2 id="support-desk-links-title">{t('support.desk.openRelated')}</h2>
+              </div>
+            </div>
+            <div className="support-desk-links">
+              {supportQuickLinks.map((link) => (
+                <button className="btn btn-secondary btn-sm" type="button" key={link.route} onClick={() => navigate(link.route)}>
+                  {t(link.labelKey)}
+                </button>
+              ))}
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}
+
 export function SystemStatusProcurexPage() {
+  const { t } = useTranslation();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState('');
 
@@ -188,7 +396,7 @@ export function SystemStatusProcurexPage() {
       })
       .catch(() => {
         if (mounted) {
-          setError('The ProcureX API health check is not reachable from this browser right now.');
+          setError(t('support.status.unreachable'));
         }
       });
     return () => {
@@ -196,22 +404,22 @@ export function SystemStatusProcurexPage() {
     };
   }, []);
 
-  const statusLabel = health?.status === 'ok' ? 'Operational' : error ? 'Connection issue' : 'Checking';
+  const statusLabel = health?.status === 'ok' ? t('support.status.operational') : error ? t('support.status.connectionIssue') : t('support.status.checking');
   const moduleCount = health?.modules?.length ?? 0;
 
   return (
     <SupportShell>
       <section className="launch-support-hero launch-status-hero">
-        <span className="eyebrow">System Status</span>
+        <span className="eyebrow">{t('support.quickLinks.systemStatus')}</span>
         <h1>{statusLabel}</h1>
-        <p>{error || `Health check for ${health?.service ?? 'ProcureX server'} is responding. ${moduleCount} service modules are registered.`}</p>
+        <p>{error || t('support.status.responding', { service: health?.service ?? t('support.status.procurexServer'), count: moduleCount })}</p>
       </section>
-      <section className="launch-status-panel" aria-label="Service modules">
+      <section className="launch-status-panel" aria-label={t('support.status.modulesAria')}>
         {error ? (
-          <NotificationCard notification={{ tone: 'error', title: 'Health check failed', message: error, reason: 'The browser could not reach the public /health endpoint.', action: { label: 'Refresh status', onAction: () => window.location.reload() }, dismissible: false }} />
+          <NotificationCard notification={{ tone: 'error', title: t('support.status.failed'), message: error, reason: t('support.status.failedReason'), action: { label: t('support.status.refresh'), onAction: () => window.location.reload() }, dismissible: false }} />
         ) : null}
         <div>
-          <strong>API health</strong>
+          <strong>{t('support.status.apiHealth')}</strong>
           <span className={health?.status === 'ok' ? 'status-pill status-pill--ok' : 'status-pill'}>{health?.status ?? 'checking'}</span>
         </div>
         <div className="launch-status-modules">
@@ -221,8 +429,8 @@ export function SystemStatusProcurexPage() {
               <small>{module.basePath}</small>
             </span>
           ))}
-          {!health && !error ? <span>Checking registered modules...</span> : null}
-          {error ? <span>Retry by refreshing this page after the API is available.</span> : null}
+          {!health && !error ? <span>{t('support.status.checkingModules')}</span> : null}
+          {error ? <span>{t('support.status.retry')}</span> : null}
         </div>
       </section>
     </SupportShell>
@@ -266,48 +474,55 @@ function ActionPage({
 }
 
 export function NotFoundProcurexPage() {
+  const { t } = useTranslation();
+
   return (
     <ActionPage
       eyebrow="404"
-      title="That ProcureX page was not found."
-      body="The link may be old, mistyped, or no longer available. You can return home or open the help center."
+      title={t('support.actions.notFound.title')}
+      body={t('support.actions.notFound.body')}
       primaryTo="/"
-      primaryLabel="Go home"
+      primaryLabel={t('support.actions.goHome')}
       secondaryTo="/help"
-      secondaryLabel="Open help"
+      secondaryLabel={t('support.actions.openHelp')}
     />
   );
 }
 
 export function SessionExpiredProcurexPage() {
+  const { t } = useTranslation();
+
   return (
     <ActionPage
-      eyebrow="Session expired"
-      title="Please sign in again."
-      body="Your saved session could not be restored. Sign in again to continue with your ProcureX workspace."
+      eyebrow={t('support.actions.sessionExpired.eyebrow')}
+      title={t('support.actions.sessionExpired.title')}
+      body={t('support.actions.sessionExpired.body')}
       primaryTo="/sign-in"
-      primaryLabel="Sign in"
+      primaryLabel={t('actions.signIn')}
       secondaryTo="/help"
-      secondaryLabel="Get help"
+      secondaryLabel={t('support.actions.getHelp')}
     />
   );
 }
 
 export function AccountLockedProcurexPage() {
+  const { t } = useTranslation();
+
   return (
     <ActionPage
-      eyebrow="Account access"
-      title="This account needs support review."
-      body="The sign-in response indicates the account may be locked or suspended. Contact ProcureX support before trying again."
+      eyebrow={t('support.actions.accountLocked.eyebrow')}
+      title={t('support.actions.accountLocked.title')}
+      body={t('support.actions.accountLocked.body')}
       primaryTo="/contact"
-      primaryLabel="Contact support"
+      primaryLabel={t('support.help.options.channels.link')}
       secondaryTo="/help"
-      secondaryLabel="Read help"
+      secondaryLabel={t('support.actions.readHelp')}
     />
   );
 }
 
 export function CookieConsentBanner() {
+  const { t } = useTranslation();
   const storageKey = 'procurex.cookieConsent.v1';
   const [visible, setVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -319,10 +534,11 @@ export function CookieConsentBanner() {
   if (!visible) return null;
 
   return (
-    <aside className="cookie-consent" aria-label="Cookie notice">
+    <aside className="cookie-consent" aria-label={t('support.cookie.ariaLabel')}>
       <p>
-        ProcureX uses essential browser storage for sign-in, language, security checks, and service reliability. See our <a href="/privacy">Privacy Policy</a> and{' '}
-        <a href="/terms">Terms</a>. © {year}
+        {t('support.cookie.message')}{' '}
+        <a href="/privacy">{t('pages.privacy.title')}</a> {t('auth.register.password.agreementAnd')}{' '}
+        <a href="/terms">{t('nav.terms')}</a>. &copy; {year}
       </p>
       <button
         className="btn btn-primary"
@@ -332,7 +548,7 @@ export function CookieConsentBanner() {
           setVisible(false);
         }}
       >
-        Accept
+        {t('support.cookie.accept')}
       </button>
     </aside>
   );
