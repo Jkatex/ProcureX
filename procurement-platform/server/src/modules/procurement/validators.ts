@@ -1,14 +1,50 @@
 import { z } from 'zod';
 import { TenderType } from '@prisma/client';
-import { marketplaceBudgetBandValues, marketplaceSortValues, planningSortValues } from './types.js';
+import { marketplaceBudgetBandValues, marketplaceSortValues, marketplaceVisibilityFilterValues, planningSortValues } from './types.js';
 
 export const moduleStatusQuerySchema = z.object({}).passthrough();
 
 export const publicWelcomeQuerySchema = z.object({}).passthrough();
 
+export const masterDataQuerySchema = z.object({}).passthrough();
+
+export const masterDataGroupParamsSchema = z
+  .object({
+    group: z.string().trim().min(1).max(80)
+  })
+  .strict();
+
+export const designFormSchemasQuerySchema = z.object({}).passthrough();
+
+export const designFormSchemaParamsSchema = z
+  .object({
+    type: z.string().trim().min(1).max(40).transform((value) => value.toLowerCase())
+  })
+  .strict();
+
+export const scanLanguageBodySchema = z
+  .object({
+    title: z.string().trim().max(300).optional().default(''),
+    description: z.string().trim().max(10000).optional().default(''),
+    requirements: z.record(z.unknown()).optional().default({}),
+    evaluationCriteria: z.record(z.unknown()).optional().default({}),
+    metadata: z.record(z.unknown()).optional().default({})
+  })
+  .strict();
+
+export const taxonomyQuerySchema = z.object({}).passthrough();
+
+const booleanQuerySchema = z.preprocess((value) => {
+  if (value === undefined) return undefined;
+  if (value === true || value === 'true' || value === '1') return true;
+  if (value === false || value === 'false' || value === '0' || value === '') return false;
+  return value;
+}, z.boolean());
+
 export const marketplaceQuerySchema = z
   .object({
     search: z.string().trim().max(100).optional().default(''),
+    category: z.string().trim().max(100).optional().default(''),
     type: z
       .string()
       .trim()
@@ -24,6 +60,8 @@ export const marketplaceQuerySchema = z
       .refine((value) => isAllowedMarketplaceStatus(value), { message: 'Invalid tender status filter.' })
       .optional()
       .default(''),
+    includeClosed: booleanQuerySchema.optional().default(false),
+    visibility: z.enum(marketplaceVisibilityFilterValues).or(z.literal('')).optional().default(''),
     sort: z.enum(marketplaceSortValues).optional().default('deadline'),
     page: z.coerce.number().int().min(1).max(10000).optional().default(1),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20)
@@ -157,6 +195,13 @@ const draftClosingDateSchema = z
     message: 'Closing date must be in the future.'
   });
 const categoryInputSchema = z.string().trim().min(1).max(120);
+
+export const standardizeCategoryBodySchema = z
+  .object({
+    rawCategory: categoryInputSchema,
+    type: tenderTypeInputSchema.optional()
+  })
+  .strict();
 
 export const createTenderBodySchema = z
   .object({

@@ -413,7 +413,7 @@ function localEmailValidationFallback(): EmailValidationResult {
 function localRegistryMockPayload(input: RegistryLookupInput & { source: RegistrySource; registryNumber: string }) {
   const fetchedAt = new Date().toISOString();
 
-  if (input.source === 'TRA' && ['1234567890', '1098765432', '555666777'].includes(input.registryNumber)) {
+  if (input.source === 'TRA' && ['1234567890', '1098765432', '555666777', '2046813579', '3102468975', '448812006', '6723459012', '7901234568', '8642097531'].includes(input.registryNumber)) {
     const businessLike = input.entityType === 'business';
     const traRecordMap: Record<string, {
       individualName: string;
@@ -446,6 +446,54 @@ function localRegistryMockPayload(input: RegistryLookupInput & { source: Registr
         taxOffice: 'Mwanza Tax Region',
         location: 'Mwanza, Tanzania',
         activities: ['Medical consumables', 'Hospital equipment distribution']
+      },
+      '2046813579': {
+        individualName: 'Grace Paulo Mwakalinga',
+        businessName: 'Grace Stationery and Office Supplies',
+        registeredOn: '2026-01-14',
+        taxOffice: 'Kinondoni Tax Region',
+        location: 'Dar es Salaam, Tanzania',
+        activities: ['Stationery supply', 'Office equipment distribution']
+      },
+      '3102468975': {
+        individualName: 'Moses Daniel Komba',
+        businessName: 'Komba Building Materials',
+        registeredOn: '2025-09-09',
+        taxOffice: 'Temeke Tax Region',
+        location: 'Dar es Salaam, Tanzania',
+        activities: ['Building materials', 'Hardware supply']
+      },
+      '448812006': {
+        individualName: 'Rehema Said Ngalawa',
+        businessName: 'Pwani Catering Services',
+        registeredOn: '2024-03-27',
+        taxOffice: 'Pwani Tax Region',
+        location: 'Kibaha, Tanzania',
+        activities: ['Catering services', 'Event logistics']
+      },
+      '6723459012': {
+        individualName: 'Hassan Omari Mdee',
+        businessName: 'Mdee Transport Solutions',
+        registeredOn: '2023-12-05',
+        taxOffice: 'Dodoma Tax Region',
+        location: 'Dodoma, Tanzania',
+        activities: ['Fleet transport', 'Courier services']
+      },
+      '7901234568': {
+        individualName: 'Rosemary Elias Sanga',
+        businessName: 'Sanga Agro Inputs',
+        registeredOn: '2025-05-19',
+        taxOffice: 'Mbeya Tax Region',
+        location: 'Mbeya, Tanzania',
+        activities: ['Agricultural inputs', 'Farm equipment supply']
+      },
+      '8642097531': {
+        individualName: 'Yusuf Rajabu Khamis',
+        businessName: 'Tanga Marine Supplies',
+        registeredOn: '2024-10-30',
+        taxOffice: 'Tanga Tax Region',
+        location: 'Tanga, Tanzania',
+        activities: ['Marine supplies', 'Safety equipment distribution']
       }
     };
     const traRecord = traRecordMap[input.registryNumber];
@@ -482,7 +530,7 @@ function localRegistryMockPayload(input: RegistryLookupInput & { source: Registr
     };
   }
 
-  if (input.source === 'BRELA' && ['987654321', 'BRN-2024-001', 'BN-778899'].includes(input.registryNumber)) {
+  if (input.source === 'BRELA' && ['987654321', 'BRN-2024-001', 'BN-778899', 'BRN-2025-014', 'BN-240681', 'BRN-2023-088', 'BN-661204', 'BRN-2026-032', 'BN-902468'].includes(input.registryNumber)) {
     const businessLike = input.entityType === 'business';
     const brelaRecordMap: Record<string, {
       companyName: string;
@@ -519,6 +567,60 @@ function localRegistryMockPayload(input: RegistryLookupInput & { source: Registr
         taxpayerTin: '555666777',
         directors: ['Fatma Said Kombo', 'Ali Hamad Omar'],
         activities: ['Software services', 'ICT equipment supply']
+      },
+      'BRN-2025-014': {
+        companyName: 'Serengeti Office Solutions Limited',
+        businessName: 'Serengeti Office Solutions',
+        date: '2025-01-24',
+        office: 'Arusha, Tanzania',
+        taxpayerTin: '2046813579',
+        directors: ['Grace Paulo Mwakalinga', 'Josephat Elia Marwa'],
+        activities: ['Office supplies', 'Document management services']
+      },
+      'BN-240681': {
+        companyName: 'Kisarawe Food Logistics Limited',
+        businessName: 'Kisarawe Food Logistics',
+        date: '2024-06-18',
+        office: 'Kisarawe, Tanzania',
+        taxpayerTin: '448812006',
+        directors: ['Rehema Said Ngalawa', 'Salum Bakari Msuya'],
+        activities: ['Food distribution', 'Catering logistics']
+      },
+      'BRN-2023-088': {
+        companyName: 'Dodoma Fleet Services Limited',
+        businessName: 'Dodoma Fleet Services',
+        date: '2023-08-11',
+        office: 'Dodoma, Tanzania',
+        taxpayerTin: '6723459012',
+        directors: ['Hassan Omari Mdee', 'Naomi Peter Lema'],
+        activities: ['Vehicle leasing', 'Transport services']
+      },
+      'BN-661204': {
+        companyName: 'Mbeya Agro Traders Limited',
+        businessName: 'Mbeya Agro Traders',
+        date: '2025-07-02',
+        office: 'Mbeya, Tanzania',
+        taxpayerTin: '7901234568',
+        directors: ['Rosemary Elias Sanga', 'Emmanuel Jackson Mwakyusa'],
+        activities: ['Agro inputs', 'Produce aggregation']
+      },
+      'BRN-2026-032': {
+        companyName: 'Tanga Safety Equipment Limited',
+        businessName: 'Tanga Safety Equipment',
+        date: '2026-03-16',
+        office: 'Tanga, Tanzania',
+        taxpayerTin: '8642097531',
+        directors: ['Yusuf Rajabu Khamis', 'Mariam Abdallah Said'],
+        activities: ['Safety equipment', 'Marine supplies']
+      },
+      'BN-902468': {
+        companyName: 'Temeke Hardware Supplies Limited',
+        businessName: 'Temeke Hardware Supplies',
+        date: '2024-12-09',
+        office: 'Dar es Salaam, Tanzania',
+        taxpayerTin: '3102468975',
+        directors: ['Moses Daniel Komba', 'Hadija Rashid Mkude'],
+        activities: ['Hardware supply', 'Construction materials']
       }
     };
     const brelaRecord = brelaRecordMap[input.registryNumber];

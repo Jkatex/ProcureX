@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
+import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
-import { publishSimulatedTender, saveCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
+import { saveCreateTenderDraft } from '../../slice';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import type {
@@ -11,6 +12,7 @@ import type {
   CreateTenderConsultancyAssignmentActivityRow,
   CreateTenderConsultancyDeliverableRow,
   CreateTenderDraft,
+  CreateTenderPayload,
   CreateTenderEligibilityRequirementRow,
   CreateTenderEvaluationCriterion,
   CreateTenderFinancialRequirementRow,
@@ -39,7 +41,8 @@ import type {
   CreateTenderWorksLumpSumPricingRow,
   CreateTenderWorksMilestoneRow,
   CreateTenderWorksRequirements,
-  CreateTenderWorksSpecificationDocumentRow
+  CreateTenderWorksSpecificationDocumentRow,
+  TenderDraftValidation
 } from '../../types';
 
 const steps = ['Basic Information', 'Procurement Planning', 'Tender Requirements', 'Evaluation Criteria and Weights', 'Review Tender', 'Tender Review and Publication'];
@@ -318,10 +321,11 @@ type PlanningBridge = {
 export function CreateTenderProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const { notifySuccess, notifyWarning } = useNotifications();
+  const { notifyError, notifySuccess, notifyWarning } = useNotifications();
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
   const [activeStep, setActiveStep] = useState(0);
   const [validationMessage, setValidationMessage] = useState('');
+  const [isPersisting, setIsPersisting] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
   const [newDeliverable, setNewDeliverable] = useState('');
@@ -401,9 +405,11 @@ export function CreateTenderProcurexPage() {
     patchDraft(normalizeDraftForType({ ...draft, procurementTypeId: typeId }, typeId));
   }
 
-  function addCategory() {
-    if (!newCategory || draft.categories.includes(newCategory)) return;
-    patchDraft({ categories: [...draft.categories, newCategory] });
+  function selectCategory(category: string) {
+    const selectedCategory = category.trim();
+    if (selectedCategory && !draft.categories.includes(selectedCategory)) {
+      patchDraft({ categories: [...draft.categories, selectedCategory] });
+    }
     setNewCategory('');
   }
 
@@ -477,25 +483,68 @@ export function CreateTenderProcurexPage() {
     setActiveStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
-  function saveDraft() {
+  async function persistTenderDraft(sourceDraft = draft) {
+    const payload = createTenderPersistencePayload(sourceDraft);
+    const response = isBackendTenderId(sourceDraft.id)
+      ? await procurementApi.updateTender(sourceDraft.id, payload)
+      : await procurementApi.createTender(payload);
+    const saved: CreateTenderDraft = {
+      ...sourceDraft,
+      id: response.data.id,
+      reference: response.data.reference,
+      status: 'DRAFT',
+      updatedAt: new Date().toISOString()
+    };
+    setDraft(saved);
+    dispatch(saveCreateTenderDraft(saved));
+    return { saved, response };
+  }
+
+  async function saveDraft() {
     if (!canSaveDraft) {
       setValidationMessage('Add a tender detail first, then you can save this draft.');
       notifyWarning('Tender draft not ready', 'Add at least one tender detail before saving.', {
-        reason: 'ProcureX needs meaningful tender information before it can keep a session draft.'
+        reason: 'ProcureX needs meaningful tender information before it can create a backend draft.'
       });
       return;
     }
-    const saved = { ...draft, status: 'DRAFT' as const, updatedAt: new Date().toISOString() };
-    setDraft(saved);
-    dispatch(saveCreateTenderDraft(saved));
-    notifySuccess('Tender draft saved', 'Your tender draft was saved for this session.', {
-      reason: 'You can continue editing it from My Tenders while this browser session is active.',
-      action: { label: 'Open My Tenders', to: '/procurement/my-tenders' }
-    });
-    setValidationMessage('');
+    if (!draft.title.trim() || draft.title.trim().length < 5) {
+      setValidationMessage('Add a tender title with at least 5 characters before saving.');
+      notifyWarning('Tender title required', 'Add a clear tender title before saving the draft.', {
+        reason: 'The backend needs a title to create a persistent tender draft.'
+      });
+      return;
+    }
+    if (isPersisting) return;
+
+    setIsPersisting(true);
+    try {
+      const { response } = await persistTenderDraft();
+      const validationNote = getDraftValidationNote(response.validation);
+      if (validationNote) {
+        notifyWarning('Tender draft saved with validation notes', validationNote, {
+          reason: 'The draft is safely stored, but these items may be needed before publication.',
+          action: { label: 'Open My Tenders', to: '/procurement/my-tenders' }
+        });
+      } else {
+        notifySuccess('Tender draft saved', 'Your tender draft was saved to the backend.', {
+          reason: 'You can continue editing it from My Tenders after logout or from another browser session.',
+          action: { label: 'Open My Tenders', to: '/procurement/my-tenders' }
+        });
+      }
+      setValidationMessage('');
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Tender draft could not be saved.');
+      setValidationMessage(message);
+      notifyError('Tender draft not saved', message, {
+        reason: 'ProcureX could not persist this draft. Check your sign-in state and required fields, then try again.'
+      });
+    } finally {
+      setIsPersisting(false);
+    }
   }
 
-  function submitTender() {
+  async function submitTender() {
     if (!confirmationsComplete) {
       setValidationMessage('Please review and tick each publication confirmation before submitting.');
       notifyWarning('Tender cannot be submitted yet', 'Complete all publication confirmations before submitting.', {
@@ -503,15 +552,55 @@ export function CreateTenderProcurexPage() {
       });
       return;
     }
-    const now = new Date().toISOString();
-    const submitted = { ...draft, status: 'SUBMITTED' as const, submittedAt: now, updatedAt: now };
-    const published = { ...submitted, status: 'PUBLISHED' as const, publishedAt: now };
-    dispatch(submitCreateTenderForEvaluation(submitted));
-    dispatch(publishSimulatedTender(published));
-    notifySuccess('Tender submitted', 'Your tender was submitted for evaluation and published to the marketplace.', {
-      reason: 'A marketplace record and My Tenders record were created for this session.'
-    });
-    navigate('/procurement/my-tenders');
+    if (draft.method === 'Invited Tender') {
+      const message = 'Invited Tender publishing is not yet supported by the backend. Select Open Tender before publishing.';
+      setValidationMessage(message);
+      notifyWarning('Invited tender publishing unavailable', message, {
+        reason: 'The backend create/update contract does not persist tender method yet, so this publish path is limited to public marketplace tenders.'
+      });
+      return;
+    }
+    if (!parsePositiveNumber(draft.estimatedBudget)) {
+      const message = 'Add a positive estimated budget before publishing this tender.';
+      setValidationMessage(message);
+      notifyWarning('Tender budget required', message, {
+        reason: 'The backend publication pipeline requires a tender budget before a draft can become visible in the marketplace.'
+      });
+      setActiveStep(0);
+      return;
+    }
+    if (isPersisting) return;
+
+    setIsPersisting(true);
+    try {
+      const { saved } = await persistTenderDraft();
+      const publishedResponse = await procurementApi.publishTender(saved.id);
+      const now = new Date().toISOString();
+      const published: CreateTenderDraft = {
+        ...saved,
+        reference: publishedResponse.data.reference,
+        status: 'PUBLISHED',
+        submittedAt: now,
+        publishedAt: publishedResponse.data.publishedAt || now,
+        submissionDate: publishedResponse.data.closingDate || saved.submissionDate,
+        updatedAt: now
+      };
+      setDraft(published);
+      dispatch(saveCreateTenderDraft(published));
+      const warningCount = publishedResponse.validation?.warnings.length ?? 0;
+      notifySuccess('Tender published', 'Your tender was saved to the backend and published to the marketplace.', {
+        reason: warningCount ? `${warningCount} publication warning${warningCount === 1 ? '' : 's'} returned by backend validation.` : 'Marketplace now reads this tender from the backend API.'
+      });
+      navigate('/procurement/my-tenders');
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Tender could not be published.');
+      setValidationMessage(message);
+      notifyError('Tender not published', message, {
+        reason: 'The backend publication pipeline rejected this tender or the request failed.'
+      });
+    } finally {
+      setIsPersisting(false);
+    }
   }
 
   function downloadTenderPdfStub() {
@@ -531,8 +620,8 @@ export function CreateTenderProcurexPage() {
             <p>Build a tender package that matches the procurement nature, then publish it directly to the marketplace.</p>
           </div>
           <div className="hero-action-stack">
-            <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft}>
-              Save Draft
+            <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft || isPersisting}>
+              {isPersisting ? 'Saving...' : 'Save Draft'}
             </button>
           </div>
         </section>
@@ -584,8 +673,7 @@ export function CreateTenderProcurexPage() {
                   newSupplier={newSupplier}
                   onTypeChange={changeType}
                   onPatch={patchPlanAware}
-                  onNewCategory={setNewCategory}
-                  onAddCategory={addCategory}
+                  onNewCategory={selectCategory}
                   onRemoveCategory={removeCategory}
                   onNewSupplier={setNewSupplier}
                   onAddSupplier={addSupplier}
@@ -621,7 +709,16 @@ export function CreateTenderProcurexPage() {
                 />
               ) : null}
               {activeStep === 4 ? <ReviewStep draft={draft} selectedType={selectedType} total={criteriaTotal} /> : null}
-              {activeStep === 5 ? <PublicationStep draft={draft} onPatch={patchDraft} confirmationsComplete={confirmationsComplete} onDownloadPdf={downloadTenderPdfStub} onSubmitTender={submitTender} /> : null}
+              {activeStep === 5 ? (
+                <PublicationStep
+                  draft={draft}
+                  onPatch={patchDraft}
+                  confirmationsComplete={confirmationsComplete}
+                  isPersisting={isPersisting}
+                  onDownloadPdf={downloadTenderPdfStub}
+                  onSubmitTender={submitTender}
+                />
+              ) : null}
             </div>
 
             <footer className="wizard-flow-controls" data-wizard-flow-controls>
@@ -806,6 +903,20 @@ function BasicInfoStep({
               />
             </div>
             <div className="form-group">
+              <label className="form-label" htmlFor="create-tender-estimated-budget">
+                Estimated budget
+              </label>
+              <input
+                id="create-tender-estimated-budget"
+                className="form-input"
+                aria-label="Estimated budget"
+                inputMode="numeric"
+                placeholder="Example: 250000000"
+                value={draft.estimatedBudget}
+                onChange={(event) => onPatch('estimatedBudget', event.target.value)}
+              />
+            </div>
+            <div className="form-group">
               <label className="form-label" htmlFor="create-tender-opening-date">
                 Opening date
               </label>
@@ -834,7 +945,6 @@ function PlanningStep({
   onTypeChange,
   onPatch,
   onNewCategory,
-  onAddCategory,
   onRemoveCategory,
   onNewSupplier,
   onAddSupplier
@@ -847,7 +957,6 @@ function PlanningStep({
   onTypeChange: (typeId: CreateTenderProcurementTypeId) => void;
   onPatch: (field: keyof CreateTenderDraft, value: CreateTenderDraft[keyof CreateTenderDraft]) => void;
   onNewCategory: (value: string) => void;
-  onAddCategory: () => void;
   onRemoveCategory: (category: string) => void;
   onNewSupplier: (value: string) => void;
   onAddSupplier: () => void;
@@ -891,9 +1000,6 @@ function PlanningStep({
               ))}
             </select>
           </label>
-          <button className="btn btn-secondary" type="button" onClick={onAddCategory}>
-            Add Category
-          </button>
           <label>
             Procurement method
             <select value={draft.method} onChange={(event) => onPatch('method', event.target.value)}>
@@ -4437,14 +4543,16 @@ function PublicationStep({
   draft,
   onPatch,
   confirmationsComplete,
+  isPersisting,
   onDownloadPdf,
   onSubmitTender
 }: {
   draft: CreateTenderDraft;
   onPatch: (patch: Partial<CreateTenderDraft>) => void;
   confirmationsComplete: boolean;
+  isPersisting: boolean;
   onDownloadPdf: () => void;
-  onSubmitTender: () => void;
+  onSubmitTender: () => void | Promise<void>;
 }) {
   const setConfirmationGroup = (patch: Partial<Record<CreateTenderConfirmationId, boolean>>) => {
     onPatch({ confirmations: { ...draft.confirmations, ...patch } });
@@ -4504,8 +4612,8 @@ function PublicationStep({
               <button className="btn btn-secondary" type="button" onClick={onDownloadPdf}>
                 Download Tender PDF
               </button>
-              <button className="btn btn-primary" type="button" onClick={onSubmitTender} disabled={!confirmationsComplete}>
-                Submit Tender for Evaluation
+              <button className="btn btn-primary" type="button" onClick={onSubmitTender} disabled={!confirmationsComplete || isPersisting}>
+                {isPersisting ? 'Publishing...' : 'Submit Tender for Evaluation'}
               </button>
             </div>
           </div>
@@ -4908,6 +5016,255 @@ function normalizeServiceRequirements(draft: CreateTenderDraft): CreateTenderSer
             }
           ]
   };
+}
+
+function isBackendTenderId(id: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+}
+
+function createTenderPersistencePayload(draft: CreateTenderDraft): CreateTenderPayload {
+  const budget = parsePositiveNumber(draft.estimatedBudget);
+  const type = toBackendTenderType(draft.procurementTypeId);
+  const metadata = removeUndefinedValues({
+    frontendSource: 'react-create-tender',
+    frontendDraftId: isBackendTenderId(draft.id) ? undefined : draft.id,
+    method: draft.method,
+    procurementTypeId: draft.procurementTypeId,
+    procuringEntity: draft.procuringEntity,
+    fundingSource: draft.fundingSource === 'Other' ? draft.customFundingSource : draft.fundingSource,
+    contact: draft.contact,
+    invitedSuppliers: draft.invitedSuppliers,
+    evaluationCriteria: draft.evaluationCriteria,
+    milestones: draft.milestones,
+    publication: {
+      publicationDate: draft.publicationDate,
+      openingDate: draft.openingDate,
+      clarificationDeadline: draft.clarificationDeadline
+    },
+    confirmations: draft.confirmations,
+    attachments: draft.attachments
+  });
+
+  return {
+    title: draft.title.trim(),
+    description: buildBackendDescription(draft),
+    type,
+    categories: normalizeBackendCategories(draft, type),
+    currency: draft.currency || 'TZS',
+    location: draft.location.trim() || draft.worksRequirements?.location?.trim() || 'Tanzania',
+    requirements: buildBackendRequirements(draft),
+    metadata,
+    ...(budget ? { budget } : {}),
+    ...(draft.submissionDate ? { closingDate: draft.submissionDate } : {})
+  };
+}
+
+function toBackendTenderType(typeId: CreateTenderProcurementTypeId): CreateTenderPayload['type'] {
+  if (typeId === 'works') return 'Works';
+  if (typeId === 'services') return 'Non Consultancy';
+  if (typeId === 'consultancy') return 'Consultancy';
+  return 'Goods';
+}
+
+function normalizeBackendCategories(draft: CreateTenderDraft, type: CreateTenderPayload['type']) {
+  const categories = [...new Set(draft.categories.map((category) => category.trim()).filter(Boolean))];
+  return categories.length ? categories : [type];
+}
+
+function buildBackendDescription(draft: CreateTenderDraft) {
+  const description = draft.description.trim();
+  if (description.length >= 20) return description;
+  const title = draft.title.trim() || 'procurement opportunity';
+  const location = draft.location.trim() || draft.worksRequirements?.location?.trim() || 'Tanzania';
+  const detail = description ? `${description}. ` : '';
+  return `${detail}Tender package for ${title} in ${location}.`;
+}
+
+function buildBackendRequirements(draft: CreateTenderDraft): Record<string, unknown> {
+  return {
+    [draft.procurementTypeId]: { fields: buildRequirementFields(draft) },
+    summary: draft.requirements,
+    commercialItems: draft.commercialItems,
+    productSpecifications: draft.productSpecifications,
+    sampleRequirements: draft.sampleRequirements,
+    financialRequirements: draft.financialRequirements,
+    eligibilityRequirements: draft.eligibilityRequirements,
+    regulatoryLicenseRequirements: draft.regulatoryLicenseRequirements,
+    serviceRequirements: draft.serviceRequirements,
+    worksRequirements: draft.worksRequirements,
+    consultancyRequirements: draft.consultancyRequirements,
+    deliverables: draft.deliverables,
+    attachments: draft.attachments
+  };
+}
+
+function buildRequirementFields(draft: CreateTenderDraft): Record<string, unknown> {
+  if (draft.procurementTypeId === 'works') return buildWorksRequirementFields(draft);
+  if (draft.procurementTypeId === 'services') return buildServiceRequirementFields(draft);
+  if (draft.procurementTypeId === 'consultancy') return buildConsultancyRequirementFields(draft);
+  return buildGoodsRequirementFields(draft);
+}
+
+function buildGoodsRequirementFields(draft: CreateTenderDraft): Record<string, unknown> {
+  return {
+    quantityScheduleRows: draft.commercialItems.map((item, index) => ({
+      itemNumber: index + 1,
+      itemDescription: item.description,
+      unitOfMeasure: normalizeBackendUnit(item.unit),
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: multiplyNumericStrings(item.quantity, item.unitPrice)
+    })),
+    productSpecificationTemplate: draft.productSpecifications,
+    sampleRequirementRows: draft.sampleRequirements,
+    financialRequirementRows: normalizeFinancialRequirementRows(draft.financialRequirements),
+    eligibilityRequirementCards: draft.eligibilityRequirements,
+    regulatoryLicenseRequirementRows: draft.regulatoryLicenseRequirements
+  };
+}
+
+function buildWorksRequirementFields(draft: CreateTenderDraft): Record<string, unknown> {
+  const works = draft.worksRequirements;
+  return {
+    projectName: works.projectName || draft.title,
+    location: works.location || draft.location,
+    contractType: works.contractType,
+    customContractType: works.customContractType,
+    completionPeriod: works.completionPeriod,
+    scopeSummary: works.scopeSummary || draft.description,
+    mainConstructionActivities: works.mainConstructionActivities,
+    technicalSpecificationDocuments: works.technicalSpecificationDocuments,
+    drawingDesignRows: works.drawingDesignRows,
+    lumpSumPricingRows: works.lumpSumPricingRows,
+    boqRows: works.boqRows.map((row) => ({ ...row, unit: normalizeBackendUnit(row.unit) })),
+    commencementDate: works.commencementDate,
+    worksCompletionPeriod: works.worksCompletionPeriod,
+    worksMilestoneRows: works.worksMilestoneRows,
+    siteVisitRequirement: works.siteVisitRequirement,
+    similarCompletedProjectsRequired: works.similarCompletedProjectsRequired,
+    keyPersonnelCvsRequired: works.keyPersonnelCvsRequired,
+    bankStatementsRequired: works.bankStatementsRequired,
+    bankStatementPeriod: works.bankStatementPeriod
+  };
+}
+
+function buildServiceRequirementFields(draft: CreateTenderDraft): Record<string, unknown> {
+  const services = draft.serviceRequirements;
+  return {
+    serviceCategory: services.serviceCategory || draft.categories[0],
+    scopeOfServices: services.scopeOfServices || draft.description,
+    serviceLocations: services.serviceLocations,
+    duration: services.duration,
+    serviceBoqRows: services.serviceBoqRows.map((row) => ({ ...row, unit: normalizeBackendUnit(row.unit) })),
+    personnelRequirementRows: services.personnelRequirementRows,
+    equipmentRequirementRows: services.equipmentRequirementRows,
+    supportingDocumentRows: services.supportingDocumentRows,
+    esRequirementCards: services.esRequirementCards,
+    reportingRequirements: services.reportingRequirements,
+    slaRequirement: services.slaRequirement,
+    serviceDeliverables: services.serviceDeliverables,
+    serviceMilestones: services.serviceMilestones
+  };
+}
+
+function buildConsultancyRequirementFields(draft: CreateTenderDraft): Record<string, unknown> {
+  const consultancy = draft.consultancyRequirements;
+  return {
+    entityBackgroundCards: consultancy.entityBackgroundCards,
+    projectName: consultancy.projectName || draft.title,
+    backgroundNarrative: consultancy.backgroundNarrative || draft.description,
+    currentSituation: consultancy.currentSituation,
+    relatedInitiatives: consultancy.relatedInitiatives,
+    mainProblemDescription: consultancy.mainProblemDescription,
+    expectedImpact: consultancy.expectedImpact,
+    consultancyGeneralObjective: consultancy.generalObjective,
+    specificObjectiveRows: consultancy.specificObjectiveRows,
+    assignmentActivityRows: consultancy.assignmentActivityRows,
+    clientResponsibilityRows: consultancy.clientResponsibilityRows,
+    consultantResponsibilityRows: consultancy.consultantResponsibilityRows,
+    deliverableRows: consultancy.deliverableRows,
+    reportingRequirementRows: consultancy.reportingRequirementRows,
+    keyExpertRows: consultancy.keyExpertRows,
+    supportingDocumentRows: consultancy.supportingDocumentRows,
+    externalReferenceRows: consultancy.externalReferenceRows
+  };
+}
+
+function getDraftValidationNote(validation?: TenderDraftValidation) {
+  if (!validation) return '';
+  const notes = [...validation.warnings];
+  if (validation.missingRequiredFields.length) {
+    notes.push(
+      `Missing for publication: ${validation.missingRequiredFields
+        .slice(0, 4)
+        .map((field) => field.label)
+        .join(', ')}${validation.missingRequiredFields.length > 4 ? '...' : ''}`
+    );
+  }
+  return notes.slice(0, 3).join(' ');
+}
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (!isRecordValue(error)) return fallback;
+  const response = isRecordValue(error.response) ? error.response : undefined;
+  const data = response && isRecordValue(response.data) ? response.data : undefined;
+  const errors = Array.isArray(data?.errors) ? data.errors : [];
+  const errorMessages = errors
+    .map((item) => (isRecordValue(item) && typeof item.message === 'string' ? item.message : ''))
+    .filter(Boolean);
+  if (errorMessages.length) return errorMessages.slice(0, 4).join(' ');
+  if (typeof data?.message === 'string') return data.message;
+  if (typeof error.message === 'string') return error.message;
+  return fallback;
+}
+
+function parsePositiveNumber(value: string | number | undefined) {
+  const number = Number(String(value ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(number) && number > 0 ? number : undefined;
+}
+
+function multiplyNumericStrings(left: string | number | undefined, right: string | number | undefined) {
+  const leftNumber = Number(String(left ?? '').replace(/,/g, '').trim());
+  const rightNumber = Number(String(right ?? '').replace(/,/g, '').trim());
+  if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) return '';
+  return Math.round(leftNumber * rightNumber * 100) / 100;
+}
+
+function normalizeFinancialRequirementRows(rows: CreateTenderFinancialRequirementRow[]) {
+  return rows.map((row) => ({
+    ...row,
+    evidenceRequired: normalizeTextList(row.evidenceRequired)
+  }));
+}
+
+function normalizeBackendUnit(value: string | undefined) {
+  const unit = String(value ?? '').trim();
+  const normalized = unit.toLowerCase();
+  const aliases: Record<string, string> = {
+    pc: 'Piece',
+    pcs: 'Piece',
+    piece: 'Piece',
+    pieces: 'Piece',
+    unit: 'Each',
+    units: 'Each',
+    each: 'Each',
+    sqm: 'Square Meter',
+    sq: 'Square Meter',
+    'sq m': 'Square Meter',
+    'square metre': 'Square Meter',
+    'square meter': 'Square Meter',
+    meter: 'Meter',
+    metre: 'Meter'
+  };
+  return aliases[normalized] ?? unit;
+}
+
+function removeUndefinedValues(value: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+}
+
+function isRecordValue(value: unknown): value is Record<string, any> {
+  return Boolean(value && typeof value === 'object');
 }
 
 function hasMeaningfulDraft(draft: CreateTenderDraft) {

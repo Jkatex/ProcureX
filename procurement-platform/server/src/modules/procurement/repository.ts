@@ -1,6 +1,8 @@
-import { BidStatus, OrganizationKind, TenderStatus, TenderType, Visibility, VerificationStatus, type Prisma, type PrismaClient } from '@prisma/client';
+import { BidStatus, OrganizationKind, RiskLevel, TenderStatus, TenderType, Visibility, VerificationStatus, type Prisma, type PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
+import { categorySearchTerms, standardizeCategoryName } from './category-taxonomy.js';
+import { tenderLanguageScannerVersion } from './design-language-scanner.js';
 import type {
   CloseTenderResponseDto,
   CreateTenderInput,
@@ -18,6 +20,7 @@ import type {
   SavedTendersPayload,
   SaveTenderResponseDto,
   TenderDetailDto,
+  TenderLanguageScanDto,
   UnsaveTenderResponseDto,
   UpdateTenderInput,
   UpdateTenderResponseDto,
@@ -41,19 +44,23 @@ const marketplaceTenderInclude = {
   categories: { select: { name: true }, orderBy: { name: 'asc' } }
 } satisfies Prisma.TenderInclude;
 
-function tenderDetailInclude(organizationId?: string) {
+function tenderDetailInclude() {
   return {
     ...marketplaceTenderInclude,
     bids: {
-      where: {
-        supplierOrgId: organizationId ?? '00000000-0000-0000-0000-000000000000'
-      },
       select: {
+        id: true,
+        reference: true,
         supplierOrgId: true,
-        status: true
+        status: true,
+        submittedAt: true,
+        receipt: { select: { receiptHash: true } }
       },
       orderBy: { updatedAt: 'desc' }
     },
+    requirementRows: { orderBy: [{ section: 'asc' }, { createdAt: 'asc' }] },
+    milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
+    commercialItems: { orderBy: { itemNo: 'asc' } },
     documents: {
       include: {
         document: {
@@ -148,10 +155,11 @@ export class ModuleRepository {
         orderBy: marketplaceOrderBy(query.sort),
         take: 1000
       }),
-      context.userId
+      context.organizationId
         ? this.db.tender.findMany({
             where: {
-              ownerUserId: context.userId,
+              buyerOrgId: context.organizationId,
+              ...(query.visibility ? { visibility: query.visibility as Visibility } : {}),
               status: {
                 in: [
                   TenderStatus.DRAFT,
@@ -192,7 +200,8 @@ export class ModuleRepository {
         : Promise.resolve([])
     ]);
 
-    const sortedTenders = sortMarketplaceTenders(matchingTenders, query.sort);
+    const filteredTenders = filterMarketplaceTenders(matchingTenders, query);
+    const sortedTenders = sortMarketplaceTenders(filteredTenders, query.sort);
     const pagedTenders = sortedTenders.slice((query.page - 1) * query.limit, query.page * query.limit);
     const pagination = marketplacePagination(sortedTenders.length, query);
     const savedTenderIds = new Set(savedTenderRecords.map((record) => record.tenderId));
@@ -225,7 +234,7 @@ export class ModuleRepository {
   async getTenderDetail(tenderId: string, context: MarketplaceContext) {
     const tender = await this.db.tender.findUnique({
       where: { id: tenderId },
-      include: tenderDetailInclude(context.organizationId)
+      include: tenderDetailInclude()
     });
     if (!tender || !canViewTenderDetail(tender, context.organizationId)) return null;
     return toTenderDetailDto(tender, context);
@@ -239,6 +248,7 @@ export class ModuleRepository {
         buyerOrgId: true,
         title: true,
         type: true,
+        method: true,
         description: true,
         budget: true,
         status: true,
@@ -247,7 +257,22 @@ export class ModuleRepository {
         reference: true,
         visibility: true,
         publishedAt: true,
-        requirements: true
+        requirements: true,
+        metadata: true,
+        categories: { select: { name: true }, orderBy: { name: 'asc' } }
+      }
+    });
+  }
+
+  async getTenderForUpdate(tenderId: string) {
+    return this.db.tender.findUnique({
+      where: { id: tenderId },
+      select: {
+        id: true,
+        buyerOrgId: true,
+        status: true,
+        type: true,
+        metadata: true
       }
     });
   }
@@ -365,7 +390,7 @@ export class ModuleRepository {
     });
   }
 
-  async publishTender(tenderId: string, organizationId: string): Promise<PublishTenderResponseDto | null> {
+  async publishTender(tenderId: string, organizationId: string, visibility: Visibility): Promise<PublishTenderResponseDto | null> {
     const publishedAt = new Date();
     const update = await this.db.tender.updateMany({
       where: {
@@ -375,7 +400,7 @@ export class ModuleRepository {
       },
       data: {
         status: TenderStatus.OPEN,
-        visibility: Visibility.PUBLIC_MARKETPLACE,
+        visibility,
         publishedAt
       }
     });
@@ -394,6 +419,42 @@ export class ModuleRepository {
       }
     });
     return tender ? toPublishTenderResponseDto(tender) : null;
+  }
+
+  async recordTenderLanguageScan(tenderId: string, scan: TenderLanguageScanDto) {
+    await this.db.riskSignal.create({
+      data: {
+        tenderId,
+        riskLevel: riskLevelFromScan(scan),
+        score: scan.score,
+        driver: 'tender_language_scan',
+        payload: {
+          source: 'publish',
+          scannerVersion: tenderLanguageScannerVersion,
+          riskLevel: scan.riskLevel,
+          issues: scan.issues
+        } as Prisma.InputJsonObject
+      }
+    });
+  }
+
+  async applyTenderCategoryStandardization(tenderId: string, categories: string[], metadata: Record<string, unknown>) {
+    await this.db.$transaction(async (tx) => {
+      await tx.tenderCategory.deleteMany({ where: { tenderId } });
+      const normalizedCategories = normalizeCategoryInputs(categories);
+      if (normalizedCategories.length > 0) {
+        await tx.tenderCategory.createMany({
+          data: normalizedCategories.map((name) => ({ tenderId, name })),
+          skipDuplicates: true
+        });
+      }
+      await tx.tender.update({
+        where: { id: tenderId },
+        data: {
+          metadata: metadata as Prisma.InputJsonObject
+        }
+      });
+    });
   }
 
   async closeTender(tenderId: string, organizationId: string): Promise<CloseTenderResponseDto | null> {
@@ -781,23 +842,17 @@ function toLineDto(line: LineWithPlan) {
 function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   const statusFilter = statusFilterValues(query.status);
   const typeFilter = typeFilterValues(query.type);
+  const allowedStatuses = marketplaceStatusValues(query.includeClosed);
+  const statuses = statusFilter.length > 0 ? intersectTenderStatuses(statusFilter, allowedStatuses) : allowedStatuses;
   const activeFilters: Prisma.TenderWhereInput[] = [
     {
       visibility: Visibility.PUBLIC_MARKETPLACE,
-      status: {
-        in: [
-          TenderStatus.PUBLISHED,
-          TenderStatus.OPEN,
-          TenderStatus.CLOSED,
-          TenderStatus.EVALUATION,
-          TenderStatus.AWARDED,
-          TenderStatus.CANCELLED
-        ]
-      }
+      status: { in: statuses }
     }
   ];
 
   if (query.search) {
+    const categoryTerms = marketplaceCategorySearchTerms(query.search, typeFilter[0]);
     activeFilters.push({
       OR: [
         { title: { contains: query.search, mode: 'insensitive' } },
@@ -805,13 +860,23 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
         { reference: { contains: query.search, mode: 'insensitive' } },
         { location: { contains: query.search, mode: 'insensitive' } },
         { buyerOrg: { name: { contains: query.search, mode: 'insensitive' } } },
-        { categories: { some: { name: { contains: query.search, mode: 'insensitive' } } } }
+        { categories: { some: { name: { contains: query.search, mode: 'insensitive' } } } },
+        ...categoryTerms.map((term) => ({ categories: { some: { name: { contains: term, mode: 'insensitive' as const } } } }))
+      ]
+    });
+  }
+
+  if (query.category) {
+    const categoryTerms = marketplaceCategorySearchTerms(query.category, typeFilter[0]);
+    activeFilters.push({
+      OR: [
+        { categories: { some: { name: { contains: query.category, mode: 'insensitive' } } } },
+        ...categoryTerms.map((term) => ({ categories: { some: { name: { contains: term, mode: 'insensitive' as const } } } }))
       ]
     });
   }
 
   if (typeFilter.length > 0) activeFilters.push({ type: { in: typeFilter } });
-  if (statusFilter.length > 0) activeFilters.push({ status: { in: statusFilter } });
 
   if (query.budgetBand === 'under-hundred-million') {
     activeFilters.push({ budget: { lt: 100000000 } });
@@ -822,6 +887,65 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   }
 
   return activeFilters.length === 1 ? activeFilters[0] : { AND: activeFilters };
+}
+
+function marketplaceStatusValues(includeClosed: boolean) {
+  return includeClosed ? [TenderStatus.OPEN, TenderStatus.PUBLISHED, TenderStatus.CLOSED] : [TenderStatus.OPEN, TenderStatus.PUBLISHED];
+}
+
+function intersectTenderStatuses(left: TenderStatus[], right: TenderStatus[]) {
+  const allowed = new Set(right);
+  return left.filter((status) => allowed.has(status));
+}
+
+function filterMarketplaceTenders(tenders: MarketplaceTenderRecord[], query: MarketplaceQuery) {
+  return tenders.filter((tender) => matchesMarketplaceSearch(tender, query.search) && matchesMarketplaceCategory(tender, query.category));
+}
+
+function matchesMarketplaceSearch(tender: MarketplaceTenderRecord, search: string) {
+  if (!search) return true;
+  return marketplaceTextValues(tender).some((value) => containsSearch(value, search));
+}
+
+function matchesMarketplaceCategory(tender: MarketplaceTenderRecord, category: string) {
+  if (!category) return true;
+  const terms = marketplaceCategorySearchTerms(category, tender.type);
+  const categoryValues = marketplaceCategoryValues(tender);
+  return [category, ...terms].some((term) => categoryValues.some((value) => containsSearch(value, term)));
+}
+
+function marketplaceTextValues(tender: MarketplaceTenderRecord) {
+  return [
+    tender.title,
+    tender.description,
+    tender.reference,
+    tender.buyerOrg.name,
+    tender.location,
+    ...marketplaceCategoryValues(tender)
+  ];
+}
+
+function marketplaceCategoryValues(tender: MarketplaceTenderRecord) {
+  return tender.categories.flatMap((category) => [category.name, standardizeCategoryName(category.name, tender.type)]);
+}
+
+function marketplaceCategorySearchTerms(value: string, type?: TenderType) {
+  const terms = [value, standardizeCategoryName(value, type), ...categorySearchTerms(value)];
+  return uniqueCategoryNames(terms.filter(Boolean));
+}
+
+function containsSearch(value: unknown, search: string) {
+  return normalizeSearchText(value).includes(normalizeSearchText(search));
+}
+
+function normalizeSearchText(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_/-]+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 }
 
 function marketplaceOrderBy(sort: MarketplaceQuery['sort']): Prisma.TenderOrderByWithRelationInput[] {
@@ -878,7 +1002,7 @@ function toMyTenderRow(tender: MarketplaceTenderRecord, context: MarketplaceTend
     status: frontendTenderStatus(tender.status),
     type: frontendTenderType(tender.type),
     lastActivity: tender.updatedAt.toISOString(),
-    nav: section === 'draft' ? 'create-tender' : 'tender-details',
+    nav: section === 'draft' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=${tender.id}`,
     actionLabel: section === 'draft' ? 'Continue Draft' : section === 'completed' ? 'View Record' : 'View My Tender',
     tender: toMarketplaceTenderRow(tender, context)
   };
@@ -974,8 +1098,19 @@ function toPublishTenderResponseDto(tender: {
       visibility: tender.visibility,
       publishedAt: tender.publishedAt?.toISOString() ?? '',
       closingDate: dateOnly(tender.closingDate)
+    },
+    validation: {
+      warnings: [],
+      scannerIssues: [],
+      standardizedCategories: []
     }
   };
+}
+
+function riskLevelFromScan(scan: TenderLanguageScanDto) {
+  if (scan.riskLevel === 'High') return RiskLevel.HIGH;
+  if (scan.riskLevel === 'Medium') return RiskLevel.MEDIUM;
+  return RiskLevel.LOW;
 }
 
 function toCloseTenderResponseDto(tender: {
@@ -1017,13 +1152,23 @@ function unsaveTenderResponse(): UnsaveTenderResponseDto {
 function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceContext = {}): TenderDetailDto {
   const createdByCurrentUser = Boolean(context.userId && tender.ownerUserId === context.userId);
   const ownedByCurrentOrganization = Boolean(context.organizationId && tender.buyerOrgId === context.organizationId);
-  const hasDraftBid = Boolean(context.organizationId && tender.bids.some((bid) => bid.status === BidStatus.DRAFT));
-  const hasSubmittedBid = Boolean(context.organizationId && tender.bids.some((bid) => isSubmittedBidStatus(bid.status)));
+  const currentOrgBids = context.organizationId ? tender.bids.filter((bid) => bid.supplierOrgId === context.organizationId) : [];
+  const currentBid = currentOrgBids.find((bid) => bid.status !== BidStatus.WITHDRAWN) ?? currentOrgBids[0] ?? null;
+  const hasDraftBid = currentOrgBids.some((bid) => bid.status === BidStatus.DRAFT);
+  const hasSubmittedBid = currentOrgBids.some((bid) => isSubmittedBidStatus(bid.status));
+  const summary = {
+    total: tender.bids.length,
+    draft: tender.bids.filter((bid) => bid.status === BidStatus.DRAFT).length,
+    submitted: tender.bids.filter((bid) => isSubmittedBidStatus(bid.status)).length,
+    withdrawn: tender.bids.filter((bid) => bid.status === BidStatus.WITHDRAWN).length
+  };
 
   return {
     id: tender.id,
     title: tender.title,
     reference: tender.reference,
+    buyerOrgId: tender.buyerOrgId,
+    ownerUserId: tender.ownerUserId,
     organization: tender.buyerOrg.name,
     ownerOrganization: tender.buyerOrg.name,
     type: frontendTenderType(tender.type),
@@ -1033,10 +1178,34 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     budget: decimalToNumber(tender.budget),
     currency: tender.currency,
     status: frontendTenderStatus(tender.status),
+    method: tender.method,
+    contractType: tender.contractType,
     visibility: tender.visibility,
     publishedAt: tender.publishedAt?.toISOString() ?? '',
     closingDate: dateOnly(tender.closingDate),
     requirements: objectPayload(tender.requirements),
+    metadata: objectPayload(tender.metadata),
+    requirementRows: tender.requirementRows.map((row) => ({
+      id: row.id,
+      section: row.section,
+      payload: objectPayload(row.payload)
+    })),
+    milestones: tender.milestones.map((milestone) => ({
+      id: milestone.id,
+      name: milestone.name,
+      dueDate: milestone.dueDate?.toISOString() ?? null,
+      payload: objectPayload(milestone.payload)
+    })),
+    commercialItems: tender.commercialItems.map((item) => ({
+      id: item.id,
+      itemNo: item.itemNo,
+      description: item.description,
+      quantity: decimalToNumber(item.quantity),
+      unit: item.unit,
+      rate: decimalToNumber(item.rate),
+      total: decimalToNumber(item.total),
+      payload: objectPayload(item.payload)
+    })),
     documents: tender.documents.map((document) => ({
       id: document.document.id,
       name: document.document.name,
@@ -1047,7 +1216,17 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     ownedByCurrentOrganization,
     canBid: canBidOnTender(tender, context.organizationId, hasSubmittedBid),
     hasDraftBid,
-    hasSubmittedBid
+    hasSubmittedBid,
+    bidSummary: ownedByCurrentOrganization ? summary : { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    currentBid: currentBid
+      ? {
+          id: currentBid.id,
+          reference: currentBid.reference,
+          status: currentBid.status,
+          submittedAt: currentBid.submittedAt?.toISOString() ?? null,
+          receiptHash: currentBid.receipt?.receiptHash ?? null
+        }
+      : null
   };
 }
 
@@ -1091,10 +1270,33 @@ function bidStateFromStatus(status: BidStatus): MarketplaceBidState {
   };
 }
 
+function bidSummary(bids: Array<{ status: BidStatus }>) {
+  return bids.reduce(
+    (summary, bid) => {
+      summary.total += 1;
+      if (bid.status === BidStatus.DRAFT) summary.draft += 1;
+      else if (bid.status === BidStatus.WITHDRAWN) summary.withdrawn += 1;
+      else if (isSubmittedBidStatus(bid.status)) summary.submitted += 1;
+      return summary;
+    },
+    { total: 0, draft: 0, submitted: 0, withdrawn: 0 }
+  );
+}
+
 function marketplaceCategory(tender: MarketplaceTenderRecord) {
-  const categoryNames = tender.categories.map((category) => category.name).filter(Boolean);
+  const categoryNames = uniqueCategoryNames(tender.categories.map((category) => standardizeCategoryName(category.name, tender.type)).filter(Boolean));
   if (categoryNames.length > 0) return categoryNames.join(' / ');
   return frontendTenderType(tender.type);
+}
+
+function uniqueCategoryNames(categories: string[]) {
+  const seen = new Set<string>();
+  return categories.filter((category) => {
+    const key = normalizeLabel(category);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function frontendTenderStatus(status: unknown) {

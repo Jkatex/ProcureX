@@ -363,7 +363,91 @@ async function upsertTender(
     data: input.categories.map((name) => ({ tenderId: tender.id, name })),
     skipDuplicates: true
   });
+  await db.tenderRequirement.deleteMany({ where: { tenderId: tender.id } });
+  await db.tenderRequirement.createMany({
+    data: requirementRowsFromTender(input).map((row) => ({ tenderId: tender.id, ...row })),
+    skipDuplicates: true
+  });
+  await db.tenderCommercialItem.deleteMany({ where: { tenderId: tender.id } });
+  await db.tenderCommercialItem.createMany({
+    data: commercialItemsFromTender(input).map((item) => ({ tenderId: tender.id, ...item })),
+    skipDuplicates: true
+  });
+  await db.tenderMilestone.deleteMany({ where: { tenderId: tender.id } });
+  await db.tenderMilestone.createMany({
+    data: milestoneRowsFromTender(input).map((milestone) => ({ tenderId: tender.id, ...milestone })),
+    skipDuplicates: true
+  });
   return tender;
+}
+
+function requirementRowsFromTender(input: { type: TenderType; requirements: Record<string, unknown> }) {
+  const rows: Array<{ section: string; payload: Record<string, unknown> }> = [];
+  for (const [section, value] of Object.entries(input.requirements)) {
+    if (section === 'commercialItems') continue;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => rows.push({ section, payload: objectPayload(item, { value: item, itemNo: index + 1 }) }));
+    } else {
+      rows.push({ section, payload: objectPayload(value, { value }) });
+    }
+  }
+  rows.push({
+    section: 'submission',
+    payload: {
+      workflowType: workflowType(input.type),
+      mandatory: true,
+      requiresUpload: true,
+      requirementName: `${workflowType(input.type)} bid submission package`
+    }
+  });
+  return rows;
+}
+
+function commercialItemsFromTender(input: { title: string; type: TenderType; requirements: Record<string, unknown> }) {
+  const configured = Array.isArray(input.requirements.commercialItems) ? (input.requirements.commercialItems as Record<string, unknown>[]) : [];
+  const source = configured.length
+    ? configured
+    : [
+        { description: input.title, quantity: input.type === TenderType.WORKS ? 1 : 12, unit: input.type === TenderType.WORKS ? 'Lot' : 'Month', rate: 0 },
+        { description: `${workflowType(input.type)} mobilisation and reporting`, quantity: 1, unit: 'Lot', rate: 0 }
+      ];
+  return source.map((item, index) => {
+    const quantity = numberValue(item.quantity, 1);
+    const rate = numberValue(item.rate ?? item.unitPrice, 0);
+    return {
+      itemNo: String(item.itemNo ?? index + 1),
+      description: String(item.description ?? item.itemDescription ?? `${input.title} line ${index + 1}`),
+      quantity,
+      unit: String(item.unit ?? item.unitOfMeasure ?? 'Lot'),
+      rate,
+      total: numberValue(item.total, quantity * rate),
+      payload: objectPayload(item, {})
+    };
+  });
+}
+
+function milestoneRowsFromTender(input: { closingDate: Date; publishedAt: Date | null; requirements: Record<string, unknown> }) {
+  return [
+    { name: 'Tender published', dueDate: input.publishedAt, payload: { source: 'marketplace-demo' } },
+    { name: 'Clarification deadline', dueDate: new Date(input.closingDate.getTime() - 7 * 24 * 60 * 60 * 1000), payload: { source: 'marketplace-demo' } },
+    { name: 'Submission deadline', dueDate: input.closingDate, payload: { source: 'marketplace-demo' } }
+  ];
+}
+
+function workflowType(type: TenderType) {
+  if (type === TenderType.GOODS) return 'goods';
+  if (type === TenderType.WORKS) return 'works';
+  if (type === TenderType.CONSULTANCY) return 'consultancy';
+  return 'services';
+}
+
+function objectPayload(value: unknown, fallback: Record<string, unknown>) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : fallback;
+}
+
+function numberValue(value: unknown, fallback: number) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 async function upsertBid(
@@ -585,7 +669,20 @@ async function seedMarketplaceDemo() {
         closingDate: daysFromNow(30),
         publishedAt: daysFromNow(-10),
         categories: ['ICT', 'Equipment', 'Goods'],
-        requirements: { technical: ['Authorized reseller letter', 'Warranty support in Tanzania'], delivery: 'Within 60 days' }
+        requirements: {
+          technical: ['Authorized reseller letter', 'Warranty support in Tanzania'],
+          delivery: 'Within 60 days',
+          commercialItems: [
+            { description: 'Business laptop computers with warranty', quantity: 80, unit: 'Each', rate: 0 },
+            { description: 'Network switches and installation', quantity: 12, unit: 'Each', rate: 0 },
+            { description: 'Printer supply and configuration', quantity: 20, unit: 'Each', rate: 0 }
+          ],
+          productSpecifications: [
+            { specificationName: 'Processor and memory', acceptableRequirement: 'Latest generation business CPU, 16GB RAM minimum' },
+            { specificationName: 'Warranty', acceptableRequirement: 'Three-year onsite support in Tanzania' }
+          ],
+          sampleRequirements: [{ sampleRequired: true, sampleDescription: 'One laptop sample or OEM catalogue evidence', mandatory: true }]
+        }
       }),
       renovation: await upsertTender(db, {
         reference: ref('OPEN-WORKS-RENOVATION'),
@@ -600,7 +697,21 @@ async function seedMarketplaceDemo() {
         closingDate: daysFromNow(45),
         publishedAt: daysFromNow(-8),
         categories: ['Works', 'Renovation', 'Office Fit Out'],
-        requirements: { technical: ['Registered local contractor', 'Similar assignments in the last three years'], siteVisit: true }
+        requirements: {
+          technical: ['Registered local contractor', 'Similar assignments in the last three years'],
+          siteVisit: true,
+          commercialItems: [
+            { description: 'Partitioning and civil repair works', quantity: 1, unit: 'Lot', rate: 0 },
+            { description: 'Electrical and network containment works', quantity: 1, unit: 'Lot', rate: 0 },
+            { description: 'Painting, finishing, and handover cleaning', quantity: 1, unit: 'Lot', rate: 0 }
+          ],
+          worksRequirements: {
+            siteVisitRequirement: 'Mandatory',
+            similarCompletedProjectsRequired: true,
+            keyPersonnelCvsRequired: true,
+            bankStatementsRequired: true
+          }
+        }
       }),
       cleaning: await upsertTender(db, {
         reference: ref('OPEN-SERVICE-CLEANING'),
@@ -615,7 +726,20 @@ async function seedMarketplaceDemo() {
         closingDate: daysFromNow(20),
         publishedAt: daysFromNow(-7),
         categories: ['Facilities', 'Cleaning', 'Non Consultancy'],
-        requirements: { staffing: 'Minimum 30 trained cleaners', equipment: ['Floor polishers', 'Protective gear'] }
+        requirements: {
+          staffing: 'Minimum 30 trained cleaners',
+          equipment: ['Floor polishers', 'Protective gear'],
+          serviceRequirements: {
+            slaRequirement: 'Daily cleaning before 08:00 with supervisor sign-off',
+            reportingRequirements: 'Weekly performance and incident report',
+            serviceLocations: ['Block A', 'Block B', 'Block C']
+          },
+          commercialItems: [
+            { description: 'Daily office cleaning service', quantity: 12, unit: 'Month', rate: 0 },
+            { description: 'Sanitation supplies and consumables', quantity: 12, unit: 'Month', rate: 0 },
+            { description: 'Supervisor reporting and QA', quantity: 12, unit: 'Month', rate: 0 }
+          ]
+        }
       }),
       security: await upsertTender(db, {
         reference: ref('OPEN-SERVICE-SECURITY'),
@@ -630,7 +754,19 @@ async function seedMarketplaceDemo() {
         closingDate: daysFromNow(25),
         publishedAt: daysFromNow(-6),
         categories: ['Facilities', 'Security', 'Non Consultancy'],
-        requirements: { licensing: 'Licensed private security company', staffing: '24/7 guard coverage' }
+        requirements: {
+          licensing: 'Licensed private security company',
+          staffing: '24/7 guard coverage',
+          serviceRequirements: {
+            slaRequirement: 'Incident response within 10 minutes',
+            reportingRequirements: 'Daily patrol and access-control register',
+            serviceLocations: ['Main gate', 'Stores', 'Administration block']
+          },
+          commercialItems: [
+            { description: 'Day and night guarding service', quantity: 12, unit: 'Month', rate: 0 },
+            { description: 'Patrol reporting and incident escalation', quantity: 12, unit: 'Month', rate: 0 }
+          ]
+        }
       }),
       audit: await upsertTender(db, {
         reference: ref('OPEN-CONSULTANCY-AUDIT'),
@@ -645,7 +781,22 @@ async function seedMarketplaceDemo() {
         closingDate: daysFromNow(35),
         publishedAt: daysFromNow(-5),
         categories: ['Consultancy', 'System Audit', 'Training'],
-        requirements: { experts: ['CISA certified lead consultant', 'Training facilitator'], deliverables: ['Audit report', 'Training materials'] }
+        requirements: {
+          experts: ['CISA certified lead consultant', 'Training facilitator'],
+          deliverables: ['Audit report', 'Training materials'],
+          consultancyRequirements: {
+            generalObjective: 'Independent systems audit and procurement workflow training',
+            keyExpertRows: [
+              { positionTitle: 'Lead IS auditor', minimumQualification: 'CISA or equivalent', yearsOfExperience: '7', mandatory: true },
+              { positionTitle: 'Training facilitator', minimumQualification: 'Procurement systems training experience', yearsOfExperience: '5', mandatory: true }
+            ]
+          },
+          commercialItems: [
+            { description: 'Lead consultant professional fees', quantity: 30, unit: 'Day', rate: 0 },
+            { description: 'Training facilitator professional fees', quantity: 12, unit: 'Day', rate: 0 },
+            { description: 'Reimbursable reporting and training materials', quantity: 1, unit: 'Lot', rate: 0 }
+          ]
+        }
       }),
       huuiEvaluation: await upsertTender(db, {
         reference: ref('HUUI-EVALUATION-ICT-SUPPORT'),

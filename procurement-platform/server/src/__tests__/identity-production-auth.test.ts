@@ -1226,6 +1226,29 @@ describe('identity production auth', () => {
       name: 'Zanzibar Digital Services'
     });
 
+    const newTraBusiness = await service.registryLookup({
+      entityType: 'business',
+      businessRegistrationSource: 'tin',
+      registryNumber: '2046813579'
+    });
+    expect(newTraBusiness).toMatchObject({
+      source: 'TRA',
+      registryNumber: '2046813579',
+      entityType: 'business',
+      name: 'Grace Stationery and Office Supplies'
+    });
+
+    const newBrelaCompany = await service.registryLookup({
+      entityType: 'company',
+      registryNumber: 'BRN-2025-014'
+    });
+    expect(newBrelaCompany).toMatchObject({
+      source: 'BRELA',
+      registryNumber: 'BRN-2025-014',
+      entityType: 'company',
+      name: 'Serengeti Office Solutions Limited'
+    });
+
     process.env.APP_ENV = 'production';
     const productionOnly = makeService(new FakeIdentityRepository(), new FakeIdentityNotifications(), new FakeRegistryProvider()).service;
     await expect(

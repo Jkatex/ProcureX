@@ -403,13 +403,26 @@ function bidRecord(overrides: Record<string, unknown> = {}) {
     totalAmount: 250000000,
     currency: 'TZS',
     payload: {
+      administrative: {
+        eligible: true,
+        authorized: true
+      },
       declarations: {
         confirmAccuracy: true,
         acceptTerms: true
       }
     },
     responses: [{ requirementKey: 'technical', response: { answer: 'Compliant' }, createdAt: new Date('2026-06-26T08:00:00.000Z') }],
-    documents: [],
+    documents: [
+      {
+        id: 'bid-doc-1',
+        documentId: 'doc-1',
+        envelope: 'TECHNICAL',
+        reviewStatus: 'UPLOADED',
+        createdAt: new Date('2026-06-26T08:00:00.000Z'),
+        document: { id: 'doc-1', name: 'technical-proposal.pdf', documentType: 'TECHNICAL_PROPOSAL', checksum: 'hash-doc-1', metadata: {} }
+      }
+    ],
     receipt: null,
     createdAt: new Date('2026-06-26T08:00:00.000Z'),
     updatedAt: new Date('2026-06-26T08:00:00.000Z'),
@@ -422,7 +435,7 @@ function bidRecord(overrides: Record<string, unknown> = {}) {
 
 function draftInput() {
   return {
-    administrative: {},
+    administrative: { eligible: true, authorized: true },
     technical: {},
     financial: {
       items: [{ quantity: 1, rate: 250000000 }]
@@ -432,7 +445,7 @@ function draftInput() {
       acceptTerms: true
     },
     responses: [{ requirementKey: 'technical', response: { answer: 'Compliant' } }],
-    documents: [],
+    documents: [{ name: 'technical-proposal.pdf', documentType: 'TECHNICAL_PROPOSAL', envelope: 'TECHNICAL' as const, checksum: 'hash-doc-1' }],
     totalAmount: 250000000,
     currency: 'TZS'
   };
@@ -461,7 +474,7 @@ function transactionMock() {
       create: vi.fn()
     },
     documentObject: {
-      create: vi.fn()
+      create: vi.fn().mockResolvedValue({ id: 'doc-1' })
     },
     auditEvent: {
       create: vi.fn()

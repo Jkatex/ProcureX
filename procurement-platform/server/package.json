@@ -9,19 +9,19 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:example": "node ../scripts/run-server-dev.mjs .env.example",
-    "build": "prisma generate && tsc -p tsconfig.json",
+    "build": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma generate --schema server/prisma/schema.prisma && tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "db:validate": "prisma validate",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:seed:marketplace-demo": "tsx prisma/seed-marketplace-demo.ts",
-    "db:seed:award-contract-demo": "tsx prisma/seed-award-contract-demo.ts",
-    "db:cleanup:demo-admin": "tsx prisma/cleanup-demo-admin-only.ts",
+    "db:validate": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma validate --schema server/prisma/schema.prisma",
+    "db:generate": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma generate --schema server/prisma/schema.prisma",
+    "db:migrate": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma migrate dev --schema server/prisma/schema.prisma",
+    "db:deploy": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma migrate deploy --schema server/prisma/schema.prisma",
+    "db:seed": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed.ts",
+    "db:seed:marketplace-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-marketplace-demo.ts",
+    "db:seed:award-contract-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-award-contract-demo.ts",
+    "db:cleanup:demo-admin": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/cleanup-demo-admin-only.ts",
     "db:seed:twice": "npm run db:seed && npm run db:seed",
-    "verify:rls": "tsx src/verify-rls.ts"
+    "verify:rls": "node ../scripts/run-with-env.mjs server .env.example -- tsx src/verify-rls.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

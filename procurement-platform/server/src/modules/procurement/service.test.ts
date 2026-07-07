@@ -1,4 +1,4 @@
-import { TenderStatus, TenderType } from '@prisma/client';
+import { ProcurementMethod, TenderStatus, TenderType, Visibility } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService } from './service.js';
 import {
@@ -7,10 +7,12 @@ import {
   planLineBodySchema,
   planningQuerySchema,
   publishTenderBodySchema,
+  scanLanguageBodySchema,
   saveAnnualPlanBodySchema,
   updateTenderBodySchema
 } from './validators.js';
 import type { CreateTenderInput, MarketplaceQuery, ProcurementPlanningQuery, UpdateTenderInput } from './types.js';
+import { designFormSchemaTypeValues, masterDataGroupValues, type DesignFormControlDto } from './types.js';
 
 function createServiceWithRepository(repositoryData: any) {
   return new ModuleService({
@@ -97,13 +99,213 @@ describe('procurement public welcome service', () => {
   });
 });
 
+describe('procurement master data service', () => {
+  it('returns all expected master data groups with stable item shapes', async () => {
+    const service = new ModuleService({} as any);
+
+    const payload = await service.masterData();
+
+    expect(payload.success).toBe(true);
+    expect(payload.data.groups.map((group) => group.group)).toEqual([...masterDataGroupValues]);
+    for (const group of payload.data.groups) {
+      expect(group.items.length).toBeGreaterThan(0);
+      for (const item of group.items) {
+        expect(Object.keys(item).sort()).toEqual(['code', 'isActive', 'label', 'sortOrder', 'value']);
+        expect(item.isActive).toBe(true);
+      }
+      expect(group.items.map((item) => item.sortOrder)).toEqual([...group.items.map((item) => item.sortOrder)].sort((a, b) => a - b));
+    }
+  });
+
+  it('returns tender type master data with frontend-friendly labels', async () => {
+    const service = new ModuleService({} as any);
+
+    await expect(service.masterDataGroup('tender-types')).resolves.toEqual({
+      success: true,
+      data: {
+        group: 'tender-types',
+        items: [
+          { code: 'GOODS', label: 'Goods', value: 'Goods', isActive: true, sortOrder: 10 },
+          { code: 'WORKS', label: 'Works', value: 'Works', isActive: true, sortOrder: 20 },
+          { code: 'SERVICE', label: 'Non Consultancy', value: 'Non Consultancy', isActive: true, sortOrder: 30 },
+          { code: 'CONSULTANCY', label: 'Consultancy', value: 'Consultancy', isActive: true, sortOrder: 40 }
+        ]
+      }
+    });
+  });
+
+  it('returns Others as the final category master data option', async () => {
+    const service = new ModuleService({} as any);
+
+    const payload = await service.masterDataGroup('categories');
+
+    expect(payload?.data.items.at(-1)).toEqual({
+      code: 'OTHERS',
+      label: 'Others',
+      value: 'Others',
+      isActive: true,
+      sortOrder: 100
+    });
+  });
+
+  it('returns null for unknown master data groups', async () => {
+    const service = new ModuleService({} as any);
+
+    await expect(service.masterDataGroup('unknown-group')).resolves.toBeNull();
+  });
+});
+
+describe('procurement design form schema service', () => {
+  it('returns all supported design form schemas', async () => {
+    const service = new ModuleService({} as any);
+
+    const payload = await service.designFormSchemas();
+
+    expect(payload.success).toBe(true);
+    expect(payload.data.schemaVersion).toBe('procurement-design-v1');
+    expect(payload.data.schemas.map((schema) => schema.type)).toEqual([...designFormSchemaTypeValues]);
+    expect(payload.data.schemas.map((schema) => schema.tenderType)).toEqual(['Goods', 'Works', 'Non Consultancy', 'Consultancy']);
+  });
+
+  it('returns the goods schema with wizard-derived sections and master-data-backed unit options', async () => {
+    const service = new ModuleService({} as any);
+
+    const payload = await service.designFormSchema('goods');
+    const schema = payload?.data;
+    const sectionIds = schema?.sections.map((section) => section.id);
+    const unitControl = findControl(schema?.sections ?? [], 'unitOfMeasure');
+
+    expect(schema).toMatchObject({
+      schemaVersion: 'procurement-design-v1',
+      type: 'goods',
+      tenderType: 'Goods',
+      title: 'Goods Tender Requirements'
+    });
+    expect(sectionIds).toEqual(['quantitySchedule', 'technicalSpecifications', 'sampleRequirements', 'financialCapacity', 'eligibilityRequirements']);
+    expect(findControl(schema?.sections ?? [], 'sampleRequirementRows')).toMatchObject({
+      showWhen: { field: 'requireSamples', value: 'Yes' }
+    });
+    expect(unitControl).toMatchObject({
+      optionSource: { group: 'units' },
+      options: ['Each', 'Lot', 'Piece', 'Set', 'Month', 'Day', 'Hour', 'Meter', 'Square Meter']
+    });
+  });
+
+  it('returns service and works schemas with conditional rendering rules', async () => {
+    const service = new ModuleService({} as any);
+
+    const services = await service.designFormSchema('services');
+    const works = await service.designFormSchema('works');
+
+    expect(services?.data.sections.find((section) => section.id === 'securityRequirements')).toMatchObject({
+      showWhen: { field: 'serviceCategory', value: 'Security' }
+    });
+    expect(services?.data.sections.find((section) => section.id === 'equipmentRequirements')).toMatchObject({
+      showWhen: { field: 'serviceCategory', values: expect.arrayContaining(['Security', 'Cleaning']) }
+    });
+    expect(findControl(works?.data.sections ?? [], 'lumpSumPricingRows')).toMatchObject({
+      showWhen: { field: 'contractType', value: 'Lump Sum Contract' }
+    });
+    expect(findControl(works?.data.sections ?? [], 'bankStatementPeriod')).toMatchObject({
+      showWhen: { field: 'bankStatementsRequired', value: true }
+    });
+  });
+
+  it('returns consultancy schema with nested cards, tables, and accordions', async () => {
+    const service = new ModuleService({} as any);
+
+    const payload = await service.designFormSchema('consultancy');
+
+    expect(findControl(payload?.data.sections ?? [], 'consultancyEntityBackground')).toMatchObject({
+      type: 'cards',
+      fields: expect.arrayContaining([expect.objectContaining({ id: 'organizationBackground', type: 'richtext' })])
+    });
+    expect(findControl(payload?.data.sections ?? [], 'consultancyProjectBackground')).toMatchObject({
+      type: 'accordion',
+      panels: expect.arrayContaining([expect.objectContaining({ id: 'projectName' })])
+    });
+    expect(findControl(payload?.data.sections ?? [], 'consultancyDeliverables')).toMatchObject({
+      type: 'table',
+      columns: expect.arrayContaining([expect.objectContaining({ id: 'deliverableName' })])
+    });
+  });
+
+  it('returns null for unknown design form schema types', async () => {
+    const service = new ModuleService({} as any);
+
+    await expect(service.designFormSchema('lease')).resolves.toBeNull();
+  });
+
+  it('scans tender language through an authenticated design endpoint', async () => {
+    const service = new ModuleService({} as any, {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    const result = await service.scanTenderLanguage('token-1', {
+      title: 'ICT equipment',
+      description: 'Only HP brand devices from a preferred supplier are acceptable and no equivalent products will be accepted.',
+      requirements: {},
+      evaluationCriteria: {},
+      metadata: {}
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.riskLevel).toBe('High');
+    expect(result.data.issues.map((issue) => issue.type)).toContain('brand-only-restriction');
+  });
+
+  it('returns taxonomy and standardizes category synonyms', async () => {
+    const service = new ModuleService({} as any);
+
+    const taxonomy = await service.taxonomy();
+    const standardized = await service.standardizeCategory({ rawCategory: 'computer supplies', type: TenderType.GOODS });
+
+    expect(taxonomy.data.taxonomyVersion).toBe('procurement-taxonomy-v1');
+    expect(taxonomy.data.categories).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'ICT Equipment', synonyms: expect.arrayContaining(['laptops']) })]));
+    expect(standardized).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        rawCategory: 'computer supplies',
+        standardCategory: 'ICT Equipment',
+        type: 'Goods',
+        confidence: 0.98,
+        synonymsMatched: ['computer supplies']
+      })
+    });
+  });
+
+  it('standardizes explicit Others categories to type-specific fallback categories', async () => {
+    const service = new ModuleService({} as any);
+
+    await expect(service.standardizeCategory({ rawCategory: 'Others', type: TenderType.GOODS })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Goods', type: 'Goods', confidence: 1 }
+    });
+    await expect(service.standardizeCategory({ rawCategory: 'Other', type: TenderType.WORKS })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Works', type: 'Works', confidence: 1 }
+    });
+    await expect(service.standardizeCategory({ rawCategory: 'Other Non Consultancy', type: TenderType.SERVICE })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Non Consultancy', type: 'Non Consultancy', confidence: 1 }
+    });
+    await expect(service.standardizeCategory({ rawCategory: 'Other Consultancy', type: TenderType.CONSULTANCY })).resolves.toMatchObject({
+      success: true,
+      data: { standardCategory: 'Other Consultancy', type: 'Consultancy', confidence: 1 }
+    });
+  });
+});
+
 describe('procurement planning service', () => {
   it('normalizes marketplace query defaults and filters', () => {
     expect(marketplaceQuerySchema.parse({})).toEqual({
       search: '',
+      category: '',
       type: '',
       budgetBand: '',
       status: '',
+      includeClosed: false,
+      visibility: '',
       sort: 'deadline',
       page: 1,
       limit: 20
@@ -112,18 +314,24 @@ describe('procurement planning service', () => {
     expect(
       marketplaceQuerySchema.parse({
         search: 'water',
+        category: 'computer supplies',
         type: 'GOODS',
         budgetBand: 'hundred-million-plus',
         status: 'PUBLISHED',
+        includeClosed: 'true',
+        visibility: 'PUBLIC_MARKETPLACE',
         sort: 'budget-desc',
         page: '2',
         limit: '25'
       })
     ).toMatchObject({
       search: 'water',
+      category: 'computer supplies',
       type: 'GOODS',
       budgetBand: 'hundred-million-plus',
       status: 'PUBLISHED',
+      includeClosed: true,
+      visibility: 'PUBLIC_MARKETPLACE',
       sort: 'budget-desc',
       page: 2,
       limit: 25
@@ -132,8 +340,11 @@ describe('procurement planning service', () => {
     expect(() => marketplaceQuerySchema.parse({ budgetBand: 'large' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ sort: 'random' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ search: 'x'.repeat(101) })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ category: 'x'.repeat(101) })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ type: 'Lease' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ status: 'Review' })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ includeClosed: 'maybe' })).toThrow();
+    expect(() => marketplaceQuerySchema.parse({ visibility: 'SECRET' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ page: '0' })).toThrow();
     expect(() => marketplaceQuerySchema.parse({ limit: '101' })).toThrow();
   });
@@ -261,9 +472,12 @@ describe('procurement planning service', () => {
   it('returns an empty marketplace contract when the database is unavailable', async () => {
     const query: MarketplaceQuery = {
       search: '',
+      category: '',
       type: '',
       budgetBand: '',
       status: '',
+      includeClosed: false,
+      visibility: '',
       sort: 'deadline',
       page: 1,
       limit: 20
@@ -304,9 +518,12 @@ describe('procurement planning service', () => {
     const databaseError = new Error("Can't reach database server at db.internal");
     const query: MarketplaceQuery = {
       search: '',
+      category: '',
       type: '',
       budgetBand: '',
       status: '',
+      includeClosed: false,
+      visibility: '',
       sort: 'deadline',
       page: 1,
       limit: 20
@@ -340,7 +557,23 @@ describe('procurement planning service', () => {
   });
 });
 
+function findControl(sections: Array<{ controls: DesignFormControlDto[] }>, id: string): DesignFormControlDto | undefined {
+  const queue = sections.flatMap((section) => section.controls);
+  while (queue.length > 0) {
+    const control = queue.shift();
+    if (!control) continue;
+    if (control.id === id) return control;
+    queue.push(...(control.columns ?? []), ...(control.fields ?? []), ...(control.panels ?? []));
+  }
+  return undefined;
+}
+
 describe('procurement tender write service', () => {
+  const completeGoodsRequirements = {
+    quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Each', quantity: 10 }],
+    productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] }
+  };
+
   const createInput: CreateTenderInput = {
     title: 'Supply of laboratory equipment',
     type: TenderType.GOODS,
@@ -456,6 +689,24 @@ describe('procurement tender write service', () => {
     expect(() => publishTenderBodySchema.parse({ publishedAt: '2099-09-30T00:00:00.000Z' })).toThrow();
   });
 
+  it('validates tender language scan payloads', () => {
+    expect(
+      scanLanguageBodySchema.parse({
+        title: 'Supply of ICT equipment',
+        description: 'Open and measurable specifications.',
+        requirements: { item: 'Laptop' },
+        evaluationCriteria: { method: 'Lowest evaluated cost' },
+        metadata: { closingDate: '2099-08-30' }
+      })
+    ).toMatchObject({
+      title: 'Supply of ICT equipment',
+      requirements: { item: 'Laptop' },
+      metadata: { closingDate: '2099-08-30' }
+    });
+    expect(() => scanLanguageBodySchema.parse({ metadata: [] })).toThrow();
+    expect(() => scanLanguageBodySchema.parse({ unsafe: true })).toThrow();
+  });
+
   it('creates draft tenders for the authenticated organization', async () => {
     const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-1' } };
     const repository = {
@@ -468,9 +719,188 @@ describe('procurement tender write service', () => {
     };
     const service = new ModuleService(repository as any, identity as any);
 
-    await expect(service.createTender('token-1', createInput)).resolves.toBe(createdTender);
+    await expect(service.createTender('token-1', createInput)).resolves.toEqual({
+      ...createdTender,
+      message: 'Tender draft saved successfully',
+      validation: {
+        schemaVersion: 'procurement-design-v1',
+        warnings: expect.arrayContaining(['Quantity lines is recommended before publishing.', 'Product specification table is recommended before publishing.']),
+        missingRequiredFields: expect.arrayContaining([
+          { path: 'quantityScheduleRows', label: 'Quantity lines', section: 'Quantity Schedule / BOQ' },
+          { path: 'productSpecificationTemplate', label: 'Product specification table', section: 'Product Specification Builder' }
+        ])
+      }
+    });
     expect(identity.requirePermission).toHaveBeenCalledWith('token-1', 'procurement.create');
-    expect(repository.createTender).toHaveBeenCalledWith(createInput, { organizationId: 'org-1', userId: 'user-1' });
+    expect(repository.createTender).toHaveBeenCalledWith(
+      {
+        ...createInput,
+        categories: ['Medical Equipment', 'ICT Equipment'],
+        metadata: {
+          schemaVersion: 'procurement-design-v1',
+          typeProfile: 'goods',
+          categoryStandardization: {
+            taxonomyVersion: 'procurement-taxonomy-v1',
+            standardCategories: ['Medical Equipment', 'ICT Equipment'],
+            mappings: [
+              expect.objectContaining({ rawCategory: 'Health', standardCategory: 'Medical Equipment' }),
+              expect.objectContaining({ rawCategory: 'Equipment', standardCategory: 'ICT Equipment' })
+            ]
+          }
+        }
+      },
+      { organizationId: 'org-1', userId: 'user-1' }
+    );
+  });
+
+  it('standardizes Others during draft tender creation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-other' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.createTender('token-1', { ...createInput, categories: ['Others'] })).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        categories: ['Other Goods'],
+        metadata: expect.objectContaining({
+          categoryStandardization: expect.objectContaining({
+            standardCategories: ['Other Goods'],
+            mappings: [expect.objectContaining({ rawCategory: 'Others', standardCategory: 'Other Goods', confidence: 1 })]
+          })
+        })
+      }),
+      { organizationId: 'org-1', userId: 'user-1' }
+    );
+  });
+
+  it('accepts legacy unit aliases during draft schema validation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-units' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Pcs', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] }
+            }
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalled();
+  });
+
+  it('accepts financial evidence tag arrays and legacy strings during draft schema validation', async () => {
+    const createdTender = { success: true, message: 'Tender draft created successfully', data: { id: 'tender-evidence' } };
+    const repository = {
+      createTender: vi.fn().mockResolvedValue(createdTender)
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Each', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] },
+              financialRequirementRows: [
+                { requirementType: 'Access to Credit', evidenceRequired: ['Bank statement'], mandatory: true },
+                { requirementType: 'Minimum Annual Turnover', evidenceRequired: 'Audited accounts', mandatory: true }
+              ]
+            }
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      success: true,
+      message: 'Tender draft saved successfully'
+    });
+    expect(repository.createTender).toHaveBeenCalled();
+  });
+
+  it('rejects invalid financial evidence tag options before repository writes', async () => {
+    const repository = {
+      createTender: vi.fn()
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: {
+          goods: {
+            fields: {
+              quantityScheduleRows: [{ itemDescription: 'Diagnostic kit', unitOfMeasure: 'Each', quantity: 10 }],
+              productSpecificationTemplate: { specifications: [{ name: 'Warranty', value: '12 months' }] },
+              financialRequirementRows: [{ requirementType: 'Access to Credit', evidenceRequired: ['Unsupported evidence'], mandatory: true }]
+            }
+          }
+        }
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Evidence required must be one of the configured options.'
+    });
+    expect(repository.createTender).not.toHaveBeenCalled();
+  });
+
+  it('rejects clearly malformed draft schema field values before repository writes', async () => {
+    const repository = {
+      createTender: vi.fn()
+    };
+    const identity = {
+      requirePermission: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(
+      service.createTender('token-1', {
+        ...createInput,
+        requirements: { quantityScheduleRows: 'not-a-table' }
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Quantity lines must be an array.'
+    });
+    expect(repository.createTender).not.toHaveBeenCalled();
   });
 
   it('rejects unauthenticated tender creation before repository writes', async () => {
@@ -509,6 +939,12 @@ describe('procurement tender write service', () => {
     };
     const updatedTender = { success: true, message: 'Tender updated successfully', data: { id: 'tender-1' } };
     const repository = {
+      getTenderForUpdate: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        status: TenderStatus.DRAFT,
+        type: TenderType.GOODS
+      }),
       updateTender: vi.fn().mockResolvedValue(updatedTender)
     };
     const identity = {
@@ -518,9 +954,59 @@ describe('procurement tender write service', () => {
     };
     const service = new ModuleService(repository as any, identity as any);
 
-    await expect(service.updateTender('tender-1', 'token-1', updateInput)).resolves.toBe(updatedTender);
+    await expect(service.updateTender('tender-1', 'token-1', updateInput)).resolves.toEqual({
+      ...updatedTender,
+      message: 'Tender draft saved successfully',
+      validation: {
+        warnings: [],
+        missingRequiredFields: [],
+        schemaVersion: 'procurement-design-v1'
+      }
+    });
     expect(identity.requireSession).toHaveBeenCalledWith('token-1');
-    expect(repository.updateTender).toHaveBeenCalledWith('tender-1', updateInput, { organizationId: 'org-1', userId: 'user-1' });
+    expect(repository.getTenderForUpdate).toHaveBeenCalledWith('tender-1');
+    expect(repository.updateTender).toHaveBeenCalledWith(
+      'tender-1',
+      {
+        ...updateInput,
+        categories: ['Medical Equipment'],
+        metadata: {
+          schemaVersion: 'procurement-design-v1',
+          typeProfile: 'goods',
+          categoryStandardization: {
+            taxonomyVersion: 'procurement-taxonomy-v1',
+            standardCategories: ['Medical Equipment'],
+            mappings: [expect.objectContaining({ rawCategory: 'Health', standardCategory: 'Medical Equipment' })]
+          }
+        }
+      },
+      { organizationId: 'org-1', userId: 'user-1' }
+    );
+  });
+
+  it('returns draft validation warnings for partial update requirements without blocking save', async () => {
+    const updatedTender = { success: true, message: 'Tender updated successfully', data: { id: 'tender-1' } };
+    const repository = {
+      getTenderForUpdate: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        status: TenderStatus.DRAFT,
+        type: TenderType.GOODS
+      }),
+      updateTender: vi.fn().mockResolvedValue(updatedTender)
+    };
+    const service = new ModuleService(repository as any, {
+      requireSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    } as any);
+
+    await expect(service.updateTender('tender-1', 'token-1', { requirements: { productSpecificationTemplate: { rows: [] } } })).resolves.toMatchObject({
+      validation: {
+        schemaVersion: 'procurement-design-v1',
+        missingRequiredFields: [{ path: 'quantityScheduleRows', label: 'Quantity lines', section: 'Quantity Schedule / BOQ' }]
+      }
+    });
   });
 
   it('requires organization context before tender updates', async () => {
@@ -540,12 +1026,15 @@ describe('procurement tender write service', () => {
       buyerOrgId: 'org-1',
       title: 'Supply of laboratory equipment',
       type: TenderType.GOODS,
+      method: ProcurementMethod.OPEN_TENDER,
       description: 'Supply and delivery of diagnostic laboratory equipment.',
       budget: 250000000,
       status: TenderStatus.DRAFT,
       location: 'Dar es Salaam',
-      closingDate: new Date(Date.now() + 86400000),
-      requirements: { technical: true }
+      closingDate: new Date('2099-08-30T00:00:00.000Z'),
+      requirements: completeGoodsRequirements,
+      metadata: {},
+      categories: [{ name: 'computer supplies' }]
     };
     const publishedTender = {
       success: true,
@@ -562,6 +1051,8 @@ describe('procurement tender write service', () => {
     };
     const repository = {
       getTenderForPublication: vi.fn().mockResolvedValue(tender),
+      recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
+      applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
       publishTender: vi.fn().mockResolvedValue(publishedTender)
     };
     const identity = {
@@ -571,9 +1062,185 @@ describe('procurement tender write service', () => {
     };
     const service = new ModuleService(repository as any, identity as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).resolves.toBe(publishedTender);
+    await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
+      ...publishedTender,
+      validation: {
+        warnings: [],
+        scannerIssues: [],
+        standardizedCategories: ['ICT Equipment']
+      },
+      languageScan: {
+        riskLevel: 'Low',
+        score: 0,
+        issues: []
+      }
+    });
     expect(identity.requirePermission).toHaveBeenCalledWith('token-1', 'procurement.publish');
-    expect(repository.publishTender).toHaveBeenCalledWith('tender-1', 'org-1');
+    expect(repository.recordTenderLanguageScan).toHaveBeenCalledWith('tender-1', {
+      riskLevel: 'Low',
+      score: 0,
+      issues: []
+    });
+    expect(repository.applyTenderCategoryStandardization).toHaveBeenCalledWith(
+      'tender-1',
+      ['ICT Equipment'],
+      expect.objectContaining({
+        categoryStandardization: expect.objectContaining({
+          taxonomyVersion: 'procurement-taxonomy-v1',
+          standardCategories: ['ICT Equipment'],
+          mappings: [expect.objectContaining({ rawCategory: 'computer supplies', standardCategory: 'ICT Equipment' })]
+        })
+      })
+    );
+    expect(repository.publishTender).toHaveBeenCalledWith('tender-1', 'org-1', Visibility.PUBLIC_MARKETPLACE);
+  });
+
+  it('allows medium-risk tender language during publish and returns scan warnings', async () => {
+    const publishedTender = {
+      success: true,
+      message: 'Tender published successfully',
+      data: {
+        id: 'tender-1',
+        reference: 'PX-GDS-2026-001',
+        title: 'Supply of laboratory equipment',
+        status: 'Open',
+        visibility: 'PUBLIC_MARKETPLACE',
+        publishedAt: '2026-07-01T08:00:00.000Z',
+        closingDate: '2099-08-30'
+      }
+    };
+    const repository = {
+      getTenderForPublication: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        title: 'Supply of laboratory equipment',
+        type: TenderType.GOODS,
+        method: ProcurementMethod.OPEN_TENDER,
+        description: 'Local suppliers only may participate in this procurement.',
+        budget: 250000000,
+        status: TenderStatus.DRAFT,
+        location: 'Dar es Salaam',
+        closingDate: new Date('2099-08-30T00:00:00.000Z'),
+        requirements: completeGoodsRequirements,
+        metadata: {},
+        categories: [{ name: 'laptops' }]
+      }),
+      recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
+      applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
+      publishTender: vi.fn().mockResolvedValue(publishedTender)
+    };
+    const service = new ModuleService(repository as any, {
+      requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
+      validation: {
+        warnings: [expect.stringContaining('local-only-restriction')],
+        scannerIssues: [expect.objectContaining({ type: 'local-only-restriction' })],
+        standardizedCategories: ['ICT Equipment']
+      },
+      languageScan: {
+        riskLevel: 'Medium',
+        issues: [expect.objectContaining({ type: 'local-only-restriction' })]
+      }
+    });
+    expect(repository.applyTenderCategoryStandardization).toHaveBeenCalledWith(
+      'tender-1',
+      ['ICT Equipment'],
+      expect.objectContaining({
+        categoryStandardization: expect.objectContaining({ standardCategories: ['ICT Equipment'] })
+      })
+    );
+    expect(repository.publishTender).toHaveBeenCalledWith('tender-1', 'org-1', Visibility.PUBLIC_MARKETPLACE);
+  });
+
+  it('publishes invited tenders with invited-only visibility', async () => {
+    const publishedTender = {
+      success: true,
+      message: 'Tender published successfully',
+      data: {
+        id: 'tender-1',
+        reference: 'PX-GDS-2026-001',
+        title: 'Supply of laboratory equipment',
+        status: 'Open',
+        visibility: Visibility.INVITED,
+        publishedAt: '2026-07-01T08:00:00.000Z',
+        closingDate: '2099-08-30'
+      }
+    };
+    const repository = {
+      getTenderForPublication: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        title: 'Supply of laboratory equipment',
+        type: TenderType.GOODS,
+        method: ProcurementMethod.INVITED_TENDER,
+        description: 'Supply and delivery of diagnostic laboratory equipment.',
+        budget: 250000000,
+        status: TenderStatus.DRAFT,
+        location: 'Dar es Salaam',
+        closingDate: new Date('2099-08-30T00:00:00.000Z'),
+        requirements: completeGoodsRequirements,
+        metadata: {},
+        categories: [{ name: 'laptops' }]
+      }),
+      recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
+      applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
+      publishTender: vi.fn().mockResolvedValue(publishedTender)
+    };
+    const service = new ModuleService(repository as any, {
+      requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
+      data: { status: 'Open', visibility: Visibility.INVITED },
+      validation: { standardizedCategories: ['ICT Equipment'] }
+    });
+    expect(repository.publishTender).toHaveBeenCalledWith('tender-1', 'org-1', Visibility.INVITED);
+  });
+
+  it('blocks high-risk tender language during publish after persisting the scan', async () => {
+    const repository = {
+      getTenderForPublication: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        title: 'Supply of HP ICT equipment',
+        type: TenderType.GOODS,
+        method: ProcurementMethod.OPEN_TENDER,
+        description: 'Only HP brand devices from a preferred supplier will be accepted. No equivalent products.',
+        budget: 250000000,
+        status: TenderStatus.DRAFT,
+        location: 'Dar es Salaam',
+        closingDate: new Date('2099-08-30T00:00:00.000Z'),
+        requirements: completeGoodsRequirements,
+        metadata: {},
+        categories: [{ name: 'laptops' }]
+      }),
+      recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
+      applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
+      publishTender: vi.fn()
+    };
+    const service = new ModuleService(repository as any, {
+      requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'Tender cannot be published',
+      code: 'PUBLISH_VALIDATION_FAILED',
+      errors: expect.arrayContaining([expect.objectContaining({ step: 'language-scan', severity: 'error' })])
+    });
+    expect(repository.recordTenderLanguageScan).toHaveBeenCalledWith(
+      'tender-1',
+      expect.objectContaining({
+        riskLevel: 'High',
+        issues: expect.arrayContaining([
+          expect.objectContaining({ type: 'brand-only-restriction' }),
+          expect.objectContaining({ type: 'conflict-of-interest-phrase' })
+        ])
+      })
+    );
+    expect(repository.publishTender).not.toHaveBeenCalled();
   });
 
   it('rejects publish attempts from another organization', async () => {
@@ -586,7 +1253,7 @@ describe('procurement tender write service', () => {
         budget: 1,
         status: TenderStatus.DRAFT,
         location: 'Dar es Salaam',
-        closingDate: new Date(Date.now() + 86400000),
+        closingDate: new Date('2099-08-30T00:00:00.000Z'),
         requirements: { technical: true }
       }),
       publishTender: vi.fn()
@@ -599,6 +1266,74 @@ describe('procurement tender write service', () => {
     expect(repository.publishTender).not.toHaveBeenCalled();
   });
 
+  it('blocks publication when schema-required design fields are incomplete', async () => {
+    const repository = {
+      getTenderForPublication: vi.fn().mockResolvedValue({
+        buyerOrgId: 'org-1',
+        title: 'Supply of laboratory equipment',
+        type: TenderType.GOODS,
+        description: 'Supply and delivery of diagnostic laboratory equipment.',
+        budget: 250000000,
+        status: TenderStatus.DRAFT,
+        location: 'Dar es Salaam',
+        closingDate: new Date('2099-08-30T00:00:00.000Z'),
+        requirements: { technical: true }
+      }),
+      publishTender: vi.fn()
+    };
+    const service = new ModuleService(repository as any, {
+      requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 400,
+      message: 'Tender cannot be published',
+      code: 'PUBLISH_VALIDATION_FAILED',
+      errors: expect.arrayContaining([expect.objectContaining({ step: 'schema-required-fields' })])
+    });
+    expect(repository.publishTender).not.toHaveBeenCalled();
+  });
+
+  it('blocks publication when evaluation criteria weights do not total 100', async () => {
+    const repository = {
+      getTenderForPublication: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        title: 'Supply of laboratory equipment',
+        type: TenderType.GOODS,
+        method: ProcurementMethod.OPEN_TENDER,
+        description: 'Supply and delivery of diagnostic laboratory equipment.',
+        budget: 250000000,
+        status: TenderStatus.DRAFT,
+        location: 'Dar es Salaam',
+        closingDate: new Date('2099-08-30T00:00:00.000Z'),
+        requirements: completeGoodsRequirements,
+        metadata: {
+          evaluationCriteria: [
+            { name: 'Technical', weight: 60 },
+            { name: 'Financial', weight: 20 }
+          ]
+        },
+        categories: [{ name: 'laptops' }]
+      }),
+      applyTenderCategoryStandardization: vi.fn(),
+      recordTenderLanguageScan: vi.fn(),
+      publishTender: vi.fn()
+    };
+    const service = new ModuleService(repository as any, {
+      requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 400,
+      code: 'PUBLISH_VALIDATION_FAILED',
+      errors: [expect.objectContaining({ step: 'evaluation-criteria', field: 'metadata.evaluationCriteria' })]
+    });
+    expect(repository.applyTenderCategoryStandardization).not.toHaveBeenCalled();
+    expect(repository.recordTenderLanguageScan).not.toHaveBeenCalled();
+    expect(repository.publishTender).not.toHaveBeenCalled();
+  });
+
   it('rejects publish attempts for invalid status or incomplete tender fields', async () => {
     const baseTender = {
       buyerOrgId: 'org-1',
@@ -608,7 +1343,7 @@ describe('procurement tender write service', () => {
       budget: 1,
       status: TenderStatus.DRAFT,
       location: 'Dar es Salaam',
-      closingDate: new Date(Date.now() + 86400000),
+      closingDate: new Date('2099-08-30T00:00:00.000Z'),
       requirements: { technical: true }
     };
     const identity = {

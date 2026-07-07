@@ -1,16 +1,29 @@
-import { TenderStatus } from '@prisma/client';
+import { ProcurementMethod, TenderStatus, Visibility } from '@prisma/client';
+import { getProcurementTaxonomy, standardizeCategory, standardizeCategoryList } from './category-taxonomy.js';
+import { getProcurementDesignFormSchema, getProcurementDesignFormSchemas, procurementDesignSchemaVersion } from './design-form-schemas.js';
+import { scanTenderLanguage } from './design-language-scanner.js';
+import { responseValidation, schemaMetadata, tenderTypeProfile, validateTenderDraftRequirements } from './design-validation.js';
+import { getProcurementMasterDataGroup, getProcurementMasterDataGroups } from './master-data.js';
 import { ModuleRepository } from './repository.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { isProductionRuntime } from '../../security/config.js';
 import {
   type CloseTenderResponseDto,
+  type CategoryStandardizationResultDto,
+  type CategoryStandardizationResponseDto,
   type CreateTenderInput,
   type CreateTenderResponseDto,
+  type DesignFormSchemaListResponseDto,
+  type DesignFormSchemaResponseDto,
+  type MasterDataGroupResponseDto,
+  type MasterDataListResponseDto,
   moduleDefinition,
   type MarketplaceQuery,
   type ProcurementMarketplacePayload,
+  type ProcurementTaxonomyResponseDto,
   type ModuleStatus,
   type PublishTenderResponseDto,
+  type PublishValidationIssueDto,
   type ProcurementPlanDto,
   type ProcurementPlanLineDto,
   type ProcurementPlanLineInput,
@@ -23,6 +36,8 @@ import {
   type SavedTendersPayload,
   type SaveTenderResponseDto,
   type TenderDetailDto,
+  type TenderLanguageScanInput,
+  type TenderLanguageScanResponseDto,
   type UnsaveTenderResponseDto,
   type UpdateTenderInput,
   type UpdateTenderResponseDto,
@@ -31,6 +46,7 @@ import {
 
 export const MARKETPLACE_UNAVAILABLE_MESSAGE = 'Marketplace is temporarily unavailable. Please try again later.';
 export const MARKETPLACE_UNAVAILABLE_CODE = 'MARKETPLACE_UNAVAILABLE';
+export const PUBLISH_VALIDATION_FAILED_CODE = 'PUBLISH_VALIDATION_FAILED';
 
 function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
@@ -41,6 +57,16 @@ function requestError(message: string, status = 400) {
 function marketplaceUnavailableError() {
   const error = requestError(MARKETPLACE_UNAVAILABLE_MESSAGE, 503) as Error & { code?: string };
   error.code = MARKETPLACE_UNAVAILABLE_CODE;
+  return error;
+}
+
+function publishValidationError(errors: PublishValidationIssueDto[], status = 400) {
+  const error = requestError('Tender cannot be published', status) as Error & {
+    code?: string;
+    errors?: PublishValidationIssueDto[];
+  };
+  error.code = PUBLISH_VALIDATION_FAILED_CODE;
+  error.errors = errors;
   return error;
 }
 
@@ -67,6 +93,54 @@ export class ModuleService {
     }
   }
 
+  async masterData(): Promise<MasterDataListResponseDto> {
+    return {
+      success: true,
+      data: {
+        groups: getProcurementMasterDataGroups()
+      }
+    };
+  }
+
+  async masterDataGroup(group: string): Promise<MasterDataGroupResponseDto | null> {
+    const data = getProcurementMasterDataGroup(group);
+    return data ? { success: true, data } : null;
+  }
+
+  async designFormSchemas(): Promise<DesignFormSchemaListResponseDto> {
+    return {
+      success: true,
+      data: {
+        schemaVersion: procurementDesignSchemaVersion,
+        schemas: getProcurementDesignFormSchemas()
+      }
+    };
+  }
+
+  async designFormSchema(type: string): Promise<DesignFormSchemaResponseDto | null> {
+    const data = getProcurementDesignFormSchema(type);
+    return data ? { success: true, data } : null;
+  }
+
+  async taxonomy(): Promise<ProcurementTaxonomyResponseDto> {
+    return getProcurementTaxonomy();
+  }
+
+  async standardizeCategory(input: { rawCategory: string; type?: CreateTenderInput['type'] }): Promise<CategoryStandardizationResponseDto> {
+    return {
+      success: true,
+      data: standardizeCategory(input.rawCategory, input.type)
+    };
+  }
+
+  async scanTenderLanguage(token: string | undefined, input: TenderLanguageScanInput): Promise<TenderLanguageScanResponseDto> {
+    await this.identity.requireSession(token);
+    return {
+      success: true,
+      data: scanTenderLanguage(input)
+    };
+  }
+
   async marketplace(token?: string, query: MarketplaceQuery = defaultMarketplaceQuery): Promise<ProcurementMarketplacePayload> {
     try {
       const context = await this.contextFromToken(token);
@@ -89,13 +163,55 @@ export class ModuleService {
   async createTender(token: string | undefined, input: CreateTenderInput): Promise<CreateTenderResponseDto> {
     const session = await this.identity.requirePermission(token, 'procurement.create');
     const organizationId = requireOrganization(session.user.organizationId);
-    return this.repository.createTender(input, { organizationId, userId: session.user.id });
+    const validation = validateTenderDraftRequirements(input.type, input.requirements);
+    if (validation.errors.length > 0) throw requestError(validation.errors[0], 400);
+    const categoryStandardization = standardizeCategoryList(input.categories, input.type);
+    const tender = await this.repository.createTender(
+      {
+        ...input,
+        categories: categoryStandardization.standardCategories,
+        metadata: schemaMetadata(withCategoryStandardization(input.metadata, categoryStandardization), input.type)
+      },
+      { organizationId, userId: session.user.id }
+    );
+    return { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) };
   }
 
   async updateTender(tenderId: string, token: string | undefined, input: UpdateTenderInput): Promise<UpdateTenderResponseDto | null> {
     const session = await this.identity.requireSession(token);
     const organizationId = requireOrganization(session.user.organizationId);
-    return this.repository.updateTender(tenderId, input, { organizationId, userId: session.user.id });
+    const existing = await this.repository.getTenderForUpdate(tenderId);
+    if (!existing) return null;
+    if (existing.buyerOrgId !== organizationId) throw requestError('Only the owner organization can update this tender.', 403);
+    if (!isEditableTenderStatus(existing.status)) throw requestError('Only draft or review tenders can be updated.', 409);
+
+    const effectiveType = input.type ?? existing.type;
+    const categoryStandardization =
+      input.categories === undefined ? null : standardizeCategoryList(input.categories, effectiveType);
+    const validation = input.requirements === undefined
+      ? {
+          warnings: [],
+          missingRequiredFields: [],
+          schemaVersion: procurementDesignSchemaVersion,
+          errors: [],
+          typeProfile: tenderTypeProfile(effectiveType)
+        }
+      : validateTenderDraftRequirements(effectiveType, input.requirements);
+    if (validation.errors.length > 0) throw requestError(validation.errors[0], 400);
+
+    const tender = await this.repository.updateTender(
+      tenderId,
+      {
+        ...input,
+        categories: categoryStandardization?.standardCategories ?? input.categories,
+        metadata: schemaMetadata(
+          withCategoryStandardization({ ...objectMetadata(existing.metadata), ...(input.metadata ?? {}) }, categoryStandardization),
+          effectiveType
+        )
+      },
+      { organizationId, userId: session.user.id }
+    );
+    return tender ? { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) } : null;
   }
 
   async publishTender(tenderId: string, token: string | undefined): Promise<PublishTenderResponseDto> {
@@ -103,11 +219,65 @@ export class ModuleService {
     const organizationId = requireOrganization(session.user.organizationId);
     const tender = await this.repository.getTenderForPublication(tenderId);
     if (!tender) throw requestError('Tender was not found.', 404);
-    if (tender.buyerOrgId !== organizationId) throw requestError('Only the owner organization can publish this tender.', 403);
-    assertTenderPublishable(tender);
-    const published = await this.repository.publishTender(tenderId, organizationId);
+
+    const ownershipStatusErrors = ownershipAndStatusIssues(tender, organizationId);
+    if (ownershipStatusErrors.length > 0) throw publishValidationError(ownershipStatusErrors, publishErrorStatus(ownershipStatusErrors));
+
+    const basicErrors = basicPublishIssues(tender);
+    if (basicErrors.length > 0) throw publishValidationError(basicErrors, 400);
+
+    const schemaErrors = schemaPublishIssues(tender);
+    if (schemaErrors.length > 0) throw publishValidationError(schemaErrors, 400);
+
+    const evaluationErrors = evaluationCriteriaIssues(objectMetadata(tender.metadata));
+    if (evaluationErrors.length > 0) throw publishValidationError(evaluationErrors, 400);
+
+    const categoryStandardization = standardizeCategoryList(tender.categories.map((category) => category.name), tender.type);
+    const warnings = categoryStandardizationWarnings(categoryStandardization);
+    await this.repository.applyTenderCategoryStandardization(
+      tenderId,
+      categoryStandardization.standardCategories,
+      withCategoryStandardization(objectMetadata(tender.metadata), categoryStandardization)
+    );
+
+    const languageScan = scanTenderLanguage(languageScanInputFromTender(tender));
+    await this.repository.recordTenderLanguageScan(tender.id, languageScan);
+    if (languageScan.riskLevel === 'High') {
+      throw publishValidationError(
+        [
+          ...languageScan.issues.map((issue) => ({
+            step: 'language-scan',
+            field: issue.field,
+            message: `${issue.type}: ${issue.suggestion}`,
+            severity: 'error' as const
+          }))
+        ],
+        409
+      );
+    }
+    if (languageScan.riskLevel === 'Medium') {
+      warnings.push(...languageScan.issues.map((issue) => `${issue.type}: ${issue.suggestion}`));
+    }
+
+    const visibility = targetVisibilityForMethod(tender.method);
+    if (!visibility) {
+      throw publishValidationError(
+        [{ step: 'visibility', field: 'method', message: 'Unsupported procurement method for publication.', severity: 'error' }],
+        400
+      );
+    }
+
+    const published = await this.repository.publishTender(tenderId, organizationId, visibility);
     if (!published) throw requestError('Tender was not found.', 404);
-    return published;
+    return {
+      ...published,
+      languageScan,
+      validation: {
+        warnings,
+        scannerIssues: languageScan.issues,
+        standardizedCategories: categoryStandardization.standardCategories
+      }
+    };
   }
 
   async closeTender(tenderId: string, token: string | undefined): Promise<CloseTenderResponseDto> {
@@ -265,9 +435,12 @@ const defaultWelcomePayload: PublicWelcomePayload = {
 
 const defaultMarketplaceQuery: MarketplaceQuery = {
   search: '',
+  category: '',
   type: '',
   budgetBand: '',
   status: '',
+  includeClosed: false,
+  visibility: '',
   sort: 'deadline',
   page: 1,
   limit: 20
@@ -302,6 +475,133 @@ function requireOrganization(organizationId?: string) {
   return organizationId;
 }
 
+function objectMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function withCategoryStandardization(metadata: Record<string, unknown>, standardization: CategoryStandardizationResultDto | null) {
+  if (!standardization) return metadata;
+  return {
+    ...metadata,
+    categoryStandardization: standardization
+  };
+}
+
+function ownershipAndStatusIssues(tender: { buyerOrgId: string; status: TenderStatus }, organizationId: string): PublishValidationIssueDto[] {
+  const errors: PublishValidationIssueDto[] = [];
+  if (tender.buyerOrgId !== organizationId) {
+    errors.push({
+      step: 'ownership-status',
+      field: 'buyerOrgId',
+      message: 'Only the owner organization can publish this tender.',
+      severity: 'error'
+    });
+  }
+  if (tender.status !== TenderStatus.DRAFT && tender.status !== TenderStatus.REVIEW) {
+    errors.push({
+      step: 'ownership-status',
+      field: 'status',
+      message: 'Only draft or review tenders can be published.',
+      severity: 'error'
+    });
+  }
+  return errors;
+}
+
+function basicPublishIssues(tender: {
+  title: string;
+  type: unknown;
+  description: string | null;
+  budget: unknown;
+  location: string | null;
+  closingDate: Date | null;
+  requirements: unknown;
+}): PublishValidationIssueDto[] {
+  const errors: PublishValidationIssueDto[] = [];
+  if (!tender.title.trim()) errors.push(publishIssue('basic-fields', 'title', 'Tender title is required before publishing.'));
+  if (!tender.type) errors.push(publishIssue('basic-fields', 'type', 'Tender type is required before publishing.'));
+  if (!tender.description?.trim()) errors.push(publishIssue('basic-fields', 'description', 'Tender description is required before publishing.'));
+  if (Number(tender.budget ?? 0) <= 0) errors.push(publishIssue('basic-fields', 'budget', 'Tender budget is required before publishing.'));
+  if (!tender.location?.trim()) errors.push(publishIssue('basic-fields', 'location', 'Tender location is required before publishing.'));
+  if (!tender.closingDate) {
+    errors.push(publishIssue('basic-fields', 'closingDate', 'Tender closing date is required before publishing.'));
+  } else if (tender.closingDate.getTime() <= Date.now()) {
+    errors.push(publishIssue('basic-fields', 'closingDate', 'Tender closing date must be in the future.'));
+  }
+  if (!hasRequirements(tender.requirements)) errors.push(publishIssue('basic-fields', 'requirements', 'Tender requirements are required before publishing.'));
+  return errors;
+}
+
+function schemaPublishIssues(tender: { type: CreateTenderInput['type']; requirements: unknown }): PublishValidationIssueDto[] {
+  const validation = validateTenderDraftRequirements(tender.type, tender.requirements);
+  return [
+    ...validation.errors.map((message) => publishIssue('schema-required-fields', 'requirements', message)),
+    ...validation.missingRequiredFields.map((field) =>
+      publishIssue('schema-required-fields', field.path, `${field.label} is required before publishing.`)
+    )
+  ];
+}
+
+function evaluationCriteriaIssues(metadata: Record<string, unknown>): PublishValidationIssueDto[] {
+  const criteria = metadata.evaluationCriteria;
+  if (criteria === undefined || criteria === null) return [];
+  const weights = evaluationWeights(criteria);
+  if (weights.length === 0) {
+    return [publishIssue('evaluation-criteria', 'metadata.evaluationCriteria', 'Evaluation criteria weights must total 100.')];
+  }
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  return Math.abs(total - 100) <= 0.01
+    ? []
+    : [publishIssue('evaluation-criteria', 'metadata.evaluationCriteria', `Evaluation criteria weights must total 100. Current total is ${roundWeight(total)}.`)];
+}
+
+function categoryStandardizationWarnings(standardization: CategoryStandardizationResultDto) {
+  const warnings: string[] = [];
+  if (standardization.standardCategories.length === 0) {
+    warnings.push('No standardized categories were found for this tender.');
+  }
+  for (const mapping of standardization.mappings) {
+    if (mapping.confidence < 0.7) {
+      warnings.push(`Low-confidence category mapping: ${mapping.rawCategory} -> ${mapping.standardCategory}.`);
+    }
+  }
+  return warnings;
+}
+
+function targetVisibilityForMethod(method: unknown): Visibility | null {
+  if (method === ProcurementMethod.OPEN_TENDER || String(method) === 'OPEN_TENDER') return Visibility.PUBLIC_MARKETPLACE;
+  if (method === ProcurementMethod.INVITED_TENDER || String(method) === 'INVITED_TENDER') return Visibility.INVITED;
+  return null;
+}
+
+function publishIssue(step: string, field: string, message: string): PublishValidationIssueDto {
+  return { step, field, message, severity: 'error' };
+}
+
+function publishErrorStatus(errors: PublishValidationIssueDto[]) {
+  return errors.some((error) => error.field === 'buyerOrgId') ? 403 : 409;
+}
+
+function evaluationWeights(value: unknown): number[] {
+  if (Array.isArray(value)) return value.flatMap(evaluationWeights);
+  if (!value || typeof value !== 'object') return [];
+  const record = value as Record<string, unknown>;
+  const ownWeight = numericValue(record.weight);
+  const nested = ['criteria', 'items', 'rows', 'technical', 'financial']
+    .flatMap((key) => evaluationWeights(record[key]));
+  return ownWeight === null ? nested : [ownWeight, ...nested];
+}
+
+function numericValue(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+function roundWeight(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 function assertTenderPublishable(tender: {
   title: string;
   type: unknown;
@@ -329,6 +629,40 @@ function assertTenderClosable(tender: { status: TenderStatus }) {
   if (tender.status !== TenderStatus.OPEN && tender.status !== TenderStatus.PUBLISHED) {
     throw requestError('Only open or published tenders can be closed.', 409);
   }
+}
+
+function assertTenderDesignComplete(tender: { type: CreateTenderInput['type']; requirements: unknown }) {
+  const validation = validateTenderDraftRequirements(tender.type, tender.requirements);
+  if (validation.errors.length > 0) throw requestError(validation.errors[0], 400);
+  if (validation.missingRequiredFields.length > 0) {
+    const labels = validation.missingRequiredFields.map((field) => field.label).join(', ');
+    throw requestError(`Tender requirements are incomplete: ${labels}.`, 400);
+  }
+}
+
+function languageScanInputFromTender(tender: {
+  title: string;
+  description: string | null;
+  requirements: unknown;
+  metadata: unknown;
+  closingDate: Date | null;
+}): TenderLanguageScanInput {
+  const metadata = objectMetadata(tender.metadata);
+  const evaluationCriteria = objectMetadata(metadata.evaluationCriteria);
+  return {
+    title: tender.title,
+    description: tender.description ?? '',
+    requirements: objectMetadata(tender.requirements),
+    evaluationCriteria,
+    metadata: {
+      ...metadata,
+      closingDate: tender.closingDate?.toISOString() ?? ''
+    }
+  };
+}
+
+function isEditableTenderStatus(status: TenderStatus) {
+  return status === TenderStatus.DRAFT || status === TenderStatus.REVIEW;
 }
 
 function hasRequirements(value: unknown) {

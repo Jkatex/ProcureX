@@ -40,6 +40,206 @@ export type PublicWelcomePayload = {
   featuredTenders: PublicWelcomeTender[];
 };
 
+export const masterDataGroupValues = [
+  'tender-types',
+  'procurement-methods',
+  'categories',
+  'currencies',
+  'units',
+  'funding-sources',
+  'evaluation-methods',
+  'response-types',
+  'standards',
+  'certifications',
+  'regulatory-licenses',
+  'professional-bodies'
+] as const;
+
+export type MasterDataGroup = (typeof masterDataGroupValues)[number];
+
+export type MasterDataItemDto = {
+  code: string;
+  label: string;
+  value: string;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export type MasterDataGroupDto = {
+  group: MasterDataGroup;
+  items: MasterDataItemDto[];
+};
+
+export type MasterDataGroupResponseDto = {
+  success: true;
+  data: MasterDataGroupDto;
+};
+
+export type MasterDataListResponseDto = {
+  success: true;
+  data: {
+    groups: MasterDataGroupDto[];
+  };
+};
+
+export const designFormSchemaTypeValues = ['goods', 'works', 'services', 'consultancy'] as const;
+
+export type FormSchemaType = (typeof designFormSchemaTypeValues)[number];
+
+export type DesignFormShowWhenDto = {
+  field: string;
+  value?: string | number | boolean;
+  values?: Array<string | number | boolean>;
+};
+
+export type DesignFormOptionSourceDto = {
+  group: MasterDataGroup;
+};
+
+export type DesignFormControlDto = {
+  id: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  placeholder?: string;
+  helperText?: string;
+  hint?: string;
+  options?: string[];
+  optionSource?: DesignFormOptionSourceDto;
+  showWhen?: DesignFormShowWhenDto;
+  defaultValue?: unknown;
+  addLabel?: string;
+  importLabel?: string;
+  emptyText?: string;
+  sourceEmptyText?: string;
+  requiresSourceOptions?: boolean;
+  sourceControlId?: string;
+  sourceLabelField?: string;
+  buttonLabel?: string;
+  accept?: string;
+  rows?: number;
+  maxLength?: number;
+  formula?: string;
+  suffix?: string;
+  columns?: DesignFormControlDto[];
+  fields?: DesignFormControlDto[];
+  panels?: DesignFormControlDto[];
+  presets?: string[];
+  cardTitle?: string;
+  cardTitleField?: string;
+  cardTitlePrefix?: string;
+  hideAdd?: boolean;
+};
+
+export type DesignFormSectionDto = {
+  id: string;
+  title: string;
+  hint?: string;
+  showWhen?: DesignFormShowWhenDto;
+  controls: DesignFormControlDto[];
+};
+
+export type DesignFormSchemaDto = {
+  schemaVersion: string;
+  type: FormSchemaType;
+  tenderType: string;
+  title: string;
+  sections: DesignFormSectionDto[];
+};
+
+export type DesignFormSchemaResponseDto = {
+  success: true;
+  data: DesignFormSchemaDto;
+};
+
+export type DesignFormSchemaListResponseDto = {
+  success: true;
+  data: {
+    schemaVersion: string;
+    schemas: DesignFormSchemaDto[];
+  };
+};
+
+export type ProcurementTaxonomyCategoryDto = {
+  code: string;
+  label: string;
+  value: string;
+  type: string;
+  synonyms: string[];
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export type ProcurementTaxonomyResponseDto = {
+  success: true;
+  data: {
+    taxonomyVersion: string;
+    categories: ProcurementTaxonomyCategoryDto[];
+  };
+};
+
+export type CategoryStandardizationDto = {
+  rawCategory: string;
+  standardCategory: string;
+  type: string;
+  confidence: number;
+  synonymsMatched: string[];
+};
+
+export type CategoryStandardizationResultDto = {
+  taxonomyVersion: string;
+  mappings: CategoryStandardizationDto[];
+  standardCategories: string[];
+};
+
+export type CategoryStandardizationResponseDto = {
+  success: true;
+  data: CategoryStandardizationDto;
+};
+
+export type TenderDraftMissingRequiredFieldDto = {
+  path: string;
+  label: string;
+  section: string;
+};
+
+export type TenderDraftValidationDto = {
+  warnings: string[];
+  missingRequiredFields: TenderDraftMissingRequiredFieldDto[];
+  schemaVersion: string;
+};
+
+export type TenderLanguageScanSeverity = 'Low' | 'Medium' | 'High';
+
+export type TenderLanguageScanRiskLevel = 'Low' | 'Medium' | 'High';
+
+export type TenderLanguageScanIssueDto = {
+  type: string;
+  severity: TenderLanguageScanSeverity;
+  field: string;
+  text: string;
+  suggestion: string;
+};
+
+export type TenderLanguageScanDto = {
+  riskLevel: TenderLanguageScanRiskLevel;
+  score: number;
+  issues: TenderLanguageScanIssueDto[];
+};
+
+export type TenderLanguageScanInput = {
+  title?: string;
+  description?: string;
+  requirements?: Record<string, unknown>;
+  evaluationCriteria?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export type TenderLanguageScanResponseDto = {
+  success: true;
+  data: TenderLanguageScanDto;
+};
+
 export const planningSortValues = ['date', 'title', 'budget', 'status', 'category'] as const;
 
 export type PlanningSort = (typeof planningSortValues)[number];
@@ -210,15 +410,20 @@ export type MyBidRow = {
 
 export const marketplaceSortValues = ['deadline', 'newest', 'budget-desc', 'budget-asc'] as const;
 export const marketplaceBudgetBandValues = ['under-hundred-million', 'hundred-million-plus', 'billion-plus'] as const;
+export const marketplaceVisibilityFilterValues = ['PUBLIC_MARKETPLACE', 'INVITED', 'PRIVATE'] as const;
 
 export type MarketplaceSort = (typeof marketplaceSortValues)[number];
 export type MarketplaceBudgetBand = (typeof marketplaceBudgetBandValues)[number];
+export type MarketplaceVisibilityFilter = (typeof marketplaceVisibilityFilterValues)[number];
 
 export type MarketplaceQuery = {
   search: string;
+  category: string;
   type: string;
   budgetBand: '' | MarketplaceBudgetBand;
   status: string;
+  includeClosed: boolean;
+  visibility: '' | MarketplaceVisibilityFilter;
   sort: MarketplaceSort;
   page: number;
   limit: number;
@@ -253,7 +458,7 @@ export type UpdateTenderInput = {
 
 export type CreateTenderResponseDto = {
   success: true;
-  message: 'Tender draft created successfully';
+  message: 'Tender draft created successfully' | 'Tender draft saved successfully';
   data: {
     id: string;
     reference: string;
@@ -262,11 +467,12 @@ export type CreateTenderResponseDto = {
     type: string;
     createdAt: string;
   };
+  validation?: TenderDraftValidationDto;
 };
 
 export type UpdateTenderResponseDto = {
   success: true;
-  message: 'Tender updated successfully';
+  message: 'Tender updated successfully' | 'Tender draft saved successfully';
   data: {
     id: string;
     reference: string;
@@ -274,6 +480,7 @@ export type UpdateTenderResponseDto = {
     status: string;
     updatedAt: string;
   };
+  validation?: TenderDraftValidationDto;
 };
 
 export type PublishTenderResponseDto = {
@@ -288,6 +495,25 @@ export type PublishTenderResponseDto = {
     publishedAt: string;
     closingDate: string;
   };
+  validation: {
+    warnings: string[];
+    scannerIssues: TenderLanguageScanIssueDto[];
+    standardizedCategories: string[];
+  };
+  languageScan?: TenderLanguageScanDto;
+};
+
+export type PublishValidationIssueDto = {
+  step: string;
+  field?: string;
+  message: string;
+  severity: 'error' | 'warning';
+};
+
+export type PublishValidationFailureDto = {
+  success: false;
+  message: 'Tender cannot be published';
+  errors: PublishValidationIssueDto[];
 };
 
 export type CloseTenderResponseDto = {
@@ -347,6 +573,8 @@ export type TenderDetailDto = {
   id: string;
   title: string;
   reference: string;
+  buyerOrgId: string;
+  ownerUserId: string | null;
   organization: string;
   ownerOrganization: string;
   type: string;
@@ -356,14 +584,42 @@ export type TenderDetailDto = {
   budget: number;
   currency: string;
   status: string;
+  method: string;
+  contractType: string | null;
   visibility: string;
   publishedAt: string;
   closingDate: string;
   requirements: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  requirementRows: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
+  milestones: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
+  commercialItems: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: number;
+    unit: string | null;
+    rate: number;
+    total: number;
+    payload: Record<string, unknown>;
+  }>;
   documents: Array<{ id: string; name: string; documentType: string; label: string | null }>;
   createdByCurrentUser: boolean;
   ownedByCurrentOrganization: boolean;
   canBid: boolean;
   hasDraftBid: boolean;
   hasSubmittedBid: boolean;
+  bidSummary: {
+    total: number;
+    draft: number;
+    submitted: number;
+    withdrawn: number;
+  };
+  currentBid: {
+    id: string;
+    reference: string;
+    status: string;
+    submittedAt: string | null;
+    receiptHash: string | null;
+  } | null;
 };

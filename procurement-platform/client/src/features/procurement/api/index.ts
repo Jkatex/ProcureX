@@ -3,14 +3,26 @@ import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
 import type { Bid, SessionUser, Tender } from '@/shared/types/domain';
 import { toTenderType } from '../createTenderConfig';
-import type { CreateTenderDraft, MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow, TenderDetail } from '../types';
+import type {
+  CreateTenderDraft,
+  CreateTenderPayload,
+  CreateTenderResponse,
+  MarketplacePayload,
+  MarketplaceTenderRow,
+  MyBidRow,
+  MyTenderRow,
+  PublishTenderResponse,
+  TenderDetail,
+  UpdateTenderPayload,
+  UpdateTenderResponse
+} from '../types';
 
 export const procurementApi = {
   listTenders: mockApi.getTenders,
   async getMarketplace(currentUser?: SessionUser | null): Promise<MarketplacePayload> {
     try {
       const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
-      return response.data;
+      return normalizeMarketplacePayload(response.data);
     } catch {
       const [tenders, bids, workItems] = await Promise.all([mockApi.getTenders(), mockApi.getBids(), mockApi.getWorkItems()]);
       return buildMarketplacePayload(tenders, bids, workItems, currentUser);
@@ -19,10 +31,11 @@ export const procurementApi = {
   async getTenderDetail(tenderId: string): Promise<TenderDetail> {
     try {
       const response = await apiClient.get<TenderDetail>(`/api/procurement/tenders/${tenderId}`);
-      return response.data;
+      return normalizeTenderDetail(response.data);
     } catch {
       const tenders = await mockApi.getTenders();
-      const tender = tenders.find((item) => item.id === tenderId || item.reference === tenderId) ?? tenders[0];
+      const tender = tenders.find((item) => item.id === tenderId || item.reference === tenderId);
+      if (!tender) throw new Error('Tender not found');
       return buildTenderDetailFallback(tender);
     }
   },
@@ -33,10 +46,80 @@ export const procurementApi = {
   async unsaveTender(tenderId: string) {
     const response = await apiClient.delete<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/save`);
     return response.data;
+  },
+  async createTender(payload: CreateTenderPayload): Promise<CreateTenderResponse> {
+    const response = await apiClient.post<CreateTenderResponse>('/api/procurement/tenders', payload);
+    return response.data;
+  },
+  async updateTender(tenderId: string, payload: UpdateTenderPayload): Promise<UpdateTenderResponse> {
+    const response = await apiClient.patch<UpdateTenderResponse>(`/api/procurement/tenders/${tenderId}`, payload);
+    return response.data;
+  },
+  async publishTender(tenderId: string): Promise<PublishTenderResponse> {
+    const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, {});
+    return response.data;
   }
 };
 
 type WorkItemFixture = Awaited<ReturnType<typeof mockApi.getWorkItems>>[number];
+
+function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
+  return {
+    ...payload,
+    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow),
+    myTenders: (payload.myTenders ?? []).map((row) => ({
+      ...row,
+      tender: row.tender ? normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow) : undefined
+    })),
+    myBids: (payload.myBids ?? []).map((row) => ({
+      ...row,
+      tender: normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow)
+    }))
+  };
+}
+
+function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
+  return {
+    ...normalizeMarketplaceTenderRow(tender),
+    method: tender.method,
+    visibility: tender.visibility,
+    publishedAt: tender.publishedAt,
+    requirements: tender.requirements ?? {},
+    requirementRows: tender.requirementRows ?? [],
+    milestones: tender.milestones ?? [],
+    commercialItems: tender.commercialItems ?? [],
+    documents: tender.documents ?? [],
+    bidSummary: tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    currentBid: tender.currentBid ?? null
+  };
+}
+
+function normalizeMarketplaceTenderRow<T extends MarketplaceTenderRow>(tender: T): T {
+  const category = tender.category || categoryFromCategories(tender.categories) || String(tender.type || 'Tender');
+  return {
+    ...tender,
+    category,
+    categories: normalizeCategoryList(tender.categories, category),
+    currency: tender.currency || 'TZS',
+    ownerOrganization: tender.ownerOrganization || tender.organization,
+    createdByCurrentUser: Boolean(tender.createdByCurrentUser),
+    ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
+    canBid: Boolean(tender.canBid),
+    hasDraftBid: Boolean(tender.hasDraftBid),
+    hasSubmittedBid: Boolean(tender.hasSubmittedBid),
+    isSaved: Boolean(tender.isSaved)
+  };
+}
+
+function normalizeCategoryList(categories: string[] | undefined, fallback: string) {
+  const values = Array.isArray(categories) ? categories : [];
+  const normalized = values.map((category) => category.trim()).filter(Boolean);
+  return normalized.length ? normalized : [fallback].filter(Boolean);
+}
+
+function categoryFromCategories(categories: string[] | undefined) {
+  return Array.isArray(categories) ? categories.find((category) => category.trim())?.trim() : undefined;
+}
 
 function buildMarketplacePayload(tenders: Tender[], bids: Bid[], workItems: WorkItemFixture[], currentUser?: SessionUser | null): MarketplacePayload {
   const normalizedTenders = tenders.map((tender) => normalizeFixtureTender(tender, currentUser));
@@ -63,7 +146,7 @@ export function mergeSessionMarketplaceData(
 ): MarketplacePayload {
   const sessionTenderRows = publishedTenders.map((draft): MarketplaceTenderRow => createMarketplaceTenderFromDraft(draft, organization));
   const sessionMyTenderRows = drafts.map((draft): MyTenderRow => ({
-    id: `my-tender-${draft.status.toLowerCase()}-${draft.id}`,
+    id: draft.id,
     title: draft.title || 'Untitled tender draft',
     section: draft.status === 'DRAFT' ? 'draft' : 'posted',
     status: draft.status === 'DRAFT' ? 'Draft' : 'Posted',
@@ -71,7 +154,7 @@ export function mergeSessionMarketplaceData(
     tender: draft.status === 'PUBLISHED' ? createMarketplaceTenderFromDraft(draft, organization) : undefined,
     lastActivity: draft.publishedAt?.slice(0, 10) || draft.updatedAt.slice(0, 10),
     actionLabel: draft.status === 'DRAFT' ? 'Continue Draft' : 'View My Tender',
-    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=session-${draft.id}`
+    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=${draft.id}`
   }));
 
   const existingTenderIds = new Set(sessionTenderRows.map((row) => row.id));
@@ -86,7 +169,7 @@ export function mergeSessionMarketplaceData(
 
 function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization: string): MarketplaceTenderRow {
   return {
-    id: `session-${draft.id}`,
+    id: draft.id,
     reference: draft.reference,
     title: draft.title || 'Untitled tender',
     organization: draft.procuringEntity || organization,

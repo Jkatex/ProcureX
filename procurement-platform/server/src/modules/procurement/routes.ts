@@ -7,6 +7,13 @@ export function createModuleRouter() {
 
   router.get('/', controller.status);
   router.get('/public/welcome', controller.publicWelcome);
+  router.get('/master-data', controller.masterData);
+  router.get('/master-data/:group', controller.masterDataGroup);
+  router.get('/design/taxonomy', controller.taxonomy);
+  router.post('/design/standardize-category', controller.standardizeCategory);
+  router.post('/design/scan-language', controller.scanLanguage);
+  router.get('/design/form-schemas', controller.designFormSchemas);
+  router.get('/design/form-schemas/:type', controller.designFormSchema);
   router.get('/marketplace', controller.marketplace);
   router.post('/tenders', controller.createTender);
   router.patch('/tenders/:tenderId', controller.updateTender);

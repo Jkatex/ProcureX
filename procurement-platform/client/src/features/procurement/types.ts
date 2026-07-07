@@ -430,6 +430,8 @@ export type CreateTenderSubmissionResult = {
 };
 
 export type MarketplaceTenderRow = Tender & {
+  category?: string;
+  ownerOrganization?: string;
   ownedByCurrentOrganization?: boolean;
   canBid?: boolean;
   hasDraftBid?: boolean;
@@ -469,13 +471,89 @@ export type MarketplacePayload = {
   myBids: MyBidRow[];
 };
 
+export type TenderDraftValidation = {
+  warnings: string[];
+  missingRequiredFields: Array<{ path: string; label: string; section: string }>;
+  schemaVersion: string;
+};
+
+export type CreateTenderPayload = {
+  title: string;
+  description: string;
+  type: 'Goods' | 'Works' | 'Non Consultancy' | 'Consultancy';
+  categories: string[];
+  budget?: number;
+  currency: string;
+  location: string;
+  closingDate?: string;
+  requirements: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+};
+
+export type UpdateTenderPayload = Partial<CreateTenderPayload>;
+
+export type CreateTenderResponse = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    type: string;
+    createdAt: string;
+  };
+  validation?: TenderDraftValidation;
+};
+
+export type UpdateTenderResponse = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    updatedAt: string;
+  };
+  validation?: TenderDraftValidation;
+};
+
+export type PublishTenderResponse = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+    visibility: string;
+    publishedAt: string;
+    closingDate: string;
+  };
+  validation?: {
+    warnings: string[];
+    scannerIssues: Array<Record<string, unknown>>;
+    standardizedCategories: string[];
+  };
+  languageScan?: Record<string, unknown>;
+};
+
+export type PublishTenderFailure = {
+  success: false;
+  message: string;
+  errors: Array<{ step?: string; field?: string; message: string; severity?: string }>;
+};
+
 export type TenderDetail = MarketplaceTenderRow & {
   buyerOrgId?: string;
   ownerUserId?: string | null;
   method?: string;
+  contractType?: string | null;
   visibility?: string;
   publishedAt?: string | null;
   requirements?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   requirementRows?: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
   milestones?: Array<{ id: string; name: string; dueDate: string | null; payload: Record<string, unknown> }>;
   commercialItems?: Array<{
@@ -498,6 +576,7 @@ export type TenderDetail = MarketplaceTenderRow & {
   };
   currentBid?: {
     id: string;
+    reference?: string;
     status: string;
     submittedAt: string | null;
     receiptHash: string | null;
