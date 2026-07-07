@@ -105,7 +105,13 @@ export class ModuleService {
       excludingBidId: bid.id
     });
     if (hasSubmittedBid) throw requestError('A submitted bid already exists for this tender.', 409);
-    const issues = validateBidForSubmission(bid.payload, bid.responses.length, Number(bid.totalAmount ?? 0));
+    const issues = validateBidForSubmission({
+      tenderType: bid.tender.type,
+      payload: bid.payload,
+      responseCount: bid.responses.length,
+      documentCount: bid.documents.length,
+      totalAmount: Number(bid.totalAmount ?? 0)
+    });
     if (issues.length) throw requestError(`Complete required bid sections before submitting: ${issues.join(', ')}.`, 400);
     const submitted = await this.repository.submit({ bid, userId: session.user.id });
     if (!submitted.receipt) throw requestError('Bid receipt was not created.', 500);
@@ -146,13 +152,32 @@ function assertSupplierOwnsBid(bid: { supplierOrgId: string }, organizationId?: 
   if (!organizationId || bid.supplierOrgId !== organizationId) throw requestError('Bid access is not allowed.', 403);
 }
 
-function validateBidForSubmission(payload: unknown, responseCount: number, totalAmount: number) {
+function validateBidForSubmission(input: { tenderType?: string; payload: unknown; responseCount: number; documentCount: number; totalAmount: number }) {
+  const { tenderType, payload, responseCount, documentCount, totalAmount } = input;
   const body = objectPayload(payload);
   const declarations = objectPayload(body.declarations);
+  const administrative = objectPayload(body.administrative);
+  const technical = objectPayload(body.technical);
+  const financial = objectPayload(body.financial);
+  const workflowType = String(body.workflowType || tenderType || 'generic').toLowerCase();
   const issues: string[] = [];
+  if (!administrative.eligible || !administrative.authorized) issues.push('administrative confirmations');
   if (responseCount < 1) issues.push('technical response');
   if (!Number.isFinite(totalAmount) || totalAmount <= 0) issues.push('financial offer');
-  if (declarations.confirmAccuracy !== true && declarations.acceptTerms !== true) issues.push('declaration');
+  if (declarations.confirmAccuracy !== true || declarations.acceptTerms !== true) issues.push('declarations');
+  if (documentCount < 1) issues.push('supporting documents');
+  if (workflowType.includes('goods')) {
+    if (!Array.isArray(financial.items) || financial.items.length < 1) issues.push('goods quantity schedule');
+  } else if (workflowType.includes('works')) {
+    if (!Array.isArray(financial.boqItems) && !Array.isArray(financial.items)) issues.push('works BOQ');
+    if (!technical.methodology && !technical.workPlan) issues.push('works methodology');
+  } else if (workflowType.includes('services') || workflowType.includes('non consultancy')) {
+    if (!technical.methodology && !technical.deliveryPlan) issues.push('service methodology');
+    if (!technical.sla && !technical.reportingPlan) issues.push('service SLA and reporting');
+  } else if (workflowType.includes('consultancy')) {
+    if (!technical.technicalProposal && !technical.methodology) issues.push('consultancy technical proposal');
+    if (!Array.isArray(financial.fees) && !Array.isArray(financial.items)) issues.push('consultancy financial proposal');
+  }
   return issues;
 }
 

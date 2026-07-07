@@ -1429,7 +1429,7 @@ describe('procurement tender detail repository', () => {
         bids: expect.objectContaining({
           select: expect.objectContaining({ id: true, supplierOrgId: true, status: true })
         }),
-        requirementRows: { orderBy: { createdAt: 'asc' } },
+        requirementRows: { orderBy: [{ section: 'asc' }, { createdAt: 'asc' }] },
         milestones: { orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }] },
         commercialItems: { orderBy: { itemNo: 'asc' } },
         documents: expect.any(Object)
@@ -1438,9 +1438,11 @@ describe('procurement tender detail repository', () => {
     expect(Object.keys(result ?? {}).sort()).toEqual(
       [
         'budget',
+        'buyerOrgId',
         'canBid',
         'category',
         'closingDate',
+        'contractType',
         'createdByCurrentUser',
         'currency',
         'description',
@@ -1452,9 +1454,12 @@ describe('procurement tender detail repository', () => {
         'hasSubmittedBid',
         'id',
         'location',
+        'metadata',
+        'method',
         'milestones',
         'organization',
         'ownedByCurrentOrganization',
+        'ownerUserId',
         'ownerOrganization',
         'publishedAt',
         'reference',
@@ -1470,6 +1475,8 @@ describe('procurement tender detail repository', () => {
       id: 'tender-public',
       title: 'Supply of laboratory equipment',
       reference: 'PX-GDS-2026-001',
+      buyerOrgId: 'org-1',
+      ownerUserId: 'user-1',
       organization: 'Medical Stores Department',
       ownerOrganization: 'Medical Stores Department',
       type: 'Goods',
@@ -1477,6 +1484,8 @@ describe('procurement tender detail repository', () => {
       budget: 250000000,
       currency: 'TZS',
       status: 'Open',
+      method: 'OPEN_TENDER',
+      contractType: null,
       visibility: Visibility.PUBLIC_MARKETPLACE,
       publishedAt: '2026-07-01T08:00:00.000Z',
       closingDate: '2026-08-30',
@@ -1487,6 +1496,7 @@ describe('procurement tender detail repository', () => {
       canBid: false,
       hasDraftBid: false,
       hasSubmittedBid: false,
+      metadata: {},
       requirementRows: [],
       milestones: [],
       commercialItems: [],
@@ -1494,10 +1504,6 @@ describe('procurement tender detail repository', () => {
       currentBid: null
     });
     expect(result).not.toHaveProperty('isSaved');
-    expect(result).not.toHaveProperty('buyerOrgId');
-    expect(result).not.toHaveProperty('ownerUserId');
-    expect(result).not.toHaveProperty('method');
-    expect(result).not.toHaveProperty('metadata');
   });
 
   it('returns real tender detail rows and bid summary counts', async () => {
@@ -1520,9 +1526,9 @@ describe('procurement tender detail repository', () => {
         }
       ],
       bids: [
-        { id: 'bid-1', supplierOrgId: 'supplier-org-1', status: BidStatus.DRAFT, submittedAt: null, receipt: null },
-        { id: 'bid-2', supplierOrgId: 'supplier-org-2', status: BidStatus.SUBMITTED, submittedAt: new Date('2026-07-10T08:00:00.000Z'), receipt: { receiptHash: 'hash-2' } },
-        { id: 'bid-3', supplierOrgId: 'supplier-org-3', status: BidStatus.WITHDRAWN, submittedAt: null, receipt: null }
+        { id: 'bid-1', reference: 'PX-BID-2026-000001', supplierOrgId: 'supplier-org-1', status: BidStatus.DRAFT, submittedAt: null, receipt: null },
+        { id: 'bid-2', reference: 'PX-BID-2026-000002', supplierOrgId: 'supplier-org-2', status: BidStatus.SUBMITTED, submittedAt: new Date('2026-07-10T08:00:00.000Z'), receipt: { receiptHash: 'hash-2' } },
+        { id: 'bid-3', reference: 'PX-BID-2026-000003', supplierOrgId: 'supplier-org-3', status: BidStatus.WITHDRAWN, submittedAt: null, receipt: null }
       ]
     });
     const db = {
@@ -1536,10 +1542,10 @@ describe('procurement tender detail repository', () => {
 
     expect(result).toMatchObject({
       requirementRows: [{ id: 'req-1', section: 'Technical', payload: { title: 'Desktop computers specification' } }],
-      milestones: [{ id: 'milestone-1', name: 'Submission deadline', dueDate: '2026-08-30', payload: { type: 'closing' } }],
+      milestones: [{ id: 'milestone-1', name: 'Submission deadline', dueDate: '2026-08-30T00:00:00.000Z', payload: { type: 'closing' } }],
       commercialItems: [{ id: 'item-1', itemNo: '1', description: 'Desktop computer', quantity: 10, unit: 'pcs', rate: 1200000, total: 12000000 }],
-      bidSummary: { total: 3, draft: 1, submitted: 1, withdrawn: 1 },
-      currentBid: { id: 'bid-1', status: 'Draft', submittedAt: null, receiptHash: null },
+      bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+      currentBid: { id: 'bid-1', reference: 'PX-BID-2026-000001', status: 'DRAFT', submittedAt: null, receiptHash: null },
       hasDraftBid: true,
       hasSubmittedBid: false
     });

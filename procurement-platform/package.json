@@ -11,9 +11,11 @@
     "shared"
   ],
   "scripts": {
-    "dev": "npm --workspace server run dev",
+    "dev": "node scripts/run-platform-dev.mjs",
+    "dev:server": "npm --workspace server run dev",
     "dev:server:example": "npm --workspace server run dev:example",
     "dev:client": "npm --workspace client run dev",
+    "dev:client:example": "npm --workspace client run dev:example",
     "build": "npm --workspace shared run build && npm --workspace server run build && npm --workspace client run build",
     "build:client": "npm --workspace shared run build && npm --workspace client run build",
     "test": "npm --workspace server test && npm --workspace client test",

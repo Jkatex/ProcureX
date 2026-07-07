@@ -16,16 +16,24 @@ export type BidDocumentInput = {
   documentType: string;
   envelope?: 'TECHNICAL' | 'FINANCIAL' | 'COMBINED';
   checksum?: string;
+  objectKey?: string;
+  size?: number;
+  mimeType?: string;
   metadata?: Record<string, unknown>;
 };
 
 export type BidDraftInput = {
+  workflowType?: 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
+  workflowVersion?: string;
   administrative: Record<string, unknown>;
   technical: Record<string, unknown>;
   financial: Record<string, unknown>;
   declarations: Record<string, unknown>;
   responses: Array<{ requirementKey: string; response: Record<string, unknown> }>;
   documents: BidDocumentInput[];
+  fileManifest?: Record<string, unknown>;
+  envelopes?: Record<string, unknown>;
+  reviewReadiness?: Record<string, unknown>;
   totalAmount?: number;
   currency?: string;
   completeness?: Record<string, unknown>;
