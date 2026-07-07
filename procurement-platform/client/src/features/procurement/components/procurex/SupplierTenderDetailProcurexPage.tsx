@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { procurementApi } from '../../api';
 import { useTenderDetail } from '../../hooks';
 import type { TenderDetail } from '../../types';
 import {
@@ -25,6 +27,7 @@ export function SupplierTenderDetailProcurexPage() {
   const [params] = useSearchParams();
   const tenderId = params.get('tenderId');
   const { data: tender, isLoading, isError } = useTenderDetail(tenderId);
+  const [isRecordingDownload, setIsRecordingDownload] = useState(false);
 
   if (!tenderId) return <EmptyTenderDetail message="Open a tender from the marketplace to view its supplier tender pack." />;
   if (isLoading) return <EmptyTenderDetail message="Loading tender detail..." />;
@@ -35,6 +38,16 @@ export function SupplierTenderDetailProcurexPage() {
   const alreadyBid = tender.currentBid?.status === 'SUBMITTED' || tender.hasSubmittedBid;
   const canBid = Boolean(tender.canBid ?? (!tender.ownedByCurrentOrganization && !alreadyBid));
   const bidUrl = `/bidding?tenderId=${tender.id}`;
+  const primaryDocumentId = tender.documents?.[0]?.id;
+  const recordDownload = async () => {
+    if (!primaryDocumentId || isRecordingDownload) return;
+    setIsRecordingDownload(true);
+    try {
+      await procurementApi.recordTenderDocumentDownload(tender.id, primaryDocumentId);
+    } finally {
+      setIsRecordingDownload(false);
+    }
+  };
 
   return (
     <div className="procurement-app-page supplier-tender-detail-page">
@@ -71,7 +84,9 @@ export function SupplierTenderDetailProcurexPage() {
                 )}
                 <div className="supplier-detail-action-row">
                   <button className="btn btn-secondary" type="button">Open Document</button>
-                  <button className="btn btn-secondary" type="button">Download Document</button>
+                  <button className="btn btn-secondary" type="button" disabled={isRecordingDownload || !primaryDocumentId} onClick={recordDownload}>
+                    {isRecordingDownload ? 'Recording...' : 'Download Document'}
+                  </button>
                 </div>
                 <div className="supplier-detail-action-row">
                   <button className="btn btn-secondary" type="button" disabled={tender.ownedByCurrentOrganization}>{tender.isSaved ? 'Saved' : 'Save Tender'}</button>

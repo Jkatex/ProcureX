@@ -76,7 +76,8 @@ describe('procurementApi tender detail fallback', () => {
         hasSubmittedBid: false,
         visibility: 'PUBLIC_MARKETPLACE',
         publishedAt: '2026-07-01T08:00:00.000Z',
-        requirements: {}
+        requirements: {},
+        activity: { marketplaceViews: 9, documentDownloads: 2, clarifications: 0 }
       }
     });
 
@@ -85,6 +86,19 @@ describe('procurementApi tender detail fallback', () => {
     expect(result.categories).toEqual(['Medical Equipment']);
     expect(result.requirementRows).toEqual([]);
     expect(result.bidSummary).toEqual({ total: 0, draft: 0, submitted: 0, withdrawn: 0 });
+    expect(result.activity).toEqual({ marketplaceViews: 9, documentDownloads: 2, clarifications: 0 });
+  });
+
+  it('records tender document downloads through the procurement endpoint', async () => {
+    vi.spyOn(apiClient, 'post').mockResolvedValueOnce({
+      data: { success: true, message: 'Document download recorded' }
+    });
+
+    await expect(procurementApi.recordTenderDocumentDownload('tender-1', 'doc-1')).resolves.toEqual({
+      success: true,
+      message: 'Document download recorded'
+    });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/procurement/tenders/tender-1/documents/doc-1/download', {});
   });
 
   it('keeps persisted ids in session-published My Tenders links', () => {

@@ -1,4 +1,7 @@
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { ProcurementMethod, TenderStatus, Visibility } from '@prisma/client';
+import { Readable } from 'node:stream';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { getProcurementTaxonomy, standardizeCategory, standardizeCategoryList } from './category-taxonomy.js';
 import { getProcurementDesignFormSchema, getProcurementDesignFormSchemas, procurementDesignSchemaVersion } from './design-form-schemas.js';
 import { scanTenderLanguage } from './design-language-scanner.js';
@@ -6,6 +9,7 @@ import { responseValidation, schemaMetadata, tenderTypeProfile, validateTenderDr
 import { getProcurementMasterDataGroup, getProcurementMasterDataGroups } from './master-data.js';
 import { ModuleRepository } from './repository.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
+import { ModuleService as EvaluationService } from '../evaluation/service.js';
 import { isProductionRuntime } from '../../security/config.js';
 import {
   type CloseTenderResponseDto,
@@ -35,6 +39,13 @@ import {
   type SaveAnnualPlanInput,
   type SavedTendersPayload,
   type SaveTenderResponseDto,
+  type OpenEvaluationResponseDto,
+  type TenderAmendmentInput,
+  type TenderAmendmentPatchInput,
+  type TenderAmendmentResponseDto,
+  type TenderAmendmentsResponseDto,
+  type TenderDocumentDownloadResponseDto,
+  type TenderDocumentStreamDto,
   type TenderDetailDto,
   type TenderLanguageScanInput,
   type TenderLanguageScanResponseDto,
@@ -73,7 +84,8 @@ function publishValidationError(errors: PublishValidationIssueDto[], status = 40
 export class ModuleService {
   constructor(
     private readonly repository = new ModuleRepository(),
-    private readonly identity = new IdentityService()
+    private readonly identity = new IdentityService(),
+    private readonly evaluation = new EvaluationService()
   ) {}
 
   async status(): Promise<ModuleStatus> {
@@ -158,6 +170,73 @@ export class ModuleService {
   async getTenderDetail(tenderId: string, token?: string): Promise<TenderDetailDto | null> {
     const context = await this.contextFromToken(token);
     return this.repository.getTenderDetail(tenderId, context);
+  }
+
+  async recordTenderDocumentDownload(tenderId: string, documentId: string, token?: string): Promise<TenderDocumentDownloadResponseDto | null> {
+    const context = await this.contextFromToken(token);
+    return this.repository.recordTenderDocumentDownload(tenderId, documentId, context);
+  }
+
+  async tenderDocumentStream(tenderId: string, documentId: string, disposition: TenderDocumentStreamDto['disposition'], token?: string) {
+    const context = await this.contextFromToken(token);
+    const document = await this.repository.getTenderDocumentForStream(tenderId, documentId, context, disposition);
+    if (!document) return null;
+    const response = await s3Client().send(new GetObjectCommand({ Bucket: requiredDocumentBucket(), Key: document.objectKey }));
+    return {
+      document,
+      contentType: response.ContentType || contentTypeForDocument(document),
+      contentLength: response.ContentLength,
+      stream: await toNodeReadable(response.Body)
+    };
+  }
+
+  async listTenderAmendments(tenderId: string, token?: string): Promise<TenderAmendmentsResponseDto | null> {
+    const context = await this.contextFromToken(token);
+    return this.repository.listTenderAmendments(tenderId, context);
+  }
+
+  async createTenderAmendment(tenderId: string, token: string | undefined, input: TenderAmendmentInput): Promise<TenderAmendmentResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.createTenderAmendment(tenderId, input, { organizationId, userId: session.user.id });
+  }
+
+  async updateTenderAmendment(tenderId: string, amendmentId: string, token: string | undefined, input: TenderAmendmentPatchInput): Promise<TenderAmendmentResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.updateTenderAmendment(tenderId, amendmentId, input, { organizationId, userId: session.user.id });
+  }
+
+  async publishTenderAmendment(tenderId: string, amendmentId: string, token: string | undefined): Promise<TenderAmendmentResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.publishTenderAmendment(tenderId, amendmentId, { organizationId, userId: session.user.id });
+  }
+
+  async cancelTenderAmendment(tenderId: string, amendmentId: string, token: string | undefined): Promise<TenderAmendmentResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.cancelTenderAmendment(tenderId, amendmentId, { organizationId, userId: session.user.id });
+  }
+
+  async openEvaluation(tenderId: string, token: string | undefined): Promise<OpenEvaluationResponseDto> {
+    const session = await this.identity.requirePermission(token, 'evaluation.manage');
+    const organizationId = requireOrganization(session.user.organizationId);
+    const tender = await this.repository.getTenderForEvaluationOpen(tenderId);
+    if (!tender) throw requestError('Tender was not found.', 404);
+    if (tender.buyerOrgId !== organizationId) throw requestError('Only the owner organization can open evaluation for this tender.', 403);
+    const workspace = await this.evaluation.workspace(tenderId, { organizationId, userId: session.user.id });
+    if (!workspace.availability.isReady) {
+      throw requestError(workspace.availability.reason ?? 'Tender is not ready for evaluation.', 409);
+    }
+    return {
+      success: true,
+      nav: `/evaluation?tenderId=${tenderId}`,
+      data: {
+        tenderId,
+        availability: workspace.availability
+      }
+    };
   }
 
   async createTender(token: string | undefined, input: CreateTenderInput): Promise<CreateTenderResponseDto> {
@@ -600,6 +679,59 @@ function numericValue(value: unknown) {
 
 function roundWeight(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+let cachedS3Client: S3Client | null = null;
+
+function s3Client() {
+  if (cachedS3Client) return cachedS3Client;
+  cachedS3Client = new S3Client({
+    endpoint: process.env.S3_ENDPOINT || undefined,
+    region: process.env.S3_REGION || 'us-east-1',
+    credentials:
+      process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
+        ? {
+            accessKeyId: process.env.S3_ACCESS_KEY_ID,
+            secretAccessKey: process.env.S3_SECRET_ACCESS_KEY
+          }
+        : undefined,
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true'
+  });
+  return cachedS3Client;
+}
+
+function requiredDocumentBucket() {
+  const bucket = process.env.S3_DOCUMENT_BUCKET;
+  if (!bucket) throw requestError('Document storage is not configured.', 503);
+  return bucket;
+}
+
+function contentTypeForDocument(document: Pick<TenderDocumentStreamDto, 'documentType' | 'name'>) {
+  const value = `${document.documentType} ${document.name}`.toLowerCase();
+  if (value.includes('pdf')) return 'application/pdf';
+  if (value.endsWith('.docx') || value.includes('word')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (value.endsWith('.xlsx') || value.includes('excel') || value.includes('spreadsheet')) {
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  }
+  if (value.endsWith('.csv')) return 'text/csv';
+  if (value.endsWith('.txt')) return 'text/plain';
+  return 'application/octet-stream';
+}
+
+async function toNodeReadable(body: unknown): Promise<Readable> {
+  if (!body) throw requestError('Document content was not available.', 502);
+  if (body instanceof Readable) return body;
+  if (typeof body === 'object' && body !== null && 'pipe' in body) return body as Readable;
+  if (typeof body === 'object' && body !== null && 'transformToWebStream' in body) {
+    const stream = (body as { transformToWebStream: () => ReadableStream }).transformToWebStream();
+    return Readable.fromWeb(stream as unknown as NodeReadableStream);
+  }
+  if (typeof body === 'object' && body !== null && 'transformToByteArray' in body) {
+    const bytes = await (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+    return Readable.from(Buffer.from(bytes));
+  }
+  if (body instanceof Uint8Array) return Readable.from(Buffer.from(body));
+  throw requestError('Document content could not be streamed.', 502);
 }
 
 function assertTenderPublishable(tender: {

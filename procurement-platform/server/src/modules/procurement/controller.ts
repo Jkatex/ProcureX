@@ -20,6 +20,10 @@ import {
   saveAnnualPlanBodySchema,
   standardizeCategoryBodySchema,
   taxonomyQuerySchema,
+  tenderAmendmentBodySchema,
+  tenderAmendmentParamsSchema,
+  tenderAmendmentPatchBodySchema,
+  tenderDocumentDownloadParamsSchema,
   tenderParamsSchema,
   updateTenderBodySchema,
   updatePlanBodySchema
@@ -200,6 +204,120 @@ export class ModuleController {
     }
   };
 
+  recordTenderDocumentDownload: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderDocumentDownloadParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const result = await this.service.recordTenderDocumentDownload(params.data.tenderId, params.data.documentId, bearerToken(req));
+      if (!result) throw requestError('Tender document was not found.', 404);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  openTenderDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderDocumentDownloadParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const result = await this.service.tenderDocumentStream(params.data.tenderId, params.data.documentId, 'inline', bearerToken(req));
+      if (!result) throw requestError('Tender document was not found.', 404);
+      streamTenderDocument(res, result, 'inline', next);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  downloadTenderDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderDocumentDownloadParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const result = await this.service.tenderDocumentStream(params.data.tenderId, params.data.documentId, 'attachment', bearerToken(req));
+      if (!result) throw requestError('Tender document was not found.', 404);
+      streamTenderDocument(res, result, 'attachment', next);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  listTenderAmendments: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const result = await this.service.listTenderAmendments(params.data.tenderId, bearerToken(req));
+      if (!result) throw requestError('Tender was not found.', 404);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createTenderAmendment: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const body = tenderAmendmentBodySchema.safeParse(req.body);
+      if (!body.success) return validationResponse(res, body.error);
+      const result = await this.service.createTenderAmendment(params.data.tenderId, bearerToken(req), body.data);
+      if (!result) throw requestError('Tender was not found.', 404);
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateTenderAmendment: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderAmendmentParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const body = tenderAmendmentPatchBodySchema.safeParse(req.body);
+      if (!body.success) return validationResponse(res, body.error);
+      const result = await this.service.updateTenderAmendment(params.data.tenderId, params.data.amendmentId, bearerToken(req), body.data);
+      if (!result) throw requestError('Tender amendment was not found.', 404);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  publishTenderAmendment: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderAmendmentParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const body = publishTenderBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      const result = await this.service.publishTenderAmendment(params.data.tenderId, params.data.amendmentId, bearerToken(req));
+      if (!result) throw requestError('Tender amendment was not found.', 404);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  cancelTenderAmendment: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderAmendmentParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const body = publishTenderBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      const result = await this.service.cancelTenderAmendment(params.data.tenderId, params.data.amendmentId, bearerToken(req));
+      if (!result) throw requestError('Tender amendment was not found.', 404);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  openEvaluation: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      res.json(await this.service.openEvaluation(params.data.tenderId, bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   savedTenders: RequestHandler = async (req, res, next) => {
     try {
       res.json(await this.service.savedTenders(bearerToken(req)));
@@ -360,4 +478,25 @@ function bearerToken(req: Parameters<RequestHandler>[0]) {
   const header = req.header('authorization');
   if (!header?.toLowerCase().startsWith('bearer ')) return undefined;
   return header.slice(7).trim();
+}
+
+function streamTenderDocument(
+  res: Response,
+  result: Awaited<ReturnType<ModuleService['tenderDocumentStream']>> & NonNullable<Awaited<ReturnType<ModuleService['tenderDocumentStream']>>>,
+  disposition: 'inline' | 'attachment',
+  next: Parameters<RequestHandler>[2]
+) {
+  res.setHeader('Content-Type', result.contentType);
+  res.setHeader('Content-Disposition', `${disposition}; filename="${safeHeaderFilename(result.document.name)}"`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (typeof result.contentLength === 'number') res.setHeader('Content-Length', String(result.contentLength));
+  result.stream.on('error', (error) => {
+    if (!res.headersSent) next(error);
+    else res.destroy(error);
+  });
+  result.stream.pipe(res);
+}
+
+function safeHeaderFilename(filename: string) {
+  return filename.replace(/["\\\r\n]/g, '_') || 'document';
 }

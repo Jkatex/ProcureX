@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { procurementApi } from '../../api';
 import { useTenderDetail } from '../../hooks';
 import type { TenderDetail } from '../../types';
 import {
@@ -25,6 +27,7 @@ export function TenderDetailsProcurexPage() {
   const [params] = useSearchParams();
   const tenderId = params.get('tenderId');
   const { data: tender, isLoading, isError } = useTenderDetail(tenderId);
+  const [isRecordingDownload, setIsRecordingDownload] = useState(false);
 
   if (!tenderId) return <BuyerEmpty message="Open one of your tenders from My Tenders to view buyer details." />;
   if (isLoading) return <BuyerEmpty message="Loading buyer tender detail..." />;
@@ -33,6 +36,18 @@ export function TenderDetailsProcurexPage() {
   const remainingDays = daysRemaining(tender.closingDate);
   const past = isPastTender(tender);
   const interestedSuppliers = Math.max(tender.bidSummary?.total ?? 0, tender.hasDraftBid || tender.hasSubmittedBid ? 1 : 0);
+  const marketplaceViews = activityValue(tender.activity?.marketplaceViews, 180 + interestedSuppliers * 22);
+  const documentDownloads = activityValue(tender.activity?.documentDownloads, 45 + (tender.documents?.length ?? 0) * 11);
+  const primaryDocumentId = tender.documents?.[0]?.id;
+  const recordDownload = async () => {
+    if (!primaryDocumentId || isRecordingDownload) return;
+    setIsRecordingDownload(true);
+    try {
+      await procurementApi.recordTenderDocumentDownload(tender.id, primaryDocumentId);
+    } finally {
+      setIsRecordingDownload(false);
+    }
+  };
 
   return (
     <div className="procurement-app-page tender-detail-page">
@@ -61,7 +76,9 @@ export function TenderDetailsProcurexPage() {
               </div>
               <div className="hero-action-stack">
                 <button className="btn btn-secondary" type="button">Open Document</button>
-                <button className="btn btn-secondary" type="button">Download Document</button>
+                <button className="btn btn-secondary" type="button" disabled={isRecordingDownload || !primaryDocumentId} onClick={recordDownload}>
+                  {isRecordingDownload ? 'Recording...' : 'Download Document'}
+                </button>
                 <button className="btn btn-secondary" type="button">Create Amendment</button>
                 <Link className="btn btn-primary" to="/evaluation">Open Evaluation</Link>
               </div>
@@ -70,11 +87,11 @@ export function TenderDetailsProcurexPage() {
             <section className="buyer-tender-status-list" aria-label="Tender activity summary">
               <article className="buyer-tender-status-row">
                 <span>Marketplace views</span>
-                <strong>{180 + interestedSuppliers * 22}</strong>
+                <strong>{marketplaceViews}</strong>
               </article>
               <article className="buyer-tender-status-row">
                 <span>Document downloads</span>
-                <strong>{45 + (tender.documents?.length ?? 0) * 11}</strong>
+                <strong>{documentDownloads}</strong>
               </article>
               <article className="buyer-tender-status-row">
                 <span>Time to close</span>
@@ -112,8 +129,8 @@ function BuyerSupplierActivity({ tender, remainingDays, past }: { tender: Tender
   const supplierCount = tender.bidSummary?.total ?? submitted + draft;
   const clarificationCount: number = 0;
   const documentCount = tender.documents?.length ?? 0;
-  const marketplaceViews = 180 + supplierCount * 22;
-  const documentDownloads = 45 + supplierCount * 11;
+  const marketplaceViews = activityValue(tender.activity?.marketplaceViews, 180 + supplierCount * 22);
+  const documentDownloads = activityValue(tender.activity?.documentDownloads, 45 + supplierCount * 11);
   return (
     <section className="buyer-tender-detail-rows">
       <article className="journey-panel">
@@ -305,6 +322,10 @@ function BuyerAmendmentPlaceholder() {
       </div>
     </section>
   );
+}
+
+function activityValue(value: number | undefined, fallback: number) {
+  return Number.isFinite(value) ? Number(value) : fallback;
 }
 
 function BuyerEmpty({ message, title = 'Tender detail' }: { message: string; title?: string }) {

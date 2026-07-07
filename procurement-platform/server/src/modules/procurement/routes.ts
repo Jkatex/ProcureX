@@ -18,6 +18,15 @@ export function createModuleRouter() {
   router.post('/tenders', controller.createTender);
   router.patch('/tenders/:tenderId', controller.updateTender);
   router.get('/saved-tenders', controller.savedTenders);
+  router.get('/tenders/:tenderId/documents/:documentId/open', controller.openTenderDocument);
+  router.get('/tenders/:tenderId/documents/:documentId/download', controller.downloadTenderDocument);
+  router.post('/tenders/:tenderId/documents/:documentId/download', controller.recordTenderDocumentDownload);
+  router.get('/tenders/:tenderId/amendments', controller.listTenderAmendments);
+  router.post('/tenders/:tenderId/amendments', controller.createTenderAmendment);
+  router.patch('/tenders/:tenderId/amendments/:amendmentId', controller.updateTenderAmendment);
+  router.post('/tenders/:tenderId/amendments/:amendmentId/publish', controller.publishTenderAmendment);
+  router.post('/tenders/:tenderId/amendments/:amendmentId/cancel', controller.cancelTenderAmendment);
+  router.post('/tenders/:tenderId/evaluation/open', controller.openEvaluation);
   router.get('/tenders/:tenderId', controller.getTenderDetail);
   router.post('/tenders/:tenderId/save', controller.saveTender);
   router.delete('/tenders/:tenderId/save', controller.unsaveTender);

@@ -603,7 +603,7 @@ export type TenderDetailDto = {
     total: number;
     payload: Record<string, unknown>;
   }>;
-  documents: Array<{ id: string; name: string; documentType: string; label: string | null }>;
+  documents: Array<{ id: string; name: string; documentType: string; label: string | null; openUrl: string; downloadUrl: string }>;
   createdByCurrentUser: boolean;
   ownedByCurrentOrganization: boolean;
   canBid: boolean;
@@ -622,4 +622,75 @@ export type TenderDetailDto = {
     submittedAt: string | null;
     receiptHash: string | null;
   } | null;
+  activity: {
+    marketplaceViews: number;
+    documentDownloads: number;
+    clarifications: number;
+  };
+  amendmentSummary: {
+    total: number;
+    published: number;
+    draft: number;
+  };
+};
+
+export type TenderDocumentDownloadResponseDto = {
+  success: true;
+  message: 'Document download recorded';
+};
+
+export type TenderDocumentStreamDto = {
+  id: string;
+  name: string;
+  documentType: string;
+  objectKey: string;
+  disposition: 'inline' | 'attachment';
+};
+
+export type TenderAmendmentInput = {
+  title: string;
+  summary?: string;
+  payload: Record<string, unknown>;
+};
+
+export type TenderAmendmentPatchInput = {
+  title?: string;
+  summary?: string;
+  payload?: Record<string, unknown>;
+};
+
+export type TenderAmendmentDto = {
+  id: string;
+  tenderId: string;
+  reference: string;
+  title: string;
+  summary: string;
+  status: string;
+  payload: Record<string, unknown>;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TenderAmendmentsResponseDto = {
+  success: true;
+  data: TenderAmendmentDto[];
+};
+
+export type TenderAmendmentResponseDto = {
+  success: true;
+  message: string;
+  data: TenderAmendmentDto;
+};
+
+export type OpenEvaluationResponseDto = {
+  success: true;
+  nav: string;
+  data: {
+    tenderId: string;
+    availability: {
+      isReady: boolean;
+      reason: string | null;
+    };
+  };
 };
