@@ -18,21 +18,23 @@ export interface PhoneValidationProvider {
   validate(input: PhoneValidationRequest): Promise<PhoneValidationResult>;
 }
 
-export class BeemPhoneValidationProvider implements PhoneValidationProvider {
+export class LocalPhoneValidationProvider implements PhoneValidationProvider {
   async validate(input: PhoneValidationRequest): Promise<PhoneValidationResult> {
     const valid = /^\+[1-9]\d{7,14}$/.test(input.phone);
     return {
-      provider: 'beem-phone-validation',
+      provider: 'local-phone-validation',
       configured: false,
       accepted: valid,
       reasons: valid ? [] : ['Phone number must use a valid international format.'],
       checks: { valid },
       providerMetadata: {
-        note: 'Beem SMS delivery is the configured production sender; no separate Beem number-insight endpoint is configured.'
+        note: 'SMS delivery is handled by the configured provider; no separate number-insight endpoint is configured.'
       }
     };
   }
 }
+
+export class BeemPhoneValidationProvider extends LocalPhoneValidationProvider {}
 
 export function isPhoneValidationProviderFailure(error: unknown) {
   return Boolean((error as Error & { providerFailure?: true }).providerFailure);
