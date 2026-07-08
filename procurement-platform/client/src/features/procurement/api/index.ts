@@ -22,7 +22,7 @@ export const procurementApi = {
   async getMarketplace(currentUser?: SessionUser | null): Promise<MarketplacePayload> {
     try {
       const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
-      return response.data;
+      return normalizeMarketplacePayload(response.data);
     } catch {
       const [tenders, bids, workItems] = await Promise.all([mockApi.getTenders(), mockApi.getBids(), mockApi.getWorkItems()]);
       return buildMarketplacePayload(tenders, bids, workItems, currentUser);
@@ -31,13 +31,17 @@ export const procurementApi = {
   async getTenderDetail(tenderId: string): Promise<TenderDetail> {
     try {
       const response = await apiClient.get<TenderDetail>(`/api/procurement/tenders/${tenderId}`);
-      return response.data;
+      return normalizeTenderDetail(response.data);
     } catch {
       const tenders = await mockApi.getTenders();
       const tender = tenders.find((item) => item.id === tenderId || item.reference === tenderId);
       if (!tender) throw new Error('Tender not found');
       return buildTenderDetailFallback(tender);
     }
+  },
+  async recordTenderDocumentDownload(tenderId: string, documentId: string) {
+    const response = await apiClient.post<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/documents/${documentId}/download`, {});
+    return response.data;
   },
   async saveTender(tenderId: string) {
     const response = await apiClient.post<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/save`);
@@ -62,6 +66,65 @@ export const procurementApi = {
 };
 
 type WorkItemFixture = Awaited<ReturnType<typeof mockApi.getWorkItems>>[number];
+
+function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
+  return {
+    ...payload,
+    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow),
+    myTenders: (payload.myTenders ?? []).map((row) => ({
+      ...row,
+      tender: row.tender ? normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow) : undefined
+    })),
+    myBids: (payload.myBids ?? []).map((row) => ({
+      ...row,
+      tender: normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow)
+    }))
+  };
+}
+
+function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
+  return {
+    ...normalizeMarketplaceTenderRow(tender),
+    method: tender.method,
+    visibility: tender.visibility,
+    publishedAt: tender.publishedAt,
+    requirements: tender.requirements ?? {},
+    requirementRows: tender.requirementRows ?? [],
+    milestones: tender.milestones ?? [],
+    commercialItems: tender.commercialItems ?? [],
+    documents: tender.documents ?? [],
+    bidSummary: tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    currentBid: tender.currentBid ?? null,
+    activity: tender.activity
+  };
+}
+
+function normalizeMarketplaceTenderRow<T extends MarketplaceTenderRow>(tender: T): T {
+  const category = tender.category || categoryFromCategories(tender.categories) || String(tender.type || 'Tender');
+  return {
+    ...tender,
+    category,
+    categories: normalizeCategoryList(tender.categories, category),
+    currency: tender.currency || 'TZS',
+    ownerOrganization: tender.ownerOrganization || tender.organization,
+    createdByCurrentUser: Boolean(tender.createdByCurrentUser),
+    ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
+    canBid: Boolean(tender.canBid),
+    hasDraftBid: Boolean(tender.hasDraftBid),
+    hasSubmittedBid: Boolean(tender.hasSubmittedBid),
+    isSaved: Boolean(tender.isSaved)
+  };
+}
+
+function normalizeCategoryList(categories: string[] | undefined, fallback: string) {
+  const values = Array.isArray(categories) ? categories : [];
+  const normalized = values.map((category) => category.trim()).filter(Boolean);
+  return normalized.length ? normalized : [fallback].filter(Boolean);
+}
+
+function categoryFromCategories(categories: string[] | undefined) {
+  return Array.isArray(categories) ? categories.find((category) => category.trim())?.trim() : undefined;
+}
 
 function buildMarketplacePayload(tenders: Tender[], bids: Bid[], workItems: WorkItemFixture[], currentUser?: SessionUser | null): MarketplacePayload {
   const normalizedTenders = tenders.map((tender) => normalizeFixtureTender(tender, currentUser));

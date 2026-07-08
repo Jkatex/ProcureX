@@ -92,14 +92,18 @@ function emptyQueueAction(queue: AwardQueueId) {
   );
 }
 
-function dueSoonCount(rows: LifecycleAction[]) {
-  const now = Date.now();
-  const week = 7 * 24 * 60 * 60 * 1000;
-  return rows.filter((row) => {
-    if (!row.dueDate) return false;
-    const due = new Date(row.dueDate).getTime();
-    return Number.isFinite(due) && due >= now && due - now <= week;
-  }).length;
+function routeWithDefaultStep(row: LifecycleAction) {
+  const route = row.nextAction?.url || row.nextRoute || '/awards-contracts';
+  const [path, rawSearch = ''] = route.split('?');
+  const params = new URLSearchParams(rawSearch);
+  if (!params.has('step')) {
+    if (path.includes('/recommendation')) params.set('step', 'award-decision');
+    else if (path.includes('/award-response')) params.set('step', 'response');
+    else if (path.includes('/negotiation')) params.set('step', 'draft');
+    else if (path.includes('/post-award')) params.set('step', 'cmp');
+  }
+  const search = params.toString();
+  return search ? `${path}?${search}` : path;
 }
 
 export function AwardingContractsProcurexPage() {
@@ -144,11 +148,6 @@ export function AwardingContractsProcurexPage() {
     awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
     contractActions: queues['contracts-in-progress'].length + queues['active-contracts'].length
   };
-  const allRows = useMemo(() => queueIds.flatMap((queue) => queues[queue]), [queues]);
-  const buyerRowCount = allRows.filter((row) => row.roleContext === 'BUYER').length;
-  const supplierRowCount = allRows.filter((row) => row.roleContext === 'SUPPLIER').length;
-  const highRiskCount = allRows.filter((row) => /high|critical/i.test(row.riskLevel)).length;
-  const soonCount = dueSoonCount(allRows);
 
   function jumpToQueue(queue: AwardQueueId) {
     navigate(`/awards-contracts?queue=${queue}`);
@@ -160,7 +159,7 @@ export function AwardingContractsProcurexPage() {
   }
 
   function continueAction(row: LifecycleAction) {
-    navigate(row.nextAction?.url || row.nextRoute || '/awards-contracts');
+    navigate(routeWithDefaultStep(row));
   }
 
   return (
@@ -179,13 +178,6 @@ export function AwardingContractsProcurexPage() {
               { value: summary.contractActions, label: 'Contract actions' }
             ]}
           />
-
-          <section className="award-command-strip" aria-label="Award and contract command summary">
-            <article><span>Buyer work</span><strong>{buyerRowCount}</strong></article>
-            <article><span>Supplier work</span><strong>{supplierRowCount}</strong></article>
-            <article><span>High risk</span><strong>{highRiskCount}</strong></article>
-            <article><span>Due this week</span><strong>{soonCount}</strong></article>
-          </section>
 
           {isLoading && !dashboard ? (
             <RemoteStatePanel
@@ -232,8 +224,6 @@ export function AwardingContractsProcurexPage() {
             <div className="panel-heading">
               <div>
                 <span className="section-kicker">Lifecycle queues</span>
-                <h2>Work is sorted by required action, with role shown inside each row</h2>
-                <p className="panel-note">The dashboard keeps buyer and supplier responsibilities visible without forcing separate accounts.</p>
               </div>
             </div>
 
@@ -288,7 +278,6 @@ export function AwardingContractsProcurexPage() {
 
             <div className="awarding-tab-content">
               <div className={`tab-content ${activeQueue === 'my-urgent-actions' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="my-urgent-actions">
-                <p className="awarding-tab-note">This queue aggregates buyer and supplier work that needs attention across awards, contracts, invoices, variations, and closure.</p>
                 <QueueCards rows={filteredQueues['my-urgent-actions']} emptyMessage={emptyQueueMessage('my-urgent-actions', hasQueueSearch)} emptyAction={emptyQueueAction('my-urgent-actions')} onAction={followAction} />
               </div>
 

@@ -45,6 +45,8 @@ export const AWARD_CONTRACT_DEMO_PREFIX = 'PX-DEMO-AC';
 const demoOrganizationNames = [
   'ProcureX Demo Compliance Authority',
   'PX Demo National Procurement Authority',
+  'PX Demo Buyer Supplier Company',
+  'PX Demo External Buyer Authority',
   'PX Demo Accepted Supplier Ltd',
   'PX Demo Declined Supplier Ltd',
   'PX Demo Risky Supplier Ltd',
@@ -53,6 +55,7 @@ const demoOrganizationNames = [
 ];
 
 const demoUserEmails = [
+  'award-demo@procurex.tz',
   'award-admin@procurex.tz',
   'award-buyer@procurex.tz',
   'contract-manager@procurex.tz',
@@ -78,6 +81,7 @@ type DemoScenario = {
   title: string;
   procurementType: 'GOODS' | 'WORKS' | 'SERVICE' | 'CONSULTANCY' | 'IT';
   status: ContractStatus;
+  buyer?: DemoActor;
   supplier: DemoActor;
   amount: number;
 };
@@ -116,8 +120,15 @@ async function deleteIfIds(db: AnyDb, model: string, field: string, ids: string[
 }
 
 async function resetDemoDataset(db: AnyDb) {
+  const demoOrganizations = await db.organization.findMany({ where: { name: { in: demoOrganizationNames } }, select: { id: true } });
+  const demoOrganizationIds = demoOrganizations.map((item: { id: string }) => item.id);
   const contracts = await db.contract.findMany({
-    where: { reference: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } },
+    where: {
+      OR: [
+        { reference: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } },
+        ...(demoOrganizationIds.length ? [{ buyerOrgId: { in: demoOrganizationIds } }, { supplierOrgId: { in: demoOrganizationIds } }] : [])
+      ]
+    },
     select: { id: true, awardId: true, tenderId: true }
   });
   const contractIds = contracts.map((item: { id: string }) => item.id);
@@ -126,7 +137,8 @@ async function resetDemoDataset(db: AnyDb) {
     where: {
       OR: [
         { reference: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } },
-        ...(tenderIdsFromContracts.length ? [{ id: { in: tenderIdsFromContracts } }] : [])
+        ...(tenderIdsFromContracts.length ? [{ id: { in: tenderIdsFromContracts } }] : []),
+        ...(demoOrganizationIds.length ? [{ buyerOrgId: { in: demoOrganizationIds } }] : [])
       ]
     },
     select: { id: true }
@@ -369,8 +381,8 @@ async function upsertUser(db: AnyDb, org: any, email: string, displayName: strin
 }
 
 async function createActors(db: AnyDb) {
-  const platformOrg = await upsertOrganization(db, 'ProcureX Demo Compliance Authority', OrganizationKind.PLATFORM, []);
-  const buyerOrg = await upsertOrganization(db, 'PX Demo National Procurement Authority', OrganizationKind.COMPANY, [OrganizationCapabilityName.BUYER]);
+  const mainOrg = await upsertOrganization(db, 'PX Demo Buyer Supplier Company', OrganizationKind.COMPANY, [OrganizationCapabilityName.BUYER, OrganizationCapabilityName.SUPPLIER]);
+  const externalBuyerOrg = await upsertOrganization(db, 'PX Demo External Buyer Authority', OrganizationKind.COMPANY, [OrganizationCapabilityName.BUYER]);
   const supplierOrgs = {
     accepted: await upsertOrganization(db, 'PX Demo Accepted Supplier Ltd', OrganizationKind.COMPANY, [OrganizationCapabilityName.SUPPLIER]),
     declined: await upsertOrganization(db, 'PX Demo Declined Supplier Ltd', OrganizationKind.COMPANY, [OrganizationCapabilityName.SUPPLIER]),
@@ -379,26 +391,25 @@ async function createActors(db: AnyDb) {
     closed: await upsertOrganization(db, 'PX Demo Closed Supplier Ltd', OrganizationKind.COMPANY, [OrganizationCapabilityName.SUPPLIER])
   };
 
-  const admin = await upsertUser(db, platformOrg, 'award-admin@procurex.tz', 'Award Demo Admin', 'Compliance administrator', AccountType.ADMIN);
-  const buyer = await upsertUser(db, buyerOrg, 'award-buyer@procurex.tz', 'Amina Buyer Demo', 'Head of procurement');
-  const manager = await upsertUser(db, buyerOrg, 'contract-manager@procurex.tz', 'Michael Contract Manager Demo', 'Contract manager');
-  const legal = await upsertUser(db, buyerOrg, 'legal-review@procurex.tz', 'Leah Legal Demo', 'Legal reviewer');
-  const finance = await upsertUser(db, buyerOrg, 'finance-review@procurex.tz', 'Faraja Finance Demo', 'Finance approver');
-  const technical = await upsertUser(db, buyerOrg, 'technical-review@procurex.tz', 'Tatu Technical Demo', 'Technical officer');
+  const demoUser = await upsertUser(db, mainOrg, 'award-demo@procurex.tz', 'Award Contract Demo User', 'Buyer and supplier demo lead');
+  const mainActor = { org: mainOrg, user: demoUser };
+  const externalBuyerActor = { org: externalBuyerOrg, user: demoUser };
 
   return {
-    admin: { org: platformOrg, user: admin },
-    buyer: { org: buyerOrg, user: buyer },
-    manager: { org: buyerOrg, user: manager },
-    legal: { org: buyerOrg, user: legal },
-    finance: { org: buyerOrg, user: finance },
-    technical: { org: buyerOrg, user: technical },
+    admin: mainActor,
+    buyer: mainActor,
+    externalBuyer: externalBuyerActor,
+    manager: mainActor,
+    legal: mainActor,
+    finance: mainActor,
+    technical: mainActor,
     suppliers: {
-      accepted: { org: supplierOrgs.accepted, user: await upsertUser(db, supplierOrgs.accepted, 'award-supplier@procurex.tz', 'Salma Supplier Demo', 'Commercial director') },
-      declined: { org: supplierOrgs.declined, user: await upsertUser(db, supplierOrgs.declined, 'declined-supplier@procurex.tz', 'Daniel Declined Demo', 'Bid manager') },
-      risky: { org: supplierOrgs.risky, user: await upsertUser(db, supplierOrgs.risky, 'risky-supplier@procurex.tz', 'Raj Risky Demo', 'Operations lead') },
-      terminated: { org: supplierOrgs.terminated, user: await upsertUser(db, supplierOrgs.terminated, 'terminated-supplier@procurex.tz', 'Theresa Terminated Demo', 'Managing director') },
-      closed: { org: supplierOrgs.closed, user: await upsertUser(db, supplierOrgs.closed, 'closed-supplier@procurex.tz', 'Clara Closed Demo', 'Account director') }
+      self: mainActor,
+      accepted: { org: supplierOrgs.accepted, user: demoUser },
+      declined: { org: supplierOrgs.declined, user: demoUser },
+      risky: { org: supplierOrgs.risky, user: demoUser },
+      terminated: { org: supplierOrgs.terminated, user: demoUser },
+      closed: { org: supplierOrgs.closed, user: demoUser }
     }
   };
 }
@@ -408,6 +419,10 @@ function tenderTypeFor(procurementType: DemoScenario['procurementType']) {
   if (procurementType === 'WORKS') return TenderType.WORKS;
   if (procurementType === 'CONSULTANCY') return TenderType.CONSULTANCY;
   return TenderType.SERVICE;
+}
+
+function buyerForScenario(actors: Awaited<ReturnType<typeof createActors>>, scenario: DemoScenario) {
+  return scenario.buyer ?? actors.buyer;
 }
 
 async function createDocument(db: AnyDb, ownerOrgId: string, uploadedByUserId: string, key: string, name: string, documentType: string) {
@@ -434,13 +449,14 @@ async function createDocument(db: AnyDb, ownerOrgId: string, uploadedByUserId: s
 }
 
 async function createAwardBase(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, scenario: DemoScenario, recommendationStatus: RecommendationStatus) {
+  const buyer = buyerForScenario(actors, scenario);
   const tenderReference = ref(`TENDER-${scenario.key}`);
   const bidReference = ref(`BID-${scenario.key}`);
   const tender = await db.tender.create({
     data: {
       reference: tenderReference,
-      buyerOrgId: actors.buyer.org.id,
-      ownerUserId: actors.buyer.user.id,
+      buyerOrgId: buyer.org.id,
+      ownerUserId: buyer.user.id,
       title: scenario.title,
       description: `${scenario.procurementType} demo tender for ${scenario.status} lifecycle testing.`,
       type: tenderTypeFor(scenario.procurementType),
@@ -479,7 +495,7 @@ async function createAwardBase(db: AnyDb, actors: Awaited<ReturnType<typeof crea
   const bid = await db.bid.create({
     data: {
       tenderId: tender.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       supplierOrgId: scenario.supplier.org.id,
       submittedByUserId: scenario.supplier.user.id,
       reference: bidReference,
@@ -499,7 +515,7 @@ async function createAwardBase(db: AnyDb, actors: Awaited<ReturnType<typeof crea
   const workspace = await db.evaluationWorkspace.create({
     data: {
       tenderId: tender.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       status: EvaluationStatus.COMPLETED,
       currentStage: EvaluationStage.RECOMMENDATION,
       progress: 100,
@@ -627,12 +643,13 @@ async function createNoticeAndContract(
   base: Awaited<ReturnType<typeof createAwardBase>>,
   noticeStatus: AwardNoticeStatus
 ) {
+  const buyer = buyerForScenario(actors, scenario);
   const contract = await db.contract.create({
     data: {
       reference: ref(`CONTRACT-${scenario.key}`),
       tenderId: base.tender.id,
       awardId: base.recommendation.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       supplierOrgId: scenario.supplier.org.id,
       title: scenario.title.replace('Tender', 'Contract'),
       status: scenario.status,
@@ -645,10 +662,10 @@ async function createNoticeAndContract(
     data: {
       reference: ref(`NOTICE-${scenario.key}`),
       recommendationId: base.recommendation.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       supplierOrgId: scenario.supplier.org.id,
       contractId: contract.id,
-      issuedByUserId: actors.buyer.user.id,
+      issuedByUserId: buyer.user.id,
       respondedByUserId: noticeStatus === AwardNoticeStatus.PENDING_RESPONSE ? null : scenario.supplier.user.id,
       status: noticeStatus,
       buyerNote: 'Intent to award issued from demo seed.',
@@ -674,7 +691,7 @@ async function createNoticeAndContract(
     data: {
       recommendationId: base.recommendation.id,
       noticeId: notice.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       supplierOrgId: scenario.supplier.org.id,
       startsAt: daysFromNow(-7),
       endsAt: scenario.status === ContractStatus.DRAFT ? daysFromNow(3) : daysFromNow(-1),
@@ -702,7 +719,7 @@ async function createNoticeAndContract(
       {
         recommendationId: base.recommendation.id,
         noticeId: notice.id,
-        recipientOrgId: actors.buyer.org.id,
+        recipientOrgId: buyer.org.id,
         channel: 'EMAIL',
         notificationType: 'BUYER_COPY',
         subject: `Buyer copy: ${scenario.title}`,
@@ -718,7 +735,7 @@ async function createNoticeAndContract(
       recommendationId: base.recommendation.id,
       tenderId: base.tender.id,
       contractId: contract.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       commitmentNo: ref(`BC-${scenario.key}`),
       budgetCode: ref(`BUDGET-${scenario.procurementType}`),
       amount: scenario.amount,
@@ -734,16 +751,17 @@ async function createNoticeAndContract(
 }
 
 async function seedContractCore(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, scenario: DemoScenario, contract: any, rich = false) {
+  const buyer = buyerForScenario(actors, scenario);
   await db.contractParty.createMany({
     data: [
       {
         contractId: contract.id,
         role: ContractPartyRole.BUYER,
-        organizationId: actors.buyer.org.id,
-        displayName: actors.buyer.org.name,
+        organizationId: buyer.org.id,
+        displayName: buyer.org.name,
         contactName: actors.manager.user.displayName,
         contactEmail: actors.manager.user.email,
-        signatoryName: actors.buyer.user.displayName,
+        signatoryName: buyer.user.displayName,
         signatoryTitle: 'Accounting officer',
         payload: demoPayload()
       },
@@ -799,7 +817,7 @@ async function seedContractCore(db: AnyDb, actors: Awaited<ReturnType<typeof cre
       payload: demoPayload()
     }
   });
-  const draftDoc = await createDocument(db, actors.buyer.org.id, actors.buyer.user.id, `VERSION-${scenario.key}`, `${contract.reference} draft contract.pdf`, 'CONTRACT_DRAFT');
+  const draftDoc = await createDocument(db, buyer.org.id, buyer.user.id, `VERSION-${scenario.key}`, `${contract.reference} draft contract.pdf`, 'CONTRACT_DRAFT');
   await db.contractVersion.createMany({
     data: [
       { contractId: contract.id, versionNo: 1, documentId: draftDoc.id, payload: demoPayload({ generatedFrom: 'award-acceptance', clauses: ['general-conditions', 'payment-terms'] }) },
@@ -810,11 +828,11 @@ async function seedContractCore(db: AnyDb, actors: Awaited<ReturnType<typeof cre
     data: [
       {
         contractId: contract.id,
-        signerUserId: scenario.status === ContractStatus.SIGNATURE_PENDING ? null : actors.buyer.user.id,
-        signerOrgId: actors.buyer.org.id,
+        signerUserId: scenario.status === ContractStatus.SIGNATURE_PENDING ? null : buyer.user.id,
+        signerOrgId: buyer.org.id,
         role: ContractPartyRole.BUYER,
         status: scenario.status === ContractStatus.DRAFT || scenario.status === ContractStatus.NEGOTIATION ? SignatureStatus.PENDING : SignatureStatus.SIGNED,
-        signerName: scenario.status === ContractStatus.DRAFT || scenario.status === ContractStatus.NEGOTIATION ? null : actors.buyer.user.displayName,
+        signerName: scenario.status === ContractStatus.DRAFT || scenario.status === ContractStatus.NEGOTIATION ? null : buyer.user.displayName,
         signerTitle: 'Accounting officer',
         signedAt: scenario.status === ContractStatus.DRAFT || scenario.status === ContractStatus.NEGOTIATION ? null : daysFromNow(-5),
         payload: demoPayload()
@@ -981,11 +999,12 @@ async function seedContractDelivery(db: AnyDb, actors: Awaited<ReturnType<typeof
 }
 
 async function seedFinance(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, scenario: DemoScenario, contract: any, deliveryRefs: any, rich = false) {
+  const buyer = buyerForScenario(actors, scenario);
   const purchaseOrder = await db.purchaseOrder.create({
     data: {
       reference: ref(`PO-${scenario.key}`),
       contractId: contract.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       amount: scenario.amount,
       currency: 'TZS',
       payload: demoPayload()
@@ -1025,7 +1044,7 @@ async function seedFinance(db: AnyDb, actors: Awaited<ReturnType<typeof createAc
         reference: ref(`INV-${scenario.key}-${status}`),
         purchaseOrderId: purchaseOrder.id,
         contractId: contract.id,
-        buyerOrgId: actors.buyer.org.id,
+        buyerOrgId: buyer.org.id,
         supplierOrgId: scenario.supplier.org.id,
         status,
         amount: status === InvoiceStatus.REJECTED ? scenario.amount * 0.1 : scenario.amount * 0.5,
@@ -1108,7 +1127,7 @@ async function seedFinance(db: AnyDb, actors: Awaited<ReturnType<typeof createAc
     ]
   });
   if (scenario.status === ContractStatus.CLOSED || rich) {
-    const evidenceDoc = await createDocument(db, actors.buyer.org.id, actors.finance.user.id, `PAYMENT-${scenario.key}`, `${contract.reference} payment confirmation.pdf`, 'PAYMENT_EVIDENCE');
+    const evidenceDoc = await createDocument(db, buyer.org.id, actors.finance.user.id, `PAYMENT-${scenario.key}`, `${contract.reference} payment confirmation.pdf`, 'PAYMENT_EVIDENCE');
     await db.paymentConfirmation.create({
       data: {
         contractId: contract.id,
@@ -1128,6 +1147,7 @@ async function seedFinance(db: AnyDb, actors: Awaited<ReturnType<typeof createAc
 }
 
 async function seedRiskTerminationPerformance(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, scenario: DemoScenario, contract: any, rich = false) {
+  const buyer = buyerForScenario(actors, scenario);
   await db.contractRisk.create({
     data: {
       contractId: contract.id,
@@ -1164,7 +1184,7 @@ async function seedRiskTerminationPerformance(db: AnyDb, actors: Awaited<ReturnT
   await db.contractVariation.create({
     data: {
       contractId: contract.id,
-      requestedByOrgId: actors.buyer.org.id,
+      requestedByOrgId: buyer.org.id,
       title: 'Scope adjustment for delivery sequencing',
       changeType: 'TIME_EXTENSION',
       reason: 'Buyer site readiness shifted the delivery sequence.',
@@ -1180,7 +1200,7 @@ async function seedRiskTerminationPerformance(db: AnyDb, actors: Awaited<ReturnT
   await db.contractIssue.create({
     data: {
       contractId: contract.id,
-      raisedByOrgId: actors.buyer.org.id,
+      raisedByOrgId: buyer.org.id,
       title: 'Late supplier progress report',
       description: 'Supplier progress report missed reporting date.',
       category: 'reporting',
@@ -1209,7 +1229,7 @@ async function seedRiskTerminationPerformance(db: AnyDb, actors: Awaited<ReturnT
       data: {
         contractId: contract.id,
         terminationType: ContractTerminationType.SUPPLIER_DEFAULT,
-        initiatedByOrgId: actors.buyer.org.id,
+        initiatedByOrgId: buyer.org.id,
         reason: 'Repeated failure to cure delivery defects.',
         contractClause: 'termination-for-default',
         faultParty: 'SUPPLIER',
@@ -1234,7 +1254,7 @@ async function seedRiskTerminationPerformance(db: AnyDb, actors: Awaited<ReturnT
         payload: demoPayload()
       }
     });
-    const terminationDoc = await createDocument(db, actors.buyer.org.id, actors.technical.user.id, `TERMINATION-${scenario.key}`, `${contract.reference} termination evidence.pdf`, 'TERMINATION_EVIDENCE');
+    const terminationDoc = await createDocument(db, buyer.org.id, actors.technical.user.id, `TERMINATION-${scenario.key}`, `${contract.reference} termination evidence.pdf`, 'TERMINATION_EVIDENCE');
     await db.terminationEvidence.create({
       data: {
         terminationId: termination.id,
@@ -1314,7 +1334,7 @@ async function seedRiskTerminationPerformance(db: AnyDb, actors: Awaited<ReturnT
   await db.supplierPerformanceRecord.create({
     data: {
       contractId: contract.id,
-      buyerOrgId: actors.buyer.org.id,
+      buyerOrgId: buyer.org.id,
       supplierOrgId: scenario.supplier.org.id,
       overallScore: scenario.status === ContractStatus.AT_RISK || scenario.status === ContractStatus.TERMINATED ? 48 : 86,
       timeScore: scenario.status === ContractStatus.AT_RISK ? 40 : 84,
@@ -1385,6 +1405,7 @@ async function seedRiskTerminationPerformance(db: AnyDb, actors: Awaited<ReturnT
 }
 
 async function seedDocumentsAndApprovals(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, scenario: DemoScenario, contract: any) {
+  const buyer = buyerForScenario(actors, scenario);
   const securityDoc = await createDocument(db, scenario.supplier.org.id, scenario.supplier.user.id, `REQUIRED-${scenario.key}`, `${contract.reference} performance security.pdf`, 'PERFORMANCE_SECURITY');
   await db.contractRequiredDocument.createMany({
     data: [
@@ -1429,7 +1450,7 @@ async function seedDocumentsAndApprovals(db: AnyDb, actors: Awaited<ReturnType<t
   await db.urgentAction.createMany({
     data: [
       {
-        ownerOrgId: actors.buyer.org.id,
+        ownerOrgId: buyer.org.id,
         contractId: contract.id,
         awardId: contract.awardId,
         actionKey: `${contract.reference}:buyer-next`,
@@ -1460,7 +1481,7 @@ async function seedDocumentsAndApprovals(db: AnyDb, actors: Awaited<ReturnType<t
   await db.notification.createMany({
     data: [
       {
-        ownerOrgId: actors.buyer.org.id,
+        ownerOrgId: buyer.org.id,
         userId: actors.manager.user.id,
         contractId: contract.id,
         awardId: contract.awardId,
@@ -1486,7 +1507,7 @@ async function seedDocumentsAndApprovals(db: AnyDb, actors: Awaited<ReturnType<t
   await db.auditEvent.createMany({
     data: [
       {
-        ownerOrgId: actors.buyer.org.id,
+        ownerOrgId: buyer.org.id,
         actorUserId: actors.buyer.user.id,
         event: 'demo.contract.seeded',
         entityType: 'contract',
@@ -1495,7 +1516,7 @@ async function seedDocumentsAndApprovals(db: AnyDb, actors: Awaited<ReturnType<t
         payload: demoPayload({ reference: contract.reference, status: contract.status })
       },
       {
-        ownerOrgId: actors.buyer.org.id,
+        ownerOrgId: buyer.org.id,
         actorUserId: actors.buyer.user.id,
         event: 'demo.award.seeded',
         entityType: 'award_recommendation',
@@ -1670,16 +1691,17 @@ export async function seedAwardContractDemo() {
   actors = await withDbContext(adminContext, async (tx) => {
     const db = tx as AnyDb;
     await resetDemoDataset(db);
+    await cleanupDemoActors(db);
     return createActors(db);
   });
 
   const scenarios: DemoScenario[] = [
-    { key: 'DRAFT-GOODS', title: 'Goods Tender Draft Contract Demo', procurementType: 'GOODS', status: ContractStatus.DRAFT, supplier: actors.suppliers.accepted, amount: 450000000 },
-    { key: 'NEGOTIATION-WORKS', title: 'Works Tender Negotiation Demo', procurementType: 'WORKS', status: ContractStatus.NEGOTIATION, supplier: actors.suppliers.accepted, amount: 980000000 },
+    { key: 'DRAFT-GOODS', title: 'Goods Tender Draft Contract Demo', procurementType: 'GOODS', status: ContractStatus.DRAFT, buyer: actors.externalBuyer, supplier: actors.suppliers.self, amount: 450000000 },
+    { key: 'NEGOTIATION-WORKS', title: 'Works Tender Negotiation Demo', procurementType: 'WORKS', status: ContractStatus.NEGOTIATION, buyer: actors.externalBuyer, supplier: actors.suppliers.self, amount: 980000000 },
     { key: 'SIGNATURE-SERVICES', title: 'Services Tender Signature Pending Demo', procurementType: 'SERVICE', status: ContractStatus.SIGNATURE_PENDING, supplier: actors.suppliers.accepted, amount: 350000000 },
     { key: 'SIGNED-CONSULTANCY', title: 'Consultancy Tender Signed Demo', procurementType: 'CONSULTANCY', status: ContractStatus.SIGNED, supplier: actors.suppliers.accepted, amount: 250000000 },
     { key: 'MOBILIZATION-IT', title: 'IT Tender Mobilization Demo', procurementType: 'IT', status: ContractStatus.MOBILIZATION, supplier: actors.suppliers.accepted, amount: 720000000 },
-    { key: 'ACTIVE-GOODS', title: 'Goods Tender Active Rich Demo', procurementType: 'GOODS', status: ContractStatus.ACTIVE, supplier: actors.suppliers.accepted, amount: 650000000 },
+    { key: 'ACTIVE-GOODS', title: 'Goods Tender Active Rich Demo', procurementType: 'GOODS', status: ContractStatus.ACTIVE, buyer: actors.externalBuyer, supplier: actors.suppliers.self, amount: 650000000 },
     { key: 'AT-RISK-WORKS', title: 'Works Tender At Risk Demo', procurementType: 'WORKS', status: ContractStatus.AT_RISK, supplier: actors.suppliers.risky, amount: 1250000000 },
     { key: 'COMPLETED-SERVICES', title: 'Services Tender Completed Demo', procurementType: 'SERVICE', status: ContractStatus.COMPLETED, supplier: actors.suppliers.closed, amount: 180000000 },
     { key: 'WARRANTY-GOODS', title: 'Goods Tender Warranty Defects Demo', procurementType: 'GOODS', status: ContractStatus.WARRANTY_DEFECTS, supplier: actors.suppliers.closed, amount: 390000000 },
@@ -1755,3 +1777,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exit(1);
     });
 }
+ 

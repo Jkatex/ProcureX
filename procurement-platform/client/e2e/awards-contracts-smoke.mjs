@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -6,6 +7,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173';
 const apiBaseURL = process.env.PLAYWRIGHT_API_BASE_URL ?? 'http://localhost:4000';
 const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
 const screenshotDir = process.env.AWARD_E2E_SCREENSHOT_DIR ?? path.resolve(process.cwd(), '.cache', 'award-contract-e2e');
+const shouldReseedDemo = process.env.AWARD_E2E_RESEED !== 'false';
 const visualViewports = [
   { name: 'desktop', width: 1440, height: 960 },
   { name: 'tablet', width: 900, height: 1100 },
@@ -13,12 +15,12 @@ const visualViewports = [
 ];
 const credentials = {
   buyer: {
-    email: process.env.AWARD_BUYER_EMAIL ?? 'award-buyer@procurex.tz',
-    password: process.env.AWARD_BUYER_PASSWORD ?? 'Demo123!'
+    email: process.env.AWARD_BUYER_EMAIL ?? process.env.AWARD_DEMO_EMAIL ?? 'award-demo@procurex.tz',
+    password: process.env.AWARD_BUYER_PASSWORD ?? process.env.AWARD_DEMO_PASSWORD ?? 'Demo123!'
   },
   supplier: {
-    email: process.env.AWARD_SUPPLIER_EMAIL ?? 'award-supplier@procurex.tz',
-    password: process.env.AWARD_SUPPLIER_PASSWORD ?? 'Demo123!'
+    email: process.env.AWARD_SUPPLIER_EMAIL ?? process.env.AWARD_DEMO_EMAIL ?? 'award-demo@procurex.tz',
+    password: process.env.AWARD_SUPPLIER_PASSWORD ?? process.env.AWARD_DEMO_PASSWORD ?? 'Demo123!'
   }
 };
 
@@ -36,6 +38,42 @@ async function assertReachable() {
   if (!response.ok) {
     throw new Error(`Client dev server responded ${response.status} at ${baseURL}.`);
   }
+}
+
+function repoRoot() {
+  return path.basename(process.cwd()).toLowerCase() === 'client'
+    ? path.resolve(process.cwd(), '..')
+    : process.cwd();
+}
+
+async function resetAwardContractDemo() {
+  if (!shouldReseedDemo) return;
+  await new Promise((resolve, reject) => {
+    const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const reseedArgs = ['--workspace', 'server', 'run', 'db:seed:award-contract-demo'];
+    const child = spawn(process.platform === 'win32' ? `${npmCommand} ${reseedArgs.join(' ')}` : npmCommand, process.platform === 'win32' ? [] : reseedArgs, {
+      cwd: repoRoot(),
+      env: process.env,
+      shell: process.platform === 'win32',
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`Award-contract demo reseed failed with exit code ${code}.\n${stdout}\n${stderr}`.trim()));
+    });
+  });
 }
 
 async function attachPageGuards(page, label) {
@@ -169,7 +207,7 @@ async function openFirstQueueRecord(page, queue, label, expectedPath) {
 }
 
 async function submitSupplierClarification(page) {
-  const responseTab = page.getByRole('tab').filter({ hasText: /^Response/ }).first();
+  const responseTab = page.getByRole('tab', { name: /Response/i }).first();
   await responseTab.click();
   await page.getByRole('button', { name: 'Open action' }).click();
   const dialog = page.getByRole('dialog', { name: 'Supplier award response' });
@@ -185,6 +223,7 @@ async function submitSupplierClarification(page) {
 }
 
 async function run() {
+  await resetAwardContractDemo();
   await assertReachable();
   const browser = await chromium.launch({ headless });
   const summaries = [];
@@ -202,8 +241,8 @@ async function run() {
     summaries.push('captured buyer dashboard visual smoke');
 
     await openFirstQueueRecord(buyerPage, 'awarding-in-progress', 'buyer awarding queue', '/awards-contracts/recommendation');
-    await assertHealthyPage(buyerPage, 'buyer award recommendation', ['Award recommendation', 'Award-ready tender actions']);
-    await captureVisualSmoke(buyerPage, 'buyer award recommendation', ['Award recommendation', 'Award-ready tender actions']);
+    await assertHealthyPage(buyerPage, 'buyer award recommendation', ['Award readiness review', 'Workflow step']);
+    await captureVisualSmoke(buyerPage, 'buyer award recommendation', ['Award readiness review', 'Workflow step']);
     summaries.push('buyer opened award recommendation');
 
     await openFirstQueueRecord(buyerPage, 'contracts-in-progress', 'buyer contract queue', '/awards-contracts/negotiation');

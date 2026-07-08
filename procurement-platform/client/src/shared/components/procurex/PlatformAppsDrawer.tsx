@@ -1,4 +1,5 @@
 import { resolveAppIconAsset } from './appIconAssets';
+import { useTranslation } from 'react-i18next';
 
 export type PlatformAppPageKey =
   | 'account-profile'
@@ -15,8 +16,8 @@ type PlatformAppItem = {
   className: string;
   page: PlatformAppPageKey;
   icon: PlatformAppIconKind;
-  title: string;
-  description: string;
+  titleKey: string;
+  descriptionKey: string;
 };
 
 type PlatformAppsButtonProps = {
@@ -36,50 +37,50 @@ export const platformAppItems = [
     className: 'app-menu-iam',
     page: 'account-profile',
     icon: 'iam',
-    title: 'Registration and Verification',
-    description: 'Account and identity verification'
+    titleKey: 'platformApps.items.accountProfile.title',
+    descriptionKey: 'platformApps.items.accountProfile.description'
   },
   {
     className: 'app-menu-procurement',
     page: 'tender-planning',
     icon: 'planning',
-    title: 'Procurement Planning',
-    description: 'APP, SPP, budgets, approvals'
+    titleKey: 'platformApps.items.tenderPlanning.title',
+    descriptionKey: 'platformApps.items.tenderPlanning.description'
   },
   {
     className: 'app-menu-procurement',
     page: 'marketplace',
     icon: 'procurement',
-    title: 'Procurement',
-    description: 'Marketplace, create tender, bid'
+    titleKey: 'platformApps.items.procurement.title',
+    descriptionKey: 'platformApps.items.procurement.description'
   },
   {
     className: 'app-menu-communication',
     page: 'communication-center',
     icon: 'communication',
-    title: 'Communication Center',
-    description: 'Messages, clarifications, alerts'
+    titleKey: 'platformApps.items.communication.title',
+    descriptionKey: 'platformApps.items.communication.description'
   },
   {
     className: 'app-menu-evaluation',
     page: 'bid-evaluation',
     icon: 'evaluation',
-    title: 'Evaluation',
-    description: 'Evaluate bids on your tenders'
+    titleKey: 'platformApps.items.evaluation.title',
+    descriptionKey: 'platformApps.items.evaluation.description'
   },
   {
     className: 'app-menu-awarding',
     page: 'awarding-contracts',
     icon: 'awarding',
-    title: 'Awarding and Contract',
-    description: 'Awards, negotiations, signatures'
+    titleKey: 'platformApps.items.awarding.title',
+    descriptionKey: 'platformApps.items.awarding.description'
   },
   {
     className: 'app-menu-contracts',
     page: 'records-history',
     icon: 'records',
-    title: 'Records and History',
-    description: 'Past tenders, bids, awards'
+    titleKey: 'platformApps.items.records.title',
+    descriptionKey: 'platformApps.items.records.description'
   }
 ] as const satisfies readonly PlatformAppItem[];
 
@@ -98,12 +99,14 @@ export function resolvePlatformAppRoute(pageKey: PlatformAppPageKey) {
 }
 
 export function PlatformAppsButton({ expanded, onClick, ariaLabel = 'Open apps' }: PlatformAppsButtonProps) {
+  const { t } = useTranslation();
+
   return (
     <button
       className="icon-menu-btn"
       type="button"
       data-app-menu-toggle
-      aria-label={ariaLabel}
+      aria-label={ariaLabel === 'Open apps' ? t('platformApps.openApps') : ariaLabel}
       aria-expanded={expanded}
       onClick={onClick}
     >
@@ -121,6 +124,8 @@ export function PlatformAppsButton({ expanded, onClick, ariaLabel = 'Open apps' 
 }
 
 export function PlatformAppsDrawer({ open, organizationLabel, onSelect }: PlatformAppsDrawerProps) {
+  const { t } = useTranslation();
+
   return (
     <div className={`app-drawer-menu${open ? ' open' : ''}`} data-app-menu aria-hidden={!open}>
       <div className="app-menu-header">
@@ -128,7 +133,7 @@ export function PlatformAppsDrawer({ open, organizationLabel, onSelect }: Platfo
           <span className="platform-logo platform-logo-sm">
             <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
           </span>
-          <strong>ProcureX Apps</strong>
+          <strong>{t('platformApps.title')}</strong>
         </div>
         <span>{organizationLabel}</span>
       </div>
@@ -142,8 +147,8 @@ export function PlatformAppsDrawer({ open, organizationLabel, onSelect }: Platfo
         >
           <PlatformAppIcon kind={item.icon} />
           <span>
-            <strong>{item.title}</strong>
-            <em>{item.description}</em>
+            <strong>{t(item.titleKey)}</strong>
+            <em>{t(item.descriptionKey)}</em>
           </span>
         </button>
       ))}

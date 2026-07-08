@@ -18,7 +18,7 @@ export function TopBar() {
   const [appsOpen, setAppsOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
   const isAdmin = user?.accountType === 'ADMIN';
-  const organizationLabel = user?.organization || (user?.accountType === 'ADMIN' ? 'Platform admin tools' : 'ProcureX account tools');
+  const organizationLabel = user?.organization || (user?.accountType === 'ADMIN' ? t('platformApps.adminTools') : t('platformApps.accountTools'));
 
   useEffect(() => {
     function handleDocumentClick(event: PointerEvent) {
@@ -54,11 +54,11 @@ export function TopBar() {
           <img src="/assets/logo.svg" alt="" />
           <span>{t('brand')}</span>
         </Link>
-        <nav className="px-nav-links" aria-label="Primary">
+        <nav className="px-nav-links" aria-label={t('nav.primary')}>
           {isAdmin ? (
             <>
-              <NavLink to="/admin">Command Center</NavLink>
-              <NavLink to="/admin/search">Deep Search</NavLink>
+              <NavLink to="/admin">{t('admin.commandCenter')}</NavLink>
+              <NavLink to="/admin/search">{t('admin.deepSearch')}</NavLink>
               <NavLink to="/admin/communication">{t('nav.communication')}</NavLink>
             </>
           ) : (

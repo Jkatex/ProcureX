@@ -8475,7 +8475,8 @@ ul.closure-checklist {
     font-size: 13px;
 }
 
-.supplier-tender-detail-page .tender-document-view {
+.supplier-tender-detail-page .tender-document-view,
+.buyer-tender-detail-page .tender-document-view {
     width: min(100%, 900px);
 }
 
@@ -8485,29 +8486,41 @@ ul.closure-checklist {
 .supplier-tender-detail-page .tender-document-section-heading,
 .supplier-tender-detail-page .tender-document-two-column,
 .supplier-tender-detail-page .tender-detail-field-grid,
-.supplier-tender-detail-page .tender-detail-attachment-grid {
+.supplier-tender-detail-page .tender-detail-attachment-grid,
+.buyer-tender-detail-page .tender-document-cover,
+.buyer-tender-detail-page .tender-document-meta-table .record-summary,
+.buyer-tender-detail-page .tender-detail-summary,
+.buyer-tender-detail-page .tender-document-section-heading,
+.buyer-tender-detail-page .tender-document-two-column,
+.buyer-tender-detail-page .tender-detail-field-grid,
+.buyer-tender-detail-page .tender-detail-attachment-grid {
     grid-template-columns: 1fr;
 }
 
-.supplier-tender-detail-page .tender-document-cover {
+.supplier-tender-detail-page .tender-document-cover,
+.buyer-tender-detail-page .tender-document-cover {
     gap: 18px;
 }
 
-.supplier-tender-detail-page .tender-document-stamp {
+.supplier-tender-detail-page .tender-document-stamp,
+.buyer-tender-detail-page .tender-document-stamp {
     justify-self: start;
     min-width: 170px;
 }
 
-.supplier-tender-detail-page .tender-document-section-heading {
+.supplier-tender-detail-page .tender-document-section-heading,
+.buyer-tender-detail-page .tender-document-section-heading {
     gap: 10px;
 }
 
-.supplier-tender-detail-page .tender-document-section-heading>span {
+.supplier-tender-detail-page .tender-document-section-heading>span,
+.buyer-tender-detail-page .tender-document-section-heading>span {
     width: 38px;
     height: 38px;
 }
 
-.supplier-tender-detail-page .tender-document-section-body {
+.supplier-tender-detail-page .tender-document-section-body,
+.buyer-tender-detail-page .tender-document-section-body {
     padding-left: 0;
 }
 
@@ -8515,13 +8528,76 @@ ul.closure-checklist {
 .supplier-tender-detail-page .tender-document-view .supplier-requirement-preview-list,
 .supplier-tender-detail-page .tender-document-view .tender-detail-card-list,
 .supplier-tender-detail-page .tender-document-view .supplier-timeline-list,
-.supplier-tender-detail-page .tender-detail-list-groups {
+.supplier-tender-detail-page .tender-detail-list-groups,
+.buyer-tender-detail-page .tender-document-view .tender-detail-field-grid,
+.buyer-tender-detail-page .tender-document-view .supplier-requirement-preview-list,
+.buyer-tender-detail-page .tender-document-view .tender-detail-card-list,
+.buyer-tender-detail-page .tender-document-view .supplier-timeline-list,
+.buyer-tender-detail-page .tender-detail-list-groups {
     grid-template-columns: 1fr;
 }
 
-.supplier-tender-detail-page .tender-detail-table table {
+.supplier-tender-detail-page .tender-detail-table table,
+.buyer-tender-detail-page .tender-detail-table table {
     min-width: 0;
     width: 100%;
+}
+
+.buyer-tender-detail-page {
+    display: grid;
+    gap: 24px;
+}
+
+.buyer-tender-status-list,
+.buyer-tender-detail-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.buyer-tender-status-list {
+    margin: 24px 0;
+}
+
+.buyer-tender-detail-rows {
+    margin-top: 24px;
+}
+
+.buyer-tender-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-width: 0;
+    padding: 16px 18px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    background: var(--card-bg);
+}
+
+.buyer-tender-status-row span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.buyer-tender-status-row strong {
+    color: var(--text-primary);
+    font-size: 24px;
+    line-height: 1;
+}
+
+.buyer-amendment-list,
+.buyer-amendment-badges,
+.buyer-amendment-recipients,
+.buyer-amendment-preview,
+.buyer-amendment-actions {
+    display: grid;
+    gap: 12px;
+}
+
+.buyer-amendment-workspace {
+    display: none;
 }
 
 .supplier-requirement-preview,
@@ -25507,7 +25583,6 @@ fieldset.award-form-field {
 }
 
 .award-action-review-summary,
-.award-command-strip,
 .post-award-health-grid,
 .award-lifecycle-timeline,
 .contract-clause-review-grid {
@@ -25516,13 +25591,11 @@ fieldset.award-form-field {
 }
 
 .award-action-review-summary,
-.award-command-strip,
 .post-award-health-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .award-action-review-summary article,
-.award-command-strip article,
 .post-award-health-grid article,
 .award-lifecycle-timeline article,
 .contract-clause-review-grid article {
@@ -25536,7 +25609,6 @@ fieldset.award-form-field {
 }
 
 .award-action-review-summary span,
-.award-command-strip span,
 .post-award-health-grid span,
 .award-lifecycle-timeline span,
 .award-detail-list dt {
@@ -25547,7 +25619,6 @@ fieldset.award-form-field {
 }
 
 .award-action-review-summary strong,
-.award-command-strip strong,
 .post-award-health-grid strong {
     color: var(--text-primary);
     font-size: 18px;
@@ -25608,6 +25679,190 @@ fieldset.award-form-field {
     display: grid;
     gap: 5px;
     min-width: 0;
+}
+
+.award-flow-shell {
+    margin-top: 18px;
+    display: grid;
+    gap: 12px;
+}
+
+.award-flow-current {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+}
+
+.award-flow-current h2 {
+    margin: 3px 0 6px;
+    font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+}
+
+.award-flow-current p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.award-flow-current-meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 160px;
+}
+
+.award-flow-current-meta>span:not(.badge) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 9px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 800;
+    background: var(--card-bg);
+}
+
+.award-flow-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.award-flow-step {
+    min-height: 94px;
+    display: grid;
+    grid-template-columns: minmax(58px, auto) minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.award-flow-step strong {
+    display: grid;
+    min-width: 58px;
+    min-height: 28px;
+    padding: 0 8px;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--surface-muted, #eef2f7);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.award-flow-step span {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.award-flow-step em,
+.award-flow-step small,
+.award-flow-step i {
+    font-style: normal;
+}
+
+.award-flow-step em {
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.award-flow-step small {
+    color: var(--text-secondary);
+    line-height: 1.25;
+}
+
+.award-flow-step b,
+.award-flow-step i {
+    grid-column: 2;
+    width: fit-content;
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.award-flow-step.current {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 2px var(--primary-blue-light);
+}
+
+.award-flow-step.current strong {
+    background: var(--primary-blue);
+    color: #fff;
+}
+
+.award-flow-step.complete strong {
+    background: var(--success-green-light, #dcfce7);
+    color: var(--success-green, #15803d);
+}
+
+.award-flow-step.locked {
+    background: var(--surface-soft);
+    color: var(--text-secondary);
+}
+
+.award-flow-step.locked strong {
+    background: var(--warning-light, #fef3c7);
+    color: var(--warning, #92400e);
+}
+
+.award-selected-row {
+    background: color-mix(in srgb, var(--primary-blue-light, #dbeafe) 58%, #fff);
+    outline: 2px solid var(--primary-blue-light, #dbeafe);
+    outline-offset: -2px;
+}
+
+.award-selected-row td:first-child strong::after {
+    content: "Selected";
+    display: inline-flex;
+    margin-left: 8px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--primary-blue, #2563eb);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+    .award-flow-current {
+        display: grid;
+    }
+
+    .award-flow-current-meta {
+        justify-content: flex-start;
+        min-width: 0;
+    }
+
+    .award-flow-bar {
+        grid-template-columns: 1fr;
+    }
+}
+
+.award-flow-locked-panel {
+    margin-top: 16px;
+}
+
+.award-flow-alert {
+    margin: 12px 0;
+    padding: 12px 14px;
+    border: 1px solid var(--success-green, #15803d);
+    border-radius: 8px;
+    background: var(--success-green-light, #dcfce7);
+    color: var(--success-green, #15803d);
+    font-weight: 800;
 }
 
 .contract-clause-review-grid {

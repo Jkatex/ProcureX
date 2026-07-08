@@ -619,11 +619,6 @@ export function CreateTenderProcurexPage() {
             <h1>Create Tender Wizard</h1>
             <p>Build a tender package that matches the procurement nature, then publish it directly to the marketplace.</p>
           </div>
-          <div className="hero-action-stack">
-            <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft || isPersisting}>
-              {isPersisting ? 'Saving...' : 'Save Draft'}
-            </button>
-          </div>
         </section>
 
         <main className="wizard-shell" data-create-tender-wizard>
@@ -724,6 +719,9 @@ export function CreateTenderProcurexPage() {
             <footer className="wizard-flow-controls" data-wizard-flow-controls>
               <button className="btn btn-secondary" type="button" onClick={() => setActiveStep((current) => Math.max(current - 1, 0))} disabled={activeStep === 0}>
                 Back
+              </button>
+              <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft || isPersisting}>
+                {isPersisting ? 'Saving...' : 'Save Draft'}
               </button>
               <div className="wizard-flow-progress">
                 <strong>Step {activeStep + 1} of {steps.length}</strong>

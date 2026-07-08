@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { AccountMenu } from '@/shared/components/AccountMenu';
@@ -15,11 +16,12 @@ type ProcurexWorkspaceChromeProps = {
 };
 
 export function ProcurexWorkspaceChrome({ title, children }: ProcurexWorkspaceChromeProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.user);
   const [appsOpen, setAppsOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
-  const organizationLabel = user?.organization || 'ProcureX account tools';
+  const organizationLabel = user?.organization || t('platformApps.accountTools');
 
   useEffect(() => {
     function handleDocumentClick(event: PointerEvent) {

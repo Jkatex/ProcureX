@@ -182,6 +182,39 @@ export const tenderParamsSchema = z
   })
   .strict();
 
+export const tenderDocumentDownloadParamsSchema = z
+  .object({
+    tenderId: uuidSchema,
+    documentId: uuidSchema
+  })
+  .strict();
+
+export const tenderAmendmentParamsSchema = z
+  .object({
+    tenderId: uuidSchema,
+    amendmentId: uuidSchema
+  })
+  .strict();
+
+export const tenderAmendmentBodySchema = z
+  .object({
+    title: z.string().trim().min(5).max(200),
+    summary: z.string().trim().max(2000).optional().default(''),
+    payload: metadataSchema
+  })
+  .strict();
+
+export const tenderAmendmentPatchBodySchema = z
+  .object({
+    title: z.string().trim().min(5).max(200).optional(),
+    summary: z.string().trim().max(2000).optional(),
+    payload: z.record(z.unknown()).optional()
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'At least one editable amendment field is required.'
+  });
+
 const tenderTypeInputSchema = z.preprocess((value) => normalizedTenderType(value), z.nativeEnum(TenderType));
 const draftClosingDateSchema = z
   .string()

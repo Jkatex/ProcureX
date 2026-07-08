@@ -6,8 +6,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { store } from '@/app/store';
 import { assumeUser, signOut } from '@/features/auth/slice';
+import { NotificationToastHost } from '@/features/notifications/NotificationToastHost';
+import { clearNotifications } from '@/features/notifications/slice';
 import { apiClient } from '@/shared/api/http';
-import { CookieConsentBanner, HelpCenterProcurexPage, NotFoundProcurexPage, SystemStatusProcurexPage } from './SupportPages';
+import { CookieConsentBanner, HelpCenterProcurexPage, NotFoundProcurexPage, SignedInHelpDeskProcurexPage, SystemStatusProcurexPage } from './SupportPages';
 
 vi.mock('@/shared/api/http', () => ({
   apiClient: {
@@ -22,7 +24,10 @@ const apiPost = vi.mocked(apiClient.post);
 function renderWithRouter(element: ReactNode) {
   return render(
     <Provider store={store}>
-      <MemoryRouter>{element}</MemoryRouter>
+      <MemoryRouter>
+        {element}
+        <NotificationToastHost />
+      </MemoryRouter>
     </Provider>
   );
 }
@@ -31,6 +36,7 @@ describe('support pages', () => {
   beforeEach(() => {
     window.localStorage.clear();
     store.dispatch(signOut());
+    store.dispatch(clearNotifications());
     apiGet.mockReset();
     apiPost.mockReset();
   });
@@ -84,6 +90,101 @@ describe('support pages', () => {
       description: 'I need help with a tender workspace.'
     }));
     expect(await screen.findByText('Support ticket created')).toBeInTheDocument();
+  });
+
+  it('renders signed-in help desk support categories and quick links', () => {
+    store.dispatch(
+      assumeUser({
+        id: 'user-1',
+        displayName: 'Demo Verified User',
+        email: 'demo@procurex.test',
+        accountType: 'USER',
+        organization: 'Demo Organization',
+        organizationId: 'org-1',
+        capabilities: ['BUYER'],
+        verificationStatus: 'APPROVED'
+      })
+    );
+
+    renderWithRouter(<SignedInHelpDeskProcurexPage />);
+
+    expect(screen.getByRole('heading', { name: 'Help Desk', level: 1 })).toBeInTheDocument();
+    expect(screen.getAllByText('Demo Organization').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Account access').length).toBeGreaterThan(0);
+    expect(screen.getByText('Awarding and contract support')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Awarding and Contracts' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Category')).toHaveValue('General');
+  });
+
+  it('creates a support ticket from the signed-in help desk', async () => {
+    const user = userEvent.setup();
+    store.dispatch(
+      assumeUser({
+        id: 'user-1',
+        displayName: 'Demo Verified User',
+        email: 'demo@procurex.test',
+        accountType: 'USER',
+        organization: 'Demo Organization',
+        organizationId: 'org-1',
+        capabilities: ['BUYER'],
+        verificationStatus: 'APPROVED'
+      })
+    );
+    apiPost.mockResolvedValueOnce({
+      data: {
+        id: 'ticket-helpdesk-1',
+        subject: 'Award notice problem',
+        category: 'Awarding and contract',
+        priority: 'HIGH',
+        status: 'OPEN',
+        description: 'The supplier response workspace does not open.',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    });
+
+    renderWithRouter(<SignedInHelpDeskProcurexPage />);
+
+    await user.type(screen.getByLabelText('Subject'), 'Award notice problem');
+    await user.selectOptions(screen.getByLabelText('Category'), 'Awarding and contract');
+    await user.selectOptions(screen.getByLabelText('Priority'), 'HIGH');
+    await user.type(screen.getByLabelText('Description'), 'The supplier response workspace does not open.');
+    await user.click(screen.getByRole('button', { name: 'Create support ticket' }));
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith('/api/support/tickets', {
+      subject: 'Award notice problem',
+      category: 'Awarding and contract',
+      priority: 'HIGH',
+      description: 'The supplier response workspace does not open.'
+    }));
+    expect(await screen.findByText('Support ticket created')).toBeInTheDocument();
+    expect(screen.getByLabelText('Subject')).toHaveValue('');
+    expect(screen.getByLabelText('Category')).toHaveValue('General');
+  });
+
+  it('shows an error when signed-in help desk ticket creation fails', async () => {
+    const user = userEvent.setup();
+    store.dispatch(
+      assumeUser({
+        id: 'user-1',
+        displayName: 'Demo Verified User',
+        email: 'demo@procurex.test',
+        accountType: 'USER',
+        organization: 'Demo Organization',
+        organizationId: 'org-1',
+        capabilities: ['BUYER'],
+        verificationStatus: 'APPROVED'
+      })
+    );
+    apiPost.mockRejectedValueOnce(new Error('offline'));
+
+    renderWithRouter(<SignedInHelpDeskProcurexPage />);
+
+    await user.type(screen.getByLabelText('Subject'), 'Login help');
+    await user.type(screen.getByLabelText('Description'), 'I cannot access the procurement workflow.');
+    await user.click(screen.getByRole('button', { name: 'Create support ticket' }));
+
+    expect(await screen.findByText('Ticket could not be created')).toBeInTheDocument();
   });
 
   it('uses the public health endpoint on the status page', async () => {

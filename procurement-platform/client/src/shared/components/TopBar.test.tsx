@@ -181,6 +181,17 @@ describe('TopBar platform apps drawer', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/identity/profile');
   });
 
+  it('opens signed-in help from the account menu', async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+
+    await user.click(screen.getByRole('button', { name: 'Open account menu' }));
+    await user.click(await screen.findByText('Help'));
+
+    expect(recordActivity).toHaveBeenCalledWith('support.help.opened');
+    expect(screen.getByTestId('location')).toHaveTextContent('/support');
+  });
+
   it('opens admin account menu links on admin pages', async () => {
     const user = userEvent.setup();
     renderTopBar({ ...demoUsers.admin, organizationId: 'org-admin' });

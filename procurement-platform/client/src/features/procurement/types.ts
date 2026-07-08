@@ -430,6 +430,8 @@ export type CreateTenderSubmissionResult = {
 };
 
 export type MarketplaceTenderRow = Tender & {
+  category?: string;
+  ownerOrganization?: string;
   ownedByCurrentOrganization?: boolean;
   canBid?: boolean;
   hasDraftBid?: boolean;
@@ -579,4 +581,9 @@ export type TenderDetail = MarketplaceTenderRow & {
     submittedAt: string | null;
     receiptHash: string | null;
   } | null;
+  activity?: {
+    marketplaceViews: number;
+    documentDownloads: number;
+    clarifications: number;
+  };
 };

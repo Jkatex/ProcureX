@@ -2,19 +2,20 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
-import type { AwardRecommendationDetailDto, LifecycleAction } from '../../types';
+import type { AwardRecommendationDetailDto, FlowStep, LifecycleAction } from '../../types';
 import { ActionFormPanel, option, riskLevelOptions } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
+import { AwardContractFlowBar, LockedFlowStepPanel, flowStepFromSearch, searchWithFlowStep } from './AwardContractFlow';
 import {
   AwardHero,
   AwardSidebar,
   RegisterCard,
   RecordRegister,
   formatMoney,
+  humanizeWorkflowStatus,
   ProcurexAwardFrame,
   RemoteStatePanel,
   SimpleTable,
-  shortId,
   StatusBadge,
   TopSummary
 } from './AwardsContractsProcurexShared';
@@ -32,46 +33,27 @@ const awardReadinessChecks = [
   'Conflict-of-interest declarations completed'
 ];
 
+const readinessOwnerByCheck: Record<string, string> = {
+  'Evaluation scoring completed': 'Evaluation committee',
+  'Financial evaluation completed': 'Evaluation committee',
+  'Due diligence completed': 'Compliance reviewer',
+  'Recommended supplier is eligible': 'Buyer procurement officer',
+  'Budget availability confirmed': 'Budget owner',
+  'Conflict-of-interest declarations completed': 'Compliance reviewer'
+};
+
 const statusOptions = ['DRAFT', 'PENDING', 'IN_PROGRESS', 'APPROVED', 'RETURNED', 'WAIVED', 'EXPIRED', 'SENT', 'FAILED'].map((value) => option(value));
-const awardWorkflowGroups = [
-  { id: 'readiness', label: 'Readiness', description: 'Checks and award decision.' },
-  { id: 'validation', label: 'Validation', description: 'Tie-breaker and feasibility.' },
-  { id: 'notice', label: 'Notice', description: 'Standstill and notification.' },
-  { id: 'budget', label: 'Budget', description: 'Budget reservation.' },
-  { id: 'registers', label: 'Registers', description: 'All saved records.' }
-] as const;
-
-type AwardWorkflowGroupId = (typeof awardWorkflowGroups)[number]['id'];
-
-function AwardSectionTabs({
-  activeGroup,
-  counts,
-  onSelect
-}: {
-  activeGroup: AwardWorkflowGroupId;
-  counts: Partial<Record<AwardWorkflowGroupId, number>>;
-  onSelect: (group: AwardWorkflowGroupId) => void;
-}) {
-  return (
-    <div className="award-workflow-tabs" role="tablist" aria-label="Award workflow sections">
-      {awardWorkflowGroups.map((group) => (
-        <button
-          className={`award-workflow-tab${activeGroup === group.id ? ' active' : ''}`}
-          type="button"
-          role="tab"
-          aria-label={group.label}
-          aria-selected={activeGroup === group.id}
-          onClick={() => onSelect(group.id)}
-          key={group.id}
-        >
-          <strong>{group.label}</strong>
-          <span>{group.description}</span>
-          {counts[group.id] !== undefined ? <em>{counts[group.id]}</em> : null}
-        </button>
-      ))}
-    </div>
-  );
-}
+type AwardWorkflowGroupId = 'readiness' | 'validation' | 'notice' | 'budget' | 'registers';
+const awardFlowStepIds = ['evaluation-result', 'award-decision', 'approval', 'notice-standstill', 'supplier-response', 'contract-handoff'] as const;
+type AwardFlowStepId = (typeof awardFlowStepIds)[number];
+const awardStepToGroup: Record<AwardFlowStepId, AwardWorkflowGroupId> = {
+  'evaluation-result': 'readiness',
+  'award-decision': 'readiness',
+  approval: 'validation',
+  'notice-standstill': 'notice',
+  'supplier-response': 'registers',
+  'contract-handoff': 'budget'
+};
 
 function AwardContextCard({
   kicker,
@@ -141,9 +123,9 @@ function AwardLifecycleTimeline({
   const hasContract = Boolean(detail?.notice?.contractId ?? recommendation.contractId ?? detail?.contract?.id);
   const steps = [
     { label: 'Evaluation result', status: 'Complete', done: true },
-    { label: 'Award decision', status: hasApproval ? 'Approved' : recommendation.status, done: hasApproval },
-    { label: 'Notice', status: detail?.notice?.status ?? 'Pending', done: hasNotice },
-    { label: 'Supplier response', status: hasResponse ? (detail?.notice?.status ?? recommendation.status) : 'Awaiting response', done: hasResponse },
+    { label: 'Award decision', status: hasApproval ? 'Approved' : humanizeWorkflowStatus(recommendation.status), done: hasApproval },
+    { label: 'Notice', status: humanizeWorkflowStatus(detail?.notice?.status ?? 'Pending'), done: hasNotice },
+    { label: 'Supplier response', status: hasResponse ? humanizeWorkflowStatus(detail?.notice?.status ?? recommendation.status) : 'Awaiting response', done: hasResponse },
     { label: 'Contract handoff', status: hasContract ? 'Linked' : 'Pending', done: hasContract }
   ];
 
@@ -168,10 +150,11 @@ export function AwardRecommendationProcurexPage() {
   const selectedRecommendationId = useMemo(() => getRecommendationId(location.search), [location.search]);
   const [recommendations, setRecommendations] = useState<LifecycleAction[]>([]);
   const [recommendationDetail, setRecommendationDetail] = useState<AwardRecommendationDetailDto | null>(null);
-  const [activeGroup, setActiveGroup] = useState<AwardWorkflowGroupId>('readiness');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [detailError, setDetailError] = useState('');
+  const activeStep = useMemo(() => flowStepFromSearch(location.search, awardFlowStepIds, 'evaluation-result'), [location.search]);
+  const activeGroup = awardStepToGroup[activeStep];
 
   const loadRecommendations = useCallback(async () => {
     setIsLoading(true);
@@ -216,6 +199,50 @@ export function AwardRecommendationProcurexPage() {
       (recommendationDetail?.budgetCommitments?.length ?? 0)
   } satisfies Record<AwardWorkflowGroupId, number>;
   const selectedContractId = recommendationDetail?.notice?.contractId ?? recommendationDetail?.contract?.id ?? activeRecommendation?.contractId ?? '';
+  const hasNotice = Boolean(recommendationDetail?.notice ?? activeRecommendation?.noticeId);
+  const hasSupplierResponse = /accepted|declined|clarification/i.test(recommendationDetail?.notice?.status ?? activeRecommendation?.status ?? '') || Boolean(recommendationDetail?.notice?.responses?.length);
+  const hasContractHandoff = Boolean(selectedContractId);
+  const hasApproval = /approved|notice|response|contract|accepted/i.test(activeRecommendation?.status ?? '') || Boolean(recommendationDetail?.notice);
+  const readinessRows = useMemo(() => {
+    const hasBudgetCommitment = Boolean(recommendationDetail?.budgetCommitments?.length);
+    const hasFeasibility = Boolean(recommendationDetail?.feasibilityChecks?.length);
+    const hasApprovalRoute = Boolean(recommendationDetail?.approvalRoutes?.length);
+    return awardReadinessChecks.map((check) => {
+      let status = 'Needs review';
+      if (/Evaluation scoring/i.test(check)) status = activeRecommendation ? 'Complete' : 'Missing';
+      if (/Financial evaluation/i.test(check)) status = activeRecommendation?.amount !== null && activeRecommendation?.amount !== undefined ? 'Complete' : 'Needs review';
+      if (/Due diligence/i.test(check)) status = hasFeasibility ? 'Complete' : 'Needs review';
+      if (/Recommended supplier/i.test(check)) status = recommendationDetail?.supplierName || activeRecommendation?.otherParty ? 'Complete' : 'Missing';
+      if (/Budget availability/i.test(check)) status = hasBudgetCommitment ? 'Complete' : 'Missing';
+      if (/Conflict-of-interest/i.test(check)) status = hasApprovalRoute ? 'Complete' : 'Needs review';
+      return { check, status, owner: readinessOwnerByCheck[check] ?? 'Buyer procurement officer' };
+    });
+  }, [activeRecommendation, recommendationDetail]);
+  const activeFlowLock = useMemo(() => {
+    const noRecord = { message: 'Select an award recommendation before continuing this workflow.', actionLabel: 'Open Awarding Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awarding-in-progress' };
+    const missingNotice = { message: 'Issue or load the award notice before supplier response and handoff steps can continue.', actionLabel: 'Go to Notice Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=notice-standstill` };
+    const pendingResponse = { message: 'Supplier response must be accepted, clarified, or declined before the contract handoff step can continue.', actionLabel: 'Go to Supplier Response Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=supplier-response` };
+    if (!activeRecommendation) return noRecord;
+    if (activeStep === 'supplier-response' && !hasNotice) return missingNotice;
+    if (activeStep === 'contract-handoff') {
+      if (!hasNotice) return missingNotice;
+      if (!hasSupplierResponse) return pendingResponse;
+    }
+    return null;
+  }, [activeRecommendation, activeRecommendationId, activeStep, hasNotice, hasSupplierResponse]);
+  const flowSteps = useMemo<Array<FlowStep<AwardFlowStepId>>>(() => {
+    const noRecord = { message: 'Select an award recommendation before continuing this workflow.', actionLabel: 'Open Awarding Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awarding-in-progress' };
+    const missingNotice = { message: 'Issue or load the award notice before supplier response and handoff steps can continue.', actionLabel: 'Go to Notice Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=notice-standstill` };
+    const pendingResponse = { message: 'Supplier response must be recorded before contract handoff can continue.', actionLabel: 'Go to Supplier Response Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=supplier-response` };
+    return [
+      { id: 'evaluation-result', label: 'Evaluation result', description: 'Review readiness before notice', summary: 'Review readiness checks before issuing the award notice or starting contract formation.', status: activeRecommendation ? 'complete' : 'locked', statusLabel: activeRecommendation ? 'Complete' : 'Locked', count: awardReadinessChecks.length, countLabel: 'readiness checks', lockReason: noRecord },
+      { id: 'award-decision', label: 'Award decision', description: 'Approve or return award', summary: 'Approve the recommendation or return it for evaluation clarification.', status: activeRecommendation ? 'available' : 'locked', statusLabel: hasApproval ? 'Approved' : 'Needs action', lockReason: noRecord },
+      { id: 'approval', label: 'Approval', description: 'Validation and feasibility', summary: 'Record tie-break, feasibility, and approval evidence before notice controls.', status: recommendationDetail?.approvalRoutes?.length ? 'complete' : activeRecommendation ? 'available' : 'locked', statusLabel: recommendationDetail?.approvalRoutes?.length ? 'Complete' : 'Needs review', count: registerCounts.validation, countLabel: 'validation records', lockReason: noRecord },
+      { id: 'notice-standstill', label: 'Notice', description: 'Notify supplier and track standstill', summary: 'Prepare the supplier notice and standstill controls.', status: hasNotice ? 'complete' : activeRecommendation ? 'available' : 'locked', statusLabel: hasNotice ? 'Notice issued' : 'Needs action', count: registerCounts.notice, countLabel: 'notice records', lockReason: noRecord },
+      { id: 'supplier-response', label: 'Supplier response', description: 'Response and activity history', summary: 'Track whether the supplier accepted, declined, or requested clarification.', status: !activeRecommendation ? 'locked' : !hasNotice ? 'locked' : hasSupplierResponse ? 'complete' : 'available', statusLabel: hasSupplierResponse ? 'Response received' : hasNotice ? 'Awaiting response' : 'Locked', count: recommendationDetail?.notice?.responses?.length ?? 0, countLabel: 'responses', lockReason: !activeRecommendation ? noRecord : missingNotice },
+      { id: 'contract-handoff', label: 'Contract handoff', description: 'Budget and linked contract', summary: 'Continue to contract formation after the supplier response is ready.', status: !activeRecommendation ? 'locked' : !hasNotice || !hasSupplierResponse ? 'locked' : hasContractHandoff ? 'complete' : 'available', statusLabel: hasContractHandoff ? 'Linked' : !hasSupplierResponse ? 'Pending response' : 'Ready', count: selectedContractId ? 1 : 0, countLabel: 'linked contracts', lockReason: !activeRecommendation ? noRecord : !hasNotice ? missingNotice : pendingResponse }
+    ];
+  }, [activeRecommendation, activeRecommendationId, hasApproval, hasContractHandoff, hasNotice, hasSupplierResponse, recommendationDetail?.approvalRoutes?.length, recommendationDetail?.notice?.responses?.length, registerCounts.notice, registerCounts.validation, selectedContractId]);
   const bidOptions = singleLinkedOption(
     recommendationDetail?.bidId,
     `${recommendationDetail?.supplierName ?? activeRecommendation?.otherParty ?? 'Recommended supplier'} bid`,
@@ -255,7 +282,11 @@ export function AwardRecommendationProcurexPage() {
   }, [loadRecommendationDetail]);
 
   function selectRecommendation(row: LifecycleAction) {
-    navigate(`/awards-contracts/recommendation?recommendation=${row.awardId ?? row.id}`);
+    navigate(`/awards-contracts/recommendation?recommendation=${row.awardId ?? row.id}&step=evaluation-result`);
+  }
+
+  function selectFlowStep(step: AwardFlowStepId) {
+    navigate({ pathname: '/awards-contracts/recommendation', search: searchWithFlowStep(location.search, step) });
   }
 
   async function refreshRecommendations() {
@@ -295,7 +326,7 @@ export function AwardRecommendationProcurexPage() {
             <>
               <TopSummary
                 items={[
-                  { label: 'Award No', value: recommendationDetail?.reference ?? activeRecommendation.reference ?? activeRecommendation.id },
+                  { label: 'Award No', value: recommendationDetail?.reference ?? activeRecommendation.reference ?? 'Pending reference' },
                   { label: 'Notice No', value: recommendationDetail?.notice?.reference ?? activeRecommendation.noticeReference ?? 'Not issued' },
                   { label: 'Tender', value: recommendationDetail?.tenderReference ?? activeRecommendation.title },
                   { label: 'Recommended Supplier', value: recommendationDetail?.supplierName ?? activeRecommendation.otherParty },
@@ -328,38 +359,6 @@ export function AwardRecommendationProcurexPage() {
             />
           ) : null}
 
-          <section className="procurement-panel evaluation-panel award-page-empty">
-            <div className="panel-heading">
-              <div>
-                <span className="section-kicker">Award recommendation</span>
-                <h2>{activeRecommendation ? 'Award-ready tender actions' : 'No evaluation result is ready for awarding.'}</h2>
-              </div>
-              <StatusBadge value={activeRecommendation?.riskLevel ?? 'No records'} />
-            </div>
-            {isLoading || loadError ? (
-              <div className="scope-empty">{isLoading ? 'Loading award recommendations...' : 'Resolve the loading error above, then retry this workspace.'}</div>
-            ) : recommendations.length === 0 ? (
-              <>
-                <div className="scope-empty">When a tender evaluation is completed and routed to award, the recommendation workflow will appear here.</div>
-                <div className="inline-actions">
-                  <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=awarding-in-progress">Back to Award Queue</button>
-                </div>
-              </>
-            ) : (
-              <SimpleTable headers={['Tender', 'Recommended supplier', 'Stage', 'Required action', 'Status']}>
-                {recommendations.map((row) => (
-                  <tr key={row.id}>
-                    <td><strong>{row.title}</strong><span>{row.tenderId}</span></td>
-                    <td>{row.otherParty}</td>
-                    <td>{row.currentStage}</td>
-                    <td><button className="btn btn-primary btn-sm" type="button" onClick={() => selectRecommendation(row)}>{row.requiredAction}</button></td>
-                    <td><StatusBadge value={row.status} /></td>
-                  </tr>
-                ))}
-              </SimpleTable>
-            )}
-          </section>
-
           {activeRecommendation && detailError ? (
             <RemoteStatePanel
               kicker="Award detail"
@@ -373,13 +372,17 @@ export function AwardRecommendationProcurexPage() {
 
           {activeRecommendation && !detailError ? (
             <AwardContractAccessProvider access={access}>
-            <section className="procurement-panel evaluation-panel">
+            <section className="procurement-panel evaluation-panel award-wizard-panel">
               <div className="panel-heading">
-                <div><span className="section-kicker">Award workspace</span><h2>Before award notice and contract formation</h2></div>
-                <StatusBadge value={awardWorkflowGroups.find((group) => group.id === activeGroup)?.label ?? 'Workflow'} />
+                <div><span className="section-kicker">Award workspace</span><h2>Award readiness review</h2></div>
+                <StatusBadge value={flowSteps.find((step) => step.id === activeStep)?.statusLabel ?? 'Workflow'} />
               </div>
-              <AwardSectionTabs activeGroup={activeGroup} counts={registerCounts} onSelect={setActiveGroup} />
+              <AwardContractFlowBar steps={flowSteps} active={activeStep} onSelect={selectFlowStep} label="Award recommendation flow" />
 
+              {activeFlowLock ? (
+                <LockedFlowStepPanel title={`${flowSteps.find((step) => step.id === activeStep)?.label ?? 'Workflow'} is locked`} reason={activeFlowLock} />
+              ) : (
+              <>
               {activeGroup === 'readiness' ? (
                 <AwardActionWorkspace
                   kicker="Readiness"
@@ -396,11 +399,11 @@ export function AwardRecommendationProcurexPage() {
                         ]}
                       />
                       <SimpleTable headers={['Check', 'Status', 'Owner']} className="award-readiness-table">
-                        {awardReadinessChecks.map((check) => (
-                          <tr key={check}>
-                            <td><strong>{check}</strong></td>
-                            <td><StatusBadge value="Required" /></td>
-                            <td>Logged-in buyer user</td>
+                        {readinessRows.map((row) => (
+                          <tr key={row.check}>
+                            <td><strong>{row.check}</strong></td>
+                            <td><StatusBadge value={row.status} /></td>
+                            <td>{row.owner}</td>
                           </tr>
                         ))}
                       </SimpleTable>
@@ -447,13 +450,13 @@ export function AwardRecommendationProcurexPage() {
                     fields={[
                       { name: 'triggerReason', label: 'Trigger reason', kind: 'textarea', required: true },
                       { name: 'method', label: 'Method', kind: 'text', required: true },
-                      { name: 'criteria', label: 'Criteria JSON array', kind: 'json', rows: 4 },
+                      { name: 'criteria', label: 'Tie-break criteria', kind: 'textarea', rows: 4, transform: 'lineArray', helpText: 'Enter one criterion per line.' },
                       { name: 'outcomeBidId', label: 'Tie-break outcome bid', kind: 'select', options: bidOptions, helpText: 'Choose from the selected recommendation context when a bid is available.' },
                       { name: 'status', label: 'Status', kind: 'select', required: true, options: statusOptions },
                       { name: 'note', label: 'Decision note', kind: 'textarea' },
                       { name: 'payload', label: 'Tie-breaker payload', kind: 'json', rows: 4 }
                     ]}
-                    initialValues={{ triggerReason: 'Equal evaluated score requires tie-break resolution.', method: 'Best delivery and compliance score', criteria: '[]', outcomeBidId: recommendationDetail?.bidId ?? '', status: 'PENDING', payload: '{}' }}
+                    initialValues={{ triggerReason: 'Equal evaluated score requires tie-break resolution.', method: 'Best delivery and compliance score', criteria: 'Delivery score\nWarranty compliance', outcomeBidId: recommendationDetail?.bidId ?? '', status: 'PENDING', payload: '{}' }}
                     onSubmit={(payload) => awardsContractsApi.createAwardTieBreaker(activeRecommendationId, payload)}
                     onComplete={refreshRecommendationDetail}
                   />
@@ -512,8 +515,8 @@ export function AwardRecommendationProcurexPage() {
                     submitLabel="Send Notification"
                     fields={[
                       { name: 'recipientOrgId', label: 'Notice recipient', kind: 'select', options: recipientOptions, helpText: 'Leave as the recommended supplier unless this notice must go to another linked organization.' },
-                      { name: 'channel', label: 'Channel', kind: 'text' },
-                      { name: 'notificationType', label: 'Notification type', kind: 'text', required: true },
+                      { name: 'channel', label: 'Channel', kind: 'text', technical: true },
+                      { name: 'notificationType', label: 'Notification type', kind: 'text', required: true, technical: true },
                       { name: 'subject', label: 'Subject', kind: 'text', required: true },
                       { name: 'body', label: 'Body', kind: 'textarea' },
                       { name: 'status', label: 'Status', kind: 'select', required: true, options: statusOptions },
@@ -537,7 +540,7 @@ export function AwardRecommendationProcurexPage() {
                         items={[
                           { label: 'Award value', value: activeRecommendation.amount === null ? 'Not priced' : formatMoney(activeRecommendation.amount, activeRecommendation.currency) },
                           { label: 'Currency', value: activeRecommendation.currency },
-                          { label: 'Contract handoff', value: selectedContractId ? shortId(selectedContractId) : 'Not formed' }
+                          { label: 'Contract handoff', value: selectedContractId ? 'Linked contract available' : 'Not formed' }
                         ]}
                       />
                       <RecordRegister title="Budget commitments" records={recommendationDetail?.budgetCommitments ?? []} />
@@ -575,15 +578,52 @@ export function AwardRecommendationProcurexPage() {
                   <RegisterCard kicker="Budget" title="Budget commitments" records={recommendationDetail?.budgetCommitments ?? []} countLabel="commitments" />
                 </div>
               ) : null}
+              </>
+              )}
 
               {selectedContractId ? (
                 <div className="inline-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${selectedContractId}`)}>Open Contract</button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${selectedContractId}&step=draft`)}>Open Contract</button>
                 </div>
               ) : null}
             </section>
             </AwardContractAccessProvider>
           ) : null}
+
+          <section className="procurement-panel evaluation-panel award-page-empty award-secondary-queue">
+            <div className="panel-heading">
+              <div>
+                <span className="section-kicker">Award queue</span>
+                <h2>{activeRecommendation ? 'Switch award recommendation' : 'No evaluation result is ready for awarding.'}</h2>
+              </div>
+              <StatusBadge value={activeRecommendation?.riskLevel ?? 'No records'} />
+            </div>
+            {isLoading || loadError ? (
+              <div className="scope-empty">{isLoading ? 'Loading award recommendations...' : 'Resolve the loading error above, then retry this workspace.'}</div>
+            ) : recommendations.length === 0 ? (
+              <>
+                <div className="scope-empty">When a tender evaluation is completed and routed to award, the recommendation workflow will appear here.</div>
+                <div className="inline-actions">
+                  <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=awarding-in-progress">Back to Award Queue</button>
+                </div>
+              </>
+            ) : (
+              <SimpleTable headers={['Tender', 'Recommended supplier', 'Stage', 'Required action', 'Status']}>
+                {recommendations.map((row) => {
+                  const selected = row.awardId === activeRecommendationId || row.id === selectedRecommendationId || row.id === activeRecommendation?.id;
+                  return (
+                    <tr className={selected ? 'award-selected-row' : ''} aria-current={selected ? 'true' : undefined} key={row.id}>
+                      <td><strong>{row.title}</strong><span>{row.reference ?? row.noticeReference ?? humanizeWorkflowStatus(row.currentStage)}</span></td>
+                      <td>{row.otherParty}</td>
+                      <td>{humanizeWorkflowStatus(row.currentStage)}</td>
+                      <td><button className="btn btn-primary btn-sm" type="button" onClick={() => selectRecommendation(row)}>{row.requiredAction}</button></td>
+                      <td><StatusBadge value={row.status} /></td>
+                    </tr>
+                  );
+                })}
+              </SimpleTable>
+            )}
+          </section>
         </main>
       </div>
     </ProcurexAwardFrame>

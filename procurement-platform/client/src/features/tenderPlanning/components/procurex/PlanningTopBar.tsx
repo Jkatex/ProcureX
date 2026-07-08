@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '@/app/store';
 import { AccountMenu } from '@/shared/components/AccountMenu';
 import {
@@ -13,10 +14,12 @@ type PlanningTopBarProps = {
 };
 
 export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: PlanningTopBarProps) {
+  const { t } = useTranslation();
   const user = useAppSelector((state) => state.auth.user);
   const [appsOpen, setAppsOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
-  const organizationLabel = user?.organization || (user?.accountType === 'ADMIN' ? 'Platform admin tools' : 'ProcureX account tools');
+  const organizationLabel = user?.organization || (user?.accountType === 'ADMIN' ? t('platformApps.adminTools') : t('platformApps.accountTools'));
+  const localizedTitle = title === 'Procurement Planning' ? t('pages.tenderPlanning.title') : t(`pages.${title.toLowerCase()}.title`, { defaultValue: title });
 
   useEffect(() => {
     function handleDocumentClick(event: PointerEvent) {
@@ -56,7 +59,7 @@ export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: P
           <span className="platform-logo">
             <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
           </span>
-          <span>{title}</span>
+          <span>{localizedTitle}</span>
         </button>
       </div>
 

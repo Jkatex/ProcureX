@@ -32,6 +32,32 @@ export type PostAwardTabId = 'milestones' | 'payments' | 'issues' | 'variations'
 
 export type BadgeTone = 'success' | 'warning' | 'error' | 'info';
 
+export type FlowStepStatus = 'complete' | 'current' | 'available' | 'locked';
+
+export type FlowLockReason = {
+  message: string;
+  actionLabel?: string;
+  navigatePage?: string;
+  routeSearch?: string;
+};
+
+export type FlowStep<TId extends string = string> = {
+  id: TId;
+  label: string;
+  description: string;
+  status: FlowStepStatus;
+  count?: number;
+  countLabel?: string;
+  statusLabel?: string;
+  summary?: string;
+  lockReason?: FlowLockReason;
+};
+
+export type FlowState<TId extends string = string> = {
+  activeStep: TId;
+  steps: Array<FlowStep<TId>>;
+};
+
 export type LifecycleRoleContext = 'BUYER' | 'SUPPLIER';
 export type ViewerRole = LifecycleRoleContext | 'ADMIN' | 'NONE';
 export type WorkflowActionOwner = LifecycleRoleContext | 'ADMIN' | 'ANY';
