@@ -4,6 +4,7 @@ import { useAppSelector } from '@/app/store';
 import { communicationApi } from '@/features/communication/api';
 import type {
   CommunicationListResponse,
+  CommunicationAttachmentUpload,
   CommunicationMailboxMessage,
   CommunicationMailboxQuery,
   CommunicationRecipient,
@@ -22,6 +23,16 @@ type ComposeState = {
   body: string;
   recipientSearch: string;
   tenderSearch: string;
+  attachments: ComposeAttachment[];
+  replyToMessageId: string;
+};
+
+type ComposeAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  documentType: string;
 };
 
 const pageToRoute: Record<string, string> = {
@@ -63,7 +74,7 @@ const folders: Array<{ key: MailboxFolder; label: string }> = [
   { key: 'trash', label: 'Trash' }
 ];
 
-function initialComposeState(): ComposeState {
+function initialComposeState(overrides: Partial<ComposeState> = {}): ComposeState {
   return {
     recipients: [],
     tenderId: '',
@@ -71,7 +82,10 @@ function initialComposeState(): ComposeState {
     subject: '',
     body: '',
     recipientSearch: '',
-    tenderSearch: ''
+    tenderSearch: '',
+    attachments: [],
+    replyToMessageId: '',
+    ...overrides
   };
 }
 
@@ -88,6 +102,7 @@ export function CommunicationCenterProcurexPage() {
   const [selectedId, setSelectedId] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<CommunicationMailboxMessage | null>(null);
   const [compose, setCompose] = useState<ComposeState>(() => initialComposeState());
+  const [replySource, setReplySource] = useState<CommunicationMailboxMessage | null>(null);
   const [recipients, setRecipients] = useState<CommunicationRecipient[]>([]);
   const [tenders, setTenders] = useState<CommunicationTenderLink[]>([]);
   const [replyBody, setReplyBody] = useState('');
@@ -99,8 +114,9 @@ export function CommunicationCenterProcurexPage() {
   useBodyPageMetadata('communication-center');
 
   const routeView = searchParams.get('view');
-  const routeMessageId = routeView === 'message' ? searchParams.get('id') ?? '' : '';
-  const composeOpen = routeView === 'compose';
+  const routeMessageId = routeView === 'message' || routeView === 'reply' ? searchParams.get('id') ?? '' : '';
+  const replyOpen = routeView === 'reply';
+  const composeOpen = routeView === 'compose' || replyOpen;
   const messageView = routeView === 'message';
 
   const loadMailbox = useCallback(
@@ -154,13 +170,16 @@ export function CommunicationCenterProcurexPage() {
           ...current.counts,
           unread: Math.max(0, current.counts.unread - 1)
         },
-        messages: current.messages.map((item) => (item.id === updated.id ? updated : item))
+        messages: folder === 'unread'
+          ? current.messages.filter((item) => item.id !== updated.id)
+          : current.messages.map((item) => (item.id === updated.id ? updated : item)),
+        totalMessages: folder === 'unread' ? Math.max(0, current.totalMessages - 1) : current.totalMessages
       }));
       return updated;
     } catch {
       return message;
     }
-  }, []);
+  }, [folder]);
 
   const loadMessage = useCallback(
     async (messageId: string) => {
@@ -178,6 +197,28 @@ export function CommunicationCenterProcurexPage() {
         setSelectedId('');
         setSelectedMessage(null);
         setError(errorMessage(caught, 'Communication message could not be opened.'));
+      } finally {
+        setMessageLoading(false);
+      }
+    },
+    [mailbox.messages, markMessageRead]
+  );
+
+  const loadReplySource = useCallback(
+    async (messageId: string) => {
+      if (!messageId) return;
+      setMessageLoading(true);
+      setError('');
+      try {
+        const mailboxMessage = mailbox.messages.find((message) => message.id === messageId);
+        const message = mailboxMessage ?? (await communicationApi.getMessage(messageId));
+        await markMessageRead(message);
+        setReplySource(message);
+        setCompose(replyComposeState(message));
+      } catch (caught) {
+        setReplySource(null);
+        setCompose(initialComposeState());
+        setError(errorMessage(caught, 'Reply could not be prepared.'));
       } finally {
         setMessageLoading(false);
       }
@@ -209,6 +250,23 @@ export function CommunicationCenterProcurexPage() {
 
     void loadMessage(routeMessageId);
   }, [loadMessage, markMessageRead, messageView, routeMessageId, selectedMessage]);
+
+  useEffect(() => {
+    if (!replyOpen) {
+      if (!compose.replyToMessageId) setReplySource(null);
+      return;
+    }
+
+    if (!routeMessageId) {
+      setError('Reply link is missing a message id.');
+      setReplySource(null);
+      setCompose(initialComposeState());
+      return;
+    }
+
+    if (replySource?.id === routeMessageId && compose.replyToMessageId === routeMessageId) return;
+    void loadReplySource(routeMessageId);
+  }, [compose.replyToMessageId, loadReplySource, replyOpen, replySource, routeMessageId]);
 
   useEffect(() => {
     if (!composeOpen) return;

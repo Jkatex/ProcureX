@@ -54,7 +54,15 @@ describe('communication module', () => {
         subject: 'Can we visit the site?',
         body: 'Please confirm the available site visit slots.',
         priority: CommunicationPriority.HIGH,
-        actionRequired: true
+        actionRequired: true,
+        attachmentUploads: [
+          {
+            name: 'site-report.pdf',
+            documentType: 'PDF',
+            mimeType: 'application/pdf',
+            size: 1200
+          }
+        ]
       })
     ).toEqual({
       senderOrgId: organizationId,
@@ -66,6 +74,14 @@ describe('communication module', () => {
       priority: CommunicationPriority.HIGH,
       actionRequired: true,
       attachments: [],
+      attachmentUploads: [
+        {
+          name: 'site-report.pdf',
+          documentType: 'PDF',
+          mimeType: 'application/pdf',
+          size: 1200
+        }
+      ],
       metadata: {}
     });
 
@@ -92,6 +108,17 @@ describe('communication module', () => {
         subject: 'Too many attachments',
         body: 'Attachment floods should be rejected early.',
         attachments: Array.from({ length: 21 }, () => ({ documentId: '33333333-3333-4333-8333-333333333333' }))
+      })
+    ).toThrow();
+
+    expect(() =>
+      composeMessageBodySchema.parse({
+        senderOrgId: organizationId,
+        recipientOrgId,
+        subject: 'Too many mixed attachments',
+        body: 'Attachment floods should be rejected early.',
+        attachments: Array.from({ length: 10 }, () => ({ documentId: '33333333-3333-4333-8333-333333333333' })),
+        attachmentUploads: Array.from({ length: 11 }, (_, index) => ({ name: `report-${index}.pdf` }))
       })
     ).toThrow();
   });
@@ -226,12 +253,14 @@ describe('communication module', () => {
       priority: CommunicationPriority.NORMAL,
       actionRequired: false,
       attachments: [],
+      attachmentUploads: [],
       metadata: {}
     });
     await service.reply('session-token', 'message-1', {
       senderOrgId: otherOrgId,
       body: 'Reply body.',
       attachments: [],
+      attachmentUploads: [],
       metadata: {}
     });
 
