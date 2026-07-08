@@ -128,19 +128,12 @@ export function WorkspaceDashboardProcurexPage() {
   const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.user);
   const [dashboard, setDashboard] = useState<WorkspaceDashboardData>(emptyDashboardData);
-  const displayName = user?.displayName || t('accountMenu.procurexUser');
-  const organization = user?.organization || t('workspaceDashboard.yourOrganization');
-  const hasActivity =
-    dashboard.summary.workflowCount > 0 ||
-    dashboard.summary.urgentCount > 0 ||
-    dashboard.summary.unreadMessages > 0 ||
-    dashboard.activeWork.length > 0;
   const [dashboardLoaded, setDashboardLoaded] = useState(false);
   const displayName = user?.displayName || 'ProcureX user';
   const organization = user?.organization || 'Your organization';
   const hasActivity = dashboardHasActivity(dashboard);
   const showFirstRunSections = dashboardLoaded && !hasActivity;
-  const recentActivity = buildRecentActivity(dashboard).slice(0, 6);
+  const recentActivity = buildRecentActivity(dashboard, format).slice(0, 6);
   const executiveKpis = buildExecutiveKpis(dashboard);
 
   useEffect(() => {
@@ -213,13 +206,11 @@ export function WorkspaceDashboardProcurexPage() {
                 <span className="section-kicker">{!dashboardLoaded ? 'Loading workspace dashboard' : hasActivity ? 'Live workspace dashboard' : 'First run dashboard'}</span>
                 <h1>Welcome, <span>{displayName}</span></h1>
                 <p>
-                  {hasActivity
-                    ? t('workspaceDashboard.hero.liveBody')
-                    : t('workspaceDashboard.hero.firstRunBody')}
-                    ? 'Your procurement work, messages, deadlines, and compliance actions are summarized from live ProcureX records.'
-                    : dashboardLoaded
-                      ? 'This dashboard will fill with procurement work, messages, deadlines, and compliance actions as your team starts using ProcureX.'
-                      : 'Loading your procurement work, messages, deadlines, and compliance actions from live ProcureX records.'}
+                  {!dashboardLoaded
+                    ? 'Loading your procurement work, messages, deadlines, and compliance actions from live ProcureX records.'
+                    : hasActivity
+                      ? 'Your procurement work, messages, deadlines, and compliance actions are summarized from live ProcureX records.'
+                      : 'This dashboard will fill with procurement work, messages, deadlines, and compliance actions as your team starts using ProcureX.'}
                 </p>
                 <div className="inline-actions dashboard-welcome-actions">
                   <button className="btn btn-primary" type="button" onClick={() => navigateToPage('marketplace')}>
@@ -299,8 +290,8 @@ export function WorkspaceDashboardProcurexPage() {
                         <button className="dashboard-first-run-action" type="button" key={action.page} onClick={() => navigateToPage(action.page)}>
                           <AppMenuIcon kind={action.icon} />
                           <span>
-                            <strong>{action.title}</strong>
-                            <em>{action.description}</em>
+                            <strong>{t(action.titleKey)}</strong>
+                            <em>{t(action.descriptionKey)}</em>
                           </span>
                         </button>
                       ))}
@@ -318,8 +309,8 @@ export function WorkspaceDashboardProcurexPage() {
                       {platformAppItems.map((app) => (
                         <button className="dashboard-app-card" type="button" key={app.page} onClick={() => navigateToPage(app.page)}>
                           <AppMenuIcon kind={app.icon} />
-                          <strong>{app.title}</strong>
-                          <em>{app.description}</em>
+                          <strong>{t(app.titleKey)}</strong>
+                          <em>{t(app.descriptionKey)}</em>
                         </button>
                       ))}
                     </div>
@@ -397,7 +388,14 @@ export function WorkspaceDashboardProcurexPage() {
                       <div>
                         <strong>{t('workspaceDashboard.deadlines.emptyTitle')}</strong>
                         <span>{t('workspaceDashboard.deadlines.emptyBody')}</span>
-                <section className="dashboard-intelligence-grid">
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </section>
+
+            <section className="dashboard-intelligence-grid">
                   {dashboard.actionQueue.length ? (
                     <article className="dashboard-intelligence-panel dashboard-intelligence-panel-critical dashboard-intelligence-panel-wide dashboard-horizontal-panel">
                       <div className="panel-heading">
@@ -484,7 +482,7 @@ export function WorkspaceDashboardProcurexPage() {
                             key={deadline.id}
                             onClick={() => navigateToRoute(deadline.route)}
                           >
-                            <time>{formatDate(deadline.date)}</time>
+                            <time>{format.date(deadline.date)}</time>
                             <strong>{deadline.title}</strong>
                             <span>{deadline.kind}</span>
                           </button>
@@ -493,11 +491,9 @@ export function WorkspaceDashboardProcurexPage() {
                       <button className="btn btn-secondary" type="button" onClick={() => navigateToPage('tender-planning')}>
                         {t('workspaceDashboard.deadlines.addPlanDates')}
                       </button>
-                    </div>
-                  )}
-                </div>
-              </aside>
-            </section>
+                    </article>
+                  ) : null}
+                </section>
 
             <section className="dashboard-panel">
               <div className="panel-heading">
@@ -588,10 +584,7 @@ export function WorkspaceDashboardProcurexPage() {
                 ))}
               </div>
             </section>
-                    </article>
-                  ) : null}
-                </section>
-              </>
+            </>
             )}
           </div>
         </main>
@@ -654,7 +647,7 @@ function deriveExecutiveKpis(dashboard: WorkspaceDashboardData) {
   };
 }
 
-function buildRecentActivity(dashboard: WorkspaceDashboardData) {
+function buildRecentActivity(dashboard: WorkspaceDashboardData, format: ReturnType<typeof useLocaleFormat>) {
   return [
     ...dashboard.actionQueue.map((item) => ({
       id: `action:${item.id}`,
@@ -668,7 +661,7 @@ function buildRecentActivity(dashboard: WorkspaceDashboardData) {
       id: `work:${item.id}`,
       title: item.title,
       subtitle: `${item.type} / ${item.nextAction}`,
-      meta: item.deadline ? formatDate(item.deadline) : item.priority,
+      meta: item.deadline ? format.date(item.deadline) : item.priority,
       route: item.route,
       timestamp: item.deadline ?? ''
     })),
@@ -676,7 +669,7 @@ function buildRecentActivity(dashboard: WorkspaceDashboardData) {
       id: `deadline:${item.id}`,
       title: item.title,
       subtitle: item.kind,
-      meta: formatDate(item.date),
+      meta: format.date(item.date),
       route: item.route,
       timestamp: item.date
     }))
