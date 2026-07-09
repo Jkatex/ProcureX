@@ -135,7 +135,8 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getAllByText('Procurement Planning').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Tender Review and Publication').length).toBeGreaterThan(0);
     expect(container.querySelector('.wizard-shell')).toBeInTheDocument();
-    expect(container.querySelector('.wizard-rail')).not.toBeInTheDocument();
+    expect(container.querySelector('.wizard-rail')).toBeInTheDocument();
+    expect(container.querySelector('.hero-action-stack .save-draft-button')).toBeInTheDocument();
     expect(container.querySelector('.journey-panel')).toBeInTheDocument();
     expect(container.querySelector('.journey-panel-content .planning-section')).toBeInTheDocument();
     expect(container.querySelector('.wizard-progress-step.active')).toHaveTextContent('Basic Information');
@@ -501,6 +502,16 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Remove BOQ line 2' }));
     expect(screen.queryByLabelText('BOQ description 2')).not.toBeInTheDocument();
 
+    expect(screen.getByRole('radio', { name: 'Not mandatory' })).toBeChecked();
+    expect(screen.queryByLabelText('Upload Site survey')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Mandatory' }));
+    expect(screen.getByLabelText('Upload Site survey')).toBeInTheDocument();
+    await user.upload(screen.getByLabelText('Upload Site survey'), new File(['survey'], 'site-visit-survey.pdf', { type: 'application/pdf' }));
+    expect(screen.getByText('site-visit-survey.pdf')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Not mandatory' }));
+    expect(screen.queryByLabelText('Upload Site survey')).not.toBeInTheDocument();
+    expect(screen.queryByText('site-visit-survey.pdf')).not.toBeInTheDocument();
+
     expect(screen.queryByLabelText('Bank statement period')).not.toBeInTheDocument();
     await user.click(screen.getByLabelText('Bank statements'));
     expect(screen.getByLabelText('Bank statement period')).toBeInTheDocument();
@@ -511,7 +522,7 @@ describe('CreateTenderProcurexPage', () => {
     fireEvent.change(screen.getByLabelText('Minimum value 1'), { target: { value: '500000000' } });
     await user.selectOptions(screen.getByLabelText('Period 1'), 'Last 3 Years');
     await user.selectOptions(screen.getByLabelText('Evidence required 1'), 'Audited accounts');
-  }, 10000);
+  }, 20000);
 
   it('manages works regulatory license requirements with the prototype picker', async () => {
     const user = userEvent.setup();
@@ -681,27 +692,26 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('radio', { name: 'Yes' }));
     expect(screen.getByRole('radio', { name: 'Yes' })).toBeChecked();
     expect(screen.getByText('Sample requirement design')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add Sample Requirement' })).toBeDisabled();
-    expect(screen.getByText('Add at least one quantity item before adding sample requirements.')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    await user.type(screen.getByLabelText('Item 1 description'), 'Solar panel kit');
+    expect(screen.getByRole('button', { name: 'Add Sample Requirement' })).toBeEnabled();
+    expect(screen.getByText('Adding a sample requirement will create a blank quantity item for you to complete.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add Sample Requirement' }));
-    expect(screen.getByLabelText('Related BOQ Item 1')).toHaveDisplayValue('Solar panel kit');
+    expect(screen.getByLabelText('Item 1 description')).toBeInTheDocument();
     expect(screen.getByLabelText('Sample Required 1')).toBeChecked();
-    await user.type(screen.getByLabelText('Number of Samples 1'), '2');
-    await user.type(screen.getByLabelText('Sample Description 1'), 'One sealed sample and one working sample');
+    fireEvent.change(screen.getByLabelText('Item 1 description'), { target: { value: 'Solar panel kit' } });
+    expect(screen.getByLabelText('Related BOQ Item 1')).toHaveDisplayValue('Solar panel kit');
+    fireEvent.change(screen.getByLabelText('Number of Samples 1'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Sample Description 1'), { target: { value: 'One sealed sample and one working sample' } });
 
     await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
     await user.selectOptions(screen.getByLabelText('Requirement type 1'), 'Minimum Annual Turnover');
-    await user.type(screen.getByLabelText('Minimum value 1'), '50000000');
+    fireEvent.change(screen.getByLabelText('Minimum value 1'), { target: { value: '50000000' } });
     await user.selectOptions(screen.getByLabelText('Period 1'), 'Last 3 Years');
     await user.selectOptions(screen.getByLabelText('Evidence required 1'), 'Audited accounts');
 
     await user.click(screen.getByRole('button', { name: 'Manufacturer authorization' }));
     expect(screen.getByLabelText('Requirement name 1')).toHaveValue('Manufacturer authorization');
-    await user.type(screen.getByLabelText('Eligibility notes 1'), 'Must be current');
+    fireEvent.change(screen.getByLabelText('Eligibility notes 1'), { target: { value: 'Must be current' } });
   }, 10000);
 
   it('manages regulatory license requirements with the prototype picker', async () => {
