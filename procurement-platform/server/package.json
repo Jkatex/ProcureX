@@ -17,6 +17,7 @@
     "db:migrate": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma migrate dev --schema server/prisma/schema.prisma",
     "db:deploy": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma migrate deploy --schema server/prisma/schema.prisma",
     "db:seed": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed.ts",
+    "db:seed:evaluation-intake-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-evaluation-intake-demo.ts",
     "db:seed:marketplace-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-marketplace-demo.ts",
     "db:seed:award-contract-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-award-contract-demo.ts",
     "db:cleanup:demo-admin": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/cleanup-demo-admin-only.ts",
