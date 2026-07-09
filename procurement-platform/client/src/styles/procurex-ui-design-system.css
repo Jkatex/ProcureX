@@ -21695,6 +21695,90 @@ body:not([data-page="iam-verification"]) .communication-shell {
     top: 35px;
 }
 
+.evaluation-horizontal-stepper {
+    position: relative;
+    margin: 0 0 18px;
+    border: 1px solid var(--px-line-soft);
+    border-radius: var(--px-card-radius-sm);
+    background: #ffffff;
+}
+
+.evaluation-horizontal-stepper.evaluation-stage-tabs.wizard-step-progress {
+    gap: 0;
+    min-height: 104px;
+    padding: 18px 16px 16px;
+}
+
+.evaluation-horizontal-stepper::before {
+    content: "";
+    position: absolute;
+    top: 35px;
+    left: 62px;
+    right: 62px;
+    height: 2px;
+    background: var(--px-line-soft);
+    pointer-events: none;
+}
+
+.evaluation-horizontal-stepper::after {
+    content: none;
+}
+
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-rows: 38px minmax(32px, auto);
+    justify-items: center;
+    align-items: start;
+    flex: 1 0 132px;
+    min-width: 132px;
+    min-height: 74px;
+    cursor: pointer;
+}
+
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step strong {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--px-line-soft);
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--text-secondary) !important;
+    font-size: 12px;
+    box-shadow: 0 0 0 8px #ffffff;
+}
+
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step span {
+    margin-top: 10px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step.completed strong,
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step.active strong {
+    border-color: var(--design-primary);
+    background: var(--design-primary);
+    color: #ffffff !important;
+}
+
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step.completed span,
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step.active span {
+    color: var(--design-ink-deep);
+}
+
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step.active span {
+    color: var(--design-primary);
+}
+
+.evaluation-horizontal-stepper .evaluation-stage-tab.wizard-progress-step:hover strong {
+    border-color: rgba(0, 128, 128, 0.55);
+}
+
 .evaluation-panel {
     padding: 22px;
 }
@@ -21879,16 +21963,14 @@ body:not([data-page="iam-verification"]) .communication-shell {
     background: rgba(0, 128, 128, 0.08);
 }
 
-.evaluation-step-criterion strong,
-.evaluation-bidder-switcher strong {
+.evaluation-step-criterion strong {
     display: block;
     color: var(--text-primary);
     font-size: 14px;
     line-height: 1.35;
 }
 
-.evaluation-step-criterion span,
-.evaluation-bidder-switcher span {
+.evaluation-step-criterion span {
     display: block;
     margin-top: 4px;
     color: var(--text-secondary);
@@ -21926,11 +22008,102 @@ body:not([data-page="iam-verification"]) .communication-shell {
 }
 
 .evaluation-bidder-switcher {
-    min-width: 180px;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 12px 2px 14px;
+    margin-bottom: 16px;
+    scroll-snap-type: x proximity;
+}
+
+.evaluation-bidder-switcher button {
+    flex: 0 0 260px;
+    max-width: 280px;
+    min-width: 240px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
     border: 1px solid var(--px-line-soft);
-    border-radius: var(--px-card-radius-sm);
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 14px 16px;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    scroll-snap-align: start;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.evaluation-bidder-switcher button:hover {
+    border-color: rgba(0, 128, 128, 0.35);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
+}
+
+.evaluation-bidder-switcher button.active {
+    border-color: var(--design-primary);
+    background: rgba(0, 128, 128, 0.08);
+    box-shadow: 0 16px 32px rgba(0, 128, 128, 0.14);
+}
+
+.evaluation-bidder-switcher strong {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 999px;
     background: var(--px-blue-wash);
-    padding: 12px;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.evaluation-bidder-switcher button.active strong {
+    background: var(--design-primary);
+    color: #ffffff;
+}
+
+.evaluation-bidder-tab-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+.evaluation-bidder-tab-name {
+    min-width: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.evaluation-bidder-tab-status {
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.evaluation-bidder-switcher button.active .evaluation-bidder-tab-status {
+    color: var(--design-primary);
+}
+
+@media (max-width: 760px) {
+    .evaluation-bidder-switcher button {
+        flex-basis: 220px;
+        min-width: 220px;
+    }
 }
 
 .evaluation-subcriteria-panel {
