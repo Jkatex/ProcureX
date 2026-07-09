@@ -17,11 +17,27 @@ export const bidParamsSchema = z
   })
   .strict();
 
+export const bidDocumentParamsSchema = z
+  .object({
+    bidId: uuidSchema,
+    documentId: uuidSchema
+  })
+  .strict();
+
+export const bidSampleParamsSchema = z
+  .object({
+    bidId: uuidSchema,
+    sampleId: uuidSchema
+  })
+  .strict();
+
+const bidSampleStatusSchema = z.enum(['REQUIRED', 'PENDING_SUBMISSION', 'SUBMITTED', 'RECEIVED', 'INSPECTED', 'ACCEPTED', 'REJECTED']);
+
 const bidDocumentSchema = z
   .object({
     name: z.string().trim().min(1).max(240),
     documentType: z.string().trim().min(1).max(120),
-    envelope: z.enum(['TECHNICAL', 'FINANCIAL', 'COMBINED']).optional().default('COMBINED'),
+    envelope: z.enum(['ADMINISTRATIVE', 'TECHNICAL', 'FINANCIAL', 'COMBINED']).optional().default('COMBINED'),
     checksum: z.string().trim().max(160).optional(),
     objectKey: z.string().trim().max(500).optional(),
     size: z.coerce.number().int().min(0).max(2_147_483_647).optional(),
@@ -60,5 +76,36 @@ export const bidDraftBodySchema = z
 export const bidDocumentsBodySchema = z
   .object({
     documents: z.array(bidDocumentSchema).min(1).max(100)
+  })
+  .strict();
+
+export const createBidSampleBodySchema = z
+  .object({
+    sampleName: z.string().trim().min(1).max(240),
+    relatedItem: z.string().trim().min(1).max(240).optional(),
+    quantity: z.coerce.number().positive().max(999999999999999.99),
+    deliveryLocation: z.string().trim().min(1).max(500).optional(),
+    deliveryDeadline: z.string().datetime().optional(),
+    trackingStatus: z.enum(['PENDING_SUBMISSION', 'SUBMITTED']).optional(),
+    courier: z.string().trim().min(1).max(160).optional(),
+    trackingNumber: z.string().trim().min(1).max(160).optional(),
+    metadata: metadataSchema
+  })
+  .strict();
+
+export const patchBidSampleBodySchema = z
+  .object({
+    sampleName: z.string().trim().min(1).max(240).optional(),
+    relatedItem: z.string().trim().min(1).max(240).optional(),
+    quantity: z.coerce.number().positive().max(999999999999999.99).optional(),
+    deliveryLocation: z.string().trim().min(1).max(500).optional(),
+    deliveryDeadline: z.string().datetime().optional(),
+    trackingStatus: bidSampleStatusSchema.optional(),
+    courier: z.string().trim().min(1).max(160).optional(),
+    trackingNumber: z.string().trim().min(1).max(160).optional(),
+    receivedAt: z.string().datetime().optional(),
+    inspectedAt: z.string().datetime().optional(),
+    inspectionNotes: z.string().trim().max(2000).optional(),
+    metadata: metadataSchema
   })
   .strict();

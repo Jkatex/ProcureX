@@ -162,9 +162,22 @@ enum BidStatus {
 }
 
 enum EnvelopeType {
+  ADMINISTRATIVE
   TECHNICAL
   FINANCIAL
   COMBINED
+
+  @@schema("bidding")
+}
+
+enum BidSampleStatus {
+  REQUIRED
+  PENDING_SUBMISSION
+  SUBMITTED
+  RECEIVED
+  INSPECTED
+  ACCEPTED
+  REJECTED
 
   @@schema("bidding")
 }
@@ -751,6 +764,7 @@ model Organization {
   procurementPlans          ProcurementPlan[]            @relation("ProcurementPlanOwnerOrg")
   bidsAsBuyer               Bid[]                        @relation("BidBuyerOrg")
   bidsAsSupplier            Bid[]                        @relation("BidSupplierOrg")
+  bidSamples                BidSample[]                  @relation("BidSampleSupplierOrg")
   evaluationWorkspaces      EvaluationWorkspace[]        @relation("EvaluationBuyerOrg")
   awardNoticesAsBuyer       AwardNotice[]                @relation("AwardNoticeBuyerOrg")
   awardNoticesAsSupplier    AwardNotice[]                @relation("AwardNoticeSupplierOrg")
@@ -919,6 +933,7 @@ model Tender {
   milestones      TenderMilestone[]
   commercialItems TenderCommercialItem[]
   bids            Bid[]
+  bidSamples      BidSample[]
   evaluation      EvaluationWorkspace?
   communications  CommunicationItem[]
   contracts       Contract[]
@@ -1118,6 +1133,7 @@ model Bid {
   versions          BidVersion[]
   documents         BidDocument[]
   responses         BidResponse[]
+  samples           BidSample[]
   receipt           BidReceipt?
   evaluationScores  EvaluationScore[]
   recommendations   AwardRecommendation[]
@@ -1182,6 +1198,38 @@ model BidReceipt {
   bid         Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
 
   @@map("bid_receipts")
+  @@schema("bidding")
+}
+
+model BidSample {
+  id               String          @id @default(uuid()) @db.Uuid
+  bidId            String          @map("bid_id") @db.Uuid
+  tenderId         String          @map("tender_id") @db.Uuid
+  supplierOrgId    String          @map("supplier_org_id") @db.Uuid
+  sampleName       String          @map("sample_name")
+  relatedItem      String?         @map("related_item")
+  quantity         Decimal?        @db.Decimal(18, 2)
+  deliveryLocation String?         @map("delivery_location")
+  deliveryDeadline DateTime?       @map("delivery_deadline")
+  trackingStatus   BidSampleStatus @default(REQUIRED) @map("tracking_status")
+  courier          String?
+  trackingNumber   String?         @map("tracking_number")
+  submittedAt      DateTime?       @map("submitted_at")
+  receivedAt       DateTime?       @map("received_at")
+  inspectedAt      DateTime?       @map("inspected_at")
+  inspectionNotes  String?         @map("inspection_notes")
+  metadata         Json            @default("{}")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  bid              Bid             @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  tender           Tender          @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  supplierOrg      Organization    @relation("BidSampleSupplierOrg", fields: [supplierOrgId], references: [id], onDelete: Restrict)
+
+  @@index([bidId])
+  @@index([tenderId])
+  @@index([supplierOrgId])
+  @@index([trackingStatus])
+  @@map("bid_samples")
   @@schema("bidding")
 }
 

@@ -1,10 +1,14 @@
 import type { Request, RequestHandler } from 'express';
 import { ModuleService } from './service.js';
 import {
+  bidDocumentParamsSchema,
   bidDocumentsBodySchema,
   bidDraftBodySchema,
   bidParamsSchema,
+  bidSampleParamsSchema,
+  createBidSampleBodySchema,
   moduleStatusQuerySchema,
+  patchBidSampleBodySchema,
   tenderBidParamsSchema
 } from './validators.js';
 
@@ -88,9 +92,57 @@ export class ModuleController {
     try {
       const params = bidParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid bid id.');
+      if (req.is('multipart/form-data')) {
+        res.status(201).json(await this.service.addMultipartDocuments(bearerToken(req), params.data.bidId, req));
+        return;
+      }
       const body = bidDocumentsBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid bid document payload.');
       res.status(201).json(await this.service.addDocuments(bearerToken(req), params.data.bidId, body.data.documents));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidDocumentParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid document id.');
+      res.json(await this.service.deleteDocument(bearerToken(req), params.data.bidId, params.data.documentId));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createSample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid id.');
+      const body = createBidSampleBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid bid sample payload.');
+      res.status(201).json(await this.service.createSample(bearerToken(req), params.data.bidId, body.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  listSamples: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid id.');
+      res.json(await this.service.listSamples(bearerToken(req), params.data.bidId));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  patchSample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = bidSampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid bid sample id.');
+      const body = patchBidSampleBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid bid sample payload.');
+      res.json(await this.service.patchSample(bearerToken(req), params.data.bidId, params.data.sampleId, body.data));
     } catch (error) {
       next(error);
     }

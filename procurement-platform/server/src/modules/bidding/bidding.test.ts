@@ -1,7 +1,215 @@
-import { BidStatus, TenderStatus, Visibility } from '@prisma/client';
-import { describe, expect, it, vi } from 'vitest';
-import { ModuleRepository, tenderAcceptsBids } from './repository.js';
+import { BidSampleStatus, BidStatus, EvaluationStage, TenderStatus, Visibility } from '@prisma/client';
+import { createDecipheriv } from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { canonicalJson, resolveBidEncryptionKey, sealBidPackage, sha256Hex, type CanonicalBidPackage } from './bidEncryption.service.js';
+import { parseAndStoreBidDocuments } from './bidDocumentUpload.service.js';
+import { validateBidDraft } from './bidValidation.service.js';
+import { ModuleRepository, tenderAcceptsBids, toBidDto } from './repository.js';
+import { createModuleRouter } from './routes.js';
 import { ModuleService } from './service.js';
+import { ModuleService as EvaluationService } from '../evaluation/service.js';
+
+const originalBidEncryptionKey = process.env.BID_ENCRYPTION_KEY;
+const originalBidDocumentUploadDir = process.env.BID_DOCUMENT_UPLOAD_DIR;
+const originalBidDocumentStorageDriver = process.env.BID_DOCUMENT_STORAGE_DRIVER;
+const originalBidDocumentMaxBytes = process.env.BID_DOCUMENT_MAX_BYTES;
+
+afterEach(() => {
+  if (originalBidEncryptionKey === undefined) delete process.env.BID_ENCRYPTION_KEY;
+  else process.env.BID_ENCRYPTION_KEY = originalBidEncryptionKey;
+  if (originalBidDocumentUploadDir === undefined) delete process.env.BID_DOCUMENT_UPLOAD_DIR;
+  else process.env.BID_DOCUMENT_UPLOAD_DIR = originalBidDocumentUploadDir;
+  if (originalBidDocumentStorageDriver === undefined) delete process.env.BID_DOCUMENT_STORAGE_DRIVER;
+  else process.env.BID_DOCUMENT_STORAGE_DRIVER = originalBidDocumentStorageDriver;
+  if (originalBidDocumentMaxBytes === undefined) delete process.env.BID_DOCUMENT_MAX_BYTES;
+  else process.env.BID_DOCUMENT_MAX_BYTES = originalBidDocumentMaxBytes;
+});
+
+describe('bidding encryption helpers', () => {
+  it('generates stable canonical JSON and SHA-256 hashes for reordered objects', () => {
+    const left = { b: 2, a: { d: 4, c: 3 } };
+    const right = { a: { c: 3, d: 4 }, b: 2 };
+
+    expect(canonicalJson(left)).toBe(canonicalJson(right));
+    expect(sha256Hex(canonicalJson(left))).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('accepts 32-byte raw and base64 bid encryption keys', () => {
+    const rawKey = '12345678901234567890123456789012';
+    const base64Key = Buffer.from(rawKey, 'utf8').toString('base64');
+
+    expect(resolveBidEncryptionKey(rawKey)?.toString('utf8')).toBe(rawKey);
+    expect(resolveBidEncryptionKey(base64Key)?.toString('utf8')).toBe(rawKey);
+  });
+
+  it('rejects invalid bid encryption key lengths clearly', () => {
+    expect(() => resolveBidEncryptionKey('short-key')).toThrow('BID_ENCRYPTION_KEY must be 32 bytes or base64-decode to 32 bytes.');
+  });
+
+  it('encrypts bid packages with AES-256-GCM metadata when a key is configured', () => {
+    const key = '12345678901234567890123456789012';
+    process.env.BID_ENCRYPTION_KEY = key;
+
+    const sealed = sealBidPackage(canonicalBidPackageFixture(), 'COMBINED');
+
+    expect(sealed).toMatchObject({
+      version: 'bid-seal-v1',
+      envelope: 'COMBINED',
+      payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      sealedHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      encryption: {
+        enabled: true,
+        algorithm: 'aes-256-gcm',
+        iv: expect.any(String),
+        authTag: expect.any(String),
+        keyRef: expect.stringMatching(/^bid-key:[a-f0-9]{16}$/)
+      },
+      sealedPayload: expect.any(String)
+    });
+
+    if (!sealed.encryption.enabled) throw new Error('expected encryption to be enabled');
+    const decipher = createDecipheriv('aes-256-gcm', Buffer.from(key, 'utf8'), Buffer.from(sealed.encryption.iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(sealed.encryption.authTag, 'base64'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(sealed.sealedPayload ?? '', 'base64')), decipher.final()]).toString('utf8');
+    expect(decrypted).toBe(canonicalJson(canonicalBidPackageFixture()));
+  });
+
+  it('seals bid packages without raw payload when encryption is disabled', () => {
+    delete process.env.BID_ENCRYPTION_KEY;
+
+    const sealed = sealBidPackage(canonicalBidPackageFixture(), 'COMBINED');
+
+    expect(sealed).toMatchObject({
+      version: 'bid-seal-v1',
+      encryption: { enabled: false },
+      payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      sealedHash: expect.stringMatching(/^[a-f0-9]{64}$/)
+    });
+    expect(sealed).not.toHaveProperty('sealedPayload');
+    expect(JSON.stringify(sealed)).not.toContain('Medical equipment');
+  });
+});
+
+describe('bidding document upload helpers', () => {
+  it('stores multipart PDF uploads with checksum and safe local-dev metadata', async () => {
+    const uploadDir = await mkdtemp(join(tmpdir(), 'procurex-bid-docs-'));
+    process.env.BID_DOCUMENT_UPLOAD_DIR = uploadDir;
+    process.env.BID_DOCUMENT_STORAGE_DRIVER = 'local';
+    const app = uploadParserApp();
+
+    const response = await request(app)
+      .post('/upload')
+      .field('documentType', 'TECHNICAL_PRODUCT_SPEC')
+      .field('envelope', 'TECHNICAL')
+      .attach('file', Buffer.from('%PDF-1.4\nsecure document'), {
+        filename: 'technical-proposal.pdf',
+        contentType: 'application/pdf'
+      })
+      .expect(201);
+
+    expect(response.body).toEqual([
+      expect.objectContaining({
+        name: 'technical-proposal.pdf',
+        documentType: 'TECHNICAL_PRODUCT_SPEC',
+        envelope: 'TECHNICAL',
+        checksum: expect.stringMatching(/^[a-f0-9]{64}$/),
+        objectKey: expect.stringContaining('bids/bid-1/'),
+        metadata: expect.objectContaining({
+          mimeType: 'application/pdf',
+          size: 24,
+          storage: 'local-dev'
+        })
+      })
+    ]);
+    expect(JSON.stringify(response.body)).not.toContain(uploadDir);
+    await rm(uploadDir, { recursive: true, force: true });
+  });
+
+  it('accepts repeated multipart files with shared metadata', async () => {
+    const uploadDir = await mkdtemp(join(tmpdir(), 'procurex-bid-docs-'));
+    process.env.BID_DOCUMENT_UPLOAD_DIR = uploadDir;
+    const app = uploadParserApp();
+
+    const response = await request(app)
+      .post('/upload')
+      .field('documentType', 'BID_EVIDENCE')
+      .field('envelope', 'COMBINED')
+      .attach('files', Buffer.from('%PDF-1.4\none'), { filename: 'one.pdf', contentType: 'application/pdf' })
+      .attach('files', Buffer.from('%PDF-1.4\ntwo'), { filename: 'two.pdf', contentType: 'application/pdf' })
+      .expect(201);
+
+    expect(response.body).toHaveLength(2);
+    expect(response.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'one.pdf', documentType: 'BID_EVIDENCE', envelope: 'COMBINED' }),
+        expect.objectContaining({ name: 'two.pdf', documentType: 'BID_EVIDENCE', envelope: 'COMBINED' })
+      ])
+    );
+    await rm(uploadDir, { recursive: true, force: true });
+  });
+
+  it('rejects unsafe file extensions, spoofed PDF content, oversized files, and unknown document types', async () => {
+    const uploadDir = await mkdtemp(join(tmpdir(), 'procurex-bid-docs-'));
+    process.env.BID_DOCUMENT_UPLOAD_DIR = uploadDir;
+    const app = uploadParserApp();
+
+    await request(app)
+      .post('/upload')
+      .field('documentType', 'TECHNICAL_PRODUCT_SPEC')
+      .field('envelope', 'TECHNICAL')
+      .attach('file', Buffer.from('MZ executable'), { filename: 'run.exe', contentType: 'application/x-msdownload' })
+      .expect(400, { message: 'Unsupported bid document file type.' });
+
+    await request(app)
+      .post('/upload')
+      .field('documentType', 'TECHNICAL_PRODUCT_SPEC')
+      .field('envelope', 'TECHNICAL')
+      .attach('file', Buffer.from('MZ not a pdf'), { filename: 'fake.pdf', contentType: 'application/pdf' })
+      .expect(400, { message: 'Unsupported bid document file type.' });
+
+    process.env.BID_DOCUMENT_MAX_BYTES = '8';
+    await request(app)
+      .post('/upload')
+      .field('documentType', 'TECHNICAL_PRODUCT_SPEC')
+      .field('envelope', 'TECHNICAL')
+      .attach('file', Buffer.from('%PDF-1.4\nlarge'), { filename: 'large.pdf', contentType: 'application/pdf' })
+      .expect(413, { message: 'Bid document exceeds the maximum upload size.' });
+    process.env.BID_DOCUMENT_MAX_BYTES = originalBidDocumentMaxBytes;
+
+    await request(app)
+      .post('/upload')
+      .field('documentType', 'UNKNOWN')
+      .field('envelope', 'TECHNICAL')
+      .attach('file', Buffer.from('%PDF-1.4\nsafe'), { filename: 'safe.pdf', contentType: 'application/pdf' })
+      .expect(400, { message: 'Unsupported bid document type.' });
+
+    await rm(uploadDir, { recursive: true, force: true });
+  });
+});
+
+describe('bidding route registration smoke', () => {
+  it.each([
+    ['GET', '/tenders/not-a-uuid/draft'],
+    ['POST', '/tenders/not-a-uuid/draft'],
+    ['PATCH', '/not-a-uuid'],
+    ['POST', '/not-a-uuid/documents'],
+    ['POST', '/not-a-uuid/submit'],
+    ['POST', '/not-a-uuid/withdraw'],
+    ['GET', '/not-a-uuid/samples'],
+    ['POST', '/not-a-uuid/samples'],
+    ['PATCH', '/not-a-uuid/samples/not-a-uuid']
+  ])('%s %s reaches the bidding router', async (method, path) => {
+    const response = await request(biddingRouterApp())[method.toLowerCase() as 'get' | 'post' | 'patch'](`/api/bidding${path}`).send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toMatch(/Invalid (bid|tender)/);
+  });
+});
 
 describe('bidding tender guards', () => {
   it('accepts public open tenders before close', () => {
@@ -24,7 +232,7 @@ describe('bidding tender guards', () => {
     ).toBe(true);
   });
 
-  it('rejects closed, private, or expired tenders', () => {
+  it('rejects closed, private, missing deadline, or expired tenders', () => {
     expect(
       tenderAcceptsBids({
         status: TenderStatus.CLOSED,
@@ -37,6 +245,13 @@ describe('bidding tender guards', () => {
         status: TenderStatus.OPEN,
         visibility: Visibility.PRIVATE,
         closingDate: new Date(Date.now() + 86400000)
+      })
+    ).toBe(false);
+    expect(
+      tenderAcceptsBids({
+        status: TenderStatus.OPEN,
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        closingDate: null
       })
     ).toBe(false);
     expect(
@@ -77,7 +292,7 @@ describe('bidding service rules', () => {
     };
     const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
 
-    await expect(service.saveDraft('token-1', 'tender-1', draftInput())).resolves.toEqual({ id: 'bid-1' });
+    await expect(service.saveDraft('token-1', 'tender-1', draftInput())).resolves.toMatchObject({ id: 'bid-1' });
     expect(repository.saveDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         tender,
@@ -87,11 +302,76 @@ describe('bidding service rules', () => {
     );
   });
 
-  it('rejects non-open or expired tenders before draft creation', async () => {
+  it('saves incomplete drafts with validation warnings and server-computed totals', async () => {
+    const tender = tenderRecord({ buyerOrgId: 'buyer-org-1', bids: [] });
+    const repository = {
+      findTenderForBid: vi.fn().mockResolvedValue(tender),
+      saveDraft: vi.fn().mockResolvedValue({ id: 'bid-1', totalAmount: 20 })
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+    const draft = {
+      ...draftInput(),
+      administrative: {},
+      technical: {},
+      financial: { items: [{ description: 'Line item', quantity: 2, unit: 'Pcs', rate: 10 }] },
+      declarations: {},
+      totalAmount: 999999
+    };
+
+    const result = await service.saveDraft('token-1', 'tender-1', draft);
+
+    expect(result).toMatchObject({
+      id: 'bid-1',
+      validation: {
+        valid: true,
+        computedTotalAmount: 20,
+        completeness: expect.objectContaining({
+          administrative: false,
+          technical: false,
+          financial: true,
+          declarations: false
+        })
+      }
+    });
+    expect(result.validation?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ section: 'technical', field: 'approach', severity: 'warning' }),
+        expect.objectContaining({ section: 'declarations', field: 'noConflict', severity: 'warning' })
+      ])
+    );
+    expect(repository.saveDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draft: expect.objectContaining({
+          totalAmount: 20,
+          validationIssues: expect.arrayContaining([expect.stringContaining('warning:technical.approach')])
+        })
+      })
+    );
+  });
+
+  it.each([
+    ['goods', { productCompliance: 'All supplied products meet the specification.', approach: 'All supplied products meet the specification.', deliveryPlan: 'Samples and goods will be delivered to the PMU office.' }],
+    ['works', { methodology: 'We will execute the works using the approved method statement.', workPlan: 'The work programme follows the tender milestones.', approach: 'We will execute the works using the approved method statement.', deliveryPlan: 'The work programme follows the tender milestones.' }],
+    ['services', { methodology: 'We will provide the managed service using qualified staff.', sla: 'Monthly SLA reporting will be provided.', approach: 'We will provide the managed service using qualified staff.', deliveryPlan: 'Monthly SLA reporting will be provided.' }],
+    ['consultancy', { technicalProposal: 'The team will deliver the assignment according to the TOR.', methodology: 'The methodology follows inception, fieldwork, and reporting.', approach: 'The methodology follows inception, fieldwork, and reporting.', deliveryPlan: 'The team will deliver the assignment according to the TOR.' }]
+  ] as const)('accepts frontend-compatible %s technical payloads for backend submission validation', (_workflow, technical) => {
+    const validation = validateBidDraft({
+      draft: {
+        ...draftInput(),
+        technical
+      },
+      tender: tenderRecord(),
+      mode: 'submit'
+    });
+
+    expect(validation.valid).toBe(true);
+    expect(validation.issues.filter((issue) => issue.severity === 'error')).toEqual([]);
+  });
+
+  it('rejects non-open or private tenders before draft creation', async () => {
     for (const tender of [
       tenderRecord({ status: TenderStatus.CLOSED }),
-      tenderRecord({ visibility: Visibility.PRIVATE }),
-      tenderRecord({ closingDate: new Date(Date.now() - 86400000) })
+      tenderRecord({ visibility: Visibility.PRIVATE })
     ]) {
       const repository = {
         findTenderForBid: vi.fn().mockResolvedValue(tender),
@@ -107,6 +387,34 @@ describe('bidding service rules', () => {
     }
   });
 
+  it('rejects draft creation when closing date is missing', async () => {
+    const repository = {
+      findTenderForBid: vi.fn().mockResolvedValue(tenderRecord({ closingDate: null })),
+      saveDraft: vi.fn()
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.saveDraft('token-1', 'tender-1', draftInput())).rejects.toMatchObject({
+      status: 409,
+      message: 'Tender closing date is required before bids can be submitted.'
+    });
+    expect(repository.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('rejects draft creation when the submission deadline has passed', async () => {
+    const repository = {
+      findTenderForBid: vi.fn().mockResolvedValue(tenderRecord({ closingDate: new Date(Date.now() - 86400000) })),
+      saveDraft: vi.fn()
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.saveDraft('token-1', 'tender-1', draftInput())).rejects.toMatchObject({
+      status: 409,
+      message: 'The bid submission deadline has passed.'
+    });
+    expect(repository.saveDraft).not.toHaveBeenCalled();
+  });
+
   it('continues existing draft bids and rejects submitted bid edits', async () => {
     const draftTender = tenderRecord({ bids: [bidRecord({ status: BidStatus.DRAFT })] });
     const repository = {
@@ -115,7 +423,7 @@ describe('bidding service rules', () => {
     };
     const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
 
-    await expect(service.saveDraft('token-1', 'tender-1', draftInput())).resolves.toEqual({ id: 'bid-1' });
+    await expect(service.saveDraft('token-1', 'tender-1', draftInput())).resolves.toMatchObject({ id: 'bid-1' });
     expect(repository.saveDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         tender: draftTender,
@@ -158,46 +466,277 @@ describe('bidding service rules', () => {
     expect(repository.addDocuments).not.toHaveBeenCalled();
   });
 
-  it('rejects submission when another submitted bid exists for the supplier and tender', async () => {
+  it('rejects draft updates when the submission deadline has passed', async () => {
     const repository = {
       findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
-      hasSubmittedBidForTenderSupplier: vi.fn().mockResolvedValue(true),
-      submit: vi.fn()
+      findTenderForBid: vi.fn().mockResolvedValue(tenderRecord({ closingDate: new Date(Date.now() - 86400000) })),
+      saveDraft: vi.fn()
     };
     const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
 
-    await expect(service.submit('token-1', 'bid-1')).rejects.toMatchObject({
+    await expect(service.patchBid('token-1', 'bid-1', draftInput())).rejects.toMatchObject({
       status: 409,
-      message: 'A submitted bid already exists for this tender.'
+      message: 'The bid submission deadline has passed.'
     });
-    expect(repository.hasSubmittedBidForTenderSupplier).toHaveBeenCalledWith({
-      tenderId: 'tender-1',
-      supplierOrgId: 'supplier-org-1',
-      excludingBidId: 'bid-1'
-    });
-    expect(repository.submit).not.toHaveBeenCalled();
+    expect(repository.saveDraft).not.toHaveBeenCalled();
   });
 
-  it('returns the generated receipt when submitting a valid bid', async () => {
-    const submittedBid = {
-      ...bidRecord({ status: BidStatus.SUBMITTED, submittedAt: new Date('2026-07-01T08:00:00.000Z') }),
-      receipt: {
-        receiptRef: 'BID-PX-BID-2026-000001-01',
-        receiptHash: 'hash-123',
-        createdAt: '2026-07-01T08:00:01.000Z'
-      }
+  it('rejects document uploads when the submission deadline has passed', async () => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord({ tender: tenderRecord({ closingDate: new Date(Date.now() - 86400000) }) })),
+      addDocuments: vi.fn()
     };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.addDocuments('token-1', 'bid-1', [{ name: 'doc.pdf', documentType: 'PDF' }])).rejects.toMatchObject({
+      status: 409,
+      message: 'The bid submission deadline has passed.'
+    });
+    expect(repository.addDocuments).not.toHaveBeenCalled();
+  });
+
+  it('continues to accept JSON document metadata for draft bids', async () => {
     const repository = {
       findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
-      hasSubmittedBidForTenderSupplier: vi.fn().mockResolvedValue(false),
-      submit: vi.fn().mockResolvedValue(submittedBid)
+      addDocuments: vi.fn().mockResolvedValue(bidRecord())
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(
+      service.addDocuments('token-1', 'bid-1', [
+        {
+          name: 'technical-proposal.pdf',
+          documentType: 'TECHNICAL_PROPOSAL',
+          envelope: 'TECHNICAL',
+          checksum: 'a'.repeat(64),
+          mimeType: 'application/pdf',
+          size: 1200
+        }
+      ])
+    ).resolves.toMatchObject({ id: 'bid-1' });
+    expect(repository.addDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documents: [
+          expect.objectContaining({
+            documentType: 'TECHNICAL_PROPOSAL',
+            envelope: 'TECHNICAL'
+          })
+        ]
+      })
+    );
+  });
+
+  it('rejects unsafe JSON document metadata before persistence', async () => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
+      addDocuments: vi.fn()
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(
+      service.addDocuments('token-1', 'bid-1', [{ name: 'payload.exe', documentType: 'TECHNICAL_PROPOSAL', envelope: 'TECHNICAL', mimeType: 'application/x-msdownload' }])
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Unsupported bid document file type.'
+    });
+    expect(repository.addDocuments).not.toHaveBeenCalled();
+  });
+
+  it('rejects JSON document metadata with user-supplied storage or encryption fields', async () => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
+      addDocuments: vi.fn()
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(
+      service.addDocuments('token-1', 'bid-1', [
+        {
+          name: 'technical-proposal.pdf',
+          documentType: 'TECHNICAL_PROPOSAL',
+          envelope: 'TECHNICAL',
+          checksum: 'a'.repeat(64),
+          mimeType: 'application/pdf',
+          size: 1200,
+          metadata: { storage: 'user-storage', path: 'C:/secret/doc.pdf', sealedPayload: 'hidden', encryptionKeyRef: 'key-1' }
+        }
+      ])
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Invalid bid document payload.'
+    });
+    expect(repository.addDocuments).not.toHaveBeenCalled();
+  });
+
+  it('requires a checksum for JSON document metadata uploads', async () => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
+      addDocuments: vi.fn()
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(
+      service.addDocuments('token-1', 'bid-1', [
+        {
+          name: 'technical-proposal.pdf',
+          documentType: 'TECHNICAL_PROPOSAL',
+          envelope: 'TECHNICAL',
+          mimeType: 'application/pdf',
+          size: 1200
+        }
+      ])
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Bid document checksum is required.'
+    });
+    expect(repository.addDocuments).not.toHaveBeenCalled();
+  });
+
+  it('deletes draft bid documents for the owning supplier before the deadline', async () => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
+      deleteDocument: vi.fn().mockResolvedValue({ bid: bidRecord(), removedDocument: { objectKey: 'bids/bid-1/doc.pdf', metadata: { storage: 'local-dev' } } })
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.deleteDocument('token-1', 'bid-1', 'doc-1')).resolves.toMatchObject({ id: 'bid-1' });
+    expect(repository.deleteDocument).toHaveBeenCalledWith(expect.objectContaining({ documentId: 'doc-1', userId: 'user-1' }));
+  });
+
+  it('allows a supplier to create a sample for its own draft bid before the deadline', async () => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
+      createSample: vi.fn().mockResolvedValue(sampleDto())
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+    const input = sampleInput();
+
+    await expect(service.createSample('token-1', 'bid-1', input)).resolves.toMatchObject({ trackingStatus: BidSampleStatus.PENDING_SUBMISSION });
+    expect(repository.createSample).toHaveBeenCalledWith(expect.objectContaining({ sample: input, userId: 'user-1' }));
+  });
+
+  it.each([
+    ['wrong supplier', bidRecord({ supplierOrgId: 'other-supplier-org' }), { status: 403, message: 'Bid access is not allowed.' }],
+    ['submitted bid', bidRecord({ status: BidStatus.SUBMITTED }), { status: 409, message: 'Submitted bids cannot be edited.' }],
+    ['missing deadline', bidRecord({ tender: tenderRecord({ closingDate: null }) }), { status: 409, message: 'Tender closing date is required before bids can be submitted.' }],
+    ['expired deadline', bidRecord({ tender: tenderRecord({ closingDate: new Date(Date.now() - 86400000) }) }), { status: 409, message: 'The bid submission deadline has passed.' }]
+  ])('rejects supplier sample creation for %s', async (_label, bid, expected) => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bid),
+      createSample: vi.fn()
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.createSample('token-1', 'bid-1', sampleInput())).rejects.toMatchObject(expected);
+    expect(repository.createSample).not.toHaveBeenCalled();
+  });
+
+  it('rejects sample delivery deadlines after tender closing unless explicitly allowed', async () => {
+    const closingDate = new Date(Date.now() + 86400000);
+    const sample = sampleInput({ relatedItem: 'Laptop', deliveryDeadline: new Date(closingDate.getTime() + 86400000).toISOString() });
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord({ tender: tenderRecord({ closingDate }) })),
+      createSample: vi.fn()
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.createSample('token-1', 'bid-1', sample)).rejects.toMatchObject({
+      status: 400,
+      message: 'Sample delivery deadline cannot be after the tender closing date.'
+    });
+
+    repository.findBidForAccess.mockResolvedValue(
+      bidRecord({
+        tender: tenderRecord({
+          closingDate,
+          requirements: {
+            sampleRequirementRows: [{ relatedBoqItem: 'Laptop', allowSampleDeliveryAfterClosing: true }]
+          }
+        })
+      })
+    );
+    repository.createSample.mockResolvedValue(sampleDto({ deliveryDeadline: sample.deliveryDeadline }));
+    await expect(service.createSample('token-1', 'bid-1', sample)).resolves.toMatchObject({ id: 'sample-1' });
+  });
+
+  it('allows buyer organizations to list samples only after bid submission', async () => {
+    const repository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord({ status: BidStatus.SUBMITTED })),
+      listSamples: vi.fn().mockResolvedValue([sampleDto()])
+    };
+    const service = new ModuleService(repository as any, identityFor('buyer-org-1') as any);
+
+    await expect(service.listSamples('token-1', 'bid-1')).resolves.toEqual([sampleDto()]);
+    expect(repository.listSamples).toHaveBeenCalledWith({ bidId: 'bid-1' });
+
+    repository.findBidForAccess.mockResolvedValue(bidRecord({ status: BidStatus.DRAFT }));
+    await expect(service.listSamples('token-1', 'bid-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'Bid samples are only visible to buyers after bid submission.'
+    });
+  });
+
+  it('enforces supplier and buyer sample patch field ownership', async () => {
+    const supplierRepository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord()),
+      patchSample: vi.fn()
+    };
+    const supplierService = new ModuleService(supplierRepository as any, identityFor('supplier-org-1') as any);
+
+    await expect(supplierService.patchSample('token-1', 'bid-1', 'sample-1', { receivedAt: new Date().toISOString() })).rejects.toMatchObject({
+      status: 403,
+      message: 'Suppliers cannot update buyer sample tracking fields.'
+    });
+    await expect(supplierService.patchSample('token-1', 'bid-1', 'sample-1', { trackingStatus: BidSampleStatus.RECEIVED })).rejects.toMatchObject({
+      status: 409,
+      message: 'Invalid sample tracking status transition.'
+    });
+
+    const buyerRepository = {
+      findBidForAccess: vi.fn().mockResolvedValue(bidRecord({ status: BidStatus.SUBMITTED })),
+      patchSample: vi.fn()
+    };
+    const buyerService = new ModuleService(buyerRepository as any, identityFor('buyer-org-1') as any);
+    await expect(buyerService.patchSample('token-1', 'bid-1', 'sample-1', { courier: 'DHL' })).rejects.toMatchObject({
+      status: 403,
+      message: 'Buyer cannot change supplier-owned sample fields.'
+    });
+  });
+
+  it('delegates submit using only bid id, supplier organization id, and user id', async () => {
+    const receipt = receiptDto();
+    const repository = {
+      submit: vi.fn().mockResolvedValue(receipt)
+    };
+    const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
+
+    await expect(service.submit('token-1', 'bid-1')).resolves.toBe(receipt);
+    expect(repository.submit).toHaveBeenCalledWith({
+      bidId: 'bid-1',
+      supplierOrgId: 'supplier-org-1',
+      userId: 'user-1'
+    });
+  });
+
+  it('keeps the submitted bid receipt response shape compatible', async () => {
+    const receipt = receiptDto();
+    const repository = {
+      submit: vi.fn().mockResolvedValue(receipt)
     };
     const service = new ModuleService(repository as any, identityFor('supplier-org-1') as any);
 
     await expect(service.submit('token-1', 'bid-1')).resolves.toMatchObject({
       receiptRef: 'BID-PX-BID-2026-000001-01',
       receiptHash: 'hash-123',
-      bid: submittedBid
+      createdAt: '2026-07-01T08:00:01.000Z',
+      bid: {
+        id: 'bid-1',
+        reference: 'PX-BID-2026-000001',
+        status: BidStatus.SUBMITTED,
+        submittedAt: '2026-07-01T08:00:00.000Z',
+        totalAmount: 250000000,
+        currency: 'TZS'
+      }
     });
   });
 });
@@ -298,27 +837,236 @@ describe('bidding repository rules', () => {
     expect(tx.bid.create).not.toHaveBeenCalled();
   });
 
-  it('submits bids by creating a sealed version and receipt hash', async () => {
+  it('deletes bid document links, document metadata, and audits the deletion', async () => {
     const tx = transactionMock();
     const db = {
       $transaction: vi.fn((callback) => callback(tx))
     };
-    const draftBid = bidRecord();
-    const submittedBid = bidRecord({
-      status: BidStatus.SUBMITTED,
-      submittedAt: new Date('2026-07-01T08:00:00.000Z'),
-      receipt: {
-        receiptRef: 'BID-PX-BID-2026-000001-01',
-        receiptHash: 'hash-123',
-        createdAt: new Date('2026-07-01T08:00:01.000Z')
+    tx.bidDocument.findFirst.mockResolvedValue({
+      id: 'bid-doc-1',
+      documentId: 'doc-1',
+      document: {
+        id: 'doc-1',
+        objectKey: 'bids/bid-1/technical-proposal.pdf',
+        metadata: { storage: 'local-dev' }
       }
     });
-    tx.bid.findUniqueOrThrow.mockResolvedValueOnce(draftBid).mockResolvedValueOnce(submittedBid);
-    tx.bidVersion.count.mockResolvedValue(0);
+    tx.bid.findUniqueOrThrow.mockResolvedValue(bidRecord({ documents: [] }));
     const repository = new ModuleRepository(db as any);
 
-    const result = await repository.submit({ bid: draftBid as any, userId: 'user-1' });
+    const result = await repository.deleteDocument({ bid: bidRecord() as any, documentId: 'doc-1', userId: 'user-1' });
 
+    expect(tx.bidDocument.delete).toHaveBeenCalledWith({ where: { id: 'bid-doc-1' } });
+    expect(tx.documentObject.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+    expect(tx.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event: 'bidding.bid_document_deleted',
+          entityRef: 'bid-1'
+        })
+      })
+    );
+    expect(result.removedDocument).toEqual({
+      objectKey: 'bids/bid-1/technical-proposal.pdf',
+      metadata: { storage: 'local-dev' }
+    });
+    expect(result.bid.documents).toEqual([]);
+  });
+
+  it('returns a clean not-found error when deleting an unrelated bid document', async () => {
+    const tx = transactionMock();
+    const db = {
+      $transaction: vi.fn((callback) => callback(tx))
+    };
+    tx.bidDocument.findFirst.mockResolvedValue(null);
+    const repository = new ModuleRepository(db as any);
+
+    await expect(repository.deleteDocument({ bid: bidRecord() as any, documentId: 'doc-1', userId: 'user-1' })).rejects.toMatchObject({
+      status: 404,
+      message: 'Bid document was not found.'
+    });
+    expect(tx.bidDocument.delete).not.toHaveBeenCalled();
+    expect(tx.documentObject.delete).not.toHaveBeenCalled();
+  });
+
+  it('filters financial envelope documents from buyer-facing bid DTOs and sanitizes metadata', () => {
+    const bid = bidRecord({
+      payload: {
+        ...validBidPayload(),
+        financial: { items: [{ description: 'Secret price', quantity: 1, unit: 'Lot', rate: 999 }] },
+        envelopes: { financial: ['hash-fin'] },
+        fileManifest: { checksums: ['hash-fin'] }
+      },
+      responses: [
+        { requirementKey: 'technical-methodology', response: { value: 'Compliant' }, createdAt: new Date('2026-06-26T08:00:00.000Z') },
+        { requirementKey: 'financial-price', response: { amount: 999 }, createdAt: new Date('2026-06-26T08:00:00.000Z') }
+      ],
+      documents: [
+        bidDocumentRecord({ id: 'bid-doc-tech', documentId: 'doc-tech', envelope: 'TECHNICAL', document: { id: 'doc-tech', name: 'technical.pdf', documentType: 'TECHNICAL_PROPOSAL', checksum: 'hash-tech', metadata: { storage: 'local-dev', localPath: 'C:/secret/technical.pdf', objectKey: 'bids/bid-1/technical.pdf', encryptionKeyRef: 'key-1' } } }),
+        bidDocumentRecord({ id: 'bid-doc-fin', documentId: 'doc-fin', envelope: 'FINANCIAL', document: { id: 'doc-fin', name: 'financial.pdf', documentType: 'FINANCIAL_PROPOSAL', checksum: 'hash-fin', metadata: { storage: 'local-dev', localPath: 'C:/secret/financial.pdf', sealedPayload: 'secret' } } })
+      ]
+    });
+
+    expect(toBidDto(bid as any).documents.map((document) => document.envelope)).toEqual(['TECHNICAL', 'FINANCIAL']);
+    const buyerDto = toBidDto(bid as any, { revealFinancialDocuments: false });
+    expect(buyerDto.documents.map((document) => document.envelope)).toEqual(['TECHNICAL']);
+    expect(buyerDto.totalAmount).toBe(0);
+    expect(buyerDto.payload).not.toHaveProperty('financial');
+    expect(buyerDto.payload).not.toHaveProperty('envelopes');
+    expect(buyerDto.payload).not.toHaveProperty('fileManifest');
+    expect(buyerDto.responses).toEqual([{ requirementKey: 'technical-methodology', response: { value: 'Compliant' } }]);
+    expect(JSON.stringify(buyerDto)).not.toContain('C:/secret');
+    expect(JSON.stringify(buyerDto)).not.toContain('objectKey');
+    expect(JSON.stringify(buyerDto)).not.toContain('sealedPayload');
+    expect(JSON.stringify(buyerDto)).not.toContain('encryptionKeyRef');
+  });
+
+  it('creates sample records with default pending status and audit', async () => {
+    const tx = transactionMock();
+    const db = {
+      $transaction: vi.fn((callback) => callback(tx))
+    };
+    tx.bidSample.create.mockResolvedValue(sampleRecord());
+    const repository = new ModuleRepository(db as any);
+
+    const result = await repository.createSample({ bid: bidRecord() as any, userId: 'user-1', sample: sampleInput() });
+
+    expect(tx.bidSample.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          bidId: 'bid-1',
+          tenderId: 'tender-1',
+          supplierOrgId: 'supplier-org-1',
+          trackingStatus: BidSampleStatus.PENDING_SUBMISSION
+        })
+      })
+    );
+    expect(tx.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event: 'bidding.bid_sample_created',
+          entityRef: 'sample-1'
+        })
+      })
+    );
+    expect(result).toMatchObject({ id: 'sample-1', trackingStatus: BidSampleStatus.PENDING_SUBMISSION });
+  });
+
+  it('allows supplier sample transition to submitted and audits it', async () => {
+    const tx = transactionMock();
+    const db = {
+      $transaction: vi.fn((callback) => callback(tx))
+    };
+    tx.bidSample.findFirst.mockResolvedValue(sampleRecord({ trackingStatus: BidSampleStatus.PENDING_SUBMISSION }));
+    tx.bidSample.update.mockResolvedValue(sampleRecord({ trackingStatus: BidSampleStatus.SUBMITTED, submittedAt: new Date('2026-07-01T08:00:00.000Z') }));
+    const repository = new ModuleRepository(db as any);
+
+    const result = await repository.patchSample({
+      bid: bidRecord() as any,
+      sampleId: 'sample-1',
+      userId: 'user-1',
+      actor: 'supplier',
+      patch: { trackingStatus: BidSampleStatus.SUBMITTED }
+    });
+
+    expect(tx.bidSample.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          trackingStatus: BidSampleStatus.SUBMITTED,
+          submittedAt: expect.any(Date)
+        })
+      })
+    );
+    expect(tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ event: 'bidding.bid_sample_submitted' }) }));
+    expect(result.trackingStatus).toBe(BidSampleStatus.SUBMITTED);
+  });
+
+  it('allows buyer sample tracking transitions through received, inspected, and accepted', async () => {
+    const cases = [
+      [BidSampleStatus.SUBMITTED, BidSampleStatus.RECEIVED, 'bidding.bid_sample_received'],
+      [BidSampleStatus.RECEIVED, BidSampleStatus.INSPECTED, 'bidding.bid_sample_inspected'],
+      [BidSampleStatus.INSPECTED, BidSampleStatus.ACCEPTED, 'bidding.bid_sample_accepted'],
+      [BidSampleStatus.INSPECTED, BidSampleStatus.REJECTED, 'bidding.bid_sample_rejected']
+    ] as const;
+
+    for (const [from, to, event] of cases) {
+      const tx = transactionMock();
+      const db = {
+        $transaction: vi.fn((callback) => callback(tx))
+      };
+      tx.bidSample.findFirst.mockResolvedValue(sampleRecord({ trackingStatus: from }));
+      tx.bidSample.update.mockResolvedValue(sampleRecord({ trackingStatus: to }));
+      const repository = new ModuleRepository(db as any);
+
+      await expect(
+        repository.patchSample({
+          bid: bidRecord() as any,
+          sampleId: 'sample-1',
+          userId: 'buyer-user-1',
+          actor: 'buyer',
+          patch: { trackingStatus: to }
+        })
+      ).resolves.toMatchObject({ trackingStatus: to });
+      expect(tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ event }) }));
+    }
+  });
+
+  it('rejects invalid sample status transitions and unrelated sample ids', async () => {
+    const tx = transactionMock();
+    const db = {
+      $transaction: vi.fn((callback) => callback(tx))
+    };
+    tx.bidSample.findFirst.mockResolvedValue(sampleRecord({ trackingStatus: BidSampleStatus.SUBMITTED }));
+    const repository = new ModuleRepository(db as any);
+
+    await expect(
+      repository.patchSample({
+        bid: bidRecord() as any,
+        sampleId: 'sample-1',
+        userId: 'buyer-user-1',
+        actor: 'buyer',
+        patch: { trackingStatus: BidSampleStatus.ACCEPTED }
+      })
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Invalid sample tracking status transition.'
+    });
+    expect(tx.bidSample.update).not.toHaveBeenCalled();
+
+    tx.bidSample.findFirst.mockResolvedValue(null);
+    await expect(
+      repository.patchSample({
+        bid: bidRecord() as any,
+        sampleId: 'missing-sample',
+        userId: 'buyer-user-1',
+        actor: 'buyer',
+        patch: { trackingStatus: BidSampleStatus.RECEIVED }
+      })
+    ).rejects.toMatchObject({
+      status: 404,
+      message: 'Bid sample was not found.'
+    });
+  });
+
+  it('submits bids in a transaction by creating a sealed version, receipt, and audit event', async () => {
+    delete process.env.BID_ENCRYPTION_KEY;
+    const { repository, db, tx } = repositorySubmitFixture();
+
+    const result = await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' });
+
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.bid.findUnique).toHaveBeenCalledWith({ where: { id: 'bid-1' }, include: expect.any(Object) });
+    expect(tx.bid.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenderId: 'tender-1',
+          supplierOrgId: 'supplier-org-1',
+          status: BidStatus.SUBMITTED,
+          id: { not: 'bid-1' }
+        })
+      })
+    );
     expect(tx.bidVersion.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -328,16 +1076,156 @@ describe('bidding repository rules', () => {
         })
       })
     );
-    expect(tx.bidReceipt.upsert).toHaveBeenCalledWith(
+    const versionPayload = tx.bidVersion.create.mock.calls[0][0].data.payload;
+    expect(versionPayload).toMatchObject({
+      version: 'bid-seal-v1',
+      envelope: 'COMBINED',
+      payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      sealedHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      encryption: { enabled: false }
+    });
+    expect(versionPayload).not.toHaveProperty('sealedPayload');
+    expect(JSON.stringify(versionPayload)).not.toContain('Medical equipment');
+    expect(JSON.stringify(versionPayload)).not.toContain('technical-proposal');
+    expect(tx.bid.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { bidId: 'bid-1' },
-        create: expect.objectContaining({
+        where: { id: 'bid-1' },
+        data: expect.objectContaining({
+          status: BidStatus.SUBMITTED,
+          submittedByUserId: 'user-1',
+          totalAmount: 250000000,
+          currency: 'TZS'
+        })
+      })
+    );
+    expect(tx.bidReceipt.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
           bidId: 'bid-1',
           receiptHash: expect.any(String)
         })
       })
     );
-    expect(result.receipt?.receiptHash).toBe('hash-123');
+    expect(tx.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event: 'bidding.bid_submitted',
+          entityRef: 'bid-1'
+        })
+      })
+    );
+    expect(result).toMatchObject({
+      receiptRef: 'BID-PX-BID-2026-000001-01',
+      receiptHash: 'hash-123',
+      bid: expect.objectContaining({
+        id: 'bid-1',
+        status: BidStatus.SUBMITTED,
+        totalAmount: 250000000,
+        currency: 'TZS'
+      })
+    });
+  });
+
+  it('submits bids with encrypted sealed payloads when BID_ENCRYPTION_KEY is configured', async () => {
+    process.env.BID_ENCRYPTION_KEY = '12345678901234567890123456789012';
+    const { repository, tx } = repositorySubmitFixture();
+
+    await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' });
+
+    const versionPayload = tx.bidVersion.create.mock.calls[0][0].data.payload;
+    expect(versionPayload).toMatchObject({
+      version: 'bid-seal-v1',
+      envelope: 'COMBINED',
+      payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      sealedHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      encryption: {
+        enabled: true,
+        algorithm: 'aes-256-gcm',
+        iv: expect.any(String),
+        authTag: expect.any(String),
+        keyRef: expect.stringMatching(/^bid-key:[a-f0-9]{16}$/)
+      },
+      sealedPayload: expect.any(String)
+    });
+    expect(JSON.stringify(versionPayload)).not.toContain('Medical equipment');
+    expect(JSON.stringify(versionPayload)).not.toContain('technical-proposal');
+  });
+
+  it.each([
+    [
+      'wrong supplier',
+      bidRecord({ supplierOrgId: 'other-supplier-org' }),
+      { status: 403, message: 'Bid access is not allowed.' }
+    ],
+    [
+      'submitted bid state',
+      bidRecord({ status: BidStatus.SUBMITTED }),
+      { status: 409, message: 'This bid has already been submitted.' }
+    ],
+    [
+      'existing receipt',
+      bidRecord({ receipt: { receiptRef: 'BID-PX-BID-2026-000001-01', receiptHash: 'hash-123', createdAt: new Date() } }),
+      { status: 409, message: 'This bid has already been submitted.' }
+    ],
+    [
+      'non-draft bid state',
+      bidRecord({ status: BidStatus.WITHDRAWN }),
+      { status: 409, message: 'Only draft bids can be submitted.' }
+    ],
+    [
+      'closed tender',
+      bidRecord({ tender: tenderRecord({ status: TenderStatus.CLOSED }) }),
+      { status: 409, message: 'This tender is not open for bid submission.' }
+    ],
+    [
+      'missing deadline',
+      bidRecord({ tender: tenderRecord({ closingDate: null }) }),
+      { status: 409, message: 'Tender closing date is required before bids can be submitted.' }
+    ],
+    [
+      'expired deadline',
+      bidRecord({ tender: tenderRecord({ closingDate: new Date(Date.now() - 86400000) }) }),
+      { status: 409, message: 'The bid submission deadline has passed.' }
+    ],
+    [
+      'own tender',
+      bidRecord({ buyerOrgId: 'supplier-org-1', tender: tenderRecord({ buyerOrgId: 'supplier-org-1' }) }),
+      { status: 403, message: 'Buyers cannot bid on their own tenders.' }
+    ]
+  ])('aborts transactional submit before writes for %s', async (_label, bid, expected) => {
+    const { repository, tx } = repositorySubmitFixture({ bid });
+
+    await expect(repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject(expected);
+    expect(tx.bid.findFirst).not.toHaveBeenCalled();
+    expectNoSubmitWrites(tx);
+  });
+
+  it('aborts transactional submit before writes when another submitted bid exists', async () => {
+    const { repository, tx } = repositorySubmitFixture();
+    tx.bid.findFirst.mockResolvedValue({ id: 'bid-2' });
+
+    await expect(repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject({
+      status: 409,
+      message: 'A submitted bid already exists for this tender.'
+    });
+    expectNoSubmitWrites(tx);
+  });
+
+  it('aborts transactional submit before writes when production validation fails', async () => {
+    const { repository, tx } = repositorySubmitFixture({
+      bid: bidRecord({
+        payload: {
+          ...validBidPayload(),
+          administrative: { eligible: true, taxCompliant: false, authorized: true }
+        }
+      })
+    });
+
+    await expect(repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining('administrative.taxCompliant')
+    });
+    expectNoSubmitWrites(tx);
   });
 
   it('maps submit unique conflicts to a clean duplicate submission conflict', async () => {
@@ -345,10 +1233,36 @@ describe('bidding repository rules', () => {
       $transaction: vi.fn().mockRejectedValue({ code: 'P2002' })
     } as any);
 
-    await expect(repository.submit({ bid: bidRecord() as any, userId: 'user-1' })).rejects.toMatchObject({
+    await expect(repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject({
       status: 409,
       message: 'A submitted bid already exists for this tender.'
     });
+  });
+});
+
+describe('bidding financial document exposure in evaluation views', () => {
+  it('hides financial envelope documents until the financial evaluation stage', async () => {
+    const tender = evaluationTenderRecord(EvaluationStage.TECHNICAL);
+    const service = new EvaluationService({
+      health: vi.fn(),
+      getWorkspaceByTenderId: vi.fn().mockResolvedValue({ tender, auditEvents: [] })
+    } as any);
+
+    const workspace = await service.workspace('tender-1', { organizationId: 'buyer-org-1', userId: 'buyer-user-1' });
+
+    expect(workspace.bids[0]?.documents.map((document) => document.documentType)).toEqual(['TECHNICAL_PROPOSAL']);
+  });
+
+  it('reveals financial envelope documents at the financial evaluation stage', async () => {
+    const tender = evaluationTenderRecord(EvaluationStage.FINANCIAL);
+    const service = new EvaluationService({
+      health: vi.fn(),
+      getWorkspaceByTenderId: vi.fn().mockResolvedValue({ tender, auditEvents: [] })
+    } as any);
+
+    const workspace = await service.workspace('tender-1', { organizationId: 'buyer-org-1', userId: 'buyer-user-1' });
+
+    expect(workspace.bids[0]?.documents.map((document) => document.documentType)).toEqual(['TECHNICAL_PROPOSAL', 'FINANCIAL_PROPOSAL']);
   });
 });
 
@@ -380,10 +1294,34 @@ function tenderRecord(overrides: Record<string, unknown> = {}) {
     visibility: Visibility.PUBLIC_MARKETPLACE,
     closingDate: new Date(Date.now() + 86400000),
     currency: 'TZS',
+    requirements: {},
     buyerOrgId: 'buyer-org-1',
     buyerOrg: { id: 'buyer-org-1', name: 'Buyer Org' },
     bids: [],
     ...overrides
+  };
+}
+
+function validBidPayload() {
+  return {
+    administrative: {
+      eligible: true,
+      taxCompliant: true,
+      authorized: true
+    },
+    technical: {
+      approach: 'We will deliver according to the tender specifications.',
+      deliveryPlan: 'Delivery will be completed within the requested timeline.',
+      experience: 'Completed similar supply contracts.'
+    },
+    financial: {
+      items: [{ description: 'Medical equipment', quantity: 1, unit: 'Lot', rate: 250000000 }]
+    },
+    declarations: {
+      confirmAccuracy: true,
+      acceptTerms: true,
+      noConflict: true
+    }
   };
 }
 
@@ -402,16 +1340,7 @@ function bidRecord(overrides: Record<string, unknown> = {}) {
     submittedAt: null,
     totalAmount: 250000000,
     currency: 'TZS',
-    payload: {
-      administrative: {
-        eligible: true,
-        authorized: true
-      },
-      declarations: {
-        confirmAccuracy: true,
-        acceptTerms: true
-      }
-    },
+    payload: validBidPayload(),
     responses: [{ requirementKey: 'technical', response: { answer: 'Compliant' }, createdAt: new Date('2026-06-26T08:00:00.000Z') }],
     documents: [
       {
@@ -434,16 +1363,12 @@ function bidRecord(overrides: Record<string, unknown> = {}) {
 }
 
 function draftInput() {
+  const payload = validBidPayload();
   return {
-    administrative: { eligible: true, authorized: true },
-    technical: {},
-    financial: {
-      items: [{ quantity: 1, rate: 250000000 }]
-    },
-    declarations: {
-      confirmAccuracy: true,
-      acceptTerms: true
-    },
+    administrative: payload.administrative,
+    technical: payload.technical,
+    financial: payload.financial,
+    declarations: payload.declarations,
     responses: [{ requirementKey: 'technical', response: { answer: 'Compliant' } }],
     documents: [{ name: 'technical-proposal.pdf', documentType: 'TECHNICAL_PROPOSAL', envelope: 'TECHNICAL' as const, checksum: 'hash-doc-1' }],
     totalAmount: 250000000,
@@ -451,11 +1376,233 @@ function draftInput() {
   };
 }
 
+function bidDocumentRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'bid-doc-1',
+    documentId: 'doc-1',
+    envelope: 'TECHNICAL',
+    reviewStatus: 'UPLOADED',
+    createdAt: new Date('2026-06-26T08:00:00.000Z'),
+    document: { id: 'doc-1', name: 'technical-proposal.pdf', documentType: 'TECHNICAL_PROPOSAL', objectKey: 'bids/bid-1/technical-proposal.pdf', checksum: 'hash-doc-1', encryptionKeyRef: null, metadata: {} },
+    ...overrides
+  };
+}
+
+function receiptDto() {
+  return {
+    receiptRef: 'BID-PX-BID-2026-000001-01',
+    receiptHash: 'hash-123',
+    createdAt: '2026-07-01T08:00:01.000Z',
+    bid: {
+      id: 'bid-1',
+      reference: 'PX-BID-2026-000001',
+      status: BidStatus.SUBMITTED,
+      submittedAt: '2026-07-01T08:00:00.000Z',
+      totalAmount: 250000000,
+      currency: 'TZS'
+    }
+  };
+}
+
+function sampleInput(overrides: Record<string, unknown> = {}) {
+  return {
+    sampleName: 'Laptop sample unit',
+    relatedItem: 'Laptop',
+    quantity: 1,
+    deliveryLocation: 'Procurement Unit, Dar es Salaam',
+    deliveryDeadline: new Date(Date.now() + 3600000).toISOString(),
+    courier: 'DHL',
+    trackingNumber: 'DHL-123456',
+    metadata: { returnable: true },
+    ...overrides
+  };
+}
+
+function sampleDto(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'sample-1',
+    bidId: 'bid-1',
+    tenderId: 'tender-1',
+    supplierOrgId: 'supplier-org-1',
+    sampleName: 'Laptop sample unit',
+    relatedItem: 'Laptop',
+    quantity: 1,
+    deliveryLocation: 'Procurement Unit, Dar es Salaam',
+    deliveryDeadline: new Date(Date.now() + 3600000).toISOString(),
+    trackingStatus: BidSampleStatus.PENDING_SUBMISSION,
+    courier: 'DHL',
+    trackingNumber: 'DHL-123456',
+    submittedAt: null,
+    receivedAt: null,
+    inspectedAt: null,
+    inspectionNotes: null,
+    metadata: { returnable: true },
+    createdAt: '2026-07-01T08:00:00.000Z',
+    updatedAt: '2026-07-01T08:00:00.000Z',
+    ...overrides
+  };
+}
+
+function sampleRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'sample-1',
+    bidId: 'bid-1',
+    tenderId: 'tender-1',
+    supplierOrgId: 'supplier-org-1',
+    sampleName: 'Laptop sample unit',
+    relatedItem: 'Laptop',
+    quantity: 1,
+    deliveryLocation: 'Procurement Unit, Dar es Salaam',
+    deliveryDeadline: new Date('2026-07-15T12:00:00.000Z'),
+    trackingStatus: BidSampleStatus.PENDING_SUBMISSION,
+    courier: 'DHL',
+    trackingNumber: 'DHL-123456',
+    submittedAt: null,
+    receivedAt: null,
+    inspectedAt: null,
+    inspectionNotes: null,
+    metadata: { returnable: true },
+    createdAt: new Date('2026-07-01T08:00:00.000Z'),
+    updatedAt: new Date('2026-07-01T08:00:00.000Z'),
+    ...overrides
+  };
+}
+
+function canonicalBidPackageFixture(): CanonicalBidPackage {
+  return {
+    bidId: 'bid-1',
+    tenderId: 'tender-1',
+    supplierOrgId: 'supplier-org-1',
+    buyerOrgId: 'buyer-org-1',
+    payload: {
+      bid: validBidPayload(),
+      responses: [{ requirementKey: 'technical', response: { answer: 'Compliant' } }]
+    },
+    documentChecksums: [{ documentId: 'doc-1', envelope: 'TECHNICAL', checksum: 'hash-doc-1' }],
+    computedTotalAmount: 250000000,
+    currency: 'TZS',
+    submittedAt: '2026-07-01T08:00:00.000Z'
+  };
+}
+
+function evaluationTenderRecord(currentStage: EvaluationStage) {
+  return {
+    id: 'tender-1',
+    reference: 'PX-2026-001',
+    title: 'Supply of medical equipment',
+    type: 'OPEN_TENDER',
+    status: TenderStatus.EVALUATION,
+    closingDate: new Date('2026-06-01T08:00:00.000Z'),
+    currency: 'TZS',
+    buyerOrg: { id: 'buyer-org-1', name: 'Buyer Org' },
+    evaluation: {
+      id: 'workspace-1',
+      status: 'IN_PROGRESS',
+      currentStage,
+      progress: 0,
+      payload: {},
+      updatedAt: new Date('2026-07-01T08:00:00.000Z'),
+      criteria: [],
+      scores: [],
+      recommendations: []
+    },
+    bids: [
+      {
+        id: 'bid-1',
+        reference: 'PX-BID-2026-000001',
+        status: BidStatus.SUBMITTED,
+        submittedAt: new Date('2026-07-01T08:00:00.000Z'),
+        totalAmount: 250000000,
+        currency: 'TZS',
+        payload: {},
+        supplierOrg: { id: 'supplier-org-1', name: 'Supplier Org' },
+        documents: [
+          {
+            id: 'bid-doc-tech',
+            envelope: 'TECHNICAL',
+            reviewStatus: 'UPLOADED',
+            document: { id: 'doc-tech', name: 'technical.pdf', documentType: 'TECHNICAL_PROPOSAL' }
+          },
+          {
+            id: 'bid-doc-fin',
+            envelope: 'FINANCIAL',
+            reviewStatus: 'UPLOADED',
+            document: { id: 'doc-fin', name: 'financial.pdf', documentType: 'FINANCIAL_PROPOSAL' }
+          }
+        ],
+        responses: []
+      }
+    ]
+  };
+}
+
+function uploadParserApp() {
+  const app = express();
+  app.post('/upload', async (req, res, next) => {
+    try {
+      res.status(201).json(await parseAndStoreBidDocuments(req, 'bid-1'));
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.use((error: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(error.status ?? 500).json({ message: error.message });
+  });
+  return app;
+}
+
+function biddingRouterApp() {
+  const app = express();
+  app.use(express.json());
+  app.use('/api/bidding', createModuleRouter());
+  app.use((error: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(error.status ?? 500).json({ message: error.message });
+  });
+  return app;
+}
+
+function repositorySubmitFixture(options: { bid?: ReturnType<typeof bidRecord> } = {}) {
+  const tx = transactionMock();
+  const db = {
+    $transaction: vi.fn((callback) => callback(tx))
+  };
+  const bid = options.bid ?? bidRecord();
+  const submittedBid = bidRecord({
+    ...bid,
+    status: BidStatus.SUBMITTED,
+    submittedAt: new Date('2026-07-01T08:00:00.000Z'),
+    receipt: {
+      receiptRef: 'BID-PX-BID-2026-000001-01',
+      receiptHash: 'hash-123',
+      createdAt: new Date('2026-07-01T08:00:01.000Z')
+    }
+  });
+  tx.bid.findUnique.mockResolvedValue(bid);
+  tx.bid.findUniqueOrThrow.mockResolvedValue(submittedBid);
+  tx.bid.findFirst.mockResolvedValue(null);
+  tx.bidVersion.count.mockResolvedValue(0);
+  return {
+    tx,
+    db,
+    repository: new ModuleRepository(db as any)
+  };
+}
+
+function expectNoSubmitWrites(tx: ReturnType<typeof transactionMock>) {
+  expect(tx.bidVersion.create).not.toHaveBeenCalled();
+  expect(tx.bid.update).not.toHaveBeenCalled();
+  expect(tx.bidReceipt.create).not.toHaveBeenCalled();
+  expect(tx.auditEvent.create).not.toHaveBeenCalled();
+}
+
 function transactionMock() {
   return {
+    $queryRaw: vi.fn().mockResolvedValue([{ id: 'bid-1' }]),
     bid: {
       update: vi.fn(),
       create: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findUniqueOrThrow: vi.fn()
     },
     bidVersion: {
@@ -463,7 +1610,13 @@ function transactionMock() {
       create: vi.fn()
     },
     bidReceipt: {
-      upsert: vi.fn()
+      create: vi.fn()
+    },
+    bidSample: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn()
     },
     bidResponse: {
       deleteMany: vi.fn(),
@@ -471,10 +1624,13 @@ function transactionMock() {
     },
     bidDocument: {
       deleteMany: vi.fn(),
+      findFirst: vi.fn(),
+      delete: vi.fn(),
       create: vi.fn()
     },
     documentObject: {
-      create: vi.fn().mockResolvedValue({ id: 'doc-1' })
+      create: vi.fn().mockResolvedValue({ id: 'doc-1' }),
+      delete: vi.fn()
     },
     auditEvent: {
       create: vi.fn()

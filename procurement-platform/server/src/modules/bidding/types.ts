@@ -14,12 +14,29 @@ export type ModuleStatus = {
 export type BidDocumentInput = {
   name: string;
   documentType: string;
-  envelope?: 'TECHNICAL' | 'FINANCIAL' | 'COMBINED';
+  envelope?: 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' | 'COMBINED';
   checksum?: string;
   objectKey?: string;
   size?: number;
   mimeType?: string;
+  encryptionKeyRef?: string;
   metadata?: Record<string, unknown>;
+};
+
+export type BidValidationSeverity = 'warning' | 'error';
+
+export type BidValidationIssue = {
+  section: string;
+  field: string;
+  message: string;
+  severity: BidValidationSeverity;
+};
+
+export type BidValidationResult = {
+  valid: boolean;
+  issues: BidValidationIssue[];
+  computedTotalAmount: number;
+  completeness: Record<string, boolean>;
 };
 
 export type BidDraftInput = {
@@ -66,6 +83,7 @@ export type BidDto = {
     checksum: string | null;
     metadata: Record<string, unknown>;
   }>;
+  validation?: BidValidationResult;
   receipt: {
     receiptRef: string;
     receiptHash: string;
@@ -78,3 +96,61 @@ export type BidDto = {
 export type BidReceiptDto = NonNullable<BidDto['receipt']> & {
   bid: BidDto;
 };
+
+export type BidSampleStatusValue =
+  | 'REQUIRED'
+  | 'PENDING_SUBMISSION'
+  | 'SUBMITTED'
+  | 'RECEIVED'
+  | 'INSPECTED'
+  | 'ACCEPTED'
+  | 'REJECTED';
+
+export type BidSampleDto = {
+  id: string;
+  bidId: string;
+  tenderId: string;
+  supplierOrgId: string;
+  sampleName: string;
+  relatedItem: string | null;
+  quantity: number | null;
+  deliveryLocation: string | null;
+  deliveryDeadline: string | null;
+  trackingStatus: BidSampleStatusValue;
+  courier: string | null;
+  trackingNumber: string | null;
+  submittedAt: string | null;
+  receivedAt: string | null;
+  inspectedAt: string | null;
+  inspectionNotes: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateBidSampleInput = {
+  sampleName: string;
+  relatedItem?: string;
+  quantity: number;
+  deliveryLocation?: string;
+  deliveryDeadline?: string;
+  trackingStatus?: Extract<BidSampleStatusValue, 'PENDING_SUBMISSION' | 'SUBMITTED'>;
+  courier?: string;
+  trackingNumber?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type PatchBidSampleInput = Partial<{
+  sampleName: string;
+  relatedItem: string;
+  quantity: number;
+  deliveryLocation: string;
+  deliveryDeadline: string;
+  trackingStatus: BidSampleStatusValue;
+  courier: string;
+  trackingNumber: string;
+  receivedAt: string;
+  inspectedAt: string;
+  inspectionNotes: string;
+  metadata: Record<string, unknown>;
+}>;

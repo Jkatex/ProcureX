@@ -3,10 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
-import type { BidDocumentInput, BidDraftPayload, BidDto, BidReceiptDto } from '../../types';
+import type { BidDocumentEnvelope, BidDocumentInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, CreateBidSampleInput, PatchBidSampleInput } from '../../types';
 
 type WorkflowType = 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
-type Envelope = NonNullable<BidDocumentInput['envelope']>;
+type Envelope = BidDocumentEnvelope;
+type BidDocumentState = BidDto['documents'][number];
 
 type PriceRow = {
   id: string;
@@ -39,6 +40,31 @@ type Step = {
   kicker: string;
 };
 
+type SampleFormState = {
+  relatedItem: string;
+  sampleName: string;
+  quantity: string;
+  deliveryLocation: string;
+  courier: string;
+  trackingNumber: string;
+  markSubmitted: boolean;
+};
+
+type SampleRequirement = {
+  id: string;
+  relatedItem: string;
+  sampleName: string;
+  quantity: number;
+  deliveryLocation: string;
+  deliveryDeadline?: string;
+  mandatory: boolean;
+};
+
+type SampleItemOption = {
+  value: string;
+  label: string;
+};
+
 const WORKFLOW_VERSION = 'procurex-v1';
 
 export function BiddingWorkspaceProcurexPage() {
@@ -50,10 +76,17 @@ export function BiddingWorkspaceProcurexPage() {
   const [receipt, setReceipt] = useState<BidReceiptDto | null>(null);
   const [status, setStatus] = useState('Loading bid workspace...');
   const [saving, setSaving] = useState(false);
-  const [documents, setDocuments] = useState<BidDocumentInput[]>([]);
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<BidDocumentState[]>([]);
+  const [samples, setSamples] = useState<BidSampleDto[]>([]);
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [sampleSaving, setSampleSaving] = useState(false);
+  const [sampleEdits, setSampleEdits] = useState<Record<string, SampleFormState>>({});
   const [form, setForm] = useState<BidFormState>(() => emptyBidForm());
 
   const workflow = useMemo(() => workflowFromTender(tender), [tender]);
+  const sampleRequirements = useMemo(() => normalizeSampleRequirements(tender), [tender]);
+  const sampleItemOptions = useMemo(() => sampleOptionsFromTender(tender, sampleRequirements), [tender, sampleRequirements]);
   const steps = useMemo(() => workflowSteps(workflow, tender), [workflow, tender]);
   const totalAmount = useMemo(() => totalFromForm(form, workflow), [form, workflow]);
   const validationIssues = useMemo(() => validateForm(workflow, form, documents, totalAmount), [workflow, form, documents, totalAmount]);
@@ -82,10 +115,13 @@ export function BiddingWorkspaceProcurexPage() {
         if (draft) {
           setBid(draft);
           setReceipt(draft.receipt ? { ...draft.receipt, bid: draft } : null);
+          setDocuments(draft.documents);
           hydrateDraft(draft);
           setActiveStep(draft.receipt ? steps.length - 1 : 0);
           setStatus(draft.status === 'SUBMITTED' ? 'Submitted bid loaded.' : 'Draft bid loaded.');
         } else {
+          setSamples([]);
+          setSampleEdits({});
           setStatus('Ready to prepare a new sealed bid.');
         }
       })
@@ -98,6 +134,36 @@ export function BiddingWorkspaceProcurexPage() {
       mounted = false;
     };
   }, [tenderId, steps.length]);
+
+  useEffect(() => {
+    if (!bid?.id || !hasSampleRequirements(tender)) {
+      setSamples([]);
+      setSampleEdits({});
+      return;
+    }
+    if (sampleSaving) return;
+
+    let mounted = true;
+    setSampleLoading(true);
+    biddingApi
+      .listSamples(bid.id)
+      .then((items) => {
+        if (!mounted) return;
+        setSamples(items);
+        setSampleEdits(Object.fromEntries(items.map((sample) => [sample.id, sampleFormFromDto(sample)])));
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        setStatus(errorMessage(error, 'Sample tracking could not be loaded.'));
+      })
+      .finally(() => {
+        if (mounted) setSampleLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [bid?.id, tender, sampleSaving]);
 
   function hydrateDraft(draft: BidDto) {
     const payload = draft.payload;
@@ -118,27 +184,18 @@ export function BiddingWorkspaceProcurexPage() {
       },
       declarations: { ...current.declarations, ...declarations }
     }));
-    setDocuments(
-      draft.documents.map((document) => ({
-        name: document.name,
-        documentType: document.documentType,
-        envelope: document.envelope as Envelope,
-        checksum: document.checksum ?? undefined,
-        objectKey: document.metadata.objectKey as string | undefined,
-        size: Number(document.metadata.size || 0) || undefined,
-        mimeType: document.metadata.mimeType as string | undefined,
-        metadata: document.metadata
-      }))
-    );
   }
 
   function draftPayload(): BidDraftPayload {
-    const responses = responseList(workflow, form);
+    const technical = backendTechnicalPayload(workflow, form.technical);
+    const normalizedForm = { ...form, technical };
+    const responses = responseList(workflow, normalizedForm);
+    const draftDocuments = documents.map(bidDocumentInputFromDto);
     return {
       workflowType: workflow,
       workflowVersion: WORKFLOW_VERSION,
       administrative: form.administrative,
-      technical: form.technical,
+      technical,
       financial: {
         items: form.financial.items.map(withTotal),
         boqItems: form.financial.boqItems.map(withTotal),
@@ -148,7 +205,7 @@ export function BiddingWorkspaceProcurexPage() {
       },
       declarations: form.declarations,
       responses,
-      documents,
+      documents: draftDocuments,
       fileManifest: { documentCount: documents.length, checksums: documents.map((document) => document.checksum).filter(Boolean) },
       envelopes: envelopeManifest(workflow, documents),
       reviewReadiness: { issues: validationIssues, totalAmount, generatedAt: new Date().toISOString() },
@@ -166,8 +223,7 @@ export function BiddingWorkspaceProcurexPage() {
     try {
       const payload = draftPayload();
       const saved = bid ? await biddingApi.updateBid(bid.id, payload) : await biddingApi.saveTenderDraft(tenderId, payload);
-      setBid(saved);
-      setReceipt(saved.receipt ? { ...saved.receipt, bid: saved } : null);
+      syncBidState(saved);
       setStatus('Draft saved to the database.');
     } catch (error) {
       setStatus(errorMessage(error, 'Draft could not be saved.'));
@@ -189,7 +245,7 @@ export function BiddingWorkspaceProcurexPage() {
       const saved = bid ? await biddingApi.updateBid(bid.id, payload) : tenderId ? await biddingApi.saveTenderDraft(tenderId, payload) : null;
       if (!saved) throw new Error('Tender id is missing.');
       const submitted = await biddingApi.submitBid(saved.id);
-      setBid(submitted.bid);
+      syncBidState(submitted.bid);
       setReceipt(submitted);
       setActiveStep(steps.length - 1);
       setStatus(workflow === 'consultancy' ? 'Technical and financial envelopes sealed. Receipt generated.' : 'Bid package sealed. Receipt generated.');
@@ -206,8 +262,7 @@ export function BiddingWorkspaceProcurexPage() {
     setStatus('Withdrawing submitted bid...');
     try {
       const withdrawn = await biddingApi.withdrawBid(bid.id);
-      setBid(withdrawn);
-      setReceipt(withdrawn.receipt ? { ...withdrawn.receipt, bid: withdrawn } : null);
+      syncBidState(withdrawn);
       setStatus('Bid withdrawn. A new active bid package can be prepared before closing.');
       setActiveStep(0);
     } catch (error) {
@@ -218,32 +273,104 @@ export function BiddingWorkspaceProcurexPage() {
   }
 
   async function addFiles(files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) {
-    if (!files) return;
-    setStatus('Hashing selected evidence...');
-    const next = await Promise.all(
-      Array.from(files).map(async (file): Promise<BidDocumentInput> => {
-        const checksum = await sha256File(file);
-        return {
-          name: file.name,
-          documentType,
-          envelope,
-          checksum,
-          objectKey: `bid/${tenderId || 'pending'}/${checksum}-${safeFileName(file.name)}`,
-          size: file.size,
-          mimeType: file.type || 'application/octet-stream',
-          metadata: {
-            requirementKey,
-            originalName: file.name,
-            size: file.size,
-            mimeType: file.type || 'application/octet-stream',
-            lastModified: file.lastModified,
-            objectKey: `bid/${tenderId || 'pending'}/${checksum}-${safeFileName(file.name)}`
-          }
-        };
-      })
-    );
-    setDocuments((current) => [...current, ...next]);
-    setStatus(`${next.length} evidence file${next.length === 1 ? '' : 's'} added to the bid manifest.`);
+    if (!files?.length) return;
+    const selectedFiles = Array.from(files);
+    setUploadingKey(requirementKey);
+    setStatus(bid ? 'Uploading evidence document...' : 'Creating draft before upload...');
+    try {
+      const draft = await ensureDraftBid();
+      setStatus(`Uploading ${selectedFiles.length} evidence file${selectedFiles.length === 1 ? '' : 's'}...`);
+      const updated = await biddingApi.uploadDocuments(draft.id, {
+        files: selectedFiles,
+        envelope,
+        documentType,
+        metadata: { requirementKey }
+      });
+      syncBidState(updated);
+      setStatus(`${selectedFiles.length} evidence file${selectedFiles.length === 1 ? '' : 's'} uploaded and validated.`);
+    } catch (error) {
+      setStatus(errorMessage(error, 'Document upload failed.'));
+    } finally {
+      setUploadingKey(null);
+    }
+  }
+
+  async function addSampleRecord(input: SampleFormState) {
+    const payload = samplePayloadFromForm(input);
+    if (!payload) {
+      setStatus('Enter sample name and quantity before adding a sample.');
+      return false;
+    }
+    setSampleSaving(true);
+    setStatus(bid ? 'Adding sample record...' : 'Creating draft before adding sample...');
+    try {
+      const draft = await ensureDraftBid();
+      const created = await biddingApi.createSample(draft.id, payload);
+      setSamples((current) => [...current, created]);
+      setSampleEdits((current) => ({ ...current, [created.id]: sampleFormFromDto(created) }));
+      setStatus(created.trackingStatus === 'SUBMITTED' ? 'Sample record added and marked as submitted.' : 'Sample record added.');
+      return true;
+    } catch (error) {
+      setStatus(errorMessage(error, 'Sample record could not be added.'));
+      return false;
+    } finally {
+      setSampleSaving(false);
+    }
+  }
+
+  async function saveSampleRecord(sample: BidSampleDto) {
+    if (!bid) return;
+    const edit = sampleEdits[sample.id] ?? sampleFormFromDto(sample);
+    const payload = samplePatchFromForm(edit, sample);
+    if (!payload) {
+      setStatus('Enter sample name and quantity before saving sample changes.');
+      return;
+    }
+    setSampleSaving(true);
+    setStatus('Saving sample record...');
+    try {
+      const updated = await biddingApi.patchSample(bid.id, sample.id, payload);
+      syncSample(updated);
+      setStatus('Sample record saved.');
+    } catch (error) {
+      setStatus(errorMessage(error, 'Sample record could not be saved.'));
+    } finally {
+      setSampleSaving(false);
+    }
+  }
+
+  async function markSampleSubmitted(sample: BidSampleDto) {
+    if (!bid) return;
+    setSampleSaving(true);
+    setStatus('Marking sample as submitted...');
+    try {
+      const updated = await biddingApi.patchSample(bid.id, sample.id, { trackingStatus: 'SUBMITTED' });
+      syncSample(updated);
+      setStatus('Sample marked as submitted.');
+    } catch (error) {
+      setStatus(errorMessage(error, 'Sample could not be marked as submitted.'));
+    } finally {
+      setSampleSaving(false);
+    }
+  }
+
+  async function ensureDraftBid() {
+    if (bid) return bid;
+    if (!tenderId) throw new Error('Tender id is missing.');
+    const saved = await biddingApi.saveTenderDraft(tenderId, draftPayload());
+    syncBidState(saved);
+    return saved;
+  }
+
+  function syncBidState(updated: BidDto) {
+    setBid(updated);
+    setReceipt(updated.receipt ? { ...updated.receipt, bid: updated } : null);
+    setDocuments(updated.documents);
+  }
+
+  function syncSample(updated: BidSampleDto) {
+    setSamples((current) => current.map((sample) => (sample.id === updated.id ? updated : sample)));
+    setSampleEdits((current) => ({ ...current, [updated.id]: sampleFormFromDto(updated) }));
   }
 
   if (!tenderId) return <WorkspaceEmpty message="Open a tender from the marketplace to start or continue a bid." />;
@@ -252,6 +379,7 @@ export function BiddingWorkspaceProcurexPage() {
 
   const loadedTender = tender;
   const isSubmitted = bid?.status === 'SUBMITTED';
+  const uploading = Boolean(uploadingKey);
   const currentStep = steps[Math.min(activeStep, steps.length - 1)];
 
   return (
@@ -270,15 +398,15 @@ export function BiddingWorkspaceProcurexPage() {
             <Link className="btn btn-secondary" to="/communication">
               Ask Clarification
             </Link>
-            <button className="btn btn-secondary" type="button" disabled={saving || isSubmitted} onClick={saveDraft}>
+            <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={saveDraft}>
               Save Draft
             </button>
             {isSubmitted ? (
-              <button className="btn btn-secondary" type="button" disabled={saving} onClick={withdrawBid}>
+              <button className="btn btn-secondary" type="button" disabled={saving || uploading} onClick={withdrawBid}>
                 Withdraw
               </button>
             ) : (
-              <button className="btn btn-primary" type="button" disabled={saving} onClick={submitBid}>
+              <button className="btn btn-primary" type="button" disabled={saving || uploading} onClick={submitBid}>
                 Review Submission
               </button>
             )}
@@ -333,7 +461,7 @@ export function BiddingWorkspaceProcurexPage() {
             <CheckCard label="Confirm mandatory documents are attached" checked={Boolean(form.administrative.documentsConfirmed)} onChange={(value) => patchAdmin('documentsConfirmed', value)} />
           </div>
           <RequirementPreview tender={loadedTender} />
-          <UploadBox envelope="COMBINED" title="Eligibility and administrative evidence" documentType="ADMINISTRATIVE_EVIDENCE" requirementKey="eligibility" onFiles={addFiles} />
+          <UploadBox envelope="ADMINISTRATIVE" title="Eligibility and administrative evidence" documentType="ADMINISTRATIVE_EVIDENCE" requirementKey="eligibility" onFiles={addFiles} {...uploadBoxState('eligibility')} />
         </>
       );
     }
@@ -342,7 +470,7 @@ export function BiddingWorkspaceProcurexPage() {
         <>
           <TextArea label="Product compliance statement" value={String(form.technical.productCompliance || '')} onChange={(value) => patchTechnical('productCompliance', value)} />
           <EditablePriceTable className="goods-offer-table" rows={form.financial.items} currency={loadedTender.currency} rateLabel="Quoted unit price" onChange={(rows) => patchFinancial('items', rows)} showTax />
-          <UploadBox envelope="TECHNICAL" title="Product brochures, catalogues, and specification evidence" documentType="TECHNICAL_PRODUCT_SPEC" requirementKey="goods-technical" onFiles={addFiles} />
+          <UploadBox envelope="TECHNICAL" title="Product brochures, catalogues, and specification evidence" documentType="TECHNICAL_PRODUCT_SPEC" requirementKey="goods-technical" onFiles={addFiles} {...uploadBoxState('goods-technical')} />
         </>
       );
     }
@@ -351,7 +479,7 @@ export function BiddingWorkspaceProcurexPage() {
         <>
           <EditablePriceTable className="goods-offer-table" rows={form.financial.items} currency={loadedTender.currency} rateLabel="Unit price" onChange={(rows) => patchFinancial('items', rows)} showTax />
           <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Financial offer and price schedule" documentType="FINANCIAL_OFFER" requirementKey="goods-financial" onFiles={addFiles} />
+          <UploadBox envelope="FINANCIAL" title="Financial offer and price schedule" documentType="FINANCIAL_OFFER" requirementKey="goods-financial" onFiles={addFiles} {...uploadBoxState('goods-financial')} />
         </>
       );
     }
@@ -359,7 +487,25 @@ export function BiddingWorkspaceProcurexPage() {
       return (
         <>
           <TextArea label="Sample dispatch and delivery evidence" value={String(form.technical.samplePlan || '')} onChange={(value) => patchTechnical('samplePlan', value)} />
-          <UploadBox envelope="TECHNICAL" title="Sample dispatch receipts and photos" documentType="SAMPLE_EVIDENCE" requirementKey="goods-samples" onFiles={addFiles} />
+          <SampleTrackingSection
+            requirements={sampleRequirements}
+            itemOptions={sampleItemOptions}
+            samples={samples}
+            edits={sampleEdits}
+            loading={sampleLoading}
+            saving={sampleSaving}
+            disabled={saving || uploading || sampleSaving || Boolean(bid && bid.status !== 'DRAFT')}
+            onAdd={addSampleRecord}
+            onEdit={(sampleId, patch) => {
+              setSampleEdits((current) => ({
+                ...current,
+                [sampleId]: { ...(current[sampleId] ?? emptySampleForm()), ...patch }
+              }));
+            }}
+            onSave={saveSampleRecord}
+            onSubmit={markSampleSubmitted}
+          />
+          <UploadBox envelope="TECHNICAL" title="Sample dispatch receipts and photos" documentType="SAMPLE_EVIDENCE" requirementKey="goods-samples" onFiles={addFiles} {...uploadBoxState('goods-samples')} />
         </>
       );
     }
@@ -369,7 +515,7 @@ export function BiddingWorkspaceProcurexPage() {
           <TextArea label="Similar works experience" value={String(form.technical.experience || '')} onChange={(value) => patchTechnical('experience', value)} />
           <TextArea label="Key personnel and equipment" value={String(form.technical.capacity || '')} onChange={(value) => patchTechnical('capacity', value)} />
           <TextArea label="Health, safety, and environmental plan" value={String(form.technical.hse || '')} onChange={(value) => patchTechnical('hse', value)} />
-          <UploadBox envelope="TECHNICAL" title="Works capacity evidence" documentType="WORKS_CAPACITY" requirementKey="works-capacity" onFiles={addFiles} />
+          <UploadBox envelope="TECHNICAL" title="Works capacity evidence" documentType="WORKS_CAPACITY" requirementKey="works-capacity" onFiles={addFiles} {...uploadBoxState('works-capacity')} />
         </div>
       );
     }
@@ -387,7 +533,7 @@ export function BiddingWorkspaceProcurexPage() {
         <>
           <EditablePriceTable className="works-boq-table premium-review-table" rows={form.financial.boqItems} currency={loadedTender.currency} rateLabel="Unit rate" onChange={(rows) => patchFinancial('boqItems', rows)} />
           <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Priced BOQ and commercial offer" documentType="WORKS_BOQ" requirementKey="works-financial" onFiles={addFiles} />
+          <UploadBox envelope="FINANCIAL" title="Priced BOQ and commercial offer" documentType="WORKS_BOQ" requirementKey="works-financial" onFiles={addFiles} {...uploadBoxState('works-financial')} />
         </>
       );
     }
@@ -413,7 +559,7 @@ export function BiddingWorkspaceProcurexPage() {
         <div className="form-grid">
           <TextArea label="SLA commitment" value={String(form.technical.sla || '')} onChange={(value) => patchTechnical('sla', value)} />
           <TextArea label="Reporting plan" value={String(form.technical.reportingPlan || '')} onChange={(value) => patchTechnical('reportingPlan', value)} />
-          <UploadBox envelope="TECHNICAL" title="SLA, staffing, and reporting evidence" documentType="SERVICE_TECHNICAL_EVIDENCE" requirementKey="services-sla" onFiles={addFiles} />
+          <UploadBox envelope="TECHNICAL" title="SLA, staffing, and reporting evidence" documentType="SERVICE_TECHNICAL_EVIDENCE" requirementKey="services-sla" onFiles={addFiles} {...uploadBoxState('services-sla')} />
         </div>
       );
     }
@@ -422,7 +568,7 @@ export function BiddingWorkspaceProcurexPage() {
         <>
           <EditablePriceTable className="service-pricing-table premium-commercial-table" rows={form.financial.items} currency={loadedTender.currency} rateLabel="Billing rate" onChange={(rows) => patchFinancial('items', rows)} />
           <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Service pricing schedule" documentType="SERVICE_PRICING" requirementKey="services-commercial" onFiles={addFiles} />
+          <UploadBox envelope="FINANCIAL" title="Service pricing schedule" documentType="SERVICE_PRICING" requirementKey="services-commercial" onFiles={addFiles} {...uploadBoxState('services-commercial')} />
         </>
       );
     }
@@ -432,7 +578,7 @@ export function BiddingWorkspaceProcurexPage() {
           <TextArea label="TOR understanding and technical proposal" value={String(form.technical.technicalProposal || '')} onChange={(value) => patchTechnical('technicalProposal', value)} />
           <TextArea label="Methodology and work plan" value={String(form.technical.methodology || '')} onChange={(value) => patchTechnical('methodology', value)} />
           <TextArea label="Team qualifications and evidence" value={String(form.technical.teamQualifications || '')} onChange={(value) => patchTechnical('teamQualifications', value)} />
-          <UploadBox envelope="TECHNICAL" title="Technical proposal envelope" documentType="CONSULTANCY_TECHNICAL_PROPOSAL" requirementKey="consultancy-technical" onFiles={addFiles} />
+          <UploadBox envelope="TECHNICAL" title="Technical proposal envelope" documentType="CONSULTANCY_TECHNICAL_PROPOSAL" requirementKey="consultancy-technical" onFiles={addFiles} {...uploadBoxState('consultancy-technical')} />
         </div>
       );
     }
@@ -441,7 +587,7 @@ export function BiddingWorkspaceProcurexPage() {
         <>
           <EditablePriceTable className="service-pricing-table premium-commercial-table" rows={form.financial.fees} currency={loadedTender.currency} rateLabel="Fee rate" onChange={(rows) => patchFinancial('fees', rows)} />
           <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Financial proposal envelope" documentType="CONSULTANCY_FINANCIAL_PROPOSAL" requirementKey="consultancy-financial" onFiles={addFiles} />
+          <UploadBox envelope="FINANCIAL" title="Financial proposal envelope" documentType="CONSULTANCY_FINANCIAL_PROPOSAL" requirementKey="consultancy-financial" onFiles={addFiles} {...uploadBoxState('consultancy-financial')} />
         </>
       );
     }
@@ -462,10 +608,10 @@ export function BiddingWorkspaceProcurexPage() {
             <CheckCard label="I confirm anti-corruption compliance" checked={Boolean(form.declarations.antiCorruption)} onChange={(value) => patchDeclaration('antiCorruption', value)} />
           </div>
           <div className="submit-strip">
-            <button className="btn btn-secondary" type="button" disabled={saving || isSubmitted} onClick={saveDraft}>
+            <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={saveDraft}>
               Save Draft
             </button>
-            <button className="btn btn-primary" type="button" disabled={saving || isSubmitted} onClick={submitBid}>
+            <button className="btn btn-primary" type="button" disabled={saving || uploading || isSubmitted} onClick={submitBid}>
               Submit Sealed Bid
             </button>
           </div>
@@ -486,6 +632,13 @@ export function BiddingWorkspaceProcurexPage() {
         )}
       </div>
     );
+  }
+
+  function uploadBoxState(requirementKey: string) {
+    return {
+      disabled: saving || sampleSaving || isSubmitted || uploading,
+      isUploading: uploadingKey === requirementKey
+    };
   }
 
   function patchAdmin(key: string, value: boolean | string) {
@@ -578,20 +731,221 @@ function UploadBox({
   title,
   documentType,
   requirementKey,
+  disabled,
+  isUploading,
   onFiles
 }: {
   envelope: Envelope;
   title: string;
   documentType: string;
   requirementKey: string;
-  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) => void;
+  disabled: boolean;
+  isUploading: boolean;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) => Promise<void>;
 }) {
   return (
     <label className="supplier-requirement-preview">
-      <span>{envelope} documents</span>
+      <span>{isUploading ? 'Uploading...' : `${envelope} documents`}</span>
       <strong>{title}</strong>
-      <input className="form-input" type="file" multiple onChange={(event) => onFiles(event.target.files, envelope, documentType, requirementKey)} />
+      <input
+        className="form-input"
+        type="file"
+        multiple
+        disabled={disabled}
+        onChange={(event) => {
+          const input = event.currentTarget;
+          void onFiles(input.files, envelope, documentType, requirementKey).finally(() => {
+            input.value = '';
+          });
+        }}
+      />
     </label>
+  );
+}
+
+function SampleTrackingSection({
+  requirements,
+  itemOptions,
+  samples,
+  edits,
+  loading,
+  saving,
+  disabled,
+  onAdd,
+  onEdit,
+  onSave,
+  onSubmit
+}: {
+  requirements: SampleRequirement[];
+  itemOptions: SampleItemOption[];
+  samples: BidSampleDto[];
+  edits: Record<string, SampleFormState>;
+  loading: boolean;
+  saving: boolean;
+  disabled: boolean;
+  onAdd: (input: SampleFormState) => Promise<boolean>;
+  onEdit: (sampleId: string, patch: Partial<SampleFormState>) => void;
+  onSave: (sample: BidSampleDto) => Promise<void>;
+  onSubmit: (sample: BidSampleDto) => Promise<void>;
+}) {
+  const [newSample, setNewSample] = useState<SampleFormState>(() => emptySampleForm(requirements[0], itemOptions[0]?.value));
+
+  useEffect(() => {
+    setNewSample(emptySampleForm(requirements[0], itemOptions[0]?.value));
+  }, [requirements, itemOptions]);
+
+  return (
+    <section className="goods-requirements-section">
+      <div className="scope-list-heading">
+        <div>
+          <h3>Sample Submission</h3>
+          <span className="form-hint">Track physical sample dispatch and buyer status updates.</span>
+        </div>
+      </div>
+
+      {requirements.length ? (
+        <div className="tender-detail-card-list">
+          {requirements.map((requirement) => (
+            <article className="supplier-requirement-preview" key={requirement.id}>
+              <span>{requirement.mandatory ? 'Mandatory sample' : 'Sample requirement'}</span>
+              <strong>{requirement.sampleName}</strong>
+              <p>
+                {displayRelatedItem(requirement.relatedItem, itemOptions)}
+                {requirement.quantity ? ` / Qty ${requirement.quantity}` : ''}
+                {requirement.deliveryLocation ? ` / ${requirement.deliveryLocation}` : ''}
+                {requirement.deliveryDeadline ? ` / Due ${formatDateOnly(requirement.deliveryDeadline)}` : ''}
+              </p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="form-grid">
+        <label>
+          <span>Related item</span>
+          <select className="form-input" value={newSample.relatedItem} disabled={disabled} onChange={(event) => setNewSample((current) => mergeSampleRequirementDefaults({ ...current, relatedItem: event.target.value }, requirements))}>
+            {itemOptions.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Sample name</span>
+          <input className="form-input" value={newSample.sampleName} disabled={disabled} onChange={(event) => setNewSample((current) => ({ ...current, sampleName: event.target.value }))} />
+        </label>
+        <label>
+          <span>Quantity</span>
+          <input className="form-input" type="number" min="1" value={newSample.quantity} disabled={disabled} onChange={(event) => setNewSample((current) => ({ ...current, quantity: event.target.value }))} />
+        </label>
+        <label>
+          <span>Delivery location</span>
+          <input className="form-input" value={newSample.deliveryLocation} disabled={disabled} onChange={(event) => setNewSample((current) => ({ ...current, deliveryLocation: event.target.value }))} />
+        </label>
+        <label>
+          <span>Courier</span>
+          <input className="form-input" value={newSample.courier} disabled={disabled} onChange={(event) => setNewSample((current) => ({ ...current, courier: event.target.value }))} />
+        </label>
+        <label>
+          <span>Tracking number</span>
+          <input className="form-input" value={newSample.trackingNumber} disabled={disabled} onChange={(event) => setNewSample((current) => ({ ...current, trackingNumber: event.target.value }))} />
+        </label>
+      </div>
+
+      <div className="tender-detail-field-grid">
+        <label className="tender-detail-field-card">
+          <span>Mark sample as submitted</span>
+          <strong>{newSample.markSubmitted ? 'Submitted' : 'Pending'}</strong>
+          <input aria-label="Mark sample as submitted" type="checkbox" checked={newSample.markSubmitted} disabled={disabled} onChange={(event) => setNewSample((current) => ({ ...current, markSubmitted: event.target.checked }))} />
+        </label>
+      </div>
+      <div className="submit-strip">
+        <button
+          className="btn btn-secondary"
+          type="button"
+          disabled={disabled || saving}
+          onClick={async () => {
+            const added = await onAdd(newSample);
+            if (added) setNewSample(emptySampleForm(requirements[0], itemOptions[0]?.value));
+          }}
+        >
+          Add sample record
+        </button>
+      </div>
+
+      {loading ? <div className="scope-empty">Loading sample records...</div> : null}
+      {!loading && !samples.length ? <div className="scope-empty">No sample records added yet.</div> : null}
+
+      {samples.length ? (
+        <div className="data-table premium-review-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Related item</th>
+                <th>Sample</th>
+                <th>Qty</th>
+                <th>Delivery</th>
+                <th>Courier</th>
+                <th>Tracking</th>
+                <th>Status</th>
+                <th>Buyer update</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {samples.map((sample) => {
+                const edit = edits[sample.id] ?? sampleFormFromDto(sample);
+                const readOnly = disabled || isBuyerSampleStatus(sample.trackingStatus);
+                return (
+                  <tr key={sample.id}>
+                    <td>
+                      <select className="form-input" aria-label={`Related item for ${sample.sampleName}`} value={edit.relatedItem} disabled={readOnly} onChange={(event) => onEdit(sample.id, { relatedItem: event.target.value })}>
+                        {withSampleOption(itemOptions, edit.relatedItem).map((option) => (
+                          <option value={option.value} key={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input className="form-input" aria-label={`Sample name for ${sample.sampleName}`} value={edit.sampleName} disabled={readOnly} onChange={(event) => onEdit(sample.id, { sampleName: event.target.value })} />
+                    </td>
+                    <td>
+                      <input className="form-input" aria-label={`Quantity for ${sample.sampleName}`} type="number" min="1" value={edit.quantity} disabled={readOnly} onChange={(event) => onEdit(sample.id, { quantity: event.target.value })} />
+                    </td>
+                    <td>
+                      <input className="form-input" aria-label={`Delivery location for ${sample.sampleName}`} value={edit.deliveryLocation} disabled={readOnly} onChange={(event) => onEdit(sample.id, { deliveryLocation: event.target.value })} />
+                    </td>
+                    <td>
+                      <input className="form-input" aria-label={`Courier for ${sample.sampleName}`} value={edit.courier} disabled={readOnly} onChange={(event) => onEdit(sample.id, { courier: event.target.value })} />
+                    </td>
+                    <td>
+                      <input className="form-input" aria-label={`Tracking number for ${sample.sampleName}`} value={edit.trackingNumber} disabled={readOnly} onChange={(event) => onEdit(sample.id, { trackingNumber: event.target.value })} />
+                    </td>
+                    <td>
+                      <strong>{sampleStatusLabel(sample.trackingStatus)}</strong>
+                      {sample.submittedAt ? <span>{formatDate(sample.submittedAt)}</span> : null}
+                    </td>
+                    <td>
+                      <span>{buyerSampleSummary(sample)}</span>
+                    </td>
+                    <td>
+                      <button className="btn btn-secondary" type="button" disabled={readOnly || saving} onClick={() => void onSave(sample)}>
+                        Save
+                      </button>
+                      <button className="btn btn-primary" type="button" disabled={readOnly || saving || sample.trackingStatus === 'SUBMITTED'} onClick={() => void onSubmit(sample)}>
+                        Mark submitted
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -680,7 +1034,7 @@ function RequirementPreview({ tender }: { tender: TenderDetail }) {
   );
 }
 
-function ReviewPanel({ workflow, form, documents, issues, totalAmount, currency }: { workflow: WorkflowType; form: BidFormState; documents: BidDocumentInput[]; issues: string[]; totalAmount: number; currency: string }) {
+function ReviewPanel({ workflow, form, documents, issues, totalAmount, currency }: { workflow: WorkflowType; form: BidFormState; documents: BidDocumentState[]; issues: string[]; totalAmount: number; currency: string }) {
   return (
     <>
       <div className="record-summary tender-detail-summary">
@@ -720,6 +1074,60 @@ function emptyBidForm(): BidFormState {
     financial: { items: [], boqItems: [], fees: [], paymentTerms: '', validityDays: '90' },
     declarations: { confirmAccuracy: false, acceptTerms: false, noConflict: false, antiCorruption: false, representativeName: '', position: '' }
   };
+}
+
+function emptySampleForm(requirement?: SampleRequirement, fallbackItem = ''): SampleFormState {
+  return {
+    relatedItem: requirement?.relatedItem || fallbackItem,
+    sampleName: requirement?.sampleName || '',
+    quantity: requirement?.quantity ? String(requirement.quantity) : '1',
+    deliveryLocation: requirement?.deliveryLocation || '',
+    courier: '',
+    trackingNumber: '',
+    markSubmitted: false
+  };
+}
+
+function sampleFormFromDto(sample: BidSampleDto): SampleFormState {
+  return {
+    relatedItem: sample.relatedItem ?? '',
+    sampleName: sample.sampleName,
+    quantity: sample.quantity ? String(sample.quantity) : '',
+    deliveryLocation: sample.deliveryLocation ?? '',
+    courier: sample.courier ?? '',
+    trackingNumber: sample.trackingNumber ?? '',
+    markSubmitted: sample.trackingStatus === 'SUBMITTED'
+  };
+}
+
+function samplePayloadFromForm(input: SampleFormState): CreateBidSampleInput | null {
+  const sampleName = input.sampleName.trim();
+  const quantity = Number(input.quantity);
+  if (!sampleName || !Number.isFinite(quantity) || quantity <= 0) return null;
+  return {
+    sampleName,
+    quantity,
+    ...(input.relatedItem.trim() ? { relatedItem: input.relatedItem.trim() } : {}),
+    ...(input.deliveryLocation.trim() ? { deliveryLocation: input.deliveryLocation.trim() } : {}),
+    ...(input.courier.trim() ? { courier: input.courier.trim() } : {}),
+    ...(input.trackingNumber.trim() ? { trackingNumber: input.trackingNumber.trim() } : {}),
+    trackingStatus: input.markSubmitted ? 'SUBMITTED' : 'PENDING_SUBMISSION'
+  };
+}
+
+function samplePatchFromForm(input: SampleFormState, sample: BidSampleDto): PatchBidSampleInput | null {
+  const payload = samplePayloadFromForm(input);
+  if (!payload) return null;
+  const patch: PatchBidSampleInput = {
+    sampleName: payload.sampleName,
+    quantity: payload.quantity,
+    ...(payload.relatedItem ? { relatedItem: payload.relatedItem } : {}),
+    ...(payload.deliveryLocation ? { deliveryLocation: payload.deliveryLocation } : {}),
+    ...(payload.courier ? { courier: payload.courier } : {}),
+    ...(payload.trackingNumber ? { trackingNumber: payload.trackingNumber } : {})
+  };
+  if (input.markSubmitted && sample.trackingStatus !== 'SUBMITTED') patch.trackingStatus = 'SUBMITTED';
+  return patch;
 }
 
 function workflowFromTender(tender?: TenderDetail | null): WorkflowType {
@@ -832,6 +1240,32 @@ function totalFromForm(form: BidFormState, workflow: WorkflowType) {
   return rows.reduce((sum, row) => sum + Math.max(0, row.quantity * row.rate - row.discount), 0);
 }
 
+function backendTechnicalPayload(workflow: WorkflowType, technical: Record<string, unknown>) {
+  const normalized = { ...technical };
+  const value = (...keys: string[]) => keys.map((key) => String(technical[key] ?? '').trim()).find(Boolean) ?? '';
+  const approach = value('approach', 'methodology', 'technicalProposal', 'productCompliance');
+  const deliveryPlan = value('deliveryPlan', 'workPlan', 'samplePlan', 'staffingPlan', 'sla', 'technicalProposal', 'productCompliance', 'methodology');
+
+  if (workflow === 'goods') {
+    normalized.approach = value('approach', 'productCompliance');
+    normalized.deliveryPlan = value('deliveryPlan', 'samplePlan', 'productCompliance');
+  } else if (workflow === 'works') {
+    normalized.approach = value('approach', 'methodology');
+    normalized.deliveryPlan = value('deliveryPlan', 'workPlan', 'siteResponse', 'methodology');
+  } else if (workflow === 'services') {
+    normalized.approach = value('approach', 'methodology');
+    normalized.deliveryPlan = value('deliveryPlan', 'staffingPlan', 'sla', 'methodology');
+  } else if (workflow === 'consultancy') {
+    normalized.approach = value('approach', 'methodology', 'technicalProposal');
+    normalized.deliveryPlan = value('deliveryPlan', 'technicalProposal', 'methodology');
+  } else {
+    normalized.approach = approach;
+    normalized.deliveryPlan = deliveryPlan;
+  }
+
+  return normalized;
+}
+
 function responseList(workflow: WorkflowType, form: BidFormState) {
   return Object.entries(form.technical)
     .filter(([, value]) => String(value ?? '').trim())
@@ -841,7 +1275,7 @@ function responseList(workflow: WorkflowType, form: BidFormState) {
     }));
 }
 
-function validateForm(workflow: WorkflowType, form: BidFormState, documents: BidDocumentInput[], totalAmount: number) {
+function validateForm(workflow: WorkflowType, form: BidFormState, documents: BidDocumentState[], totalAmount: number) {
   const issues: string[] = [];
   if (!form.administrative.eligible || !form.administrative.authorized) issues.push('administrative confirmations');
   if (documents.length < 1) issues.push('supporting documents');
@@ -854,9 +1288,10 @@ function validateForm(workflow: WorkflowType, form: BidFormState, documents: Bid
   return issues;
 }
 
-function envelopeManifest(workflow: WorkflowType, documents: BidDocumentInput[]) {
+function envelopeManifest(workflow: WorkflowType, documents: BidDocumentState[]) {
   return {
     mode: workflow === 'consultancy' ? 'two-envelope' : 'combined',
+    administrative: documents.filter((document) => document.envelope === 'ADMINISTRATIVE').map((document) => document.checksum).filter(Boolean),
     technical: documents.filter((document) => document.envelope === 'TECHNICAL').map((document) => document.checksum).filter(Boolean),
     financial: documents.filter((document) => document.envelope === 'FINANCIAL').map((document) => document.checksum).filter(Boolean),
     combined: documents.filter((document) => document.envelope === 'COMBINED').map((document) => document.checksum).filter(Boolean)
@@ -872,31 +1307,119 @@ function requirementRowsFromJson(requirements?: Record<string, unknown>) {
   });
 }
 
-function hasSampleRequirements(tender?: TenderDetail | null) {
-  const samples = tender?.requirements?.sampleRequirements;
-  return Array.isArray(samples) && samples.some((item) => objectPayload(item).sampleRequired !== false);
+function normalizeSampleRequirements(tender?: TenderDetail | null): SampleRequirement[] {
+  const requirements = objectPayload(tender?.requirements);
+  const goods = objectPayload(requirements.goods);
+  const fields = objectPayload(goods.fields);
+  const sources = [requirements.sampleRequirements, fields.sampleRequirementRows].filter(Array.isArray) as unknown[][];
+  const rows = sources.flatMap((source) => source.map(objectPayload));
+  return rows
+    .filter((row) => row.sampleRequired !== false)
+    .map((row, index) => {
+      const relatedItem = String(row.relatedBoqItemId || row.relatedBoqItem || row.relatedItem || row.itemId || '').trim();
+      const sampleName = String(row.sampleDescription || row.sampleName || row.description || `Sample ${index + 1}`).trim();
+      const quantity = Number(row.numberOfSamples || row.quantity || 1);
+      return {
+        id: String(row.id || relatedItem || `sample-requirement-${index + 1}`),
+        relatedItem,
+        sampleName,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        deliveryLocation: String(row.deliveryLocation || '').trim(),
+        deliveryDeadline: typeof row.deliveryDeadline === 'string' ? row.deliveryDeadline : undefined,
+        mandatory: row.mandatory !== false
+      };
+    });
 }
 
-function stepBadge(stepId: string, issues: string[], documents: BidDocumentInput[], receipt: BidReceiptDto | null) {
+function hasSampleRequirements(tender?: TenderDetail | null) {
+  const requirements = objectPayload(tender?.requirements);
+  const summary = objectPayload(requirements.summary);
+  return normalizeSampleRequirements(tender).length > 0 || summary.requireSamples === 'Yes' || summary.requireSamples === true || requirements.requireSamples === 'Yes' || requirements.requireSamples === true;
+}
+
+function sampleOptionsFromTender(tender?: TenderDetail | null, requirements: SampleRequirement[] = []): SampleItemOption[] {
+  const requirementOptions = requirements
+    .filter((requirement) => requirement.relatedItem)
+    .map((requirement) => ({ value: requirement.relatedItem, label: requirement.sampleName ? `${displayRelatedItem(requirement.relatedItem, [])} - ${requirement.sampleName}` : requirement.relatedItem }));
+  const explicit = (tender?.commercialItems ?? []).map((item, index) => ({
+    value: item.id,
+    label: `${item.itemNo || index + 1}. ${item.description}`
+  }));
+  const requirementsPayload = objectPayload(tender?.requirements);
+  const jsonRows = Array.isArray(requirementsPayload.commercialItems) ? (requirementsPayload.commercialItems as Record<string, unknown>[]) : [];
+  const jsonOptions = jsonRows.map((item, index) => ({
+    value: String(item.id || `line-${index + 1}`),
+    label: `${index + 1}. ${String(item.description || item.itemDescription || 'Tender line item')}`
+  }));
+  const options = [...explicit, ...jsonOptions, ...requirementOptions].filter((option) => option.value);
+  const unique = new Map(options.map((option) => [option.value, option]));
+  return [...unique.values()];
+}
+
+function mergeSampleRequirementDefaults(input: SampleFormState, requirements: SampleRequirement[]): SampleFormState {
+  const requirement = requirements.find((item) => item.relatedItem === input.relatedItem);
+  if (!requirement) return input;
+  return {
+    ...input,
+    sampleName: input.sampleName || requirement.sampleName,
+    quantity: input.quantity || String(requirement.quantity),
+    deliveryLocation: input.deliveryLocation || requirement.deliveryLocation
+  };
+}
+
+function withSampleOption(options: SampleItemOption[], value: string): SampleItemOption[] {
+  if (!value || options.some((option) => option.value === value)) return options;
+  return [...options, { value, label: value }];
+}
+
+function displayRelatedItem(value: string | null | undefined, options: SampleItemOption[]) {
+  if (!value) return 'No related item';
+  return options.find((option) => option.value === value)?.label ?? value;
+}
+
+function isBuyerSampleStatus(status: BidSampleDto['trackingStatus']) {
+  return status === 'RECEIVED' || status === 'INSPECTED' || status === 'ACCEPTED' || status === 'REJECTED';
+}
+
+function sampleStatusLabel(status: BidSampleDto['trackingStatus']) {
+  return humanize(status.toLowerCase());
+}
+
+function buyerSampleSummary(sample: BidSampleDto) {
+  if (sample.trackingStatus === 'RECEIVED') return sample.receivedAt ? `Received ${formatDate(sample.receivedAt)}` : 'Received';
+  if (sample.trackingStatus === 'INSPECTED') return sample.inspectedAt ? `Inspected ${formatDate(sample.inspectedAt)}` : 'Inspected';
+  if (sample.trackingStatus === 'ACCEPTED') return sample.inspectionNotes ? `Accepted - ${sample.inspectionNotes}` : 'Accepted';
+  if (sample.trackingStatus === 'REJECTED') return sample.inspectionNotes ? `Rejected - ${sample.inspectionNotes}` : 'Rejected';
+  return 'Awaiting buyer update';
+}
+
+function stepBadge(stepId: string, issues: string[], documents: BidDocumentState[], receipt: BidReceiptDto | null) {
   if (stepId === 'receipt') return receipt ? 'Submitted' : 'Pending';
   if (stepId === 'review') return `${issues.length} issues`;
   if (stepId === 'eligibility') return `${documents.length} files`;
   return issues.length ? 'In progress' : 'Ready';
 }
 
+function bidDocumentInputFromDto(document: BidDocumentState): BidDocumentInput {
+  const metadata = objectPayload(document.metadata);
+  const size = Number(metadata.size);
+  return {
+    name: document.name,
+    documentType: document.documentType,
+    envelope: coerceEnvelope(document.envelope),
+    checksum: document.checksum ?? undefined,
+    size: Number.isFinite(size) && size >= 0 ? size : undefined,
+    mimeType: typeof metadata.mimeType === 'string' ? metadata.mimeType : undefined,
+    metadata
+  };
+}
+
+function coerceEnvelope(value: string | undefined): Envelope {
+  return value === 'ADMINISTRATIVE' || value === 'TECHNICAL' || value === 'FINANCIAL' || value === 'COMBINED' ? value : 'COMBINED';
+}
+
 function objectPayload(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-async function sha256File(file: File) {
-  if (!globalThis.crypto?.subtle) return `${file.name}-${file.size}-${file.lastModified}`;
-  const buffer = await file.arrayBuffer();
-  const hash = await globalThis.crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(hash)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function safeFileName(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 function payloadTitle(payload: Record<string, unknown>, fallback: string) {
@@ -943,4 +1466,10 @@ function formatDate(value: string) {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return 'Not set';
   return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(parsed);
+}
+
+function formatDateOnly(value: string) {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return value;
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed);
 }
