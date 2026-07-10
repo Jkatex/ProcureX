@@ -294,10 +294,6 @@ export class ModuleRepository {
     if (updated.status === CommunicationStatus.ARCHIVED && existing.status !== CommunicationStatus.ARCHIVED) {
       await this.recordCommunicationAudit(updated.ownerOrgId, updated.id, 'communication.message.archived');
     }
-    if (updated.status === CommunicationStatus.DELETED && existing.status !== CommunicationStatus.DELETED) {
-      await this.recordCommunicationAudit(updated.ownerOrgId, updated.id, 'communication.message.deleted');
-    }
-
     return toDto(updated);
   }
 
@@ -328,15 +324,6 @@ export class ModuleRepository {
     return this.patchMessage(messageId, {
       folder: 'archived',
       status: CommunicationStatus.ARCHIVED,
-      read: true,
-      actionRequired: false
-    });
-  }
-
-  async softDelete(messageId: string): Promise<CommunicationMessageDto | null> {
-    return this.patchMessage(messageId, {
-      folder: 'trash',
-      status: CommunicationStatus.DELETED,
       read: true,
       actionRequired: false
     });
@@ -435,18 +422,17 @@ export class ModuleRepository {
 
   private async counts(organizationId: string): Promise<CommunicationCountsDto> {
     const base = organizationScope(organizationId);
-    const [total, inbox, sent, drafts, archived, trash, unread, actionRequired] = await Promise.all([
+    const [total, inbox, sent, drafts, archived, unread, actionRequired] = await Promise.all([
       this.db.communicationItem.count({ where: base }),
       this.db.communicationItem.count({ where: andMessageWhere([base, inboxWhere()]) }),
       this.db.communicationItem.count({ where: andMessageWhere([base, { folder: 'sent' }]) }),
       this.db.communicationItem.count({ where: andMessageWhere([base, { folder: 'drafts' }]) }),
       this.db.communicationItem.count({ where: andMessageWhere([base, { OR: [{ folder: 'archived' }, { status: CommunicationStatus.ARCHIVED }] }]) }),
-      this.db.communicationItem.count({ where: andMessageWhere([base, { OR: [{ folder: 'trash' }, { status: CommunicationStatus.DELETED }] }]) }),
-      this.db.communicationItem.count({ where: andMessageWhere([base, { read: false, status: { not: CommunicationStatus.DELETED } }]) }),
+      this.db.communicationItem.count({ where: andMessageWhere([base, unreadWhere()]) }),
       this.db.communicationItem.count({ where: andMessageWhere([base, { OR: [{ actionRequired: true }, { status: CommunicationStatus.ACTION_REQUIRED }] }]) })
     ]);
 
-    return { total, inbox, sent, drafts, archived, trash, unread, actionRequired };
+    return { total, inbox, sent, drafts, archived, unread, actionRequired };
   }
 }
 
@@ -557,8 +543,7 @@ function folderWhere(folder: CommunicationQuery['folder']): Prisma.Communication
   if (folder === 'all') return {};
   if (folder === 'inbox') return inboxWhere();
   if (folder === 'archived') return { OR: [{ folder: 'archived' }, { status: CommunicationStatus.ARCHIVED }] };
-  if (folder === 'trash') return { OR: [{ folder: 'trash' }, { status: CommunicationStatus.DELETED }] };
-  if (folder === 'unread') return { read: false, status: { not: CommunicationStatus.DELETED } };
+  if (folder === 'unread') return unreadWhere();
   return { folder };
 }
 
@@ -567,6 +552,10 @@ function inboxWhere(): Prisma.CommunicationItemWhereInput {
     folder: { notIn: ['sent', 'archived', 'trash', 'drafts'] },
     status: { not: CommunicationStatus.DELETED }
   };
+}
+
+function unreadWhere(): Prisma.CommunicationItemWhereInput {
+  return andMessageWhere([inboxWhere(), { read: false }]);
 }
 
 function orderBy(query: CommunicationQuery): Prisma.CommunicationItemOrderByWithRelationInput[] {
@@ -714,7 +703,6 @@ function documentTypeForAttachment(attachment: { name: string; mimeType?: string
 function deriveStatus(input: PatchMessageInput, current: CommunicationStatus) {
   if (input.status) return input.status;
   if (input.folder === 'archived') return CommunicationStatus.ARCHIVED;
-  if (input.folder === 'trash') return CommunicationStatus.DELETED;
   if (input.read === true && current === CommunicationStatus.UNREAD) return CommunicationStatus.READ;
   if (input.read === false && current === CommunicationStatus.READ) return CommunicationStatus.UNREAD;
   return current;
@@ -723,7 +711,6 @@ function deriveStatus(input: PatchMessageInput, current: CommunicationStatus) {
 function deriveFolder(input: PatchMessageInput, current: string, status: CommunicationStatus) {
   if (input.folder) return input.folder;
   if (status === CommunicationStatus.ARCHIVED) return 'archived';
-  if (status === CommunicationStatus.DELETED) return 'trash';
   return current;
 }
 

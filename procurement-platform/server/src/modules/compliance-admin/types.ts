@@ -90,6 +90,14 @@ export const adminAppDefinitions = [
     backend: { module: 'compliance-admin', endpoint: '/api/compliance-admin/datastore', status: 'live' }
   },
   {
+    key: 'tender-review',
+    title: 'Tender Review',
+    description: 'Review newly submitted tenders before marketplace publication.',
+    route: '/admin/tender-review',
+    group: 'primary',
+    backend: { module: 'procurement', endpoint: '/api/procurement/admin/tender-review', status: 'live' }
+  },
+  {
     key: 'communication-center',
     title: 'Communication Center',
     description: 'Messages, clarifications, alerts, and admin-visible communication activity.',

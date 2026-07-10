@@ -12,6 +12,9 @@ import type {
   MyBidRow,
   MyTenderRow,
   PublishTenderResponse,
+  TenderReviewDecisionResponse,
+  TenderReviewDetail,
+  TenderReviewListResponse,
   TenderDetail,
   UpdateTenderPayload,
   UpdateTenderResponse
@@ -61,6 +64,24 @@ export const procurementApi = {
   },
   async publishTender(tenderId: string): Promise<PublishTenderResponse> {
     const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, {});
+    return response.data;
+  },
+  async listTenderReviews(query: { search?: string; page?: number; pageSize?: number } = {}): Promise<TenderReviewListResponse> {
+    const response = await apiClient.get<TenderReviewListResponse>('/api/procurement/admin/tender-review', {
+      params: query
+    });
+    return response.data;
+  },
+  async getTenderReview(tenderId: string): Promise<TenderReviewDetail> {
+    const response = await apiClient.get<TenderReviewDetail>(`/api/procurement/admin/tender-review/${tenderId}`);
+    return response.data;
+  },
+  async passTenderReview(tenderId: string): Promise<TenderReviewDecisionResponse> {
+    const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/pass`, {});
+    return response.data;
+  },
+  async failTenderReview(tenderId: string, input: { messageId: string }): Promise<TenderReviewDecisionResponse> {
+    const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/fail`, input);
     return response.data;
   }
 };
@@ -153,13 +174,13 @@ export function mergeSessionMarketplaceData(
   const sessionMyTenderRows = drafts.map((draft): MyTenderRow => ({
     id: draft.id,
     title: draft.title || 'Untitled tender draft',
-    section: draft.status === 'DRAFT' ? 'draft' : 'posted',
-    status: draft.status === 'DRAFT' ? 'Draft' : 'Posted',
+    section: draft.status === 'PUBLISHED' ? 'posted' : 'draft',
+    status: draft.status === 'PUBLISHED' ? 'Posted' : draft.status === 'SUBMITTED' ? 'Under Review' : 'Draft',
     type: toTenderType(draft.procurementTypeId),
     tender: draft.status === 'PUBLISHED' ? createMarketplaceTenderFromDraft(draft, organization) : undefined,
     lastActivity: draft.publishedAt?.slice(0, 10) || draft.updatedAt.slice(0, 10),
-    actionLabel: draft.status === 'DRAFT' ? 'Continue Draft' : 'View My Tender',
-    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=${draft.id}`
+    actionLabel: draft.status === 'PUBLISHED' ? 'View My Tender' : draft.status === 'SUBMITTED' ? 'Review Pending' : 'Continue Draft',
+    nav: draft.status === 'PUBLISHED' ? `/procurement/tender-details?tenderId=${draft.id}` : '/procurement/create-tender'
   }));
 
   const existingTenderIds = new Set(sessionTenderRows.map((row) => row.id));

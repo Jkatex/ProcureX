@@ -119,18 +119,6 @@ export class ModuleController {
     }
   };
 
-  softDelete: RequestHandler = async (req, res, next) => {
-    try {
-      const params = messageParamsSchema.safeParse(req.params);
-      if (!params.success) throw requestError('Invalid message id.');
-      const result = await this.service.softDelete(bearerToken(req), params.data.messageId);
-      if (!result) throw requestError('Communication message was not found.', 404);
-      res.json(result);
-    } catch (error) {
-      next(error);
-    }
-  };
-
   recipients: RequestHandler = async (req, res, next) => {
     try {
       const query = recipientQuerySchema.safeParse(req.query);

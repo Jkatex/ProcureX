@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
-import { saveCreateTenderDraft } from '../../slice';
+import { saveCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import type {
@@ -42,6 +42,7 @@ import type {
   CreateTenderWorksMilestoneRow,
   CreateTenderWorksRequirements,
   CreateTenderWorksSpecificationDocumentRow,
+  TenderDetail,
   TenderDraftValidation
 } from '../../types';
 
@@ -321,11 +322,13 @@ type PlanningBridge = {
 export function CreateTenderProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { notifyError, notifySuccess, notifyWarning } = useNotifications();
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
   const [activeStep, setActiveStep] = useState(0);
   const [validationMessage, setValidationMessage] = useState('');
   const [isPersisting, setIsPersisting] = useState(false);
+  const [loadedTenderId, setLoadedTenderId] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
   const [newDeliverable, setNewDeliverable] = useState('');
@@ -371,6 +374,7 @@ export function CreateTenderProcurexPage() {
           ? 'badge-error'
           : 'badge-warning'
       : 'badge-info';
+  const editTenderId = searchParams.get('tenderId') ?? '';
 
   useEffect(() => {
     const bridge = readPlanningBridge();
@@ -382,6 +386,39 @@ export function CreateTenderProcurexPage() {
     });
     if (bridge.startStep) setActiveStep(Math.min(Math.max(Number(bridge.startStep) - 1, 0), steps.length - 1));
   }, []);
+
+  useEffect(() => {
+    if (!editTenderId || loadedTenderId === editTenderId) return;
+    let active = true;
+
+    async function loadEditableTender() {
+      setIsPersisting(true);
+      setValidationMessage('');
+      try {
+        const tender = await procurementApi.getTenderDetail(editTenderId);
+        if (!active) return;
+        const editableDraft = draftFromTenderDetail(tender);
+        setDraft(editableDraft);
+        dispatch(saveCreateTenderDraft(editableDraft));
+        setLoadedTenderId(editTenderId);
+        setActiveStep(0);
+      } catch (error) {
+        if (!active) return;
+        const message = getApiErrorMessage(error, 'Tender could not be loaded for amendment.');
+        setValidationMessage(message);
+        notifyError('Tender not loaded', message, {
+          reason: 'ProcureX could not load the tender record for editing.'
+        });
+      } finally {
+        if (active) setIsPersisting(false);
+      }
+    }
+
+    void loadEditableTender();
+    return () => {
+      active = false;
+    };
+  }, [dispatch, editTenderId, loadedTenderId, notifyError]);
 
   function patchDraft(patch: Partial<CreateTenderDraft>) {
     setDraft((current) => ({
@@ -552,23 +589,23 @@ export function CreateTenderProcurexPage() {
     if (!confirmationsComplete) {
       setValidationMessage('Please review and tick each publication confirmation before submitting.');
       notifyWarning('Tender cannot be submitted yet', 'Complete all publication confirmations before submitting.', {
-        reason: 'ProcureX blocks publication until accuracy, compliance, evaluation, and publication confirmations are ticked.'
+        reason: 'ProcureX blocks review submission until accuracy, compliance, evaluation, and publication confirmations are ticked.'
       });
       return;
     }
     if (draft.method === 'Invited Tender') {
-      const message = 'Invited Tender publishing is not yet supported by the backend. Select Open Tender before publishing.';
+      const message = 'Invited Tender review submission is not yet supported by the frontend. Select Open Tender before submitting.';
       setValidationMessage(message);
-      notifyWarning('Invited tender publishing unavailable', message, {
-        reason: 'The backend create/update contract does not persist tender method yet, so this publish path is limited to public marketplace tenders.'
+      notifyWarning('Invited tender review unavailable', message, {
+        reason: 'The backend create/update contract does not persist tender method yet, so this review path is limited to public marketplace tenders.'
       });
       return;
     }
     if (!parsePositiveNumber(draft.estimatedBudget)) {
-      const message = 'Add a positive estimated budget before publishing this tender.';
+      const message = 'Add a positive estimated budget before submitting this tender for review.';
       setValidationMessage(message);
       notifyWarning('Tender budget required', message, {
-        reason: 'The backend publication pipeline requires a tender budget before a draft can become visible in the marketplace.'
+        reason: 'The backend review pipeline requires a tender budget before a draft can be sent to admin review.'
       });
       setActiveStep(0);
       return;
@@ -578,29 +615,29 @@ export function CreateTenderProcurexPage() {
     setIsPersisting(true);
     try {
       const { saved } = await persistTenderDraft();
-      const publishedResponse = await procurementApi.publishTender(saved.id);
+      const reviewResponse = await procurementApi.publishTender(saved.id);
       const now = new Date().toISOString();
-      const published: CreateTenderDraft = {
+      const submitted: CreateTenderDraft = {
         ...saved,
-        reference: publishedResponse.data.reference,
-        status: 'PUBLISHED',
+        reference: reviewResponse.data.reference,
+        status: 'SUBMITTED',
         submittedAt: now,
-        publishedAt: publishedResponse.data.publishedAt || now,
-        submissionDate: publishedResponse.data.closingDate || saved.submissionDate,
+        publishedAt: '',
+        submissionDate: reviewResponse.data.closingDate || saved.submissionDate,
         updatedAt: now
       };
-      setDraft(published);
-      dispatch(saveCreateTenderDraft(published));
-      const warningCount = publishedResponse.validation?.warnings.length ?? 0;
-      notifySuccess('Tender published', 'Your tender was saved to the backend and published to the marketplace.', {
-        reason: warningCount ? `${warningCount} publication warning${warningCount === 1 ? '' : 's'} returned by backend validation.` : 'Marketplace now reads this tender from the backend API.'
+      setDraft(submitted);
+      dispatch(submitCreateTenderForEvaluation(submitted));
+      const warningCount = reviewResponse.validation?.warnings.length ?? 0;
+      notifySuccess('Tender submitted for review', 'Your tender was saved and sent to admin review.', {
+        reason: warningCount ? `${warningCount} review warning${warningCount === 1 ? '' : 's'} returned by backend validation.` : 'It will appear in the admin Tender Review queue.'
       });
       navigate('/procurement/my-tenders');
     } catch (error) {
-      const message = getApiErrorMessage(error, 'Tender could not be published.');
+      const message = getApiErrorMessage(error, 'Tender could not be submitted for review.');
       setValidationMessage(message);
-      notifyError('Tender not published', message, {
-        reason: 'The backend publication pipeline rejected this tender or the request failed.'
+      notifyError('Tender not submitted', message, {
+        reason: 'The backend review pipeline rejected this tender or the request failed.'
       });
     } finally {
       setIsPersisting(false);
@@ -621,7 +658,7 @@ export function CreateTenderProcurexPage() {
           <div>
             <span className="badge badge-info">Procurement design</span>
             <h1>Create Tender Wizard</h1>
-            <p>Build a tender package that matches the procurement nature, then publish it directly to the marketplace.</p>
+            <p>Build a tender package that matches the procurement nature, then submit it for admin review before marketplace publication.</p>
           </div>
           <div className="hero-action-stack">
             <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft || isPersisting} data-save-tender-draft>
@@ -4580,18 +4617,18 @@ function PublicationStep({
         <section className="system-evaluation-submit-card">
           <div className="system-evaluation-submit-header">
             <div>
-              <span className="section-kicker">Evaluation submission</span>
-              <h3>Submit Tender for Evaluation</h3>
+              <span className="section-kicker">Review submission</span>
+              <h3>Submit Tender for Review</h3>
             </div>
-            <span className={`badge ${confirmationsComplete ? 'badge-success' : 'badge-info'}`}>{confirmationsComplete ? 'Evaluation completed' : 'Ready to submit'}</span>
+            <span className={`badge ${confirmationsComplete ? 'badge-success' : 'badge-info'}`}>{confirmationsComplete ? 'Ready for review' : 'Ready to submit'}</span>
           </div>
           <div className="system-evaluation-description">
             <strong>Description</strong>
-            <p>Your tender will be checked by the system for grammar, professionalism, clarity, and completeness before publication.</p>
+            <p>Your tender will be checked by an admin for correctness, completeness, clarity, and publication readiness before it appears in the marketplace.</p>
           </div>
           <div className="system-evaluation-outcome-grid">
             <article className="system-evaluation-outcome-card outcome-pass">
-              <h4>If the tender passes evaluation:</h4>
+              <h4>If the tender passes review:</h4>
               <ul>
                 <li>It will be published automatically to the marketplace.</li>
                 <li>You will receive a success notification.</li>
@@ -4601,7 +4638,7 @@ function PublicationStep({
               <h4>If the tender does not pass:</h4>
               <ul>
                 <li>It will return to your dashboard as a draft.</li>
-                <li>You will receive system comments and required changes.</li>
+                <li>You will receive admin comments and required changes.</li>
               </ul>
             </article>
           </div>
@@ -4622,14 +4659,14 @@ function PublicationStep({
           <div className="submit-strip buyer-review-submit system-evaluation-publish">
             <div>
               <strong>Actions</strong>
-              <span data-system-publish-note>Submit the tender for system review. The creation wizard will close after submission.</span>
+              <span data-system-publish-note>Submit the tender for admin review. The creation wizard will close after submission.</span>
             </div>
             <div className="system-evaluation-action-buttons">
               <button className="btn btn-secondary" type="button" onClick={onDownloadPdf}>
                 Download Tender PDF
               </button>
               <button className="btn btn-primary" type="button" onClick={onSubmitTender} disabled={!confirmationsComplete || isPersisting}>
-                {isPersisting ? 'Publishing...' : 'Submit Tender for Evaluation'}
+                {isPersisting ? 'Submitting...' : 'Submit Tender for Review'}
               </button>
             </div>
           </div>
@@ -5281,7 +5318,115 @@ function removeUndefinedValues(value: Record<string, unknown>) {
 }
 
 function isRecordValue(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object');
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function draftFromTenderDetail(tender: TenderDetail): CreateTenderDraft {
+  const metadata = objectValue(tender.metadata);
+  const requirements = objectValue(tender.requirements);
+  const publication = objectValue(metadata.publication);
+  const typeId = parseProcurementType(stringValue(metadata.procurementTypeId) || tender.type) ?? 'goods';
+  const categoryOptions = createTenderSetup.categories[typeId];
+  const categories = normalizeTextList((tender.categories?.length ? tender.categories : [tender.category]).filter(Boolean).join(','))
+    .filter((category) => categoryOptions.includes(category));
+  const fundingSource = stringValue(metadata.fundingSource);
+  const base = createEmptyTenderDraft();
+  const draft: CreateTenderDraft = {
+    ...base,
+    id: tender.id,
+    status: 'DRAFT',
+    title: tender.title ?? '',
+    reference: tender.reference ?? '',
+    description: tender.description ?? '',
+    procuringEntity: stringValue(metadata.procuringEntity) || tender.organization || tender.ownerOrganization || '',
+    fundingSource: fundingSource && createTenderSetup.fundingSources.includes(fundingSource) ? fundingSource : fundingSource ? 'Other' : base.fundingSource,
+    customFundingSource: fundingSource && !createTenderSetup.fundingSources.includes(fundingSource) ? fundingSource : '',
+    currency: tender.currency || 'TZS',
+    estimatedBudget: tender.budget ? String(tender.budget) : '',
+    contact: {
+      ...base.contact,
+      ...objectValue(metadata.contact)
+    },
+    submissionDate: dateOnlyString(tender.closingDate),
+    openingDate: dateOnlyString(publication.openingDate),
+    clarificationDeadline: dateOnlyString(publication.clarificationDeadline),
+    publicationDate: dateOnlyString(publication.publicationDate),
+    location: tender.location || '',
+    procurementTypeId: typeId,
+    categories: categories.length ? categories : categoryOptions.slice(0, 1),
+    method: frontendTenderMethod(stringValue(metadata.method) || tender.method),
+    invitedSuppliers: stringArray(metadata.invitedSuppliers),
+    requirements: stringMap(objectValue(requirements.summary)),
+    selectedLicenses: stringArray(metadata.selectedLicenses),
+    commercialItems: arrayValue<CreateTenderLineItem>(requirements.commercialItems, base.commercialItems),
+    productSpecifications: arrayValue<CreateTenderProductSpecificationRow>(requirements.productSpecifications, base.productSpecifications),
+    sampleRequirements: arrayValue<CreateTenderSampleRequirementRow>(requirements.sampleRequirements, base.sampleRequirements),
+    financialRequirements: arrayValue<CreateTenderFinancialRequirementRow>(requirements.financialRequirements, base.financialRequirements),
+    eligibilityRequirements: arrayValue<CreateTenderEligibilityRequirementRow>(requirements.eligibilityRequirements, base.eligibilityRequirements),
+    regulatoryLicenseRequirements: arrayValue<CreateTenderRegulatoryLicenseRequirementRow>(requirements.regulatoryLicenseRequirements, base.regulatoryLicenseRequirements),
+    consultancyRequirements: {
+      ...base.consultancyRequirements,
+      ...objectValue(requirements.consultancyRequirements)
+    },
+    serviceRequirements: {
+      ...base.serviceRequirements,
+      ...objectValue(requirements.serviceRequirements)
+    },
+    worksRequirements: {
+      ...base.worksRequirements,
+      ...objectValue(requirements.worksRequirements)
+    },
+    deliverables: stringArray(requirements.deliverables),
+    attachments: stringArray(requirements.attachments).length ? stringArray(requirements.attachments) : stringArray(metadata.attachments),
+    milestones: arrayValue(metadata.milestones, base.milestones),
+    evaluationCriteria: arrayValue<CreateTenderEvaluationCriterion>(metadata.evaluationCriteria, getSuggestedCriteria(typeId)),
+    confirmations: {
+      ...base.confirmations,
+      ...objectValue(metadata.confirmations)
+    },
+    planFilledFields: [],
+    createdAt: tender.publishedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    submittedAt: '',
+    publishedAt: ''
+  };
+
+  return draft;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return isRecordValue(value) ? value : {};
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item ?? '').trim()).filter(Boolean) : [];
+}
+
+function stringMap(value: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, typeof entry === 'string' ? entry : String(entry ?? '')]));
+}
+
+function arrayValue<T>(value: unknown, fallback: T[]): T[] {
+  return Array.isArray(value) ? value as T[] : fallback;
+}
+
+function dateOnlyString(value: unknown) {
+  if (typeof value !== 'string' || !value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
+function frontendTenderMethod(value: string | undefined) {
+  const normalized = String(value ?? '').trim().replace(/[\s-]+/g, '_').toUpperCase();
+  if (normalized === 'INVITED_TENDER') return 'Invited Tender';
+  if (normalized === 'RESTRICTED_TENDER') return 'Restricted Tender';
+  if (normalized === 'FRAMEWORK_CALL_OFF') return 'Framework Call-Off';
+  return 'Open Tender';
 }
 
 function hasMeaningfulDraft(draft: CreateTenderDraft) {

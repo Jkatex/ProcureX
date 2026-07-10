@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { communicationApi } from '@/features/communication/api';
+import { procurementApi } from '@/features/procurement/api';
 import type {
   CommunicationAttachmentUpload,
   CommunicationListResponse,
@@ -43,7 +44,6 @@ const emptyMailbox: CommunicationListResponse = {
     sent: 0,
     drafts: 0,
     archived: 0,
-    trash: 0,
     unread: 0,
     actionRequired: 0
   },
@@ -57,8 +57,7 @@ const folders: Array<{ key: MailboxFolder; label: string }> = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Sent' },
   { key: 'unread', label: 'Unread' },
-  { key: 'archived', label: 'Archived' },
-  { key: 'trash', label: 'Trash' }
+  { key: 'archived', label: 'Archived' }
 ];
 
 const pageSize = 30;
@@ -110,6 +109,8 @@ export function AdminCommunicationProcurexPage() {
   const messageView = routeView === 'message';
   const senderOrgId = user?.organizationId ?? '';
   const senderMailboxName = user?.organization || user?.displayName || 'Admin mailbox';
+  const reviewDecision = searchParams.get('reviewDecision');
+  const reviewTenderId = searchParams.get('reviewTenderId') || searchParams.get('tenderId') || '';
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder = folder, nextPage = 1, nextSelectedId = '', nextSearch = submittedSearch) => {
@@ -375,6 +376,13 @@ export function AdminCommunicationProcurexPage() {
     }));
   }
 
+  function selectTender(tenderId: string) {
+    setCompose((current) => ({
+      ...current,
+      tenderId
+    }));
+  }
+
   function addAttachments(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
@@ -439,6 +447,16 @@ export function AdminCommunicationProcurexPage() {
         })));
       const result = results[0];
       if (!result) throw new Error('No message was sent.');
+      if (reviewDecision === 'fail' && reviewTenderId && !compose.replyToMessageId) {
+        const ownerDelivery =
+          result.deliveries.find((delivery) => delivery.folder !== 'sent' && delivery.tenderId === reviewTenderId) ??
+          result.deliveries.find((delivery) => delivery.folder === 'inbox') ??
+          result.message;
+        await procurementApi.failTenderReview(reviewTenderId, { messageId: ownerDelivery.id });
+        setCompose(initialComposeState());
+        navigate('/admin/tender-review', { replace: true });
+        return;
+      }
       setFolder('sent');
       setSelectedId(result.message.id);
       setSelectedMessage(result.message);
@@ -452,19 +470,18 @@ export function AdminCommunicationProcurexPage() {
     }
   }
 
-  async function messageAction(action: 'archive' | 'delete') {
+  async function archiveSelectedMessage() {
     if (!selected) return;
     setSaving(true);
     setError('');
     try {
-      if (action === 'archive') await communicationApi.archive(selected.id);
-      else await communicationApi.deleteMessage(selected.id);
+      await communicationApi.archive(selected.id);
       setSelectedId('');
       setSelectedMessage(null);
       goAdminCommunicationHome(true);
       await loadMailbox(folder, page, '', submittedSearch);
     } catch (caught) {
-      setError(errorMessage(caught, action === 'archive' ? 'Message could not be archived.' : 'Message could not be moved to trash.'));
+      setError(errorMessage(caught, 'Message could not be archived.'));
     } finally {
       setSaving(false);
     }
@@ -560,7 +577,7 @@ export function AdminCommunicationProcurexPage() {
                     <span className="badge badge-info">{compose.recipients.length} selected</span>
                   </div>
                 </div>
-                <label>
+                <label className="span-2">
                   <span>Find tender</span>
                   <input
                     className="form-input"
@@ -570,12 +587,23 @@ export function AdminCommunicationProcurexPage() {
                   />
                 </label>
                 <label>
-                  <span>Tender link</span>
-                  <select className="form-input" value={compose.tenderId} onChange={(event) => setCompose((current) => ({ ...current, tenderId: event.target.value }))}>
+                  <span>Tender reference</span>
+                  <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
                     <option value="">Not linked</option>
                     {tenderOptions.map((tender) => (
                       <option key={tender.id} value={tender.id}>
-                        {tender.reference} / {tender.title}
+                        {tender.reference}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Tender title</span>
+                  <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
+                    <option value="">Not linked</option>
+                    {tenderOptions.map((tender) => (
+                      <option key={tender.id} value={tender.id}>
+                        {tender.title}
                       </option>
                     ))}
                   </select>
@@ -590,7 +618,7 @@ export function AdminCommunicationProcurexPage() {
                 </label>
                 <div className="span-2 communication-compose-attachments">
                   <div>
-                    <span>Attachments</span>
+                    <span className="form-label">Attachments</span>
                     <label className="btn btn-secondary communication-file-button">
                       Add files
                       <input type="file" multiple onChange={addAttachments} hidden />
@@ -633,8 +661,7 @@ export function AdminCommunicationProcurexPage() {
               <MessageDetail
                 message={selected}
                 saving={saving}
-                onArchive={() => void messageAction('archive')}
-                onDelete={() => void messageAction('delete')}
+                onArchive={() => void archiveSelectedMessage()}
                 onReply={() => selected ? openReply(selected) : undefined}
                 onAction={() => selected ? openMessageAction(selected) : undefined}
                 onClose={() => goAdminCommunicationHome()}
@@ -773,7 +800,6 @@ function MessageDetail({
   onReply,
   onAction,
   onArchive,
-  onDelete,
   onClose
 }: {
   message: CommunicationMailboxMessage | null;
@@ -781,7 +807,6 @@ function MessageDetail({
   onReply: () => void;
   onAction: () => void;
   onArchive: () => void;
-  onDelete: () => void;
   onClose: () => void;
 }) {
   if (!message) {
@@ -815,7 +840,6 @@ function MessageDetail({
       </section>
 
       <section className="communication-message-body">
-        <span className="section-kicker">{message.tenderTitle ?? 'Communication'}</span>
         <h1>{message.subject}</h1>
         <p>{message.body}</p>
         {message.attachments.length ? (
@@ -841,7 +865,6 @@ function MessageDetail({
             <button className="btn btn-secondary" type="button" disabled={saving} onClick={onAction}>{nextAction?.label}</button>
           ) : null}
           <button className="btn btn-secondary" type="button" disabled={saving} onClick={onArchive}>Archive</button>
-          <button className="btn btn-secondary" type="button" disabled={saving} onClick={onDelete}>Move to Trash</button>
         </div>
       </section>
     </aside>
@@ -853,7 +876,6 @@ function folderCount(folder: MailboxFolder, counts: CommunicationListResponse['c
   if (folder === 'sent') return counts.sent;
   if (folder === 'unread') return counts.unread;
   if (folder === 'archived') return counts.archived;
-  if (folder === 'trash') return counts.trash;
   return counts.total;
 }
 
@@ -926,8 +948,10 @@ function metadataFromComposeParams(params: URLSearchParams): Record<string, unkn
   const actionLabel = params.get('actionLabel');
   const actionRoute = params.get('actionRoute');
   const mode = params.get('mode');
+  const reviewDecision = params.get('reviewDecision');
   return {
     ...(mode ? { mode } : {}),
+    ...(reviewDecision ? { reviewDecision } : {}),
     ...(actionLabel ? { actionLabel } : {}),
     ...(actionRoute ? { actionRoute } : {})
   };
@@ -973,7 +997,7 @@ function resolveMessageAction(message: CommunicationMailboxMessage, admin = fals
 
   if (admin && adminTenderRoute) return { label: 'Open Tender Record', route: adminTenderRoute };
 
-  if (/(passed evaluation|winner|won|contract negotiation|negotiate|contract)/.test(text) && tenderId) {
+  if (/(passed evaluation|passed review|winner|won|contract negotiation|negotiate|contract)/.test(text) && tenderId) {
     return { label: 'Go to Contracts', route: `/awards-contracts/negotiation?tenderId=${tenderId}` };
   }
 
@@ -997,7 +1021,7 @@ function resolveMessageAction(message: CommunicationMailboxMessage, admin = fals
     return { label: 'Track Contract', route: `/awards-contracts/post-award?tenderId=${tenderId}` };
   }
 
-  if (/(amendment|published|tender)/.test(text) && tenderId) {
+  if (/(failed review|amend|amendment|published|tender)/.test(text) && tenderId) {
     return { label: 'Open Tender', route: `/procurement/supplier-tender-detail?tenderId=${tenderId}` };
   }
 

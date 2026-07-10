@@ -77,14 +77,13 @@ export type CommunicationCounts = {
   sent: number;
   drafts: number;
   archived: number;
-  trash: number;
   unread: number;
   actionRequired: number;
 };
 
 export type CommunicationMailboxQuery = Partial<{
   organizationId: string;
-  folder: 'all' | 'inbox' | 'sent' | 'drafts' | 'archived' | 'trash' | 'unread';
+  folder: 'all' | 'inbox' | 'sent' | 'drafts' | 'archived' | 'unread';
   search: string;
   kind: CommunicationKind | 'all';
   status: CommunicationStatus | 'all';
@@ -137,7 +136,7 @@ export type ReplyCommunicationMessageInput = {
 };
 
 export type PatchCommunicationMessageInput = Partial<{
-  folder: 'inbox' | 'sent' | 'archived' | 'trash';
+  folder: 'inbox' | 'sent' | 'archived';
   status: CommunicationStatus;
   priority: CommunicationPriority;
   read: boolean;

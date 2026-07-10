@@ -3205,6 +3205,13 @@ textarea.form-input {
     align-items: center;
 }
 
+.communication-compose-attachments .form-label {
+    margin-bottom: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 800;
+}
+
 .communication-row-meta {
     font-size: 12px;
     font-weight: 800;
@@ -5827,8 +5834,19 @@ ul.closure-checklist {
 }
 
 .communication-file-button {
+    display: inline-flex;
     position: relative;
     overflow: hidden;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.communication-compose-grid label.communication-file-button {
+    display: inline-flex;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 800;
 }
 
 @media (max-width: 860px) {

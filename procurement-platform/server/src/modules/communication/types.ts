@@ -13,7 +13,7 @@ export type ModuleStatus = {
   description: string;
 };
 
-export const communicationFolderValues = ['all', 'inbox', 'sent', 'drafts', 'archived', 'trash', 'unread'] as const;
+export const communicationFolderValues = ['all', 'inbox', 'sent', 'drafts', 'archived', 'unread'] as const;
 
 export type CommunicationFolder = (typeof communicationFolderValues)[number];
 
@@ -78,7 +78,7 @@ export type ReplyMessageInput = {
 };
 
 export type PatchMessageInput = {
-  folder?: 'inbox' | 'sent' | 'archived' | 'trash';
+  folder?: 'inbox' | 'sent' | 'archived';
   status?: CommunicationStatus;
   priority?: CommunicationPriority;
   read?: boolean;
@@ -142,7 +142,6 @@ export type CommunicationCountsDto = {
   sent: number;
   drafts: number;
   archived: number;
-  trash: number;
   unread: number;
   actionRequired: number;
 };

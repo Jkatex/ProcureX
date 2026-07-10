@@ -15,6 +15,10 @@ export function createModuleRouter() {
   router.get('/design/form-schemas', controller.designFormSchemas);
   router.get('/design/form-schemas/:type', controller.designFormSchema);
   router.get('/marketplace', controller.marketplace);
+  router.get('/admin/tender-review', controller.listTenderReviews);
+  router.get('/admin/tender-review/:tenderId', controller.getTenderReview);
+  router.post('/admin/tender-review/:tenderId/pass', controller.passTenderReview);
+  router.post('/admin/tender-review/:tenderId/fail', controller.failTenderReview);
   router.post('/tenders', controller.createTender);
   router.patch('/tenders/:tenderId', controller.updateTender);
   router.get('/saved-tenders', controller.savedTenders);

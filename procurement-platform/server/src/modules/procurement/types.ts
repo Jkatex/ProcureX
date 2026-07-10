@@ -429,6 +429,12 @@ export type MarketplaceQuery = {
   limit: number;
 };
 
+export type TenderReviewQuery = {
+  search: string;
+  page: number;
+  pageSize: number;
+};
+
 export type CreateTenderInput = {
   title: string;
   type: TenderType;
@@ -485,7 +491,7 @@ export type UpdateTenderResponseDto = {
 
 export type PublishTenderResponseDto = {
   success: true;
-  message: 'Tender published successfully';
+  message: string;
   data: {
     id: string;
     reference: string;
@@ -501,6 +507,65 @@ export type PublishTenderResponseDto = {
     standardizedCategories: string[];
   };
   languageScan?: TenderLanguageScanDto;
+};
+
+export type TenderReviewQueueItemDto = {
+  id: string;
+  reference: string;
+  title: string;
+  buyerOrgId: string;
+  buyerName: string;
+  ownerUserId: string | null;
+  ownerName: string | null;
+  type: string;
+  status: string;
+  method: string;
+  visibility: string;
+  budget: number;
+  currency: string;
+  location: string;
+  closingDate: string;
+  categories: string[];
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TenderReviewListDto = {
+  success: true;
+  items: TenderReviewQueueItemDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  generatedAt: string;
+};
+
+export type TenderReviewDetailDto = TenderDetailDto & {
+  buyerName: string;
+  ownerName: string | null;
+  submittedAt: string;
+  reviewAttempts: number;
+};
+
+export type TenderReviewFailInput = {
+  messageId: string;
+};
+
+export type TenderReviewDecisionResponseDto = {
+  success: true;
+  message: string;
+  data: {
+    tenderId: string;
+    reference: string;
+    title: string;
+    status: string;
+    visibility: string;
+    publishedAt: string;
+    communicationMessageId: string | null;
+    marketplaceRoute?: string;
+    amendmentRoute?: string;
+  };
 };
 
 export type PublishValidationIssueDto = {

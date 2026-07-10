@@ -85,6 +85,15 @@ export const adminAppRegistry: AdminApp[] = [
     generatedAt: ''
   },
   {
+    key: 'tender-review',
+    title: 'Tender Review',
+    description: 'Review newly submitted tenders before marketplace publication.',
+    route: '/admin/tender-review',
+    group: 'primary',
+    backend: { module: 'procurement', endpoint: '/api/procurement/admin/tender-review', status: 'live' },
+    generatedAt: ''
+  },
+  {
     key: 'communication-center',
     title: 'Communication Center',
     description: 'Messages, clarifications, alerts, and admin-visible communication activity.',
@@ -112,6 +121,7 @@ const adminAppIconByKey: Record<string, PlatformAppIconKind> = {
   'platform-analytics': 'evaluation',
   'full-audit-trail': 'records',
   'data-store': 'records',
+  'tender-review': 'procurement',
   'communication-center': 'communication',
   'admin-profile': 'iam'
 };

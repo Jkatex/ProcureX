@@ -11,13 +11,14 @@ describe('admin app registry', () => {
       ['Platform Analytics', '/admin/analytics'],
       ['Full Audit Trail', '/admin/audit'],
       ['Data Store', '/admin/datastore'],
+      ['Tender Review', '/admin/tender-review'],
       ['Communication Center', '/admin/communication'],
       ['Admin Profile', '/admin/profile'],
     ]);
   });
 
   it('keeps primary admin tools separate from secondary links', () => {
-    expect(adminAppRegistry.filter((app) => app.group === 'primary')).toHaveLength(7);
+    expect(adminAppRegistry.filter((app) => app.group === 'primary')).toHaveLength(8);
     expect(adminAppRegistry.filter((app) => app.group === 'secondary').map((app) => app.key)).toEqual([
       'communication-center',
       'admin-profile',

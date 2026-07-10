@@ -1,5 +1,19 @@
-import { BidStatus, OrganizationKind, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus, type Prisma, type PrismaClient } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
+import {
+  BidStatus,
+  CommunicationKind,
+  CommunicationPriority,
+  CommunicationStatus,
+  OrganizationKind,
+  RiskLevel,
+  TenderAmendmentStatus,
+  TenderStatus,
+  TenderType,
+  Visibility,
+  VerificationStatus,
+  type Prisma,
+  type PrismaClient
+} from '@prisma/client';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
 import { categorySearchTerms, standardizeCategoryName } from './category-taxonomy.js';
 import { tenderLanguageScannerVersion } from './design-language-scanner.js';
@@ -24,6 +38,12 @@ import type {
   TenderAmendmentPatchInput,
   TenderAmendmentResponseDto,
   TenderAmendmentsResponseDto,
+  TenderReviewDecisionResponseDto,
+  TenderReviewDetailDto,
+  TenderReviewFailInput,
+  TenderReviewListDto,
+  TenderReviewQuery,
+  TenderReviewQueueItemDto,
   TenderDetailDto,
   TenderDocumentStreamDto,
   TenderLanguageScanDto,
@@ -88,8 +108,23 @@ function tenderDetailInclude() {
   } satisfies Prisma.TenderInclude;
 }
 
+const tenderReviewQueueInclude = {
+  buyerOrg: { select: { id: true, name: true } },
+  ownerUser: { select: { id: true, displayName: true, email: true } },
+  categories: { select: { name: true }, orderBy: { name: 'asc' } }
+} satisfies Prisma.TenderInclude;
+
+function tenderReviewDetailInclude() {
+  return {
+    ...tenderDetailInclude(),
+    ownerUser: { select: { id: true, displayName: true, email: true } }
+  } satisfies Prisma.TenderInclude;
+}
+
 type MarketplaceTenderRecord = Prisma.TenderGetPayload<{ include: typeof marketplaceTenderInclude }>;
 type TenderDetailRecord = Prisma.TenderGetPayload<{ include: ReturnType<typeof tenderDetailInclude> }>;
+type TenderReviewQueueRecord = Prisma.TenderGetPayload<{ include: typeof tenderReviewQueueInclude }>;
+type TenderReviewDetailRecord = Prisma.TenderGetPayload<{ include: ReturnType<typeof tenderReviewDetailInclude> }>;
 type MarketplaceBidRecord = Prisma.BidGetPayload<{ include: { tender: { include: typeof marketplaceTenderInclude }; receipt: { select: { receiptHash: true } } } }>;
 type MarketplaceContext = { organizationId?: string; userId?: string };
 type MarketplaceBidState = { hasDraftBid: boolean; hasSubmittedBid: boolean };
@@ -703,6 +738,92 @@ export class ModuleRepository {
     });
   }
 
+  async submitTenderForReview(
+    tenderId: string,
+    organizationId: string,
+    context: { userId: string }
+  ): Promise<PublishTenderResponseDto | null> {
+    const submittedAt = new Date();
+    const updated = await this.db.$transaction(async (tx) => {
+      const existing = await tx.tender.findUnique({
+        where: { id: tenderId },
+        select: {
+          id: true,
+          buyerOrgId: true,
+          status: true,
+          metadata: true
+        }
+      });
+      if (!existing) return null;
+      if (existing.buyerOrgId !== organizationId) throw requestError('Only the owner organization can submit this tender for review.', 403);
+      if (!isEditableTenderStatus(existing.status)) throw requestError('Only draft or review tenders can be submitted for review.', 409);
+
+      await tx.tender.update({
+        where: { id: tenderId },
+        data: {
+          status: TenderStatus.REVIEW,
+          visibility: Visibility.PRIVATE,
+          publishedAt: null,
+          metadata: pendingReviewMetadata(existing.metadata, {
+            submittedAt,
+            submittedByUserId: context.userId
+          }) as Prisma.InputJsonObject
+        }
+      });
+
+      return tx.tender.findUnique({
+        where: { id: tenderId },
+        select: {
+          id: true,
+          reference: true,
+          title: true,
+          status: true,
+          visibility: true,
+          publishedAt: true,
+          closingDate: true
+        }
+      });
+    });
+
+    return updated ? toPublishTenderResponseDto(updated, 'Tender submitted for admin review') : null;
+  }
+
+  async listTenderReviews(query: TenderReviewQuery): Promise<TenderReviewListDto> {
+    const where = tenderReviewWhere(query);
+    const [items, total] = await Promise.all([
+      this.db.tender.findMany({
+        where,
+        include: tenderReviewQueueInclude,
+        orderBy: [{ updatedAt: 'asc' }, { createdAt: 'asc' }],
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize
+      }),
+      this.db.tender.count({ where })
+    ]);
+
+    return {
+      success: true,
+      items: items.map(toTenderReviewQueueItemDto),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+      totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  async getTenderReview(tenderId: string): Promise<TenderReviewDetailDto | null> {
+    const tender = await this.db.tender.findFirst({
+      where: {
+        id: tenderId,
+        status: TenderStatus.REVIEW
+      },
+      include: tenderReviewDetailInclude()
+    });
+    if (!tender) return null;
+    return toTenderReviewDetailDto(tender, await this.tenderActivity(tender.id));
+  }
+
   async publishTender(tenderId: string, organizationId: string, visibility: Visibility): Promise<PublishTenderResponseDto | null> {
     const publishedAt = new Date();
     const update = await this.db.tender.updateMany({
@@ -732,6 +853,150 @@ export class ModuleRepository {
       }
     });
     return tender ? toPublishTenderResponseDto(tender) : null;
+  }
+
+  async resolvePlatformOrganizationId(preferredOrgId?: string): Promise<string> {
+    const preferred = preferredOrgId
+      ? await this.db.organization.findUnique({
+          where: { id: preferredOrgId },
+          select: { id: true, kind: true }
+        })
+      : null;
+    if (preferred?.kind === OrganizationKind.PLATFORM) return preferred.id;
+
+    const platform = await this.db.organization.findFirst({
+      where: { kind: OrganizationKind.PLATFORM },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' }
+    });
+    if (platform) return platform.id;
+    if (preferred) return preferred.id;
+    throw requestError('A platform organization is required for tender review communication.', 409);
+  }
+
+  async passTenderReview(
+    tenderId: string,
+    context: { adminOrgId: string; adminUserId: string },
+    visibility: Visibility
+  ): Promise<TenderReviewDecisionResponseDto | null> {
+    const decidedAt = new Date();
+    const result = await this.db.$transaction(async (tx) => {
+      const existing = await tx.tender.findFirst({
+        where: {
+          id: tenderId,
+          status: TenderStatus.REVIEW
+        },
+        include: tenderReviewDetailInclude()
+      });
+      if (!existing) return null;
+
+      const updatedCount = await tx.tender.updateMany({
+        where: {
+          id: tenderId,
+          status: TenderStatus.REVIEW
+        },
+        data: {
+          status: TenderStatus.OPEN,
+          visibility,
+          publishedAt: decidedAt,
+          metadata: passedReviewMetadata(existing.metadata, {
+            decidedAt,
+            adminUserId: context.adminUserId
+          }) as Prisma.InputJsonObject
+        }
+      });
+      if (updatedCount.count === 0) return null;
+
+      const tender = await tx.tender.findUniqueOrThrow({
+        where: { id: tenderId },
+        include: tenderReviewDetailInclude()
+      });
+      const messageId = await createTenderReviewPassMessage(tx, tender, context.adminOrgId, decidedAt);
+      return { tender, messageId };
+    });
+
+    return result
+      ? toTenderReviewDecisionResponseDto('Tender review passed. The tender is now published to the marketplace.', result.tender, result.messageId, {
+          marketplaceRoute: viewTenderRoute(result.tender.id)
+        })
+      : null;
+  }
+
+  async failTenderReview(
+    tenderId: string,
+    context: { adminUserId: string },
+    input: TenderReviewFailInput
+  ): Promise<TenderReviewDecisionResponseDto | null> {
+    const decidedAt = new Date();
+    const result = await this.db.$transaction(async (tx) => {
+      const existing = await tx.tender.findFirst({
+        where: {
+          id: tenderId,
+          status: TenderStatus.REVIEW
+        },
+        select: {
+          id: true,
+          reference: true,
+          title: true,
+          buyerOrgId: true,
+          status: true,
+          visibility: true,
+          publishedAt: true,
+          metadata: true
+        }
+      });
+      if (!existing) return null;
+
+      const message = await tx.communicationItem.findUnique({
+        where: { id: input.messageId },
+        select: {
+          id: true,
+          tenderId: true,
+          ownerOrgId: true,
+          recipientOrgId: true
+        }
+      });
+      if (!message || message.tenderId !== tenderId || (message.ownerOrgId !== existing.buyerOrgId && message.recipientOrgId !== existing.buyerOrgId)) {
+        throw requestError('A review failure message must be sent to the tender owner before removing this tender from review.', 409);
+      }
+
+      const updatedCount = await tx.tender.updateMany({
+        where: {
+          id: tenderId,
+          status: TenderStatus.REVIEW
+        },
+        data: {
+          status: TenderStatus.DRAFT,
+          visibility: Visibility.PRIVATE,
+          publishedAt: null,
+          metadata: failedReviewMetadata(existing.metadata, {
+            decidedAt,
+            adminUserId: context.adminUserId,
+            messageId: message.id
+          }) as Prisma.InputJsonObject
+        }
+      });
+      if (updatedCount.count === 0) return null;
+
+      const tender = await tx.tender.findUniqueOrThrow({
+        where: { id: tenderId },
+        select: {
+          id: true,
+          reference: true,
+          title: true,
+          status: true,
+          visibility: true,
+          publishedAt: true
+        }
+      });
+      return { tender, messageId: message.id };
+    });
+
+    return result
+      ? toTenderReviewDecisionResponseDto('Tender review failed. The tender has been returned to draft for amendments.', result.tender, result.messageId, {
+          amendmentRoute: amendTenderRoute(result.tender.id)
+        })
+      : null;
   }
 
   async recordTenderLanguageScan(tenderId: string, scan: TenderLanguageScanDto) {
@@ -1202,6 +1467,22 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   return activeFilters.length === 1 ? activeFilters[0] : { AND: activeFilters };
 }
 
+function tenderReviewWhere(query: TenderReviewQuery): Prisma.TenderWhereInput {
+  const filters: Prisma.TenderWhereInput[] = [{ status: TenderStatus.REVIEW }];
+  if (query.search) {
+    filters.push({
+      OR: [
+        { title: { contains: query.search, mode: 'insensitive' } },
+        { reference: { contains: query.search, mode: 'insensitive' } },
+        { location: { contains: query.search, mode: 'insensitive' } },
+        { buyerOrg: { name: { contains: query.search, mode: 'insensitive' } } },
+        { categories: { some: { name: { contains: query.search, mode: 'insensitive' } } } }
+      ]
+    });
+  }
+  return filters.length === 1 ? filters[0] : { AND: filters };
+}
+
 function marketplaceStatusValues(includeClosed: boolean) {
   return includeClosed ? [TenderStatus.OPEN, TenderStatus.PUBLISHED, TenderStatus.CLOSED] : [TenderStatus.OPEN, TenderStatus.PUBLISHED];
 }
@@ -1399,10 +1680,10 @@ function toPublishTenderResponseDto(tender: {
   visibility: Visibility;
   publishedAt: Date | null;
   closingDate: Date | null;
-}): PublishTenderResponseDto {
+}, message = 'Tender published successfully'): PublishTenderResponseDto {
   return {
     success: true,
-    message: 'Tender published successfully',
+    message,
     data: {
       id: tender.id,
       reference: tender.reference,
@@ -1418,6 +1699,156 @@ function toPublishTenderResponseDto(tender: {
       standardizedCategories: []
     }
   };
+}
+
+function toTenderReviewQueueItemDto(tender: TenderReviewQueueRecord): TenderReviewQueueItemDto {
+  return {
+    id: tender.id,
+    reference: tender.reference,
+    title: tender.title,
+    buyerOrgId: tender.buyerOrgId,
+    buyerName: tender.buyerOrg.name,
+    ownerUserId: tender.ownerUserId,
+    ownerName: tender.ownerUser?.displayName ?? tender.ownerUser?.email ?? null,
+    type: frontendTenderType(tender.type),
+    status: frontendTenderStatus(tender.status),
+    method: tender.method,
+    visibility: tender.visibility,
+    budget: decimalToNumber(tender.budget),
+    currency: tender.currency,
+    location: tender.location || 'Tanzania',
+    closingDate: dateOnly(tender.closingDate),
+    categories: tender.categories.map((category) => category.name),
+    submittedAt: reviewSubmittedAt(tender.metadata, tender.updatedAt),
+    createdAt: tender.createdAt.toISOString(),
+    updatedAt: tender.updatedAt.toISOString()
+  };
+}
+
+function toTenderReviewDetailDto(tender: TenderReviewDetailRecord, activity: TenderActivity): TenderReviewDetailDto {
+  const detail = toTenderDetailDto(tender, { organizationId: tender.buyerOrgId, userId: tender.ownerUserId ?? undefined }, activity);
+  const review = adminReviewPayload(tender.metadata);
+  return {
+    ...detail,
+    buyerName: tender.buyerOrg.name,
+    ownerName: tender.ownerUser?.displayName ?? tender.ownerUser?.email ?? null,
+    submittedAt: reviewSubmittedAt(tender.metadata, tender.updatedAt),
+    reviewAttempts: numberPayload(review.attempts) ?? 0
+  };
+}
+
+function toTenderReviewDecisionResponseDto(
+  message: string,
+  tender: {
+    id: string;
+    reference: string;
+    title: string;
+    status: TenderStatus;
+    visibility: Visibility;
+    publishedAt: Date | null;
+  },
+  communicationMessageId: string | null,
+  routes: { marketplaceRoute?: string; amendmentRoute?: string }
+): TenderReviewDecisionResponseDto {
+  return {
+    success: true,
+    message,
+    data: {
+      tenderId: tender.id,
+      reference: tender.reference,
+      title: tender.title,
+      status: frontendTenderStatus(tender.status),
+      visibility: tender.visibility,
+      publishedAt: tender.publishedAt?.toISOString() ?? '',
+      communicationMessageId,
+      ...routes
+    }
+  };
+}
+
+async function createTenderReviewPassMessage(
+  tx: Prisma.TransactionClient,
+  tender: TenderReviewDetailRecord,
+  platformOrgId: string,
+  createdAt: Date
+): Promise<string> {
+  const body =
+    `Your tender ${tender.reference} has passed admin review and has successfully been published to the marketplace. ` +
+    'You can reply to this message or open the tender record from the action button below.';
+  const conversationId = `conversation-${randomUUID()}`;
+  const metadata = {
+    source: 'tender-review',
+    reviewDecision: 'PASS',
+    actionLabel: 'View Tender',
+    actionRoute: viewTenderRoute(tender.id),
+    tenderReference: tender.reference,
+    tenderTitle: tender.title
+  };
+  const payload = {
+    conversationId,
+    contextKey: `tender:${tender.id}`,
+    metadata,
+    thread: [
+      {
+        senderOrgId: platformOrgId,
+        senderName: 'ProcureX Platform',
+        body,
+        notice: null,
+        createdAt: createdAt.toISOString()
+      }
+    ]
+  } satisfies Prisma.InputJsonObject;
+
+  const senderCopy = await tx.communicationItem.create({
+    data: {
+      ownerOrgId: platformOrgId,
+      senderOrgId: platformOrgId,
+      recipientOrgId: tender.buyerOrgId,
+      tenderId: tender.id,
+      kind: CommunicationKind.NOTIFICATION,
+      folder: 'sent',
+      category: 'Tender Review',
+      subject: 'Your tender has passed review',
+      body,
+      status: CommunicationStatus.READ,
+      priority: CommunicationPriority.NORMAL,
+      read: true,
+      actionRequired: false,
+      visibility: 'Private',
+      payload: {
+        ...payload,
+        deliveryRole: 'sender'
+      } as Prisma.InputJsonObject
+    },
+    select: { id: true }
+  });
+
+  const recipientCopy = await tx.communicationItem.create({
+    data: {
+      ownerOrgId: tender.buyerOrgId,
+      senderOrgId: platformOrgId,
+      recipientOrgId: tender.buyerOrgId,
+      tenderId: tender.id,
+      kind: CommunicationKind.NOTIFICATION,
+      folder: 'inbox',
+      category: 'Tender Review',
+      subject: 'Your tender has passed review',
+      body,
+      status: CommunicationStatus.UNREAD,
+      priority: CommunicationPriority.NORMAL,
+      read: false,
+      actionRequired: false,
+      visibility: 'Private',
+      payload: {
+        ...payload,
+        deliveryRole: 'recipient',
+        senderCopyId: senderCopy.id
+      } as Prisma.InputJsonObject
+    },
+    select: { id: true }
+  });
+
+  return recipientCopy.id;
 }
 
 function riskLevelFromScan(scan: TenderLanguageScanDto) {
@@ -1686,7 +2117,7 @@ function frontendTenderStatus(status: unknown) {
   if (value === 'CLOSED') return 'Closed';
   if (value === 'DRAFT') return 'Draft';
   if (value === 'CANCELLED') return 'Cancelled';
-  if (value === 'REVIEW' || value === 'PENDING' || value === 'UNDER_REVIEW') return 'Draft';
+  if (value === 'REVIEW' || value === 'PENDING' || value === 'UNDER_REVIEW') return 'Under Review';
   if (value === 'COMPLETED') return 'Completed';
   return titleCaseLabel(value);
 }
@@ -1941,6 +2372,79 @@ function decimalToNumber(value: unknown) {
 function objectPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+function adminReviewPayload(metadata: unknown) {
+  return objectPayload(objectPayload(metadata).adminReview);
+}
+
+function pendingReviewMetadata(metadata: unknown, input: { submittedAt: Date; submittedByUserId: string }) {
+  const base = objectPayload(metadata);
+  const currentReview = adminReviewPayload(metadata);
+  const attempts = (numberPayload(currentReview.attempts) ?? 0) + 1;
+  return {
+    ...base,
+    adminReview: {
+      ...currentReview,
+      status: 'PENDING',
+      submittedAt: input.submittedAt.toISOString(),
+      submittedByUserId: input.submittedByUserId,
+      attempts,
+      updatedAt: input.submittedAt.toISOString()
+    }
+  };
+}
+
+function passedReviewMetadata(metadata: unknown, input: { decidedAt: Date; adminUserId: string }) {
+  const base = objectPayload(metadata);
+  const currentReview = adminReviewPayload(metadata);
+  return {
+    ...base,
+    adminReview: {
+      ...currentReview,
+      status: 'PASSED',
+      passedAt: input.decidedAt.toISOString(),
+      decidedByUserId: input.adminUserId,
+      updatedAt: input.decidedAt.toISOString()
+    }
+  };
+}
+
+function failedReviewMetadata(metadata: unknown, input: { decidedAt: Date; adminUserId: string; messageId: string }) {
+  const base = objectPayload(metadata);
+  const currentReview = adminReviewPayload(metadata);
+  return {
+    ...base,
+    adminReview: {
+      ...currentReview,
+      status: 'FAILED',
+      failedAt: input.decidedAt.toISOString(),
+      decidedByUserId: input.adminUserId,
+      messageId: input.messageId,
+      updatedAt: input.decidedAt.toISOString()
+    }
+  };
+}
+
+function reviewSubmittedAt(metadata: unknown, fallbackDate: Date) {
+  const submittedAt = stringPayload(adminReviewPayload(metadata).submittedAt);
+  return submittedAt ?? fallbackDate.toISOString();
+}
+
+function numberPayload(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stringPayload(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function viewTenderRoute(tenderId: string) {
+  return `/procurement/tender-details?tenderId=${encodeURIComponent(tenderId)}`;
+}
+
+function amendTenderRoute(tenderId: string) {
+  return `/procurement/create-tender?tenderId=${encodeURIComponent(tenderId)}`;
 }
 
 function stringRecord(value: unknown): Record<string, string> {

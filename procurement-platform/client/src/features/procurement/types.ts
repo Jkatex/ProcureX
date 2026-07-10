@@ -587,3 +587,58 @@ export type TenderDetail = MarketplaceTenderRow & {
     clarifications: number;
   };
 };
+
+export type TenderReviewQueueItem = {
+  id: string;
+  reference: string;
+  title: string;
+  buyerOrgId: string;
+  buyerName: string;
+  ownerUserId: string | null;
+  ownerName: string | null;
+  type: string;
+  status: string;
+  method: string;
+  visibility: string;
+  budget: number;
+  currency: string;
+  location: string;
+  closingDate: string;
+  categories: string[];
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TenderReviewListResponse = {
+  success: true;
+  items: TenderReviewQueueItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  generatedAt: string;
+};
+
+export type TenderReviewDetail = TenderDetail & {
+  buyerName: string;
+  ownerName: string | null;
+  submittedAt: string;
+  reviewAttempts: number;
+};
+
+export type TenderReviewDecisionResponse = {
+  success: true;
+  message: string;
+  data: {
+    tenderId: string;
+    reference: string;
+    title: string;
+    status: string;
+    visibility: string;
+    publishedAt: string;
+    communicationMessageId: string | null;
+    marketplaceRoute?: string;
+    amendmentRoute?: string;
+  };
+};

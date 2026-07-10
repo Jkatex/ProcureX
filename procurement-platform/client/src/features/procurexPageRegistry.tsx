@@ -41,6 +41,7 @@ export const procurexPageRegistry = {
   'admin-analytics': lazy(() => import('@/features/admin/components/procurex/AdminAnalyticsProcurexPage').then((module) => ({ default: module.AdminAnalyticsProcurexPage }))),
   'admin-audit': lazy(() => import('@/features/admin/components/procurex/AdminAuditProcurexPage').then((module) => ({ default: module.AdminAuditProcurexPage }))),
   'admin-datastore': lazy(() => import('@/features/admin/components/procurex/AdminDatastoreProcurexPage').then((module) => ({ default: module.AdminDatastoreProcurexPage }))),
+  'admin-tender-review': lazy(() => import('@/features/admin/components/procurex/AdminTenderReviewProcurexPage').then((module) => ({ default: module.AdminTenderReviewProcurexPage }))),
   'admin-communication': lazy(() => import('@/features/admin/components/procurex/AdminCommunicationProcurexPage').then((module) => ({ default: module.AdminCommunicationProcurexPage }))),
   'admin-profile': lazy(() => import('@/features/admin/components/procurex/AdminProfileProcurexPage').then((module) => ({ default: module.AdminProfileProcurexPage })))
 } satisfies Record<string, ProcurexPageComponent>;
