@@ -80,9 +80,23 @@ export function MarketplaceProcurexPage() {
   }, [data?.tenders]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setDeadlineNow(Date.now()), 60 * 1000);
-    return () => window.clearInterval(timer);
-  }, []);
+    const now = Date.now();
+    const nextDeadline = (data?.tenders ?? []).reduce<number | null>((nearest, tender) => {
+      const deadline = Date.parse(tender.closingDate);
+      if (!Number.isFinite(deadline) || deadline <= now) return nearest;
+      return nearest === null || deadline < nearest ? deadline : nearest;
+    }, null);
+
+    if (nextDeadline === null) return undefined;
+
+    // Re-evaluate at the exact next deadline so an open marketplace page does
+    // not continue showing an expired tender until its next data refresh.
+    const timer = window.setTimeout(
+      () => setDeadlineNow(Date.now()),
+      Math.min(Math.max(nextDeadline - now, 0), 2_147_483_647)
+    );
+    return () => window.clearTimeout(timer);
+  }, [data?.tenders, deadlineNow]);
 
   async function toggleSaved(tender: MarketplaceTenderRow) {
     const tenderId = tender.id;
