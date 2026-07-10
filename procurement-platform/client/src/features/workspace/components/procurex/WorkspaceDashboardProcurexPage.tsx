@@ -133,7 +133,6 @@ export function WorkspaceDashboardProcurexPage() {
   const organization = user?.organization || 'Your organization';
   const hasActivity = dashboardHasActivity(dashboard);
   const showFirstRunSections = dashboardLoaded && !hasActivity;
-  const recentActivity = buildRecentActivity(dashboard, format).slice(0, 6);
   const executiveKpis = buildExecutiveKpis(dashboard);
 
   useEffect(() => {
@@ -203,8 +202,6 @@ export function WorkspaceDashboardProcurexPage() {
               <div className="dashboard-reference-copy">
                 <span className="section-kicker">{hasActivity ? t('workspaceDashboard.hero.liveKicker') : t('workspaceDashboard.hero.firstRunKicker')}</span>
                 <h1>{t('workspaceDashboard.hero.welcome')} <span>{displayName}</span></h1>
-                <span className="section-kicker">{!dashboardLoaded ? 'Loading workspace dashboard' : hasActivity ? 'Live workspace dashboard' : 'First run dashboard'}</span>
-                <h1>Welcome, <span>{displayName}</span></h1>
                 <p>
                   {!dashboardLoaded
                     ? 'Loading your procurement work, messages, deadlines, and compliance actions from live ProcureX records.'
@@ -240,32 +237,36 @@ export function WorkspaceDashboardProcurexPage() {
               </div>
             </section>
 
-            <section className="dashboard-panel dashboard-pipeline-panel">
-              <div className="panel-heading">
-                <div>
-                  <span className="section-kicker">{t('workspaceDashboard.pipeline.kicker')}</span>
-                  <h2>{t('workspaceDashboard.pipeline.title')}</h2>
-                </div>
-              </div>
-              <div className="dashboard-pipeline">
-                {dashboard.pipeline.map((stage) => (
-                  <button className="dashboard-pipeline-stage" type="button" key={stage.stage} onClick={() => navigateToRoute(stage.route)}>
-                    <strong>{stage.count}</strong>
-                    <span>{translatePipelineStage(stage.stage, t)}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
+            {!showFirstRunSections ? (
+              <>
+                <section className="dashboard-panel dashboard-pipeline-panel">
+                  <div className="panel-heading">
+                    <div>
+                      <span className="section-kicker">{t('workspaceDashboard.pipeline.kicker')}</span>
+                      <h2>{t('workspaceDashboard.pipeline.title')}</h2>
+                    </div>
+                  </div>
+                  <div className="dashboard-pipeline">
+                    {dashboard.pipeline.map((stage) => (
+                      <button className="dashboard-pipeline-stage" type="button" key={stage.stage} onClick={() => navigateToRoute(stage.route)}>
+                        <strong>{stage.count}</strong>
+                        <span>{translatePipelineStage(stage.stage, t)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
 
-            <section className="analytics-grid dashboard-real-metrics">
-              {dashboard.metrics.map((metric) => (
-                <article className="analytics-card" key={metric.label}>
-                  <span>{translateMetricLabel(metric.label, t)}</span>
-                  <strong>{metric.value}</strong>
-                  <p>{translateMetricNote(metric.note, t)}</p>
-                </article>
-              ))}
-            </section>
+                <section className="analytics-grid dashboard-real-metrics">
+                  {dashboard.metrics.map((metric) => (
+                    <article className="analytics-card" key={metric.label}>
+                      <span>{translateMetricLabel(metric.label, t)}</span>
+                      <strong>{metric.value}</strong>
+                      <p>{translateMetricNote(metric.note, t)}</p>
+                    </article>
+                  ))}
+                </section>
+              </>
+            ) : null}
             {!dashboardLoaded ? (
               <section className="dashboard-intelligence-grid">
                 <div className="dashboard-intelligence-panel dashboard-intelligence-panel-compact dashboard-intelligence-panel-wide">
@@ -319,82 +320,6 @@ export function WorkspaceDashboardProcurexPage() {
               </>
             ) : (
               <>
-                <section className="dashboard-intelligence-strip">
-                  {dashboard.metrics.map((metric) => (
-                    <article className="dashboard-intelligence-metric" key={metric.label}>
-                      <span>{metric.label}</span>
-                      <strong>{metric.value}</strong>
-                      <p>{metric.note}</p>
-                    </article>
-                  ))}
-                </section>
-
-            <section className="dashboard-grid-main">
-              <div className="dashboard-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">{t('workspaceDashboard.queue.kicker')}</span>
-                    <h2>{t('workspaceDashboard.queue.title')}</h2>
-                  </div>
-                  <span className="badge badge-info">{t('workspaceDashboard.counts.active', { count: dashboard.actionQueue.length })}</span>
-                </div>
-                <div className="dashboard-action-queue">
-                  {dashboard.actionQueue.length ? (
-                    dashboard.actionQueue.map((item) => (
-                      <button
-                        className={`dashboard-action-row ${priorityClass(item.priority)}`}
-                        type="button"
-                        key={item.id}
-                        onClick={() => navigateToRoute(item.route)}
-                      >
-                        <span className="dashboard-action-count">{item.priority === 'Urgent' ? '!' : '1'}</span>
-                        <div>
-                          <strong>{item.title}</strong>
-                          <span>{item.subtitle}</span>
-                        </div>
-                        <em>{item.priority}</em>
-                        <b>{item.status}</b>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="scope-empty">{t('workspaceDashboard.queue.empty')}</div>
-                  )}
-                </div>
-              </div>
-
-              <aside className="dashboard-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">{t('workspaceDashboard.deadlines.kicker')}</span>
-                    <h2>{t('workspaceDashboard.deadlines.title')}</h2>
-                  </div>
-                </div>
-                <div className="dashboard-deadline-list">
-                  {dashboard.deadlines.length ? (
-                    dashboard.deadlines.map((deadline) => (
-                      <button
-                        className="dashboard-deadline-item"
-                        type="button"
-                        key={deadline.id}
-                        onClick={() => navigateToRoute(deadline.route)}
-                      >
-                        <time>{format.date(deadline.date)}</time>
-                        <strong>{deadline.title}</strong>
-                        <span>{deadline.kind}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="procurex-empty-guidance compact">
-                      <div>
-                        <strong>{t('workspaceDashboard.deadlines.emptyTitle')}</strong>
-                        <span>{t('workspaceDashboard.deadlines.emptyBody')}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </aside>
-            </section>
-
             <section className="dashboard-intelligence-grid">
                   {dashboard.actionQueue.length ? (
                     <article className="dashboard-intelligence-panel dashboard-intelligence-panel-critical dashboard-intelligence-panel-wide dashboard-horizontal-panel">
@@ -443,28 +368,6 @@ export function WorkspaceDashboardProcurexPage() {
                       ))}
                     </div>
                   </article>
-
-                  {recentActivity.length ? (
-                    <article className="dashboard-intelligence-panel dashboard-intelligence-panel-wide dashboard-horizontal-panel">
-                      <div className="panel-heading">
-                        <div>
-                          <span className="section-kicker">Recent activity</span>
-                          <h2>Latest workspace movement</h2>
-                        </div>
-                      </div>
-                      <div className="dashboard-activity-feed">
-                        {recentActivity.map((item) => (
-                          <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigateToRoute(item.route)}>
-                            <div>
-                              <strong>{item.title}</strong>
-                              <span>{item.subtitle}</span>
-                            </div>
-                            <time>{item.meta}</time>
-                          </button>
-                        ))}
-                      </div>
-                    </article>
-                  ) : null}
 
                   {dashboard.deadlines.length ? (
                     <article className="dashboard-intelligence-panel dashboard-intelligence-panel-compact dashboard-intelligence-panel-wide dashboard-horizontal-panel">
@@ -520,49 +423,6 @@ export function WorkspaceDashboardProcurexPage() {
                   <div className="scope-empty">{t('workspaceDashboard.activeWork.empty')}</div>
                 )}
               </div>
-            </section>
-
-            <section className="dashboard-grid-main">
-              <div className="dashboard-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">{t('workspaceDashboard.startHere')}</span>
-                    <h2>{t('workspaceDashboard.recommendedFirstActions')}</h2>
-                  </div>
-                  <span className="badge badge-info">{t('workspaceDashboard.guidedSetup')}</span>
-                </div>
-                <div className="dashboard-first-run-actions">
-                  {startActions.map((action) => (
-                    <button className="dashboard-first-run-action" type="button" key={action.page} onClick={() => navigateToPage(action.page)}>
-                      <AppMenuIcon kind={action.icon} />
-                      <span>
-                        <strong>{t(action.titleKey)}</strong>
-                        <em>{t(action.descriptionKey)}</em>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <aside className="dashboard-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">{t('workspaceDashboard.moreApps')}</span>
-                    <h2>{t('workspaceDashboard.tryOtherApps')}</h2>
-                  </div>
-                </div>
-                <div className="dashboard-first-run-actions">
-                  {otherAppActions.slice(0, 3).map((action) => (
-                    <button className="dashboard-first-run-action" type="button" key={action.page} onClick={() => navigateToPage(action.page)}>
-                      <AppMenuIcon kind={action.icon} />
-                      <span>
-                        <strong>{t(action.titleKey)}</strong>
-                        <em>{t(action.descriptionKey)}</em>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
             </section>
 
             <section className="dashboard-panel">
@@ -645,39 +505,6 @@ function deriveExecutiveKpis(dashboard: WorkspaceDashboardData) {
     averageOrderValue: orderBase > 0 ? dashboard.summary.recordedValue / orderBase : 0,
     currency: dashboard.summary.currency
   };
-}
-
-function buildRecentActivity(dashboard: WorkspaceDashboardData, format: ReturnType<typeof useLocaleFormat>) {
-  return [
-    ...dashboard.actionQueue.map((item) => ({
-      id: `action:${item.id}`,
-      title: item.title,
-      subtitle: `${item.subtitle} / ${item.status}`,
-      meta: item.priority,
-      route: item.route,
-      timestamp: item.createdAt
-    })),
-    ...dashboard.activeWork.map((item) => ({
-      id: `work:${item.id}`,
-      title: item.title,
-      subtitle: `${item.type} / ${item.nextAction}`,
-      meta: item.deadline ? format.date(item.deadline) : item.priority,
-      route: item.route,
-      timestamp: item.deadline ?? ''
-    })),
-    ...dashboard.deadlines.map((item) => ({
-      id: `deadline:${item.id}`,
-      title: item.title,
-      subtitle: item.kind,
-      meta: format.date(item.date),
-      route: item.route,
-      timestamp: item.date
-    }))
-  ].sort((left, right) => {
-    const leftTime = new Date(left.timestamp).getTime();
-    const rightTime = new Date(right.timestamp).getTime();
-    return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-  });
 }
 
 function dashboardHasActivity(dashboard: WorkspaceDashboardData) {
