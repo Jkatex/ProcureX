@@ -27,6 +27,7 @@
 - [Product Workflows](#product-workflows)
 - [Tech Stack](#tech-stack)
 - [Quick Start](#quick-start)
+- [Run Full Project With `.env.example`](#run-full-project-with-envexample)
 - [Environment Setup](#environment-setup)
 - [Development Commands](#development-commands)
 - [Repository Map](#repository-map)
@@ -143,29 +144,31 @@ Requirements:
 - npm with workspace support
 - Docker Desktop or compatible Docker Engine
 - PowerShell on Windows, or an equivalent shell with adjusted copy commands
+- Free local ports: `4000`, `5173`, `5432`, `6379`, `9200`, `9000`, and `9001`
 
-From the repository root:
+## Run Full Project With `.env.example`
+
+From the repository root, install dependencies and start the local infrastructure:
 
 ```powershell
 cd procurement-platform
 npm install
-Copy-Item server/.env.example server/.env
-Copy-Item client/.env.example client/.env
 npm run infra:up
+npm run db:validate
 npm run db:migrate
 npm run db:seed
 ```
 
-Start the backend in one terminal:
+Start the backend in terminal 1. This loads `server/.env.example` directly:
 
 ```powershell
-npm run dev
+npm run dev:server:example
 ```
 
-Start the frontend in a second terminal:
+Start the frontend in terminal 2. This loads `client/.env.example` directly:
 
 ```powershell
-npm run dev:client
+npm run dev:client:example
 ```
 
 Open the app:
@@ -179,6 +182,8 @@ Check the API:
 ```powershell
 Invoke-RestMethod http://localhost:4000/health
 ```
+
+Copying `.env.example` to `.env` is optional and only needed when you want local values that differ from the tracked examples.
 
 ## Environment Setup
 
