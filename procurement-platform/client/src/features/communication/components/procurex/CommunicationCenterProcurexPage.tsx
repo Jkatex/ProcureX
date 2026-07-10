@@ -89,6 +89,19 @@ function initialComposeState(overrides: Partial<ComposeState> = {}): ComposeStat
   };
 }
 
+function replyComposeState(message: CommunicationMailboxMessage): ComposeState {
+  const subject = message.subject.trim();
+  return initialComposeState({
+    recipients: message.senderOrgId && message.senderName
+      ? [{ id: message.senderOrgId, name: message.senderName, kind: 'COMPANY', country: '', capabilities: [] }]
+      : [],
+    tenderId: message.tenderId ?? '',
+    category: message.category || 'General Message',
+    subject: subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`,
+    replyToMessageId: message.id
+  });
+}
+
 export function CommunicationCenterProcurexPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();

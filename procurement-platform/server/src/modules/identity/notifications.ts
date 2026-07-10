@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import nodemailer, { type Transporter } from 'nodemailer';
 import { Resend, type CreateEmailOptions, type CreateEmailRequestOptions } from 'resend';
 import { isProductionRuntime } from '../../security/config.js';
 
@@ -71,14 +72,20 @@ function providerName(value: string | undefined) {
   return value?.trim().toLowerCase();
 }
 
-function productionRuntimeFor(config = process.env) {
-  return config.NODE_ENV === 'production' || config.APP_ENV === 'production';
-}
-
 function deliveryConfigError(message: string) {
   const error = new Error(message) as Error & { status?: number };
   error.status = 502;
   return error;
+}
+
+function boolConfig(value: string | undefined, fallback: boolean) {
+  if (value === undefined || value === '') return fallback;
+  return value === 'true' || value === '1';
+}
+
+function numberConfig(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function endpoint(baseUrl: string, path: string) {
@@ -95,6 +102,13 @@ function firstString(...values: unknown[]) {
 
 function normalizeRecipient(phone: string) {
   return phone.replace(/^\+/, '').trim();
+}
+
+function listConfig(value: string | undefined) {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function beemBasicAuth(config: NodeJS.ProcessEnv) {
@@ -121,6 +135,45 @@ function beemMessageId(body: Record<string, unknown>) {
 
 function briqMessageId(body: Record<string, unknown>) {
   return firstString(body.job_id, body.jobId, body.message_id, body.messageId, body.id);
+}
+
+function metaWhatsAppMessageId(body: Record<string, unknown>) {
+  const messages = body.messages;
+  if (Array.isArray(messages)) {
+    const first = messages[0];
+    if (first && typeof first === 'object') {
+      return firstString((first as Record<string, unknown>).id, (first as Record<string, unknown>).message_id);
+    }
+  }
+  return firstString(body.message_id, body.messageId, body.id);
+}
+
+function metaWhatsAppError(body: Record<string, unknown>) {
+  const error = body.error;
+  if (error && typeof error === 'object' && !Array.isArray(error)) {
+    return firstString((error as Record<string, unknown>).message, (error as Record<string, unknown>).error_user_msg);
+  }
+  return firstString(body.message, body.error);
+}
+
+function activationEmailContent(input: EmailCodeInput) {
+  const actionText = input.actionUrl ? `\n\nOpen this link to continue: ${input.actionUrl}` : '';
+  const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Continue in ProcureX</a></p>` : '';
+  return {
+    subject: 'Activate your ProcureX account',
+    text: `Your ProcureX activation code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
+    html: `<p>Your ProcureX activation code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`
+  };
+}
+
+function passwordResetEmailContent(input: EmailCodeInput) {
+  const actionText = input.actionUrl ? `\n\nOpen this link to reset your password: ${input.actionUrl}` : '';
+  const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Reset your password</a></p>` : '';
+  return {
+    subject: 'Reset your ProcureX password',
+    text: `Your ProcureX password reset code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
+    html: `<p>Your ProcureX password reset code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`
+  };
 }
 
 export class ResendEmailProvider {
@@ -183,26 +236,87 @@ export class ResendEmailProvider {
   }
 
   sendActivation(input: EmailCodeInput) {
-    const actionText = input.actionUrl ? `\n\nOpen this link to continue: ${input.actionUrl}` : '';
-    const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Continue in ProcureX</a></p>` : '';
     return this.send({
       to: input.to,
-      subject: 'Activate your ProcureX account',
-      text: `Your ProcureX activation code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
-      html: `<p>Your ProcureX activation code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`,
+      ...activationEmailContent(input),
       idempotencyKey: input.idempotencyKey,
       metadata: { category: 'identity_activation', ...(input.metadata ?? {}) }
     });
   }
 
   sendPasswordReset(input: EmailCodeInput) {
-    const actionText = input.actionUrl ? `\n\nOpen this link to reset your password: ${input.actionUrl}` : '';
-    const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Reset your password</a></p>` : '';
     return this.send({
       to: input.to,
-      subject: 'Reset your ProcureX password',
-      text: `Your ProcureX password reset code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
-      html: `<p>Your ProcureX password reset code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`,
+      ...passwordResetEmailContent(input),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_password_reset', ...(input.metadata ?? {}) }
+    });
+  }
+}
+
+export class SmtpEmailProvider {
+  private readonly transporter: Transporter;
+  private readonly from: string;
+  private readonly replyTo?: string;
+
+  constructor(private readonly config = process.env) {
+    const user = config.SMTP_USER?.trim();
+    const pass = config.SMTP_PASS?.trim();
+    this.from = config.SMTP_FROM?.trim() || user || '';
+    this.replyTo = config.SMTP_REPLY_TO?.trim() || undefined;
+
+    if (isProductionRuntime() || config.APP_ENV === 'production' || config.NODE_ENV === 'production') {
+      throw deliveryConfigError('The SMTP identity email provider is for local testing only.');
+    }
+    if (!user || !pass) {
+      throw deliveryConfigError('SMTP user and password are not configured.');
+    }
+    if (!this.from) {
+      throw deliveryConfigError('SMTP sender is not configured.');
+    }
+
+    this.transporter = nodemailer.createTransport({
+      host: config.SMTP_HOST?.trim() || 'smtp.gmail.com',
+      port: numberConfig(config.SMTP_PORT, 587),
+      secure: boolConfig(config.SMTP_SECURE, false),
+      auth: { user, pass }
+    });
+  }
+
+  async send(input: EmailSendInput): Promise<DeliveryReceipt> {
+    if (input.templateId) {
+      throw deliveryConfigError('SMTP email templates are not supported.');
+    }
+
+    const info = await this.transporter
+      .sendMail({
+        from: this.from,
+        to: input.to,
+        subject: input.subject,
+        ...(this.replyTo ? { replyTo: this.replyTo } : {}),
+        ...(input.text !== undefined ? { text: input.text } : {}),
+        ...(input.html !== undefined ? { html: input.html } : {})
+      })
+      .catch((error: unknown) => {
+        throw deliveryConfigError(error instanceof Error ? error.message : 'SMTP email request failed.');
+      });
+
+    return { provider: 'smtp', messageId: firstString(info.messageId, info.response) };
+  }
+
+  sendActivation(input: EmailCodeInput) {
+    return this.send({
+      to: input.to,
+      ...activationEmailContent(input),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_activation', ...(input.metadata ?? {}) }
+    });
+  }
+
+  sendPasswordReset(input: EmailCodeInput) {
+    return this.send({
+      to: input.to,
+      ...passwordResetEmailContent(input),
       idempotencyKey: input.idempotencyKey,
       metadata: { category: 'identity_password_reset', ...(input.metadata ?? {}) }
     });
@@ -404,16 +518,96 @@ export class BeemWhatsAppProvider {
   }
 }
 
+export class MetaWhatsAppOtpProvider {
+  private readonly graphVersion: string;
+  private readonly phoneNumberId: string;
+  private readonly accessToken: string;
+  private readonly templateName: string;
+  private readonly templateLanguage: string;
+  private readonly allowedTestRecipients: string[];
+
+  constructor(private readonly config = process.env) {
+    if (isProductionRuntime() || config.APP_ENV === 'production' || config.NODE_ENV === 'production') {
+      throw deliveryConfigError('The WhatsApp identity phone provider is for local testing only.');
+    }
+
+    this.graphVersion = config.META_WHATSAPP_GRAPH_VERSION?.trim() || 'v21.0';
+    this.phoneNumberId = config.META_WHATSAPP_PHONE_NUMBER_ID?.trim() ?? '';
+    this.accessToken = config.META_WHATSAPP_ACCESS_TOKEN?.trim() ?? '';
+    this.templateName = config.META_WHATSAPP_TEMPLATE_NAME?.trim() ?? '';
+    this.templateLanguage = config.META_WHATSAPP_TEMPLATE_LANGUAGE?.trim() || 'en_US';
+    this.allowedTestRecipients = listConfig(config.META_WHATSAPP_ALLOWED_TEST_RECIPIENTS).map(normalizeRecipient);
+
+    if (!this.phoneNumberId) {
+      throw deliveryConfigError('Meta WhatsApp phone number ID is not configured.');
+    }
+    if (!this.accessToken) {
+      throw deliveryConfigError('Meta WhatsApp access token is not configured.');
+    }
+    if (!this.templateName) {
+      throw deliveryConfigError('Meta WhatsApp template name is not configured.');
+    }
+  }
+
+  async sendOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
+    const to = normalizeRecipient(input.to);
+    if (this.allowedTestRecipients.length > 0 && !this.allowedTestRecipients.includes(to)) {
+      throw deliveryConfigError('WhatsApp test recipient is not allowed.');
+    }
+
+    const response = await fetch(endpoint(`https://graph.facebook.com/${this.graphVersion}`, `/${this.phoneNumberId}/messages`), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${this.accessToken}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: this.templateName,
+          language: { code: this.templateLanguage },
+          components: [
+            {
+              type: 'body',
+              parameters: [{ type: 'text', text: input.code }]
+            }
+          ]
+        }
+      })
+    }).catch((error: unknown) => {
+      throw deliveryConfigError(error instanceof Error ? error.message : 'Meta WhatsApp request failed.');
+    });
+
+    const body = await jsonResponse(response);
+    if (!response.ok) {
+      const message = metaWhatsAppError(body);
+      throw deliveryConfigError(`Meta WhatsApp returned ${response.status}${message ? `: ${message}` : ''}.`);
+    }
+
+    return {
+      provider: 'meta-whatsapp',
+      messageId: metaWhatsAppMessageId(body),
+      providerMetadata: {
+        contacts: body.contacts,
+        messages: body.messages
+      }
+    };
+  }
+}
+
 export class ProductionIdentityNotifications implements IdentityNotificationProvider {
   private beemSms?: BeemSmsProvider;
   private briqSms?: BriqSmsProvider;
   private email?: ResendEmailProvider;
   private whatsApp?: BeemWhatsAppProvider;
+  private metaWhatsAppOtp?: MetaWhatsAppOtpProvider;
 
   constructor(private readonly config = process.env) {}
 
   sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }) {
-    const provider = (this.config.IDENTITY_SMS_PROVIDER || 'briq').trim().toLowerCase();
+    const provider = (this.config.IDENTITY_SMS_PROVIDER || 'beem').trim().toLowerCase();
     if (provider === 'briq') {
       this.briqSms ??= new BriqSmsProvider(this.config);
       return this.briqSms.sendOtp(input);
@@ -423,6 +617,11 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
       return this.beemSms.sendOtp(input);
     }
     throw deliveryConfigError(`Unsupported identity SMS provider: ${provider}.`);
+  }
+
+  sendWhatsAppOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+    this.metaWhatsAppOtp ??= new MetaWhatsAppOtpProvider(this.config);
+    return this.metaWhatsAppOtp.sendOtp(input);
   }
 
   sendEmailActivation(input: EmailCodeInput) {
@@ -449,6 +648,7 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
 export class RoutedIdentityNotifications implements IdentityNotificationProvider {
   private readonly devConsole?: DevConsoleIdentityNotifications;
   private readonly production: ProductionIdentityNotifications;
+  private smtpEmail?: SmtpEmailProvider;
   private readonly emailProvider: string;
   private readonly phoneProvider: string;
 
@@ -465,18 +665,27 @@ export class RoutedIdentityNotifications implements IdentityNotificationProvider
 
   sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }) {
     if (this.phoneProvider === 'dev-console') return this.devConsole!.sendPhoneOtp(input);
+    if (this.phoneProvider === 'whatsapp') return this.production.sendWhatsAppOtp(input);
     if (this.phoneProvider !== 'sms') throw deliveryConfigError(`Unsupported identity phone provider: ${this.phoneProvider}.`);
     return this.production.sendPhoneOtp(input);
   }
 
   sendEmailActivation(input: EmailCodeInput) {
     if (this.emailProvider === 'dev-console') return this.devConsole!.sendEmailActivation(input);
+    if (this.emailProvider === 'smtp') {
+      this.smtpEmail ??= new SmtpEmailProvider(this.config);
+      return this.smtpEmail.sendActivation(input);
+    }
     if (this.emailProvider !== 'resend') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
     return this.production.sendEmailActivation(input);
   }
 
   sendPasswordReset(input: EmailCodeInput) {
     if (this.emailProvider === 'dev-console') return this.devConsole!.sendPasswordReset(input);
+    if (this.emailProvider === 'smtp') {
+      this.smtpEmail ??= new SmtpEmailProvider(this.config);
+      return this.smtpEmail.sendPasswordReset(input);
+    }
     if (this.emailProvider !== 'resend') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
     return this.production.sendPasswordReset(input);
   }

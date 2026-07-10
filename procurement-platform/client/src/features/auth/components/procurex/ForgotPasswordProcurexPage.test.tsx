@@ -9,6 +9,7 @@ vi.mock('@/features/auth/api', () => ({
   authApi: {
     forgotPassword: vi.fn(),
     resendResetCode: vi.fn(),
+    verifyResetCode: vi.fn(),
     resetPassword: vi.fn()
   }
 }));
@@ -41,13 +42,17 @@ describe('ForgotPasswordProcurexPage', () => {
     await i18n.changeLanguage('en');
     mockedAuthApi.forgotPassword.mockReset();
     mockedAuthApi.resendResetCode.mockReset();
+    mockedAuthApi.verifyResetCode.mockReset();
     mockedAuthApi.resetPassword.mockReset();
   });
 
-  it('requests a reset code and shows the response as an informational message', async () => {
+  it('requests a reset code for an existing account and moves to code verification', async () => {
     mockedAuthApi.forgotPassword.mockResolvedValueOnce({
       ok: true,
-      message: 'If an account exists for this email, password reset instructions have been sent.'
+      accountFound: true,
+      message: 'Password reset code has been sent to this email.',
+      challengeId: 'reset-challenge',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
     });
 
     renderForgotPassword();
@@ -57,12 +62,34 @@ describe('ForgotPasswordProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send Reset Instructions' }));
 
     await waitFor(() => expect(mockedAuthApi.forgotPassword).toHaveBeenCalledWith({ email: 'reset@example.test', turnstileToken: 'turnstile-token' }));
-    expect(screen.getByRole('heading', { name: 'Reset Password' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Verify Reset Code' })).toBeInTheDocument();
     expect(mockedAuthApi.forgotPassword).toHaveBeenCalledWith({ email: 'reset@example.test', turnstileToken: 'turnstile-token' });
     expect(screen.getByRole('status')).toHaveClass('procurex-notification-card', 'tone-info');
   });
 
-  it('accepts challenge query and code hash parameters and resets the password', async () => {
+  it('shows email-not-found and stays on the email step', async () => {
+    mockedAuthApi.forgotPassword.mockResolvedValueOnce({
+      ok: true,
+      accountFound: false,
+      message: 'No account found for this email.'
+    });
+
+    renderForgotPassword();
+
+    fireEvent.change(screen.getByLabelText('Email Address *'), { target: { value: 'missing@example.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send Reset Instructions' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No account found for this email.');
+    expect(screen.getByRole('heading', { name: 'Reset Password' })).toBeInTheDocument();
+  });
+
+  it('accepts challenge query and code hash parameters, verifies the code, and resets the password', async () => {
+    mockedAuthApi.verifyResetCode.mockResolvedValueOnce({
+      ok: true,
+      challengeId: 'query-challenge',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    });
     mockedAuthApi.resetPassword.mockResolvedValueOnce({
       ok: true,
       user: {
@@ -81,6 +108,16 @@ describe('ForgotPasswordProcurexPage', () => {
     expect(screen.getByLabelText('Reset Code *')).toHaveValue('123456');
     expect(screen.getByLabelText('Reset Code *')).toHaveAttribute('autocomplete', 'one-time-code');
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verify Code' }));
+
+    await screen.findByRole('heading', { name: 'Create New Password' });
+    expect(mockedAuthApi.verifyResetCode).toHaveBeenCalledWith({
+      challengeId: 'query-challenge',
+      code: '123456',
+      turnstileToken: 'turnstile-token'
+    });
+
     const passwords = screen.getAllByLabelText(/Password \*/);
     expect(passwords[0]).toHaveAttribute('maxlength', '128');
     fireEvent.change(passwords[0], { target: { value: 'Better123!' } });
@@ -138,15 +175,12 @@ describe('ForgotPasswordProcurexPage', () => {
   });
 
   it('shows an incorrect reset code alert', async () => {
-    mockedAuthApi.resetPassword.mockRejectedValueOnce(apiError(400, 'Password reset code is incorrect.'));
+    mockedAuthApi.verifyResetCode.mockRejectedValueOnce(apiError(400, 'Password reset code is incorrect.'));
 
     renderForgotPassword('/forgot-password?challengeId=query-challenge#code=123456');
 
-    const passwords = screen.getAllByLabelText(/Password \*/);
-    fireEvent.change(passwords[0], { target: { value: 'Better123!' } });
-    fireEvent.change(screen.getByLabelText('Confirm New Password *'), { target: { value: 'Better123!' } });
     fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Update Password' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verify Code' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Password reset code is incorrect.');
   });

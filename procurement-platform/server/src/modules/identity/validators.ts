@@ -65,6 +65,12 @@ export const forgotPasswordSchema = z.object({
   turnstileToken: turnstileTokenSchema
 });
 
+export const verifyResetCodeSchema = z.object({
+  challengeId: z.string().uuid(),
+  code: z.string().min(6).max(24),
+  turnstileToken: turnstileTokenSchema
+});
+
 export const resetPasswordSchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().min(6).max(24),

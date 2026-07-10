@@ -60,7 +60,7 @@ function renderRegister() {
 
                                 <div class="form-group-new">
                                     <label class="form-label-new">Mobile Number *</label>
-                                    <input type="tel" class="form-input-new" name="phone" placeholder="+255 XXX XXX XXX" required>
+                                    <input type="tel" class="form-input-new" name="phone" placeholder=" XXX XXX XXX" required>
                                     <span class="form-error-new"></span>
                                     <span class="form-hint-new">Used for one-time verification codes.</span>
                                 </div>

@@ -7,7 +7,7 @@ import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AuthAlert, authAlert, authAlertFromError, type AuthAlertMessage } from './AuthAlert';
 import { TurnstileWidget } from './TurnstileWidget';
 
-type ResetStep = 'request' | 'reset' | 'complete';
+type ResetStep = 'request' | 'verify' | 'password' | 'complete';
 
 function passwordChecks(password: string) {
   return {
@@ -48,7 +48,7 @@ export function ForgotPasswordProcurexPage() {
   const initialChallengeId = searchParams.get('challengeId') ?? '';
   const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
   const initialCode = searchParams.get('code') ?? hashParams.get('code') ?? '';
-  const [step, setStep] = useState<ResetStep>(initialChallengeId ? 'reset' : 'request');
+  const [step, setStep] = useState<ResetStep>(initialChallengeId ? 'verify' : 'request');
   const [email, setEmail] = useState('');
   const [challengeId, setChallengeId] = useState(initialChallengeId);
   const [code, setCode] = useState(initialCode);
@@ -91,12 +91,23 @@ export function ForgotPasswordProcurexPage() {
 
     try {
       const response = await authApi.forgotPassword({ email: email.trim(), turnstileToken });
-      if (response.challengeId) {
+      if (response.accountFound && response.challengeId) {
         setChallengeId(response.challengeId);
         setResendAvailableAt(response.resendAvailableAt ?? '');
-        setStep('reset');
+        setCode('');
+        setPassword('');
+        setConfirmPassword('');
+        setStep('verify');
+        setMessage(authAlert('auth.forgotPassword.messages.resetRequested', 'info'));
+      } else {
+        setChallengeId('');
+        setResendAvailableAt('');
+        setCode('');
+        setPassword('');
+        setConfirmPassword('');
+        setStep('request');
+        setMessage(authAlert('auth.forgotPassword.messages.accountNotFound', 'error'));
       }
-      setMessage(authAlert('auth.forgotPassword.messages.resetRequested', 'info'));
     } catch (error) {
       setMessage(authAlertFromError(error, 'forgot-password'));
     } finally {
@@ -118,6 +129,7 @@ export function ForgotPasswordProcurexPage() {
         setResendAvailableAt(response.resendAvailableAt ?? '');
       }
       setCode('');
+      setStep('verify');
       setMessage(authAlert('auth.forgotPassword.messages.resetResent', 'info'));
     } catch (error) {
       setMessage(authAlertFromError(error, 'resend-reset'));
@@ -127,10 +139,36 @@ export function ForgotPasswordProcurexPage() {
     }
   }
 
-  async function submitReset(event: FormEvent<HTMLFormElement>) {
+  async function verifyResetCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!challengeId || !code.trim()) {
       setMessage(authAlert('auth.forgotPassword.messages.missingCode', 'error'));
+      return;
+    }
+    if (!requireSecurityCheck()) return;
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      await authApi.verifyResetCode({ challengeId, code: code.trim(), turnstileToken });
+      setPassword('');
+      setConfirmPassword('');
+      setStep('password');
+      setMessage(authAlert('auth.forgotPassword.messages.codeVerified', 'success'));
+    } catch (error) {
+      setMessage(authAlertFromError(error, 'reset-password'));
+    } finally {
+      resetSecurityCheck();
+      setLoading(false);
+    }
+  }
+
+  async function submitNewPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!challengeId || !code.trim()) {
+      setMessage(authAlert('auth.forgotPassword.messages.missingCode', 'error'));
+      setStep('verify');
       return;
     }
     if (!passwordReady) {
@@ -198,22 +236,44 @@ export function ForgotPasswordProcurexPage() {
               </div>
             ) : null}
 
-            {step === 'reset' ? (
+            {step === 'verify' ? (
+              <div className="register-screen-new active">
+                <div className="screen-header-new">
+                  <h2>{t('auth.forgotPassword.verify.title')}</h2>
+                  <p>{t('auth.forgotPassword.verify.subtitle')}</p>
+                </div>
+                <form className="screen-form-new" onSubmit={(event) => void verifyResetCode(event)}>
+                  <div className="form-group-new">
+                    <label className="form-label-new" htmlFor="reset-code">{t('auth.forgotPassword.verify.code')}</label>
+                    <input id="reset-code" className="form-input-new" value={code} autoComplete="one-time-code" onChange={(event) => setCode(event.target.value)} required />
+                    {resendAvailableAt ? (
+                      <span className="form-hint-new">
+                        {resendSeconds > 0 ? t('auth.forgotPassword.verify.resendIn', { time: formatCountdown(resendSeconds) }) : t('auth.forgotPassword.verify.resendAvailable')}
+                      </span>
+                    ) : null}
+                  </div>
+                  <TurnstileWidget action="verify_reset_code" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                  <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep('request')}>
+                    {t('actions.back')}
+                  </button>
+                  <button className="btn-continue-new" type="submit" disabled={loading || !code.trim() || !turnstileToken}>
+                    {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
+                    {loading ? t('auth.forgotPassword.verify.submitting') : t('auth.forgotPassword.verify.submit')}
+                  </button>
+                  <button className="btn-resend-new" type="button" disabled={loading || resendSeconds > 0 || !turnstileToken} onClick={() => void resendResetCode()}>
+                    {t('auth.forgotPassword.verify.resend')}
+                  </button>
+                </form>
+              </div>
+            ) : null}
+
+            {step === 'password' ? (
               <div className="register-screen-new active">
                 <div className="screen-header-new">
                   <h2>{t('auth.forgotPassword.reset.title')}</h2>
                   <p>{t('auth.forgotPassword.reset.subtitle')}</p>
                 </div>
-                <form className="screen-form-new" onSubmit={(event) => void submitReset(event)}>
-                  <div className="form-group-new">
-                    <label className="form-label-new" htmlFor="reset-code">{t('auth.forgotPassword.reset.code')}</label>
-                    <input id="reset-code" className="form-input-new" value={code} autoComplete="one-time-code" onChange={(event) => setCode(event.target.value)} required />
-                    {resendAvailableAt ? (
-                      <span className="form-hint-new">
-                        {resendSeconds > 0 ? t('auth.forgotPassword.reset.resendIn', { time: formatCountdown(resendSeconds) }) : t('auth.forgotPassword.reset.resendAvailable')}
-                      </span>
-                    ) : null}
-                  </div>
+                <form className="screen-form-new" onSubmit={(event) => void submitNewPassword(event)}>
                   <div className="form-group-new">
                     <label className="form-label-new" htmlFor="reset-password">{t('auth.forgotPassword.reset.password')}</label>
                     <input id="reset-password" className={`form-input-new password-input-new ${message?.tone === 'error' && !checks.length ? 'is-invalid' : ''}`} type="password" value={password} maxLength={128} onChange={(event) => setPassword(event.target.value)} required />
@@ -229,15 +289,12 @@ export function ForgotPasswordProcurexPage() {
                     <input id="reset-confirm-password" className={`form-input-new ${message?.tone === 'error' && confirmPassword && password !== confirmPassword ? 'is-invalid' : ''}`} type="password" value={confirmPassword} maxLength={128} onChange={(event) => setConfirmPassword(event.target.value)} required />
                   </div>
                   <TurnstileWidget action="reset_password" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
-                  <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep('request')}>
-                    Back
+                  <button className="auth-back-button" type="button" disabled={loading} onClick={() => setStep('verify')}>
+                    {t('actions.back')}
                   </button>
                   <button className="btn-continue-new" type="submit" disabled={loading || !passwordReady || !turnstileToken}>
                     {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
                     {loading ? t('auth.forgotPassword.reset.submitting') : t('auth.forgotPassword.reset.submit')}
-                  </button>
-                  <button className="btn-resend-new" type="button" disabled={loading || resendSeconds > 0 || !turnstileToken} onClick={() => void resendResetCode()}>
-                    {t('auth.forgotPassword.reset.resend')}
                   </button>
                 </form>
               </div>

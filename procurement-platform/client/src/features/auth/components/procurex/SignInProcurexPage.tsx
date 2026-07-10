@@ -173,12 +173,6 @@ export function SignInProcurexPage() {
 
               <AuthAlert message={alert} />
 
-              {demoSignIn.enabled ? (
-                <p className="auth-note auth-note--demo">
-                  Development demo credentials are filled in for this session. Complete the security check, then sign in.
-                </p>
-              ) : null}
-
               <TurnstileWidget action="sign_in" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
 
               <button ref={submitRef} type="submit" className="btn-continue-new" disabled={loading || !turnstileToken}>
@@ -188,9 +182,6 @@ export function SignInProcurexPage() {
 
             </form>
 
-            <div className="auth-note">
-              {t('auth.signIn.note')}
-            </div>
           </div>
         </div>
         <div className="auth-image-panel" aria-hidden="true">

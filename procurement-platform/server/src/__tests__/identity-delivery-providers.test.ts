@@ -5,6 +5,11 @@ const resendMocks = vi.hoisted(() => ({
   send: vi.fn()
 }));
 
+const smtpMocks = vi.hoisted(() => ({
+  createTransport: vi.fn(),
+  sendMail: vi.fn()
+}));
+
 vi.mock('resend', () => ({
   Resend: vi.fn().mockImplementation((apiKey: string) => {
     resendMocks.constructor(apiKey);
@@ -16,12 +21,27 @@ vi.mock('resend', () => ({
   })
 }));
 
+vi.mock('nodemailer', () => {
+  const createTransport = vi.fn((options: unknown) => {
+    smtpMocks.createTransport(options);
+    return {
+      sendMail: smtpMocks.sendMail
+    };
+  });
+  return {
+    default: { createTransport },
+    createTransport
+  };
+});
+
 import {
   BeemSmsProvider,
   BeemWhatsAppProvider,
   BriqSmsProvider,
   createIdentityNotifications,
-  ResendEmailProvider
+  MetaWhatsAppOtpProvider,
+  ResendEmailProvider,
+  SmtpEmailProvider
 } from '../modules/identity/notifications.js';
 import { BeemPhoneValidationProvider } from '../modules/identity/phoneValidation.js';
 import { validateProductionSecurityConfig } from '../security/config.js';
@@ -58,11 +78,38 @@ function beemConfig(): NodeJS.ProcessEnv {
   } as NodeJS.ProcessEnv;
 }
 
+function smtpConfig(): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: 'test',
+    APP_ENV: 'test',
+    SMTP_HOST: 'smtp.gmail.com',
+    SMTP_PORT: '587',
+    SMTP_SECURE: 'false',
+    SMTP_USER: 'procurexsupport@gmail.com',
+    SMTP_PASS: 'otdg foou zdib ieur',
+    SMTP_FROM: 'ProcureX <procurexsupport@gmail.com>',
+    SMTP_REPLY_TO: 'procurexsupport@gmail.com'
+  } as NodeJS.ProcessEnv;
+}
+
+function metaWhatsAppConfig(): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: 'test',
+    APP_ENV: 'test',
+    META_WHATSAPP_GRAPH_VERSION: 'v21.0',
+    META_WHATSAPP_PHONE_NUMBER_ID: '1234567890',
+    META_WHATSAPP_ACCESS_TOKEN: 'meta-access-token',
+    META_WHATSAPP_TEMPLATE_NAME: 'procurex_phone_otp',
+    META_WHATSAPP_TEMPLATE_LANGUAGE: 'en_US',
+    META_WHATSAPP_ALLOWED_TEST_RECIPIENTS: '+255700000001'
+  } as NodeJS.ProcessEnv;
+}
+
 function briqConfig(): NodeJS.ProcessEnv {
   return {
     BRIQ_API_KEY: 'briq-key',
     BRIQ_SMS_BASE_URL: 'https://karibu.briq.tz',
-    BRIQ_SMS_SENDER: 'ProcureX'
+    BRIQ_SMS_SENDER: 'BRIQ'
   } as NodeJS.ProcessEnv;
 }
 
@@ -80,7 +127,7 @@ function setProductionEnv() {
   process.env.RESEND_FROM = 'ProcureX <no-reply@procurex.test>';
   process.env.BRIQ_API_KEY = 'briq-key';
   process.env.BRIQ_SMS_BASE_URL = 'https://karibu.briq.tz';
-  process.env.BRIQ_SMS_SENDER = 'ProcureX';
+  process.env.BRIQ_SMS_SENDER = 'BRIQ';
   process.env.BEEM_API_KEY = 'beem-key';
   process.env.BEEM_SECRET_KEY = 'beem-secret';
   process.env.BEEM_SMS_BASE_URL = 'https://apisms.beem.africa';
@@ -96,6 +143,7 @@ function setProductionEnv() {
 describe('Resend and Beem identity delivery integrations', () => {
   beforeEach(() => {
     resendMocks.send.mockResolvedValue({ data: { id: 'resend-message-1' }, error: null });
+    smtpMocks.sendMail.mockResolvedValue({ messageId: 'smtp-message-1', response: '250 2.0.0 OK' });
   });
 
   afterEach(() => {
@@ -167,6 +215,74 @@ describe('Resend and Beem identity delivery integrations', () => {
     ).rejects.toThrow(/domain not verified/);
   });
 
+  it('sends activation email through Gmail SMTP with reply-to and message receipt', async () => {
+    const provider = new SmtpEmailProvider(smtpConfig());
+
+    const receipt = await provider.sendActivation({
+      to: 'owner@example.test',
+      code: 'ACTIVATE123',
+      expiresInMinutes: 60,
+      actionUrl: 'https://app.procurex.test/register?challengeId=challenge-1',
+      idempotencyKey: 'identity-email-activation/challenge-1'
+    });
+
+    expect(smtpMocks.createTransport).toHaveBeenCalledWith({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'procurexsupport@gmail.com',
+        pass: 'otdg foou zdib ieur'
+      }
+    });
+    expect(smtpMocks.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'ProcureX <procurexsupport@gmail.com>',
+        to: 'owner@example.test',
+        subject: 'Activate your ProcureX account',
+        replyTo: 'procurexsupport@gmail.com'
+      })
+    );
+    expect(smtpMocks.sendMail.mock.calls[0][0].text).toContain('ACTIVATE123');
+    expect(smtpMocks.sendMail.mock.calls[0][0].html).toContain('https://app.procurex.test/register');
+    expect(receipt).toEqual({ provider: 'smtp', messageId: 'smtp-message-1' });
+  });
+
+  it('sends password reset email through Gmail SMTP and surfaces transport errors', async () => {
+    const provider = new SmtpEmailProvider(smtpConfig());
+
+    await provider.sendPasswordReset({
+      to: 'owner@example.test',
+      code: '123456',
+      expiresInMinutes: 30,
+      actionUrl: 'https://app.procurex.test/forgot-password?challengeId=challenge-2#code=123456',
+      idempotencyKey: 'identity-password-reset/challenge-2'
+    });
+
+    expect(smtpMocks.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Reset your ProcureX password'
+      })
+    );
+    expect(smtpMocks.sendMail.mock.calls[0][0].text).toContain('https://app.procurex.test/forgot-password');
+
+    smtpMocks.sendMail.mockRejectedValueOnce(new Error('Invalid login'));
+    await expect(
+      provider.sendPasswordReset({ to: 'owner@example.test', code: '123456', expiresInMinutes: 30 })
+    ).rejects.toThrow(/Invalid login/);
+  });
+
+  it('requires Gmail SMTP credentials before sending email', () => {
+    expect(
+      () =>
+        new SmtpEmailProvider({
+          NODE_ENV: 'test',
+          APP_ENV: 'test',
+          SMTP_USER: 'procurexsupport@gmail.com'
+        } as NodeJS.ProcessEnv)
+    ).toThrow(/SMTP user and password/);
+  });
+
   it('formats Beem SMS requests with Basic auth, sender ID, and recipients without leading plus', async () => {
     const fetchMock = mockJsonFetch({ successful: true, request_id: 67, code: 100 });
     const provider = new BeemSmsProvider(beemConfig());
@@ -212,7 +328,7 @@ describe('Resend and Beem identity delivery integrations', () => {
     expect(JSON.parse(options.body as string)).toEqual({
       content: 'Your ProcureX verification code is 123456. It expires in 10 minutes.',
       recipients: ['255700000001'],
-      sender_id: 'ProcureX'
+      sender_id: 'BRIQ'
     });
     expect(receipt).toMatchObject({ provider: 'briq-sms', messageId: 'briq-job-1' });
   });
@@ -271,6 +387,64 @@ describe('Resend and Beem identity delivery integrations', () => {
     expect(sessionReceipt).toMatchObject({ provider: 'beem-whatsapp-session', messageId: 'session-1' });
   });
 
+  it('formats Meta WhatsApp OTP template requests and returns the message receipt', async () => {
+    const fetchMock = mockJsonFetch({
+      contacts: [{ input: '255700000001', wa_id: '255700000001' }],
+      messages: [{ id: 'wamid.message-1', message_status: 'accepted' }]
+    });
+    const provider = new MetaWhatsAppOtpProvider(metaWhatsAppConfig());
+
+    const receipt = await provider.sendOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://graph.facebook.com/v21.0/1234567890/messages', expect.any(Object));
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.headers).toMatchObject({
+      authorization: 'Bearer meta-access-token',
+      'content-type': 'application/json'
+    });
+    expect(JSON.parse(options.body as string)).toEqual({
+      messaging_product: 'whatsapp',
+      to: '255700000001',
+      type: 'template',
+      template: {
+        name: 'procurex_phone_otp',
+        language: { code: 'en_US' },
+        components: [
+          {
+            type: 'body',
+            parameters: [{ type: 'text', text: '123456' }]
+          }
+        ]
+      }
+    });
+    expect(receipt).toEqual({
+      provider: 'meta-whatsapp',
+      messageId: 'wamid.message-1',
+      providerMetadata: {
+        contacts: [{ input: '255700000001', wa_id: '255700000001' }],
+        messages: [{ id: 'wamid.message-1', message_status: 'accepted' }]
+      }
+    });
+  });
+
+  it('requires Meta WhatsApp config, blocks non-allowlisted recipients, and surfaces API errors', async () => {
+    expect(
+      () =>
+        new MetaWhatsAppOtpProvider({
+          NODE_ENV: 'test',
+          APP_ENV: 'test',
+          META_WHATSAPP_ACCESS_TOKEN: 'meta-access-token',
+          META_WHATSAPP_TEMPLATE_NAME: 'procurex_phone_otp'
+        } as NodeJS.ProcessEnv)
+    ).toThrow(/phone number ID/);
+
+    const provider = new MetaWhatsAppOtpProvider(metaWhatsAppConfig());
+    await expect(provider.sendOtp({ to: '+255700000002', code: '123456', expiresInMinutes: 10 })).rejects.toThrow(/not allowed/);
+
+    mockJsonFetch({ error: { message: 'Invalid parameter' } }, 400);
+    await expect(provider.sendOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).rejects.toThrow(/Invalid parameter/);
+  });
+
   it('keeps phone validation local while SMS delivery is provider-configured', async () => {
     const provider = new BeemPhoneValidationProvider();
 
@@ -301,6 +475,27 @@ describe('Resend and Beem identity delivery integrations', () => {
     await expect(notifications.sendEmailActivation({ to: 'owner@example.test', code: 'ABC123', expiresInMinutes: 60 })).resolves.toMatchObject({ provider: 'resend' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(resendMocks.send).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.route-1' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const whatsappNotifications = createIdentityNotifications({
+      ...metaWhatsAppConfig(),
+      IDENTITY_EMAIL_PROVIDER: 'dev-console',
+      IDENTITY_PHONE_PROVIDER: 'whatsapp'
+    } as NodeJS.ProcessEnv);
+    await expect(whatsappNotifications.sendPhoneOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).resolves.toMatchObject({
+      provider: 'meta-whatsapp',
+      messageId: 'wamid.route-1'
+    });
+
+    const smtpNotifications = createIdentityNotifications({
+      ...smtpConfig(),
+      IDENTITY_EMAIL_PROVIDER: 'smtp',
+      IDENTITY_PHONE_PROVIDER: 'dev-console'
+    } as NodeJS.ProcessEnv);
+    await expect(smtpNotifications.sendEmailActivation({ to: 'owner@example.test', code: 'ABC123', expiresInMinutes: 60 })).resolves.toMatchObject({ provider: 'smtp' });
+    expect(smtpMocks.sendMail).toHaveBeenCalledTimes(1);
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ request_id: 'beem-sms-1' }), { status: 200, headers: { 'content-type': 'application/json' } }));
     const beemNotifications = createIdentityNotifications({
@@ -352,6 +547,14 @@ describe('Resend and Beem identity delivery integrations', () => {
     setProductionEnv();
     process.env.IDENTITY_SMS_PROVIDER = 'legacy-sms';
     expect(() => validateProductionSecurityConfig()).toThrow(/IDENTITY_SMS_PROVIDER/);
+
+    setProductionEnv();
+    process.env.IDENTITY_EMAIL_PROVIDER = 'smtp';
+    expect(() => validateProductionSecurityConfig()).toThrow(/SMTP identity email/);
+
+    setProductionEnv();
+    process.env.IDENTITY_PHONE_PROVIDER = 'whatsapp';
+    expect(() => validateProductionSecurityConfig()).toThrow(/WhatsApp identity phone verification/);
 
     setProductionEnv();
     process.env.IDENTITY_EMAIL_PROVIDER = 'dev-console';

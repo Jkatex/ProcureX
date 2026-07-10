@@ -56,6 +56,8 @@ const activationMinutes = 60;
 const passwordResetMinutes = 30;
 const resendCooldownSeconds = 30;
 const passwordResetRequestedMessage = 'If an account exists for this email, password reset instructions have been sent.';
+const passwordResetSentMessage = 'Password reset code has been sent to this email.';
+const passwordResetAccountNotFoundMessage = 'No account found for this email.';
 
 type RegistrationStartInput = {
   email: string;
@@ -277,6 +279,11 @@ function devChallengeMetadata(receipt: DeliveryReceipt, code: string) {
 
 function devCodeFromReceipt(receipt: DeliveryReceipt, code: string) {
   return receipt.provider === 'dev-console' ? code : undefined;
+}
+
+function phoneDeliveryChannel(receipt?: DeliveryReceipt) {
+  if (receipt?.provider === 'meta-whatsapp') return 'whatsapp';
+  return 'sms';
 }
 
 function appPublicUrl() {
@@ -1005,7 +1012,7 @@ export class ModuleService {
       expiresAt: new Date(Date.now() + phoneOtpMinutes * 60 * 1000),
       metadata: {
         email,
-        delivery: { channel: 'sms', status: 'pending' },
+        delivery: { channel: 'phone', status: 'pending' },
         ...(phoneValidation ? { phoneValidation: phoneValidationMetadata(phoneValidation) } : {})
       }
     });
@@ -1018,7 +1025,7 @@ export class ModuleService {
           ...metadataObject(challenge.metadata),
           ...devChallengeMetadata(receipt, code),
           delivery: {
-            channel: 'sms',
+            channel: phoneDeliveryChannel(receipt),
             status: 'sent',
             ...deliveryMetadata(receipt)
           }
@@ -1417,7 +1424,8 @@ export class ModuleService {
       });
       return {
         ok: true,
-        message: passwordResetRequestedMessage
+        accountFound: false,
+        message: passwordResetAccountNotFoundMessage
       };
     }
 
@@ -1427,21 +1435,15 @@ export class ModuleService {
       target: email,
       details: { accountFound: true }
     });
-    try {
-      await this.createPasswordResetChallenge(user.id, email, audit);
-    } catch (error) {
-      await this.recordAuthEvent('identity.auth.password_reset_request_suppressed_failure', {
-        ...audit,
-        userId: user.id,
-        target: email,
-        severity: AuditSeverity.ERROR,
-        details: { error: error instanceof Error ? error.message : 'Password reset request failed.' }
-      });
-    }
+    const challenge = await this.createPasswordResetChallenge(user.id, email, audit);
 
     return {
       ok: true,
-      message: passwordResetRequestedMessage
+      accountFound: true,
+      message: passwordResetSentMessage,
+      challengeId: challenge.id,
+      expiresAt: challenge.expiresAt.toISOString(),
+      resendAvailableAt: challengeResendAvailableAt(challenge.createdAt, resendCooldownSeconds)
     };
   }
 
@@ -1531,7 +1533,8 @@ export class ModuleService {
     });
     return {
       ok: true,
-      message: passwordResetRequestedMessage,
+      message: passwordResetSentMessage,
+      accountFound: true,
       challengeId: next.id,
       expiresAt: next.expiresAt.toISOString(),
       resendAvailableAt: challengeResendAvailableAt(next.createdAt, resendCooldownSeconds)
@@ -1553,6 +1556,44 @@ export class ModuleService {
         }
       })
     });
+  }
+
+  async verifyResetCode(challengeId: string, code: string, audit?: AuthAuditContext) {
+    const challenge = await this.repository.findChallenge(challengeId);
+    if (!challenge || challenge.purpose !== passwordResetPurpose) {
+      throw requestError('Password reset request was not found.', 404);
+    }
+    if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) {
+      throw requestError('Password reset request is no longer valid.', 410);
+    }
+    if (challenge.attempts >= maxChallengeAttempts) {
+      throw requestError('Too many password reset attempts. Please request a new code.', 429);
+    }
+    if (challenge.codeHash !== sha256(code)) {
+      await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.auth.password_reset_failed_attempt', {
+        ...audit,
+        userId: challenge.userId,
+        entityRef: challenge.id,
+        target: challenge.target,
+        severity: AuditSeverity.WARNING
+      });
+      throw requestError('Password reset code is incorrect.', 400);
+    }
+    if (!challenge.user) throw requestError('Password reset request is not linked to a user.', 400);
+
+    await this.recordAuthEvent('identity.auth.password_reset_code_verified', {
+      ...audit,
+      userId: challenge.userId,
+      entityRef: challenge.id,
+      target: challenge.target
+    });
+
+    return {
+      ok: true,
+      challengeId: challenge.id,
+      expiresAt: challenge.expiresAt.toISOString()
+    };
   }
 
   async resetPassword(challengeId: string, code: string, password: string, audit?: AuthAuditContext) {

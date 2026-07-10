@@ -6,6 +6,7 @@ import {
   addCommentSchema,
   createTicketSchema,
   moduleStatusQuerySchema,
+  publicContactSchema,
   ticketListQuerySchema,
   ticketParamsSchema,
   updateTicketStatusSchema
@@ -67,6 +68,16 @@ export class ModuleController {
       res.status(201).json(await this.service.createTicket(bearerToken(req), body.data, requestAuditContext(req)));
     } catch (error) {
       await this.recordAccessDenied(req, error);
+      next(error);
+    }
+  };
+
+  publicContact: RequestHandler = async (req, res, next) => {
+    try {
+      const body = publicContactSchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid contact support payload.');
+      res.status(202).json(await this.service.publicContact(body.data, requestAuditContext(req)));
+    } catch (error) {
       next(error);
     }
   };

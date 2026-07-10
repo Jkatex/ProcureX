@@ -57,7 +57,7 @@ The marketplace demo seed creates separate buyer and supplier organizations so o
 
 ## Local Testing Data
 
-Registration code delivery can stay local during development. With `IDENTITY_EMAIL_PROVIDER=dev-console` and `IDENTITY_PHONE_PROVIDER=dev-console`, the registration phone code and email activation code are shown in the UI and logged by the server. Production delivery uses Resend for email and Beem Africa for SMS or WhatsApp.
+Registration code delivery can stay local during development. With `IDENTITY_EMAIL_PROVIDER=dev-console` and `IDENTITY_PHONE_PROVIDER=dev-console`, the registration phone code and email activation code are shown in the UI and logged by the server. For Gmail SMTP testing, set `IDENTITY_EMAIL_PROVIDER=smtp`, `SMTP_USER` to the Gmail account, and `SMTP_PASS` to a Gmail app password in `server/.env`; the tracked env example intentionally keeps these blank. Production delivery uses Resend for email and Beem Africa for SMS or WhatsApp.
 
 Use these dev-only TRA/BRELA identifiers during identity verification. They are served only outside production.
 

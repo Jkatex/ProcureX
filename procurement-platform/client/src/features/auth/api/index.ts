@@ -17,9 +17,16 @@ export type SessionResponse = {
 export type ForgotPasswordResponse = {
   ok: boolean;
   message: string;
+  accountFound: boolean;
   challengeId?: string;
   expiresAt?: string;
   resendAvailableAt?: string;
+};
+
+export type VerifyResetCodeResponse = {
+  ok: true;
+  challengeId: string;
+  expiresAt: string;
 };
 
 export const authApi = {
@@ -87,6 +94,10 @@ export const authApi = {
   },
   async resendResetCode(input: { challengeId: string; turnstileToken: string }) {
     const response = await apiClient.post<ForgotPasswordResponse>('/api/identity/auth/resend-reset-code', input);
+    return response.data;
+  },
+  async verifyResetCode(input: { challengeId: string; code: string; turnstileToken: string }) {
+    const response = await apiClient.post<VerifyResetCodeResponse>('/api/identity/auth/verify-reset-code', input);
     return response.data;
   },
   async resetPassword(input: { challengeId: string; code: string; password: string; turnstileToken: string }) {

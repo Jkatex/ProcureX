@@ -496,6 +496,13 @@ class FakeDevConsoleIdentityNotifications extends FakeIdentityNotifications {
   }
 }
 
+class FakeWhatsAppIdentityNotifications extends FakeIdentityNotifications {
+  sendPhoneOtp(input: { to: string; code: string }) {
+    this.phoneOtps.push(input);
+    return Promise.resolve({ provider: 'meta-whatsapp', messageId: `wamid-${this.phoneOtps.length}` });
+  }
+}
+
 class FakeRegistryProvider implements RegistryProvider {
   records = new Map<string, RegistryProviderRecord>();
   failNext = false;
@@ -639,9 +646,29 @@ describe('identity production auth', () => {
 
     expect(notifications.phoneOtps).toHaveLength(1);
     expect(notifications.phoneOtps[0]).toMatchObject({ to: '+255700000001' });
+    expect(repository.challenges.get(registration.challengeId).metadata.delivery).toMatchObject({
+      channel: 'sms',
+      provider: 'fake-sms',
+      messageId: 'sms-1',
+      status: 'sent'
+    });
     expect(registration).not.toHaveProperty('devCode');
     expect(repository.challenges.get(registration.challengeId).codeHash).not.toBe(notifications.phoneOtps[0].code);
     await expect(service.verifyOtp(registration.challengeId, '000000')).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('records WhatsApp delivery metadata when phone OTP is sent through Meta WhatsApp', async () => {
+    const { repository, notifications, service } = makeService(new FakeIdentityRepository(), new FakeWhatsAppIdentityNotifications());
+    const registration = await service.startRegistration({ email: 'whatsapp-user@example.test', phone: '+255700000023' });
+
+    expect(notifications.phoneOtps).toHaveLength(1);
+    expect(repository.challenges.get(registration.challengeId).metadata.delivery).toMatchObject({
+      channel: 'whatsapp',
+      provider: 'meta-whatsapp',
+      messageId: 'wamid-1',
+      status: 'sent'
+    });
+    expect(registration).not.toHaveProperty('devCode');
   });
 
   it('exposes phone codes only for dev-console delivery and email activation codes during local registration', async () => {
@@ -1039,12 +1066,20 @@ describe('identity production auth', () => {
     await service.setPassword('reset@example.test', 'Strong123!', legalAcceptance());
 
     const reset = await service.forgotPassword('reset@example.test');
-    expect(reset).not.toHaveProperty('challengeId');
+    expect(reset).toMatchObject({
+      accountFound: true,
+      challengeId: expect.any(String)
+    });
     expect(notifications.resets).toHaveLength(1);
     expect(notifications.resets[0].actionUrl).toContain('/forgot-password?challengeId=');
     expect(notifications.resets[0].actionUrl).toContain(`#code=${notifications.resets[0].code}`);
 
-    await service.resetPassword(resetChallengeIdFromEmail(notifications.resets[0]), notifications.resets[0].code, 'Better123!');
+    if (!reset.challengeId) throw new Error('Expected password reset response to include a challenge id.');
+    await expect(service.verifyResetCode(resetChallengeIdFromEmail(notifications.resets[0]), notifications.resets[0].code)).resolves.toMatchObject({
+      ok: true,
+      challengeId: reset.challengeId
+    });
+    await service.resetPassword(reset.challengeId, notifications.resets[0].code, 'Better123!');
     const session = await service.signIn('reset@example.test', 'Better123!');
 
     expect(session.user.email).toBe('reset@example.test');
@@ -1064,19 +1099,41 @@ describe('identity production auth', () => {
     await expect(service.sessionFromToken(oldSession.token)).rejects.toMatchObject({ status: 401 });
   });
 
-  it('keeps forgot-password responses generic and suppresses delivery failures', async () => {
+  it('reports missing password reset accounts and surfaces delivery failures for existing accounts', async () => {
     const { notifications, service } = makeService();
     const missing = await service.forgotPassword('missing@example.test');
+    expect(missing).toMatchObject({
+      ok: true,
+      accountFound: false,
+      message: 'No account found for this email.'
+    });
+    expect(notifications.resets).toHaveLength(0);
 
     const registration = await service.startRegistration({ email: 'suppressed@example.test', phone: '+255700000064' });
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('suppressed@example.test', 'Strong123!', legalAcceptance());
     notifications.failNext = true;
-    const existing = await service.forgotPassword('suppressed@example.test');
+    await expect(service.forgotPassword('suppressed@example.test')).rejects.toMatchObject({ status: 502 });
+  });
 
-    expect(existing).toEqual(missing);
-    expect(existing).not.toHaveProperty('challengeId');
+  it('verifies password reset codes before password changes and tracks failed attempts', async () => {
+    const { repository, notifications, service } = makeService();
+    const registration = await service.startRegistration({ email: 'verify-reset@example.test', phone: '+255700000065' });
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
+    await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
+    await service.setPassword('verify-reset@example.test', 'Strong123!', legalAcceptance());
+
+    const reset = await service.forgotPassword('verify-reset@example.test');
+    if (!reset.challengeId) throw new Error('Expected password reset response to include a challenge id.');
+    await expect(service.verifyResetCode(reset.challengeId, '000000')).rejects.toMatchObject({ status: 400 });
+    expect(repository.challenges.get(reset.challengeId).attempts).toBe(1);
+
+    await expect(service.verifyResetCode(reset.challengeId, notifications.resets.at(-1)!.code)).resolves.toMatchObject({
+      ok: true,
+      challengeId: reset.challengeId
+    });
+    expect(repository.challenges.get(reset.challengeId).status).toBe('PENDING');
   });
 
   it('records auth audit events without sensitive secrets', async () => {

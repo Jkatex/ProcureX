@@ -19,6 +19,7 @@ export function createModuleRouter() {
   router.post('/auth/sign-in', publicAuthLimit, controller.signIn);
   router.post('/auth/forgot-password', publicAuthLimit, controller.forgotPassword);
   router.post('/auth/resend-reset-code', publicAuthLimit, controller.resendResetCode);
+  router.post('/auth/verify-reset-code', publicAuthLimit, controller.verifyResetCode);
   router.post('/auth/reset-password', publicAuthLimit, controller.resetPassword);
   router.get('/session', controller.getSession);
   router.get('/access/me', controller.accessMe);

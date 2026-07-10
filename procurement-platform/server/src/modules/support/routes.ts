@@ -7,6 +7,7 @@ export function createModuleRouter() {
 
   router.get('/', controller.status);
   router.get('/status', controller.status);
+  router.post('/contact', controller.publicContact);
   router.get('/tickets', controller.tickets);
   router.post('/tickets', controller.createTicket);
   router.get('/tickets/:id', controller.ticket);
