@@ -4,6 +4,14 @@ TypeScript Express backend and Prisma database foundation for ProcureX.
 
 ## Commands
 
+From the monorepo root, run the local server with the tracked example environment:
+
+```powershell
+npm run dev:server:example
+```
+
+This loads `server/.env.example` directly. Prisma validation, migration, seed, and RLS verification scripts also load `server/.env.example` through the workspace scripts.
+
 ```powershell
 npm run db:validate
 npm run db:generate
@@ -22,6 +30,8 @@ npm run db:migrate
 npm run db:seed:twice
 npm test
 ```
+
+Copy `server/.env.example` to `server/.env` only when you need custom local settings.
 
 ## Database Logic
 

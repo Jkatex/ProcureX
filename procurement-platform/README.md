@@ -22,16 +22,38 @@ procurement-platform/
 
 ## Development
 
+The preferred local flow uses the tracked example environment files directly. Database commands load `server/.env.example`; the client example command loads `client/.env.example`.
+
+From the repository root:
+
 ```powershell
 cd procurement-platform
 npm install
 npm run infra:up
 npm run db:validate
 npm run db:migrate
-npm run db:seed:twice
-npm run dev
-npm test
+npm run db:seed
 ```
+
+Start the backend in terminal 1:
+
+```powershell
+npm run dev:server:example
+```
+
+Start the frontend in terminal 2:
+
+```powershell
+npm run dev:client:example
+```
+
+Open the app at `http://localhost:5173` and check the API with:
+
+```powershell
+Invoke-RestMethod http://localhost:4000/health
+```
+
+Copy `server/.env.example` or `client/.env.example` to its matching `.env` file only when you need custom local settings.
 
 To load the optional API-backed Awarding and Contract Management demo dataset:
 

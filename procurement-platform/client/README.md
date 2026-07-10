@@ -18,12 +18,16 @@ Production React frontend for the ProcureX procurement platform.
 From `procurement-platform/`:
 
 ```powershell
-npm run dev:client
+npm run dev:client:example
 npm run build:client
 npm run test:client
 npm run lint:client
 npm run generate:client:procurex-pages
 ```
+
+Use `npm run dev:client:example` for normal local development. It loads `client/.env.example`, including `VITE_API_BASE_URL`, and starts Vite at `http://localhost:5173`.
+
+Use `client/.env` only when you need local overrides that differ from the tracked example values.
 
 ## Source Layout
 
