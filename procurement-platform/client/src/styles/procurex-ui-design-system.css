@@ -3173,10 +3173,36 @@ textarea.form-input {
     border: 1px solid var(--border-soft);
     border-radius: 8px;
     background: var(--surface-soft);
+    max-width: 100%;
 }
 
 .communication-attachment-item span {
     font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.communication-attachment-item button {
+    min-height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.communication-compose-attachments {
+    display: grid;
+    gap: 10px;
+    color: var(--text-secondary);
+}
+
+.communication-compose-attachments > div:first-child,
+.communication-attachment-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
 }
 
 .communication-row-meta {
@@ -3241,10 +3267,12 @@ textarea.form-input {
     padding: clamp(24px, 3vw, 34px);
 }
 
+.communication-message-body h1,
 .communication-message-body h2 {
     margin: 0;
     font-size: clamp(24px, 3vw, 34px);
     line-height: 1.18;
+    overflow-wrap: anywhere;
 }
 
 .communication-message-body p,
@@ -3257,6 +3285,7 @@ textarea.form-input {
 .communication-detail.full-screen .communication-message-body p {
     font-size: 16px;
     line-height: 1.75;
+    max-width: 82ch;
 }
 
 .communication-action-panel {
@@ -3274,6 +3303,10 @@ textarea.form-input {
     display: block;
     margin-top: 4px;
     color: var(--text-primary);
+}
+
+.communication-action-panel .inline-actions {
+    justify-content: flex-end;
 }
 
 .communication-attachments button {

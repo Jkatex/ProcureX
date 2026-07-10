@@ -73,6 +73,8 @@ export const replyMessageBodySchema = z
   .object({
     senderOrgId: uuidSchema.optional(),
     recipientOrgId: uuidSchema.optional(),
+    subject: z.string().trim().min(1).max(180).optional(),
+    category: z.string().trim().min(1).max(80).optional(),
     body: z.string().trim().min(1).max(10000),
     priority: z.nativeEnum(CommunicationPriority).optional(),
     visibility: z.string().trim().max(120).optional(),

@@ -67,6 +67,8 @@ export type ComposeMessageInput = {
 export type ReplyMessageInput = {
   senderOrgId?: string;
   recipientOrgId?: string;
+  subject?: string;
+  category?: string;
   body: string;
   priority?: CommunicationPriority;
   visibility?: string;

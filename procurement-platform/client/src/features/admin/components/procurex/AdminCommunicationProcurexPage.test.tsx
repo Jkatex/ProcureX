@@ -184,7 +184,9 @@ describe('AdminCommunicationProcurexPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
 
     await waitFor(() => expect(markRead).toHaveBeenCalledWith(message.id));
-    expect(screen.getByRole('button', { name: 'Back to inbox' })).toBeInTheDocument();
+    expect(screen.queryByText('Message context')).not.toBeInTheDocument();
+    expect(screen.queryByText('Admin Notice')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
     expect(screen.getByText('Next action')).toBeInTheDocument();
     expect(screen.getByText('Medical supplies')).toBeInTheDocument();
   });
@@ -203,13 +205,15 @@ describe('AdminCommunicationProcurexPage', () => {
 
     const recipientSearch = screen.getByLabelText('Find recipients');
     fireEvent.change(recipientSearch, { target: { value: 'Ministry' } });
-    await userEvent.click(await screen.findByRole('button', { name: /Add Ministry of Health/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Ministry of Health$/i }));
     expect(screen.getByRole('button', { name: /Remove Ministry of Health/i })).toBeInTheDocument();
     expect(screen.queryByText('BUYER')).not.toBeInTheDocument();
     expect(screen.queryByText('SUPPLIER')).not.toBeInTheDocument();
     fireEvent.change(recipientSearch, { target: { value: 'Tanzania' } });
-    await userEvent.click(await screen.findByRole('button', { name: /Add Tanzania Ports Authority/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Tanzania Ports Authority$/i }));
     expect(screen.getByRole('button', { name: /Remove Tanzania Ports Authority/i })).toBeInTheDocument();
+    await userEvent.upload(screen.getByLabelText('Add files'), new File(['report'], 'admin-report.pdf', { type: 'application/pdf' }));
+    expect(screen.getByText('admin-report.pdf')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tender link'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification follow-up' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the updated site visit time.' } });
@@ -222,7 +226,10 @@ describe('AdminCommunicationProcurexPage', () => {
         senderOrgId: 'platform',
         recipientOrgId: 'org-2',
         tenderId: '22222222-2222-4222-8222-222222222222',
-        subject: 'Clarification follow-up'
+        subject: 'Clarification follow-up',
+        attachmentUploads: expect.arrayContaining([
+          expect.objectContaining({ name: 'admin-report.pdf', mimeType: 'application/pdf' })
+        ])
       })
     );
     expect(composeMessage).toHaveBeenNthCalledWith(
@@ -246,9 +253,18 @@ describe('AdminCommunicationProcurexPage', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
 
-    fireEvent.change(screen.getByPlaceholderText('Write a reply'), { target: { value: 'Confirmed for Friday.' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Reply' }));
+    expect(await screen.findByLabelText('Subject')).toHaveValue('Re: Site visit schedule');
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Confirmed for Friday.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send Reply' }));
-    await waitFor(() => expect(replyToMessage).toHaveBeenCalledWith(message.id, { body: 'Confirmed for Friday.' }));
+    await waitFor(() => expect(replyToMessage).toHaveBeenCalledWith(
+      message.id,
+      expect.objectContaining({
+        body: 'Confirmed for Friday.',
+        recipientOrgId: 'org-2',
+        subject: 'Re: Site visit schedule'
+      })
+    ));
   });
 
   it('archives from the full message page', async () => {

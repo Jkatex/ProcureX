@@ -126,6 +126,8 @@ export type ComposeCommunicationMessageInput = {
 export type ReplyCommunicationMessageInput = {
   senderOrgId?: string;
   recipientOrgId?: string;
+  subject?: string;
+  category?: string;
   body: string;
   priority?: CommunicationPriority;
   visibility?: string;

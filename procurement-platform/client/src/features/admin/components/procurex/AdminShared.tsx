@@ -270,7 +270,7 @@ function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: bo
           data-navigate={item.key}
           onClick={() => onSelect(item.route)}
         >
-          <PlatformAppIcon kind={adminAppIconByKey[item.key] ?? 'records'} />
+          <PlatformAppIcon kind={adminAppIconByKey[item.key] ?? 'records'} useImage={item.key === 'communication-center'} />
           <span>
             <strong>{item.title}</strong>
             <em>{item.description}</em>
