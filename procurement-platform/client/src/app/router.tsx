@@ -115,6 +115,7 @@ export const routes = [
   { path: '/admin/audit', element: adminPage('admin-audit') },
   { path: '/admin/datastore', element: adminPage('admin-datastore') },
   { path: '/admin/tender-review', element: adminPage('admin-tender-review') },
+  { path: '/admin/tender-review/:tenderId', element: adminPage('admin-tender-review') },
   { path: '/admin/communication', element: adminPage('admin-communication') },
   { path: '/admin/profile', element: adminPage('admin-profile') },
 

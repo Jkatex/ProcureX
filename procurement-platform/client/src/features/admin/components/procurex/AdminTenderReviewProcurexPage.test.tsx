@@ -152,6 +152,7 @@ function renderPage(initialEntries = ['/admin/tender-review']) {
         <MemoryRouter initialEntries={initialEntries}>
           <Routes>
             <Route path="/admin/tender-review" element={<AdminTenderReviewProcurexPage />} />
+            <Route path="/admin/tender-review/:tenderId" element={<AdminTenderReviewProcurexPage />} />
             <Route path="/admin/communication" element={<CommunicationRouteProbe />} />
           </Routes>
         </MemoryRouter>
@@ -192,6 +193,7 @@ describe('AdminTenderReviewProcurexPage', () => {
     const rows = await screen.findAllByRole('button', { name: /PX-/i });
     expect(rows[0]).toHaveTextContent('PX-GDS-2026-001');
     expect(rows[1]).toHaveTextContent('PX-SRV-2026-002');
+    expect(screen.queryByText('Select a tender from the queue.')).not.toBeInTheDocument();
 
     await userEvent.click(rows[0]);
 

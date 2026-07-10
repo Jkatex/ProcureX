@@ -17,17 +17,19 @@ describe('procurement public welcome repository', () => {
     await repository.getWelcomeData();
 
     expect(db.tender.count).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         status: TenderStatus.OPEN,
-        visibility: Visibility.PUBLIC_MARKETPLACE
-      }
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        closingDate: { gt: expect.any(Date) }
+      })
     });
     expect(db.tender.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
+        where: expect.objectContaining({
           status: TenderStatus.OPEN,
-          visibility: Visibility.PUBLIC_MARKETPLACE
-        },
+          visibility: Visibility.PUBLIC_MARKETPLACE,
+          closingDate: { gt: expect.any(Date) }
+        }),
         take: 3
       })
     );
@@ -368,6 +370,52 @@ describe('procurement marketplace repository', () => {
       ])
     );
     expect(db.tender.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes public marketplace tenders once their submission deadline has passed', async () => {
+    const activeTender = tenderDetailRecord({
+      id: 'tender-active',
+      reference: 'PX-2026-ACTIVE',
+      title: 'Active supply tender',
+      status: TenderStatus.OPEN,
+      publishedAt: new Date(Date.now() - 86400000),
+      closingDate: new Date(Date.now() + 86400000),
+      categories: [{ name: 'Goods' }]
+    });
+    const expiredTender = tenderDetailRecord({
+      id: 'tender-expired',
+      reference: 'PX-2026-EXPIRED',
+      title: 'Expired supply tender',
+      status: TenderStatus.OPEN,
+      publishedAt: new Date(Date.now() - 86400000 * 3),
+      closingDate: new Date(Date.now() - 1000),
+      categories: [{ name: 'Goods' }]
+    });
+    const db = {
+      tender: {
+        findMany: vi.fn().mockResolvedValue([expiredTender, activeTender])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const payload = await repository.getMarketplaceData(
+      {},
+      { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 }
+    );
+
+    expect(payload.tenders).toMatchObject([{ id: 'tender-active' }]);
+    expect(payload.tenders).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'tender-expired' })]));
+    expect(payload.summary.openTenders).toBe(1);
+    expect(payload.pagination.matching).toBe(1);
+    expect(db.tender.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          visibility: Visibility.PUBLIC_MARKETPLACE,
+          status: { in: [TenderStatus.OPEN, TenderStatus.PUBLISHED] },
+          closingDate: { gt: expect.any(Date) }
+        })
+      })
+    );
   });
 
   it('applies production marketplace sort modes to repository queries', async () => {

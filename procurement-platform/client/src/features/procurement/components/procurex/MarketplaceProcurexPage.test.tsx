@@ -10,6 +10,7 @@ import { assumeUser, signOut } from '@/features/auth/slice';
 import { demoUsers } from '@/shared/data/fixtures';
 import { procurexTheme } from '@/styles/mui-theme';
 import { procurementApi } from '../../api';
+import type { MarketplacePayload, MarketplaceTenderRow } from '../../types';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 
 function LocationProbe() {
@@ -63,6 +64,33 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByText('Construction of District Maternal Health Wing')).toBeInTheDocument();
     expect(screen.getByText('Supply of Hospital Diagnostic Equipment')).toBeInTheDocument();
+  });
+
+  it('removes expired published tenders from the marketplace list', async () => {
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [
+        marketplaceTender({
+          id: 'active-tender',
+          reference: 'PX-ACTIVE-001',
+          title: 'Active Marketplace Tender',
+          closingDate: new Date(Date.now() + 86400000).toISOString()
+        }),
+        marketplaceTender({
+          id: 'expired-tender',
+          reference: 'PX-EXPIRED-001',
+          title: 'Expired Marketplace Tender',
+          closingDate: new Date(Date.now() - 86400000).toISOString()
+        })
+      ],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace();
+
+    expect(await screen.findByText('Active Marketplace Tender')).toBeInTheDocument();
+    expect(screen.queryByText('Expired Marketplace Tender')).not.toBeInTheDocument();
+    expect(screen.getByText('1 matching')).toBeInTheDocument();
   });
 
   it('filters tenders by search text', async () => {
@@ -169,3 +197,27 @@ describe('MarketplaceProcurexPage', () => {
     expect(procurementApi.saveTender).toHaveBeenCalledWith('tender-2');
   });
 });
+
+function marketplaceTender(overrides: Partial<MarketplaceTenderRow> = {}): MarketplaceTenderRow {
+  return {
+    id: 'marketplace-tender',
+    reference: 'PX-MKT-001',
+    title: 'Marketplace Tender',
+    organization: 'Public Buyer',
+    type: 'GOODS',
+    status: 'OPEN',
+    budget: 100000000,
+    currency: 'TZS',
+    closingDate: new Date(Date.now() + 86400000).toISOString(),
+    location: 'Dar es Salaam',
+    description: 'Tender prepared for marketplace visibility tests.',
+    createdByCurrentUser: false,
+    ownedByCurrentOrganization: false,
+    canBid: true,
+    hasDraftBid: false,
+    hasSubmittedBid: false,
+    isSaved: false,
+    categories: ['Goods'],
+    ...overrides
+  };
+}

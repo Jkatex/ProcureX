@@ -3,6 +3,7 @@ import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
 import type { Bid, SessionUser, Tender } from '@/shared/types/domain';
 import { toTenderType } from '../createTenderConfig';
+import { isActiveMarketplaceTender } from '../marketplaceTenderVisibility';
 import type {
   CreateTenderDraft,
   CreateTenderPayload,
@@ -91,7 +92,7 @@ type WorkItemFixture = Awaited<ReturnType<typeof mockApi.getWorkItems>>[number];
 function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
   return {
     ...payload,
-    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow),
+    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow).filter(isActiveMarketplaceTender),
     myTenders: (payload.myTenders ?? []).map((row) => ({
       ...row,
       tender: row.tender ? normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow) : undefined
@@ -151,9 +152,10 @@ function buildMarketplacePayload(tenders: Tender[], bids: Bid[], workItems: Work
   const normalizedTenders = tenders.map((tender) => normalizeFixtureTender(tender, currentUser));
   const myTenderRows = buildMyTenderRows(normalizedTenders, workItems, currentUser);
   const myBidRows = buildMyBidRows(normalizedTenders, bids, workItems, currentUser);
+  const activeMarketplaceTenders = normalizedTenders.filter(isActiveMarketplaceTender);
 
   return {
-    tenders: normalizedTenders.map((tender) => ({
+    tenders: activeMarketplaceTenders.map((tender) => ({
       ...tender,
       hasDraftBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'draft'),
       hasSubmittedBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted'),
@@ -188,7 +190,7 @@ export function mergeSessionMarketplaceData(
 
   return {
     ...payload,
-    tenders: [...sessionTenderRows, ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
+    tenders: [...sessionTenderRows.filter(isActiveMarketplaceTender), ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
     myTenders: [...sessionMyTenderRows, ...payload.myTenders.filter((row) => !existingMyTenderIds.has(row.id))]
   };
 }

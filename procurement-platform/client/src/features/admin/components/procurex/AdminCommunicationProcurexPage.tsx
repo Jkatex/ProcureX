@@ -636,9 +636,7 @@ export function AdminCommunicationProcurexPage() {
                         </span>
                       ))}
                     </div>
-                  ) : (
-                    <span className="communication-attachment-preview">Attach reports, photos, spreadsheets, or supporting files.</span>
-                  )}
+                  ) : null}
                 </div>
               </div>
               <div className="inline-actions">

@@ -92,7 +92,7 @@ export const tenders: Tender[] = [
     status: 'OPEN',
     budget: 6850000000,
     currency: 'TZS',
-    closingDate: '2026-07-03',
+    closingDate: '2026-08-03',
     location: 'Dodoma Regional Referral Hospital',
     description: 'Construction, finishing, medical gas routing, and handover of a two-storey maternal health wing.',
     categories: ['Healthcare infrastructure', 'Construction', 'Medical facilities']
@@ -106,7 +106,7 @@ export const tenders: Tender[] = [
     status: 'OPEN',
     budget: 2450000000,
     currency: 'TZS',
-    closingDate: '2026-06-26',
+    closingDate: '2026-08-26',
     location: 'Dar es Salaam',
     description: 'Supply, delivery, installation, calibration, and warranty support for diagnostic equipment.',
     categories: ['Medical equipment', 'Warranty', 'Installation']
@@ -120,7 +120,7 @@ export const tenders: Tender[] = [
     status: 'PUBLISHED',
     budget: 820000000,
     currency: 'TZS',
-    closingDate: '2026-07-15',
+    closingDate: '2026-09-15',
     location: 'Arusha, Mwanza, Dar es Salaam',
     description: 'Multi-region building maintenance, response SLA, reporting, and quality assurance framework.',
     createdByCurrentUser: true,
@@ -138,7 +138,7 @@ export const procurementTimeline: TimelineItem[] = [
   { id: 'planning', label: 'Planning', date: '2026-05-10', status: 'complete' },
   { id: 'publication', label: 'Publication', date: '2026-05-18', status: 'complete' },
   { id: 'clarification', label: 'Clarification', date: '2026-06-19', status: 'current' },
-  { id: 'closing', label: 'Closing', date: '2026-07-03', status: 'pending' },
+  { id: 'closing', label: 'Closing', date: '2026-08-03', status: 'pending' },
   { id: 'evaluation', label: 'Evaluation', date: '2026-07-24', status: 'pending' },
   { id: 'award', label: 'Award', date: '2026-08-07', status: 'pending' }
 ];

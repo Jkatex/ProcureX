@@ -36,6 +36,7 @@ describe('admin app registry', () => {
       ['platform-analytics', '/assets/app-icons/admin/platform-analytics.png'],
       ['full-audit-trail', '/assets/app-icons/admin/full-audit-trail.png'],
       ['data-store', '/assets/app-icons/admin/data-store.png'],
+      ['tender-review', '/assets/app-icons/admin/tender-review.png'],
       ['communication-center', '/assets/app-icons/admin/communication-center.png'],
       ['admin-profile', '/assets/app-icons/admin/admin-profile.png'],
     ]);
@@ -56,7 +57,7 @@ describe('admin app registry', () => {
       expect(screen.getByRole('button', { name: new RegExp(app.title) })).toBeInTheDocument();
     }
 
-    const images = Array.from(container.querySelectorAll<HTMLImageElement>('.app-menu-image'));
+    const images = Array.from(container.querySelectorAll<HTMLImageElement>('.admin-app-menu-image'));
     expect(images).toHaveLength(adminAppRegistry.length);
     expect(images.map((image) => image.getAttribute('src'))).toEqual(
       adminAppRegistry.map((app) => resolveAdminAppIconAsset(app.key))

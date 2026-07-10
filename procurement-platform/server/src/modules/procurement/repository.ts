@@ -161,13 +161,11 @@ export class ModuleRepository {
       throw new Error('DATABASE_URL is not configured.');
     }
 
+    const activePublicTenderWhere = activePublicMarketplaceTenderWhere([TenderStatus.OPEN]);
     const [participantCount, openTenderCount, verifiedUserCount, featuredTenders] = await Promise.all([
       this.db.organization.count(),
       this.db.tender.count({
-        where: {
-          status: TenderStatus.OPEN,
-          visibility: Visibility.PUBLIC_MARKETPLACE
-        }
+        where: activePublicTenderWhere
       }),
       this.db.user.count({
         where: {
@@ -175,10 +173,7 @@ export class ModuleRepository {
         }
       }),
       this.db.tender.findMany({
-        where: {
-          status: TenderStatus.OPEN,
-          visibility: Visibility.PUBLIC_MARKETPLACE
-        },
+        where: activePublicTenderWhere,
         orderBy: [{ closingDate: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
         take: 3,
         include: {
@@ -1423,10 +1418,7 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   const allowedStatuses = marketplaceStatusValues(query.includeClosed);
   const statuses = statusFilter.length > 0 ? intersectTenderStatuses(statusFilter, allowedStatuses) : allowedStatuses;
   const activeFilters: Prisma.TenderWhereInput[] = [
-    {
-      visibility: Visibility.PUBLIC_MARKETPLACE,
-      status: { in: statuses }
-    }
+    activePublicMarketplaceTenderWhere(statuses)
   ];
 
   if (query.search) {
@@ -1467,6 +1459,14 @@ function marketplaceWhere(query: MarketplaceQuery): Prisma.TenderWhereInput {
   return activeFilters.length === 1 ? activeFilters[0] : { AND: activeFilters };
 }
 
+function activePublicMarketplaceTenderWhere(statuses: TenderStatus[]): Prisma.TenderWhereInput {
+  return {
+    visibility: Visibility.PUBLIC_MARKETPLACE,
+    status: { in: statuses },
+    closingDate: { gt: new Date() }
+  };
+}
+
 function tenderReviewWhere(query: TenderReviewQuery): Prisma.TenderWhereInput {
   const filters: Prisma.TenderWhereInput[] = [{ status: TenderStatus.REVIEW }];
   if (query.search) {
@@ -1493,7 +1493,16 @@ function intersectTenderStatuses(left: TenderStatus[], right: TenderStatus[]) {
 }
 
 function filterMarketplaceTenders(tenders: MarketplaceTenderRecord[], query: MarketplaceQuery) {
-  return tenders.filter((tender) => matchesMarketplaceSearch(tender, query.search) && matchesMarketplaceCategory(tender, query.category));
+  return tenders.filter(
+    (tender) =>
+      hasActiveMarketplaceDeadline(tender) &&
+      matchesMarketplaceSearch(tender, query.search) &&
+      matchesMarketplaceCategory(tender, query.category)
+  );
+}
+
+function hasActiveMarketplaceDeadline(tender: { closingDate: Date | null }) {
+  return Boolean(tender.closingDate && tender.closingDate.getTime() > Date.now());
 }
 
 function matchesMarketplaceSearch(tender: MarketplaceTenderRecord, search: string) {

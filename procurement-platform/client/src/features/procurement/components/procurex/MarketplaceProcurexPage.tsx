@@ -5,6 +5,7 @@ import { demoUsers } from '@/shared/data/fixtures';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import { procurementApi } from '../../api';
 import { useMarketplaceData } from '../../hooks';
+import { isActiveMarketplaceTender } from '../../marketplaceTenderVisibility';
 import type { MarketplaceTenderRow } from '../../types';
 import {
   MarketplaceCategoryGrid,
@@ -52,14 +53,18 @@ export function MarketplaceProcurexPage() {
   const [savedTenderIds, setSavedTenderIds] = useState<Set<string>>(() => new Set());
   const [savingTenderIds, setSavingTenderIds] = useState<Set<string>>(() => new Set());
   const [saveError, setSaveError] = useState('');
+  const [deadlineNow, setDeadlineNow] = useState(() => Date.now());
   const activeTab = getActiveTab(location.pathname);
   const organization = user?.organization || demoUsers.user.organization;
   const canCreateTender = !user || user.capabilities.includes('BUYER');
 
+  const activeMarketplaceTenders = useMemo(() => {
+    return (data?.tenders ?? []).filter((tender) => isActiveMarketplaceTender(tender, deadlineNow));
+  }, [data?.tenders, deadlineNow]);
+
   const visibleTenders = useMemo(() => {
-    const tenders = data?.tenders ?? [];
-    return filterAndSortTenders(tenders, filters);
-  }, [data?.tenders, filters]);
+    return filterAndSortTenders(activeMarketplaceTenders, filters, deadlineNow);
+  }, [activeMarketplaceTenders, deadlineNow, filters]);
 
   function selectTab(tab: MarketplaceTabId) {
     navigate(tabRoutes[tab]);
@@ -73,6 +78,11 @@ export function MarketplaceProcurexPage() {
     const savedIds = new Set((data?.tenders ?? []).filter((tender) => tender.isSaved).map((tender) => tender.id));
     setSavedTenderIds(savedIds);
   }, [data?.tenders]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setDeadlineNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function toggleSaved(tender: MarketplaceTenderRow) {
     const tenderId = tender.id;
@@ -118,7 +128,7 @@ export function MarketplaceProcurexPage() {
 
           {data ? (
             <>
-              <MarketplaceSummary tenders={data.tenders} myTenders={data.myTenders} myBids={data.myBids} />
+              <MarketplaceSummary tenders={activeMarketplaceTenders} myTenders={data.myTenders} myBids={data.myBids} />
 
               <section className="supplier-detail-tabbed-view marketplace-tabbed-view">
                 <MarketplaceTabs activeTab={activeTab} onTabChange={selectTab} />
@@ -137,7 +147,7 @@ export function MarketplaceProcurexPage() {
                         onStatusChange={(value) => updateFilter('status', value)}
                         onSortChange={(value) => updateFilter('sort', value)}
                       />
-                      <MarketplaceCategoryGrid tenders={data.tenders} onSelectType={(value) => updateFilter('type', value)} />
+                      <MarketplaceCategoryGrid tenders={activeMarketplaceTenders} onSelectType={(value) => updateFilter('type', value)} />
                       <TenderListPanel
                         tenders={visibleTenders}
                         savedTenderIds={savedTenderIds}
@@ -207,10 +217,11 @@ function getActiveTab(pathname: string): MarketplaceTabId {
   return 'marketplace';
 }
 
-function filterAndSortTenders(tenders: MarketplaceTenderRow[], filters: MarketplaceFiltersState) {
+function filterAndSortTenders(tenders: MarketplaceTenderRow[], filters: MarketplaceFiltersState, now = Date.now()) {
   const query = filters.query.trim().toLowerCase();
 
   const filtered = tenders.filter((tender) => {
+    if (!isActiveMarketplaceTender(tender, now)) return false;
     const matchesQuery = !query || searchableTenderText(tender).includes(query);
     const matchesType = !filters.type || tender.type === filters.type;
     const matchesBudget = !filters.budget || getBudgetBand(tender.budget) === filters.budget;
