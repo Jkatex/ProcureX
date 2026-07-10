@@ -85,10 +85,10 @@ function smtpConfig(): NodeJS.ProcessEnv {
     SMTP_HOST: 'smtp.gmail.com',
     SMTP_PORT: '587',
     SMTP_SECURE: 'false',
-    SMTP_USER: 'procurex.test@gmail.com',
-    SMTP_PASS: 'gmail-app-password',
-    SMTP_FROM: 'ProcureX <procurex.test@gmail.com>',
-    SMTP_REPLY_TO: 'support@procurex.test'
+    SMTP_USER: 'procurexsupport@gmail.com',
+    SMTP_PASS: 'otdg foou zdib ieur',
+    SMTP_FROM: 'ProcureX <procurexsupport@gmail.com>',
+    SMTP_REPLY_TO: 'procurexsupport@gmail.com'
   } as NodeJS.ProcessEnv;
 }
 
@@ -231,16 +231,16 @@ describe('Resend and Beem identity delivery integrations', () => {
       port: 587,
       secure: false,
       auth: {
-        user: 'procurex.test@gmail.com',
-        pass: 'gmail-app-password'
+        user: 'procurexsupport@gmail.com',
+        pass: 'otdg foou zdib ieur'
       }
     });
     expect(smtpMocks.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: 'ProcureX <procurex.test@gmail.com>',
+        from: 'ProcureX <procurexsupport@gmail.com>',
         to: 'owner@example.test',
         subject: 'Activate your ProcureX account',
-        replyTo: 'support@procurex.test'
+        replyTo: 'procurexsupport@gmail.com'
       })
     );
     expect(smtpMocks.sendMail.mock.calls[0][0].text).toContain('ACTIVATE123');
@@ -278,7 +278,7 @@ describe('Resend and Beem identity delivery integrations', () => {
         new SmtpEmailProvider({
           NODE_ENV: 'test',
           APP_ENV: 'test',
-          SMTP_USER: 'procurex.test@gmail.com'
+          SMTP_USER: 'procurexsupport@gmail.com'
         } as NodeJS.ProcessEnv)
     ).toThrow(/SMTP user and password/);
   });

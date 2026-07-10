@@ -448,9 +448,6 @@ export function RegisterProcurexPage() {
                     {activationExpiresAt ? <span className="form-hint-new">{t('auth.register.activation.expiresIn', { time: formatCountdown(activationSeconds) })}</span> : null}
                   </div>
                   <div className="activation-actions-new">
-                    <a className="btn-open-email-new" href="mailto:">
-                      {t('auth.register.activation.openEmail')}
-                    </a>
                     <button className="btn-resend-link-new" type="button" disabled={loading || resendSeconds > 0 || !turnstileToken} onClick={() => void resendActivation()}>
                       {t('auth.register.activation.resend')}
                     </button>

@@ -55,6 +55,15 @@ export type CreateSupportTicketInput = {
   payload?: Record<string, unknown>;
 };
 
+export type PublicContactInput = {
+  fullName: string;
+  email: string;
+  phone?: string;
+  organization?: string;
+  requestType: string;
+  message: string;
+};
+
 export type AddSupportTicketCommentInput = {
   body: string;
   visibility?: string;

@@ -148,7 +148,8 @@ describe('SignInProcurexPage', () => {
 
     expect(screen.getByLabelText('Email Address *')).toHaveValue('walkthrough@procurex.tz');
     expect(screen.getByLabelText('Password *')).toHaveValue('Walkthrough123!');
-    expect(screen.getByText('Development demo credentials are filled in for this session. Complete the security check, then sign in.')).toBeInTheDocument();
+    expect(screen.queryByText('Development demo credentials are filled in for this session. Complete the security check, then sign in.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your account opens the workspace allowed by its verification status.')).not.toBeInTheDocument();
   });
 
   it('accepts typed demo credentials through the backend when local demo sign-in is enabled', async () => {
