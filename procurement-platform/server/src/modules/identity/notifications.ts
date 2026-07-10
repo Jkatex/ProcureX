@@ -133,6 +133,10 @@ function beemMessageId(body: Record<string, unknown>) {
   return firstString(body.request_id, body.requestId, body.jobId, body.message_id, body.messageId, body.id);
 }
 
+function briqMessageId(body: Record<string, unknown>) {
+  return firstString(body.job_id, body.jobId, body.message_id, body.messageId, body.id);
+}
+
 function metaWhatsAppMessageId(body: Record<string, unknown>) {
   const messages = body.messages;
   if (Array.isArray(messages)) {
@@ -604,11 +608,15 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
 
   sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }) {
     const provider = (this.config.IDENTITY_SMS_PROVIDER || 'beem').trim().toLowerCase();
-    if (provider !== 'beem') {
-      throw deliveryConfigError(`Unsupported identity SMS provider: ${provider}.`);
+    if (provider === 'briq') {
+      this.briqSms ??= new BriqSmsProvider(this.config);
+      return this.briqSms.sendOtp(input);
     }
-    this.sms ??= new BeemSmsProvider(this.config);
-    return this.sms.sendOtp(input);
+    if (provider === 'beem') {
+      this.beemSms ??= new BeemSmsProvider(this.config);
+      return this.beemSms.sendOtp(input);
+    }
+    throw deliveryConfigError(`Unsupported identity SMS provider: ${provider}.`);
   }
 
   sendWhatsAppOtp(input: { to: string; code: string; expiresInMinutes: number }) {

@@ -109,7 +109,7 @@ function briqConfig(): NodeJS.ProcessEnv {
   return {
     BRIQ_API_KEY: 'briq-key',
     BRIQ_SMS_BASE_URL: 'https://karibu.briq.tz',
-    BRIQ_SMS_SENDER: 'ProcureX'
+    BRIQ_SMS_SENDER: 'BRIQ'
   } as NodeJS.ProcessEnv;
 }
 
@@ -127,7 +127,7 @@ function setProductionEnv() {
   process.env.RESEND_FROM = 'ProcureX <no-reply@procurex.test>';
   process.env.BRIQ_API_KEY = 'briq-key';
   process.env.BRIQ_SMS_BASE_URL = 'https://karibu.briq.tz';
-  process.env.BRIQ_SMS_SENDER = 'ProcureX';
+  process.env.BRIQ_SMS_SENDER = 'BRIQ';
   process.env.BEEM_API_KEY = 'beem-key';
   process.env.BEEM_SECRET_KEY = 'beem-secret';
   process.env.BEEM_SMS_BASE_URL = 'https://apisms.beem.africa';
@@ -328,7 +328,7 @@ describe('Resend and Beem identity delivery integrations', () => {
     expect(JSON.parse(options.body as string)).toEqual({
       content: 'Your ProcureX verification code is 123456. It expires in 10 minutes.',
       recipients: ['255700000001'],
-      sender_id: 'ProcureX'
+      sender_id: 'BRIQ'
     });
     expect(receipt).toMatchObject({ provider: 'briq-sms', messageId: 'briq-job-1' });
   });
@@ -460,8 +460,6 @@ describe('Resend and Beem identity delivery integrations', () => {
     });
   });
 
-  it('routes identity delivery through Resend, SMTP, and Beem while allowing local dev-console overrides', async () => {
-    const fetchMock = mockJsonFetch({ request_id: 'sms-1' });
   it('routes identity delivery through Resend and Briq while allowing Beem and local dev-console overrides', async () => {
     const fetchMock = mockJsonFetch({ success: true, job_id: 'briq-sms-1' });
     const notifications = createIdentityNotifications({
