@@ -38,6 +38,24 @@ type Step = {
   label: string;
   title: string;
   kicker: string;
+  description: string;
+};
+
+type GateItem = {
+  id: string;
+  label: string;
+  category: string;
+  mandatory: boolean;
+  complete: boolean;
+};
+
+type GateStatus = {
+  items: GateItem[];
+  mandatoryTotal: number;
+  completeMandatory: number;
+  remaining: number;
+  complete: boolean;
+  message: string;
 };
 
 type SampleFormState = {
@@ -89,6 +107,7 @@ export function BiddingWorkspaceProcurexPage() {
   const sampleItemOptions = useMemo(() => sampleOptionsFromTender(tender, sampleRequirements), [tender, sampleRequirements]);
   const steps = useMemo(() => workflowSteps(workflow, tender), [workflow, tender]);
   const totalAmount = useMemo(() => totalFromForm(form, workflow), [form, workflow]);
+  const gate = useMemo(() => bidGateStatus(form, documents, tender), [form, documents, tender]);
   const validationIssues = useMemo(() => validateForm(workflow, form, documents, totalAmount), [workflow, form, documents, totalAmount]);
   const completeness = useMemo(() => {
     const all = Math.max(1, steps.length - 1);
@@ -117,7 +136,7 @@ export function BiddingWorkspaceProcurexPage() {
           setReceipt(draft.receipt ? { ...draft.receipt, bid: draft } : null);
           setDocuments(draft.documents);
           hydrateDraft(draft);
-          setActiveStep(draft.receipt ? steps.length - 1 : 0);
+          setActiveStep(draft.receipt ? receiptStepIndex(steps, workflow) : 0);
           setStatus(draft.status === 'SUBMITTED' ? 'Submitted bid loaded.' : 'Draft bid loaded.');
         } else {
           setSamples([]);
@@ -247,7 +266,7 @@ export function BiddingWorkspaceProcurexPage() {
       const submitted = await biddingApi.submitBid(saved.id);
       syncBidState(submitted.bid);
       setReceipt(submitted);
-      setActiveStep(steps.length - 1);
+      setActiveStep(receiptStepIndex(steps, workflow));
       setStatus(workflow === 'consultancy' ? 'Technical and financial envelopes sealed. Receipt generated.' : 'Bid package sealed. Receipt generated.');
     } catch (error) {
       setStatus(errorMessage(error, 'Bid could not be submitted.'));
@@ -373,6 +392,40 @@ export function BiddingWorkspaceProcurexPage() {
     setSampleEdits((current) => ({ ...current, [updated.id]: sampleFormFromDto(updated) }));
   }
 
+  function jumpToReview() {
+    const reviewIndex = steps.findIndex((step) => step.id === 'review');
+    setActiveStep(reviewIndex > -1 ? reviewIndex : Math.max(0, steps.length - 1));
+  }
+
+  function goToStep(index: number) {
+    if (index === activeStep) return;
+    if (index > activeStep && !isSubmitted && !receipt && !canLeaveStep(activeStep)) return;
+    setActiveStep(Math.min(Math.max(index, 0), steps.length - 1));
+  }
+
+  function continueStep() {
+    if (!isSubmitted && !receipt && !canLeaveStep(activeStep)) return;
+    setActiveStep((current) => Math.min(current + 1, steps.length - 1));
+  }
+
+  function previousStep() {
+    setActiveStep((current) => Math.max(current - 1, 0));
+  }
+
+  function canLeaveStep(index: number) {
+    const step = steps[index];
+    if (!step) return true;
+    if (step.id === 'eligibility' && !gate.complete) {
+      setStatus(gate.message);
+      return false;
+    }
+    if ((step.id.includes('financial') || step.id.includes('commercial')) && totalAmount <= 0) {
+      setStatus('Complete the financial offer before continuing.');
+      return false;
+    }
+    return true;
+  }
+
   if (!tenderId) return <WorkspaceEmpty message="Open a tender from the marketplace to start or continue a bid." />;
   if (tenderLoading) return <WorkspaceEmpty message="Loading tender..." />;
   if (isError || !tender) return <WorkspaceEmpty message="Tender could not be loaded. Return to the marketplace and try again." />;
@@ -380,12 +433,15 @@ export function BiddingWorkspaceProcurexPage() {
   const loadedTender = tender;
   const isSubmitted = bid?.status === 'SUBMITTED';
   const uploading = Boolean(uploadingKey);
-  const currentStep = steps[Math.min(activeStep, steps.length - 1)];
+  const currentStepIndex = Math.min(activeStep, steps.length - 1);
+  const currentStep = steps[currentStepIndex];
+  const receiptVisible = Boolean(receipt && currentStep && isReceiptPanelStep(workflow, currentStep.id));
 
   return (
-    <div className="procurement-app-page bid-flow-page" data-bid-total={totalAmount} data-bid-workflow={workflow}>
+    <div className="procurement-app-page">
       <main className="procurement-market-shell">
-        <section className="journey-hero compact">
+        <div className="journey-page tender-wizard-page bid-flow-page" data-bid-total={totalAmount} data-bid-workflow={workflow}>
+        <section className="journey-hero compact" aria-hidden="true">
           <div>
             <span className="section-kicker">{workflowLabel(workflow)} bid</span>
             <h1>Bid Submission Workspace</h1>
@@ -406,63 +462,72 @@ export function BiddingWorkspaceProcurexPage() {
                 Withdraw
               </button>
             ) : (
-              <button className="btn btn-primary" type="button" disabled={saving || uploading} onClick={submitBid}>
+              <button className="btn btn-primary" type="button" disabled={saving || uploading} onClick={jumpToReview}>
                 Review Submission
               </button>
             )}
           </div>
         </section>
 
-        <section className="procurement-market-summary">
-          <Kpi label="Tender" value={tender.reference} />
-          <Kpi label="Workflow" value={workflowLabel(workflow)} />
-          <Kpi label="Completeness" value={`${completeness.percent}%`} />
-          <Kpi label="Total" value={formatMoney(totalAmount, tender.currency)} />
-        </section>
+        <BidAssistancePanel tender={tender} saving={saving} uploading={uploading} isSubmitted={isSubmitted} onSave={saveDraft} onReview={jumpToReview} onWithdraw={withdrawBid} />
 
         <section className="wizard-shell">
           <nav className="wizard-step-progress bid-step-progress" aria-label="Bid submission progress">
             {steps.map((step, index) => (
-              <button className={index === activeStep ? 'active' : ''} type="button" key={step.id} onClick={() => setActiveStep(index)}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                {step.label}
+              <button className={`wizard-progress-step ${index === currentStepIndex ? 'active' : ''} ${index < currentStepIndex ? 'completed' : ''}`} type="button" key={step.id} onClick={() => goToStep(index)}>
+                <strong>{String(index + 1).padStart(2, '0')}</strong>
+                <span>{step.label}</span>
               </button>
             ))}
           </nav>
 
           <aside className="wizard-rail">
             {steps.map((step, index) => (
-              <button className={`wizard-rail-step ${index === activeStep ? 'active' : ''}`} type="button" key={step.id} onClick={() => setActiveStep(index)}>
-                <span>{index + 1}</span>
-                <strong>{step.label}</strong>
+              <button className={`wizard-rail-step ${index === currentStepIndex ? 'active' : ''} ${index < currentStepIndex ? 'completed' : ''}`} type="button" key={step.id} onClick={() => goToStep(index)}>
+                <strong>{String(index + 1).padStart(2, '0')}</strong>
+                <span>{step.label}</span>
               </button>
             ))}
           </aside>
 
           <main className="wizard-workspace">
             <div className="form-status">{status}</div>
-            <StepPanel kicker={currentStep.kicker} title={currentStep.title} badge={stepBadge(currentStep.id, validationIssues, documents, receipt)}>
+            <StepPanel kicker={currentStep.kicker} title={receiptVisible ? 'Submission Receipt' : currentStep.title} description={receiptVisible ? 'Bid hash and post-submission actions' : currentStep.description} badge={stepBadge(currentStep.id, validationIssues, documents, receipt, gate)} className={currentStep.id === 'eligibility' ? 'bid-mandatory-gate' : undefined}>
               {renderStep(currentStep.id)}
             </StepPanel>
+            <div className="wizard-flow-controls" data-bid-flow-controls>
+              <button className="btn btn-secondary" type="button" disabled={currentStepIndex === 0 || saving || uploading} onClick={previousStep}>
+                Back
+              </button>
+              <div className="wizard-flow-progress">
+                <strong>{`Step ${currentStepIndex + 1} of ${steps.length} - ${completeness.percent}% complete`}</strong>
+                <span>{currentStep.title}</span>
+              </div>
+              <button className="btn btn-primary" type="button" hidden={currentStepIndex === steps.length - 1} disabled={saving || uploading} onClick={continueStep}>
+                Continue
+              </button>
+            </div>
           </main>
         </section>
+        </div>
       </main>
     </div>
   );
 
   function renderStep(stepId: string) {
+    if (receipt && isReceiptPanelStep(workflow, stepId)) {
+      return <ReceiptPanel receipt={receipt} totalAmount={totalAmount} currency={loadedTender.currency} documents={documents} onWithdraw={withdrawBid} canWithdraw={!saving && !uploading && isSubmitted} />;
+    }
+
     if (stepId === 'eligibility') {
       return (
-        <>
-          <div className="tender-detail-field-grid">
-            <CheckCard label="Confirm eligibility to participate" checked={Boolean(form.administrative.eligible)} onChange={(value) => patchAdmin('eligible', value)} />
-            <CheckCard label="Confirm tax and statutory compliance" checked={Boolean(form.administrative.taxCompliant)} onChange={(value) => patchAdmin('taxCompliant', value)} />
-            <CheckCard label="Confirm authorized representative" checked={Boolean(form.administrative.authorized)} onChange={(value) => patchAdmin('authorized', value)} />
-            <CheckCard label="Confirm mandatory documents are attached" checked={Boolean(form.administrative.documentsConfirmed)} onChange={(value) => patchAdmin('documentsConfirmed', value)} />
-          </div>
-          <RequirementPreview tender={loadedTender} />
-          <UploadBox envelope="ADMINISTRATIVE" title="Eligibility and administrative evidence" documentType="ADMINISTRATIVE_EVIDENCE" requirementKey="eligibility" onFiles={addFiles} {...uploadBoxState('eligibility')} />
-        </>
+        <EligibilityGate
+          gate={gate}
+          tender={loadedTender}
+          administrative={form.administrative}
+          onPatch={patchAdmin}
+          uploadBox={<UploadBox envelope="ADMINISTRATIVE" title="Eligibility and administrative evidence" documentType="ADMINISTRATIVE_EVIDENCE" requirementKey="eligibility" onFiles={addFiles} {...uploadBoxState('eligibility')} />}
+        />
       );
     }
     if (stepId === 'goods-technical') {
@@ -550,7 +615,17 @@ export function BiddingWorkspaceProcurexPage() {
       return (
         <div className="form-grid">
           <TextArea label="Delivery plan, milestones, and locations" value={String(form.technical.deliveryPlan || '')} onChange={(value) => patchTechnical('deliveryPlan', value)} />
+          <TextArea label="Service schedule and availability" value={String(form.technical.serviceSchedule || '')} onChange={(value) => patchTechnical('serviceSchedule', value)} />
+          <TextArea label="Coverage locations and response times" value={String(form.technical.serviceLocations || '')} onChange={(value) => patchTechnical('serviceLocations', value)} />
+        </div>
+      );
+    }
+    if (stepId === 'services-staffing') {
+      return (
+        <div className="form-grid">
           <TextArea label="Staffing, capacity, and continuity plan" value={String(form.technical.staffingPlan || '')} onChange={(value) => patchTechnical('staffingPlan', value)} />
+          <TextArea label="Named personnel and role coverage" value={String(form.technical.personnelPlan || '')} onChange={(value) => patchTechnical('personnelPlan', value)} />
+          <TextArea label="Tools, equipment, and continuity arrangements" value={String(form.technical.continuityPlan || '')} onChange={(value) => patchTechnical('continuityPlan', value)} />
         </div>
       );
     }
@@ -559,6 +634,7 @@ export function BiddingWorkspaceProcurexPage() {
         <div className="form-grid">
           <TextArea label="SLA commitment" value={String(form.technical.sla || '')} onChange={(value) => patchTechnical('sla', value)} />
           <TextArea label="Reporting plan" value={String(form.technical.reportingPlan || '')} onChange={(value) => patchTechnical('reportingPlan', value)} />
+          <TextArea label="Performance, ESG, and labor compliance" value={String(form.technical.performanceCompliance || '')} onChange={(value) => patchTechnical('performanceCompliance', value)} />
           <UploadBox envelope="TECHNICAL" title="SLA, staffing, and reporting evidence" documentType="SERVICE_TECHNICAL_EVIDENCE" requirementKey="services-sla" onFiles={addFiles} {...uploadBoxState('services-sla')} />
         </div>
       );
@@ -592,31 +668,15 @@ export function BiddingWorkspaceProcurexPage() {
       );
     }
     if (stepId === 'review') {
-      return <ReviewPanel workflow={workflow} form={form} documents={documents} issues={validationIssues} totalAmount={totalAmount} currency={loadedTender.currency} />;
-    }
-    if (stepId === 'declaration') {
       return (
         <>
-          <div className="form-grid">
-            <Input label="Authorized representative" value={String(form.declarations.representativeName || '')} onChange={(value) => patchDeclaration('representativeName', value)} />
-            <Input label="Position" value={String(form.declarations.position || '')} onChange={(value) => patchDeclaration('position', value)} />
-          </div>
-          <div className="tender-detail-field-grid">
-            <CheckCard label="I confirm the bid is accurate and complete" checked={Boolean(form.declarations.confirmAccuracy)} onChange={(value) => patchDeclaration('confirmAccuracy', value)} />
-            <CheckCard label="I accept the tender and contract terms" checked={Boolean(form.declarations.acceptTerms)} onChange={(value) => patchDeclaration('acceptTerms', value)} />
-            <CheckCard label="I declare no conflict of interest" checked={Boolean(form.declarations.noConflict)} onChange={(value) => patchDeclaration('noConflict', value)} />
-            <CheckCard label="I confirm anti-corruption compliance" checked={Boolean(form.declarations.antiCorruption)} onChange={(value) => patchDeclaration('antiCorruption', value)} />
-          </div>
-          <div className="submit-strip">
-            <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={saveDraft}>
-              Save Draft
-            </button>
-            <button className="btn btn-primary" type="button" disabled={saving || uploading || isSubmitted} onClick={submitBid}>
-              Submit Sealed Bid
-            </button>
-          </div>
+          <ReviewPanel workflow={workflow} form={form} documents={documents} issues={validationIssues} totalAmount={totalAmount} currency={loadedTender.currency} gate={gate} />
+          {reviewIncludesDeclaration(workflow) ? <DeclarationSubmitPanel saving={saving} uploading={uploading} isSubmitted={isSubmitted} form={form} onPatch={patchDeclaration} onSave={saveDraft} onSubmit={submitBid} /> : null}
         </>
       );
+    }
+    if (stepId === 'declaration') {
+      return <DeclarationSubmitPanel saving={saving} uploading={uploading} isSubmitted={isSubmitted} form={form} onPatch={patchDeclaration} onSave={saveDraft} onSubmit={submitBid} />;
     }
     return (
       <div className="record-summary tender-detail-summary">
@@ -683,9 +743,9 @@ function WorkspaceEmpty({ message }: { message: string }) {
   );
 }
 
-function StepPanel({ kicker, title, badge, children }: { kicker: string; title: string; badge: string; children: ReactNode }) {
+function StepPanel({ kicker, title, description, badge, className, children }: { kicker: string; title: string; description: string; badge: string; className?: string; children: ReactNode }) {
   return (
-    <article className="journey-panel active">
+    <article className={`journey-panel active ${className ?? ''}`}>
       <div className="panel-heading">
         <div>
           <span className="section-kicker">{kicker}</span>
@@ -693,8 +753,45 @@ function StepPanel({ kicker, title, badge, children }: { kicker: string; title: 
         </div>
         <span className="badge badge-info">{badge}</span>
       </div>
+      <div className="bid-step-intro">
+        <strong>{title}</strong>
+        <span>{description}</span>
+      </div>
       {children}
     </article>
+  );
+}
+
+function BidAssistancePanel({ tender, saving, uploading, isSubmitted, onSave, onReview, onWithdraw }: { tender: TenderDetail; saving: boolean; uploading: boolean; isSubmitted: boolean; onSave: () => void; onReview: () => void; onWithdraw: () => void }) {
+  const primaryDocument = tender.documents?.[0]?.name || 'Tender document';
+  return (
+    <aside className="bid-assistance-panel">
+      <span className="section-kicker">Bid Assistance</span>
+      <Link className="btn btn-secondary" to={`/procurement/supplier-tender-detail?tenderId=${tender.id}`}>
+        View Tender Details
+      </Link>
+      <Link className="btn btn-secondary" to="/communication">
+        Ask Clarification
+      </Link>
+      <button className="btn btn-secondary" type="button" disabled>
+        {`Download ${primaryDocument}`}
+      </button>
+      <button className="btn btn-secondary" type="button" disabled>
+        Contact Procurement Office
+      </button>
+      <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSave}>
+        Save Draft
+      </button>
+      {isSubmitted ? (
+        <button className="btn btn-secondary" type="button" disabled={saving || uploading} onClick={onWithdraw}>
+          Withdraw
+        </button>
+      ) : (
+        <button className="btn btn-primary" type="button" disabled={saving || uploading} onClick={onReview}>
+          Review Submission
+        </button>
+      )}
+    </aside>
   );
 }
 
@@ -1034,10 +1131,52 @@ function RequirementPreview({ tender }: { tender: TenderDetail }) {
   );
 }
 
-function ReviewPanel({ workflow, form, documents, issues, totalAmount, currency }: { workflow: WorkflowType; form: BidFormState; documents: BidDocumentState[]; issues: string[]; totalAmount: number; currency: string }) {
+function EligibilityGate({ gate, tender, administrative, onPatch, uploadBox }: { gate: GateStatus; tender: TenderDetail; administrative: Record<string, unknown>; onPatch: (key: string, value: boolean | string) => void; uploadBox: ReactNode }) {
+  const previewRows = tender.requirementRows?.length ? tender.requirementRows : requirementRowsFromJson(tender.requirements);
+  return (
+    <>
+      <div className={`bid-gate-status ${gate.complete ? 'balanced' : ''}`}>
+        {gate.message}
+      </div>
+      <div className="bid-prequalification-note">
+        <strong>Eligibility and document requirements</strong>
+        <span>Upload administrative eligibility documents and complete required confirmations before moving forward. Technical uploads are completed in the technical response steps, and financial capacity uploads are completed in the financial offer.</span>
+      </div>
+      <section className="bid-gate-group">
+        <div className="bid-gate-group-heading">
+          <div>
+            <span className="section-kicker">Eligibility declarations/confirmations</span>
+            <h3>Mandatory supplier confirmations</h3>
+          </div>
+          <span className={`badge ${gate.complete ? 'badge-success' : 'badge-warning'}`}>{gate.complete ? 'Gate complete' : `${gate.remaining} remaining`}</span>
+        </div>
+        <div className="tender-detail-field-grid">
+          <CheckCard label="Confirm eligibility to participate" checked={Boolean(administrative.eligible)} onChange={(value) => onPatch('eligible', value)} />
+          <CheckCard label="Confirm tax and statutory compliance" checked={Boolean(administrative.taxCompliant)} onChange={(value) => onPatch('taxCompliant', value)} />
+          <CheckCard label="Confirm authorized representative" checked={Boolean(administrative.authorized)} onChange={(value) => onPatch('authorized', value)} />
+          <CheckCard label="Confirm mandatory documents are attached" checked={Boolean(administrative.documentsConfirmed)} onChange={(value) => onPatch('documentsConfirmed', value)} />
+        </div>
+        {uploadBox}
+      </section>
+      <div className="tender-detail-card-list">
+        {gate.items.map((item) => (
+          <article className={`supplier-requirement-preview ${item.complete ? 'completed' : ''}`} key={item.id}>
+            <span>{item.category}</span>
+            <strong>{item.label}</strong>
+            <p>{item.complete ? 'Complete' : item.mandatory ? 'Mandatory gate item pending.' : 'Optional item for review.'}</p>
+          </article>
+        ))}
+      </div>
+      {previewRows.length ? <RequirementPreview tender={tender} /> : null}
+    </>
+  );
+}
+
+function ReviewPanel({ workflow, form, documents, issues, totalAmount, currency, gate }: { workflow: WorkflowType; form: BidFormState; documents: BidDocumentState[]; issues: string[]; totalAmount: number; currency: string; gate: GateStatus }) {
   return (
     <>
       <div className="record-summary tender-detail-summary">
+        <SummaryItem label="Eligibility readiness" value={gate.complete ? 'Complete' : `${gate.remaining} pending`} />
         <SummaryItem label="Workflow" value={workflowLabel(workflow)} />
         <SummaryItem label="Administrative" value={form.administrative.eligible && form.administrative.authorized ? 'Complete' : 'Incomplete'} />
         <SummaryItem label="Technical responses" value={responseList(workflow, form).length ? `${responseList(workflow, form).length} response groups` : 'Incomplete'} />
@@ -1049,12 +1188,71 @@ function ReviewPanel({ workflow, form, documents, issues, totalAmount, currency 
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function DeclarationSubmitPanel({ saving, uploading, isSubmitted, form, onPatch, onSave, onSubmit }: { saving: boolean; uploading: boolean; isSubmitted: boolean; form: BidFormState; onPatch: (key: string, value: boolean | string) => void; onSave: () => void; onSubmit: () => void }) {
   return (
-    <div className="kpi-card">
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-label">{label}</div>
-    </div>
+    <>
+      <div className="form-grid">
+        <Input label="Authorized representative" value={String(form.declarations.representativeName || '')} onChange={(value) => onPatch('representativeName', value)} />
+        <Input label="Position" value={String(form.declarations.position || '')} onChange={(value) => onPatch('position', value)} />
+      </div>
+      <div className="tender-detail-field-grid">
+        <CheckCard label="I confirm the bid is accurate and complete" checked={Boolean(form.declarations.confirmAccuracy)} onChange={(value) => onPatch('confirmAccuracy', value)} />
+        <CheckCard label="I accept the tender and contract terms" checked={Boolean(form.declarations.acceptTerms)} onChange={(value) => onPatch('acceptTerms', value)} />
+        <CheckCard label="I declare no conflict of interest" checked={Boolean(form.declarations.noConflict)} onChange={(value) => onPatch('noConflict', value)} />
+        <CheckCard label="I confirm anti-corruption compliance" checked={Boolean(form.declarations.antiCorruption)} onChange={(value) => onPatch('antiCorruption', value)} />
+      </div>
+      <div className="submit-strip">
+        <div>
+          <strong>Ready to seal</strong>
+          <span>The system will check required responses, seal the bid package, and store a receipt.</span>
+        </div>
+        <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSave}>
+          Save Draft
+        </button>
+        <button className="btn btn-primary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSubmit}>
+          Submit Sealed Bid
+        </button>
+      </div>
+    </>
+  );
+}
+
+function ReceiptPanel({ receipt, totalAmount, currency, documents, onWithdraw, canWithdraw }: { receipt: BidReceiptDto; totalAmount: number; currency: string; documents: BidDocumentState[]; onWithdraw: () => void; canWithdraw: boolean }) {
+  return (
+    <>
+      <section className="bid-submission-confirmation">
+        <div className="bid-submission-confirmation-mark">OK</div>
+        <div>
+          <span className="section-kicker">Bid submitted successfully</span>
+          <h3>Submission receipt</h3>
+          <p>Your bid is sealed and cannot be modified after submission. Use withdrawal before the deadline when the tender rules allow it.</p>
+        </div>
+        <div className="record-summary">
+          <SummaryItem label="Tender" value={receipt.bid.tenderReference || receipt.bid.tenderId} />
+          <SummaryItem label="Submitted" value={formatDate(receipt.createdAt)} />
+          <SummaryItem label="Submission Receipt No" value={receipt.receiptHash || receipt.receiptRef} />
+          <SummaryItem label="Bid total" value={formatMoney(totalAmount || receipt.bid.totalAmount, currency)} />
+          <SummaryItem label="Files" value={`${documents.length} document${documents.length === 1 ? '' : 's'} uploaded`} />
+          <SummaryItem label="Bid reference" value={receipt.bid.reference} />
+        </div>
+        <div className="inline-actions">
+          <button className="btn btn-secondary" type="button" disabled>
+            Download Bid Record
+          </button>
+          <button className="btn btn-secondary" type="button" disabled>
+            Print Submission Receipt
+          </button>
+          {canWithdraw ? (
+            <button className="btn btn-secondary" type="button" onClick={onWithdraw}>
+              Withdraw Submission
+            </button>
+          ) : null}
+          <Link className="btn btn-primary" to="/dashboard">
+            Return to Dashboard
+          </Link>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -1134,37 +1332,71 @@ function workflowFromTender(tender?: TenderDetail | null): WorkflowType {
   const type = String(tender?.type || '').toLowerCase();
   if (type.includes('goods')) return 'goods';
   if (type.includes('works')) return 'works';
+  if (type.includes('non_consultancy') || type.includes('non consultancy') || type.includes('non-consultancy') || type.includes('service')) return 'services';
   if (type.includes('consultancy')) return 'consultancy';
-  if (type.includes('service') || type.includes('non consultancy')) return 'services';
   return 'generic';
 }
 
 function workflowSteps(workflow: WorkflowType, tender?: TenderDetail | null): Step[] {
-  const base: Step[] = [{ id: 'eligibility', label: 'Eligibility', title: 'Eligibility and Document Requirements', kicker: 'Step 01' }];
+  const step = (id: string, label: string, title: string, description: string, index: number): Step => ({
+    id,
+    label,
+    title,
+    description,
+    kicker: `Step ${String(index).padStart(2, '0')}`
+  });
+  const base: Step[] = [step('eligibility', 'Eligibility and Document Requirements', 'Eligibility and Document Requirements', 'Licenses, certifications, submission files, and document uploads', 1)];
   if (workflow === 'goods') {
-    base.push({ id: 'goods-technical', label: 'Technical Response', title: 'Technical Response', kicker: 'Step 02' });
-    base.push({ id: 'goods-financial', label: 'Financial Offer', title: 'Financial Offer', kicker: 'Step 03' });
-    if (hasSampleRequirements(tender)) base.push({ id: 'goods-samples', label: 'Samples', title: 'Sample Dispatch and Delivery Evidence', kicker: 'Step 04' });
+    base.push(step('goods-technical', 'Technical Response', 'Technical Response', 'Fill the buyer product specification table', 2));
+    base.push(step('goods-financial', 'Quantity Schedule / Financial Offer', 'Quantity Schedule / Financial Offer', 'Quantity schedule, delivery, and commercial terms', 3));
+    if (hasSampleRequirements(tender)) base.push(step('goods-samples', 'Samples', 'Sample Submission Response', 'Sample dispatch and delivery evidence', 4));
+    base.push(step('review', 'Review Submission', 'Review Submission', 'Check missing responses before declaration', base.length + 1));
+    base.push(step('declaration', 'Supplier Declaration and Submit', 'Supplier Declaration and Submit', 'Digital declaration and sealed submission', base.length + 1));
   } else if (workflow === 'works') {
-    base.push({ id: 'works-capacity', label: 'Technical Capacity', title: 'Technical Capacity', kicker: 'Step 02' });
-    base.push({ id: 'works-technical', label: 'Technical Proposal', title: 'Technical Proposal', kicker: 'Step 03' });
-    base.push({ id: 'works-financial', label: 'Financial Proposal', title: 'Financial Proposal', kicker: 'Step 04' });
+    base.push(step('works-capacity', 'Technical Capacity', 'Technical Capacity and Experience', 'Experience, personnel, equipment, finance, and HSE', 2));
+    base.push(step('works-technical', 'Technical Proposal', 'Technical Proposal and Work Program', 'Methodology, schedule, drawings, and site response', 3));
+    base.push(step('works-financial', 'Financial Proposal / BOQ Pricing', 'Financial Proposal / BOQ Pricing', 'BOQ pricing, cost breakdown, and commercial terms', 4));
+    base.push(step('review', 'Review Submission', 'Review Submission', 'Check missing contractor response items', 5));
+    base.push(step('declaration', 'Declaration and Submission', 'Declaration and Submission', 'Digital signing and final submission', 6));
   } else if (workflow === 'services') {
-    base.push({ id: 'services-methodology', label: 'Methodology', title: 'Methodology', kicker: 'Step 02' });
-    base.push({ id: 'services-delivery', label: 'Delivery Plan', title: 'Delivery Plan, Staffing, and Continuity', kicker: 'Step 03' });
-    base.push({ id: 'services-sla', label: 'SLA and Reporting', title: 'SLA and Reporting', kicker: 'Step 04' });
-    base.push({ id: 'services-commercial', label: 'Commercial Pricing', title: 'Commercial Pricing', kicker: 'Step 05' });
+    base.push(step('services-methodology', 'Methodology', 'Service Understanding and Methodology', 'Service understanding, workflow, QA, and risk approach', 2));
+    base.push(step('services-delivery', 'Delivery Plan', 'Service Schedule and Delivery Plan', 'Schedule, locations, SLA timers, and milestones', 3));
+    base.push(step('services-staffing', 'Staffing, Capacity and Continuity Plan', 'Staffing, Capacity and Continuity Plan', 'Roles, named personnel, tools, continuity, and capacity evidence', 4));
+    base.push(step('services-sla', 'SLA and Reporting', 'Performance, SLA, Reporting and Compliance', 'Performance metrics, reporting, ESG, and documents', 5));
+    base.push(step('services-commercial', 'Commercial Pricing', 'Commercial Pricing and Cost Breakdown', 'Cost breakdown, billing, taxes, milestones, and SLA-linked commercial terms', 6));
+    base.push(step('review', 'Review Submission', 'Review Submission', 'Review, declare, and submit service bid', 7));
   } else if (workflow === 'consultancy') {
-    base.push({ id: 'consultancy-technical', label: 'Technical Proposal', title: 'Technical Proposal', kicker: 'Step 02' });
-    base.push({ id: 'consultancy-financial', label: 'Financial Proposal', title: 'Financial Proposal', kicker: 'Step 03' });
+    base.push(step('consultancy-technical', 'Technical Proposal', 'Technical Proposal', 'TOR response, methodology, qualifications, evidence, and documents', 2));
+    base.push(step('consultancy-financial', 'Financial Proposal', 'Financial Proposal', 'Fees, reimbursables, taxes, validity, and payment terms', 3));
+    base.push(step('review', 'Review and Submit', 'Review and Submit', 'Check tender-required items and submit the sealed proposal', 4));
   } else {
-    base.push({ id: 'services-methodology', label: 'Dynamic Responses', title: 'Dynamic Responses', kicker: 'Step 02' });
-    base.push({ id: 'services-commercial', label: 'Financial Offer', title: 'Financial Offer', kicker: 'Step 03' });
+    base.push(step('services-methodology', 'Dynamic Responses', 'Dynamic Responses', 'Answer optional and technical tender requirements', 2));
+    base.push(step('services-commercial', 'Financial Offer', 'Financial Offer', 'Rates and commercial schedule', 3));
+    base.push(step('review', 'Review Submission', 'Review Submission', 'Review, declare, and submit sealed bid', 4));
+    base.push(step('receipt', 'Receipt', 'Receipt', 'Bid hash and post-submission actions', 5));
   }
-  base.push({ id: 'review', label: 'Review Submission', title: 'Review Submission', kicker: `Step ${String(base.length + 1).padStart(2, '0')}` });
-  base.push({ id: 'declaration', label: 'Declaration and Submit', title: 'Declaration and Submit', kicker: `Step ${String(base.length + 1).padStart(2, '0')}` });
-  base.push({ id: 'receipt', label: 'Receipt', title: 'Receipt', kicker: `Step ${String(base.length + 1).padStart(2, '0')}` });
   return base;
+}
+
+function reviewIncludesDeclaration(workflow: WorkflowType) {
+  return workflow === 'services' || workflow === 'consultancy' || workflow === 'generic';
+}
+
+function receiptStepIndex(steps: Step[], workflow: WorkflowType) {
+  if (workflow === 'generic') {
+    const receiptIndex = steps.findIndex((step) => step.id === 'receipt');
+    return receiptIndex > -1 ? receiptIndex : Math.max(0, steps.length - 1);
+  }
+  const reviewIndex = steps.findIndex((step) => step.id === 'review');
+  const declarationIndex = steps.findIndex((step) => step.id === 'declaration');
+  if (workflow === 'services' || workflow === 'consultancy') return reviewIndex > -1 ? reviewIndex : Math.max(0, steps.length - 1);
+  return declarationIndex > -1 ? declarationIndex : Math.max(0, steps.length - 1);
+}
+
+function isReceiptPanelStep(workflow: WorkflowType, stepId: string) {
+  if (workflow === 'generic') return stepId === 'receipt';
+  if (workflow === 'services' || workflow === 'consultancy') return stepId === 'review';
+  return stepId === 'declaration';
 }
 
 function mergeTenderDefaults(current: BidFormState, tender: TenderDetail, workflow: WorkflowType): BidFormState {
@@ -1337,6 +1569,62 @@ function hasSampleRequirements(tender?: TenderDetail | null) {
   return normalizeSampleRequirements(tender).length > 0 || summary.requireSamples === 'Yes' || summary.requireSamples === true || requirements.requireSamples === 'Yes' || requirements.requireSamples === true;
 }
 
+function bidGateStatus(form: BidFormState, documents: BidDocumentState[], tender?: TenderDetail | null): GateStatus {
+  const hasUploadedAdministrativeEvidence = documents.some((document) => {
+    const metadata = objectPayload(document.metadata);
+    return document.envelope === 'ADMINISTRATIVE' || metadata.requirementKey === 'eligibility' || document.documentType === 'ADMINISTRATIVE_EVIDENCE';
+  });
+  const hasAdministrativeEvidence = hasUploadedAdministrativeEvidence || form.administrative.documentsConfirmed === true;
+  const items: GateItem[] = [
+    { id: 'eligible', label: 'Confirm eligibility to participate', category: 'Eligibility declarations/confirmations', mandatory: true, complete: form.administrative.eligible === true },
+    { id: 'taxCompliant', label: 'Confirm tax and statutory compliance', category: 'Eligibility declarations/confirmations', mandatory: true, complete: form.administrative.taxCompliant === true },
+    { id: 'authorized', label: 'Confirm authorized representative', category: 'Eligibility declarations/confirmations', mandatory: true, complete: form.administrative.authorized === true },
+    { id: 'documentsConfirmed', label: 'Confirm mandatory documents are attached', category: 'Submission documents', mandatory: true, complete: form.administrative.documentsConfirmed === true },
+    { id: 'administrativeEvidence', label: 'Upload eligibility and administrative evidence', category: 'Licenses and certifications', mandatory: true, complete: hasAdministrativeEvidence }
+  ];
+
+  gateRequirementRows(tender).forEach((row, index) => {
+    items.push({
+      id: `buyer-gate-${index}`,
+      label: payloadTitle(row.payload, row.section),
+      category: humanize(row.section),
+      mandatory: false,
+      complete: false
+    });
+  });
+
+  const mandatoryItems = items.filter((item) => item.mandatory);
+  const completeMandatory = mandatoryItems.filter((item) => item.complete).length;
+  const remaining = Math.max(0, mandatoryItems.length - completeMandatory);
+  const complete = remaining === 0;
+  const uploadPending = !hasAdministrativeEvidence;
+  const message = complete
+    ? 'License and mandatory evidence gate complete. You can continue to the bid workflow.'
+    : uploadPending
+      ? `Upload ${uploadPending ? 1 : 0} required administrative evidence file and complete eligibility evidence to unlock the bid workflow.`
+      : `${completeMandatory} of ${mandatoryItems.length} mandatory requirements complete. Complete ${remaining} more to continue.`;
+
+  return {
+    items,
+    mandatoryTotal: mandatoryItems.length,
+    completeMandatory,
+    remaining,
+    complete,
+    message
+  };
+}
+
+function gateRequirementRows(tender?: TenderDetail | null) {
+  const rows = tender?.requirementRows?.length ? tender.requirementRows : requirementRowsFromJson(tender?.requirements);
+  return rows
+    .filter((row) => {
+      const section = row.section.toLowerCase();
+      const summary = `${payloadTitle(row.payload, row.section)} ${payloadSummary(row.payload)}`.toLowerCase();
+      return /license|certificate|registration|tax|eligibility|submission|authorization|administrative/.test(`${section} ${summary}`);
+    })
+    .slice(0, 6);
+}
+
 function sampleOptionsFromTender(tender?: TenderDetail | null, requirements: SampleRequirement[] = []): SampleItemOption[] {
   const requirementOptions = requirements
     .filter((requirement) => requirement.relatedItem)
@@ -1393,10 +1681,11 @@ function buyerSampleSummary(sample: BidSampleDto) {
   return 'Awaiting buyer update';
 }
 
-function stepBadge(stepId: string, issues: string[], documents: BidDocumentState[], receipt: BidReceiptDto | null) {
+function stepBadge(stepId: string, issues: string[], documents: BidDocumentState[], receipt: BidReceiptDto | null, gate: GateStatus) {
+  if (receipt && (stepId === 'receipt' || stepId === 'review' || stepId === 'declaration')) return 'Submitted';
   if (stepId === 'receipt') return receipt ? 'Submitted' : 'Pending';
   if (stepId === 'review') return `${issues.length} issues`;
-  if (stepId === 'eligibility') return `${documents.length} files`;
+  if (stepId === 'eligibility') return gate.complete ? 'Gate complete' : `${gate.remaining} remaining`;
   return issues.length ? 'In progress' : 'Ready';
 }
 

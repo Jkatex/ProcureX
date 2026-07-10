@@ -2,6 +2,7 @@ import { BidSampleStatus, BidStatus, TenderStatus, Visibility } from '@prisma/cl
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { ModuleRepository, tenderAcceptsBids, toBidDto } from './repository.js';
 import { parseAndStoreBidDocuments, removeStoredBidDocument, validateBidDocumentDescriptor } from './bidDocumentUpload.service.js';
+import { buildBidSubmissionSchema } from './bidSubmissionSchema.service.js';
 import {
   moduleDefinition,
   type BidDocumentInput,
@@ -59,6 +60,16 @@ export class ModuleService {
     return bid ? toBidDto(bid) : null;
   }
 
+  async getTenderSchema(token: string | undefined, tenderId: string) {
+    const session = await this.identity.requirePermission(token, 'bidding.submit');
+    const supplierOrgId = requireOrganization(session.user.organizationId);
+    const tender = await this.repository.findTenderForSchema(tenderId);
+    if (!tender) throw requestError('Tender was not found.', 404);
+    assertSupplierCanBidOnTender(tender, supplierOrgId);
+    assertTenderAcceptsBidMutations(tender);
+    return buildBidSubmissionSchema(tender);
+  }
+
   async saveDraft(token: string | undefined, tenderId: string, draft: BidDraftInput) {
     const session = await this.identity.requirePermission(token, 'bidding.submit');
     const supplierOrgId = requireOrganization(session.user.organizationId);
@@ -68,7 +79,7 @@ export class ModuleService {
     const existing = tender.bids.find((item) => item.status !== BidStatus.WITHDRAWN);
     if (existing?.status === BidStatus.SUBMITTED) throw requestError('This bid has already been submitted.', 409);
     assertTenderAcceptsBidMutations(tender);
-    const validation = validateBidDraft({ draft, tender, mode: 'draft' });
+    const validation = validateBidDraft({ draft, tender, samples: existing?.samples ?? [], mode: 'draft' });
     const saved = await this.repository.saveDraft({
       tender,
       supplierOrgId,
@@ -97,7 +108,8 @@ export class ModuleService {
     if (!tender) throw requestError('Tender was not found.', 404);
     assertSupplierCanBidOnTender(tender, bid.supplierOrgId);
     assertTenderAcceptsBidMutations(tender);
-    const validation = validateBidDraft({ draft, tender, mode: 'draft' });
+    const existing = tender.bids.find((item) => item.id === bid.id);
+    const validation = validateBidDraft({ draft, tender, samples: existing?.samples ?? bid.samples ?? [], mode: 'draft' });
     const saved = await this.repository.saveDraft({
       tender,
       supplierOrgId: bid.supplierOrgId,

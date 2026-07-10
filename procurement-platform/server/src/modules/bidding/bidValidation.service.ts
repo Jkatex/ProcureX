@@ -1,92 +1,118 @@
+import { buildBidSubmissionSchema } from './bidSubmissionSchema.service.js';
 import type {
   BidDocumentInput,
   BidDto,
   BidDraftInput,
+  BidSubmissionSchemaDto,
+  BidSubmissionSchemaFieldDto,
   BidValidationIssue,
+  BidValidationMissingRequiredField,
   BidValidationResult,
   BidValidationSeverity
 } from './types.js';
 
+type BidSampleLike = {
+  sampleName?: unknown;
+  relatedItem?: unknown;
+  quantity?: unknown;
+  metadata?: unknown;
+};
+
+type TenderValidationInput = {
+  id?: string;
+  reference?: string;
+  title?: string;
+  type?: unknown;
+  requirements?: unknown;
+  metadata?: unknown;
+  requirementRows?: Array<{ id: string; section: string; payload: unknown }>;
+  commercialItems?: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: unknown;
+    unit: string | null;
+    rate: unknown;
+    total: unknown;
+    payload: unknown;
+  }>;
+  documents?: Array<{
+    label: string | null;
+    document?: { id: string; name: string; documentType: string };
+  }>;
+};
+
 export function validateBidDraft(input: {
   draft: BidDraftInput;
-  tender: { type?: unknown; requirements?: unknown };
+  tender: TenderValidationInput;
   mode: 'draft' | 'submit';
+  samples?: BidSampleLike[];
 }): BidValidationResult {
-  const { draft, tender, mode } = input;
+  const { draft, mode } = input;
+  const schema = buildBidSubmissionSchema(schemaTender(input.tender));
   const issues: BidValidationIssue[] = [];
-  const blockerSeverity: BidValidationSeverity = mode === 'submit' ? 'error' : 'warning';
-  const administrative = objectPayload(draft.administrative);
-  const technical = objectPayload(draft.technical);
-  const financial = objectPayload(draft.financial);
-  const declarations = objectPayload(draft.declarations);
-  const requiredUploads = requiredUploadLabels(tender.requirements);
-  const documents = draft.documents ?? [];
+  const missingRequiredFields: BidValidationMissingRequiredField[] = [];
+  const severity: BidValidationSeverity = mode === 'submit' ? 'error' : 'warning';
+  const samples = input.samples ?? [];
+  const financialRows = Array.isArray(draft.financial?.items) ? draft.financial.items : [];
+  const financialFields = requiredFields(schema).filter((field) => field.section === 'financial' && field.responseType !== 'attachment');
+  const computedTotalAmount = computeFinancialTotal(financialRows, financialFields);
 
-  const addIssue = (section: string, field: string, message: string, severity: BidValidationSeverity = blockerSeverity) => {
-    issues.push({ section, field, message, severity });
+  const addRequiredIssue = (field: BidSubmissionSchemaFieldDto, message: string) => {
+    issues.push({ section: field.section, field: field.requirementKey, message, severity });
+    missingRequiredFields.push({
+      section: field.section,
+      field: field.id,
+      label: field.label,
+      requirementKey: field.requirementKey
+    });
   };
 
-  if (administrative.eligible !== true) addIssue('administrative', 'eligible', 'Eligibility confirmation is required.');
-  if (administrative.taxCompliant !== true) addIssue('administrative', 'taxCompliant', 'Tax compliance confirmation is required.');
-  if (administrative.authorized !== true) addIssue('administrative', 'authorized', 'Authorization confirmation is required.');
-
-  if (!nonEmptyString(technical.approach)) addIssue('technical', 'approach', 'Technical approach is required.');
-  if (!nonEmptyString(technical.deliveryPlan)) addIssue('technical', 'deliveryPlan', 'Delivery plan is required.');
-  const experienceMandatory = tenderRequiresExperience(tender.requirements);
-  if (!nonEmptyString(technical.experience)) {
-    addIssue(
-      'technical',
-      'experience',
-      experienceMandatory ? 'Experience is required by the tender requirements.' : 'Experience is recommended before submission.',
-      experienceMandatory ? blockerSeverity : 'warning'
-    );
+  for (const field of requiredFields(schema)) {
+    if (field.section === 'receipt' || field.section === 'review') continue;
+    if (field.type === 'file' || field.responseType === 'attachment') {
+      if (!hasRequiredDocument(field, draft)) addRequiredIssue(field, `Required document is missing: ${field.label}.`);
+      continue;
+    }
+    if (field.section === 'financial') {
+      const row = matchingFinancialRow(field, financialRows, financialFields);
+      if (!row) {
+        addRequiredIssue(field, `Required financial pricing is missing: ${field.label}.`);
+        continue;
+      }
+      const rowIssues = validateFinancialRow(row, field);
+      rowIssues.forEach((message) => addRequiredIssue(field, message));
+      continue;
+    }
+    if (field.section === 'samples') {
+      if (!hasRequiredSample(field, samples)) addRequiredIssue(field, `Required sample is missing: ${field.label}.`);
+      continue;
+    }
+    if (field.section === 'declarations') {
+      if (valueForField(field, draft) !== true) addRequiredIssue(field, `Required declaration must be accepted: ${field.label}.`);
+      continue;
+    }
+    if (!hasRequiredResponse(field, draft)) addRequiredIssue(field, `Required response is missing: ${field.label}.`);
   }
 
-  const financialRows = Array.isArray(financial.items) ? financial.items : [];
-  if (!Array.isArray(financial.items)) addIssue('financial', 'items', 'Financial items must be an array.');
-  if (!financialRows.length) addIssue('financial', 'items', 'At least one financial item is required.');
-  const computedTotalAmount = financialRows.reduce((sum, row, index) => {
-    if (!isRecord(row)) {
-      addIssue('financial', `items[${index}]`, 'Financial item must be an object.');
-      return sum;
-    }
-    if (!nonEmptyString(row.description)) addIssue('financial', `items[${index}].description`, 'Description is required.');
-    if (!nonEmptyString(row.unit)) addIssue('financial', `items[${index}].unit`, 'Unit is required.');
-    const quantity = numericValue(row.quantity);
-    const rate = numericValue(row.rate);
-    if (quantity === null || quantity <= 0) addIssue('financial', `items[${index}].quantity`, 'Quantity must be greater than 0.');
-    if (rate === null || rate < 0) addIssue('financial', `items[${index}].rate`, 'Rate must be greater than or equal to 0.');
-    return quantity !== null && quantity > 0 && rate !== null && rate >= 0 ? sum + quantity * rate : sum;
-  }, 0);
-  if (computedTotalAmount <= 0) addIssue('financial', 'totalAmount', 'Computed total amount must be greater than 0.');
-
-  if (declarations.confirmAccuracy !== true) addIssue('declarations', 'confirmAccuracy', 'Accuracy declaration is required.');
-  if (declarations.acceptTerms !== true) addIssue('declarations', 'acceptTerms', 'Terms acceptance is required.');
-  if (declarations.noConflict !== true) addIssue('declarations', 'noConflict', 'No-conflict declaration is required.');
-
-  documents.forEach((document, index) => {
-    if (!nonEmptyString(document.name)) addIssue('documents', `documents[${index}].name`, 'Document name is required.');
-    if (!nonEmptyString(document.documentType)) addIssue('documents', `documents[${index}].documentType`, 'Document type is required.');
-    if (!validEnvelope(document.envelope)) addIssue('documents', `documents[${index}].envelope`, 'Document envelope is invalid.');
-  });
-  for (const label of requiredUploads) {
-    if (!documents.some((document) => documentMatchesRequiredUpload(document, label))) {
-      addIssue('documents', normalizeField(label), `Required document is missing: ${label}.`);
-    }
+  validateDocumentDescriptors(draft.documents ?? [], issues, mode);
+  if (schema.steps.some((step) => step.id === 'financial') && financialFields.length > 0 && computedTotalAmount <= 0) {
+    issues.push({
+      section: 'financial',
+      field: 'computedTotalAmount',
+      message: 'Computed total amount must be greater than 0.',
+      severity
+    });
   }
 
   const hasError = issues.some((issue) => issue.severity === 'error');
   return {
     valid: !hasError,
     issues,
+    missingRequiredFields: uniqueMissingFields(missingRequiredFields),
     computedTotalAmount,
-    completeness: {
-      administrative: !issues.some((issue) => issue.section === 'administrative'),
-      technical: !issues.some((issue) => issue.section === 'technical'),
-      financial: !issues.some((issue) => issue.section === 'financial'),
-      declarations: !issues.some((issue) => issue.section === 'declarations'),
-      documents: !issues.some((issue) => issue.section === 'documents')
-    }
+    completeness: completeness(schema, issues),
+    schemaVersion: schema.schemaVersion
   };
 }
 
@@ -136,73 +162,202 @@ export function draftFromBidRecord(bid: {
   };
 }
 
-function requiredUploadLabels(requirements: unknown): string[] {
-  const fields = requirementFields(requirements);
-  const labels = new Set<string>();
-  collectNamedRows(fields.otherEligibilityRequirements, (row) => row.mandatory !== false && row.requiresUpload !== false, labels);
-  collectNamedRows(fields.supportingDocumentRows, (row) => row.mandatory !== false, labels);
-  collectNamedRows(fields.financialRequirementRows, (row) => row.mandatory !== false && nonEmptyString(row.evidenceRequired), labels, 'evidenceRequired');
-  collectRecursiveUploadRows(fields, labels);
-  return [...labels];
+function schemaTender(tender: TenderValidationInput) {
+  return {
+    id: tender.id ?? 'tender',
+    reference: tender.reference ?? '',
+    title: tender.title ?? '',
+    type: tender.type ?? 'GENERIC',
+    requirements: tender.requirements ?? {},
+    metadata: tender.metadata ?? {},
+    requirementRows: tender.requirementRows ?? [],
+    commercialItems: tender.commercialItems ?? [],
+    documents: tender.documents ?? []
+  };
 }
 
-function collectNamedRows(value: unknown, predicate: (row: Record<string, unknown>) => boolean, labels: Set<string>, preferredField?: string) {
-  if (!Array.isArray(value)) return;
-  value.filter(isRecord).filter(predicate).forEach((row) => {
-    const label = labelForRequirement(row, preferredField);
-    if (label) labels.add(label);
+function requiredFields(schema: BidSubmissionSchemaDto) {
+  return schema.steps.flatMap((step) => step.fields).filter((field) => field.required);
+}
+
+function hasRequiredDocument(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {
+  const documents = draft.documents ?? [];
+  return documents.some((document) => documentMatchesField(document, field)) || responseContainsDocument(field, draft);
+}
+
+function documentMatchesField(document: BidDocumentInput, field: BidSubmissionSchemaFieldDto) {
+  if (!validEnvelope(document.envelope)) return false;
+  const metadata = objectPayload(document.metadata);
+  if (stringEquals(metadata.requirementKey, field.requirementKey) || stringEquals(metadata.fieldId, field.id)) return true;
+  const documentText = normalize(`${document.name} ${document.documentType}`);
+  const label = normalize(field.label);
+  const requiredType = normalize(stringValue(field.validation.documentType));
+  const envelopeCompatible = !document.envelope || document.envelope === field.envelope || document.envelope === 'COMBINED';
+  return envelopeCompatible && Boolean((label && documentText.includes(label)) || (requiredType && documentText.includes(requiredType)));
+}
+
+function responseContainsDocument(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {
+  const response = responseForRequirement(field, draft);
+  if (!response) return false;
+  return containsDocumentDescriptor(response);
+}
+
+function containsDocumentDescriptor(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsDocumentDescriptor);
+  if (!isRecord(value)) return false;
+  if (nonEmptyString(value.documentId) || nonEmptyString(value.documentType) || nonEmptyString(value.checksum) || nonEmptyString(value.fileName) || nonEmptyString(value.name)) return true;
+  return Object.values(value).some(containsDocumentDescriptor);
+}
+
+function hasRequiredResponse(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {
+  const response = responseForRequirement(field, draft);
+  if (hasMeaningfulValue(response)) return true;
+  return hasMeaningfulValue(valueForField(field, draft));
+}
+
+function responseForRequirement(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput): unknown {
+  const exact = draft.responses.find((item) => item.requirementKey === field.requirementKey || item.requirementKey === field.id);
+  if (exact) return exact.response;
+  const normalizedTarget = normalize(field.requirementKey || field.id || field.label);
+  const fuzzy = draft.responses.find((item) => normalize(item.requirementKey) === normalizedTarget);
+  return fuzzy?.response;
+}
+
+function valueForField(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput): unknown {
+  const sectionPayload = objectPayload(draft[field.section as keyof Pick<BidDraftInput, 'administrative' | 'technical' | 'financial' | 'declarations'>]);
+  const candidates = [
+    field.requirementKey,
+    field.id,
+    field.id.split('.').slice(1).join('.'),
+    field.requirementKey.split('.').at(-1) ?? '',
+    field.id.split('.').at(-1) ?? '',
+    normalizeCamel(field.label)
+  ].filter(Boolean);
+  for (const key of candidates) {
+    const value = getByPath(sectionPayload, key);
+    if (value !== undefined) return value;
+    const directKey = Object.keys(sectionPayload).find((item) => normalize(item) === normalize(key));
+    if (directKey) return sectionPayload[directKey];
+  }
+  return undefined;
+}
+
+function matchingFinancialRow(field: BidSubmissionSchemaFieldDto, rows: unknown[], financialFields: BidSubmissionSchemaFieldDto[]) {
+  const itemId = stringValue(field.validation.itemId);
+  const itemNo = stringValue(field.validation.itemNo);
+  const description = stringValue(field.validation.description || field.label.replace(/^Unit rate for\s+/i, ''));
+  const index = financialFields.indexOf(field);
+  const candidates = rows.filter(isRecord);
+  return (
+    candidates.find((row) => itemId && [row.id, row.itemId, row.commercialItemId, row.requirementKey].some((value) => stringEquals(value, itemId))) ??
+    candidates.find((row) => itemNo && [row.itemNo, row.itemNumber, row.lineNo].some((value) => stringEquals(value, itemNo))) ??
+    candidates.find((row) => description && normalize(`${row.description ?? row.itemDescription ?? row.name ?? ''}`).includes(normalize(description))) ??
+    (financialFields.length === rows.length && isRecord(rows[index]) ? rows[index] as Record<string, unknown> : undefined)
+  );
+}
+
+function validateFinancialRow(row: Record<string, unknown>, field: BidSubmissionSchemaFieldDto) {
+  const messages: string[] = [];
+  const quantity = numericValue(row.quantity ?? field.validation.quantity);
+  const rate = numericValue(row.rate ?? row.unitRate ?? row.unitPrice);
+  const submittedTotal = numericValue(row.total ?? row.totalPrice ?? row.amount);
+  if (quantity === null || quantity <= 0) messages.push(`Quantity must be greater than 0 for ${field.label}.`);
+  if (rate === null || rate < 0) messages.push(`Rate must be greater than or equal to 0 for ${field.label}.`);
+  if (quantity !== null && quantity > 0 && rate !== null && rate >= 0 && submittedTotal !== null) {
+    const expected = roundMoney(quantity * rate);
+    if (Math.abs(roundMoney(submittedTotal) - expected) > 0.01) messages.push(`Total must equal quantity multiplied by rate for ${field.label}.`);
+  }
+  return messages;
+}
+
+function computeFinancialTotal(rows: unknown[], financialFields: BidSubmissionSchemaFieldDto[]) {
+  if (!rows.length) return 0;
+  const fields = financialFields.length ? financialFields : rows.map((_, index) => ({
+    id: `financial.items.${index}`,
+    requirementKey: `financial.items.${index}`,
+    label: `Financial item ${index + 1}`,
+    validation: {}
+  }) as BidSubmissionSchemaFieldDto);
+  return fields.reduce((sum, field) => {
+    const row = matchingFinancialRow(field, rows, fields);
+    if (!row) return sum;
+    const quantity = numericValue(row.quantity ?? field.validation.quantity);
+    const rate = numericValue(row.rate ?? row.unitRate ?? row.unitPrice);
+    return quantity !== null && quantity > 0 && rate !== null && rate >= 0 ? sum + quantity * rate : sum;
+  }, 0);
+}
+
+function hasRequiredSample(field: BidSubmissionSchemaFieldDto, samples: BidSampleLike[]) {
+  const label = normalize(field.label);
+  const relatedItem = normalize(stringValue(field.validation.relatedItem));
+  return samples.some((sample) => {
+    const metadata = objectPayload(sample.metadata);
+    if (stringEquals(metadata.requirementKey, field.requirementKey) || stringEquals(metadata.fieldId, field.id)) return true;
+    const sampleName = normalize(stringValue(sample.sampleName));
+    const sampleRelated = normalize(stringValue(sample.relatedItem));
+    return Boolean((label && sampleName && (sampleName.includes(label) || label.includes(sampleName))) || (relatedItem && sampleRelated && sampleRelated.includes(relatedItem)));
   });
 }
 
-function collectRecursiveUploadRows(value: unknown, labels: Set<string>) {
-  if (Array.isArray(value)) {
-    value.filter(isRecord).forEach((row) => {
-      if (row.mandatory !== false && row.requiresUpload === true) {
-        const label = labelForRequirement(row);
-        if (label) labels.add(label);
-      }
-      Object.values(row).forEach((child) => collectRecursiveUploadRows(child, labels));
-    });
-    return;
+function validateDocumentDescriptors(documents: BidDocumentInput[], issues: BidValidationIssue[], mode: 'draft' | 'submit') {
+  const severity: BidValidationSeverity = mode === 'submit' ? 'error' : 'warning';
+  documents.forEach((document, index) => {
+    if (!nonEmptyString(document.name)) issues.push({ section: 'documents', field: `documents[${index}].name`, message: 'Document name is required.', severity });
+    if (!nonEmptyString(document.documentType)) issues.push({ section: 'documents', field: `documents[${index}].documentType`, message: 'Document type is required.', severity });
+    if (!validEnvelope(document.envelope)) issues.push({ section: 'documents', field: `documents[${index}].envelope`, message: 'Document envelope is invalid.', severity });
+  });
+}
+
+function completeness(schema: BidSubmissionSchemaDto, issues: BidValidationIssue[]) {
+  const result: Record<string, boolean> = {};
+  for (const step of schema.steps) {
+    if (step.id === 'receipt') continue;
+    result[step.id] = !issues.some((issue) => issue.section === step.id || (step.id === 'administrative' && issue.section === 'documents'));
   }
-  if (isRecord(value)) Object.values(value).forEach((child) => collectRecursiveUploadRows(child, labels));
+  return result;
 }
 
-function labelForRequirement(row: Record<string, unknown>, preferredField?: string) {
-  const candidates = [
-    preferredField ? row[preferredField] : undefined,
-    row.documentName,
-    row.requirementName,
-    row.evidenceRequired,
-    row.license,
-    row.category,
-    row.documentTitle,
-    row.name
-  ];
-  return candidates.map(stringValue).find(Boolean);
+function uniqueMissingFields(fields: BidValidationMissingRequiredField[]) {
+  const seen = new Set<string>();
+  return fields.filter((field) => {
+    const key = `${field.section}:${field.requirementKey}:${field.field}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
-function tenderRequiresExperience(requirements: unknown) {
-  const fields = requirementFields(requirements);
-  return Boolean(fields.experienceMandatory || fields.experienceRequired || fields.similarCompletedProjectsRequired);
-}
-
-function requirementFields(requirements: unknown): Record<string, unknown> {
-  const root = objectPayload(requirements);
-  if (isRecord(root.fields)) return root.fields;
-  for (const value of Object.values(root)) {
-    if (isRecord(value) && isRecord(value.fields)) return value.fields;
+function getByPath(payload: Record<string, unknown>, path: string): unknown {
+  if (!path) return undefined;
+  const parts = path.split('.').filter(Boolean);
+  let current: unknown = payload;
+  for (const part of parts) {
+    if (!isRecord(current)) return undefined;
+    current = current[part];
   }
-  return root;
+  return current;
 }
 
-function documentMatchesRequiredUpload(document: BidDocumentInput, requiredLabel: string) {
-  const haystack = normalizeField(`${document.name} ${document.documentType}`);
-  const needle = normalizeField(requiredLabel);
-  return Boolean(needle && haystack.includes(needle));
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.some(hasMeaningfulValue);
+  if (isRecord(value)) {
+    for (const key of ['answer', 'value', 'text', 'comment', 'response', 'description', 'documentId', 'documentType', 'checksum', 'name']) {
+      if (hasMeaningfulValue(value[key])) return true;
+    }
+    return Object.values(value).some(hasMeaningfulValue);
+  }
+  return value !== undefined && value !== null && String(value).trim().length > 0;
 }
 
-function normalizeField(value: string) {
+function normalizeCamel(value: string) {
+  const words = normalize(value).split(' ').filter(Boolean);
+  return words.map((word, index) => (index === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1))).join('');
+}
+
+function normalize(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
@@ -215,12 +370,21 @@ function nonEmptyString(value: unknown) {
 }
 
 function stringValue(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
+  return typeof value === 'string' ? value.trim() : value === null || value === undefined ? '' : String(value).trim();
+}
+
+function stringEquals(left: unknown, right: unknown) {
+  return normalize(stringValue(left)) === normalize(stringValue(right));
 }
 
 function numericValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
 function objectPayload(value: unknown): Record<string, unknown> {

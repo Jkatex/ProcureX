@@ -54,6 +54,16 @@ export class ModuleController {
     }
   };
 
+  getTenderSchema: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderBidParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid tender id.');
+      res.json({ success: true, data: await this.service.getTenderSchema(bearerToken(req), params.data.tenderId) });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   saveTenderDraft: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderBidParamsSchema.safeParse(req.params);

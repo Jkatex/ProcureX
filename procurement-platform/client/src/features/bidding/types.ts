@@ -1,4 +1,5 @@
 export type BidDocumentEnvelope = 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' | 'COMBINED';
+export type BidWorkflowType = 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
 
 export type BidDocumentInput = {
   name: string;
@@ -19,7 +20,7 @@ export type BidDocumentUploadInput = {
 };
 
 export type BidDraftPayload = {
-  workflowType?: 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
+  workflowType?: BidWorkflowType;
   workflowVersion?: string;
   administrative: Record<string, unknown>;
   technical: Record<string, unknown>;
@@ -73,6 +74,57 @@ export type BidDto = {
 
 export type BidReceiptDto = NonNullable<BidDto['receipt']> & {
   bid: BidDto;
+};
+
+export type BidSubmissionStepId = 'administrative' | 'technical' | 'financial' | 'samples' | 'declarations' | 'review' | 'receipt';
+
+export type BidSubmissionFieldType = 'text' | 'textarea' | 'number' | 'date' | 'boolean' | 'select' | 'file' | 'table';
+
+export type BidSubmissionResponseType =
+  | 'acknowledgement'
+  | 'attachment'
+  | 'boolean'
+  | 'date'
+  | 'declaration'
+  | 'money'
+  | 'number'
+  | 'pricing'
+  | 'structured'
+  | 'text';
+
+export type BidSubmissionSchemaFieldDto = {
+  id: string;
+  requirementKey: string;
+  label: string;
+  type: BidSubmissionFieldType;
+  section: BidSubmissionStepId;
+  required: boolean;
+  responseType: BidSubmissionResponseType;
+  envelope: BidDocumentEnvelope;
+  source: string;
+  validation: Record<string, unknown>;
+};
+
+export type BidSubmissionSchemaStepDto = {
+  id: BidSubmissionStepId;
+  label: string;
+  envelope: BidDocumentEnvelope;
+  required: boolean;
+  fields: BidSubmissionSchemaFieldDto[];
+};
+
+export type BidSubmissionSchemaDto = {
+  tenderId: string;
+  tenderReference: string;
+  tenderTitle: string;
+  tenderType: string;
+  schemaVersion: 'bid-submission-schema-v1';
+  steps: BidSubmissionSchemaStepDto[];
+};
+
+export type BidSubmissionSchemaResponseDto = {
+  success: true;
+  data: BidSubmissionSchemaDto;
 };
 
 export type BidSampleStatusValue =

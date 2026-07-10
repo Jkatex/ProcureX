@@ -32,6 +32,22 @@ describe('biddingApi', () => {
     expect(formData.getAll('files')).toEqual([file]);
   });
 
+  it('gets a tender-driven bid schema', async () => {
+    const schema = {
+      tenderId: 'tender-1',
+      tenderReference: 'PX-2026-001',
+      tenderTitle: 'Supply of laptops',
+      tenderType: 'GOODS',
+      schemaVersion: 'bid-submission-schema-v1' as const,
+      steps: []
+    };
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: { success: true, data: schema } });
+
+    await expect(biddingApi.getTenderSchema('tender-1')).resolves.toBe(schema);
+
+    expect(get).toHaveBeenCalledWith('/api/bidding/tenders/tender-1/schema');
+  });
+
   it('lists bid samples', async () => {
     const samples = [sampleDto()];
     const get = vi.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: samples });

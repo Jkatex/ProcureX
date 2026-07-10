@@ -8,7 +8,9 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { canonicalJson, resolveBidEncryptionKey, sealBidPackage, sha256Hex, type CanonicalBidPackage } from './bidEncryption.service.js';
 import { parseAndStoreBidDocuments } from './bidDocumentUpload.service.js';
+import { buildBidSubmissionSchema } from './bidSubmissionSchema.service.js';
 import { validateBidDraft } from './bidValidation.service.js';
+import { ModuleController } from './controller.js';
 import { ModuleRepository, tenderAcceptsBids, toBidDto } from './repository.js';
 import { createModuleRouter } from './routes.js';
 import { ModuleService } from './service.js';
@@ -194,6 +196,7 @@ describe('bidding document upload helpers', () => {
 
 describe('bidding route registration smoke', () => {
   it.each([
+    ['GET', '/tenders/not-a-uuid/schema'],
     ['GET', '/tenders/not-a-uuid/draft'],
     ['POST', '/tenders/not-a-uuid/draft'],
     ['PATCH', '/not-a-uuid'],
@@ -208,6 +211,240 @@ describe('bidding route registration smoke', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.message).toMatch(/Invalid (bid|tender)/);
+  });
+
+  it('wraps tender schema responses in the public success envelope', async () => {
+    const schema = buildBidSubmissionSchema(schemaTender({ id: '11111111-1111-4111-8111-111111111111' }));
+    const service = {
+      getTenderSchema: vi.fn().mockResolvedValue(schema)
+    };
+    const controller = new ModuleController(service as any);
+    const req = {
+      params: { tenderId: '11111111-1111-4111-8111-111111111111' },
+      header: vi.fn().mockReturnValue('Bearer token-1')
+    };
+    const res = {
+      json: vi.fn()
+    };
+    const next = vi.fn();
+
+    await controller.getTenderSchema(req as any, res as any, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(service.getTenderSchema).toHaveBeenCalledWith('token-1', '11111111-1111-4111-8111-111111111111');
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: schema });
+  });
+});
+
+describe('bid submission schema builder', () => {
+  it('derives a goods schema from normalized items and tender JSON requirements', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'GOODS',
+        requirements: {
+          goods: {
+            fields: {
+              productSpecificationTemplate: { rows: [{ id: 'spec-1', specificationName: 'Mattress size', mandatory: true }] },
+              supportingDocumentRows: [{ id: 'doc-1', documentName: 'Manufacturer authorization', mandatory: true }],
+              sampleRequirementRows: [{ id: 'sample-1', sampleDescription: 'Hospital bed sample', relatedBoqItemId: 'item-1', numberOfSamples: '2', deliveryLocation: 'PMU office', mandatory: true }]
+            }
+          },
+          sampleRequirements: [{ id: 'sample-top', sampleName: 'Top-level sample', quantity: 1 }],
+          summary: { requireSamples: 'Yes' }
+        },
+        metadata: { evaluationCriteria: [{ id: 'criteria-1', name: 'Technical compliance', weight: 70 }] },
+        commercialItems: [
+          { id: 'item-1', itemNo: '1', description: 'Hospital bed', quantity: 10, unit: 'Each', rate: 100, total: 1000, payload: { source: 'boq' } }
+        ],
+        documents: [{ label: 'Tender document', document: { id: 'doc-tender', name: 'beds.pdf', documentType: 'PDF' } }]
+      })
+    );
+
+    expect(schema).toMatchObject({
+      tenderId: 'tender-1',
+      tenderReference: 'PX-2026-001',
+      tenderTitle: 'Supply of medical equipment',
+      tenderType: 'GOODS',
+      schemaVersion: 'bid-submission-schema-v1'
+    });
+    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'technical', 'financial', 'samples', 'declarations', 'review', 'receipt']);
+    expect(stepFields(schema, 'administrative')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: 'Manufacturer authorization', type: 'file', envelope: 'ADMINISTRATIVE', required: true })])
+    );
+    expect(stepFields(schema, 'technical')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Mattress size', envelope: 'TECHNICAL', responseType: 'text' }),
+        expect.objectContaining({ requirementKey: 'evaluationCriteria.criteria-1', label: 'Response for Technical compliance' })
+      ])
+    );
+    expect(stepFields(schema, 'financial')).toEqual([
+      expect.objectContaining({ requirementKey: 'commercialItems.item-1.unitRate', label: 'Unit rate for Hospital bed', responseType: 'money' })
+    ]);
+    expect(stepFields(schema, 'samples')).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Top-level sample', required: true })]));
+  });
+
+  it('derives works capacity, technical, BOQ, and document fields', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'WORKS',
+        requirements: {
+          works: {
+            fields: {
+              boqRows: [{ id: 'boq-1', itemDescription: 'Partition works', quantity: 1, unitOfMeasure: 'Lot' }],
+              personnelRequirementRows: [{ id: 'personnel-1', role: 'Site engineer', mandatory: true }],
+              equipmentRequirementRows: [{ id: 'equipment-1', equipmentName: 'Concrete mixer', mandatory: true }],
+              supportingDocumentRows: [{ id: 'doc-1', documentName: 'Contractor registration', mandatory: true }]
+            }
+          }
+        }
+      })
+    );
+
+    expect(schema.tenderType).toBe('WORKS');
+    expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['Site engineer', 'Concrete mixer']));
+    expect(stepFields(schema, 'financial')).toEqual([expect.objectContaining({ label: 'Unit rate for Partition works' })]);
+    expect(stepFields(schema, 'administrative')).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Contractor registration', type: 'file' })]));
+  });
+
+  it('derives service schedule, staffing, SLA, and commercial pricing sections', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'SERVICE',
+        requirements: {
+          services: {
+            fields: {
+              serviceScheduleRows: [{ id: 'schedule-1', name: 'Daily cleaning schedule', mandatory: true }],
+              personnelRequirementRows: [{ id: 'staff-1', role: 'Supervisor', mandatory: true }],
+              slaRows: [{ id: 'sla-1', name: 'Response time KPI', mandatory: true }],
+              commercialPricingRows: [{ id: 'price-1', description: 'Monthly cleaning', quantity: 12, unit: 'Month' }]
+            }
+          },
+          commercialItems: [{ id: 'service-line-1', description: 'Monthly cleaning', quantity: 12, unit: 'Month' }]
+        }
+      })
+    );
+
+    expect(schema.tenderType).toBe('SERVICE');
+    expect(schema.steps.map((step) => step.id)).toEqual(expect.arrayContaining(['technical', 'financial']));
+    expect(stepFields(schema, 'technical')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Supervisor' }),
+        expect.objectContaining({ label: 'Response time KPI' })
+      ])
+    );
+    expect(stepFields(schema, 'financial')).toEqual([expect.objectContaining({ label: 'Unit rate for Monthly cleaning' })]);
+  });
+
+  it('derives consultancy TOR, financial proposal, and evaluation criteria', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'CONSULTANCY',
+        requirements: {
+          consultancy: {
+            fields: {
+              torRows: [{ id: 'tor-1', title: 'TOR understanding', mandatory: true }],
+              deliverableRows: [{ id: 'deliverable-1', title: 'Inception report', mandatory: true }]
+            }
+          }
+        },
+        metadata: { evaluationCriteria: [{ name: 'Consultant methodology', weight: 80 }] }
+      })
+    );
+
+    expect(schema.tenderType).toBe('CONSULTANCY');
+    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'technical', 'financial', 'declarations', 'review', 'receipt']);
+    expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['TOR understanding', 'Inception report', 'Response for Consultant methodology']));
+    expect(stepFields(schema, 'financial')).toEqual([expect.objectContaining({ label: 'Financial proposal', envelope: 'FINANCIAL' })]);
+  });
+
+  it('falls back to JSON commercial items when normalized commercial items are absent', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'GOODS',
+        commercialItems: [],
+        requirements: {
+          commercialItems: [{ id: 'json-line-1', description: 'Desktop computer', quantity: 5, unit: 'Each', unitPrice: 2000 }]
+        }
+      })
+    );
+
+    expect(stepFields(schema, 'financial')).toEqual([
+      expect.objectContaining({
+        requirementKey: 'commercialItems.json-line-1.unitRate',
+        label: 'Unit rate for Desktop computer',
+        validation: expect.objectContaining({ quantity: 5, unit: 'Each' })
+      })
+    ]);
+  });
+
+  it('does not expose buyer-only or internal metadata in generated fields', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'GOODS',
+        requirements: {
+          goods: {
+            fields: {
+              productSpecificationTemplate: {
+                rows: [
+                  {
+                    id: 'spec-1',
+                    specificationName: 'Processor speed',
+                    mandatory: true,
+                    description: 'Supplier-facing response prompt',
+                    buyerOnlyNotes: 'Do not show this',
+                    internalScoringHint: 'Do not show this either'
+                  }
+                ]
+              }
+            }
+          }
+        },
+        metadata: {
+          evaluationCriteria: [{ id: 'criteria-1', name: 'Technical quality', weight: 100, privateNotes: 'Buyer scoring note' }]
+        }
+      })
+    );
+
+    const serialized = JSON.stringify(schema);
+    expect(serialized).toContain('Supplier-facing response prompt');
+    expect(serialized).not.toContain('Do not show this');
+    expect(serialized).not.toContain('internalScoringHint');
+    expect(serialized).not.toContain('Buyer scoring note');
+  });
+});
+
+describe('bidding tender schema service', () => {
+  it('returns a schema for a supplier-accessible tender', async () => {
+    const service = new ModuleService(
+      { health: vi.fn(), findTenderForSchema: vi.fn().mockResolvedValue(schemaTender()) } as any,
+      identityFor('supplier-org-1') as any
+    );
+
+    await expect(service.getTenderSchema('token-1', 'tender-1')).resolves.toMatchObject({
+      tenderId: 'tender-1',
+      tenderType: 'GOODS',
+      schemaVersion: 'bid-submission-schema-v1'
+    });
+  });
+
+  it('rejects buyer-owned and closed tenders', async () => {
+    const buyerService = new ModuleService(
+      { health: vi.fn(), findTenderForSchema: vi.fn().mockResolvedValue(schemaTender({ buyerOrgId: 'supplier-org-1' })) } as any,
+      identityFor('supplier-org-1') as any
+    );
+    await expect(buyerService.getTenderSchema('token-1', 'tender-1')).rejects.toMatchObject({
+      status: 403,
+      message: 'Buyers cannot bid on their own tenders.'
+    });
+
+    const closedService = new ModuleService(
+      { health: vi.fn(), findTenderForSchema: vi.fn().mockResolvedValue(schemaTender({ status: TenderStatus.CLOSED })) } as any,
+      identityFor('supplier-org-1') as any
+    );
+    await expect(closedService.getTenderSchema('token-1', 'tender-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'This tender is not open for bid submission.'
+    });
   });
 });
 
@@ -303,7 +540,20 @@ describe('bidding service rules', () => {
   });
 
   it('saves incomplete drafts with validation warnings and server-computed totals', async () => {
-    const tender = tenderRecord({ buyerOrgId: 'buyer-org-1', bids: [] });
+    const tender = tenderRecord({
+      type: 'GOODS',
+      buyerOrgId: 'buyer-org-1',
+      bids: [],
+      requirements: {
+        goods: {
+          fields: {
+            productSpecificationTemplate: { rows: [{ id: 'spec-1', specificationName: 'Processor speed', mandatory: true }] },
+            sampleRequirementRows: [{ id: 'sample-1', sampleDescription: 'Laptop sample', mandatory: true }]
+          }
+        }
+      },
+      commercialItems: [{ id: 'item-1', itemNo: '1', description: 'Line item', quantity: 2, unit: 'Pcs', rate: 0, total: 0, payload: {} }]
+    });
     const repository = {
       findTenderForBid: vi.fn().mockResolvedValue(tender),
       saveDraft: vi.fn().mockResolvedValue({ id: 'bid-1', totalAmount: 20 })
@@ -313,9 +563,10 @@ describe('bidding service rules', () => {
       ...draftInput(),
       administrative: {},
       technical: {},
-      financial: { items: [{ description: 'Line item', quantity: 2, unit: 'Pcs', rate: 10 }] },
+      financial: { items: [{ itemId: 'item-1', description: 'Line item', quantity: 2, unit: 'Pcs', rate: 10 }] },
       declarations: {},
-      totalAmount: 999999
+      totalAmount: 999999,
+      validationIssues: ['frontend:error:fake:Do not trust this']
     };
 
     const result = await service.saveDraft('token-1', 'tender-1', draft);
@@ -329,24 +580,33 @@ describe('bidding service rules', () => {
           administrative: false,
           technical: false,
           financial: true,
+          samples: false,
           declarations: false
-        })
+        }),
+        schemaVersion: 'bid-submission-schema-v1',
+        missingRequiredFields: expect.arrayContaining([
+          expect.objectContaining({ section: 'samples', label: 'Laptop sample', requirementKey: 'sampleRequirements.sample-1' }),
+          expect.objectContaining({ section: 'technical', label: 'Processor speed' })
+        ])
       }
     });
     expect(result.validation?.issues).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ section: 'technical', field: 'approach', severity: 'warning' }),
-        expect.objectContaining({ section: 'declarations', field: 'noConflict', severity: 'warning' })
+        expect.objectContaining({ section: 'technical', field: 'productSpecificationTemplate.spec-1', severity: 'warning' }),
+        expect.objectContaining({ section: 'samples', field: 'sampleRequirements.sample-1', severity: 'warning' }),
+        expect.objectContaining({ section: 'declarations', field: 'declarations.noConflict', severity: 'warning' })
       ])
     );
     expect(repository.saveDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         draft: expect.objectContaining({
           totalAmount: 20,
-          validationIssues: expect.arrayContaining([expect.stringContaining('warning:technical.approach')])
+          validationIssues: expect.arrayContaining([expect.stringContaining('warning:technical.productSpecificationTemplate.spec-1')])
         })
       })
     );
+    const savedDraft = (repository.saveDraft as any).mock.calls[0][0].draft;
+    expect(savedDraft.validationIssues).not.toContain('frontend:error:fake:Do not trust this');
   });
 
   it.each([
@@ -366,6 +626,43 @@ describe('bidding service rules', () => {
 
     expect(validation.valid).toBe(true);
     expect(validation.issues.filter((issue) => issue.severity === 'error')).toEqual([]);
+  });
+
+  it('validates required schema documents against uploaded bid documents', () => {
+    const tender = tenderRecord({
+      type: 'GOODS',
+      requirements: {
+        goods: {
+          fields: {
+            supportingDocumentRows: [{ id: 'doc-1', documentName: 'Manufacturer authorization', mandatory: true }]
+          }
+        }
+      }
+    });
+    const missing = validateBidDraft({
+      draft: { ...draftInput(), documents: [] },
+      tender,
+      mode: 'submit'
+    });
+    expect(missing.valid).toBe(false);
+    expect(missing.missingRequiredFields).toEqual([expect.objectContaining({ section: 'administrative', label: 'Manufacturer authorization' })]);
+
+    const present = validateBidDraft({
+      draft: {
+        ...draftInput(),
+        documents: [
+          {
+            name: 'manufacturer-authorization.pdf',
+            documentType: 'ADMIN_MANUFACTURER_AUTHORIZATION',
+            envelope: 'ADMINISTRATIVE',
+            metadata: { requirementKey: 'supportingDocumentRows.doc-1' }
+          }
+        ]
+      },
+      tender,
+      mode: 'submit'
+    });
+    expect(present.valid).toBe(true);
   });
 
   it('rejects non-open or private tenders before draft creation', async () => {
@@ -1216,14 +1513,58 @@ describe('bidding repository rules', () => {
       bid: bidRecord({
         payload: {
           ...validBidPayload(),
-          administrative: { eligible: true, taxCompliant: false, authorized: true }
+          declarations: { confirmAccuracy: true, acceptTerms: true, noConflict: false }
         }
       })
     });
 
     await expect(repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject({
       status: 400,
-      message: expect.stringContaining('administrative.taxCompliant')
+      message: expect.stringContaining('noConflict')
+    });
+    expectNoSubmitWrites(tx);
+  });
+
+  it('aborts transactional submit before writes when a required sample is missing', async () => {
+    const { repository, tx } = repositorySubmitFixture({
+      bid: bidRecord({
+        tender: tenderRecord({
+          type: 'GOODS',
+          requirements: {
+            goods: {
+              fields: {
+                sampleRequirementRows: [{ id: 'sample-1', sampleDescription: 'Laptop sample', mandatory: true }]
+              }
+            }
+          }
+        }),
+        samples: []
+      })
+    });
+
+    await expect(repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining('samples.sampleRequirements.sample-1')
+    });
+    expectNoSubmitWrites(tx);
+  });
+
+  it('aborts transactional submit before writes when a required financial rate is missing', async () => {
+    const { repository, tx } = repositorySubmitFixture({
+      bid: bidRecord({
+        tender: tenderRecord({
+          commercialItems: [{ id: 'item-1', itemNo: '1', description: 'Medical equipment', quantity: 1, unit: 'Lot', rate: 0, total: 0, payload: {} }]
+        }),
+        payload: {
+          ...validBidPayload(),
+          financial: { items: [{ itemId: 'item-1', description: 'Medical equipment', quantity: 1, unit: 'Lot' }] }
+        }
+      })
+    });
+
+    await expect(repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining('financial.commercialItems.item-1.unitRate')
     });
     expectNoSubmitWrites(tx);
   });
@@ -1300,6 +1641,33 @@ function tenderRecord(overrides: Record<string, unknown> = {}) {
     bids: [],
     ...overrides
   };
+}
+
+function schemaTender(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'tender-1',
+    reference: 'PX-2026-001',
+    title: 'Supply of medical equipment',
+    type: 'GOODS',
+    status: TenderStatus.OPEN,
+    visibility: Visibility.PUBLIC_MARKETPLACE,
+    closingDate: new Date(Date.now() + 86400000),
+    currency: 'TZS',
+    requirements: {},
+    metadata: {},
+    buyerOrgId: 'buyer-org-1',
+    buyerOrg: { id: 'buyer-org-1', name: 'Buyer Org' },
+    categories: [{ name: 'Medical equipment' }],
+    requirementRows: [],
+    milestones: [],
+    commercialItems: [],
+    documents: [],
+    ...overrides
+  };
+}
+
+function stepFields(schema: ReturnType<typeof buildBidSubmissionSchema>, stepId: string) {
+  return schema.steps.find((step) => step.id === stepId)?.fields ?? [];
 }
 
 function validBidPayload() {
@@ -1428,7 +1796,7 @@ function sampleDto(overrides: Record<string, unknown> = {}) {
     relatedItem: 'Laptop',
     quantity: 1,
     deliveryLocation: 'Procurement Unit, Dar es Salaam',
-    deliveryDeadline: new Date(Date.now() + 3600000).toISOString(),
+    deliveryDeadline: '2026-07-15T12:00:00.000Z',
     trackingStatus: BidSampleStatus.PENDING_SUBMISSION,
     courier: 'DHL',
     trackingNumber: 'DHL-123456',

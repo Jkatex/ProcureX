@@ -32,11 +32,20 @@ export type BidValidationIssue = {
   severity: BidValidationSeverity;
 };
 
+export type BidValidationMissingRequiredField = {
+  section: string;
+  field: string;
+  label: string;
+  requirementKey: string;
+};
+
 export type BidValidationResult = {
   valid: boolean;
   issues: BidValidationIssue[];
+  missingRequiredFields: BidValidationMissingRequiredField[];
   computedTotalAmount: number;
   completeness: Record<string, boolean>;
+  schemaVersion: string;
 };
 
 export type BidDraftInput = {
@@ -126,6 +135,59 @@ export type BidSampleDto = {
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+};
+
+export type BidSchemaEnvelope = 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' | 'COMBINED';
+
+export type BidSubmissionStepId = 'administrative' | 'technical' | 'financial' | 'samples' | 'declarations' | 'review' | 'receipt';
+
+export type BidSubmissionFieldType = 'text' | 'textarea' | 'number' | 'date' | 'boolean' | 'select' | 'file' | 'table';
+
+export type BidSubmissionResponseType =
+  | 'acknowledgement'
+  | 'attachment'
+  | 'boolean'
+  | 'date'
+  | 'declaration'
+  | 'money'
+  | 'number'
+  | 'pricing'
+  | 'structured'
+  | 'text';
+
+export type BidSubmissionSchemaFieldDto = {
+  id: string;
+  requirementKey: string;
+  label: string;
+  type: BidSubmissionFieldType;
+  section: BidSubmissionStepId;
+  required: boolean;
+  responseType: BidSubmissionResponseType;
+  envelope: BidSchemaEnvelope;
+  source: string;
+  validation: Record<string, unknown>;
+};
+
+export type BidSubmissionSchemaStepDto = {
+  id: BidSubmissionStepId;
+  label: string;
+  envelope: BidSchemaEnvelope;
+  required: boolean;
+  fields: BidSubmissionSchemaFieldDto[];
+};
+
+export type BidSubmissionSchemaDto = {
+  tenderId: string;
+  tenderReference: string;
+  tenderTitle: string;
+  tenderType: string;
+  schemaVersion: 'bid-submission-schema-v1';
+  steps: BidSubmissionSchemaStepDto[];
+};
+
+export type BidSubmissionSchemaResponseDto = {
+  success: true;
+  data: BidSubmissionSchemaDto;
 };
 
 export type CreateBidSampleInput = {

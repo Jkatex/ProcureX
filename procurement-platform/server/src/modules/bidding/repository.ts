@@ -5,21 +5,27 @@ import { canonicalJson, sealBidPackage, sha256Hex, type CanonicalBidPackage } fr
 import { draftFromBidRecord, validateBidDraft } from './bidValidation.service.js';
 import type { BidDocumentInput, BidDraftInput, BidDto, BidReceiptDto, BidSampleDto, CreateBidSampleInput, PatchBidSampleInput } from './types.js';
 
+const tenderValidationInclude = {
+  buyerOrg: { select: { id: true, name: true } },
+  requirementRows: { orderBy: { createdAt: 'asc' as const } },
+  commercialItems: { orderBy: { itemNo: 'asc' as const } },
+  documents: {
+    orderBy: { createdAt: 'asc' as const },
+    include: {
+      document: {
+        select: {
+          id: true,
+          name: true,
+          documentType: true
+        }
+      }
+    }
+  }
+} satisfies Prisma.TenderInclude;
+
 const bidInclude = {
   tender: {
-    select: {
-      id: true,
-      reference: true,
-      title: true,
-      type: true,
-      status: true,
-      visibility: true,
-      closingDate: true,
-      currency: true,
-      requirements: true,
-      buyerOrgId: true,
-      buyerOrg: { select: { id: true, name: true } }
-    }
+    include: tenderValidationInclude
   },
   buyerOrg: { select: { id: true, name: true } },
   supplierOrg: { select: { id: true, name: true } },
@@ -40,6 +46,7 @@ const bidInclude = {
       }
     }
   },
+  samples: { orderBy: { createdAt: 'asc' } },
   receipt: true
 } satisfies Prisma.BidInclude;
 
@@ -51,8 +58,15 @@ const tenderBidGuardInclude = {
   }
 } satisfies Prisma.TenderInclude;
 
+const tenderSchemaInclude = {
+  ...tenderValidationInclude,
+  categories: { orderBy: { name: 'asc' as const } },
+  milestones: { orderBy: { dueDate: 'asc' as const } }
+} satisfies Prisma.TenderInclude;
+
 type BidRecord = Prisma.BidGetPayload<{ include: typeof bidInclude }>;
 type TenderBidGuardRecord = Prisma.TenderGetPayload<{ include: typeof tenderBidGuardInclude }>;
+export type TenderSchemaRecord = Prisma.TenderGetPayload<{ include: typeof tenderSchemaInclude }>;
 type BidSampleRecord = Prisma.BidSampleGetPayload<object>;
 
 export class ModuleRepository {
@@ -72,6 +86,13 @@ export class ModuleRepository {
           where: { supplierOrgId }
         }
       }
+    });
+  }
+
+  findTenderForSchema(tenderId: string) {
+    return this.db.tender.findUnique({
+      where: { id: tenderId },
+      include: tenderSchemaInclude
     });
   }
 
@@ -112,7 +133,7 @@ export class ModuleRepository {
   }) {
     const existing = input.tender.bids.find((bid) => bid.status !== BidStatus.WITHDRAWN);
     const payload = buildPayload(input.draft);
-    const totalAmount = deriveTotalAmount(input.draft);
+    const totalAmount = input.draft.totalAmount ?? 0;
     const currency = input.draft.currency || input.tender.currency || 'TZS';
 
     try {
@@ -291,7 +312,7 @@ export class ModuleRepository {
         });
         if (duplicate) throw requestError('A submitted bid already exists for this tender.', 409);
 
-        const validation = validateBidDraft({ draft: draftFromBidRecord(fullBid), tender: fullBid.tender, mode: 'submit' });
+        const validation = validateBidDraft({ draft: draftFromBidRecord(fullBid), tender: fullBid.tender, samples: fullBid.samples, mode: 'submit' });
         if (!validation.valid) {
           const fields = validation.issues.filter((issue) => issue.severity === 'error').map((issue) => `${issue.section}.${issue.field}`);
           throw requestError(`Complete required bid sections before submitting: ${fields.join(', ')}.`, 400);
@@ -553,17 +574,6 @@ function buildPayload(draft: BidDraftInput) {
     completeness: draft.completeness,
     validationIssues: draft.validationIssues
   };
-}
-
-function deriveTotalAmount(draft: BidDraftInput) {
-  const rows = Array.isArray(draft.financial.items) ? draft.financial.items : [];
-  return rows.reduce((sum, row) => {
-    if (!row || typeof row !== 'object') return sum;
-    const record = row as Record<string, unknown>;
-    const quantity = Number(record.quantity ?? 0);
-    const rate = Number(record.rate ?? 0);
-    return Number.isFinite(quantity) && quantity > 0 && Number.isFinite(rate) && rate >= 0 ? sum + quantity * rate : sum;
-  }, 0);
 }
 
 async function replaceResponses(tx: Prisma.TransactionClient, bidId: string, responses: BidDraftInput['responses']) {

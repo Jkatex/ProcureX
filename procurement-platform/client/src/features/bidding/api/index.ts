@@ -1,5 +1,5 @@
 import { apiClient } from '@/shared/api/http';
-import type { BidDocumentInput, BidDocumentUploadInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, CreateBidSampleInput, PatchBidSampleInput } from '../types';
+import type { BidDocumentInput, BidDocumentUploadInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, BidSubmissionSchemaDto, BidSubmissionSchemaResponseDto, CreateBidSampleInput, PatchBidSampleInput } from '../types';
 
 export const biddingApi = {
   async listBids() {
@@ -9,6 +9,10 @@ export const biddingApi = {
   async getTenderDraft(tenderId: string) {
     const response = await apiClient.get<BidDto | null>(`/api/bidding/tenders/${tenderId}/draft`);
     return response.data;
+  },
+  async getTenderSchema(tenderId: string) {
+    const response = await apiClient.get<BidSubmissionSchemaResponseDto>(`/api/bidding/tenders/${tenderId}/schema`);
+    return response.data.data;
   },
   async saveTenderDraft(tenderId: string, payload: BidDraftPayload) {
     const response = await apiClient.post<BidDto>(`/api/bidding/tenders/${tenderId}/draft`, payload);

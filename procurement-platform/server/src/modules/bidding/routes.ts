@@ -7,6 +7,7 @@ export function createModuleRouter() {
 
   router.get('/', controller.status);
   router.get('/my', controller.listMine);
+  router.get('/tenders/:tenderId/schema', controller.getTenderSchema);
   router.get('/tenders/:tenderId/draft', controller.getTenderDraft);
   router.post('/tenders/:tenderId/draft', controller.saveTenderDraft);
   router.get('/:bidId', controller.getBid);
