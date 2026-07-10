@@ -3748,3 +3748,916 @@ body:not([data-page="iam-verification"]) .tender-wizard-page .wizard-rail {
     justify-content: flex-start;
   }
 }
+
+/* Create Tender production wizard: match the flat procurex-ui reference layout. */
+.tender-wizard-page {
+  --wizard-teal: #008080;
+  --wizard-teal-pressed: #006d6d;
+  --wizard-ink: #000000;
+  --wizard-text: #111827;
+  --wizard-muted: #4b5563;
+  --wizard-border: #d9dee3;
+  --wizard-border-soft: #e5e7eb;
+  --wizard-soft: #edf6f6;
+  --wizard-content-inset: clamp(24px, 2.35vw, 30px);
+  gap: 0;
+  padding: 0 16px 28px;
+  background: #f4f7fb;
+  color: var(--wizard-ink);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.tender-wizard-page .journey-hero.compact {
+  display: none !important;
+}
+
+.tender-wizard-page .wizard-shell {
+  max-width: none;
+  margin: 0;
+  gap: 0;
+}
+
+.tender-wizard-page .wizard-step-progress {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  min-height: 62px;
+  margin: 0 -16px;
+  padding: 0 32px;
+  border: 0;
+  border-bottom: 1px solid #e6ebf0;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  overflow: visible;
+}
+
+.tender-wizard-page .wizard-step-progress::before {
+  content: none;
+}
+
+.tender-wizard-page .wizard-progress-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #17212f;
+  text-align: center;
+}
+
+.tender-wizard-page .wizard-progress-step strong {
+  display: none;
+}
+
+.tender-wizard-page .wizard-progress-step span {
+  max-width: 220px;
+  color: #17212f;
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.tender-wizard-page .wizard-progress-step.active,
+.tender-wizard-page .wizard-progress-step:hover {
+  border-bottom-color: var(--wizard-teal);
+}
+
+.tender-wizard-page .wizard-progress-step.completed span {
+  color: #17212f;
+}
+
+.tender-wizard-page .wizard-workspace {
+  display: block;
+  padding-top: 38px;
+}
+
+.tender-wizard-page .journey-panel {
+  padding: clamp(24px, 2vw, 30px) !important;
+  border: 1px solid var(--wizard-border) !important;
+  border-top: 2px solid var(--wizard-teal) !important;
+  border-radius: 14px 14px 0 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.tender-wizard-page .journey-panel.active {
+  display: block;
+}
+
+.tender-wizard-page .journey-panel-content {
+  padding: 0;
+}
+
+.tender-wizard-page .wizard-step-surface {
+  gap: 28px;
+}
+
+.tender-wizard-page .panel-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 18px;
+  margin: 0 0 30px;
+  padding: 0 0 24px;
+  border-bottom: 1px solid var(--wizard-border);
+}
+
+.tender-wizard-page .panel-heading > div {
+  gap: 12px;
+}
+
+.tender-wizard-page .panel-heading h2 {
+  margin: 0;
+  color: #000000;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.tender-wizard-page .section-kicker {
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--wizard-soft);
+  color: #000000;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.tender-wizard-page .panel-heading > .badge,
+.tender-wizard-page .panel-heading > .status-badge {
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1px solid #f7c873;
+  border-radius: 9999px;
+  background: #fff8e8;
+  color: #9a5a00;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.tender-wizard-page .planning-section {
+  gap: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.tender-wizard-page .planning-section + .planning-section {
+  padding-top: 26px;
+  border-top: 1px solid var(--wizard-border);
+}
+
+.tender-wizard-page .planning-section-notice {
+  margin: 0 0 20px;
+  padding: 18px;
+  border: 1px solid #c8d3d6;
+  border-radius: 8px;
+  background: #eef5f5;
+  color: #000000;
+  font-size: 16px;
+}
+
+.tender-wizard-page .scope-list-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+}
+
+.tender-wizard-page .scope-list-heading h3,
+.tender-wizard-page .planning-section h3 {
+  color: #000000;
+  font-size: 18px;
+  line-height: 1.3;
+  font-weight: 800;
+}
+
+.tender-wizard-page .planning-section p,
+.tender-wizard-page .form-hint {
+  color: #000000;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.tender-wizard-page .form-grid,
+.tender-wizard-page .form-grid.two,
+.tender-wizard-page .contact-detail-grid,
+.tender-wizard-page .requirement-control-grid,
+.tender-wizard-page .license-check-grid,
+.tender-wizard-page .deliverable-attachment-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 18px;
+  row-gap: 20px;
+}
+
+.tender-wizard-page .form-group,
+.tender-wizard-page .planning-control-grid label,
+.tender-wizard-page .requirement-control-grid label,
+.tender-wizard-page .procurement-tender-row label {
+  gap: 8px;
+  color: #000000;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.tender-wizard-page .form-label {
+  color: #000000;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.tender-wizard-page input,
+.tender-wizard-page select,
+.tender-wizard-page textarea,
+.tender-wizard-page .form-input {
+  min-height: 64px;
+  padding: 12px 18px;
+  border: 1px solid var(--wizard-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.tender-wizard-page textarea,
+.tender-wizard-page textarea.form-input {
+  min-height: 112px;
+}
+
+.tender-wizard-page input:focus,
+.tender-wizard-page select:focus,
+.tender-wizard-page textarea:focus,
+.tender-wizard-page .form-input:focus {
+  border-color: var(--wizard-teal);
+  box-shadow: 0 0 0 3px rgba(0, 128, 128, 0.12);
+}
+
+.tender-wizard-page .contact-verify-row,
+.tender-wizard-page .market-row,
+.tender-wizard-page .planning-control-grid {
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 14px;
+}
+
+.tender-wizard-page .btn {
+  min-height: 58px;
+  padding: 14px 28px;
+  border: 1px solid var(--wizard-border);
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 800;
+  box-shadow: none;
+  transform: none;
+}
+
+.tender-wizard-page .btn:hover {
+  transform: none;
+}
+
+.tender-wizard-page .btn-primary {
+  border-color: var(--wizard-teal);
+  background: var(--wizard-teal);
+  color: #ffffff;
+}
+
+.tender-wizard-page .btn-primary:hover,
+.tender-wizard-page .btn-primary:active {
+  border-color: var(--wizard-teal-pressed);
+  background: var(--wizard-teal-pressed);
+}
+
+.tender-wizard-page .btn-secondary {
+  border-color: var(--wizard-border);
+  background: #ffffff;
+  color: #000000;
+}
+
+.tender-wizard-page .save-draft-button.btn-secondary {
+  border-color: var(--wizard-teal);
+  background: #ffffff;
+  color: var(--wizard-teal);
+}
+
+.tender-wizard-page .wizard-flow-controls {
+  display: grid;
+  grid-template-columns: auto auto minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--wizard-border);
+}
+
+.tender-wizard-page .wizard-flow-progress {
+  justify-items: center;
+}
+
+@media (max-width: 1024px) {
+  .tender-wizard-page .wizard-step-progress {
+    grid-template-columns: repeat(6, minmax(154px, 1fr));
+    overflow-x: auto;
+    padding-inline: 20px;
+  }
+
+  .tender-wizard-page .wizard-flow-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tender-wizard-page .wizard-flow-progress {
+    order: -1;
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .tender-wizard-page {
+    padding: 0 10px 20px;
+  }
+
+  .tender-wizard-page .wizard-step-progress {
+    margin-inline: -10px;
+    min-height: 56px;
+  }
+
+  .tender-wizard-page .wizard-progress-step {
+    min-height: 56px;
+  }
+
+  .tender-wizard-page .wizard-workspace {
+    padding-top: 22px;
+  }
+
+  .tender-wizard-page .journey-panel {
+    padding: 18px !important;
+    border-radius: 12px 12px 0 0 !important;
+  }
+
+  .tender-wizard-page .panel-heading,
+  .tender-wizard-page .scope-list-heading,
+  .tender-wizard-page .form-grid,
+  .tender-wizard-page .form-grid.two,
+  .tender-wizard-page .contact-detail-grid,
+  .tender-wizard-page .requirement-control-grid,
+  .tender-wizard-page .license-check-grid,
+  .tender-wizard-page .deliverable-attachment-grid,
+  .tender-wizard-page .contact-verify-row,
+  .tender-wizard-page .market-row,
+  .tender-wizard-page .planning-control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tender-wizard-page .panel-heading > .badge,
+  .tender-wizard-page .panel-heading > .status-badge,
+  .tender-wizard-page .scope-list-heading > .badge,
+  .tender-wizard-page .scope-list-heading > .status-badge,
+  .tender-wizard-page .scope-list-heading > .btn {
+    justify-self: start;
+  }
+
+  .tender-wizard-page input,
+  .tender-wizard-page select,
+  .tender-wizard-page textarea,
+  .tender-wizard-page .form-input {
+    min-height: 56px;
+    font-size: 16px;
+  }
+
+  .tender-wizard-page .contact-verify-row .btn,
+  .tender-wizard-page .market-row .btn,
+  .tender-wizard-page .planning-control-grid .btn,
+  .tender-wizard-page .wizard-flow-controls .btn {
+    width: 100%;
+  }
+}
+
+/* Final create-tender parity layer: keep React behavior while restoring the procurex-ui visual shell. */
+.tender-wizard-page {
+  --wizard-teal: #008080;
+  --wizard-ink: #07131d;
+  --wizard-text: #233247;
+  --wizard-muted: #526579;
+  --wizard-border: rgba(13, 31, 50, 0.14);
+  --wizard-border-soft: rgba(13, 31, 50, 0.08);
+  --wizard-panel: #eef4fa;
+  display: grid;
+  gap: 26px;
+  min-height: 100vh;
+  padding: 32px 24px 48px;
+  background: #f6f9fd;
+  color: var(--wizard-ink);
+}
+
+.tender-wizard-page .journey-hero.compact {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.44fr) !important;
+  align-items: center !important;
+  min-height: 290px;
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  padding: clamp(38px, 5vw, 58px) !important;
+  overflow: hidden;
+  border: 1px solid rgba(13, 31, 50, 0.12);
+  border-radius: 8px;
+  background-color: #edf4ff !important;
+  background-image:
+    linear-gradient(90deg, rgba(237, 244, 255, 0.99) 0%, rgba(237, 244, 255, 0.96) 55%, rgba(237, 244, 255, 0.54) 73%, rgba(237, 244, 255, 0.18) 100%),
+    var(--px-hero-image, var(--px-visual-tender)) !important;
+  background-position: center, right center !important;
+  background-repeat: no-repeat !important;
+  background-size: cover, min(440px, 44%) 100% !important;
+  box-shadow: none;
+}
+
+.tender-wizard-page .journey-hero::after {
+  content: none !important;
+}
+
+.tender-wizard-page .journey-hero h1 {
+  max-width: 760px;
+  margin: 18px 0 14px;
+  color: var(--wizard-ink);
+  font-size: clamp(42px, 5.2vw, 58px);
+  font-weight: 900;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.tender-wizard-page .journey-hero p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--wizard-text);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.tender-wizard-page .hero-action-stack {
+  justify-content: flex-end;
+  align-self: center;
+}
+
+.tender-wizard-page .hero-action-stack .save-draft-button.btn-secondary,
+.tender-wizard-page .hero-action-stack .save-draft-button.btn-secondary:disabled {
+  min-height: 44px;
+  padding: 12px 26px;
+  border-color: rgba(13, 31, 50, 0.08);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #07131d;
+  opacity: 1;
+}
+
+.tender-wizard-page .wizard-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 30px;
+  width: min(1280px, 100%);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.tender-wizard-page .wizard-step-progress {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  min-height: 112px;
+  margin: 0;
+  padding: 16px 28px;
+  overflow: visible;
+  border: 1px solid var(--wizard-border-soft);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.tender-wizard-page .wizard-step-progress::before {
+  content: "";
+  position: absolute;
+  top: 39px;
+  left: 28px;
+  right: 28px;
+  width: auto;
+  height: 4px;
+  border-radius: 999px;
+  background: #e4e8ed;
+}
+
+.tender-wizard-page .wizard-progress-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 12px;
+  min-height: 80px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--wizard-ink);
+  text-align: center;
+}
+
+.tender-wizard-page .wizard-progress-step strong {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #d8e1ea;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tender-wizard-page .wizard-progress-step span {
+  max-width: 175px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.tender-wizard-page .wizard-progress-step.active,
+.tender-wizard-page .wizard-progress-step:hover {
+  border: 0;
+}
+
+.tender-wizard-page .wizard-progress-step.active strong,
+.tender-wizard-page .wizard-progress-step.completed strong {
+  border-color: var(--wizard-teal);
+  background: var(--wizard-teal);
+  color: #ffffff;
+}
+
+.tender-wizard-page .wizard-rail {
+  display: none !important;
+}
+
+.tender-wizard-page .wizard-workspace {
+  display: grid;
+  gap: 24px;
+  padding-top: 0;
+}
+
+.tender-wizard-page .journey-panel {
+  display: block;
+  padding: 24px !important;
+  border: 1px solid var(--wizard-border-soft) !important;
+  border-top: 1px solid var(--wizard-border-soft) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.tender-wizard-page .panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 26px;
+  padding: 0 0 22px;
+  border-bottom: 1px solid rgba(13, 31, 50, 0.12);
+}
+
+.tender-wizard-page .panel-heading h2 {
+  margin: 8px 0 0;
+  color: #202632;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.tender-wizard-page .section-kicker {
+  min-height: 28px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #e8f3f2;
+  color: #10202f;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: none;
+}
+
+.tender-wizard-page .panel-heading > .badge {
+  min-height: 30px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tender-wizard-page .badge-warning {
+  border-color: rgba(255, 177, 66, 0.42);
+  background: #fff6df;
+  color: #895700;
+}
+
+.tender-wizard-page .badge-info,
+.tender-wizard-page .badge-success {
+  border-color: rgba(0, 128, 128, 0.18);
+  background: #e8f6f5;
+  color: #006d6d;
+}
+
+.tender-wizard-page .journey-panel-content,
+.tender-wizard-page .journey-panel-content > div {
+  display: grid;
+  gap: 24px;
+  padding: 0;
+}
+
+.tender-wizard-page .planning-section {
+  display: grid;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tender-wizard-page .planning-section + .planning-section {
+  padding: 24px 22px 20px;
+  border: 1px solid #dbe3ec;
+  border-radius: 16px;
+  background: var(--wizard-panel);
+}
+
+.tender-wizard-page .planning-section h3 {
+  margin: 0;
+  color: #202632;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.tender-wizard-page .form-grid,
+.tender-wizard-page .form-grid.two,
+.tender-wizard-page .contact-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 16px;
+}
+
+.tender-wizard-page .form-group {
+  display: grid;
+  gap: 8px;
+}
+
+.tender-wizard-page .form-label,
+.tender-wizard-page .form-group > label,
+.tender-wizard-page .planning-control-grid label,
+.tender-wizard-page .requirement-control-grid label {
+  color: #202632;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.tender-wizard-page .form-hint {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.tender-wizard-page input,
+.tender-wizard-page select,
+.tender-wizard-page textarea,
+.tender-wizard-page .form-input {
+  min-height: 52px;
+  padding: 11px 20px;
+  border: 1px solid #d5dce4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.tender-wizard-page .planning-section + .planning-section input,
+.tender-wizard-page .planning-section + .planning-section select,
+.tender-wizard-page .planning-section + .planning-section textarea,
+.tender-wizard-page .planning-section + .planning-section .form-input {
+  min-height: 50px;
+}
+
+.tender-wizard-page .contact-verify-row,
+.tender-wizard-page .market-row,
+.tender-wizard-page .planning-control-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.tender-wizard-page .btn {
+  min-height: 48px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.tender-wizard-page .wizard-flow-controls {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(13, 31, 50, 0.12);
+}
+
+.tender-wizard-page .wizard-flow-progress {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.tender-wizard-page .cookie-consent-banner {
+  display: none !important;
+}
+
+@media (max-width: 1024px) {
+  .tender-wizard-page .journey-hero.compact {
+    grid-template-columns: 1fr !important;
+    background-size: cover, 52% 100% !important;
+  }
+
+  .tender-wizard-page .wizard-step-progress {
+    grid-template-columns: repeat(6, minmax(150px, 1fr));
+    overflow-x: auto;
+  }
+
+  .tender-wizard-page .wizard-step-progress::before {
+    right: auto;
+    width: calc(6 * 150px - 56px);
+  }
+}
+
+@media (max-width: 700px) {
+  .tender-wizard-page {
+    gap: 18px;
+    padding: 16px 12px 28px;
+  }
+
+  .tender-wizard-page .journey-hero.compact {
+    min-height: 260px;
+    padding: 24px !important;
+    background-image:
+      linear-gradient(90deg, rgba(237, 244, 255, 0.99) 0%, rgba(237, 244, 255, 0.88) 100%),
+      var(--px-hero-image, var(--px-visual-tender)) !important;
+  }
+
+  .tender-wizard-page .journey-hero h1 {
+    font-size: 36px;
+  }
+
+  .tender-wizard-page .hero-action-stack,
+  .tender-wizard-page .hero-action-stack .btn {
+    width: 100%;
+  }
+
+  .tender-wizard-page .wizard-step-progress {
+    min-height: 104px;
+    padding: 14px 18px;
+  }
+
+  .tender-wizard-page .wizard-step-progress::before {
+    top: 37px;
+    left: 22px;
+    width: calc(6 * 150px - 44px);
+  }
+
+  .tender-wizard-page .journey-panel {
+    padding: 18px !important;
+  }
+
+  .tender-wizard-page .panel-heading,
+  .tender-wizard-page .form-grid,
+  .tender-wizard-page .form-grid.two,
+  .tender-wizard-page .contact-detail-grid,
+  .tender-wizard-page .contact-verify-row,
+  .tender-wizard-page .market-row,
+  .tender-wizard-page .planning-control-grid,
+  .tender-wizard-page .wizard-flow-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .tender-wizard-page .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tender-wizard-page .panel-heading > .badge {
+    align-self: flex-start;
+  }
+
+  .tender-wizard-page .wizard-flow-progress {
+    order: -1;
+  }
+
+  .tender-wizard-page .wizard-flow-controls .btn {
+    width: 100%;
+  }
+}
+
+/* Create tender final parity fixes: beat older compatibility selectors without
+   disturbing other wizard pages that still use the rail. */
+body:not([data-page="iam-verification"]) .tender-wizard-page .wizard-rail,
+.tender-wizard-page .wizard-rail {
+  display: none !important;
+}
+
+.tender-wizard-page .hero-action-stack .save-draft-button.btn-secondary,
+.tender-wizard-page .hero-action-stack .save-draft-button.btn-secondary:disabled,
+.tender-wizard-page .hero-action-stack .save-draft-button.btn-secondary:disabled:hover,
+.tender-wizard-page .hero-action-stack .save-draft-button.btn-secondary:disabled:active {
+  border-color: rgba(13, 31, 50, 0.08) !important;
+  background: #ffffff !important;
+  color: #07131d !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 700px) {
+  .tender-wizard-page .journey-hero.compact {
+    align-content: start !important;
+    align-items: start !important;
+    min-height: 565px;
+    padding: 28px 20px !important;
+    background-image:
+      linear-gradient(180deg, rgba(237, 244, 255, 1) 0%, rgba(237, 244, 255, 1) 58%, rgba(237, 244, 255, 0.84) 74%, rgba(237, 244, 255, 0.30) 100%),
+      var(--px-hero-image, var(--px-visual-tender)) !important;
+    background-position: center, bottom center !important;
+    background-size: cover, 100% 42% !important;
+  }
+
+  .tender-wizard-page .journey-hero h1 {
+    font-size: 36px;
+  }
+
+  .tender-wizard-page .wizard-step-progress {
+    display: flex;
+    gap: 12px;
+    min-height: 112px;
+    padding: 14px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+  }
+
+  .tender-wizard-page .wizard-step-progress::before {
+    display: block;
+    top: 37px;
+    left: 30px;
+    right: 30px;
+    width: auto;
+  }
+
+  .tender-wizard-page .wizard-progress-step {
+    min-width: 104px;
+    padding: 0 8px;
+    scroll-snap-align: start;
+  }
+
+  .tender-wizard-page .wizard-progress-step span {
+    font-size: 11px;
+  }
+
+  .tender-wizard-page .panel-heading {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .tender-wizard-page .panel-heading > div {
+    min-width: 0;
+  }
+}

@@ -12,6 +12,7 @@ import { CommunicationCenterProcurexPage } from './CommunicationCenterProcurexPa
 vi.mock('@/features/communication/api', () => ({
   communicationApi: {
     listMailbox: vi.fn(),
+    getMessage: vi.fn(),
     markRead: vi.fn(),
     composeMessage: vi.fn(),
     replyToMessage: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('@/features/communication/api', () => ({
 }));
 
 const listMailbox = vi.mocked(communicationApi.listMailbox);
+const getMessage = vi.mocked(communicationApi.getMessage);
 const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
@@ -91,7 +93,8 @@ const sentMessage = {
   senderName: 'Kilimanjaro Supplies Limited',
   recipientOrgId: 'org-2',
   recipientName: 'Ministry of Health',
-  subject: 'Re: Site visit schedule'
+  subject: 'Re: Site visit schedule',
+  actionRequired: false
 };
 
 function mailbox(messages: CommunicationMailboxMessage[] = [message]): CommunicationListResponse {
@@ -114,7 +117,7 @@ function mailbox(messages: CommunicationMailboxMessage[] = [message]): Communica
   };
 }
 
-function renderPage() {
+function renderPage(initialEntries = ['/communication']) {
   store.dispatch(signOut());
   store.dispatch(
     assumeUser({
@@ -134,7 +137,7 @@ function renderPage() {
 
   return render(
     <Provider store={store}>
-      <MemoryRouter initialEntries={['/communication']}>
+      <MemoryRouter initialEntries={initialEntries}>
         <CommunicationCenterProcurexPage />
       </MemoryRouter>
     </Provider>
@@ -144,13 +147,16 @@ function renderPage() {
 describe('CommunicationCenterProcurexPage', () => {
   beforeEach(() => {
     listMailbox.mockResolvedValue(mailbox());
+    getMessage.mockImplementation(async (messageId: string) => (messageId === sentMessage.id ? sentMessage : readMessage));
     markRead.mockResolvedValue(readMessage);
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     archive.mockResolvedValue({ ...readMessage, folder: 'archived', status: 'ARCHIVED' });
     deleteMessage.mockResolvedValue({ ...readMessage, folder: 'trash', status: 'DELETED' });
     listRecipients.mockResolvedValue([
-      { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] }
+      { id: 'platform', name: 'Admin', kind: 'PLATFORM', country: 'TZ', capabilities: [] },
+      { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
+      { id: 'org-3', name: 'Tanzania Ports Authority', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] }
     ]);
     listTenderLinks.mockResolvedValue([
       { id: '22222222-2222-4222-8222-222222222222', reference: 'PX-2026-001', title: 'Medical supplies', buyerName: 'Ministry of Health', status: 'OPEN' }
@@ -171,6 +177,7 @@ describe('CommunicationCenterProcurexPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
 
     await waitFor(() => expect(markRead).toHaveBeenCalledWith(message.id));
+    expect(screen.getByRole('button', { name: 'Back to inbox' })).toBeInTheDocument();
     expect(screen.getByText('agenda.pdf')).toBeInTheDocument();
   });
 
@@ -179,7 +186,6 @@ describe('CommunicationCenterProcurexPage', () => {
     await screen.findByRole('button', { name: /site visit schedule/i });
 
     fireEvent.change(screen.getByPlaceholderText(/Search sender/i), { target: { value: 'site' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
 
     await waitFor(() => expect(listMailbox).toHaveBeenCalledWith(expect.objectContaining({ search: 'site' })));
 
@@ -191,24 +197,53 @@ describe('CommunicationCenterProcurexPage', () => {
     renderPage();
     await screen.findByRole('button', { name: /site visit schedule/i });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Create Message' }));
-    expect(await screen.findByRole('option', { name: 'Ministry of Health' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'New Message' }));
+    expect(screen.getByLabelText('From mailbox')).toHaveValue('Kilimanjaro Supplies Limited');
+    expect(screen.queryByLabelText('Category')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Priority')).not.toBeInTheDocument();
+    expect(screen.queryByText('Requires action')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Recipient business'), { target: { value: 'org-2' } });
+    const recipientSearch = await screen.findByLabelText('Find recipients');
+    fireEvent.change(recipientSearch, { target: { value: 'Admin' } });
+    expect(await screen.findByRole('button', { name: /Add Admin/i })).toBeInTheDocument();
+    fireEvent.change(recipientSearch, { target: { value: 'Ministry' } });
+    await userEvent.click(await screen.findByRole('button', { name: /Add Ministry of Health/i }));
+    expect(screen.getByRole('button', { name: /Remove Ministry of Health/i })).toBeInTheDocument();
+    expect(screen.queryByText('BUYER')).not.toBeInTheDocument();
+    expect(screen.queryByText('SUPPLIER')).not.toBeInTheDocument();
+    fireEvent.change(recipientSearch, { target: { value: 'Tanzania' } });
+    await userEvent.click(await screen.findByRole('button', { name: /Add Tanzania Ports Authority/i }));
+    expect(screen.getByRole('button', { name: /Remove Tanzania Ports Authority/i })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tender link'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification request' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the meeting location.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
 
-    await waitFor(() =>
-      expect(composeMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          senderOrgId: 'org-1',
-          recipientOrgId: 'org-2',
-          tenderId: '22222222-2222-4222-8222-222222222222',
-          subject: 'Clarification request'
-        })
-      )
+    await waitFor(() => expect(composeMessage).toHaveBeenCalledTimes(2));
+    expect(composeMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        senderOrgId: 'org-1',
+        recipientOrgId: 'org-2',
+        tenderId: '22222222-2222-4222-8222-222222222222',
+        subject: 'Clarification request'
+      })
+    );
+    expect(composeMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        senderOrgId: 'org-1',
+        recipientOrgId: 'org-3',
+        tenderId: '22222222-2222-4222-8222-222222222222',
+        subject: 'Clarification request'
+      })
+    );
+    expect(composeMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        priority: expect.anything(),
+        actionRequired: expect.anything()
+      })
     );
   });
 
@@ -222,12 +257,16 @@ describe('CommunicationCenterProcurexPage', () => {
     await waitFor(() => expect(replyToMessage).toHaveBeenCalledWith(message.id, { body: 'Confirmed for Friday.' }));
 
     listMailbox.mockResolvedValue(mailbox([readMessage]));
+    await screen.findByText('Await recipient response');
+    await userEvent.click(await screen.findByRole('button', { name: 'Back to inbox' }));
+    await screen.findByRole('button', { name: /site visit schedule/i });
+
     await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
     await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
 
     listMailbox.mockResolvedValue(mailbox([readMessage]));
-    await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
     await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(message.id));
   });

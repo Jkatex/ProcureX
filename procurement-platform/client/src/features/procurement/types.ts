@@ -581,4 +581,9 @@ export type TenderDetail = MarketplaceTenderRow & {
     submittedAt: string | null;
     receiptHash: string | null;
   } | null;
+  activity?: {
+    marketplaceViews: number;
+    documentDownloads: number;
+    clarifications: number;
+  };
 };

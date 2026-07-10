@@ -36,6 +36,11 @@ export type BeemSmsInput = DeliveryInput & {
   scheduleTime?: string;
 };
 
+export type BriqSmsInput = DeliveryInput & {
+  to: string | string[];
+  message: string;
+};
+
 export type BeemWhatsAppTemplateInput = DeliveryInput & {
   to: string | Array<{ phoneNumber: string; params?: string[] }>;
   templateId: string | number;
@@ -369,6 +374,62 @@ export class BeemSmsProvider {
   }
 }
 
+export class BriqSmsProvider {
+  private readonly baseUrl: string;
+  private readonly senderName: string;
+  private readonly apiKey: string;
+
+  constructor(private readonly config = process.env) {
+    this.baseUrl = config.BRIQ_SMS_BASE_URL || 'https://karibu.briq.tz';
+    this.senderName = config.BRIQ_SMS_SENDER?.trim() ?? '';
+    this.apiKey = config.BRIQ_API_KEY?.trim() ?? '';
+
+    if (!this.apiKey) {
+      throw deliveryConfigError('Briq API key is not configured.');
+    }
+    if (!this.senderName) {
+      throw deliveryConfigError('Briq SMS sender is not configured.');
+    }
+  }
+
+  async send(input: BriqSmsInput): Promise<DeliveryReceipt> {
+    const recipients = (Array.isArray(input.to) ? input.to : [input.to]).map(normalizeRecipient);
+    const response = await fetch(endpoint(this.baseUrl, '/v1/message/send-instant'), {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'X-API-Key': this.apiKey
+      },
+      body: JSON.stringify({
+        content: input.message,
+        recipients,
+        sender_id: this.senderName
+      })
+    }).catch((error: unknown) => {
+      throw deliveryConfigError(error instanceof Error ? error.message : 'Briq SMS request failed.');
+    });
+
+    const body = await jsonResponse(response);
+
+    if (!response.ok) {
+      throw deliveryConfigError(`Briq SMS returned ${response.status}.`);
+    }
+    if (body.success === false) {
+      throw deliveryConfigError(firstString(body.message, body.error) ?? 'Briq SMS request failed.');
+    }
+
+    return { provider: 'briq-sms', messageId: briqMessageId(body), providerMetadata: body };
+  }
+
+  sendOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+    return this.send({
+      to: input.to,
+      message: `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`
+    });
+  }
+}
+
 export class BeemWhatsAppProvider {
   private readonly chatBaseUrl: string;
   private readonly broadcastBaseUrl: string;
@@ -533,7 +594,8 @@ export class MetaWhatsAppOtpProvider {
 }
 
 export class ProductionIdentityNotifications implements IdentityNotificationProvider {
-  private sms?: BeemSmsProvider;
+  private beemSms?: BeemSmsProvider;
+  private briqSms?: BriqSmsProvider;
   private email?: ResendEmailProvider;
   private whatsApp?: BeemWhatsAppProvider;
   private metaWhatsAppOtp?: MetaWhatsAppOtpProvider;

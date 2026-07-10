@@ -1525,6 +1525,24 @@ describe('procurement tender write service', () => {
     expect(repository.getSavedTenders).toHaveBeenCalledWith('org-1');
   });
 
+  it('records tender document downloads with authenticated context when available', async () => {
+    const response = {
+      success: true,
+      message: 'Document download recorded'
+    };
+    const repository = {
+      recordTenderDocumentDownload: vi.fn().mockResolvedValue(response)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.recordTenderDocumentDownload('tender-1', 'doc-1', 'token-1')).resolves.toBe(response);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.recordTenderDocumentDownload).toHaveBeenCalledWith('tender-1', 'doc-1', { organizationId: 'org-1', userId: 'user-1' });
+  });
+
   it('requires organization context for saved tender operations', async () => {
     const identity = {
       requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1' } })

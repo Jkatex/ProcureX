@@ -130,6 +130,14 @@ enum Visibility {
   @@schema("procurement")
 }
 
+enum TenderAmendmentStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+
+  @@schema("procurement")
+}
+
 enum ContractType {
   UNIT_PRICE
   LUMP_SUM
@@ -154,9 +162,22 @@ enum BidStatus {
 }
 
 enum EnvelopeType {
+  ADMINISTRATIVE
   TECHNICAL
   FINANCIAL
   COMBINED
+
+  @@schema("bidding")
+}
+
+enum BidSampleStatus {
+  REQUIRED
+  PENDING_SUBMISSION
+  SUBMITTED
+  RECEIVED
+  INSPECTED
+  ACCEPTED
+  REJECTED
 
   @@schema("bidding")
 }
@@ -453,6 +474,7 @@ model User {
   permissionOverrides       PermissionOverride[]
   uploadedDocuments         DocumentObject[]             @relation("DocumentUploader")
   ownedTenders              Tender[]                     @relation("TenderOwner")
+  createdTenderAmendments   TenderAmendment[]            @relation("TenderAmendmentCreator")
   savedTenders              SavedTender[]
   submittedBids             Bid[]                        @relation("BidSubmitter")
   workflowAssignments       WorkflowAssignment[]
@@ -737,10 +759,12 @@ model Organization {
   permissionOverrides       PermissionOverride[]
   documents                 DocumentObject[]
   tendersAsBuyer            Tender[]                     @relation("TenderBuyerOrg")
+  tenderAmendments          TenderAmendment[]            @relation("TenderAmendmentBuyerOrg")
   savedTenders              SavedTender[]
   procurementPlans          ProcurementPlan[]            @relation("ProcurementPlanOwnerOrg")
   bidsAsBuyer               Bid[]                        @relation("BidBuyerOrg")
   bidsAsSupplier            Bid[]                        @relation("BidSupplierOrg")
+  bidSamples                BidSample[]                  @relation("BidSampleSupplierOrg")
   evaluationWorkspaces      EvaluationWorkspace[]        @relation("EvaluationBuyerOrg")
   awardNoticesAsBuyer       AwardNotice[]                @relation("AwardNoticeBuyerOrg")
   awardNoticesAsSupplier    AwardNotice[]                @relation("AwardNoticeSupplierOrg")
@@ -909,6 +933,7 @@ model Tender {
   milestones      TenderMilestone[]
   commercialItems TenderCommercialItem[]
   bids            Bid[]
+  bidSamples      BidSample[]
   evaluation      EvaluationWorkspace?
   communications  CommunicationItem[]
   contracts       Contract[]
@@ -916,10 +941,34 @@ model Tender {
   supplierMatches SupplierMatchSignal[]
   planningLines   ProcurementPlanLine[]  @relation("ProcurementPlanLineTender")
   savedBy         SavedTender[]
+  amendments      TenderAmendment[]
 
   @@index([buyerOrgId, status])
   @@index([status, type, closingDate])
   @@map("tenders")
+  @@schema("procurement")
+}
+
+model TenderAmendment {
+  id              String                @id @default(uuid()) @db.Uuid
+  tenderId        String                @map("tender_id") @db.Uuid
+  buyerOrgId      String                @map("buyer_org_id") @db.Uuid
+  createdByUserId String?               @map("created_by_user_id") @db.Uuid
+  reference       String                @unique
+  title           String
+  summary         String?
+  status          TenderAmendmentStatus @default(DRAFT)
+  payload         Json                  @default("{}")
+  publishedAt     DateTime?             @map("published_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  tender          Tender                @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  buyerOrg        Organization          @relation("TenderAmendmentBuyerOrg", fields: [buyerOrgId], references: [id], onDelete: Cascade)
+  createdByUser   User?                 @relation("TenderAmendmentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenderId, status, createdAt])
+  @@index([buyerOrgId, status])
+  @@map("tender_amendments")
   @@schema("procurement")
 }
 
@@ -1084,6 +1133,7 @@ model Bid {
   versions          BidVersion[]
   documents         BidDocument[]
   responses         BidResponse[]
+  samples           BidSample[]
   receipt           BidReceipt?
   evaluationScores  EvaluationScore[]
   recommendations   AwardRecommendation[]
@@ -1148,6 +1198,38 @@ model BidReceipt {
   bid         Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
 
   @@map("bid_receipts")
+  @@schema("bidding")
+}
+
+model BidSample {
+  id               String          @id @default(uuid()) @db.Uuid
+  bidId            String          @map("bid_id") @db.Uuid
+  tenderId         String          @map("tender_id") @db.Uuid
+  supplierOrgId    String          @map("supplier_org_id") @db.Uuid
+  sampleName       String          @map("sample_name")
+  relatedItem      String?         @map("related_item")
+  quantity         Decimal?        @db.Decimal(18, 2)
+  deliveryLocation String?         @map("delivery_location")
+  deliveryDeadline DateTime?       @map("delivery_deadline")
+  trackingStatus   BidSampleStatus @default(REQUIRED) @map("tracking_status")
+  courier          String?
+  trackingNumber   String?         @map("tracking_number")
+  submittedAt      DateTime?       @map("submitted_at")
+  receivedAt       DateTime?       @map("received_at")
+  inspectedAt      DateTime?       @map("inspected_at")
+  inspectionNotes  String?         @map("inspection_notes")
+  metadata         Json            @default("{}")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  bid              Bid             @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  tender           Tender          @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  supplierOrg      Organization    @relation("BidSampleSupplierOrg", fields: [supplierOrgId], references: [id], onDelete: Restrict)
+
+  @@index([bidId])
+  @@index([tenderId])
+  @@index([supplierOrgId])
+  @@index([trackingStatus])
+  @@map("bid_samples")
   @@schema("bidding")
 }
 

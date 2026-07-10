@@ -1,24 +1,14 @@
 import { Fragment, type ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
-import DraftsRoundedIcon from '@mui/icons-material/DraftsRounded';
-import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
-import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded';
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';
 import LeaderboardRoundedIcon from '@mui/icons-material/LeaderboardRounded';
-import LockClockRoundedIcon from '@mui/icons-material/LockClockRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
-import PriceCheckRoundedIcon from '@mui/icons-material/PriceCheckRounded';
 import RuleRoundedIcon from '@mui/icons-material/RuleRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
 import { evaluationApi } from '@/features/evaluation/api';
-import { useNotifications } from '@/features/notifications/hooks';
-import { NotificationCard } from '@/shared/components/NotificationCard';
 import type {
   EvaluationDashboard,
   EvaluationDecisionStatus,
@@ -27,10 +17,35 @@ import type {
   EvaluationStatusFilter,
   EvaluationWorkspace,
   EvaluationWorkspaceBid,
+  EvaluationWorkspaceCriterion,
   ProcurementTypeFilter,
   ReadyEvaluationTender
 } from '@/features/evaluation/types';
+import { useNotifications } from '@/features/notifications/hooks';
+import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
+import { NotificationCard } from '@/shared/components/NotificationCard';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+
+type ScoreDraft = { score: string; comment: string };
+type ScoreDraftMap = Record<string, ScoreDraft>;
+type DecisionDraft = { status: EvaluationDecisionStatus; comment: string };
+type DecisionDraftMap = Record<string, DecisionDraft>;
+type EvaluationStageId = 'opening' | 'administrative' | 'criteria' | 'financial' | 'boq' | 'pricing' | 'sla' | 'postqual' | 'ranking' | 'report';
+
+type TenderQueueRow = {
+  tenderId: string;
+  reference: string;
+  title: string;
+  buyerName: string;
+  procurementType: Exclude<ProcurementTypeFilter, 'all'>;
+  closingDate: string | null;
+  submittedBidCount: number;
+  ready: boolean;
+  status: string;
+  stage: string | null;
+  progress: number;
+  updatedAt?: string;
+};
 
 export function BidEvaluationProcurexPage() {
   const { i18n, t } = useTranslation();
@@ -49,7 +64,7 @@ export function BidEvaluationProcurexPage() {
   const [loadError, setLoadError] = useState('');
   const [selectedTenderId, setSelectedTenderId] = useState('');
   const [workspace, setWorkspace] = useState<EvaluationWorkspace | null>(null);
-  const [workspaceTab, setWorkspaceTab] = useState<EvaluationWorkspaceTab>('overview');
+  const [activeStageId, setActiveStageId] = useState<EvaluationStageId>('opening');
   const [selectedBidId, setSelectedBidId] = useState('');
   const [expandedBidId, setExpandedBidId] = useState('');
   const [scoreDrafts, setScoreDrafts] = useState<ScoreDraftMap>({});
@@ -57,7 +72,6 @@ export function BidEvaluationProcurexPage() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
-  const [markComplete, setMarkComplete] = useState(false);
 
   useBodyPageMetadata('bid-evaluation');
 
@@ -71,30 +85,12 @@ export function BidEvaluationProcurexPage() {
     [i18n.language]
   );
 
-  const stats = useMemo(
-    () => [
-      {
-        label: t('evaluationApp.stats.publishedTenders'),
-        value: dashboard.publishedTenders,
-        icon: <FactCheckRoundedIcon fontSize="small" aria-hidden="true" />
-      },
-      {
-        label: t('evaluationApp.stats.readyToEvaluate'),
-        value: dashboard.readyToEvaluate,
-        icon: <AssignmentTurnedInRoundedIcon fontSize="small" aria-hidden="true" />
-      },
-      {
-        label: t('evaluationApp.stats.draftedEvaluations'),
-        value: dashboard.draftedEvaluations,
-        icon: <DraftsRoundedIcon fontSize="small" aria-hidden="true" />
-      },
-      {
-        label: t('evaluationApp.stats.lockedUntilClosing'),
-        value: dashboard.lockedUntilClosing,
-        icon: <LockClockRoundedIcon fontSize="small" aria-hidden="true" />
-      }
-    ],
-    [dashboard, t]
+  const moneyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(i18n.language === 'sw' ? 'sw-TZ' : 'en-US', {
+        maximumFractionDigits: 0
+      }),
+    [i18n.language]
   );
 
   useEffect(() => {
@@ -110,7 +106,6 @@ export function BidEvaluationProcurexPage() {
           evaluationApi.listDrafts(),
           evaluationApi.listReady()
         ]);
-
         if (!mounted) return;
         setDashboard(dashboardData);
         setDrafts(draftData.drafts);
@@ -146,7 +141,6 @@ export function BidEvaluationProcurexPage() {
             status: statusFilter,
             type: typeFilter
           });
-
           if (!mounted) return;
           setRecords(data.records);
           setTotalRecords(data.totalRecords);
@@ -190,11 +184,11 @@ export function BidEvaluationProcurexPage() {
         const data = await evaluationApi.getWorkspace(selectedTenderId);
         if (!mounted) return;
         setWorkspace(data);
-        setSelectedBidId((current) => current && data.bids.some((bid) => bid.id === current) ? current : data.bids[0]?.id ?? '');
-        setExpandedBidId((current) => current && data.bids.some((bid) => bid.id === current) ? current : '');
+        setSelectedBidId(data.bids[0]?.id ?? '');
+        setExpandedBidId('');
         setScoreDrafts(createScoreDrafts(data));
         setDecisionDrafts(createDecisionDrafts(data));
-        setMarkComplete(false);
+        setActiveStageId('opening');
       } catch {
         if (!mounted) return;
         setWorkspace(null);
@@ -213,16 +207,18 @@ export function BidEvaluationProcurexPage() {
     };
   }, [selectedTenderId, t]);
 
-  const scoredBids = useMemo(
-    () => (workspace ? buildScoredBids(workspace, scoreDrafts, decisionDrafts) : []),
-    [decisionDrafts, scoreDrafts, workspace]
+  const queueRows = useMemo(() => buildQueueRows(readyTenders, records), [readyTenders, records]);
+  const filteredQueueRows = useMemo(
+    () => queueRows.filter((row) => queueRowMatches(row, search, statusFilter, typeFilter)),
+    [queueRows, search, statusFilter, typeFilter]
   );
-
+  const scopedDrafts = useMemo(() => drafts.filter((draft) => draftMatches(draft, search, typeFilter)), [drafts, search, typeFilter]);
+  const scoredBids = useMemo(() => (workspace ? buildScoredBids(workspace, scoreDrafts, decisionDrafts) : []), [decisionDrafts, scoreDrafts, workspace]);
   const selectedBid = scoredBids.find((bid) => bid.id === selectedBidId) ?? scoredBids[0] ?? null;
+  const activeStages = workspace?.tender ? stagesForType(workspace.tender.procurementType) : stagesForType('GOODS');
+  const normalizedStageId = activeStages.some((stage) => stage.id === activeStageId) ? activeStageId : activeStages[0].id;
   const rankings = useMemo(() => buildRankings(scoredBids), [scoredBids]);
-  const recommendedBid = scoredBids.find((bid) => bid.decisionStatus === 'RECOMMENDED') ?? null;
-  const evaluatedBidCount = scoredBids.filter((bid) => bid.evaluated).length;
-  const pendingEvaluationCount = Math.max(0, scoredBids.length - evaluatedBidCount);
+  const completion = useMemo(() => completionState(workspace, scoredBids), [scoredBids, workspace]);
 
   function navigateToPage(pageKey: string) {
     navigate(pageToRoute[pageKey as AppRouteKey] ?? '/dashboard');
@@ -233,33 +229,24 @@ export function BidEvaluationProcurexPage() {
     return dateFormatter.format(new Date(value));
   }
 
-  function statusLabel(value: string | null) {
-    if (!value) return t('evaluationApp.status.NOT_STARTED');
-    return t(`evaluationApp.status.${value}`, { defaultValue: humanizeEnum(value) });
-  }
-
-  function typeLabel(value: string) {
-    return t(`evaluationApp.types.${value}`, { defaultValue: humanizeEnum(value) });
-  }
-
-  function stageLabel(value: string | null) {
-    if (!value) return t('evaluationApp.labels.notStarted');
-    return t(`evaluationApp.stages.${value}`, { defaultValue: humanizeEnum(value) });
+  function formatMoney(value: number | null, currency: string) {
+    if (value === null) return t('evaluationApp.labels.notAvailable');
+    return `${currency} ${moneyFormatter.format(value)}`;
   }
 
   function openWorkspace(tenderId: string) {
     setSelectedTenderId(tenderId);
-    setWorkspaceTab('overview');
     window.setTimeout(() => {
-      document.querySelector('[data-evaluation-p5-workspace]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.querySelector('[data-evaluation-workspace-panel]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 80);
   }
 
   function updateScoreDraft(bidId: string, criterionId: string, patch: Partial<ScoreDraft>) {
+    const key = draftKey(bidId, criterionId);
     setScoreDrafts((current) => ({
       ...current,
-      [draftKey(bidId, criterionId)]: {
-        ...(current[draftKey(bidId, criterionId)] ?? { score: '', comment: '' }),
+      [key]: {
+        ...(current[key] ?? { score: '', comment: '' }),
         ...patch
       }
     }));
@@ -275,12 +262,27 @@ export function BidEvaluationProcurexPage() {
     }));
   }
 
-  async function saveWorkspace() {
+  async function refreshLists() {
+    const [dashboardData, draftData, readyData, recordData] = await Promise.all([
+      evaluationApi.getDashboard(),
+      evaluationApi.listDrafts(),
+      evaluationApi.listReady(),
+      evaluationApi.listRecords({ search, status: statusFilter, type: typeFilter })
+    ]);
+    setDashboard(dashboardData);
+    setDrafts(draftData.drafts);
+    setReadyTenders(readyData.tenders);
+    setRecords(recordData.records);
+    setTotalRecords(recordData.totalRecords);
+  }
+
+  async function saveWorkspace(complete = false) {
     if (!workspace?.tender || workspaceSaving) return;
     const validation = validateScoreDrafts(workspace, scoreDrafts);
     if (validation) {
       setWorkspaceError(validation);
-      setWorkspaceTab('technical');
+      const firstInvalid = firstMissingScoreStage(workspace, scoreDrafts);
+      setActiveStageId(firstInvalid);
       return;
     }
 
@@ -300,26 +302,14 @@ export function BidEvaluationProcurexPage() {
           status: draft.status,
           comment: draft.comment
         })),
-        complete: markComplete
+        complete
       });
       setWorkspace(saved);
       setScoreDrafts(createScoreDrafts(saved));
       setDecisionDrafts(createDecisionDrafts(saved));
-      setMarkComplete(false);
-
-      const [dashboardData, draftData, readyData, recordData] = await Promise.all([
-        evaluationApi.getDashboard(),
-        evaluationApi.listDrafts(),
-        evaluationApi.listReady(),
-        evaluationApi.listRecords({ search, status: statusFilter, type: typeFilter })
-      ]);
-      setDashboard(dashboardData);
-      setDrafts(draftData.drafts);
-      setReadyTenders(readyData.tenders);
-      setRecords(recordData.records);
-      setTotalRecords(recordData.totalRecords);
-      notifySuccess(t('evaluationApp.p5.save'), 'Evaluation workspace saved.', {
-        reason: markComplete ? 'Scores and decisions were saved and the evaluation was marked complete.' : 'Scores and decisions were saved as evaluation progress.'
+      await refreshLists();
+      notifySuccess(complete ? 'Evaluation completed' : 'Evaluation saved', complete ? 'Evaluation workspace completed.' : 'Evaluation workspace saved.', {
+        reason: complete ? 'Scores, decisions, ranking, and recommendation data were saved.' : 'Your current evaluation entries were saved as progress.'
       });
     } catch {
       setWorkspaceError(t('evaluationApp.p5.errors.save'));
@@ -330,813 +320,844 @@ export function BidEvaluationProcurexPage() {
 
   return (
     <>
-      <PlanningTopBar title={t('evaluationApp.shell.title')} onNavigate={navigateToPage} />
-      <div className="main-layout dashboard-command-center evaluation-empty-app">
-        <aside className="sidebar dashboard-sidebar evaluation-empty-sidebar">
-          <div className="sidebar-heading">
-            <h3>{t('evaluationApp.shell.sidebarTitle')}</h3>
-            <div>{t('evaluationApp.shell.sidebarNote')}</div>
+      <PlanningTopBar title="Evaluation" onNavigate={navigateToPage} />
+      <div className="main-layout procurement-layout evaluation-app-layout">
+        <aside className="sidebar evaluation-sidebar">
+          <div className="evaluation-sidebar-head">
+            <h3>{workspace?.tender ? workspaceLabel(workspace.tender.procurementType) : 'Bid Evaluation'}</h3>
+            <span>{workspace?.tender?.reference ?? 'Tender list'}</span>
           </div>
           <ul className="sidebar-nav">
-            {appNavItems.map((item) => (
-              <li key={item.page}>
-                <button
-                  type="button"
-                  className={item.page === 'bid-evaluation' ? 'active' : ''}
-                  onClick={() => navigateToPage(item.page)}
-                >
-                  {t(item.labelKey)}
-                </button>
-              </li>
-            ))}
+            <li><button type="button" onClick={() => navigate('/dashboard')}>Workspace Dashboard</button></li>
+            <li><button type="button" className="active" onClick={() => setSelectedTenderId('')}>Evaluation</button></li>
+            <li><button type="button" onClick={() => navigate('/awards-contracts')}>Award Recommendation</button></li>
+            <li><button type="button" onClick={() => setSelectedTenderId('')}>Select Tender</button></li>
+            <li><button type="button" onClick={() => navigate('/sign-in')}>Logout</button></li>
           </ul>
         </aside>
 
-        <main className="main-content">
-          <div className="workspace-home evaluation-empty-workspace">
-            <section className="evaluation-empty-hero evaluation-hero-panel">
-              <div className="evaluation-empty-hero-copy">
-                <span className="section-kicker">{t('evaluationApp.hero.kicker')}</span>
-                <h1>{t('evaluationApp.hero.title')}</h1>
-                <p>{t('evaluationApp.hero.subtitle')}</p>
-                <div className="inline-actions evaluation-empty-actions">
-                  <button className="btn btn-primary" type="button" onClick={() => navigateToPage('create-tender')}>
-                    <AddRoundedIcon fontSize="small" aria-hidden="true" />
-                    <span>{t('evaluationApp.actions.createTender')}</span>
-                  </button>
-                  <button className="btn btn-secondary" type="button" onClick={() => navigateToPage('tender-planning')}>
-                    <EventNoteRoundedIcon fontSize="small" aria-hidden="true" />
-                    <span>{t('evaluationApp.actions.viewTenderPlanning')}</span>
-                  </button>
-                </div>
-              </div>
+        <main className="main-content procurement-content evaluation-workspace">
+          {loadError ? (
+            <NotificationCard notification={{ tone: 'error', title: 'Evaluation data could not load', message: loadError, reason: 'The dashboard could not retrieve evaluation records.', action: { label: 'Try again' }, dismissible: false }} />
+          ) : null}
 
-              <div className="evaluation-empty-stat-grid" aria-label={t('evaluationApp.stats.ariaLabel')}>
-                {stats.map((stat) => (
-                  <article className="evaluation-empty-stat-card" key={stat.label}>
-                    <span className="evaluation-empty-stat-icon">{stat.icon}</span>
-                    <strong>{loading ? '0' : stat.value.toLocaleString()}</strong>
-                    <span>{stat.label}</span>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            {loadError ? (
-              <NotificationCard notification={{ tone: 'error', title: 'Evaluation data could not load', message: loadError, reason: 'The dashboard could not retrieve the evaluation records needed for this view.', action: { label: 'Try again' }, dismissible: false }} />
-            ) : null}
-
-            {selectedTenderId || (!loading && readyTenders.length === 0 && records.length === 0 && drafts.length === 0) ? (
-              <section className="evaluation-panel evaluation-empty-panel evaluation-p5-workspace" data-evaluation-p5-workspace>
-                {workspace && workspace.tender ? (
-                  <>
-                    <div className="panel-heading evaluation-empty-heading evaluation-p5-heading">
-                      <div>
-                        <span className="section-kicker">{t('evaluationApp.p5.kicker')}</span>
-                        <h2>{workspace.tender.title}</h2>
-                        <p>{workspace.tender.reference} / {workspace.tender.buyerName}</p>
-                      </div>
-                      <div className="inline-actions evaluation-p5-actions">
-                        <label className="evaluation-p5-complete">
-                          <input type="checkbox" checked={markComplete} onChange={(event) => setMarkComplete(event.target.checked)} />
-                          <span>{t('evaluationApp.p5.markComplete')}</span>
-                        </label>
-                        <button className="btn btn-primary" type="button" disabled={workspaceSaving || workspaceLoading} onClick={() => void saveWorkspace()}>
-                          <SaveRoundedIcon fontSize="small" aria-hidden="true" />
-                          <span>{workspaceSaving ? t('evaluationApp.p5.saving') : t('evaluationApp.p5.save')}</span>
-                        </button>
-                        <button className="btn btn-secondary" type="button" onClick={() => setSelectedTenderId('')}>
-                          {t('evaluationApp.p5.close')}
-                        </button>
-                      </div>
-                    </div>
-
-                    {workspaceError ? (
-                      <NotificationCard notification={{ tone: 'error', title: 'Evaluation workspace issue', message: workspaceError, reason: 'Review the current evaluation data and retry the save or load action.', action: { label: 'Try again' }, dismissible: false }} />
-                    ) : null}
-                    {!workspace.availability.isReady ? <div className="evaluation-p5-note">{workspace.availability.reason}</div> : null}
-
-                    <section className="evaluation-empty-stat-grid evaluation-p5-stat-grid" aria-label={t('evaluationApp.p5.summary')}>
-                      <article className="evaluation-empty-stat-card">
-                        <span className="evaluation-empty-stat-icon"><FactCheckRoundedIcon fontSize="small" aria-hidden="true" /></span>
-                        <strong>{scoredBids.length}</strong>
-                        <span>{t('evaluationApp.p5.totalSubmitted')}</span>
-                      </article>
-                      <article className="evaluation-empty-stat-card">
-                        <span className="evaluation-empty-stat-icon"><RuleRoundedIcon fontSize="small" aria-hidden="true" /></span>
-                        <strong>{statusLabel(workspace.summary.evaluationStatus)}</strong>
-                        <span>{t('evaluationApp.p5.evaluationStatus')}</span>
-                      </article>
-                      <article className="evaluation-empty-stat-card">
-                        <span className="evaluation-empty-stat-icon"><AssignmentTurnedInRoundedIcon fontSize="small" aria-hidden="true" /></span>
-                        <strong>{evaluatedBidCount}</strong>
-                        <span>{t('evaluationApp.p5.evaluatedBids')}</span>
-                      </article>
-                      <article className="evaluation-empty-stat-card">
-                        <span className="evaluation-empty-stat-icon"><LockClockRoundedIcon fontSize="small" aria-hidden="true" /></span>
-                        <strong>{pendingEvaluationCount}</strong>
-                        <span>{t('evaluationApp.p5.pendingBids')}</span>
-                      </article>
-                      <article className="evaluation-empty-stat-card">
-                        <span className="evaluation-empty-stat-icon"><LeaderboardRoundedIcon fontSize="small" aria-hidden="true" /></span>
-                        <strong>{recommendedBid?.supplierName ?? workspace.summary.recommendedBidder?.supplierName ?? t('evaluationApp.labels.notAvailable')}</strong>
-                        <span>{t('evaluationApp.p5.recommendedBidder')}</span>
-                      </article>
-                    </section>
-
-                    <nav className="evaluation-p5-tabs" aria-label={t('evaluationApp.p5.tabs.ariaLabel')}>
-                      {workspaceTabs.map((tab) => (
-                        <button
-                          className={workspaceTab === tab.id ? 'active' : ''}
-                          type="button"
-                          key={tab.id}
-                          onClick={() => setWorkspaceTab(tab.id)}
-                        >
-                          {t(tab.labelKey)}
-                        </button>
-                      ))}
-                    </nav>
-
-                    <EvaluationWorkspaceTabPanel
-                      activeTab={workspaceTab}
-                      workspace={workspace}
-                      bids={scoredBids}
-                      rankings={rankings}
-                      selectedBid={selectedBid}
-                      selectedBidId={selectedBidId}
-                      expandedBidId={expandedBidId}
-                      scoreDrafts={scoreDrafts}
-                      decisionDrafts={decisionDrafts}
-                      formatDate={formatDate}
-                      formatMoney={formatMoney}
-                      t={t}
-                      onSelectBid={setSelectedBidId}
-                      onToggleBid={(bidId) => setExpandedBidId((current) => current === bidId ? '' : bidId)}
-                      onScoreChange={updateScoreDraft}
-                      onDecisionChange={updateDecisionDraft}
-                    />
-                  </>
-                ) : (
-                  <EvaluationEmptyMessage
-                    icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />}
-                    message={workspaceLoading ? t('evaluationApp.p5.loading') : t('evaluationApp.p5.emptySubmittedBids')}
-                  />
-                )}
-              </section>
-            ) : null}
-
-            <section className="evaluation-panel evaluation-empty-panel">
-              <div className="panel-heading evaluation-empty-heading">
-                <div>
-                  <span className="section-kicker">{t('evaluationApp.records.kicker')}</span>
-                  <h2>{t('evaluationApp.records.title')}</h2>
-                </div>
-                <span className="badge badge-info">{t('evaluationApp.records.countBadge', { count: totalRecords })}</span>
-              </div>
-
-              <div className="evaluation-empty-filter-grid">
-                <label className="evaluation-empty-field evaluation-empty-search">
-                  <span>{t('evaluationApp.filters.search')}</span>
-                  <span className="evaluation-empty-input-shell">
-                    <SearchRoundedIcon fontSize="small" aria-hidden="true" />
-                    <input
-                      className="form-input"
-                      type="search"
-                      value={search}
-                      placeholder={t('evaluationApp.filters.searchPlaceholder')}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </span>
-                </label>
-                <label className="evaluation-empty-field">
-                  <span>{t('evaluationApp.filters.status')}</span>
-                  <select
-                    className="form-input"
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as EvaluationStatusFilter)}
-                  >
-                    {statusOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {t(option.labelKey)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="evaluation-empty-field">
-                  <span>{t('evaluationApp.filters.type')}</span>
-                  <select
-                    className="form-input"
-                    value={typeFilter}
-                    onChange={(event) => setTypeFilter(event.target.value as ProcurementTypeFilter)}
-                  >
-                    {typeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {t(option.labelKey)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              {records.length > 0 ? (
-                <div className="evaluation-table-scroll evaluation-empty-table" aria-busy={recordsLoading}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t('evaluationApp.table.tender')}</th>
-                        <th>{t('evaluationApp.table.type')}</th>
-                        <th>{t('evaluationApp.table.status')}</th>
-                        <th>{t('evaluationApp.table.stage')}</th>
-                        <th>{t('evaluationApp.table.progress')}</th>
-                        <th>{t('evaluationApp.table.submittedBids')}</th>
-                        <th>{t('evaluationApp.table.updated')}</th>
-                        <th>{t('evaluationApp.table.action')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {records.map((record) => (
-                        <tr key={record.id}>
-                          <td>
-                            <strong>{record.title}</strong>
-                            <span>{record.reference}</span>
-                          </td>
-                          <td>{typeLabel(record.procurementType)}</td>
-                          <td><span className="badge badge-info">{statusLabel(record.status)}</span></td>
-                          <td>{stageLabel(record.currentStage)}</td>
-                          <td>{record.progressPercentage}%</td>
-                          <td>{record.submittedBidCount}</td>
-                          <td>{formatDate(record.updatedAt)}</td>
-                          <td>
-                            <button className="btn btn-secondary btn-sm" type="button" onClick={() => openWorkspace(record.tenderId)}>
-                              <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
-                              <span>{t('evaluationApp.p5.open')}</span>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <EvaluationEmptyMessage
-                  icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />}
-                  message={t('evaluationApp.records.empty')}
-                />
-              )}
-            </section>
-
-            <div className="evaluation-empty-section-grid">
-              <section className="evaluation-panel evaluation-empty-panel">
-                <div className="panel-heading evaluation-empty-heading">
-                  <div>
-                    <span className="section-kicker">{t('evaluationApp.drafts.kicker')}</span>
-                    <h2>{t('evaluationApp.drafts.title')}</h2>
-                  </div>
-                  <span className="badge badge-info">{drafts.length}</span>
-                </div>
-
-                {drafts.length > 0 ? (
-                  <div className="evaluation-empty-card-list">
-                    {drafts.map((draft) => (
-                      <article className="evaluation-ready-card evaluation-draft-card" key={draft.id}>
-                        <span className="badge badge-warning">{t('evaluationApp.status.IN_PROGRESS')}</span>
-                        <h3>{draft.title}</h3>
-                        <p>{draft.reference}</p>
-                        <div className="evaluation-progress-track" aria-label={t('evaluationApp.table.progress')}>
-                          <span style={{ width: `${Math.min(100, Math.max(0, draft.progressPercentage))}%` }} />
-                        </div>
-                        <dl className="evaluation-empty-meta">
-                          <div>
-                            <dt>{t('evaluationApp.table.stage')}</dt>
-                            <dd>{stageLabel(draft.currentStage)}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('evaluationApp.table.submittedBids')}</dt>
-                            <dd>{draft.submittedBidCount}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('evaluationApp.table.updated')}</dt>
-                            <dd>{formatDate(draft.updatedAt)}</dd>
-                          </div>
-                        </dl>
-                        <button className="btn btn-secondary" type="button" onClick={() => openWorkspace(draft.tenderId)}>
-                          <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
-                          <span>{t('evaluationApp.p5.open')}</span>
-                        </button>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <EvaluationEmptyMessage
-                    icon={<DraftsRoundedIcon fontSize="small" aria-hidden="true" />}
-                    message={t('evaluationApp.drafts.empty')}
-                  />
-                )}
-              </section>
-
-              <section className="evaluation-panel evaluation-empty-panel">
-                <div className="panel-heading evaluation-empty-heading">
-                  <div>
-                    <span className="section-kicker">{t('evaluationApp.ready.kicker')}</span>
-                    <h2>{t('evaluationApp.ready.title')}</h2>
-                  </div>
-                  <span className="badge badge-info">{readyTenders.length}</span>
-                </div>
-
-                {readyTenders.length > 0 ? (
-                  <div className="evaluation-empty-card-list">
-                    {readyTenders.map((tender) => (
-                      <article className="evaluation-ready-card" key={tender.tenderId}>
-                        <span className="badge badge-success">{t('evaluationApp.ready.readyBadge')}</span>
-                        <h3>{tender.title}</h3>
-                        <p>{tender.reference}</p>
-                        <dl className="evaluation-empty-meta">
-                          <div>
-                            <dt>{t('evaluationApp.table.type')}</dt>
-                            <dd>{typeLabel(tender.procurementType)}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('evaluationApp.table.submittedBids')}</dt>
-                            <dd>{tender.submittedBidCount}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('evaluationApp.table.closingDate')}</dt>
-                            <dd>{formatDate(tender.closingDate || null)}</dd>
-                          </div>
-                        </dl>
-                        <button className="btn btn-primary" type="button" onClick={() => openWorkspace(tender.tenderId)}>
-                          <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
-                          <span>{t('evaluationApp.p5.open')}</span>
-                        </button>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <EvaluationEmptyMessage
-                    icon={<AssignmentTurnedInRoundedIcon fontSize="small" aria-hidden="true" />}
-                    message={t('evaluationApp.ready.empty')}
-                  />
-                )}
-              </section>
-            </div>
-          </div>
+          {workspace && workspace.tender ? (
+            <EvaluationWorkspaceView
+              activeStageId={normalizedStageId}
+              bids={scoredBids}
+              completion={completion}
+              expandedBidId={expandedBidId}
+              formatDate={formatDate}
+              formatMoney={formatMoney}
+              onBack={() => setSelectedTenderId('')}
+              onDecisionChange={updateDecisionDraft}
+              onPreviewReport={() => setActiveStageId('report')}
+              onSave={(complete) => void saveWorkspace(complete)}
+              onScoreChange={updateScoreDraft}
+              onSelectBid={setSelectedBidId}
+              onStageChange={setActiveStageId}
+              onToggleBid={(bidId) => setExpandedBidId((current) => current === bidId ? '' : bidId)}
+              rankings={rankings}
+              saving={workspaceSaving}
+              selectedBid={selectedBid}
+              selectedBidId={selectedBid?.id ?? ''}
+              stages={activeStages}
+              workspace={workspace}
+              workspaceError={workspaceError}
+              workspaceLoading={workspaceLoading}
+            />
+          ) : (
+            <EvaluationTenderListView
+              dashboard={dashboard}
+              dateFormatter={dateFormatter}
+              drafts={scopedDrafts}
+              filteredRows={filteredQueueRows}
+              loading={loading}
+              onOpenWorkspace={openWorkspace}
+              recordsLoading={recordsLoading}
+              search={search}
+              setSearch={setSearch}
+              setStatusFilter={setStatusFilter}
+              setTypeFilter={setTypeFilter}
+              statusFilter={statusFilter}
+              totalRecords={totalRecords}
+              typeFilter={typeFilter}
+            />
+          )}
         </main>
       </div>
     </>
   );
 }
 
-type AppRouteKey =
-  | 'workspace-dashboard'
-  | 'tender-planning'
-  | 'marketplace'
-  | 'create-tender'
-  | 'bidding-workspace'
-  | 'bid-evaluation'
-  | 'awarding-contracts'
-  | 'records-history'
-  | 'communication-center';
+function EvaluationTenderListView({
+  dashboard,
+  dateFormatter,
+  drafts,
+  filteredRows,
+  loading,
+  onOpenWorkspace,
+  recordsLoading,
+  search,
+  setSearch,
+  setStatusFilter,
+  setTypeFilter,
+  statusFilter,
+  totalRecords,
+  typeFilter
+}: {
+  dashboard: EvaluationDashboard;
+  dateFormatter: Intl.DateTimeFormat;
+  drafts: EvaluationDraft[];
+  filteredRows: TenderQueueRow[];
+  loading: boolean;
+  onOpenWorkspace: (tenderId: string) => void;
+  recordsLoading: boolean;
+  search: string;
+  setSearch: (value: string) => void;
+  setStatusFilter: (value: EvaluationStatusFilter) => void;
+  setTypeFilter: (value: ProcurementTypeFilter) => void;
+  statusFilter: EvaluationStatusFilter;
+  totalRecords: number;
+  typeFilter: ProcurementTypeFilter;
+}) {
+  const readyCount = filteredRows.filter((row) => row.ready).length;
+  const lockedCount = Math.max(0, dashboard.lockedUntilClosing);
 
-type EvaluationWorkspaceTab = 'overview' | 'bid-review' | 'technical' | 'financial' | 'ranking' | 'decision';
-type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
-type ScoreDraft = { score: string; comment: string };
-type ScoreDraftMap = Record<string, ScoreDraft>;
-type DecisionDraft = { status: EvaluationDecisionStatus; comment: string };
-type DecisionDraftMap = Record<string, DecisionDraft>;
-type EditableEvaluationBid = EvaluationWorkspaceBid;
-
-const pageToRoute: Record<AppRouteKey, string> = {
-  'workspace-dashboard': '/dashboard',
-  'tender-planning': '/tender-planning',
-  marketplace: '/procurement/marketplace',
-  'create-tender': '/procurement/create-tender',
-  'bidding-workspace': '/bidding',
-  'bid-evaluation': '/evaluation',
-  'awarding-contracts': '/awards-contracts',
-  'records-history': '/records',
-  'communication-center': '/communication'
-};
-
-const appNavItems: Array<{ labelKey: string; page: AppRouteKey }> = [
-  { labelKey: 'nav.dashboard', page: 'workspace-dashboard' },
-  { labelKey: 'nav.tenderPlanning', page: 'tender-planning' },
-  { labelKey: 'nav.procurement', page: 'marketplace' },
-  { labelKey: 'evaluationApp.nav.createTender', page: 'create-tender' },
-  { labelKey: 'nav.bidding', page: 'bidding-workspace' },
-  { labelKey: 'nav.evaluation', page: 'bid-evaluation' },
-  { labelKey: 'nav.awards', page: 'awarding-contracts' },
-  { labelKey: 'nav.records', page: 'records-history' },
-  { labelKey: 'nav.communication', page: 'communication-center' }
-];
-
-const emptyDashboard: EvaluationDashboard = {
-  publishedTenders: 0,
-  readyToEvaluate: 0,
-  draftedEvaluations: 0,
-  lockedUntilClosing: 0,
-  totalRecords: 0
-};
-
-const statusOptions: Array<{ value: EvaluationStatusFilter; labelKey: string }> = [
-  { value: 'all', labelKey: 'evaluationApp.filters.allStatuses' },
-  { value: 'NOT_STARTED', labelKey: 'evaluationApp.status.NOT_STARTED' },
-  { value: 'IN_PROGRESS', labelKey: 'evaluationApp.status.IN_PROGRESS' },
-  { value: 'LOCKED', labelKey: 'evaluationApp.status.LOCKED' },
-  { value: 'COMPLETED', labelKey: 'evaluationApp.status.COMPLETED' },
-  { value: 'RETURNED', labelKey: 'evaluationApp.status.RETURNED' }
-];
-
-const typeOptions: Array<{ value: ProcurementTypeFilter; labelKey: string }> = [
-  { value: 'all', labelKey: 'evaluationApp.filters.allTypes' },
-  { value: 'GOODS', labelKey: 'evaluationApp.types.GOODS' },
-  { value: 'WORKS', labelKey: 'evaluationApp.types.WORKS' },
-  { value: 'SERVICE', labelKey: 'evaluationApp.types.SERVICE' },
-  { value: 'CONSULTANCY', labelKey: 'evaluationApp.types.CONSULTANCY' }
-];
-
-const workspaceTabs: Array<{ id: EvaluationWorkspaceTab; labelKey: string }> = [
-  { id: 'overview', labelKey: 'evaluationApp.p5.tabs.overview' },
-  { id: 'bid-review', labelKey: 'evaluationApp.p5.tabs.bidReview' },
-  { id: 'technical', labelKey: 'evaluationApp.p5.tabs.technical' },
-  { id: 'financial', labelKey: 'evaluationApp.p5.tabs.financial' },
-  { id: 'ranking', labelKey: 'evaluationApp.p5.tabs.ranking' },
-  { id: 'decision', labelKey: 'evaluationApp.p5.tabs.decision' }
-];
-
-const decisionOptions: EvaluationDecisionStatus[] = ['PENDING', 'PASSED', 'FAILED', 'NEEDS_CLARIFICATION', 'RECOMMENDED'];
-
-function EvaluationEmptyMessage({ icon, message }: { icon: ReactNode; message: string }) {
   return (
-    <div className="evaluation-empty-state">
-      <span>{icon}</span>
-      <p>{message}</p>
-    </div>
+    <>
+      <section className="procurement-hero evaluation-hero-panel evaluation-selection-hero">
+        <div>
+          <span className="section-kicker">Evaluation app</span>
+          <h1>Tenders for Evaluation</h1>
+          <p>Open a closed tender after bid opening and evaluate submitted suppliers one supplier at a time against the published requirements and criteria.</p>
+        </div>
+        <div className="evaluation-hero-stats">
+          <div><strong>{loading ? '0' : dashboard.publishedTenders}</strong><span>Published tenders</span></div>
+          <div><strong>{loading ? '0' : dashboard.readyToEvaluate}</strong><span>Ready to evaluate</span></div>
+          <div><strong>{loading ? '0' : dashboard.draftedEvaluations}</strong><span>Drafted evaluations</span></div>
+          <div><strong>{loading ? '0' : lockedCount}</strong><span>Locked until closing</span></div>
+        </div>
+      </section>
+
+      <section className="procurement-panel evaluation-panel records-filter-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="section-kicker">Evaluation records search</span>
+            <h2>Find tender evaluations</h2>
+          </div>
+          <span className="badge badge-info">{recordsLoading ? 'Loading' : `${totalRecords + drafts.length} records`}</span>
+        </div>
+        <div className="records-filter-grid">
+          <label className="sr-only" htmlFor="evaluation-search">Search tender evaluations</label>
+          <div className="evaluation-search-control">
+            <SearchRoundedIcon fontSize="small" aria-hidden="true" />
+            <input
+              id="evaluation-search"
+              className="form-input"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search tender, buyer, reference, procurement type"
+            />
+          </div>
+          <select className="form-input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as EvaluationStatusFilter)}>
+            <option value="all">All evaluation statuses</option>
+            <option value="NOT_STARTED">Ready</option>
+            <option value="IN_PROGRESS">Draft</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="RETURNED">Returned</option>
+          </select>
+          <select className="form-input" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as ProcurementTypeFilter)}>
+            <option value="all">All procurement types</option>
+            <option value="GOODS">Goods</option>
+            <option value="WORKS">Works</option>
+            <option value="SERVICE">Services</option>
+            <option value="CONSULTANCY">Consultancy</option>
+          </select>
+        </div>
+      </section>
+
+      <section className="procurement-panel evaluation-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="section-kicker">Drafted in evaluation</span>
+            <h2>Continue a saved evaluation draft</h2>
+          </div>
+          <span className="badge badge-info">{drafts.length} drafts</span>
+        </div>
+        <div className="evaluation-tender-list">
+          {drafts.length ? drafts.map((draft) => (
+            <article className="evaluation-tender-row is-ready is-draft" key={draft.id}>
+              <div className="evaluation-tender-row-main">
+                <span className="section-kicker">{typeLabel(draft.procurementType)} evaluation draft</span>
+                <h3>{draft.title}</h3>
+                <p>{draft.reference} / Last saved {dateFormatter.format(new Date(draft.updatedAt))}</p>
+              </div>
+              <div className="evaluation-tender-row-meta">
+                <div><span>Resume at</span><strong>{stageLabel(draft.currentStage)}</strong></div>
+                <div><span>Submitted bids</span><strong>{draft.submittedBidCount}</strong></div>
+                <div><span>Status</span><strong>Saved as draft</strong></div>
+                <div><span>Progress</span><strong>{draft.progressPercentage}%</strong></div>
+              </div>
+              <div className="evaluation-tender-row-status">
+                <span className="badge badge-warning">Draft in evaluation</span>
+                <div className="evaluation-progress-track"><span style={{ width: `${clampPercent(draft.progressPercentage)}%` }} /></div>
+              </div>
+              <div className="evaluation-tender-row-actions">
+                <button className="btn btn-primary" type="button" onClick={() => onOpenWorkspace(draft.tenderId)}>Continue Draft</button>
+              </div>
+            </article>
+          )) : <div className="scope-empty">No saved evaluation drafts yet. Save an evaluation draft and it will appear here for continuation.</div>}
+        </div>
+      </section>
+
+      <section className="procurement-panel evaluation-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="section-kicker">Published tenders</span>
+            <h2>Select the tender to evaluate</h2>
+          </div>
+          <span className="badge badge-success">{readyCount} ready</span>
+        </div>
+        <div className="evaluation-tender-list">
+          {filteredRows.length ? filteredRows.map((row) => (
+            <article className={`evaluation-tender-row ${row.ready ? 'is-ready' : 'is-locked'}`} key={row.tenderId}>
+              <div className="evaluation-tender-row-main">
+                <span className="section-kicker">{typeLabel(row.procurementType)} procurement</span>
+                <h3>{row.title}</h3>
+                <p>{row.reference} / {row.buyerName}</p>
+              </div>
+              <div className="evaluation-tender-row-meta">
+                <div><span>Closing date</span><strong>{row.closingDate ? dateFormatter.format(new Date(row.closingDate)) : '-'}</strong></div>
+                <div><span>Requirements</span><strong>{row.submittedBidCount}</strong></div>
+                <div><span>Criteria</span><strong>{criteriaCountForType(row.procurementType)}</strong></div>
+                <div><span>Progress</span><strong>{row.progress}%</strong></div>
+              </div>
+              <div className="evaluation-tender-row-status">
+                <span className="badge badge-info">{statusLabel(row.status)}</span>
+                <span className={row.ready ? 'badge badge-success' : 'badge badge-warning'}>{row.ready ? 'Evaluation open' : 'Evaluation opens after tender closing'}</span>
+                <div className="evaluation-progress-track"><span style={{ width: `${clampPercent(row.progress)}%` }} /></div>
+              </div>
+              <div className="evaluation-tender-row-actions">
+                <button className="btn btn-primary" type="button" disabled={!row.ready} onClick={() => onOpenWorkspace(row.tenderId)}>
+                  {row.status === 'IN_PROGRESS' ? 'Continue Evaluation' : row.ready ? 'Start Evaluation' : 'Locked'}
+                </button>
+              </div>
+            </article>
+          )) : <div className="scope-empty">No tenders match the current evaluation filters.</div>}
+        </div>
+      </section>
+    </>
   );
 }
 
-function EvaluationWorkspaceTabPanel({
-  activeTab,
-  workspace,
+function EvaluationWorkspaceView({
+  activeStageId,
   bids,
-  rankings,
-  selectedBid,
-  selectedBidId,
+  completion,
   expandedBidId,
-  scoreDrafts,
-  decisionDrafts,
   formatDate,
   formatMoney,
-  t,
-  onSelectBid,
-  onToggleBid,
+  onBack,
+  onDecisionChange,
+  onPreviewReport,
+  onSave,
   onScoreChange,
-  onDecisionChange
+  onSelectBid,
+  onStageChange,
+  onToggleBid,
+  rankings,
+  saving,
+  selectedBid,
+  selectedBidId,
+  stages,
+  workspace,
+  workspaceError,
+  workspaceLoading
 }: {
-  activeTab: EvaluationWorkspaceTab;
-  workspace: EvaluationWorkspace;
+  activeStageId: EvaluationStageId;
   bids: EditableEvaluationBid[];
-  rankings: ReturnType<typeof buildRankings>;
-  selectedBid: EditableEvaluationBid | null;
-  selectedBidId: string;
+  completion: { complete: number; total: number; percent: number; canComplete: boolean };
   expandedBidId: string;
-  scoreDrafts: ScoreDraftMap;
-  decisionDrafts: DecisionDraftMap;
   formatDate: (value: string | null) => string;
   formatMoney: (value: number | null, currency: string) => string;
-  t: TranslateFn;
-  onSelectBid: (bidId: string) => void;
-  onToggleBid: (bidId: string) => void;
-  onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+  onBack: () => void;
   onDecisionChange: (bidId: string, patch: Partial<DecisionDraft>) => void;
+  onPreviewReport: () => void;
+  onSave: (complete: boolean) => void;
+  onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+  onSelectBid: (bidId: string) => void;
+  onStageChange: (stageId: EvaluationStageId) => void;
+  onToggleBid: (bidId: string) => void;
+  rankings: ReturnType<typeof buildRankings>;
+  saving: boolean;
+  selectedBid: EditableEvaluationBid | null;
+  selectedBidId: string;
+  stages: Array<{ id: EvaluationStageId; label: string }>;
+  workspace: EvaluationWorkspace;
+  workspaceError: string;
+  workspaceLoading: boolean;
 }) {
-  if (activeTab === 'overview') {
-    return (
-      <div className="evaluation-p5-tab-panel">
-        <section className="evaluation-p5-grid two-col">
-          <article className="evaluation-p5-card">
-            <h3>{t('evaluationApp.p5.criteriaTitle')}</h3>
-            {workspace.criteria.length > 0 ? (
-              <div className="evaluation-table-scroll evaluation-empty-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('evaluationApp.p5.criterion')}</th>
-                      <th>{t('evaluationApp.p5.category')}</th>
-                      <th>{t('evaluationApp.p5.weight')}</th>
-                      <th>{t('evaluationApp.p5.maxScore')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workspace.criteria.map((criterion) => (
-                      <tr key={criterion.id}>
-                        <td><strong>{criterion.name}</strong></td>
-                        <td>{criterion.category}</td>
-                        <td>{criterion.weight ?? t('evaluationApp.labels.notAvailable')}</td>
-                        <td>{criterion.maxScore}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <EvaluationEmptyMessage icon={<RuleRoundedIcon fontSize="small" aria-hidden="true" />} message={t('evaluationApp.p5.emptyCriteria')} />
-            )}
-          </article>
-
-          <article className="evaluation-p5-card">
-            <h3>{t('evaluationApp.p5.auditTitle')}</h3>
-            <dl className="evaluation-empty-meta">
-              <div>
-                <dt>{t('evaluationApp.p5.evaluatedBy')}</dt>
-                <dd>{workspace.audit.evaluatedBy ?? t('evaluationApp.labels.notAvailable')}</dd>
-              </div>
-              <div>
-                <dt>{t('evaluationApp.p5.lastUpdatedBy')}</dt>
-                <dd>{workspace.audit.lastUpdatedBy ?? t('evaluationApp.labels.notAvailable')}</dd>
-              </div>
-              <div>
-                <dt>{t('evaluationApp.p5.lastSaved')}</dt>
-                <dd>{formatDate(workspace.summary.lastSavedAt)}</dd>
-              </div>
-            </dl>
-            {workspace.audit.events.length > 0 ? (
-              <div className="evaluation-p5-audit-list">
-                {workspace.audit.events.map((event) => (
-                  <div key={`${event.event}-${event.createdAt}`}>
-                    <strong>{humanizeEnum(event.event.replace(/\./g, '_'))}</strong>
-                    <span>{event.actorName ?? t('evaluationApp.labels.notAvailable')} / {formatDate(event.createdAt)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="evaluation-p5-muted">{t('evaluationApp.p5.emptyAudit')}</p>
-            )}
-          </article>
-        </section>
-      </div>
-    );
-  }
-
-  if (activeTab === 'bid-review') {
-    return (
-      <div className="evaluation-p5-tab-panel">
-        {bids.length > 0 ? (
-          <div className="evaluation-table-scroll evaluation-empty-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t('evaluationApp.p5.bidder')}</th>
-                  <th>{t('evaluationApp.table.status')}</th>
-                  <th>{t('evaluationApp.p5.documents')}</th>
-                  <th>{t('evaluationApp.p5.financialAmount')}</th>
-                  <th>{t('evaluationApp.p5.eligibility')}</th>
-                  <th>{t('evaluationApp.table.action')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bids.map((bid) => (
-                  <Fragment key={bid.id}>
-                    <tr>
-                      <td>
-                        <strong>{bid.supplierName}</strong>
-                        <span>{bid.reference}</span>
-                      </td>
-                      <td><span className="badge badge-info">{bid.status}</span></td>
-                      <td>{bid.documents.length}</td>
-                      <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
-                      <td>{bid.eligibilityStatus}</td>
-                      <td>
-                        <button className="btn btn-secondary btn-sm" type="button" onClick={() => onToggleBid(bid.id)}>
-                          <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
-                          <span>{expandedBidId === bid.id ? t('evaluationApp.p5.hideSubmission') : t('evaluationApp.p5.openSubmission')}</span>
-                        </button>
-                      </td>
-                    </tr>
-                    {expandedBidId === bid.id ? (
-                      <tr key={`${bid.id}-detail`}>
-                        <td colSpan={6}>
-                          <BidSubmissionDetail bid={bid} formatMoney={formatMoney} t={t} />
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message={t('evaluationApp.p5.emptySubmittedBids')} />
-        )}
-      </div>
-    );
-  }
-
-  if (activeTab === 'technical') {
-    return (
-      <div className="evaluation-p5-tab-panel">
-        {workspace.criteria.length === 0 ? (
-          <EvaluationEmptyMessage icon={<RuleRoundedIcon fontSize="small" aria-hidden="true" />} message={t('evaluationApp.p5.emptyCriteria')} />
-        ) : selectedBid ? (
-          <>
-            <BidSelector bids={bids} selectedBidId={selectedBidId} onSelectBid={onSelectBid} />
-            <div className="evaluation-table-scroll evaluation-empty-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('evaluationApp.p5.criterion')}</th>
-                    <th>{t('evaluationApp.p5.category')}</th>
-                    <th>{t('evaluationApp.p5.weight')}</th>
-                    <th>{t('evaluationApp.p5.maxScore')}</th>
-                    <th>{t('evaluationApp.p5.evaluatorScore')}</th>
-                    <th>{t('evaluationApp.p5.comment')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {workspace.criteria.map((criterion) => {
-                    const draft = scoreDrafts[draftKey(selectedBid.id, criterion.id)] ?? { score: '', comment: '' };
-                    const exceedsMax = draft.score !== '' && Number(draft.score) > criterion.maxScore;
-                    return (
-                      <tr key={criterion.id}>
-                        <td><strong>{criterion.name}</strong></td>
-                        <td>{criterion.category}</td>
-                        <td>{criterion.weight ?? t('evaluationApp.labels.notAvailable')}</td>
-                        <td>{criterion.maxScore}</td>
-                        <td>
-                          <input
-                            className={`form-input ${exceedsMax ? 'is-invalid' : ''}`}
-                            type="number"
-                            min="0"
-                            max={criterion.maxScore}
-                            step="0.01"
-                            value={draft.score}
-                            onChange={(event) => onScoreChange(selectedBid.id, criterion.id, { score: event.target.value })}
-                          />
-                          {exceedsMax ? <span className="evaluation-p5-field-error">{t('evaluationApp.p5.errors.scoreMax')}</span> : null}
-                        </td>
-                        <td>
-                          <textarea
-                            className="form-input evaluation-p5-comment"
-                            value={draft.comment}
-                            onChange={(event) => onScoreChange(selectedBid.id, criterion.id, { comment: event.target.value })}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message={t('evaluationApp.p5.emptySubmittedBids')} />
-        )}
-      </div>
-    );
-  }
-
-  if (activeTab === 'financial') {
-    const hasAmounts = bids.some((bid) => bid.financialAmount !== null);
-    return (
-      <div className="evaluation-p5-tab-panel">
-        {hasAmounts ? (
-          <div className="evaluation-table-scroll evaluation-empty-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t('evaluationApp.p5.bidder')}</th>
-                  <th>{t('evaluationApp.p5.financialAmount')}</th>
-                  <th>{t('evaluationApp.p5.financialScore')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bids.map((bid) => (
-                  <tr key={bid.id}>
-                    <td><strong>{bid.supplierName}</strong></td>
-                    <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
-                    <td>{bid.financialScore === null ? t('evaluationApp.labels.notAvailable') : `${bid.financialScore}%`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EvaluationEmptyMessage icon={<PriceCheckRoundedIcon fontSize="small" aria-hidden="true" />} message={t('evaluationApp.p5.emptyFinancial')} />
-        )}
-      </div>
-    );
-  }
-
-  if (activeTab === 'ranking') {
-    return (
-      <div className="evaluation-p5-tab-panel">
-        {rankings.length > 0 ? (
-          <div className="evaluation-table-scroll evaluation-empty-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t('evaluationApp.p5.rank')}</th>
-                  <th>{t('evaluationApp.p5.bidder')}</th>
-                  <th>{t('evaluationApp.p5.technicalScore')}</th>
-                  <th>{t('evaluationApp.p5.financialScore')}</th>
-                  <th>{t('evaluationApp.p5.totalScore')}</th>
-                  <th>{t('evaluationApp.p5.decision')}</th>
-                  <th>{t('evaluationApp.p5.comment')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankings.map((row) => (
-                  <tr key={row.bidId}>
-                    <td>{row.rank}</td>
-                    <td><strong>{row.bidderName}</strong></td>
-                    <td>{row.technicalScore === null ? t('evaluationApp.labels.notAvailable') : `${row.technicalScore}%`}</td>
-                    <td>{row.financialScore === null ? t('evaluationApp.labels.notAvailable') : `${row.financialScore}%`}</td>
-                    <td>{row.totalScore}%</td>
-                    <td><span className="badge badge-info">{decisionLabel(row.decisionStatus, t)}</span></td>
-                    <td>{row.commentSummary || t('evaluationApp.labels.notAvailable')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EvaluationEmptyMessage icon={<LeaderboardRoundedIcon fontSize="small" aria-hidden="true" />} message={t('evaluationApp.p5.emptyRanking')} />
-        )}
-      </div>
-    );
-  }
+  const tender = workspace.tender;
+  if (!tender) return null;
+  const currentStageLabel = stages.find((stage) => stage.id === activeStageId)?.label ?? stages[0].label;
 
   return (
-    <div className="evaluation-p5-tab-panel">
-      {bids.length > 0 ? (
-        <div className="evaluation-table-scroll evaluation-empty-table">
+    <>
+      <section className="procurement-hero evaluation-hero-panel" data-evaluation-workspace-panel>
+        <div>
+          <span className="section-kicker">{workspaceLabel(tender.procurementType)} Workspace</span>
+          <h1>{tender.title}</h1>
+          <p>{workspaceHeroCopy(tender.procurementType)}</p>
+        </div>
+        <div className="evaluation-hero-stats">
+          <div><strong>{tender.reference}</strong><span>Tender reference</span></div>
+          <div><strong>{typeLabel(tender.procurementType)}</strong><span>Procurement type</span></div>
+          <div><strong>{bids.length}</strong><span>Bids opened</span></div>
+          <div><strong>{completion.percent}%</strong><span>Evaluation status</span></div>
+        </div>
+      </section>
+
+      <section className="evaluation-top-summary">
+        <div><span>Evaluation mode</span><strong>Manual Buyer Review</strong></div>
+        <div><span>Criteria source</span><strong>Published Tender Criteria</strong></div>
+        <div><span>Buyer criteria</span><strong>{workspace.criteria.length}</strong></div>
+        <div><span>Bids opened</span><strong>{bids.length}</strong></div>
+        <div><span>Current stage</span><strong>{currentStageLabel}</strong></div>
+      </section>
+
+      <section className={`procurement-panel evaluation-panel ${workspaceClass(tender.procurementType)}`}>
+        <div className="evaluation-notice warning">This evaluation uses the criteria configured by the buyer during tender creation. The system organizes bid information and calculates totals only. The buyer makes all evaluation decisions manually.</div>
+
+        {workspaceError ? (
+          <NotificationCard notification={{ tone: 'error', title: 'Evaluation workspace issue', message: workspaceError, reason: 'Review the current evaluation entries and retry the save action.', action: { label: 'Try again' }, dismissible: false }} />
+        ) : null}
+        {!workspace.availability.isReady ? <div className="evaluation-notice warning">{workspace.availability.reason}</div> : null}
+
+        <BidderTabs bids={bids} selectedBidId={selectedBidId} onSelectBid={onSelectBid} />
+        <div className="evaluation-progress-track evaluation-workspace-progress"><span style={{ width: `${completion.percent}%` }} /></div>
+        <EvaluationStepper stages={stages} activeStageId={activeStageId} onStageChange={onStageChange} />
+        <div className="evaluation-review-main">
+          <StagePanel
+            activeStageId={activeStageId}
+            bids={bids}
+            expandedBidId={expandedBidId}
+            formatDate={formatDate}
+            formatMoney={formatMoney}
+            onDecisionChange={onDecisionChange}
+            onScoreChange={onScoreChange}
+            onToggleBid={onToggleBid}
+            rankings={rankings}
+            selectedBid={selectedBid}
+            workspace={workspace}
+          />
+        </div>
+
+        <div className="evaluation-finish-panel">
+          <div>
+            <span className="section-kicker">Complete {typeLabel(tender.procurementType).toLowerCase()} evaluation</span>
+            <h3>{completion.canComplete ? 'Ready for buyer completion' : 'Complete all evaluation scores and recommendation'}</h3>
+            <p>{completion.complete} of {completion.total} required checks are complete. Ranking and award recommendation remain manual buyer decisions.</p>
+          </div>
+          <div className="inline-actions">
+            <button className="btn btn-secondary" type="button" disabled={saving || workspaceLoading} onClick={() => onSave(false)}>
+              <SaveRoundedIcon fontSize="small" aria-hidden="true" />
+              <span>{saving ? 'Saving...' : 'Save Draft'}</span>
+            </button>
+            <button className="btn btn-secondary" type="button" onClick={onPreviewReport}>Preview Report</button>
+            <button className="btn btn-secondary" type="button" onClick={() => window.print()}>Download Report</button>
+            <button className="btn btn-primary" type="button" disabled={!completion.canComplete || saving || workspaceLoading} onClick={() => onSave(true)}>Complete Evaluation</button>
+            <button className="btn btn-secondary" type="button" onClick={onBack}>Back to Tender List</button>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function EvaluationStepper({
+  activeStageId,
+  onStageChange,
+  stages
+}: {
+  activeStageId: EvaluationStageId;
+  onStageChange: (stageId: EvaluationStageId) => void;
+  stages: Array<{ id: EvaluationStageId; label: string }>;
+}) {
+  const activeIndex = Math.max(0, stages.findIndex((stage) => stage.id === activeStageId));
+
+  return (
+    <nav className="evaluation-horizontal-stepper evaluation-stage-tabs wizard-step-progress" aria-label="Evaluation sections">
+      {stages.map((stage, index) => {
+        const stateClass = index < activeIndex ? 'completed' : index === activeIndex ? 'active' : 'upcoming';
+        return (
+          <button
+            className={`evaluation-stage-tab wizard-progress-step ${stateClass}`}
+            type="button"
+            key={stage.id}
+            onClick={() => onStageChange(stage.id)}
+          >
+            <strong>{String(index + 1).padStart(2, '0')}</strong>
+            <span>{stage.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function StagePanel({
+  activeStageId,
+  bids,
+  expandedBidId,
+  formatDate,
+  formatMoney,
+  onDecisionChange,
+  onScoreChange,
+  onToggleBid,
+  rankings,
+  selectedBid,
+  workspace
+}: {
+  activeStageId: EvaluationStageId;
+  bids: EditableEvaluationBid[];
+  expandedBidId: string;
+  formatDate: (value: string | null) => string;
+  formatMoney: (value: number | null, currency: string) => string;
+  onDecisionChange: (bidId: string, patch: Partial<DecisionDraft>) => void;
+  onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+  onToggleBid: (bidId: string) => void;
+  rankings: ReturnType<typeof buildRankings>;
+  selectedBid: EditableEvaluationBid | null;
+  workspace: EvaluationWorkspace;
+}) {
+  if (activeStageId === 'opening') {
+    return (
+      <section className="evaluation-section-workspace">
+        <div className="panel-heading">
+          <div>
+            <span className="section-kicker">Opening Register</span>
+            <h2>Submitted supplier bids</h2>
+          </div>
+          <span className="badge badge-success">Opened</span>
+        </div>
+        <div className="evaluation-table-scroll">
           <table>
             <thead>
               <tr>
-                <th>{t('evaluationApp.p5.bidder')}</th>
-                <th>{t('evaluationApp.p5.evaluated')}</th>
-                <th>{t('evaluationApp.p5.totalScore')}</th>
-                <th>{t('evaluationApp.p5.decision')}</th>
-                <th>{t('evaluationApp.p5.comment')}</th>
+                <th>Supplier</th>
+                <th>Submitted</th>
+                <th>Documents</th>
+                <th>Offer value</th>
+                <th>Opening status</th>
+                <th>Submission</th>
               </tr>
             </thead>
             <tbody>
-              {bids.map((bid) => {
-                const draft = decisionDrafts[bid.id] ?? { status: 'PENDING', comment: '' };
-                return (
-                  <tr key={bid.id}>
-                    <td><strong>{bid.supplierName}</strong></td>
-                    <td>{bid.evaluated ? t('common.yes', { defaultValue: 'Yes' }) : t('common.no', { defaultValue: 'No' })}</td>
-                    <td>{bid.totalScore === null ? t('evaluationApp.labels.notAvailable') : `${bid.totalScore}%`}</td>
+              {bids.map((bid) => (
+                <Fragment key={bid.id}>
+                  <tr>
+                    <td><strong>{bid.supplierName}</strong><span>{bid.reference}</span></td>
+                    <td>{formatDate(bid.submittedAt)}</td>
+                    <td>{bid.documents.length}</td>
+                    <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
+                    <td><span className="badge badge-success">Opened</span></td>
                     <td>
-                      <select
-                        className="form-input"
-                        value={draft.status}
-                        onChange={(event) => onDecisionChange(bid.id, { status: event.target.value as EvaluationDecisionStatus })}
-                      >
-                        {decisionOptions.map((option) => (
-                          <option key={option} value={option} disabled={option === 'RECOMMENDED' && !bid.evaluated}>
-                            {decisionLabel(option, t)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <textarea
-                        className="form-input evaluation-p5-comment"
-                        value={draft.comment}
-                        onChange={(event) => onDecisionChange(bid.id, { comment: event.target.value })}
-                      />
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => onToggleBid(bid.id)}>
+                        <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
+                        <span>{expandedBidId === bid.id ? 'Hide submission' : 'Open submission'}</span>
+                      </button>
                     </td>
                   </tr>
-                );
-              })}
+                  {expandedBidId === bid.id ? (
+                    <tr>
+                      <td colSpan={6}><BidSubmissionDetail bid={bid} formatMoney={formatMoney} /></td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>
-      ) : (
-        <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message={t('evaluationApp.p5.emptySubmittedBids')} />
-      )}
+      </section>
+    );
+  }
+
+  if (activeStageId === 'administrative') {
+    return (
+      <SupplierScoringPanel
+        bid={selectedBid}
+        criteria={administrativeCriteria(workspace.criteria)}
+        emptyMessage="No administrative compliance criterion is available for this tender."
+        kicker="Administrative & Eligibility Evaluation"
+        onScoreChange={onScoreChange}
+      />
+    );
+  }
+
+  if (activeStageId === 'criteria') {
+    return (
+      <SupplierScoringPanel
+        bid={selectedBid}
+        criteria={technicalCriteria(workspace.criteria)}
+        emptyMessage="No technical criteria are available for this tender."
+        kicker="Custom Evaluation Criteria"
+        onScoreChange={onScoreChange}
+      />
+    );
+  }
+
+  if (activeStageId === 'financial' || activeStageId === 'boq' || activeStageId === 'pricing') {
+    return (
+      <FinancialReviewPanel
+        bids={bids}
+        criteria={financialCriteria(workspace.criteria)}
+        formatMoney={formatMoney}
+        onScoreChange={onScoreChange}
+        selectedBid={selectedBid}
+        title={activeStageId === 'boq' ? 'Financial Review' : activeStageId === 'pricing' ? 'Service Pricing Review' : 'Financial Review'}
+      />
+    );
+  }
+
+  if (activeStageId === 'sla' || activeStageId === 'postqual') {
+    return <DecisionPanel bids={bids} selectedBid={selectedBid} onDecisionChange={onDecisionChange} title={activeStageId === 'sla' ? 'SLA / Performance Review' : 'Post-Qualification'} />;
+  }
+
+  if (activeStageId === 'ranking') {
+    return <RankingPanel rankings={rankings} />;
+  }
+
+  return <ReportPanel bids={bids} rankings={rankings} workspace={workspace} formatDate={formatDate} formatMoney={formatMoney} />;
+}
+
+function SupplierScoringPanel({
+  bid,
+  criteria,
+  emptyMessage,
+  kicker,
+  onScoreChange
+}: {
+  bid: EditableEvaluationBid | null;
+  criteria: EvaluationWorkspaceCriterion[];
+  emptyMessage: string;
+  kicker: string;
+  onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+}) {
+  if (!bid) return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected." />;
+  if (!criteria.length) return <EvaluationEmptyMessage icon={<RuleRoundedIcon fontSize="small" aria-hidden="true" />} message={emptyMessage} />;
+
+  return (
+    <section className="evaluation-section-workspace">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">{kicker}</span>
+          <h2>{bid.supplierName}</h2>
+        </div>
+        <span className="badge badge-info">{bid.evaluated ? 'Evaluated' : 'Pending'}</span>
+      </div>
+      <div className="evaluation-supplier-profile">
+        <div className="evaluation-supplier-info-grid">
+          <article><span>Supplier</span><strong>{bid.supplierName}</strong></article>
+          <article><span>Submitted</span><strong>{bid.submittedAt ? new Date(bid.submittedAt).toLocaleString() : '-'}</strong></article>
+          <article><span>Documents</span><strong>{bid.documents.length}</strong></article>
+          <article><span>Status</span><strong>{bid.status}</strong></article>
+        </div>
+      </div>
+      <div className="evaluation-requirement-list">
+        {criteria.map((criterion) => {
+          const score = bid.scores.find((item) => item.criterionId === criterion.id) ?? { score: null, comment: '' };
+          const isPassFail = criterion.maxScore <= 1;
+          return (
+            <article className="evaluation-requirement-row" key={criterion.id}>
+              <div className="evaluation-requirement-main">
+                <span className="section-kicker">{criterion.category}</span>
+                <h3>{criterion.name}</h3>
+                <p>{criterion.weight === null ? 'Pass/fail gate' : `${criterion.weight}% weight / max ${criterion.maxScore}`}</p>
+              </div>
+              <div className="evaluation-evidence-panel">
+                <strong>Evidence</strong>
+                {bid.documents.slice(0, 4).map((document) => (
+                  <div className="evaluation-evidence-item" key={document.id}>
+                    <span>{document.documentType}</span>
+                    <p>{document.name}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="evaluation-decision-panel">
+                <label>
+                  Decision / score
+                  {isPassFail ? (
+                    <select className="form-input" value={score.score === null ? '' : String(score.score)} onChange={(event) => onScoreChange(bid.id, criterion.id, { score: event.target.value })}>
+                      <option value="">Select</option>
+                      <option value="1">Pass</option>
+                      <option value="0">Fail</option>
+                    </select>
+                  ) : (
+                    <input className="form-input" type="number" min="0" max={criterion.maxScore} step="0.01" value={score.score === null ? '' : String(score.score)} onChange={(event) => onScoreChange(bid.id, criterion.id, { score: event.target.value })} />
+                  )}
+                </label>
+                <label className="wide">
+                  Evaluator comment
+                  <textarea className="form-input evaluation-p5-comment" value={score.comment} onChange={(event) => onScoreChange(bid.id, criterion.id, { comment: event.target.value })} />
+                </label>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function FinancialReviewPanel({
+  bids,
+  criteria,
+  formatMoney,
+  onScoreChange,
+  selectedBid,
+  title
+}: {
+  bids: EditableEvaluationBid[];
+  criteria: EvaluationWorkspaceCriterion[];
+  formatMoney: (value: number | null, currency: string) => string;
+  onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+  selectedBid: EditableEvaluationBid | null;
+  title: string;
+}) {
+  return (
+    <section className="evaluation-section-workspace">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">{title}</span>
+          <h2>Financial comparison and scoring</h2>
+        </div>
+        <span className="badge badge-info">{bids.length} opened bids</span>
+      </div>
+      <div className="evaluation-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Supplier</th>
+              <th>Financial amount</th>
+              <th>Calculated price score</th>
+              <th>Current total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bids.map((bid) => (
+              <tr key={bid.id}>
+                <td><strong>{bid.supplierName}</strong></td>
+                <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
+                <td>{bid.financialScore === null ? '-' : `${bid.financialScore}%`}</td>
+                <td>{bid.totalScore === null ? '-' : `${bid.totalScore}%`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {selectedBid && criteria.length ? (
+        <SupplierScoringPanel bid={selectedBid} criteria={criteria} emptyMessage="No financial criterion is available." kicker="Financial Proposal Scoring" onScoreChange={onScoreChange} />
+      ) : null}
+    </section>
+  );
+}
+
+function DecisionPanel({
+  bids,
+  onDecisionChange,
+  selectedBid,
+  title
+}: {
+  bids: EditableEvaluationBid[];
+  onDecisionChange: (bidId: string, patch: Partial<DecisionDraft>) => void;
+  selectedBid: EditableEvaluationBid | null;
+  title: string;
+}) {
+  if (!selectedBid) return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected." />;
+  return (
+    <section className="evaluation-section-workspace">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">{title}</span>
+          <h2>{selectedBid.supplierName}</h2>
+        </div>
+        <span className="badge badge-info">{selectedBid.decisionStatus}</span>
+      </div>
+      <div className="evaluation-requirement-row">
+        <div className="evaluation-requirement-main">
+          <span className="section-kicker">Buyer decision</span>
+          <h3>Manual qualification outcome</h3>
+          <p>Use this decision to capture post-evaluation qualification, recommendation, or clarification status.</p>
+        </div>
+        <div className="evaluation-evidence-panel">
+          <strong>Ranking context</strong>
+          {bids.map((bid) => (
+            <div className="evaluation-evidence-item" key={bid.id}>
+              <span>{bid.supplierName}</span>
+              <p>{bid.totalScore === null ? 'Not fully evaluated' : `${bid.totalScore}% total score`}</p>
+            </div>
+          ))}
+        </div>
+        <div className="evaluation-decision-panel">
+          <label>
+            Decision
+            <select className="form-input" value={selectedBid.decisionStatus} onChange={(event) => onDecisionChange(selectedBid.id, { status: event.target.value as EvaluationDecisionStatus })}>
+              {decisionOptions.map((option) => (
+                <option key={option} value={option} disabled={option === 'RECOMMENDED' && !selectedBid.evaluated}>{decisionLabel(option)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="wide">
+            Reason / evaluator note
+            <textarea className="form-input evaluation-p5-comment" value={selectedBid.decisionComment} onChange={(event) => onDecisionChange(selectedBid.id, { comment: event.target.value })} />
+          </label>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RankingPanel({ rankings }: { rankings: ReturnType<typeof buildRankings> }) {
+  return (
+    <section className="evaluation-section-workspace">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Final Ranking</span>
+          <h2>Supplier ranking</h2>
+        </div>
+        <span className="badge badge-info">{rankings.length} ranked</span>
+      </div>
+      {rankings.length ? (
+        <div className="evaluation-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Bidder</th>
+                <th>Technical score</th>
+                <th>Financial score</th>
+                <th>Total score</th>
+                <th>Decision</th>
+                <th>Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankings.map((row) => (
+                <tr key={row.bidId}>
+                  <td>{row.rank}</td>
+                  <td><strong>{row.bidderName}</strong></td>
+                  <td>{row.technicalScore === null ? '-' : `${row.technicalScore}%`}</td>
+                  <td>{row.financialScore === null ? '-' : `${row.financialScore}%`}</td>
+                  <td>{row.totalScore}%</td>
+                  <td><span className="badge badge-info">{decisionLabel(row.decisionStatus)}</span></td>
+                  <td>{row.commentSummary || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <EvaluationEmptyMessage icon={<LeaderboardRoundedIcon fontSize="small" aria-hidden="true" />} message="No evaluated bidders yet. Ranking will appear after scores are entered." />}
+    </section>
+  );
+}
+
+function ReportPanel({
+  bids,
+  formatDate,
+  formatMoney,
+  rankings,
+  workspace
+}: {
+  bids: EditableEvaluationBid[];
+  formatDate: (value: string | null) => string;
+  formatMoney: (value: number | null, currency: string) => string;
+  rankings: ReturnType<typeof buildRankings>;
+  workspace: EvaluationWorkspace;
+}) {
+  return (
+    <section className="evaluation-section-workspace">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Evaluation Report</span>
+          <h2>{workspace.tender?.title}</h2>
+        </div>
+        <span className="badge badge-info">{workspace.summary.evaluationStatus}</span>
+      </div>
+      <div className="evaluation-top-summary">
+        <div><span>Tender</span><strong>{workspace.tender?.reference}</strong></div>
+        <div><span>Buyer</span><strong>{workspace.tender?.buyerName}</strong></div>
+        <div><span>Closing</span><strong>{formatDate(workspace.tender?.closingDate ?? null)}</strong></div>
+        <div><span>Submitted bids</span><strong>{bids.length}</strong></div>
+      </div>
+      <div className="evaluation-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Supplier</th>
+              <th>Offer</th>
+              <th>Total score</th>
+              <th>Decision</th>
+              <th>Rank</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bids.map((bid) => {
+              const rank = rankings.find((row) => row.bidId === bid.id);
+              return (
+                <tr key={bid.id}>
+                  <td><strong>{bid.supplierName}</strong></td>
+                  <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
+                  <td>{bid.totalScore === null ? '-' : `${bid.totalScore}%`}</td>
+                  <td>{decisionLabel(bid.decisionStatus)}</td>
+                  <td>{rank?.rank ?? '-'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function BidderTabs({ bids, selectedBidId, onSelectBid }: { bids: EditableEvaluationBid[]; selectedBidId: string; onSelectBid: (bidId: string) => void }) {
+  if (!bids.length) return null;
+  return (
+    <div className="evaluation-bidder-switcher">
+      {bids.map((bid, index) => {
+        const isSelected = selectedBidId === bid.id;
+        const statusLabel = isSelected ? 'Selected' : decisionLabel(bid.decisionStatus);
+        return (
+          <button className={isSelected ? 'active' : ''} type="button" key={bid.id} onClick={() => onSelectBid(bid.id)} title={bid.supplierName}>
+            <strong>{String(index + 1).padStart(2, '0')}</strong>
+            <span className="evaluation-bidder-tab-copy">
+              <span className="evaluation-bidder-tab-name">{bid.supplierName}</span>
+              <span className="evaluation-bidder-tab-status">{statusLabel}</span>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function BidSubmissionDetail({ bid, formatMoney, t }: { bid: EditableEvaluationBid; formatMoney: (value: number | null, currency: string) => string; t: TranslateFn }) {
+function BidSubmissionDetail({ bid, formatMoney }: { bid: EditableEvaluationBid; formatMoney: (value: number | null, currency: string) => string }) {
   return (
     <div className="evaluation-p5-submission">
       <div>
-        <h4>{t('evaluationApp.p5.submittedDocuments')}</h4>
+        <h4>Submitted documents</h4>
         {bid.documents.length > 0 ? (
           <ul>
             {bid.documents.map((document) => (
               <li key={document.id}>{document.name} / {document.documentType} / {document.reviewStatus}</li>
             ))}
           </ul>
-        ) : (
-          <p>{t('evaluationApp.p5.noDocuments')}</p>
-        )}
+        ) : <p>No submitted documents available.</p>}
       </div>
       <div>
-        <h4>{t('evaluationApp.p5.technicalResponse')}</h4>
+        <h4>Bid responses</h4>
         {bid.responses.length > 0 ? (
           <ul>
             {bid.responses.map((response) => (
@@ -1146,37 +1167,86 @@ function BidSubmissionDetail({ bid, formatMoney, t }: { bid: EditableEvaluationB
               </li>
             ))}
           </ul>
-        ) : (
-          <p>{t('evaluationApp.p5.noResponses')}</p>
-        )}
+        ) : <p>No bid responses available.</p>}
       </div>
       <div>
-        <h4>{t('evaluationApp.p5.financialAmount')}</h4>
+        <h4>Financial amount</h4>
         <p>{formatMoney(bid.financialAmount, bid.currency)}</p>
       </div>
     </div>
   );
 }
 
-function BidSelector({ bids, selectedBidId, onSelectBid }: { bids: EditableEvaluationBid[]; selectedBidId: string; onSelectBid: (bidId: string) => void }) {
+function EvaluationEmptyMessage({ icon, message }: { icon: ReactNode; message: string }) {
   return (
-    <div className="evaluation-p5-bid-selector">
-      {bids.map((bid) => (
-        <button className={selectedBidId === bid.id ? 'active' : ''} type="button" key={bid.id} onClick={() => onSelectBid(bid.id)}>
-          {bid.supplierName}
-        </button>
-      ))}
+    <div className="evaluation-empty-message">
+      {icon}
+      <span>{message}</span>
     </div>
   );
+}
+
+function buildQueueRows(readyTenders: ReadyEvaluationTender[], records: EvaluationRecord[]): TenderQueueRow[] {
+  const byTender = new Map<string, TenderQueueRow>();
+  for (const record of records) {
+    byTender.set(record.tenderId, {
+      tenderId: record.tenderId,
+      reference: record.reference,
+      title: record.title,
+      buyerName: record.buyerName,
+      procurementType: record.procurementType,
+      closingDate: record.closingDate,
+      submittedBidCount: record.submittedBidCount,
+      ready: record.status !== 'COMPLETED' && record.submittedBidCount > 0,
+      status: record.status,
+      stage: record.currentStage,
+      progress: record.progressPercentage,
+      updatedAt: record.updatedAt
+    });
+  }
+  for (const ready of readyTenders) {
+    const existing = byTender.get(ready.tenderId);
+    byTender.set(ready.tenderId, {
+      tenderId: ready.tenderId,
+      reference: ready.reference,
+      title: ready.title,
+      buyerName: ready.buyerName,
+      procurementType: ready.procurementType,
+      closingDate: ready.closingDate,
+      submittedBidCount: ready.submittedBidCount,
+      ready: true,
+      status: existing?.status ?? 'NOT_STARTED',
+      stage: existing?.stage ?? 'OPENING',
+      progress: existing?.progress ?? 0,
+      updatedAt: existing?.updatedAt
+    });
+  }
+  return [...byTender.values()].sort((left, right) => Number(right.ready) - Number(left.ready) || left.reference.localeCompare(right.reference));
+}
+
+function queueRowMatches(row: TenderQueueRow, search: string, status: EvaluationStatusFilter, type: ProcurementTypeFilter) {
+  const normalizedSearch = search.trim().toLowerCase();
+  if (status !== 'all' && row.status !== status) return false;
+  if (type !== 'all' && row.procurementType !== type) return false;
+  if (!normalizedSearch) return true;
+  return [row.reference, row.title, row.buyerName, row.procurementType, row.status].join(' ').toLowerCase().includes(normalizedSearch);
+}
+
+function draftMatches(draft: EvaluationDraft, search: string, type: ProcurementTypeFilter) {
+  if (type !== 'all' && draft.procurementType !== type) return false;
+  const normalizedSearch = search.trim().toLowerCase();
+  if (!normalizedSearch) return true;
+  return [draft.reference, draft.title, draft.procurementType, draft.currentStage ?? ''].join(' ').toLowerCase().includes(normalizedSearch);
 }
 
 function createScoreDrafts(workspace: EvaluationWorkspace): ScoreDraftMap {
   const drafts: ScoreDraftMap = {};
   for (const bid of workspace.bids) {
-    for (const score of bid.scores) {
-      drafts[draftKey(bid.id, score.criterionId)] = {
-        score: score.score === null ? '' : String(score.score),
-        comment: score.comment
+    for (const criterion of workspace.criteria) {
+      const existing = bid.scores.find((score) => score.criterionId === criterion.id);
+      drafts[draftKey(bid.id, criterion.id)] = {
+        score: existing?.score === null || existing?.score === undefined ? '' : String(existing.score),
+        comment: existing?.comment ?? ''
       };
     }
   }
@@ -1194,6 +1264,10 @@ function createDecisionDrafts(workspace: EvaluationWorkspace): DecisionDraftMap 
     ])
   );
 }
+
+type EditableEvaluationBid = EvaluationWorkspaceBid & {
+  commentSummary: string;
+};
 
 function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap, decisionDrafts: DecisionDraftMap): EditableEvaluationBid[] {
   const financial = localFinancialScores(workspace.bids);
@@ -1224,22 +1298,6 @@ function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraft
       commentSummary
     };
   });
-}
-
-function buildRankings(bids: EditableEvaluationBid[]) {
-  return bids
-    .filter((bid) => bid.totalScore !== null)
-    .sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0))
-    .map((bid, index) => ({
-      rank: index + 1,
-      bidId: bid.id,
-      bidderName: bid.supplierName,
-      technicalScore: bid.technicalScore,
-      financialScore: bid.financialScore,
-      totalScore: bid.totalScore ?? 0,
-      decisionStatus: bid.decisionStatus,
-      commentSummary: bid.commentSummary
-    }));
 }
 
 function localTechnicalScore(criteria: EvaluationWorkspace['criteria'], scores: EvaluationWorkspaceBid['scores']) {
@@ -1274,6 +1332,36 @@ function localFinancialScores(bids: EvaluationWorkspace['bids']) {
   return scores;
 }
 
+function buildRankings(bids: EditableEvaluationBid[]) {
+  return bids
+    .filter((bid) => bid.totalScore !== null)
+    .sort((a, b) => (b.totalScore ?? 0) - (a.totalScore ?? 0))
+    .map((bid, index) => ({
+      rank: index + 1,
+      bidId: bid.id,
+      bidderName: bid.supplierName,
+      technicalScore: bid.technicalScore,
+      financialScore: bid.financialScore,
+      totalScore: bid.totalScore ?? 0,
+      decisionStatus: bid.decisionStatus,
+      commentSummary: bid.commentSummary
+    }));
+}
+
+function completionState(workspace: EvaluationWorkspace | null, bids: EditableEvaluationBid[]) {
+  if (!workspace) return { complete: 0, total: 0, percent: 0, canComplete: false };
+  const total = workspace.criteria.length * bids.length;
+  const complete = bids.reduce(
+    (sum, bid) => sum + workspace.criteria.filter((criterion) => {
+      const score = bid.scores.find((item) => item.criterionId === criterion.id)?.score;
+      return score !== null && score !== undefined && score <= criterion.maxScore;
+    }).length,
+    0
+  );
+  const percent = total > 0 ? Math.round((complete / total) * 100) : 0;
+  return { complete, total, percent, canComplete: total > 0 && complete === total };
+}
+
 function validateScoreDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap) {
   for (const bid of workspace.bids) {
     for (const criterion of workspace.criteria) {
@@ -1287,12 +1375,133 @@ function validateScoreDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreD
   return '';
 }
 
+function firstMissingScoreStage(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap): EvaluationStageId {
+  const missing = workspace.criteria.find((criterion) =>
+    workspace.bids.some((bid) => {
+      const draft = scoreDrafts[draftKey(bid.id, criterion.id)];
+      return !draft || draft.score === '';
+    })
+  );
+  if (!missing) return 'criteria';
+  if (isAdministrativeCriterion(missing)) return 'administrative';
+  if (isFinancialCriterion(missing)) return workspace.tender?.procurementType === 'WORKS' ? 'boq' : workspace.tender?.procurementType === 'SERVICE' ? 'pricing' : 'financial';
+  return 'criteria';
+}
+
+function administrativeCriteria(criteria: EvaluationWorkspaceCriterion[]) {
+  return criteria.filter(isAdministrativeCriterion);
+}
+
+function technicalCriteria(criteria: EvaluationWorkspaceCriterion[]) {
+  return criteria.filter((criterion) => !isAdministrativeCriterion(criterion) && !isFinancialCriterion(criterion));
+}
+
+function financialCriteria(criteria: EvaluationWorkspaceCriterion[]) {
+  return criteria.filter(isFinancialCriterion);
+}
+
+function isAdministrativeCriterion(criterion: EvaluationWorkspaceCriterion) {
+  return criterion.maxScore <= 1 || /administrative|eligibility|compliance/i.test(`${criterion.name} ${criterion.category}`);
+}
+
+function isFinancialCriterion(criterion: EvaluationWorkspaceCriterion) {
+  return criterion.stage === 'FINANCIAL' || /financial|price|proposal/i.test(`${criterion.name} ${criterion.category}`);
+}
+
+function stagesForType(type: Exclude<ProcurementTypeFilter, 'all'>): Array<{ id: EvaluationStageId; label: string }> {
+  if (type === 'WORKS') {
+    return [
+      { id: 'opening', label: 'Opening Register' },
+      { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
+      { id: 'criteria', label: 'Custom Evaluation Criteria' },
+      { id: 'boq', label: 'Financial Review' },
+      { id: 'postqual', label: 'Post-Qualification' },
+      { id: 'ranking', label: 'Final Ranking' },
+      { id: 'report', label: 'Evaluation Report' }
+    ];
+  }
+  if (type === 'SERVICE') {
+    return [
+      { id: 'opening', label: 'Opening Register' },
+      { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
+      { id: 'criteria', label: 'Custom Evaluation Criteria' },
+      { id: 'pricing', label: 'Service Pricing Review' },
+      { id: 'sla', label: 'SLA / Performance Review' },
+      { id: 'postqual', label: 'Post-Qualification' },
+      { id: 'ranking', label: 'Final Ranking' },
+      { id: 'report', label: 'Evaluation Report' }
+    ];
+  }
+  if (type === 'CONSULTANCY') {
+    return [
+      { id: 'opening', label: 'Opening Register' },
+      { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
+      { id: 'criteria', label: 'Custom Evaluation Criteria' },
+      { id: 'financial', label: 'Financial Proposal Review' },
+      { id: 'ranking', label: 'Selection Method / Ranking' },
+      { id: 'postqual', label: 'Post-Qualification' },
+      { id: 'report', label: 'Evaluation Report' }
+    ];
+  }
+  return [
+    { id: 'opening', label: 'Opening Register' },
+    { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
+    { id: 'criteria', label: 'Custom Evaluation Criteria' },
+    { id: 'financial', label: 'Financial Review' },
+    { id: 'postqual', label: 'Post-Qualification' },
+    { id: 'ranking', label: 'Final Ranking' },
+    { id: 'report', label: 'Evaluation Report' }
+  ];
+}
+
+function workspaceLabel(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'WORKS') return 'Works Bid Evaluation';
+  if (type === 'GOODS') return 'Goods Bid Evaluation';
+  if (type === 'SERVICE') return 'Service Bid Evaluation';
+  return 'Consultancy Bid Evaluation';
+}
+
+function workspaceHeroCopy(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'WORKS') return 'Manual evaluation of submitted works bids using published criteria, tender requirements, BOQ, methodology, personnel, and equipment.';
+  if (type === 'SERVICE') return 'Manual evaluation of submitted service bids using published criteria, scope of services, personnel requirements, service schedule, SLA, and financial offer.';
+  if (type === 'CONSULTANCY') return 'Manual evaluation of technical and financial consultancy proposals using the buyer published terms of reference and selection criteria.';
+  return 'Manual evaluation using buyer-defined published criteria. The system organizes supplier submissions and calculates totals; the buyer makes every evaluation decision manually.';
+}
+
+function workspaceClass(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'WORKS') return 'works-evaluation-workspace';
+  if (type === 'SERVICE') return 'service-evaluation-workspace';
+  if (type === 'CONSULTANCY') return 'consultancy-evaluation-workspace';
+  return 'goods-evaluation-workspace';
+}
+
+function typeLabel(value: string) {
+  return humanizeEnum(value === 'SERVICE' ? 'SERVICES' : value);
+}
+
+function statusLabel(value: string | null) {
+  if (!value) return 'Not started';
+  return humanizeEnum(value);
+}
+
+function stageLabel(value: string | null) {
+  if (!value) return 'Opening Register';
+  return humanizeEnum(value);
+}
+
+function criteriaCountForType(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'SERVICE') return 5;
+  if (type === 'WORKS') return 5;
+  if (type === 'GOODS') return 5;
+  return 5;
+}
+
 function draftKey(bidId: string, criterionId: string) {
   return `${bidId}:${criterionId}`;
 }
 
-function decisionLabel(value: EvaluationDecisionStatus, t: TranslateFn) {
-  return t(`evaluationApp.p5.decisions.${value}`, { defaultValue: humanizeEnum(value) });
+function decisionLabel(value: EvaluationDecisionStatus) {
+  return humanizeEnum(value);
 }
 
 function formatResponse(value: unknown) {
@@ -1306,13 +1515,12 @@ function formatResponse(value: unknown) {
   }
 }
 
-function formatMoney(value: number | null, currency: string) {
-  if (value === null) return 'Not available';
-  return `${currency} ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)}`;
-}
-
 function roundScore(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function clampPercent(value: number) {
+  return Math.min(100, Math.max(0, value));
 }
 
 function humanizeEnum(value: string) {
@@ -1322,3 +1530,24 @@ function humanizeEnum(value: string) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 }
+
+const emptyDashboard: EvaluationDashboard = {
+  publishedTenders: 0,
+  readyToEvaluate: 0,
+  draftedEvaluations: 0,
+  lockedUntilClosing: 0,
+  totalRecords: 0
+};
+
+const decisionOptions: EvaluationDecisionStatus[] = ['PENDING', 'PASSED', 'FAILED', 'NEEDS_CLARIFICATION', 'RECOMMENDED'];
+
+const pageToRoute = {
+  'create-tender': '/procurement/tenders/new',
+  'tender-planning': '/tender-planning',
+  'bid-evaluation': '/evaluation',
+  'award-recommendation': '/awards-contracts',
+  'workspace-dashboard': '/dashboard',
+  'sign-in': '/sign-in'
+} as const;
+
+type AppRouteKey = keyof typeof pageToRoute;

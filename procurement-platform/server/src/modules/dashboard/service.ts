@@ -40,6 +40,15 @@ function emptyDashboard(): WorkspaceDashboardDto {
       currency: 'TZS',
       complianceStatus: 'Clear'
     },
+    executive: {
+      transactionValue: 0,
+      completedOrders: 0,
+      activeOrders: 0,
+      orderSuccessRate: 0,
+      transactionGrowthRate: 0,
+      averageOrderValue: 0,
+      currency: 'TZS'
+    },
     pipeline: [
       { stage: 'Draft', count: 0, route: '/procurement/create-tender' },
       { stage: 'Published', count: 0, route: '/procurement/marketplace' },

@@ -27,6 +27,16 @@ export type WorkspaceDashboardMetric = {
   note: string;
 };
 
+export type WorkspaceDashboardExecutive = {
+  transactionValue: number;
+  completedOrders: number;
+  activeOrders: number;
+  orderSuccessRate: number;
+  transactionGrowthRate: number;
+  averageOrderValue: number;
+  currency: string;
+};
+
 export type WorkspaceDashboardAction = {
   id: string;
   title: string;
@@ -58,6 +68,7 @@ export type WorkspaceDashboardActiveWork = {
 
 export type WorkspaceDashboardData = {
   summary: WorkspaceDashboardSummary;
+  executive?: WorkspaceDashboardExecutive;
   pipeline: WorkspaceDashboardPipelineStage[];
   metrics: WorkspaceDashboardMetric[];
   actionQueue: WorkspaceDashboardAction[];

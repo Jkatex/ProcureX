@@ -37,6 +37,7 @@ vi.mock('nodemailer', () => {
 import {
   BeemSmsProvider,
   BeemWhatsAppProvider,
+  BriqSmsProvider,
   createIdentityNotifications,
   MetaWhatsAppOtpProvider,
   ResendEmailProvider,
@@ -104,6 +105,14 @@ function metaWhatsAppConfig(): NodeJS.ProcessEnv {
   } as NodeJS.ProcessEnv;
 }
 
+function briqConfig(): NodeJS.ProcessEnv {
+  return {
+    BRIQ_API_KEY: 'briq-key',
+    BRIQ_SMS_BASE_URL: 'https://karibu.briq.tz',
+    BRIQ_SMS_SENDER: 'ProcureX'
+  } as NodeJS.ProcessEnv;
+}
+
 function setProductionEnv() {
   process.env.NODE_ENV = 'production';
   process.env.APP_ENV = 'production';
@@ -113,9 +122,12 @@ function setProductionEnv() {
   process.env.APP_PUBLIC_URL = 'https://app.procurex.test';
   process.env.IDENTITY_EMAIL_PROVIDER = 'resend';
   process.env.IDENTITY_PHONE_PROVIDER = 'sms';
-  process.env.IDENTITY_SMS_PROVIDER = 'beem';
+  process.env.IDENTITY_SMS_PROVIDER = 'briq';
   process.env.RESEND_API_KEY = 'resend-key';
   process.env.RESEND_FROM = 'ProcureX <no-reply@procurex.test>';
+  process.env.BRIQ_API_KEY = 'briq-key';
+  process.env.BRIQ_SMS_BASE_URL = 'https://karibu.briq.tz';
+  process.env.BRIQ_SMS_SENDER = 'ProcureX';
   process.env.BEEM_API_KEY = 'beem-key';
   process.env.BEEM_SECRET_KEY = 'beem-secret';
   process.env.BEEM_SMS_BASE_URL = 'https://apisms.beem.africa';
@@ -294,6 +306,47 @@ describe('Resend and Beem identity delivery integrations', () => {
     expect(receipt).toMatchObject({ provider: 'beem-sms', messageId: '67' });
   });
 
+  it('formats Briq SMS requests with API key, sender ID, and recipients without leading plus', async () => {
+    const fetchMock = mockJsonFetch({
+      success: true,
+      job_id: 'briq-job-1',
+      status: 'sent',
+      message: 'Message queued',
+      stats: { recipients: 1, sms_parts: 1, total_sms: 1, cost: 20 }
+    });
+    const provider = new BriqSmsProvider(briqConfig());
+
+    const receipt = await provider.sendOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://karibu.briq.tz/v1/message/send-instant', expect.any(Object));
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.headers).toMatchObject({
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'X-API-Key': 'briq-key'
+    });
+    expect(JSON.parse(options.body as string)).toEqual({
+      content: 'Your ProcureX verification code is 123456. It expires in 10 minutes.',
+      recipients: ['255700000001'],
+      sender_id: 'ProcureX'
+    });
+    expect(receipt).toMatchObject({ provider: 'briq-sms', messageId: 'briq-job-1' });
+  });
+
+  it('surfaces Briq SMS configuration and provider errors', async () => {
+    expect(() => new BriqSmsProvider({ ...briqConfig(), BRIQ_API_KEY: '' } as NodeJS.ProcessEnv)).toThrow(/Briq API key/);
+    expect(() => new BriqSmsProvider({ ...briqConfig(), BRIQ_SMS_SENDER: '' } as NodeJS.ProcessEnv)).toThrow(/Briq SMS sender/);
+
+    let fetchMock = mockJsonFetch({ detail: 'Invalid or expired API key' }, 401);
+    const provider = new BriqSmsProvider(briqConfig());
+    await expect(provider.sendOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).rejects.toThrow(/Briq SMS returned 401/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fetchMock = mockJsonFetch({ success: false, message: 'Sender ID is not approved' });
+    await expect(provider.sendOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).rejects.toThrow(/Sender ID is not approved/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('formats Beem WhatsApp template and session requests', async () => {
     const fetchMock = mockJsonFetch({ data: { jobId: 'job-1', successful: true } });
     const provider = new BeemWhatsAppProvider(beemConfig());
@@ -392,11 +445,11 @@ describe('Resend and Beem identity delivery integrations', () => {
     await expect(provider.sendOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).rejects.toThrow(/Invalid parameter/);
   });
 
-  it('keeps phone validation local while naming Beem as the configured delivery path', async () => {
+  it('keeps phone validation local while SMS delivery is provider-configured', async () => {
     const provider = new BeemPhoneValidationProvider();
 
     await expect(provider.validate({ phone: '+255700000001' })).resolves.toMatchObject({
-      provider: 'beem-phone-validation',
+      provider: 'local-phone-validation',
       configured: false,
       accepted: true,
       checks: { valid: true }
@@ -409,16 +462,18 @@ describe('Resend and Beem identity delivery integrations', () => {
 
   it('routes identity delivery through Resend, SMTP, and Beem while allowing local dev-console overrides', async () => {
     const fetchMock = mockJsonFetch({ request_id: 'sms-1' });
+  it('routes identity delivery through Resend and Briq while allowing Beem and local dev-console overrides', async () => {
+    const fetchMock = mockJsonFetch({ success: true, job_id: 'briq-sms-1' });
     const notifications = createIdentityNotifications({
-      ...beemConfig(),
+      ...briqConfig(),
       RESEND_API_KEY: 'resend-key',
       RESEND_FROM: 'ProcureX <no-reply@procurex.test>',
       IDENTITY_EMAIL_PROVIDER: 'resend',
       IDENTITY_PHONE_PROVIDER: 'sms',
-      IDENTITY_SMS_PROVIDER: 'beem'
+      IDENTITY_SMS_PROVIDER: 'briq'
     } as NodeJS.ProcessEnv);
 
-    await expect(notifications.sendPhoneOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).resolves.toMatchObject({ provider: 'beem-sms' });
+    await expect(notifications.sendPhoneOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).resolves.toMatchObject({ provider: 'briq-sms' });
     await expect(notifications.sendEmailActivation({ to: 'owner@example.test', code: 'ABC123', expiresInMinutes: 60 })).resolves.toMatchObject({ provider: 'resend' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(resendMocks.send).toHaveBeenCalledTimes(1);
@@ -444,6 +499,15 @@ describe('Resend and Beem identity delivery integrations', () => {
     await expect(smtpNotifications.sendEmailActivation({ to: 'owner@example.test', code: 'ABC123', expiresInMinutes: 60 })).resolves.toMatchObject({ provider: 'smtp' });
     expect(smtpMocks.sendMail).toHaveBeenCalledTimes(1);
 
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ request_id: 'beem-sms-1' }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const beemNotifications = createIdentityNotifications({
+      ...beemConfig(),
+      IDENTITY_EMAIL_PROVIDER: 'dev-console',
+      IDENTITY_PHONE_PROVIDER: 'sms',
+      IDENTITY_SMS_PROVIDER: 'beem'
+    } as NodeJS.ProcessEnv);
+    await expect(beemNotifications.sendPhoneOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).resolves.toMatchObject({ provider: 'beem-sms' });
+
     const devNotifications = createIdentityNotifications({
       NODE_ENV: 'test',
       APP_ENV: 'test',
@@ -454,7 +518,7 @@ describe('Resend and Beem identity delivery integrations', () => {
     await expect(devNotifications.sendPhoneOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10 })).resolves.toEqual({ provider: 'dev-console' });
   });
 
-  it('requires Resend and Beem env in production and rejects legacy providers', () => {
+  it('requires Resend and Briq env in production and rejects legacy providers', () => {
     setProductionEnv();
     expect(() => validateProductionSecurityConfig()).not.toThrow();
 
@@ -462,6 +526,19 @@ describe('Resend and Beem identity delivery integrations', () => {
     expect(() => validateProductionSecurityConfig()).toThrow(/RESEND_API_KEY/);
 
     setProductionEnv();
+    delete process.env.BRIQ_API_KEY;
+    expect(() => validateProductionSecurityConfig()).toThrow(/BRIQ_API_KEY/);
+
+    setProductionEnv();
+    delete process.env.BRIQ_SMS_SENDER;
+    expect(() => validateProductionSecurityConfig()).toThrow(/BRIQ_SMS_SENDER/);
+
+    setProductionEnv();
+    process.env.IDENTITY_SMS_PROVIDER = 'beem';
+    expect(() => validateProductionSecurityConfig()).not.toThrow();
+
+    setProductionEnv();
+    process.env.IDENTITY_SMS_PROVIDER = 'beem';
     delete process.env.BEEM_SECRET_KEY;
     expect(() => validateProductionSecurityConfig()).toThrow(/BEEM_SECRET_KEY/);
 

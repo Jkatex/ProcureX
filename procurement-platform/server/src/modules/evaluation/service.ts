@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { EvaluationStage, type Prisma } from '@prisma/client';
 import { ModuleRepository, type EvaluationWorkspaceAuditRecord, type EvaluationWorkspaceTenderRecord } from './repository.js';
 import {
   moduleDefinition,
@@ -210,7 +210,7 @@ function toWorkspaceDto(tender: EvaluationWorkspaceTenderRecord | null, auditEve
       supplierName: bid.supplierOrg.name,
       status: bid.status,
       submittedAt: bid.submittedAt?.toISOString() ?? null,
-      documents: bid.documents.map((item) => ({
+      documents: bid.documents.filter((item) => financialDocumentsVisible(workspace?.currentStage, item.envelope)).map((item) => ({
         id: item.document.id,
         name: item.document.name,
         documentType: item.document.documentType,
@@ -316,6 +316,24 @@ function workspaceAvailability(tender: EvaluationWorkspaceTenderRecord) {
     return { isReady: false, reason: 'Evaluation is already completed.' };
   }
   return { isReady: true, reason: null };
+}
+
+function financialDocumentsVisible(currentStage: EvaluationStage | null | undefined, envelope: string) {
+  if (envelope !== 'FINANCIAL') return true;
+  if (!currentStage) return false;
+  const order = [
+    EvaluationStage.OPENING,
+    EvaluationStage.CONFLICT,
+    EvaluationStage.PRELIMINARY,
+    EvaluationStage.ELIGIBILITY,
+    EvaluationStage.TECHNICAL,
+    EvaluationStage.FINANCIAL,
+    EvaluationStage.CLARIFICATIONS,
+    EvaluationStage.COMPARISON,
+    EvaluationStage.REPORT,
+    EvaluationStage.RECOMMENDATION
+  ];
+  return order.indexOf(currentStage) >= order.indexOf(EvaluationStage.FINANCIAL);
 }
 
 function readDecisions(payload: Prisma.JsonValue | null | undefined) {

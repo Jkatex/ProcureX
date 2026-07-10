@@ -920,7 +920,7 @@ export class ModuleService {
         target: input.phone,
         severity: AuditSeverity.ERROR,
         details: {
-          provider: 'beem-phone-validation',
+          provider: 'local-phone-validation',
           providerError: error instanceof Error ? error.message : 'Phone validation failed.'
         }
       });

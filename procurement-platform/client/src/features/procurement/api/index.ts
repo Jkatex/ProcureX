@@ -39,6 +39,10 @@ export const procurementApi = {
       return buildTenderDetailFallback(tender);
     }
   },
+  async recordTenderDocumentDownload(tenderId: string, documentId: string) {
+    const response = await apiClient.post<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/documents/${documentId}/download`, {});
+    return response.data;
+  },
   async saveTender(tenderId: string) {
     const response = await apiClient.post<{ success: true; message: string }>(`/api/procurement/tenders/${tenderId}/save`);
     return response.data;
@@ -90,7 +94,8 @@ function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
     commercialItems: tender.commercialItems ?? [],
     documents: tender.documents ?? [],
     bidSummary: tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
-    currentBid: tender.currentBid ?? null
+    currentBid: tender.currentBid ?? null,
+    activity: tender.activity
   };
 }
 

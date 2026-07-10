@@ -1,4 +1,4 @@
-import { BidStatus, RiskLevel, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
+import { BidStatus, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleRepository } from './repository.js';
 
@@ -1439,6 +1439,8 @@ describe('procurement tender detail repository', () => {
       [
         'budget',
         'buyerOrgId',
+        'activity',
+        'amendmentSummary',
         'canBid',
         'category',
         'closingDate',
@@ -1501,7 +1503,8 @@ describe('procurement tender detail repository', () => {
       milestones: [],
       commercialItems: [],
       bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
-      currentBid: null
+      currentBid: null,
+      activity: { marketplaceViews: 0, documentDownloads: 0, clarifications: 0 }
     });
     expect(result).not.toHaveProperty('isSaved');
   });
@@ -1602,6 +1605,217 @@ describe('procurement tender detail repository', () => {
       canBid: false,
       hasDraftBid: false,
       hasSubmittedBid: false
+    });
+  });
+
+  it('aggregates tender activity and records non-owner public detail views', async () => {
+    const publicTender = tenderDetailRecord({
+      id: 'tender-public',
+      buyerOrgId: 'buyer-org-1',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE
+    });
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue(publicTender)
+      },
+      auditEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        count: vi.fn().mockResolvedValueOnce(7).mockResolvedValueOnce(3)
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const result = await repository.getTenderDetail('tender-public', { organizationId: 'supplier-org-1', userId: 'supplier-user-1' });
+
+    expect(db.auditEvent.create).toHaveBeenCalledWith({
+      data: {
+        ownerOrgId: 'buyer-org-1',
+        actorUserId: 'supplier-user-1',
+        event: 'procurement.tender.viewed',
+        entityType: 'tender',
+        entityRef: 'tender-public',
+        payload: {
+          viewerOrgId: 'supplier-org-1',
+          source: 'supplier-tender-detail'
+        }
+      }
+    });
+    expect(db.auditEvent.count).toHaveBeenCalledWith({
+      where: {
+        event: 'procurement.tender.viewed',
+        entityType: 'tender',
+        entityRef: 'tender-public'
+      }
+    });
+    expect(result?.activity).toEqual({ marketplaceViews: 7, documentDownloads: 3, clarifications: 0 });
+  });
+
+  it('does not record marketplace views for owner tender detail views', async () => {
+    const ownerTender = tenderDetailRecord({
+      id: 'tender-owner',
+      buyerOrgId: 'owner-org-1',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE
+    });
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue(ownerTender)
+      },
+      auditEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        count: vi.fn().mockResolvedValue(0)
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await repository.getTenderDetail('tender-owner', { organizationId: 'owner-org-1', userId: 'owner-user-1' });
+
+    expect(db.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('records tender document downloads only when the document belongs to a visible tender', async () => {
+    const publicTender = tenderDetailRecord({
+      id: 'tender-public',
+      buyerOrgId: 'buyer-org-1',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      documents: [
+        {
+          label: 'Tender document',
+          document: { id: 'doc-1', name: 'Tender document.pdf', documentType: 'PDF' }
+        }
+      ]
+    });
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue(publicTender)
+      },
+      auditEvent: {
+        create: vi.fn().mockResolvedValue({})
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await expect(repository.recordTenderDocumentDownload('tender-public', 'doc-1', { organizationId: 'supplier-org-1', userId: 'supplier-user-1' })).resolves.toEqual({
+      success: true,
+      message: 'Document download recorded'
+    });
+    expect(db.auditEvent.create).toHaveBeenCalledWith({
+      data: {
+        ownerOrgId: 'buyer-org-1',
+        actorUserId: 'supplier-user-1',
+        event: 'procurement.tender_document.downloaded',
+        entityType: 'tender',
+        entityRef: 'tender-public',
+        payload: {
+          viewerOrgId: 'supplier-org-1',
+          documentId: 'doc-1',
+          source: 'tender-detail'
+        }
+      }
+    });
+
+    await expect(repository.recordTenderDocumentDownload('tender-public', 'missing-doc', { organizationId: 'supplier-org-1' })).resolves.toBeNull();
+  });
+
+  it('returns document stream metadata and records audit for attachment downloads', async () => {
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tender-public',
+          buyerOrgId: 'buyer-org-1',
+          status: TenderStatus.OPEN,
+          visibility: Visibility.PUBLIC_MARKETPLACE,
+          documents: [
+            {
+              document: {
+                id: 'doc-1',
+                name: 'Tender document.pdf',
+                documentType: 'PDF',
+                objectKey: 'tenders/tender-public/doc-1.pdf'
+              }
+            }
+          ]
+        })
+      },
+      auditEvent: {
+        create: vi.fn().mockResolvedValue({})
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await expect(repository.getTenderDocumentForStream('tender-public', 'doc-1', { organizationId: 'supplier-org-1', userId: 'supplier-user-1' }, 'attachment')).resolves.toEqual({
+      id: 'doc-1',
+      name: 'Tender document.pdf',
+      documentType: 'PDF',
+      objectKey: 'tenders/tender-public/doc-1.pdf',
+      disposition: 'attachment'
+    });
+    expect(db.auditEvent.create).toHaveBeenCalledWith({
+      data: {
+        ownerOrgId: 'buyer-org-1',
+        actorUserId: 'supplier-user-1',
+        event: 'procurement.tender_document.downloaded',
+        entityType: 'tender',
+        entityRef: 'tender-public',
+        payload: {
+          viewerOrgId: 'supplier-org-1',
+          documentId: 'doc-1',
+          source: 'tender-document-stream'
+        }
+      }
+    });
+  });
+
+  it('lists only published amendments for non-owners and all amendments for owners', async () => {
+    const amendment = {
+      id: 'amendment-1',
+      tenderId: 'tender-public',
+      reference: 'PX-001-AMD-1',
+      title: 'Deadline clarification',
+      summary: 'Extends the clarification deadline.',
+      status: TenderAmendmentStatus.PUBLISHED,
+      payload: { changes: [] },
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      createdAt: new Date('2026-07-01T07:00:00.000Z'),
+      updatedAt: new Date('2026-07-01T08:00:00.000Z')
+    };
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tender-public',
+          buyerOrgId: 'buyer-org-1',
+          status: TenderStatus.OPEN,
+          visibility: Visibility.PUBLIC_MARKETPLACE
+        })
+      },
+      tenderAmendment: {
+        findMany: vi.fn().mockResolvedValue([amendment])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const supplierResult = await repository.listTenderAmendments('tender-public', { organizationId: 'supplier-org-1' });
+    expect(db.tenderAmendment.findMany).toHaveBeenLastCalledWith({
+      where: {
+        tenderId: 'tender-public',
+        status: TenderAmendmentStatus.PUBLISHED
+      },
+      orderBy: [{ createdAt: 'desc' }]
+    });
+    expect(supplierResult?.data[0]).toMatchObject({
+      id: 'amendment-1',
+      status: TenderAmendmentStatus.PUBLISHED,
+      payload: { changes: [] }
+    });
+
+    await repository.listTenderAmendments('tender-public', { organizationId: 'buyer-org-1' });
+    expect(db.tenderAmendment.findMany).toHaveBeenLastCalledWith({
+      where: {
+        tenderId: 'tender-public'
+      },
+      orderBy: [{ createdAt: 'desc' }]
     });
   });
 

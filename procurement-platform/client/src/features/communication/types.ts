@@ -25,6 +25,13 @@ export type CommunicationAttachment = {
   createdAt: string;
 };
 
+export type CommunicationAttachmentUpload = {
+  name: string;
+  documentType?: string;
+  mimeType?: string;
+  size?: number;
+};
+
 export type CommunicationThreadEntry = {
   senderOrgId: string | null;
   senderName: string | null;
@@ -112,6 +119,7 @@ export type ComposeCommunicationMessageInput = {
   visibility?: string;
   actionRequired?: boolean;
   attachments?: Array<{ documentId: string }>;
+  attachmentUploads?: CommunicationAttachmentUpload[];
   metadata?: Record<string, unknown>;
 };
 
@@ -122,6 +130,7 @@ export type ReplyCommunicationMessageInput = {
   priority?: CommunicationPriority;
   visibility?: string;
   attachments?: Array<{ documentId: string }>;
+  attachmentUploads?: CommunicationAttachmentUpload[];
   metadata?: Record<string, unknown>;
 };
 

@@ -91,14 +91,25 @@ function resolveWindowsCommand(executable) {
 }
 
 const resolvedCommand = resolveWindowsCommand(command);
-const child = spawn(resolvedCommand.command, args, {
+const isWindowsScript = isWindows && /\.(?:cmd|bat)$/i.test(resolvedCommand.command);
+
+function quoteForCmd(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+const spawnCommand = isWindowsScript
+  ? [quoteForCmd(resolvedCommand.command), ...args.map(quoteForCmd)].join(' ')
+  : resolvedCommand.command;
+const spawnArgs = isWindowsScript ? [] : args;
+
+const child = spawn(spawnCommand, spawnArgs, {
   cwd,
   env: {
     ...process.env,
     ...parsedEnv,
     PATH: pathEntries.join(delimiter)
   },
-  shell: resolvedCommand.shell,
+  shell: isWindowsScript ? true : resolvedCommand.shell,
   stdio: 'inherit'
 });
 

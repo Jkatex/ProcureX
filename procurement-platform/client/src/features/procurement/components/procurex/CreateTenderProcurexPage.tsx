@@ -360,7 +360,11 @@ export function CreateTenderProcurexPage() {
                 ? 'Evaluation complete'
                 : 'Evaluation required';
   const activeStepBadgeClass =
-    activeStep === 3
+    activeStep === 0
+      ? contactVerified
+        ? 'badge-success'
+        : 'badge-warning'
+    : activeStep === 3
       ? evaluationSummary.state === 'balanced'
         ? 'badge-success'
         : evaluationSummary.state === 'over'
@@ -611,7 +615,7 @@ export function CreateTenderProcurexPage() {
   }
 
   return (
-    <ProcurexWorkspaceChrome title="Create Tender">
+    <ProcurexWorkspaceChrome title="Procurement">
       <div className="procurement-app-page tender-wizard-page" data-create-tender-root>
         <section className="journey-hero compact">
           <div>
@@ -620,7 +624,7 @@ export function CreateTenderProcurexPage() {
             <p>Build a tender package that matches the procurement nature, then publish it directly to the marketplace.</p>
           </div>
           <div className="hero-action-stack">
-            <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft || isPersisting}>
+            <button className="btn btn-secondary save-draft-button" type="button" onClick={saveDraft} disabled={!canSaveDraft || isPersisting} data-save-tender-draft>
               {isPersisting ? 'Saving...' : 'Save Draft'}
             </button>
           </div>
@@ -645,102 +649,118 @@ export function CreateTenderProcurexPage() {
             })}
           </nav>
 
-        <div className="wizard-workspace">
-          <section className={`journey-panel active ${activeStep === 3 ? 'evaluation-criteria-panel' : ''}`}>
-            {validationMessage ? (
-              <NotificationCard notification={{ tone: 'error', title: 'Action needed', message: validationMessage, reason: 'Review the current tender step and complete the missing information.', dismissible: false }} />
-            ) : null}
-            {planWarningFields.length ? <div className="planning-section planning-section-notice">Planning handoff fields were edited: {planWarningFields.join(', ')}.</div> : null}
+          <aside className="wizard-rail">
+            {steps.map((step, index) => {
+              const stateClass = index === activeStep ? 'active' : index < activeStep ? 'completed' : '';
+              return (
+                <a
+                  key={step}
+                  href={`#wizard-step-${index + 1}`}
+                  className={`wizard-rail-step ${stateClass}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    goToStep(index);
+                  }}
+                >
+                  <strong>{String(index + 1).padStart(2, '0')}</strong>
+                  <span>{step}</span>
+                </a>
+              );
+            })}
+          </aside>
 
-            <div className="panel-heading">
-              <div>
-                <span className="section-kicker">Step {activeStep + 1}</span>
-                <h2>{steps[activeStep]}</h2>
+          <div className="wizard-workspace">
+            <section className={`journey-panel active ${activeStep === 3 ? 'evaluation-criteria-panel' : ''}`} id={`wizard-step-${activeStep + 1}`}>
+              {validationMessage ? (
+                <NotificationCard notification={{ tone: 'error', title: 'Action needed', message: validationMessage, reason: 'Review the current tender step and complete the missing information.', dismissible: false }} />
+              ) : null}
+              {planWarningFields.length ? <div className="planning-section planning-section-notice">Planning handoff fields were edited: {planWarningFields.join(', ')}.</div> : null}
+
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">Step {activeStep + 1}</span>
+                  <h2>{steps[activeStep]}</h2>
+                </div>
+                <span className={`badge ${activeStepBadgeClass}`}>{activeStepBadge}</span>
               </div>
-              <span className={`badge ${activeStepBadgeClass}`}>{activeStepBadge}</span>
-            </div>
 
-            <div className="journey-panel-content">
-              {activeStep === 0 ? (
-                <BasicInfoStep draft={draft} onPatch={patchPlanAware} onContactPatch={patchContact} />
-              ) : null}
-              {activeStep === 1 ? (
-                <PlanningStep
-                  draft={draft}
-                  selectedType={selectedType}
-                  availableCategories={availableCategories}
-                  newCategory={newCategory}
-                  newSupplier={newSupplier}
-                  onTypeChange={changeType}
-                  onPatch={patchPlanAware}
-                  onNewCategory={selectCategory}
-                  onRemoveCategory={removeCategory}
-                  onNewSupplier={setNewSupplier}
-                  onAddSupplier={addSupplier}
-                />
-              ) : null}
-              {activeStep === 2 ? (
-                <RequirementsStep
-                  draft={draft}
-                  templates={requirementTemplates}
-                  licenses={availableLicenses}
-                  newDeliverable={newDeliverable}
-                  newAttachment={newAttachment}
-                  onPatch={patchDraft}
-                  onToggleLicense={toggleLicense}
-                  onAddLineItem={addLineItem}
-                  onUpdateLineItem={updateLineItem}
-                  onRemoveLineItem={removeLineItem}
-                  onNewDeliverable={setNewDeliverable}
-                  onNewAttachment={setNewAttachment}
-                  onAddDeliverable={() => addTextListValue(newDeliverable, 'deliverables', () => setNewDeliverable(''))}
-                  onAddAttachment={() => addTextListValue(newAttachment, 'attachments', () => setNewAttachment(''))}
-                />
-              ) : null}
-              {activeStep === 3 ? (
-                <EvaluationStep
-                  draft={draft}
-                  total={criteriaTotal}
-                  suggestions={createTenderSetup.evaluationCatalog.filter((criterion) => criterion.suggestedFor.includes(draft.procurementTypeId))}
-                  onAddCriterion={addCriterion}
-                  onUpdateCriterion={updateCriterion}
-                  onRemoveCriterion={removeCriterion}
-                  onReplaceCriteria={(evaluationCriteria) => patchDraft({ evaluationCriteria })}
-                />
-              ) : null}
-              {activeStep === 4 ? <ReviewStep draft={draft} selectedType={selectedType} total={criteriaTotal} /> : null}
-              {activeStep === 5 ? (
-                <PublicationStep
-                  draft={draft}
-                  onPatch={patchDraft}
-                  confirmationsComplete={confirmationsComplete}
-                  isPersisting={isPersisting}
-                  onDownloadPdf={downloadTenderPdfStub}
-                  onSubmitTender={submitTender}
-                />
-              ) : null}
-            </div>
-
-            <footer className="wizard-flow-controls" data-wizard-flow-controls>
-              <button className="btn btn-secondary" type="button" onClick={() => setActiveStep((current) => Math.max(current - 1, 0))} disabled={activeStep === 0}>
-                Back
-              </button>
-              <div className="wizard-flow-progress">
-                <strong>Step {activeStep + 1} of {steps.length}</strong>
-                <span>{steps[activeStep]}</span>
+              <div className="journey-panel-content">
+                {activeStep === 0 ? (
+                  <BasicInfoStep draft={draft} onPatch={patchPlanAware} onContactPatch={patchContact} />
+                ) : null}
+                {activeStep === 1 ? (
+                  <PlanningStep
+                    draft={draft}
+                    selectedType={selectedType}
+                    availableCategories={availableCategories}
+                    newCategory={newCategory}
+                    newSupplier={newSupplier}
+                    onTypeChange={changeType}
+                    onPatch={patchPlanAware}
+                    onNewCategory={selectCategory}
+                    onRemoveCategory={removeCategory}
+                    onNewSupplier={setNewSupplier}
+                    onAddSupplier={addSupplier}
+                  />
+                ) : null}
+                {activeStep === 2 ? (
+                  <RequirementsStep
+                    draft={draft}
+                    templates={requirementTemplates}
+                    licenses={availableLicenses}
+                    newDeliverable={newDeliverable}
+                    newAttachment={newAttachment}
+                    onPatch={patchDraft}
+                    onToggleLicense={toggleLicense}
+                    onAddLineItem={addLineItem}
+                    onUpdateLineItem={updateLineItem}
+                    onRemoveLineItem={removeLineItem}
+                    onNewDeliverable={setNewDeliverable}
+                    onNewAttachment={setNewAttachment}
+                    onAddDeliverable={() => addTextListValue(newDeliverable, 'deliverables', () => setNewDeliverable(''))}
+                    onAddAttachment={() => addTextListValue(newAttachment, 'attachments', () => setNewAttachment(''))}
+                  />
+                ) : null}
+                {activeStep === 3 ? (
+                  <EvaluationStep
+                    draft={draft}
+                    total={criteriaTotal}
+                    suggestions={createTenderSetup.evaluationCatalog.filter((criterion) => criterion.suggestedFor.includes(draft.procurementTypeId))}
+                    onAddCriterion={addCriterion}
+                    onUpdateCriterion={updateCriterion}
+                    onRemoveCriterion={removeCriterion}
+                    onReplaceCriteria={(evaluationCriteria) => patchDraft({ evaluationCriteria })}
+                  />
+                ) : null}
+                {activeStep === 4 ? <ReviewStep draft={draft} selectedType={selectedType} total={criteriaTotal} /> : null}
+                {activeStep === 5 ? (
+                  <PublicationStep
+                    draft={draft}
+                    onPatch={patchDraft}
+                    confirmationsComplete={confirmationsComplete}
+                    isPersisting={isPersisting}
+                    onDownloadPdf={downloadTenderPdfStub}
+                    onSubmitTender={submitTender}
+                  />
+                ) : null}
               </div>
-              {activeStep < steps.length - 1 ? (
-                <button className="btn btn-primary" type="button" onClick={continueStep}>
-                  Continue
+
+              <footer className="wizard-flow-controls" data-wizard-flow-controls>
+                <button className="btn btn-secondary" type="button" onClick={() => setActiveStep((current) => Math.max(current - 1, 0))} disabled={activeStep === 0}>
+                  Back
                 </button>
-              ) : activeStep === steps.length - 1 ? null : (
-                <button className="btn btn-primary" type="button" onClick={submitTender} disabled={!confirmationsComplete}>
-                  Submit Tender for Evaluation
-                </button>
-              )}
-            </footer>
-          </section>
-        </div>
+                <div className="wizard-flow-progress">
+                  <strong>Step {activeStep + 1} of {steps.length}</strong>
+                  <span>{steps[activeStep]}</span>
+                </div>
+                {activeStep < steps.length - 1 ? (
+                  <button className="btn btn-primary" type="button" onClick={continueStep}>
+                    Continue
+                  </button>
+                ) : null}
+              </footer>
+            </section>
+          </div>
         </main>
       </div>
     </ProcurexWorkspaceChrome>
@@ -758,18 +778,9 @@ function BasicInfoStep({
 }) {
   const phoneStatus = draft.contact.verifiedPhone && draft.contact.phone ? 'Phone verified' : draft.contact.phone ? 'Phone ready to verify' : 'Enter a valid phone number';
   const emailStatus = draft.contact.verifiedEmail && draft.contact.email ? 'Email verified' : draft.contact.email ? 'Email ready to verify' : 'Enter a valid email address';
-  const contactVerified = (draft.contact.verifiedPhone && Boolean(draft.contact.phone)) || (draft.contact.verifiedEmail && Boolean(draft.contact.email));
-
   return (
     <div className="basic-information-prototype wizard-step-surface">
       <section className="planning-section wizard-section">
-        <div className="scope-list-heading">
-          <div>
-            <h3>Contact and delivery</h3>
-            <span className="form-hint">Set the submission contact and delivery point visible to suppliers.</span>
-          </div>
-          <span className={`status-badge ${contactVerified ? 'is-success' : 'is-warning'}`}>{contactVerified ? 'Verified' : 'Action needed'}</span>
-        </div>
         <div className="contact-detail-grid">
           <div className="form-group">
             <label className="form-label" htmlFor="create-tender-delivery-point">
@@ -840,12 +851,8 @@ function BasicInfoStep({
       </section>
 
       <section className="planning-section wizard-section">
-        <div className="scope-list-heading">
-          <div>
-            <h3>Tender details</h3>
-            <span className="form-hint">Enter the tender title and key dates before preparing documents.</span>
-          </div>
-        </div>
+        <h3>Tender details</h3>
+        <span className="form-hint">Enter the tender title and key dates before preparing documents.</span>
         <div className="form-group">
           <div className="form-group">
             <label className="form-label" htmlFor="create-tender-title">
@@ -1280,10 +1287,10 @@ function RequirementsStep({
   }
 
   function addSampleRequirement() {
-    if (!draft.commercialItems.length) return;
+    const sourceItem = draft.commercialItems[0] ?? { id: createRowId('item'), description: '', quantity: '', unit: '', unitPrice: '' };
     const row: CreateTenderSampleRequirementRow = {
       id: createRowId('sample'),
-      relatedBoqItemId: draft.commercialItems[0].id,
+      relatedBoqItemId: sourceItem.id,
       sampleRequired: true,
       numberOfSamples: '',
       sampleDescription: '',
@@ -1292,7 +1299,10 @@ function RequirementsStep({
       mandatory: true,
       returnableSample: false
     };
-    onPatch({ sampleRequirements: [...draft.sampleRequirements, row] });
+    onPatch({
+      commercialItems: draft.commercialItems.length ? draft.commercialItems : [sourceItem],
+      sampleRequirements: [...draft.sampleRequirements, row]
+    });
   }
 
   function updateSampleRequirement(rowId: string, patch: Partial<CreateTenderSampleRequirementRow>) {
@@ -1842,9 +1852,9 @@ function RequirementsStep({
                     </tbody>
                   </table>
                 </div>
-                {!draft.commercialItems.length ? <span className="sample-source-hint">Add at least one quantity item before adding sample requirements.</span> : null}
+                {!draft.commercialItems.length ? <span className="sample-source-hint">Adding a sample requirement will create a blank quantity item for you to complete.</span> : null}
                 <div className="requirement-table-actions">
-                  <button className="btn btn-secondary scope-add" type="button" onClick={addSampleRequirement} disabled={!draft.commercialItems.length}>
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addSampleRequirement}>
                     Add Sample Requirement
                   </button>
                 </div>
@@ -3782,13 +3792,19 @@ function WorksRequirementsStep({
               <div className="sample-requirement-choice-row">
                 {(['Mandatory', 'Not mandatory'] as const).map((option) => (
                   <label key={option} className={`sample-requirement-choice ${works.siteVisitRequirement === option ? 'is-selected' : ''}`}>
-                    <input type="radio" name="siteVisitRequirement" value={option} checked={works.siteVisitRequirement === option} onChange={() => patchWorks({ siteVisitRequirement: option })} />
+                    <input
+                      type="radio"
+                      name="siteVisitRequirement"
+                      value={option}
+                      checked={works.siteVisitRequirement === option}
+                      onChange={() => patchWorks(option === 'Mandatory' ? { siteVisitRequirement: option } : { siteVisitRequirement: option, siteSurveyUploadName: '' })}
+                    />
                     <span>{option}</span>
                   </label>
                 ))}
               </div>
             </div>
-            {works.siteVisitRequirement === 'Not mandatory' ? (
+            {works.siteVisitRequirement === 'Mandatory' ? (
               <div className="requirement-control">
                 <span className="form-label">Site survey</span>
                 <label className="btn btn-secondary scope-add goods-import-control">
@@ -5141,6 +5157,7 @@ function buildWorksRequirementFields(draft: CreateTenderDraft): Record<string, u
     worksCompletionPeriod: works.worksCompletionPeriod,
     worksMilestoneRows: works.worksMilestoneRows,
     siteVisitRequirement: works.siteVisitRequirement,
+    siteSurveyUploadName: works.siteSurveyUploadName,
     similarCompletedProjectsRequired: works.similarCompletedProjectsRequired,
     keyPersonnelCvsRequired: works.keyPersonnelCvsRequired,
     bankStatementsRequired: works.bankStatementsRequired,
@@ -5263,7 +5280,7 @@ function removeUndefinedValues(value: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
-function isRecordValue(value: unknown): value is Record<string, any> {
+function isRecordValue(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
 }
 

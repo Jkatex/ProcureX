@@ -60,16 +60,25 @@ export function validateProductionSecurityConfig() {
     throw new Error('Production security configuration is invalid: WhatsApp identity phone verification is local/testing-only; use Beem SMS in production.');
   }
 
-  const smsProvider = (process.env.IDENTITY_SMS_PROVIDER || 'beem').trim().toLowerCase();
+  const smsProvider = (process.env.IDENTITY_SMS_PROVIDER || 'briq').trim().toLowerCase();
+  const smsProviderSupported = phoneProvider !== 'sms' || smsProvider === 'briq' || smsProvider === 'beem';
   const smsProviderRequirements =
     phoneProvider !== 'sms'
       ? []
-      : [
-          ['BEEM_API_KEY', Boolean(process.env.BEEM_API_KEY)] as const,
-          ['BEEM_SECRET_KEY', Boolean(process.env.BEEM_SECRET_KEY)] as const,
-          ['BEEM_SMS_BASE_URL', Boolean(process.env.BEEM_SMS_BASE_URL)] as const,
-          ['BEEM_SMS_SENDER', Boolean(process.env.BEEM_SMS_SENDER)] as const
-        ];
+      : smsProvider === 'briq'
+        ? [
+            ['BRIQ_API_KEY', Boolean(process.env.BRIQ_API_KEY)] as const,
+            ['BRIQ_SMS_BASE_URL', Boolean(process.env.BRIQ_SMS_BASE_URL)] as const,
+            ['BRIQ_SMS_SENDER', Boolean(process.env.BRIQ_SMS_SENDER)] as const
+          ]
+        : smsProvider === 'beem'
+          ? [
+              ['BEEM_API_KEY', Boolean(process.env.BEEM_API_KEY)] as const,
+              ['BEEM_SECRET_KEY', Boolean(process.env.BEEM_SECRET_KEY)] as const,
+              ['BEEM_SMS_BASE_URL', Boolean(process.env.BEEM_SMS_BASE_URL)] as const,
+              ['BEEM_SMS_SENDER', Boolean(process.env.BEEM_SMS_SENDER)] as const
+            ]
+          : [];
   const emailProviderRequirements =
     emailProvider === 'resend'
       ? [
@@ -92,7 +101,7 @@ export function validateProductionSecurityConfig() {
     ['APP_PUBLIC_URL', Boolean(process.env.APP_PUBLIC_URL)],
     ['IDENTITY_EMAIL_PROVIDER', emailProvider === 'resend'],
     ['IDENTITY_PHONE_PROVIDER', phoneProvider === 'sms'],
-    ['IDENTITY_SMS_PROVIDER', phoneProvider !== 'sms' || smsProvider === 'beem'],
+    ['IDENTITY_SMS_PROVIDER', smsProviderSupported],
     ...smsProviderRequirements,
     ...emailProviderRequirements,
     ...whatsappRequirements,

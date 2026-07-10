@@ -45,6 +45,8 @@ export class ModuleRepository {
     const now = new Date();
     const deadlineLimit = addDays(now, query.deadlineWindowDays);
     const organizationId = query.organizationId;
+    const currentPeriodStart = startOfMonth(now);
+    const previousPeriodStart = addMonths(currentPeriodStart, -1);
 
     const [
       draftTenders,
@@ -63,6 +65,9 @@ export class ModuleRepository {
       activeAwards,
       planningLines,
       recordedValues,
+      purchaseOrderStats,
+      currentPeriodTransactionValue,
+      previousPeriodTransactionValue,
       upcomingTenders,
       upcomingPlanLines,
       upcomingMilestones,
@@ -115,6 +120,9 @@ export class ModuleRepository {
       }),
       this.db.procurementPlanLine.count({ where: planLineScope(organizationId) }),
       this.getRecordedValues(organizationId),
+      this.getPurchaseOrderStats(organizationId),
+      this.getPurchaseOrderValue(organizationId, currentPeriodStart, now),
+      this.getPurchaseOrderValue(organizationId, previousPeriodStart, currentPeriodStart),
       this.db.tender.findMany({
         where: withTenderScope(organizationId, {
           closingDate: { gte: now, lte: deadlineLimit },
@@ -243,6 +251,17 @@ export class ModuleRepository {
     const urgentCount = actionRequiredMessages + attentionComplianceCases + dueSoonCount;
     const workflowCount = myTenders + myBids + activeContracts + activeEvaluationWorkspaces + activeAwards + planningLines;
     const recordedValue = recordedValues.reduce((sum, value) => sum + value, 0);
+    const completedOrders = completedTenders + completedContracts;
+    const activeOrders = draftTenders + publishedTenders + evaluationTenders + awardedTenders + activeContracts;
+    const orderBaseCount = completedOrders + activeOrders;
+    const transactionValue = purchaseOrderStats.value > 0 ? purchaseOrderStats.value : recordedValue;
+    const averageOrderBase = purchaseOrderStats.count || orderBaseCount;
+    const transactionGrowthRate =
+      previousPeriodTransactionValue > 0
+        ? ((currentPeriodTransactionValue - previousPeriodTransactionValue) / previousPeriodTransactionValue) * 100
+        : currentPeriodTransactionValue > 0
+          ? 100
+          : 0;
 
     const summary = {
       urgentCount,
@@ -254,6 +273,16 @@ export class ModuleRepository {
       currency,
       complianceStatus: attentionComplianceCases > 0 ? 'Attention needed' : 'Clear'
     } satisfies WorkspaceDashboardDto['summary'];
+
+    const executive = {
+      transactionValue,
+      completedOrders,
+      activeOrders,
+      orderSuccessRate: orderBaseCount > 0 ? (completedOrders / orderBaseCount) * 100 : 0,
+      transactionGrowthRate,
+      averageOrderValue: averageOrderBase > 0 ? transactionValue / averageOrderBase : 0,
+      currency
+    } satisfies WorkspaceDashboardDto['executive'];
 
     const pipeline: DashboardPipelineStageDto[] = [
       { stage: 'Draft', count: draftTenders, route: '/procurement/create-tender' },
@@ -329,6 +358,7 @@ export class ModuleRepository {
 
     return {
       summary,
+      executive,
       pipeline,
       metrics: [
         { label: 'My tenders', value: String(summary.myTenders), note: 'Tenders created by the selected organization.' },
@@ -375,6 +405,30 @@ export class ModuleRepository {
       decimalToNumber(awardValue._sum.amount)
     ];
   }
+
+  private async getPurchaseOrderStats(organizationId: string) {
+    const stats = await this.db.purchaseOrder.aggregate({
+      where: purchaseOrderScope(organizationId),
+      _sum: { amount: true },
+      _count: { id: true }
+    });
+
+    return {
+      count: stats._count.id,
+      value: decimalToNumber(stats._sum.amount)
+    };
+  }
+
+  private async getPurchaseOrderValue(organizationId: string, start: Date, end: Date) {
+    const stats = await this.db.purchaseOrder.aggregate({
+      where: withPurchaseOrderScope(organizationId, {
+        createdAt: { gte: start, lt: end }
+      }),
+      _sum: { amount: true }
+    });
+
+    return decimalToNumber(stats._sum.amount);
+  }
 }
 
 function tenderScope(organizationId: string): Prisma.TenderWhereInput {
@@ -387,6 +441,10 @@ function bidScope(organizationId: string): Prisma.BidWhereInput {
 
 function contractScope(organizationId: string): Prisma.ContractWhereInput {
   return organizationId ? { OR: [{ buyerOrgId: organizationId }, { supplierOrgId: organizationId }] } : {};
+}
+
+function purchaseOrderScope(organizationId: string): Prisma.PurchaseOrderWhereInput {
+  return organizationId ? { OR: [{ buyerOrgId: organizationId }, { contract: { supplierOrgId: organizationId } }] } : {};
 }
 
 function communicationScope(organizationId: string): Prisma.CommunicationItemWhereInput {
@@ -419,6 +477,10 @@ function withBidScope(organizationId: string, where: Prisma.BidWhereInput): Pris
 
 function withContractScope(organizationId: string, where: Prisma.ContractWhereInput): Prisma.ContractWhereInput {
   return andWhere([contractScope(organizationId), where]);
+}
+
+function withPurchaseOrderScope(organizationId: string, where: Prisma.PurchaseOrderWhereInput): Prisma.PurchaseOrderWhereInput {
+  return andWhere([purchaseOrderScope(organizationId), where]);
 }
 
 function withCommunicationScope(organizationId: string, where: Prisma.CommunicationItemWhereInput): Prisma.CommunicationItemWhereInput {
@@ -549,6 +611,14 @@ function formatMoney(amount: number, valueCurrency: string) {
 
 function addDays(value: Date, days: number) {
   return new Date(value.getTime() + days * 86400000);
+}
+
+function addMonths(value: Date, months: number) {
+  return new Date(value.getFullYear(), value.getMonth() + months, 1);
+}
+
+function startOfMonth(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
 }
 
 function toIso(value: Date | null) {

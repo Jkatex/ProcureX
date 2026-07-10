@@ -1,3 +1,4 @@
+import { resolveAppIconAsset } from './appIconAssets';
 import { useTranslation } from 'react-i18next';
 
 export type PlatformAppPageKey =
@@ -156,6 +157,16 @@ export function PlatformAppsDrawer({ open, organizationLabel, onSelect }: Platfo
 }
 
 export function PlatformAppIcon({ kind }: { kind: PlatformAppIconKind }) {
+  const imageSrc = resolveAppIconAsset(kind);
+
+  if (imageSrc) {
+    return (
+      <span className="app-menu-icon app-menu-icon-image">
+        <img className="app-menu-image" src={imageSrc} alt="" aria-hidden="true" />
+      </span>
+    );
+  }
+
   return (
     <span className="app-menu-icon">
       <svg

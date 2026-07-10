@@ -40,6 +40,13 @@ export type CommunicationAttachmentInput = {
   documentId: string;
 };
 
+export type CommunicationAttachmentUploadInput = {
+  name: string;
+  documentType?: string;
+  mimeType?: string;
+  size?: number;
+};
+
 export type ComposeMessageInput = {
   senderOrgId: string;
   recipientOrgId: string;
@@ -53,6 +60,7 @@ export type ComposeMessageInput = {
   visibility?: string;
   actionRequired: boolean;
   attachments: CommunicationAttachmentInput[];
+  attachmentUploads: CommunicationAttachmentUploadInput[];
   metadata: Record<string, unknown>;
 };
 
@@ -63,6 +71,7 @@ export type ReplyMessageInput = {
   priority?: CommunicationPriority;
   visibility?: string;
   attachments: CommunicationAttachmentInput[];
+  attachmentUploads: CommunicationAttachmentUploadInput[];
   metadata: Record<string, unknown>;
 };
 

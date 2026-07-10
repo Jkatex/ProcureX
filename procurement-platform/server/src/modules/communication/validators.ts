@@ -38,6 +38,15 @@ const attachmentInputSchema = z
   })
   .strict();
 
+const attachmentUploadSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    documentType: z.string().trim().min(1).max(80).optional(),
+    mimeType: z.string().trim().max(120).optional(),
+    size: z.coerce.number().int().min(0).max(100 * 1024 * 1024).optional()
+  })
+  .strict();
+
 export const composeMessageBodySchema = z
   .object({
     senderOrgId: uuidSchema,
@@ -52,9 +61,13 @@ export const composeMessageBodySchema = z
     visibility: z.string().trim().max(120).optional(),
     actionRequired: z.boolean().optional().default(false),
     attachments: z.array(attachmentInputSchema).max(20).optional().default([]),
+    attachmentUploads: z.array(attachmentUploadSchema).max(20).optional().default([]),
     metadata: metadataSchema
   })
-  .strict();
+  .strict()
+  .refine((body) => body.attachments.length + body.attachmentUploads.length <= 20, {
+    message: 'A message can include at most 20 attachments.'
+  });
 
 export const replyMessageBodySchema = z
   .object({
@@ -64,9 +77,13 @@ export const replyMessageBodySchema = z
     priority: z.nativeEnum(CommunicationPriority).optional(),
     visibility: z.string().trim().max(120).optional(),
     attachments: z.array(attachmentInputSchema).max(20).optional().default([]),
+    attachmentUploads: z.array(attachmentUploadSchema).max(20).optional().default([]),
     metadata: metadataSchema
   })
-  .strict();
+  .strict()
+  .refine((body) => body.attachments.length + body.attachmentUploads.length <= 20, {
+    message: 'A reply can include at most 20 attachments.'
+  });
 
 export const patchMessageBodySchema = z
   .object({

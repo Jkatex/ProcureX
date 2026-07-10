@@ -5,6 +5,7 @@ import {
   CommunicationPriority,
   CommunicationStatus,
   OrganizationCapabilityName,
+  OrganizationKind,
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
@@ -110,12 +111,14 @@ export class ModuleRepository {
 
     const records = await this.db.$transaction(async (tx) => {
       const created: CommunicationRecord[] = [];
+      const attachmentDocumentIds = await ensureAttachmentDocuments(tx, input);
       const senderCopy = await createMessageCopy(tx, input, {
         ownerOrgId: input.ownerOrgId ?? input.senderOrgId,
         folder: 'sent',
         status: CommunicationStatus.READ,
         read: true,
-        payload: { ...basePayload, deliveryRole: 'sender' }
+        payload: { ...basePayload, deliveryRole: 'sender' },
+        attachmentDocumentIds
       });
       created.push(senderCopy);
 
@@ -125,7 +128,8 @@ export class ModuleRepository {
           folder: 'inbox',
           status: input.actionRequired ? CommunicationStatus.ACTION_REQUIRED : CommunicationStatus.UNREAD,
           read: false,
-          payload: { ...basePayload, deliveryRole: 'recipient', senderCopyId: senderCopy.id }
+          payload: { ...basePayload, deliveryRole: 'recipient', senderCopyId: senderCopy.id },
+          attachmentDocumentIds
         });
         created.push(recipientCopy);
       }
@@ -166,6 +170,7 @@ export class ModuleRepository {
       visibility: input.visibility ?? original.visibility ?? undefined,
       actionRequired: false,
       attachments: input.attachments,
+      attachmentUploads: input.attachmentUploads,
       metadata: {
         ...input.metadata,
         relatedMessageId: original.id,
@@ -176,6 +181,7 @@ export class ModuleRepository {
 
     const result = await this.db.$transaction(async (tx) => {
       const records: CommunicationRecord[] = [];
+      const attachmentDocumentIds = await ensureAttachmentDocuments(tx, replyInput);
       const thread = [
         ...threadEntries(originalPayload),
         {
@@ -199,7 +205,8 @@ export class ModuleRepository {
         folder: 'sent',
         status: CommunicationStatus.READ,
         read: true,
-        payload: { ...replyPayload, deliveryRole: 'sender' }
+        payload: { ...replyPayload, deliveryRole: 'sender' },
+        attachmentDocumentIds
       });
       records.push(senderCopy);
 
@@ -209,7 +216,8 @@ export class ModuleRepository {
           folder: 'inbox',
           status: CommunicationStatus.UNREAD,
           read: false,
-          payload: { ...replyPayload, deliveryRole: 'recipient', senderCopyId: senderCopy.id }
+          payload: { ...replyPayload, deliveryRole: 'recipient', senderCopyId: senderCopy.id },
+          attachmentDocumentIds
         });
         records.push(recipientCopy);
       }
@@ -348,11 +356,17 @@ export class ModuleRepository {
   }
 
   async listRecipients(input: { search: string; capability?: 'BUYER' | 'SUPPLIER'; pageSize: number }): Promise<CommunicationRecipientDto[]> {
+    const search = input.search.trim();
+    const normalizedSearch = search.toLowerCase();
+    const adminAliasMatches = Boolean(search) && ['admin', 'administration', 'platform', 'procurex'].some((alias) => alias.includes(normalizedSearch));
     const organizations = await this.db.organization.findMany({
       where: {
-        ...(input.search
+        ...(search
           ? {
-              name: { contains: input.search, mode: 'insensitive' }
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                ...(adminAliasMatches ? [{ kind: OrganizationKind.PLATFORM }] : [])
+              ]
             }
           : {}),
         ...(input.capability
@@ -378,7 +392,7 @@ export class ModuleRepository {
 
     return organizations.map((organization) => ({
       id: organization.id,
-      name: organization.name,
+      name: organization.kind === OrganizationKind.PLATFORM ? 'Admin' : organization.name,
       kind: organization.kind,
       country: organization.country,
       capabilities: organization.capabilities.map((item) => item.capability)
@@ -445,6 +459,7 @@ async function createMessageCopy(
     status: CommunicationStatus;
     read: boolean;
     payload: PayloadObject;
+    attachmentDocumentIds: string[];
   }
 ) {
   return db.communicationItem.create({
@@ -464,11 +479,11 @@ async function createMessageCopy(
       actionRequired: input.actionRequired,
       visibility: input.visibility ?? null,
       payload: copy.payload as Prisma.InputJsonObject,
-      ...(input.attachments.length
+      ...(copy.attachmentDocumentIds.length
         ? {
             attachments: {
-              create: input.attachments.map((attachment) => ({
-                documentId: attachment.documentId
+              create: copy.attachmentDocumentIds.map((documentId) => ({
+                documentId
               }))
             }
           }
@@ -476,6 +491,34 @@ async function createMessageCopy(
     },
     include: communicationInclude
   });
+}
+
+async function ensureAttachmentDocuments(db: DbClient, input: ComposeMessageInput): Promise<string[]> {
+  const linkedDocumentIds = (input.attachments ?? []).map((attachment) => attachment.documentId);
+  const attachmentUploads = input.attachmentUploads ?? [];
+  if (!attachmentUploads.length) return linkedDocumentIds;
+
+  const created = await Promise.all(
+    attachmentUploads.map((attachment) =>
+      db.documentObject.create({
+        data: {
+          ownerOrgId: input.ownerOrgId ?? input.senderOrgId,
+          name: attachment.name,
+          objectKey: `communication/${randomUUID()}/${safeObjectName(attachment.name)}`,
+          documentType: attachment.documentType ?? documentTypeForAttachment(attachment),
+          checksum: null,
+          metadata: {
+            source: 'communication-message',
+            mimeType: attachment.mimeType ?? null,
+            size: attachment.size ?? null
+          } as Prisma.InputJsonObject
+        },
+        select: { id: true }
+      })
+    )
+  );
+
+  return [...linkedDocumentIds, ...created.map((document) => document.id)];
 }
 
 function messageWhere(query: CommunicationQuery): Prisma.CommunicationItemWhereInput {
@@ -654,6 +697,18 @@ function otherParty(message: CommunicationRecord, senderOrgId: string) {
 
 function prefixReplySubject(subject: string) {
   return /^re:/i.test(subject) ? subject : `Re: ${subject}`;
+}
+
+function safeObjectName(name: string) {
+  const sanitized = name.trim().replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  return sanitized || 'attachment';
+}
+
+function documentTypeForAttachment(attachment: { name: string; mimeType?: string }) {
+  const mimeType = attachment.mimeType?.trim();
+  if (mimeType) return mimeType;
+  const extension = attachment.name.includes('.') ? attachment.name.split('.').pop()?.trim() : '';
+  return extension ? extension.toUpperCase() : 'Attachment';
 }
 
 function deriveStatus(input: PatchMessageInput, current: CommunicationStatus) {
