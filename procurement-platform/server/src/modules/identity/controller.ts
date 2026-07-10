@@ -21,7 +21,8 @@ import {
   startRegistrationSchema,
   verificationDraftSchema,
   verificationSubmitSchema,
-  verifyOtpSchema
+  verifyOtpSchema,
+  verifyResetCodeSchema
 } from './validators.js';
 
 function bearerToken(req: Request) {
@@ -201,6 +202,16 @@ export class ModuleController {
       const input = resendChallengeSchema.parse(req.body);
       await this.requireTurnstile(req, input.turnstileToken);
       res.json(await this.service.resendResetCode(input.challengeId, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyResetCode: RequestHandler = async (req, res, next) => {
+    try {
+      const input = verifyResetCodeSchema.parse(req.body);
+      await this.requireTurnstile(req, input.turnstileToken);
+      res.json(await this.service.verifyResetCode(input.challengeId, input.code, this.auditContext(req)));
     } catch (error) {
       next(error);
     }

@@ -9,6 +9,7 @@
     "register": "Fungua Akaunti",
     "browse": "Tazama Zabuni Zilizo Wazi",
     "saveDraft": "Hifadhi Rasimu",
+    "back": "Rudi",
     "continue": "Endelea",
     "submit": "Wasilisha",
     "review": "Hakiki",
@@ -832,25 +833,33 @@
         "submit": "Tuma Maelekezo ya Kuweka Upya",
         "submitting": "Inatuma..."
       },
-      "reset": {
-        "title": "Tengeneza Nenosiri Jipya",
-        "subtitle": "Weka msimbo wa kuweka upya kutoka kwenye barua pepe yako na uchague nenosiri jipya.",
+      "verify": {
+        "title": "Thibitisha Msimbo wa Kuweka Upya",
+        "subtitle": "Weka msimbo wa kuweka upya uliotumwa kwenye barua pepe yako.",
         "code": "Msimbo wa Kuweka Upya *",
         "resendIn": "Kutuma upya kutapatikana baada ya {{time}}.",
         "resendAvailable": "Kutuma upya kunapatikana.",
+        "submit": "Thibitisha Msimbo",
+        "submitting": "Inathibitisha...",
+        "resend": "Tuma Msimbo Upya"
+      },
+      "reset": {
+        "title": "Tengeneza Nenosiri Jipya",
+        "subtitle": "Chagua nenosiri jipya linalokidhi mahitaji yote.",
         "password": "Nenosiri Jipya *",
         "confirmPassword": "Thibitisha Nenosiri Jipya *",
         "submit": "Sasisha Nenosiri",
-        "submitting": "Inasasisha...",
-        "resend": "Tuma Msimbo Upya"
+        "submitting": "Inasasisha..."
       },
       "complete": {
         "title": "Nenosiri Limesasishwa",
         "body": "Sasa unaweza kuingia kwa nenosiri lako jipya."
       },
       "messages": {
-        "resetRequested": "Ikiwa akaunti ipo kwa barua pepe hii, maelekezo ya kuweka upya nenosiri yametumwa.",
-        "resetResent": "Ikiwa ombi la kuweka upya bado linafanya kazi, msimbo mpya umetumwa.",
+        "resetRequested": "Msimbo wa kuweka upya nenosiri umetumwa kwenye barua pepe hii.",
+        "accountNotFound": "Hakuna akaunti iliyopatikana kwa barua pepe hii.",
+        "codeVerified": "Msimbo wa kuweka upya umethibitishwa. Chagua nenosiri jipya.",
+        "resetResent": "Msimbo mpya umetumwa kwenye barua pepe hii.",
         "missingCode": "Fungua kiungo cha kuweka upya kutoka kwenye barua pepe yako au weka msimbo uliotumwa kwako.",
         "passwordRequirements": "Kamilisha mahitaji yote ya nenosiri na hakikisha manenosiri yote mawili yanafanana.",
         "updated": "Nenosiri lako limesasishwa."

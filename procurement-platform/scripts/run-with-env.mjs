@@ -59,19 +59,30 @@ const pathEntries = [
   ...(process.env.PATH ?? '').split(delimiter)
 ].filter(Boolean);
 
+function quoteWindowsCommandArg(value) {
+  if (!/[ \t&()^|<>"]/.test(value)) return value;
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
 function resolveWindowsCommand(executable) {
   if (!isWindows) return { command: executable, shell: false };
 
   if (extname(executable)) {
     const extension = extname(executable).toLowerCase();
-    return { command: executable, shell: extension === '.cmd' || extension === '.bat' };
+    if (extension === '.cmd' || extension === '.bat') {
+      return { command: quoteWindowsCommandArg(executable), shell: true };
+    }
+    return { command: executable, shell: false };
   }
 
   for (const directory of pathEntries) {
     for (const extension of ['.cmd', '.exe', '.bat', '']) {
       const candidate = resolve(directory, `${executable}${extension}`);
       if (existsSync(candidate)) {
-        return { command: candidate, shell: extension === '.cmd' || extension === '.bat' };
+        if (extension === '.cmd' || extension === '.bat') {
+          return { command: quoteWindowsCommandArg(candidate), shell: true };
+        }
+        return { command: candidate, shell: false };
       }
     }
   }

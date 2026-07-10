@@ -53,6 +53,12 @@ export function validateProductionSecurityConfig() {
   if (emailProvider === 'dev-console' || phoneProvider === 'dev-console') {
     throw new Error('Production security configuration is invalid: dev-console identity notifications are local-only.');
   }
+  if (emailProvider === 'smtp') {
+    throw new Error('Production security configuration is invalid: SMTP identity email is local/testing-only; use Resend in production.');
+  }
+  if (phoneProvider === 'whatsapp') {
+    throw new Error('Production security configuration is invalid: WhatsApp identity phone verification is local/testing-only; use Beem SMS in production.');
+  }
 
   const smsProvider = (process.env.IDENTITY_SMS_PROVIDER || 'beem').trim().toLowerCase();
   const smsProviderRequirements =

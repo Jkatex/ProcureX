@@ -9,6 +9,7 @@
     "register": "Create Account",
     "browse": "Browse Open Tenders",
     "saveDraft": "Save Draft",
+    "back": "Back",
     "continue": "Continue",
     "submit": "Submit",
     "review": "Review",
@@ -832,25 +833,33 @@
         "submit": "Send Reset Instructions",
         "submitting": "Sending..."
       },
-      "reset": {
-        "title": "Create New Password",
-        "subtitle": "Enter the reset code from your email and choose a new password.",
+      "verify": {
+        "title": "Verify Reset Code",
+        "subtitle": "Enter the reset code sent to your email.",
         "code": "Reset Code *",
         "resendIn": "Resend available in {{time}}.",
         "resendAvailable": "Resend is available.",
+        "submit": "Verify Code",
+        "submitting": "Verifying...",
+        "resend": "Resend Reset Code"
+      },
+      "reset": {
+        "title": "Create New Password",
+        "subtitle": "Choose a new password that meets all requirements.",
         "password": "New Password *",
         "confirmPassword": "Confirm New Password *",
         "submit": "Update Password",
-        "submitting": "Updating...",
-        "resend": "Resend Reset Code"
+        "submitting": "Updating..."
       },
       "complete": {
         "title": "Password Updated",
         "body": "You can now sign in with your new password."
       },
       "messages": {
-        "resetRequested": "If an account exists for this email, password reset instructions have been sent.",
-        "resetResent": "If the reset request is still active, a new reset code has been sent.",
+        "resetRequested": "Password reset code has been sent to this email.",
+        "accountNotFound": "No account found for this email.",
+        "codeVerified": "Reset code verified. Choose a new password.",
+        "resetResent": "A new reset code has been sent to this email.",
         "missingCode": "Open the reset link from your email or enter the reset code provided to you.",
         "passwordRequirements": "Complete all password requirements and confirm both passwords match.",
         "updated": "Your password has been updated."
