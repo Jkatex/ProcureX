@@ -737,7 +737,7 @@
         "emailPlaceholder": "you@company.com",
         "emailHint": "Your sign-in email and activation address.",
         "phone": "Mobile Number *",
-        "phonePlaceholder": "+255 XXX XXX XXX",
+        "phonePlaceholder": " XXX XXX XXX",
         "phoneHint": "Used for one-time verification codes."
       },
       "otp": {

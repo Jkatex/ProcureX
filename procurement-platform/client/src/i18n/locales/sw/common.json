@@ -737,7 +737,7 @@
         "emailPlaceholder": "wewe@kampuni.co.tz",
         "emailHint": "Barua pepe yako ya kuingia na uanzishaji.",
         "phone": "Namba ya Simu *",
-        "phonePlaceholder": "+255 XXX XXX XXX",
+        "phonePlaceholder": " XXX XXX XXX",
         "phoneHint": "Inatumika kwa misimbo ya uthibitishaji ya mara moja."
       },
       "otp": {
