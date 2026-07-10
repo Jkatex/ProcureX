@@ -7,6 +7,7 @@ import { AccountMenu } from '@/shared/components/AccountMenu';
 import { notificationFromApiError } from '@/shared/api/errors';
 import type { CreateNotificationInput } from '@/shared/types/notifications';
 import { PlatformAppsButton, PlatformAppIcon, type PlatformAppIconKind } from '@/shared/components/procurex/PlatformAppsDrawer';
+import { resolveAdminAppIconAsset } from './adminAppIconAssets';
 
 export type AdminCommandConfig = {
   title: string;
@@ -250,7 +251,7 @@ export function AdminShell({ currentPath, title, children }: { currentPath: stri
   );
 }
 
-function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: boolean; organizationLabel: string; apps: AdminApp[]; onSelect: (route: string) => void }) {
+export function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: boolean; organizationLabel: string; apps: AdminApp[]; onSelect: (route: string) => void }) {
   return (
     <div className={`app-drawer-menu${open ? ' open' : ''}`} data-app-menu aria-hidden={!open}>
       <div className="app-menu-header">
@@ -270,7 +271,7 @@ function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: bo
           data-navigate={item.key}
           onClick={() => onSelect(item.route)}
         >
-          <PlatformAppIcon kind={adminAppIconByKey[item.key] ?? 'records'} useImage={item.key === 'communication-center'} />
+          <AdminAppIcon appKey={item.key} fallbackKind={adminAppIconByKey[item.key] ?? 'records'} />
           <span>
             <strong>{item.title}</strong>
             <em>{item.description}</em>
@@ -279,6 +280,20 @@ function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: bo
       ))}
     </div>
   );
+}
+
+function AdminAppIcon({ appKey, fallbackKind }: { appKey: string; fallbackKind: PlatformAppIconKind }) {
+  const imageSrc = resolveAdminAppIconAsset(appKey);
+
+  if (imageSrc) {
+    return (
+      <span className="app-menu-icon app-menu-icon-image">
+        <img className="app-menu-image" src={imageSrc} alt="" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return <PlatformAppIcon kind={fallbackKind} useImage={false} />;
 }
 
 export function AdminHero({
