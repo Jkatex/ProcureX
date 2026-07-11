@@ -5388,9 +5388,59 @@ ul.closure-checklist {
 }
 
 .records-history-page .records-filter-grid {
-    grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(130px, 1fr)) auto auto;
+    grid-template-columns: minmax(320px, 1.5fr) repeat(5, minmax(160px, 0.62fr)) auto auto;
     align-items: center;
     gap: 10px;
+}
+
+.records-archive-tabs {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 8px;
+    border: 1px solid var(--px-line-soft);
+    border-radius: var(--px-card-radius-sm);
+    background: #ffffff;
+}
+
+.records-archive-tabs button {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--design-ink-deep);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.records-archive-tabs button strong {
+    min-width: 26px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.07);
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-align: center;
+}
+
+.records-archive-tabs button.active {
+    border-color: rgba(0, 128, 128, 0.22);
+    background: rgba(0, 128, 128, 0.08);
+    color: var(--design-primary);
+}
+
+.records-archive-tabs button.active strong {
+    background: var(--design-primary);
+    color: #ffffff;
+}
+
+.records-filter-compact .form-input {
+    min-width: 0;
 }
 
 .records-history-page .records-filter-grid .btn,
@@ -5410,7 +5460,7 @@ ul.closure-checklist {
 }
 
 .records-history-table table {
-    min-width: 980px;
+    min-width: 940px;
 }
 
 .records-history-table th,
@@ -5538,6 +5588,15 @@ ul.closure-checklist {
 .records-view-button {
     min-height: 34px;
     padding: 7px 12px !important;
+    white-space: nowrap;
+}
+
+.records-row-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+    min-width: 132px;
 }
 
 .records-empty-state {
@@ -5661,7 +5720,7 @@ ul.closure-checklist {
     color: var(--text-muted);
     font-size: 12px;
     font-weight: 800;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .records-summary-section dd {
@@ -5716,6 +5775,56 @@ ul.closure-checklist {
 .records-detail-table th,
 .records-detail-table td {
     padding: 9px 10px;
+}
+
+.records-lifecycle-strip {
+    display: flex;
+    gap: 10px;
+    margin: 0;
+    padding: 2px 0 8px;
+    overflow-x: auto;
+    list-style: none;
+}
+
+.records-lifecycle-strip li {
+    position: relative;
+    flex: 0 0 160px;
+    min-height: 86px;
+    padding: 14px;
+    border: 1px solid var(--px-line-soft);
+    border-radius: var(--px-card-radius-sm);
+    background: #ffffff;
+}
+
+.records-lifecycle-strip li::before {
+    content: "";
+    display: block;
+    width: 28px;
+    height: 28px;
+    margin-bottom: 10px;
+    border-radius: 999px;
+    background: #e2e8f0;
+}
+
+.records-lifecycle-strip li.completed::before,
+.records-lifecycle-strip li.current::before {
+    background: var(--design-primary);
+}
+
+.records-lifecycle-strip li.current {
+    border-color: rgba(0, 128, 128, 0.36);
+    background: rgba(0, 128, 128, 0.06);
+}
+
+.records-lifecycle-strip strong,
+.records-lifecycle-strip span {
+    display: block;
+}
+
+.records-lifecycle-strip span {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
 }
 
 .records-pdf-report {
@@ -21781,6 +21890,70 @@ body:not([data-page="iam-verification"]) .communication-shell {
 
 .evaluation-panel {
     padding: 22px;
+}
+
+.evaluation-workspace .records-filter-panel .panel-heading {
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.evaluation-workspace .records-filter-panel .records-filter-grid {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.evaluation-search-control {
+    position: relative;
+    flex: 1 1 360px;
+    min-width: min(360px, 100%);
+}
+
+.evaluation-search-control svg {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    z-index: 1;
+    color: var(--text-secondary);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.evaluation-search-control .form-input {
+    width: 100%;
+    min-height: 52px;
+    padding-left: 48px;
+    padding-right: 18px;
+    border-color: var(--px-line-soft) !important;
+    border-radius: 14px !important;
+    font-size: 14px;
+    line-height: 1.35;
+}
+
+.evaluation-workspace .records-filter-panel .evaluation-filter-select {
+    flex: 0 0 240px;
+    width: 240px;
+    min-height: 52px;
+    padding: 0 40px 0 16px;
+    border-color: var(--px-line-soft) !important;
+    border-radius: 14px !important;
+    background-color: #ffffff !important;
+    font-size: 14px;
+    line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+    .evaluation-workspace .records-filter-panel .panel-heading {
+        align-items: flex-start;
+    }
+
+    .evaluation-search-control,
+    .evaluation-workspace .records-filter-panel .evaluation-filter-select {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+    }
 }
 
 .evaluation-ready-grid,

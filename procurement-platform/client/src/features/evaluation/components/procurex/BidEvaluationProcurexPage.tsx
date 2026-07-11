@@ -444,7 +444,6 @@ function EvaluationTenderListView({
         <div className="panel-heading">
           <div>
             <span className="section-kicker">Evaluation records search</span>
-            <h2>Find tender evaluations</h2>
           </div>
           <span className="badge badge-info">{recordsLoading ? 'Loading' : `${totalRecords + drafts.length} records`}</span>
         </div>
@@ -458,17 +457,17 @@ function EvaluationTenderListView({
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search tender, buyer, reference, procurement type"
+              placeholder="Search tender, buyer, reference..."
             />
           </div>
-          <select className="form-input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as EvaluationStatusFilter)}>
+          <select className="form-input evaluation-filter-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as EvaluationStatusFilter)}>
             <option value="all">All evaluation statuses</option>
             <option value="NOT_STARTED">Ready</option>
             <option value="IN_PROGRESS">Draft</option>
             <option value="COMPLETED">Completed</option>
             <option value="RETURNED">Returned</option>
           </select>
-          <select className="form-input" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as ProcurementTypeFilter)}>
+          <select className="form-input evaluation-filter-select" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as ProcurementTypeFilter)}>
             <option value="all">All procurement types</option>
             <option value="GOODS">Goods</option>
             <option value="WORKS">Works</option>
@@ -482,7 +481,6 @@ function EvaluationTenderListView({
         <div className="panel-heading">
           <div>
             <span className="section-kicker">Drafted in evaluation</span>
-            <h2>Continue a saved evaluation draft</h2>
           </div>
           <span className="badge badge-info">{drafts.length} drafts</span>
         </div>
@@ -516,7 +514,6 @@ function EvaluationTenderListView({
         <div className="panel-heading">
           <div>
             <span className="section-kicker">Published tenders</span>
-            <h2>Select the tender to evaluate</h2>
           </div>
           <span className="badge badge-success">{readyCount} ready</span>
         </div>

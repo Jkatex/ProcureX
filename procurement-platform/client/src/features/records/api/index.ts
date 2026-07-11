@@ -2,6 +2,7 @@ import { apiClient } from '@/shared/api/http';
 import type {
   RecordsCharts,
   RecordsDashboard,
+  RecordsDetail,
   RecordsInsights,
   RecordsListResponse,
   RecordsQuery
@@ -31,6 +32,11 @@ export const recordsApi = {
     const response = await apiClient.get<RecordsInsights>('/api/records/insights', {
       params: query
     });
+    return response.data;
+  },
+
+  async getDetail(recordId: string) {
+    const response = await apiClient.get<RecordsDetail>(`/api/records/${encodeURIComponent(recordId)}`);
     return response.data;
   },
 

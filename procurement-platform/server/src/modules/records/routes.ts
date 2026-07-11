@@ -11,6 +11,7 @@ export function createModuleRouter() {
   router.get('/insights', controller.insights);
   router.get('/export/csv', controller.exportCsv);
   router.get('/export/pdf', controller.exportPdf);
+  router.get('/:id', controller.detail);
   router.get('/', controller.records);
 
   return router;

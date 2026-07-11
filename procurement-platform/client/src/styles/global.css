@@ -2197,13 +2197,13 @@ img {
 .records-visual-main {
   width: 100%;
   min-width: 0;
-  padding: 48px 36px 72px;
+  padding: 28px 36px 56px;
   background: #f6f9fd;
 }
 
 .records-visual-shell {
   display: grid;
-  gap: 24px;
+  gap: 16px;
   min-width: 0;
   max-width: none;
   margin: 0 auto;
@@ -2217,19 +2217,19 @@ img {
 
 .records-visual-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.75fr) minmax(360px, 1fr);
-  min-height: 330px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.72fr);
+  min-height: 190px;
   overflow: hidden;
   border: 1px solid #d7e3f4;
-  border-radius: 16px;
+  border-radius: 8px;
   background: #eaf3ff;
 }
 
 .records-visual-hero-copy {
   display: grid;
   align-content: center;
-  gap: 18px;
-  padding: clamp(32px, 4.6vw, 58px);
+  gap: 10px;
+  padding: 28px 32px;
   background: #eaf3ff;
 }
 
@@ -2238,13 +2238,13 @@ img {
   align-items: center;
   justify-content: center;
   width: max-content;
-  min-height: 30px;
-  padding: 6px 14px;
+  min-height: 26px;
+  padding: 5px 12px;
   border: 0;
   border-radius: 999px;
   background: #d5e8f3;
   color: #526370;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -2252,8 +2252,8 @@ img {
   margin: 4px 0 0;
   max-width: 720px;
   color: #0d1f32;
-  font-size: clamp(42px, 6vw, 68px);
-  font-weight: 500;
+  font-size: 40px;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 0.98;
 }
@@ -2262,8 +2262,8 @@ img {
   max-width: 690px;
   margin: 0;
   color: #445569;
-  font-size: 17px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .records-visual-hero-media {
@@ -2282,15 +2282,15 @@ img {
 .records-visual-hero-media img {
   width: 100%;
   height: 100%;
-  min-height: 330px;
+  min-height: 190px;
   object-fit: cover;
 }
 
 .records-visual-shell .records-history-tabs {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 12px;
+  gap: 8px;
+  padding: 8px;
   border: 1px solid #e1e7ef;
   border-radius: 12px;
   background: #ffffff;
@@ -2299,14 +2299,14 @@ img {
 
 .records-visual-shell .records-history-tabs button {
   appearance: none;
-  min-height: 50px;
-  padding: 12px 22px;
+  min-height: 40px;
+  padding: 9px 14px;
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
   color: #334155;
   font: inherit;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0;
   cursor: pointer;
@@ -2322,15 +2322,15 @@ img {
 .records-visual-stat-grid.records-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 24px !important;
-  margin-bottom: 24px;
+  gap: 16px !important;
+  margin-bottom: 0;
 }
 
 .records-visual-stat-card.kpi-card {
   display: grid;
   align-content: center;
   gap: 8px;
-  min-height: 132px;
+  min-height: 92px;
   padding: 18px !important;
   border: 1px solid #e1e7ef;
   border-radius: 8px;
@@ -2340,7 +2340,7 @@ img {
 
 .records-visual-stat-card .kpi-value {
   color: #0d1f32;
-  font-size: 34px;
+  font-size: 28px;
   font-weight: 600;
   letter-spacing: 0;
   line-height: 1;
@@ -2348,10 +2348,10 @@ img {
 
 .records-visual-stat-card .kpi-label {
   color: #536579;
-  font-size: 12px;
-  font-weight: 850;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .records-visual-shell .records-filter-panel,
@@ -2365,32 +2365,32 @@ img {
 }
 
 .records-visual-shell .records-filter-panel {
-  padding: 22px !important;
+  padding: 18px !important;
 }
 
 .records-visual-shell .records-filter-panel .panel-heading {
   align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .records-visual-shell .section-kicker {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 6px 14px;
+  min-height: 26px;
+  padding: 5px 12px;
   border-radius: 999px;
   background: #d5e8f3;
   color: #526370;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
   text-transform: none;
 }
 
 .records-visual-shell .records-filter-panel h2 {
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   color: #0d1f32;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1.18;
   letter-spacing: 0;
@@ -2408,7 +2408,9 @@ img {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 12px;
+  min-width: 0;
 }
 
 .records-visual-shell .records-heading-actions .badge {
@@ -2425,7 +2427,7 @@ img {
 .records-visual-shell .records-heading-actions .btn,
 .records-visual-shell .records-filter-grid .btn,
 .records-visual-shell .records-report-filter-grid .btn {
-  min-height: 44px;
+  min-height: 42px;
   border-radius: 8px;
   font-size: 15px;
   font-weight: 800;
@@ -2484,13 +2486,13 @@ img {
 
 .records-visual-shell .records-archive-filter-panel {
   display: grid;
-  gap: 20px;
-  padding: 24px 28px 28px !important;
+  gap: 16px;
+  padding: 20px 22px 22px !important;
   border-color: #dfe7ef;
 }
 
 .records-visual-shell .records-archive-heading {
-  align-items: flex-end;
+  align-items: center;
   gap: 18px;
   margin-bottom: 0;
 }
@@ -2522,7 +2524,7 @@ img {
 }
 
 .records-visual-shell .records-archive-heading-actions .btn {
-  min-height: 44px;
+  min-height: 40px;
   min-width: 124px;
   padding: 0 18px !important;
   border: 1px solid #d7dee8;
@@ -2574,7 +2576,7 @@ img {
 
 .records-visual-shell .records-archive-filter-grid .records-empty-input-shell {
   display: block;
-  height: 48px;
+  height: 44px;
 }
 
 .records-visual-shell .records-archive-filter-grid .records-empty-input-shell svg {
@@ -2585,7 +2587,7 @@ img {
 
 .records-visual-shell .records-archive-filter-grid .form-input {
   width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   padding: 0 16px;
   border: 1px solid #d7dee8;
   border-radius: 10px;
@@ -2594,7 +2596,7 @@ img {
 }
 
 .records-visual-shell .records-archive-filter-grid .records-empty-input-shell .form-input {
-  height: 48px;
+  height: 44px;
   padding-left: 42px;
 }
 
@@ -2608,7 +2610,7 @@ img {
 }
 
 .records-visual-shell .records-archive-filter-grid > .btn {
-  min-height: 48px;
+  min-height: 44px;
   padding: 0 22px !important;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -2640,7 +2642,7 @@ img {
 
 .records-visual-shell .records-history-table th,
 .records-visual-shell .records-history-table td {
-  padding: 18px 22px;
+  padding: 12px 14px;
 }
 
 .records-visual-shell .records-history-table th {

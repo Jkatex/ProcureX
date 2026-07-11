@@ -1075,13 +1075,13 @@
       "countBadge": "Kumbukumbu {{count}}",
       "emptyTitle": "Bado hakuna kumbukumbu za manunuzi.",
       "emptyBody": "Kumbukumbu zitaonekana hapa zabuni, zabuni za wazabuni, ufafanuzi, tathmini, tuzo, mikataba, na shughuli za baada ya tuzo zitakapoundwa.",
-      "pagination": "Ukurasa {{page}} kati ya {{totalPages}}",
+      "pagination": "Inaonyesha {{start}}-{{end}} kati ya kumbukumbu {{total}}",
       "previous": "Iliyotangulia",
       "next": "Inayofuata"
     },
     "filters": {
       "search": "Tafuta",
-      "searchPlaceholder": "Tafuta kwa rejea, kichwa, mnunuzi, mzabuni",
+      "searchPlaceholder": "Tafuta kwa rejea au kichwa",
       "recordType": "Aina ya kumbukumbu",
       "status": "Hali",
       "category": "Kundi",
@@ -1148,18 +1148,46 @@
     },
     "labels": {
       "notAvailable": "Haipatikani",
+      "notRecorded": "Haijarekodiwa",
+      "buyerNotRecorded": "Mnunuzi hajarekodiwa",
       "noEvidence": "Hakuna ushahidi"
+    },
+    "rowActions": {
+      "view": "Angalia",
+      "export": "Hamisha"
+    },
+    "detail": {
+      "summary": "Muhtasari wa Kumbukumbu",
+      "timeline": "Mtiririko wa Manunuzi",
+      "documents": "Ushahidi/Nyaraka",
+      "activity": "Historia ya Shughuli za Manunuzi",
+      "reference": "Namba ya rejea",
+      "type": "Aina ya kumbukumbu",
+      "classification": "Uainishaji wa manunuzi",
+      "status": "Hali",
+      "buyer": "Mnunuzi",
+      "supplier": "Mzabuni",
+      "value": "Thamani",
+      "created": "Tarehe ya kuundwa",
+      "documentName": "Jina la waraka",
+      "documentType": "Aina",
+      "documentDate": "Tarehe",
+      "noDocuments": "Hakuna nyaraka husika.",
+      "noActivity": "Hakuna shughuli iliyorekodiwa",
+      "noActivityBody": "Historia ya shughuli itaonekana ikipatikana.",
+      "exportRecord": "Hamisha PDF ya Kumbukumbu",
+      "close": "Funga"
     },
     "types": {
       "TENDER": "Zabuni",
       "BID": "Zabuni ya mzabuni",
-      "EVALUATION": "Tathmini",
-      "AWARD": "Tuzo",
       "CONTRACT": "Mkataba",
-      "DOCUMENT": "Faili la ushahidi",
-      "COMMUNICATION": "Mawasiliano",
+      "AWARD": "Tuzo",
+      "AMENDMENT": "Marekebisho",
+      "CLARIFICATION": "Ufafanuzi",
+      "CANCELLATION": "Kufutwa",
       "COMPLIANCE": "Uzingatiaji",
-      "ARCHIVE": "Jalada"
+      "REPORT": "Ripoti"
     },
     "status": {
       "DRAFT": "Rasimu",
@@ -1169,6 +1197,7 @@
       "CLOSED": "Imefungwa",
       "EVALUATION": "Tathmini",
       "AWARDED": "Imetolewa",
+      "CONTRACTED": "Imewekewa mkataba",
       "CANCELLED": "Imefutwa",
       "SUBMITTED": "Imewasilishwa",
       "WITHDRAWN": "Imeondolewa",
