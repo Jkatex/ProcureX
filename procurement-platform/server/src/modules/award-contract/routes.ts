@@ -19,6 +19,10 @@ export function createModuleRouter() {
   router.put('/recommendations/:id/standstill', controller.upsertStandstillPeriod);
   router.post('/recommendations/:id/notifications', controller.createAwardNotification);
   router.post('/recommendations/:id/budget-commitments', controller.createBudgetCommitmentForRecommendation);
+  router.put('/recommendations/:id/clauses', controller.upsertAwardClause);
+  router.post('/recommendations/:id/negotiations', controller.createAwardNegotiation);
+  router.post('/recommendations/:id/bid-pack', controller.generateAwardBidPack);
+  router.post('/recommendations/:id/settle', controller.settleAwardGroup);
 
   router.post('/notices/:id/respond', controller.respondToNotice);
 

@@ -7,6 +7,7 @@ import {
   type AwardApprovalStepInput,
   type AwardNotificationInput,
   type AwardNoticeResponseInput,
+  type AwardSettlementInput,
   type AwardTieBreakerInput,
   type AcceptanceInput,
   type BudgetCommitmentInput,
@@ -126,6 +127,22 @@ export class ModuleService {
 
   createBudgetCommitmentForRecommendation(id: string, input: BudgetCommitmentInput, context: AwardContractRequestContext) {
     return this.repository.createBudgetCommitmentForRecommendation(id, input, context);
+  }
+
+  upsertAwardClause(id: string, input: ClauseInput, context: AwardContractRequestContext) {
+    return this.repository.upsertAwardClause(id, input, context);
+  }
+
+  createAwardNegotiation(id: string, input: NegotiationInput, context: AwardContractRequestContext) {
+    return this.repository.createAwardNegotiation(id, input, context);
+  }
+
+  generateAwardBidPack(id: string, context: AwardContractRequestContext) {
+    return this.repository.generateAwardBidPack(id, context);
+  }
+
+  settleAwardGroup(id: string, input: AwardSettlementInput, context: AwardContractRequestContext) {
+    return this.repository.settleAwardGroup(id, input, context);
   }
 
   async respondToNotice(id: string, input: AwardNoticeResponseInput, context: AwardContractRequestContext) {

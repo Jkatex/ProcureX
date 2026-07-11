@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
 import type { AwardRecommendationDetailDto, FlowStep, LifecycleAction } from '../../types';
-import { ActionFormPanel, option, riskLevelOptions } from './AwardContractActionForms';
+import { ActionFormPanel, itemOptions, lifecycleStatusOptions, option, riskLevelOptions } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
 import { AwardContractFlowBar, LockedFlowStepPanel, flowStepFromSearch, searchWithFlowStep } from './AwardContractFlow';
 import {
@@ -43,14 +43,17 @@ const readinessOwnerByCheck: Record<string, string> = {
 };
 
 const statusOptions = ['DRAFT', 'PENDING', 'IN_PROGRESS', 'APPROVED', 'RETURNED', 'WAIVED', 'EXPIRED', 'SENT', 'FAILED'].map((value) => option(value));
-type AwardWorkflowGroupId = 'readiness' | 'validation' | 'notice' | 'budget' | 'registers';
-const awardFlowStepIds = ['evaluation-result', 'award-decision', 'approval', 'notice-standstill', 'supplier-response', 'contract-handoff'] as const;
+type AwardWorkflowGroupId = 'readiness' | 'validation' | 'winners' | 'clauses' | 'negotiation' | 'settlement' | 'budget' | 'registers';
+const awardFlowStepIds = ['evaluation-result', 'award-decision', 'approval', 'winners-bid-pack', 'clauses', 'negotiation', 'settlement-notice', 'supplier-response', 'contract-handoff'] as const;
 type AwardFlowStepId = (typeof awardFlowStepIds)[number];
 const awardStepToGroup: Record<AwardFlowStepId, AwardWorkflowGroupId> = {
   'evaluation-result': 'readiness',
   'award-decision': 'readiness',
   approval: 'validation',
-  'notice-standstill': 'notice',
+  'winners-bid-pack': 'winners',
+  clauses: 'clauses',
+  negotiation: 'negotiation',
+  'settlement-notice': 'settlement',
   'supplier-response': 'registers',
   'contract-handoff': 'budget'
 };
@@ -108,6 +111,31 @@ function singleLinkedOption(value: string | null | undefined, label: string, des
     option('', emptyLabel),
     ...(value ? [{ value, label, description }] : [])
   ];
+}
+
+function AwardClauseGrid({ clauses }: { clauses: NonNullable<AwardRecommendationDetailDto['awardGroup']>['clauses'] | undefined }) {
+  if (!clauses?.length) return <div className="scope-empty">Award clauses will appear here before notices are issued and contracts are formed.</div>;
+  return (
+    <div className="contract-clause-review-grid">
+      {clauses.map((clause) => {
+        const payload = clause.payload ?? {};
+        return (
+          <article key={clause.id}>
+            <div className="contract-clause-card-head">
+              <h3>{clause.title}</h3>
+              <StatusBadge value={clause.status} />
+            </div>
+            <p>{clause.note || 'No clause body captured yet.'}</p>
+            <dl className="award-detail-list">
+              <div><dt>Buyer</dt><dd>{String(payload.buyerComment || 'No buyer comment')}</dd></div>
+              <div><dt>Supplier</dt><dd>{String(payload.supplierComment || 'No supplier comment')}</dd></div>
+              <div><dt>Legal</dt><dd>{String(payload.legalComment || 'No legal comment')}</dd></div>
+            </dl>
+          </article>
+        );
+      })}
+    </div>
+  );
 }
 
 function AwardLifecycleTimeline({
@@ -188,12 +216,19 @@ export function AwardRecommendationProcurexPage() {
   const registerCounts = {
     readiness: awardReadinessChecks.length,
     validation: (recommendationDetail?.tieBreakers?.length ?? 0) + (recommendationDetail?.feasibilityChecks?.length ?? 0),
-    notice: (recommendationDetail?.standstillPeriods?.length ?? 0) + (recommendationDetail?.awardNotifications?.length ?? 0),
+    winners: recommendationDetail?.awardGroup?.winners.length ?? 0,
+    clauses: recommendationDetail?.awardGroup?.clauses.length ?? 0,
+    negotiation: recommendationDetail?.awardGroup?.negotiations.length ?? 0,
+    settlement: (recommendationDetail?.standstillPeriods?.length ?? 0) + (recommendationDetail?.awardNotifications?.length ?? 0) + (recommendationDetail?.awardGroup?.bidPacks.length ?? 0),
     budget: recommendationDetail?.budgetCommitments?.length ?? 0,
     registers:
       (recommendationDetail?.approvalRoutes?.length ?? 0) +
       (recommendationDetail?.tieBreakers?.length ?? 0) +
       (recommendationDetail?.feasibilityChecks?.length ?? 0) +
+      (recommendationDetail?.awardGroup?.winners.length ?? 0) +
+      (recommendationDetail?.awardGroup?.clauses.length ?? 0) +
+      (recommendationDetail?.awardGroup?.negotiations.length ?? 0) +
+      (recommendationDetail?.awardGroup?.bidPacks.length ?? 0) +
       (recommendationDetail?.standstillPeriods?.length ?? 0) +
       (recommendationDetail?.awardNotifications?.length ?? 0) +
       (recommendationDetail?.budgetCommitments?.length ?? 0)
@@ -203,6 +238,11 @@ export function AwardRecommendationProcurexPage() {
   const hasSupplierResponse = /accepted|declined|clarification/i.test(recommendationDetail?.notice?.status ?? activeRecommendation?.status ?? '') || Boolean(recommendationDetail?.notice?.responses?.length);
   const hasContractHandoff = Boolean(selectedContractId);
   const hasApproval = /approved|notice|response|contract|accepted/i.test(activeRecommendation?.status ?? '') || Boolean(recommendationDetail?.notice);
+  const awardGroup = recommendationDetail?.awardGroup;
+  const hasBidPack = Boolean(awardGroup?.bidPacks.length);
+  const hasUnresolvedAwardNegotiation = Boolean(awardGroup?.negotiations.some((item) => /OPEN|IN_PROGRESS|REJECTED/i.test(item.status)));
+  const hasUnresolvedAwardClause = Boolean(awardGroup?.clauses.some((item) => /OPEN|IN_PROGRESS|REJECTED/i.test(item.status)));
+  const hasSettlement = Boolean(awardGroup?.settledAt || /SETTLED|NOTICED|CONTRACT_FORMED/i.test(awardGroup?.status ?? ''));
   const readinessRows = useMemo(() => {
     const hasBudgetCommitment = Boolean(recommendationDetail?.budgetCommitments?.length);
     const hasFeasibility = Boolean(recommendationDetail?.feasibilityChecks?.length);
@@ -220,29 +260,32 @@ export function AwardRecommendationProcurexPage() {
   }, [activeRecommendation, recommendationDetail]);
   const activeFlowLock = useMemo(() => {
     const noRecord = { message: 'Select an award recommendation before continuing this workflow.', actionLabel: 'Open Awarding Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awarding-in-progress' };
-    const missingNotice = { message: 'Issue or load the award notice before supplier response and handoff steps can continue.', actionLabel: 'Go to Notice Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=notice-standstill` };
+    const missingSettlement = { message: 'Settle the award and issue winner notices before supplier response and contract handoff can continue.', actionLabel: 'Go to Settlement', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=settlement-notice` };
     const pendingResponse = { message: 'Supplier response must be accepted, clarified, or declined before the contract handoff step can continue.', actionLabel: 'Go to Supplier Response Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=supplier-response` };
     if (!activeRecommendation) return noRecord;
-    if (activeStep === 'supplier-response' && !hasNotice) return missingNotice;
+    if (activeStep === 'supplier-response' && !hasNotice) return missingSettlement;
     if (activeStep === 'contract-handoff') {
-      if (!hasNotice) return missingNotice;
+      if (!hasNotice) return missingSettlement;
       if (!hasSupplierResponse) return pendingResponse;
     }
     return null;
   }, [activeRecommendation, activeRecommendationId, activeStep, hasNotice, hasSupplierResponse]);
   const flowSteps = useMemo<Array<FlowStep<AwardFlowStepId>>>(() => {
     const noRecord = { message: 'Select an award recommendation before continuing this workflow.', actionLabel: 'Open Awarding Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awarding-in-progress' };
-    const missingNotice = { message: 'Issue or load the award notice before supplier response and handoff steps can continue.', actionLabel: 'Go to Notice Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=notice-standstill` };
+    const missingSettlement = { message: 'Settle the award and issue winner notices before supplier response and handoff steps can continue.', actionLabel: 'Go to Settlement', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=settlement-notice` };
     const pendingResponse = { message: 'Supplier response must be recorded before contract handoff can continue.', actionLabel: 'Go to Supplier Response Step', navigatePage: 'award-recommendation', routeSearch: `recommendation=${activeRecommendationId}&step=supplier-response` };
     return [
       { id: 'evaluation-result', label: 'Evaluation result', description: 'Review readiness before notice', summary: 'Review readiness checks before issuing the award notice or starting contract formation.', status: activeRecommendation ? 'complete' : 'locked', statusLabel: activeRecommendation ? 'Complete' : 'Locked', count: awardReadinessChecks.length, countLabel: 'readiness checks', lockReason: noRecord },
       { id: 'award-decision', label: 'Award decision', description: 'Approve or return award', summary: 'Approve the recommendation or return it for evaluation clarification.', status: activeRecommendation ? 'available' : 'locked', statusLabel: hasApproval ? 'Approved' : 'Needs action', lockReason: noRecord },
       { id: 'approval', label: 'Approval', description: 'Validation and feasibility', summary: 'Record tie-break, feasibility, and approval evidence before notice controls.', status: recommendationDetail?.approvalRoutes?.length ? 'complete' : activeRecommendation ? 'available' : 'locked', statusLabel: recommendationDetail?.approvalRoutes?.length ? 'Complete' : 'Needs review', count: registerCounts.validation, countLabel: 'validation records', lockReason: noRecord },
-      { id: 'notice-standstill', label: 'Notice', description: 'Notify supplier and track standstill', summary: 'Prepare the supplier notice and standstill controls.', status: hasNotice ? 'complete' : activeRecommendation ? 'available' : 'locked', statusLabel: hasNotice ? 'Notice issued' : 'Needs action', count: registerCounts.notice, countLabel: 'notice records', lockReason: noRecord },
-      { id: 'supplier-response', label: 'Supplier response', description: 'Response and activity history', summary: 'Track whether the supplier accepted, declined, or requested clarification.', status: !activeRecommendation ? 'locked' : !hasNotice ? 'locked' : hasSupplierResponse ? 'complete' : 'available', statusLabel: hasSupplierResponse ? 'Response received' : hasNotice ? 'Awaiting response' : 'Locked', count: recommendationDetail?.notice?.responses?.length ?? 0, countLabel: 'responses', lockReason: !activeRecommendation ? noRecord : missingNotice },
-      { id: 'contract-handoff', label: 'Contract handoff', description: 'Budget and linked contract', summary: 'Continue to contract formation after the supplier response is ready.', status: !activeRecommendation ? 'locked' : !hasNotice || !hasSupplierResponse ? 'locked' : hasContractHandoff ? 'complete' : 'available', statusLabel: hasContractHandoff ? 'Linked' : !hasSupplierResponse ? 'Pending response' : 'Ready', count: selectedContractId ? 1 : 0, countLabel: 'linked contracts', lockReason: !activeRecommendation ? noRecord : !hasNotice ? missingNotice : pendingResponse }
+      { id: 'winners-bid-pack', label: 'Winners', description: 'Winning bidders and bid pack', summary: 'Review all winning bidders, submitted bid documents, and the generated award bid pack.', status: activeRecommendation ? (hasBidPack ? 'complete' : 'available') : 'locked', statusLabel: hasBidPack ? 'Bid pack generated' : 'Needs pack', count: registerCounts.winners, countLabel: 'winners', lockReason: noRecord },
+      { id: 'clauses', label: 'Award clauses', description: 'Terms before contract formation', summary: 'Settle all clauses at award stage so contract formation receives agreed terms.', status: activeRecommendation ? (hasUnresolvedAwardClause ? 'available' : 'complete') : 'locked', statusLabel: hasUnresolvedAwardClause ? 'Needs action' : 'Settled', count: registerCounts.clauses, countLabel: 'clauses', lockReason: noRecord },
+      { id: 'negotiation', label: 'Negotiation', description: 'Bidder negotiation points', summary: 'Record buyer, supplier, and legal negotiation positions before award settlement.', status: activeRecommendation ? (hasUnresolvedAwardNegotiation ? 'available' : 'complete') : 'locked', statusLabel: hasUnresolvedAwardNegotiation ? 'Needs action' : 'Settled', count: registerCounts.negotiation, countLabel: 'points', lockReason: noRecord },
+      { id: 'settlement-notice', label: 'Settlement', description: 'Settle and notify winners', summary: 'Generate the final award bid pack, settle award terms, and issue notices to winning bidders.', status: activeRecommendation ? (hasSettlement ? 'complete' : 'available') : 'locked', statusLabel: hasSettlement ? 'Settled' : 'Needs action', count: registerCounts.settlement, countLabel: 'settlement records', lockReason: noRecord },
+      { id: 'supplier-response', label: 'Supplier response', description: 'Response and activity history', summary: 'Track whether the supplier accepted, declined, or requested clarification.', status: !activeRecommendation ? 'locked' : !hasNotice ? 'locked' : hasSupplierResponse ? 'complete' : 'available', statusLabel: hasSupplierResponse ? 'Response received' : hasNotice ? 'Awaiting response' : 'Locked', count: recommendationDetail?.notice?.responses?.length ?? 0, countLabel: 'responses', lockReason: !activeRecommendation ? noRecord : missingSettlement },
+      { id: 'contract-handoff', label: 'Contract handoff', description: 'Budget and linked contract', summary: 'Continue to contract formation after the supplier response is ready.', status: !activeRecommendation ? 'locked' : !hasNotice || !hasSupplierResponse ? 'locked' : hasContractHandoff ? 'complete' : 'available', statusLabel: hasContractHandoff ? 'Linked' : !hasSupplierResponse ? 'Pending response' : 'Ready', count: selectedContractId ? 1 : 0, countLabel: 'linked contracts', lockReason: !activeRecommendation ? noRecord : !hasNotice ? missingSettlement : pendingResponse }
     ];
-  }, [activeRecommendation, activeRecommendationId, hasApproval, hasContractHandoff, hasNotice, hasSupplierResponse, recommendationDetail?.approvalRoutes?.length, recommendationDetail?.notice?.responses?.length, registerCounts.notice, registerCounts.validation, selectedContractId]);
+  }, [activeRecommendation, activeRecommendationId, hasApproval, hasBidPack, hasContractHandoff, hasNotice, hasSettlement, hasSupplierResponse, hasUnresolvedAwardClause, hasUnresolvedAwardNegotiation, recommendationDetail?.approvalRoutes?.length, recommendationDetail?.notice?.responses?.length, registerCounts.clauses, registerCounts.negotiation, registerCounts.settlement, registerCounts.validation, registerCounts.winners, selectedContractId]);
   const bidOptions = singleLinkedOption(
     recommendationDetail?.bidId,
     `${recommendationDetail?.supplierName ?? activeRecommendation?.otherParty ?? 'Recommended supplier'} bid`,
@@ -314,11 +357,11 @@ export function AwardRecommendationProcurexPage() {
           <AwardHero
             kicker="Buyer / awarder path"
             title={activeRecommendation?.title ?? 'No awarding record selected'}
-            copy="Confirm evaluation readiness, approve award actions, issue notices, track supplier response, and hand off to contract drafting."
+            copy="Confirm evaluation readiness, settle winners, carry award-stage clauses and negotiations, issue notices, and form contracts from agreed terms."
             stats={[
               { value: activeRecommendation?.amount ?? 0, label: 'Award amount' },
               { value: recommendations.length, label: 'Procurement records' },
-              { value: recommendations.filter((item) => /notice|response/i.test(item.requiredAction)).length, label: 'Notice actions' }
+              { value: recommendations.filter((item) => /negotiate|clause|notice|response/i.test(item.requiredAction)).length, label: 'Award actions' }
             ]}
           />
 
@@ -480,18 +523,131 @@ export function AwardRecommendationProcurexPage() {
                 </AwardActionWorkspace>
               ) : null}
 
-              {activeGroup === 'notice' ? (
+              {activeGroup === 'winners' ? (
                 <AwardActionWorkspace
-                  kicker="Notice and standstill"
-                  title="Supplier notice controls"
-                  badge={`${registerCounts.notice} records`}
+                  kicker="Winners and bid pack"
+                  title="Winning bidders and source bid documents"
+                  badge={`${awardGroup?.winners.length ?? 0} winners`}
+                  context={
+                    <>
+                      <SimpleTable headers={['Winner', 'Bid', 'Status', 'Value', 'Bid documents']}>
+                        {(awardGroup?.winners ?? []).length === 0 ? (
+                          <tr><td colSpan={5}><div className="scope-empty">Winning bidders will appear here after evaluation recommendations are grouped for award settlement.</div></td></tr>
+                        ) : awardGroup?.winners.map((winner) => (
+                          <tr key={winner.id}>
+                            <td><strong>{winner.supplierName ?? 'Supplier pending'}</strong><span>{String(winner.payload?.lot ?? 'Tender-level award')}</span></td>
+                            <td>{winner.bidId ?? 'No bid linked'}</td>
+                            <td><StatusBadge value={winner.status} /></td>
+                            <td>{winner.amount === null ? 'Not priced' : formatMoney(winner.amount, winner.currency)}</td>
+                            <td>{winner.bidDocuments.length ? winner.bidDocuments.map((document) => document.name).join(', ') : 'No bid documents'}</td>
+                          </tr>
+                        ))}
+                      </SimpleTable>
+                      <RecordRegister title="Generated award bid packs" records={(awardGroup?.bidPacks ?? []) as unknown as Array<Record<string, unknown>>} />
+                    </>
+                  }
+                >
+                  <ActionFormPanel
+                    title="Award bid pack"
+                    badge="Pack"
+                    submitLabel="Generate Bid Pack"
+                    fields={[]}
+                    initialValues={{}}
+                    onSubmit={() => awardsContractsApi.generateAwardBidPack(activeRecommendationId)}
+                    onComplete={refreshRecommendationDetail}
+                  />
+                </AwardActionWorkspace>
+              ) : null}
+
+              {activeGroup === 'clauses' ? (
+                <AwardActionWorkspace
+                  kicker="Award clauses"
+                  title="Negotiated terms before notice"
+                  badge={`${awardGroup?.clauses.length ?? 0} clauses`}
+                  context={<AwardClauseGrid clauses={awardGroup?.clauses} />}
+                >
+                  <ActionFormPanel
+                    title="Award clause"
+                    badge="Clause"
+                    submitLabel="Save Award Clause"
+                    fields={[
+                      { name: 'clauseKey', label: 'Clause key', kind: 'text', required: true },
+                      { name: 'title', label: 'Title', kind: 'text', required: true },
+                      { name: 'body', label: 'Body', kind: 'textarea', rows: 5 },
+                      { name: 'category', label: 'Category', kind: 'text' },
+                      { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                      { name: 'buyerComment', label: 'Buyer comment', kind: 'textarea' },
+                      { name: 'supplierComment', label: 'Supplier comment', kind: 'textarea' },
+                      { name: 'legalComment', label: 'Legal comment', kind: 'textarea' },
+                      { name: 'payload', label: 'Clause payload', kind: 'json', rows: 4 }
+                    ]}
+                    initialValues={{
+                      clauseKey: 'negotiated-award-terms',
+                      title: 'Negotiated award terms',
+                      category: 'commercial',
+                      status: 'IN_PROGRESS',
+                      payload: '{}'
+                    }}
+                    onSubmit={(payload) => awardsContractsApi.upsertAwardClause(activeRecommendationId, payload)}
+                    onComplete={refreshRecommendationDetail}
+                  />
+                </AwardActionWorkspace>
+              ) : null}
+
+              {activeGroup === 'negotiation' ? (
+                <AwardActionWorkspace
+                  kicker="Award negotiation"
+                  title="Bidder negotiations before award settlement"
+                  badge={`${awardGroup?.negotiations.length ?? 0} points`}
+                  context={<RecordRegister title="Award negotiation points" records={(awardGroup?.negotiations ?? []) as unknown as Array<Record<string, unknown>>} />}
+                >
+                  <ActionFormPanel
+                    title="Award negotiation point"
+                    badge="Negotiation"
+                    submitLabel="Create Negotiation"
+                    fields={[
+                      { name: 'winnerId', label: 'Winning bidder', kind: 'select', options: itemOptions((awardGroup?.winners ?? []).map((winner) => ({ id: winner.id, title: winner.supplierName ?? winner.bidId ?? winner.id, status: winner.status, type: winner.bidId ?? 'winner', note: winner.contractId ?? '' })), 'Tender-level negotiation') },
+                      { name: 'clauseId', label: 'Clause', kind: 'select', options: itemOptions(awardGroup?.clauses ?? [], 'No linked clause') },
+                      { name: 'raisedByRole', label: 'Raised by', kind: 'select', required: true, options: [option('Buyer'), option('Supplier'), option('Legal'), option('Award Owner')] },
+                      { name: 'subject', label: 'Subject', kind: 'text', required: true },
+                      { name: 'position', label: 'Position', kind: 'textarea' },
+                      { name: 'counterOffer', label: 'Counter offer', kind: 'textarea' },
+                      { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                      { name: 'dueDate', label: 'Due date', kind: 'date' },
+                      { name: 'payload', label: 'Negotiation payload', kind: 'json', rows: 4 }
+                    ]}
+                    initialValues={{ raisedByRole: 'Buyer', subject: 'Award-stage negotiation point', status: 'OPEN', payload: '{}' }}
+                    onSubmit={(payload) => awardsContractsApi.createAwardNegotiation(activeRecommendationId, payload)}
+                    onComplete={refreshRecommendationDetail}
+                  />
+                </AwardActionWorkspace>
+              ) : null}
+
+              {activeGroup === 'settlement' ? (
+                <AwardActionWorkspace
+                  kicker="Settlement and notices"
+                  title="Settle award terms and notify winners"
+                  badge={`${registerCounts.settlement} records`}
                   context={
                     <div className="award-register-stack">
+                      <RecordRegister title="Generated award bid packs" records={(awardGroup?.bidPacks ?? []) as unknown as Array<Record<string, unknown>>} />
                       <RecordRegister title="Standstill periods" records={recommendationDetail?.standstillPeriods ?? []} />
                       <RecordRegister title="Award notifications" records={recommendationDetail?.awardNotifications ?? []} />
                     </div>
                   }
                 >
+                  <ActionFormPanel
+                    title="Settle award"
+                    badge="Settlement"
+                    submitLabel="Settle and Notify Winners"
+                    fields={[
+                      { name: 'note', label: 'Settlement note', kind: 'textarea' },
+                      { name: 'payload', label: 'Settlement payload', kind: 'json', rows: 4 }
+                    ]}
+                    initialValues={{ note: 'Award terms settled after bidder negotiations. Issue notices to all winning bidders.', payload: JSON.stringify({ source: 'award-workspace', winnerCount: awardGroup?.winners.length ?? 0 }, null, 2) }}
+                    onSubmit={(payload) => awardsContractsApi.settleAwardGroup(activeRecommendationId, String(payload.note ?? ''), payload.payload as Record<string, unknown>)}
+                    onComplete={refreshRecommendationDetail}
+                  />
                   <ActionFormPanel
                     title="Standstill period"
                     badge="Standstill"

@@ -61,6 +61,22 @@ export const awardsContractsApi = {
     const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/budget-commitments`, payload);
     return response.data;
   },
+  async upsertAwardClause(recommendationId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.put(`/api/award-contract/recommendations/${recommendationId}/clauses`, payload);
+    return response.data;
+  },
+  async createAwardNegotiation(recommendationId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/negotiations`, payload);
+    return response.data;
+  },
+  async generateAwardBidPack(recommendationId: string) {
+    const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/bid-pack`);
+    return response.data;
+  },
+  async settleAwardGroup(recommendationId: string, note = '', payload: Record<string, unknown> = {}) {
+    const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/settle`, { note, payload });
+    return response.data;
+  },
   async approveRecommendation(recommendationId: string, note = '') {
     const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/approve`, { note });
     return response.data;

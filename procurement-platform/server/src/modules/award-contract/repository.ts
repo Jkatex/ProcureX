@@ -31,6 +31,7 @@ import type {
   AwardRecommendationDetailDto,
   AwardRecommendationListItemDto,
   AwardRecommendationQuery,
+  AwardSettlementInput,
   AwardTieBreakerInput,
   BudgetCommitmentInput,
   ContractDetailDto,
@@ -414,6 +415,10 @@ function awardReference() {
 
 function awardNoticeReference() {
   return `PX-NOT-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+function awardGroupReference() {
+  return `PX-AG-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
 }
 
 function invoiceReference() {
@@ -1339,12 +1344,13 @@ export class ModuleRepository {
     if (!record) return null;
     const contractId = record.notice?.contractId ?? record.contracts[0]?.id;
     const contract = contractId ? await this.getContract(contractId, context) : null;
-    const [audit, approvalRoutes, approvalSteps, tieBreakers, feasibilityChecks, standstillPeriods, awardNotifications, budgetCommitments] = await Promise.all([
+    const [audit, approvalRoutes, approvalSteps, tieBreakers, feasibilityChecks, standstillPeriods, awardNotifications, budgetCommitments, awardGroup] = await Promise.all([
       this.db.auditEvent.findMany({
         where: {
           OR: [
             { entityType: 'award_recommendation', entityRef: record.id },
             ...(record.notice ? [{ entityType: 'award_notice', entityRef: record.notice.id }] : []),
+            ...(record.awardGroupId ? [{ entityType: 'award_group', entityRef: record.awardGroupId }] : []),
             ...(contractId ? [{ entityType: 'contract', entityRef: contractId }] : [])
           ]
         },
@@ -1357,13 +1363,16 @@ export class ModuleRepository {
       this.db.deliveryFeasibilityCheck.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
       this.db.standstillPeriod.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
       this.db.awardNotification.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
-      this.db.budgetCommitment.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } })
+      this.db.budgetCommitment.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.awardGroupDetail(record, context)
     ]);
 
     return {
       ...listRecommendationDto(record),
+      awardGroupId: awardGroup.id,
       access: workflowAccess({ buyerOrgId: record.workspace.buyerOrgId, supplierOrgId: record.supplierOrgId }, context),
       reason: record.reason ?? '',
+      awardGroup,
       notice: record.notice ? noticeDto(record.notice) : null,
       contract,
       approvalRoutes: approvalRoutes.map((item) => ({
@@ -1409,30 +1418,7 @@ export class ModuleRepository {
           reason: input.note || recommendation.reason
         }
       });
-      await tx.awardNotice.upsert({
-        where: { recommendationId: recommendation.id },
-        update: {
-          status: AwardNoticeStatus.PENDING_RESPONSE,
-          buyerNote: input.note || null,
-          issuedByUserId: context.userId ?? null,
-          respondedByUserId: null,
-          respondedAt: null
-        },
-        create: {
-          reference: awardNoticeReference(),
-          recommendationId: recommendation.id,
-          buyerOrgId: recommendation.workspace.buyerOrgId,
-          supplierOrgId: recommendation.supplierOrgId,
-          buyerNote: input.note || null,
-          issuedByUserId: context.userId ?? null,
-          payload: {
-            tenderId: recommendation.workspace.tenderId,
-            bidId: recommendation.bidId
-          } as Prisma.InputJsonObject
-        }
-      });
-      await tx.tender.update({ where: { id: recommendation.workspace.tenderId }, data: { status: TenderStatus.AWARDED } });
-      await tx.bid.update({ where: { id: recommendation.bidId }, data: { status: BidStatus.AWARDED } });
+      await this.findOrCreateAwardGroup(tx, recommendation);
       await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.single_user_approval.approved', 'award_recommendation', recommendation.id, {
         note: input.note,
         actorUserId: context.userId ?? null,
@@ -1700,6 +1686,179 @@ export class ModuleRepository {
         }
       });
       await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.budget_commitment.created', 'award_recommendation', id, { amount: input.amount, budgetCode: input.budgetCode });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async upsertAwardClause(id: string, input: ClauseInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      const group = await this.findOrCreateAwardGroup(tx, recommendation);
+      await tx.awardClause.upsert({
+        where: { awardGroupId_clauseKey: { awardGroupId: group.id, clauseKey: input.clauseKey } },
+        update: {
+          title: input.title,
+          body: input.body || null,
+          category: input.category || 'general',
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          buyerComment: input.buyerComment || null,
+          supplierComment: input.supplierComment || null,
+          legalComment: input.legalComment || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          awardGroupId: group.id,
+          clauseKey: input.clauseKey,
+          title: input.title,
+          body: input.body || null,
+          category: input.category || 'general',
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          buyerComment: input.buyerComment || null,
+          supplierComment: input.supplierComment || null,
+          legalComment: input.legalComment || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardGroup.update({ where: { id: group.id }, data: { status: 'NEGOTIATION' } });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.clause.upserted', 'award_group', group.id, { clauseKey: input.clauseKey });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async createAwardNegotiation(id: string, input: NegotiationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      const isBuyer = context.isAdmin || recommendation.workspace.buyerOrgId === context.organizationId;
+      const isSupplier = Boolean(context.organizationId && recommendation.supplierOrgId === context.organizationId);
+      if (!isBuyer && !isSupplier) throw requestError('Award negotiation is not visible to this organization.', 403);
+      const group = await this.findOrCreateAwardGroup(tx, recommendation);
+      await tx.awardNegotiation.create({
+        data: {
+          awardGroupId: group.id,
+          winnerId: input.winnerId || null,
+          clauseId: input.clauseId || null,
+          raisedByRole: input.raisedByRole,
+          raisedByOrgId: context.organizationId ?? null,
+          subject: input.subject,
+          position: input.position || null,
+          counterOffer: input.counterOffer || null,
+          status: input.status ?? ContractLifecycleItemStatus.OPEN,
+          dueDate: toDate(input.dueDate),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardGroup.update({ where: { id: group.id }, data: { status: 'NEGOTIATION' } });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.negotiation.created', 'award_group', group.id, { subject: input.subject });
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async generateAwardBidPack(id: string, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      const group = await this.findOrCreateAwardGroup(tx, recommendation);
+      await this.generateAwardBidPackRecord(tx, group.id, context, 'Manual generation from award workspace');
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.bid_pack.generated', 'award_group', group.id, {});
+    });
+    return this.getRecommendation(id, context);
+  }
+
+  async settleAwardGroup(id: string, input: AwardSettlementInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      const group = await this.findOrCreateAwardGroup(tx, recommendation);
+      const unresolvedClauseCount = await tx.awardClause.count({
+        where: {
+          awardGroupId: group.id,
+          status: { in: [ContractLifecycleItemStatus.OPEN, ContractLifecycleItemStatus.IN_PROGRESS, ContractLifecycleItemStatus.REJECTED] }
+        }
+      });
+      const unresolvedNegotiationCount = await tx.awardNegotiation.count({
+        where: {
+          awardGroupId: group.id,
+          status: { in: [ContractLifecycleItemStatus.OPEN, ContractLifecycleItemStatus.IN_PROGRESS, ContractLifecycleItemStatus.REJECTED] }
+        }
+      });
+      if (unresolvedClauseCount > 0 || unresolvedNegotiationCount > 0) {
+        throw requestError('Award cannot be settled until open clauses and negotiation points are approved, completed, or waived.', 409);
+      }
+
+      await this.generateAwardBidPackRecord(tx, group.id, context, input.note || 'Generated during award settlement');
+      const winners = await tx.awardWinner.findMany({ where: { awardGroupId: group.id } });
+      for (const winner of winners) {
+        const winnerRecommendationId = winner.recommendationId ?? recommendation.id;
+        const winnerRecommendation =
+          winner.recommendationId && winner.recommendationId !== recommendation.id
+            ? await tx.awardRecommendation.findUnique({ where: { id: winner.recommendationId }, include: recommendationInclude })
+            : recommendation;
+        if (!winnerRecommendation?.supplierOrgId || !winnerRecommendation.bidId) continue;
+        const notice = await tx.awardNotice.upsert({
+          where: { recommendationId: winnerRecommendationId },
+          update: {
+            status: AwardNoticeStatus.PENDING_RESPONSE,
+            buyerNote: input.note || null,
+            issuedByUserId: context.userId ?? null,
+            respondedByUserId: null,
+            respondedAt: null,
+            payload: {
+              ...objectPayload(winnerRecommendation.notice?.payload),
+              awardGroupId: group.id,
+              settlementPayload: input.payload
+            } as Prisma.InputJsonObject
+          },
+          create: {
+            reference: awardNoticeReference(),
+            recommendationId: winnerRecommendationId,
+            buyerOrgId: winnerRecommendation.workspace.buyerOrgId,
+            supplierOrgId: winnerRecommendation.supplierOrgId,
+            buyerNote: input.note || null,
+            issuedByUserId: context.userId ?? null,
+            payload: {
+              tenderId: winnerRecommendation.workspace.tenderId,
+              bidId: winnerRecommendation.bidId,
+              awardGroupId: group.id,
+              settlementPayload: input.payload
+            } as Prisma.InputJsonObject
+          }
+        });
+        await tx.awardWinner.update({
+          where: { id: winner.id },
+          data: {
+            status: AwardNoticeStatus.PENDING_RESPONSE,
+            noticeId: notice.id,
+            payload: {
+              ...objectPayload(winner.payload),
+              settledAt: new Date().toISOString()
+            } as Prisma.InputJsonObject
+          }
+        });
+        await tx.awardRecommendation.update({
+          where: { id: winnerRecommendationId },
+          data: { status: RecommendationStatus.APPROVED, reason: input.note || winnerRecommendation.reason }
+        });
+        await tx.bid.update({ where: { id: winnerRecommendation.bidId }, data: { status: BidStatus.AWARDED } });
+      }
+      await tx.tender.update({ where: { id: recommendation.workspace.tenderId }, data: { status: TenderStatus.AWARDED } });
+      await tx.awardGroup.update({
+        where: { id: group.id },
+        data: {
+          status: 'NOTICED',
+          settledAt: new Date(),
+          payload: {
+            ...objectPayload(group.payload),
+            settlementNote: input.note,
+            settlementPayload: input.payload
+          } as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.group.settled', 'award_group', group.id, { note: input.note });
     });
     return this.getRecommendation(id, context);
   }
@@ -3132,6 +3291,361 @@ export class ModuleRepository {
     return this.getContract(contractId, context);
   }
 
+  private async awardGroupDetail(record: RecommendationRecord, context: AwardContractRequestContext) {
+    const fallbackGroup = {
+      id: record.awardGroupId ?? record.id,
+      reference: `PX-AG-${record.reference}`,
+      title: record.workspace.tender.title,
+      status: record.notice?.contractId ? 'CONTRACT_FORMED' : record.notice ? 'NOTICED' : record.status === RecommendationStatus.APPROVED ? 'SETTLED' : 'NEGOTIATION',
+      tenderId: record.workspace.tenderId,
+      buyerOrgId: record.workspace.buyerOrgId,
+      settledAt: record.status === RecommendationStatus.APPROVED ? record.notice?.issuedAt?.toISOString() ?? null : null,
+      winners: [],
+      clauses: [],
+      negotiations: [],
+      bidPacks: [],
+      payload: {
+        virtual: !record.awardGroupId,
+        recommendationId: record.id
+      }
+    };
+    const group = record.awardGroupId
+      ? await this.db.awardGroup.findUnique({
+          where: { id: record.awardGroupId },
+          include: {
+            winners: { orderBy: { createdAt: 'asc' } },
+            clauses: { orderBy: [{ category: 'asc' }, { clauseKey: 'asc' }] },
+            negotiations: { orderBy: { updatedAt: 'desc' } },
+            bidPacks: { orderBy: { generatedAt: 'desc' } }
+          }
+        })
+      : null;
+    const winners = group?.winners.length
+      ? group.winners
+      : [
+          {
+            id: record.id,
+            recommendationId: record.id,
+            bidId: record.bidId,
+            supplierOrgId: record.supplierOrgId,
+            noticeId: record.notice?.id ?? null,
+            contractId: record.notice?.contractId ?? record.contracts[0]?.id ?? null,
+            amount: record.amount,
+            currency: record.currency,
+            status: record.notice?.status ?? record.status,
+            payload: {},
+            awardGroupId: record.awardGroupId ?? record.id,
+            createdAt: record.createdAt,
+            updatedAt: record.createdAt
+          }
+        ];
+    const supplierIds = [...new Set(winners.map((winner) => winner.supplierOrgId).filter((value): value is string => Boolean(value)))];
+    const bidIds = [...new Set(winners.map((winner) => winner.bidId).filter((value): value is string => Boolean(value)))];
+    const [suppliers, bidDocuments] = await Promise.all([
+      supplierIds.length
+        ? this.db.organization.findMany({ where: { id: { in: supplierIds } }, select: { id: true, name: true } })
+        : Promise.resolve([]),
+      bidIds.length
+        ? this.db.bidDocument.findMany({
+            where: { bidId: { in: bidIds } },
+            include: {
+              document: {
+                select: {
+                  id: true,
+                  name: true,
+                  documentType: true,
+                  checksum: true
+                }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          })
+        : Promise.resolve([])
+    ]);
+    const supplierNameById = new Map(suppliers.map((supplier) => [supplier.id, supplier.name]));
+    const bidDocumentsByBidId = new Map<string, typeof bidDocuments>();
+    for (const document of bidDocuments) {
+      const list = bidDocumentsByBidId.get(document.bidId) ?? [];
+      list.push(document);
+      bidDocumentsByBidId.set(document.bidId, list);
+    }
+    return {
+      ...fallbackGroup,
+      ...(group
+        ? {
+            id: group.id,
+            reference: group.reference,
+            title: group.title,
+            status: group.status,
+            tenderId: group.tenderId,
+            buyerOrgId: group.buyerOrgId,
+            settledAt: group.settledAt?.toISOString() ?? null,
+            payload: objectPayload(group.payload)
+          }
+        : {}),
+      winners: winners.map((winner) => ({
+        id: winner.id,
+        recommendationId: winner.recommendationId,
+        bidId: winner.bidId,
+        supplierOrgId: winner.supplierOrgId,
+        supplierName: winner.supplierOrgId ? supplierNameById.get(winner.supplierOrgId) ?? (winner.supplierOrgId === record.supplierOrgId ? record.bid?.supplierOrg.name ?? null : null) : null,
+        noticeId: winner.noticeId,
+        contractId: winner.contractId,
+        amount: decimalToNumber(winner.amount),
+        currency: winner.currency,
+        status: String(winner.status),
+        bidDocuments: (winner.bidId ? bidDocumentsByBidId.get(winner.bidId) ?? [] : []).map((document) => ({
+          id: document.id,
+          bidId: document.bidId,
+          documentId: document.documentId,
+          name: document.document.name,
+          documentType: document.document.documentType,
+          envelope: document.envelope,
+          reviewStatus: document.reviewStatus,
+          checksum: document.document.checksum,
+          createdAt: document.createdAt.toISOString()
+        })),
+        payload: objectPayload(winner.payload)
+      })),
+      clauses: (group?.clauses ?? []).map((clause) => lifecycleItemDto({
+        ...clause,
+        category: clause.category,
+        title: clause.title,
+        note: clause.body,
+        payload: {
+          ...objectPayload(clause.payload),
+          clauseKey: clause.clauseKey,
+          winnerId: clause.winnerId,
+          buyerComment: clause.buyerComment ?? '',
+          supplierComment: clause.supplierComment ?? '',
+          legalComment: clause.legalComment ?? ''
+        }
+      })),
+      negotiations: (group?.negotiations ?? []).map((negotiation) => lifecycleItemDto({
+        ...negotiation,
+        category: negotiation.raisedByRole,
+        title: negotiation.subject,
+        note: negotiation.position ?? negotiation.counterOffer,
+        dueDate: negotiation.dueDate,
+        payload: {
+          ...objectPayload(negotiation.payload),
+          winnerId: negotiation.winnerId,
+          clauseId: negotiation.clauseId,
+          raisedByOrgId: negotiation.raisedByOrgId,
+          counterOffer: negotiation.counterOffer ?? ''
+        }
+      })),
+      bidPacks: (group?.bidPacks ?? []).map((pack) => ({
+        id: pack.id,
+        documentId: pack.documentId,
+        status: pack.status,
+        checksum: pack.checksum,
+        generatedAt: pack.generatedAt.toISOString(),
+        payload: objectPayload(pack.payload)
+      }))
+    };
+  }
+
+  private async findOrCreateAwardGroup(tx: DbClient, recommendation: RecommendationRecord) {
+    if (recommendation.awardGroupId) {
+      const existing = await tx.awardGroup.findUnique({ where: { id: recommendation.awardGroupId } });
+      if (existing) {
+        await this.ensureAwardWinner(tx, existing.id, recommendation);
+        await this.ensureDefaultAwardClauses(tx, existing.id);
+        return existing;
+      }
+    }
+    const group = await tx.awardGroup.create({
+      data: {
+        reference: awardGroupReference(),
+        workspaceId: recommendation.workspaceId,
+        tenderId: recommendation.workspace.tenderId,
+        buyerOrgId: recommendation.workspace.buyerOrgId,
+        title: recommendation.workspace.tender.title,
+        status: 'NEGOTIATION',
+        payload: {
+          source: 'award_recommendation',
+          firstRecommendationId: recommendation.id
+        } as Prisma.InputJsonObject
+      }
+    });
+    await tx.awardRecommendation.update({
+      where: { id: recommendation.id },
+      data: { awardGroupId: group.id }
+    });
+    await this.ensureAwardWinner(tx, group.id, recommendation);
+    await this.ensureDefaultAwardClauses(tx, group.id);
+    return group;
+  }
+
+  private async ensureAwardWinner(tx: DbClient, awardGroupId: string, recommendation: RecommendationRecord) {
+    const existing = await tx.awardWinner.findFirst({ where: { recommendationId: recommendation.id } });
+    const data = {
+      awardGroupId,
+      bidId: recommendation.bidId,
+      supplierOrgId: recommendation.supplierOrgId,
+      noticeId: recommendation.notice?.id ?? null,
+      contractId: recommendation.notice?.contractId ?? recommendation.contracts[0]?.id ?? null,
+      amount: recommendation.amount,
+      currency: recommendation.currency,
+      status: recommendation.notice?.status ?? recommendation.status,
+      payload: {
+        source: 'award_recommendation',
+        tenderReference: recommendation.workspace.tender.reference
+      } as Prisma.InputJsonObject
+    };
+    if (existing) return tx.awardWinner.update({ where: { id: existing.id }, data });
+    return tx.awardWinner.create({ data: { ...data, recommendationId: recommendation.id } });
+  }
+
+  private async ensureDefaultAwardClauses(tx: DbClient, awardGroupId: string) {
+    const existing = await tx.awardClause.count({ where: { awardGroupId } });
+    if (existing > 0) return;
+    await tx.awardClause.createMany({
+      data: defaultContractClauses().map((clause) => ({
+        awardGroupId,
+        clauseKey: clause.clauseKey,
+        title: clause.title,
+        body: null,
+        category: clause.category,
+        status: ContractLifecycleItemStatus.OPEN,
+        payload: {
+          ...objectPayload(clause.payload),
+          source: 'award_default_clause'
+        } as Prisma.InputJsonObject
+      }))
+    });
+  }
+
+  private async generateAwardBidPackRecord(tx: DbClient, awardGroupId: string, context: AwardContractRequestContext, note: string) {
+    const group = await tx.awardGroup.findUnique({
+      where: { id: awardGroupId },
+      include: {
+        winners: { orderBy: { createdAt: 'asc' } },
+        clauses: { orderBy: [{ category: 'asc' }, { clauseKey: 'asc' }] },
+        negotiations: { orderBy: { updatedAt: 'desc' } }
+      }
+    });
+    if (!group) throw requestError('Award group was not found.', 404);
+    const bidIds = [...new Set(group.winners.map((winner) => winner.bidId).filter((value): value is string => Boolean(value)))];
+    const [bids, bidDocuments] = await Promise.all([
+      bidIds.length
+        ? tx.bid.findMany({
+            where: { id: { in: bidIds } },
+            include: {
+              supplierOrg: { select: { id: true, name: true } },
+              receipt: true,
+              responses: true
+            }
+          })
+        : Promise.resolve([]),
+      bidIds.length
+        ? tx.bidDocument.findMany({
+            where: { bidId: { in: bidIds } },
+            include: {
+              document: {
+                select: {
+                  id: true,
+                  name: true,
+                  documentType: true,
+                  checksum: true,
+                  metadata: true
+                }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          })
+        : Promise.resolve([])
+    ]);
+    const documentsByBidId = new Map<string, typeof bidDocuments>();
+    for (const document of bidDocuments) {
+      const list = documentsByBidId.get(document.bidId) ?? [];
+      list.push(document);
+      documentsByBidId.set(document.bidId, list);
+    }
+    const bidById = new Map(bids.map((bid) => [bid.id, bid]));
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      generatedByUserId: context.userId ?? null,
+      note,
+      awardGroup: {
+        id: group.id,
+        reference: group.reference,
+        title: group.title,
+        status: group.status,
+        tenderId: group.tenderId,
+        buyerOrgId: group.buyerOrgId
+      },
+      winners: group.winners.map((winner) => {
+        const bid = winner.bidId ? bidById.get(winner.bidId) : null;
+        return {
+          id: winner.id,
+          recommendationId: winner.recommendationId,
+          bidId: winner.bidId,
+          supplierOrgId: winner.supplierOrgId,
+          supplierName: bid?.supplierOrg.name ?? null,
+          amount: decimalToNumber(winner.amount),
+          currency: winner.currency,
+          status: winner.status,
+          receipt: bid?.receipt ? workflowRecordDto(bid.receipt as unknown as Record<string, unknown>) : null,
+          responses: bid?.responses.map((response) => workflowRecordDto(response as unknown as Record<string, unknown>)) ?? [],
+          documents: (winner.bidId ? documentsByBidId.get(winner.bidId) ?? [] : []).map((document) => ({
+            id: document.id,
+            documentId: document.documentId,
+            name: document.document.name,
+            documentType: document.document.documentType,
+            envelope: document.envelope,
+            reviewStatus: document.reviewStatus,
+            checksum: document.document.checksum,
+            metadata: objectPayload(document.document.metadata),
+            createdAt: document.createdAt.toISOString()
+          }))
+        };
+      }),
+      clauses: group.clauses.map((clause) => ({
+        id: clause.id,
+        clauseKey: clause.clauseKey,
+        title: clause.title,
+        body: clause.body,
+        category: clause.category,
+        status: clause.status,
+        buyerComment: clause.buyerComment,
+        supplierComment: clause.supplierComment,
+        legalComment: clause.legalComment
+      })),
+      negotiations: group.negotiations.map((negotiation) => ({
+        id: negotiation.id,
+        subject: negotiation.subject,
+        raisedByRole: negotiation.raisedByRole,
+        status: negotiation.status,
+        position: negotiation.position,
+        counterOffer: negotiation.counterOffer,
+        dueDate: isoDate(negotiation.dueDate)
+      }))
+    };
+    const checksum = sha256(canonicalJson(payload));
+    const existing = await tx.awardBidPack.findFirst({ where: { awardGroupId }, orderBy: { generatedAt: 'desc' } });
+    if (existing) {
+      return tx.awardBidPack.update({
+        where: { id: existing.id },
+        data: {
+          status: 'GENERATED',
+          checksum,
+          payload: payload as Prisma.InputJsonObject,
+          generatedAt: new Date()
+        }
+      });
+    }
+    return tx.awardBidPack.create({
+      data: {
+        awardGroupId,
+        status: 'GENERATED',
+        checksum,
+        payload: payload as Prisma.InputJsonObject
+      }
+    });
+  }
+
   private async getRecommendationByNotice(noticeId: string, context: AwardContractRequestContext) {
     const notice = await this.db.awardNotice.findUnique({ where: { id: noticeId }, select: { recommendationId: true } });
     return notice ? this.getRecommendation(notice.recommendationId, context) : null;
@@ -3268,7 +3782,31 @@ export class ModuleRepository {
   ) {
     const existing = await tx.contract.findFirst({ where: { awardId: notice.recommendationId } });
     if (existing) return existing;
-    return tx.contract.create({
+    const agreedAwardClauses = notice.recommendation.awardGroupId
+      ? await tx.awardClause.findMany({
+          where: { awardGroupId: notice.recommendation.awardGroupId },
+          orderBy: [{ category: 'asc' }, { clauseKey: 'asc' }]
+        })
+      : [];
+    const contractClauses = agreedAwardClauses.length
+      ? agreedAwardClauses.map((clause) => ({
+          clauseKey: clause.clauseKey,
+          title: clause.title,
+          body: clause.body,
+          category: clause.category,
+          status: clause.status,
+          buyerComment: clause.buyerComment,
+          supplierComment: clause.supplierComment,
+          legalComment: clause.legalComment,
+          payload: {
+            ...objectPayload(clause.payload),
+            source: 'settled_award_clause',
+            awardClauseId: clause.id,
+            readOnly: true
+          } as Prisma.InputJsonObject
+        }))
+      : defaultContractClauses();
+    const contract = await tx.contract.create({
       data: {
         reference: contractReference(),
         tenderId: notice.recommendation.workspace.tenderId,
@@ -3299,16 +3837,12 @@ export class ModuleRepository {
               currency: notice.recommendation.currency,
               budget: decimalToNumber(notice.recommendation.workspace.tender.budget)
             },
-            clauses: {
-              inspectionAndAcceptance: true,
-              performanceSecurity: true,
-              warrantyOrDefects: true,
-              liquidatedDamages: true,
-              variationProcedure: true,
-              disputeResolution: true,
-              termination: true,
-              antiCorruption: true
-            }
+            clauses: contractClauses.map((clause) => ({
+              clauseKey: clause.clauseKey,
+              title: clause.title,
+              category: clause.category,
+              source: objectPayload(clause.payload).source ?? 'contract_default_clause'
+            }))
           }
         } as Prisma.InputJsonObject,
         versions: {
@@ -3319,7 +3853,8 @@ export class ModuleRepository {
               generatedAt: new Date().toISOString(),
               tenderReference: notice.recommendation.workspace.tender.reference,
               awardId: notice.recommendationId,
-              clauseKeys: defaultContractClauses().map((clause) => clause.clauseKey)
+              awardGroupId: notice.recommendation.awardGroupId,
+              clauseKeys: contractClauses.map((clause) => clause.clauseKey)
             } as Prisma.InputJsonObject
           }
         },
@@ -3343,7 +3878,7 @@ export class ModuleRepository {
         },
         clauses: {
           createMany: {
-            data: defaultContractClauses()
+            data: contractClauses
           }
         },
         paymentSchedules: {
@@ -3406,6 +3941,17 @@ export class ModuleRepository {
         }
       }
     });
+    if (notice.recommendation.awardGroupId) {
+      await tx.awardWinner.updateMany({
+        where: { awardGroupId: notice.recommendation.awardGroupId, recommendationId: notice.recommendationId },
+        data: { contractId: contract.id, status: 'CONTRACT_FORMED' }
+      });
+      await tx.awardGroup.update({
+        where: { id: notice.recommendation.awardGroupId },
+        data: { status: 'CONTRACT_FORMED' }
+      });
+    }
+    return contract;
   }
 
   private async assertDocumentVisible(tx: DbClient, documentId: string, context: AwardContractRequestContext) {

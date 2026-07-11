@@ -10,8 +10,8 @@ import type { AwardContractDashboard, AwardQueueId, LifecycleAction } from '../.
 import {
   AwardHero,
   AwardSidebar,
+  formatMoney,
   lifecycleActionMatches,
-  LifecycleActionCard,
   ProcurexAwardFrame,
   RemoteStatePanel,
   StatusBadge
@@ -49,11 +49,92 @@ function QueueCards({
     );
   }
   return (
-    <div className="award-lifecycle-card-grid">
+    <div className="procurement-tender-list market-list award-lifecycle-list">
       {rows.map((row) => (
-        <LifecycleActionCard row={row} actionLabel={actionLabel} onAction={onAction} key={row.id} />
+        <LifecycleActionRow row={row} actionLabel={actionLabel} onAction={onAction} key={row.id} />
       ))}
     </div>
+  );
+}
+
+function ProgressStepper({ currentStage }: { currentStage: string }) {
+  const stageLower = currentStage.toLowerCase();
+  
+  const steps = ['Evaluation', 'Award', 'Sign', 'Active'];
+  let activeIndex = 0;
+  
+  if (stageLower.includes('eval')) activeIndex = 0;
+  else if (stageLower.includes('award') || stageLower.includes('notif') || stageLower.includes('standstill')) activeIndex = 1;
+  else if (stageLower.includes('sign') || stageLower.includes('negotiation') || stageLower.includes('draft') || stageLower.includes('review')) activeIndex = 2;
+  else if (stageLower.includes('active') || stageLower.includes('exec') || stageLower.includes('clos')) activeIndex = 3;
+  
+  return (
+    <div className="progress-stepper">
+      {steps.map((step, index) => (
+        <div key={step} className={`step ${index <= activeIndex ? 'active' : ''}`}>
+          <div className="step-dot"></div>
+          <span>{step}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LifecycleActionRow({
+  row,
+  actionLabel,
+  onAction
+}: {
+  row: LifecycleAction;
+  actionLabel?: string;
+  onAction: (row: LifecycleAction) => void;
+}) {
+  const disabled = row.nextAction?.canAct === false;
+  const roleClass = row.roleContext === 'BUYER' ? 'role-buyer' : 'role-supplier';
+  const reference = row.reference ?? row.noticeReference ?? row.tenderId ?? row.contractId ?? 'Lifecycle record';
+  return (
+    <article className={`procurement-tender-row market-row award-lifecycle-row ${roleClass}`}>
+      <div className="award-row-main">
+        <div className="award-row-identity">
+          <div className="tender-row-title award-row-title">
+            <strong>{row.title}</strong>
+            <span className="badge badge-info">{reference}</span>
+          </div>
+          <p>{row.otherParty}</p>
+          <div className="award-row-badges">
+            <StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} />
+            <StatusBadge value={row.status} />
+          </div>
+        </div>
+        <div className="award-row-action-summary">
+          <span>Action</span>
+          <strong>{row.requiredAction}</strong>
+        </div>
+        <div className="award-row-stage">
+          <div>
+            <span>Stage</span>
+            <strong>{row.currentStage}</strong>
+          </div>
+          <ProgressStepper currentStage={row.currentStage} />
+        </div>
+        <div className="market-row-meta award-row-meta">
+          <em><strong>Risk</strong><StatusBadge value={row.riskLevel} /></em>
+          <em><strong>Due</strong>{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : 'Not dated'}</em>
+          <em><strong>Value</strong>{row.amount === null ? 'Not priced' : formatMoney(row.amount, row.currency)}</em>
+        </div>
+        <div className="tender-row-actions award-row-actions">
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={disabled}
+            title={row.nextAction?.disabledReason ?? row.requiredAction}
+            onClick={() => onAction(row)}
+          >
+            {actionLabel ?? row.nextAction?.label ?? row.requiredAction}
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -115,6 +196,7 @@ export function AwardingContractsProcurexPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [queueSearch, setQueueSearch] = useState('');
+  const [roleMode, setRoleMode] = useState<'ALL' | 'BUYER' | 'SUPPLIER'>('ALL');
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -137,16 +219,20 @@ export function AwardingContractsProcurexPage() {
   const filteredQueues = useMemo(
     () =>
       queueIds.reduce((next, queue) => {
-        next[queue] = queues[queue].filter((row) => lifecycleActionMatches(row, queueSearch));
+        let rows = queues[queue].filter((row) => lifecycleActionMatches(row, queueSearch));
+        if (roleMode !== 'ALL') {
+          rows = rows.filter(row => row.roleContext === roleMode);
+        }
+        next[queue] = rows;
         return next;
       }, { ...emptyQueues } as AwardContractDashboard['queues']),
-    [queueSearch, queues]
+    [queueSearch, queues, roleMode]
   );
   const hasQueueSearch = queueSearch.trim().length > 0;
   const summary = dashboard?.summary ?? {
-    urgentActions: queues['my-urgent-actions'].length,
-    awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
-    contractActions: queues['contracts-in-progress'].length + queues['active-contracts'].length
+    urgentActions: filteredQueues['my-urgent-actions'].length,
+    awardQueues: filteredQueues['awarding-in-progress'].length + filteredQueues['awards-received'].length,
+    contractActions: filteredQueues['contracts-in-progress'].length + filteredQueues['active-contracts'].length
   };
 
   function jumpToQueue(queue: AwardQueueId) {
@@ -201,6 +287,13 @@ export function AwardingContractsProcurexPage() {
 
           {!isLoading && !loadError ? (
           <>
+          <div className="award-role-toggle">
+            <span className="role-toggle-label">View As:</span>
+            <button className={roleMode === 'ALL' ? 'active' : ''} onClick={() => setRoleMode('ALL')}>Combined</button>
+            <button className={roleMode === 'BUYER' ? 'active buyer' : ''} aria-label="View as Buyer" onClick={() => setRoleMode('BUYER')}>Buyer</button>
+            <button className={roleMode === 'SUPPLIER' ? 'active supplier' : ''} aria-label="View as Supplier" onClick={() => setRoleMode('SUPPLIER')}>Supplier</button>
+          </div>
+
           <section className="awarding-summary-grid">
             {summaryCards.map((item) => (
               <button
@@ -213,7 +306,7 @@ export function AwardingContractsProcurexPage() {
                 key={item.queue}
               >
                 <span className="summary-trend" aria-hidden="true">{item.trend}</span>
-                <strong>{queues[item.queue].length}</strong>
+                <strong>{filteredQueues[item.queue].length}</strong>
                 <span>{item.label} <em className="summary-view">View</em></span>
                 <em>{item.detail}</em>
               </button>
@@ -254,7 +347,7 @@ export function AwardingContractsProcurexPage() {
                   onChange={(event) => setQueueSearch(event.target.value)}
                 />
               </label>
-              <span>Showing {filteredQueues[activeQueue].length} of {queues[activeQueue].length}</span>
+              <span>Showing {filteredQueues[activeQueue].length} of {roleMode === 'ALL' ? queues[activeQueue].length : queues[activeQueue].filter(r => r.roleContext === roleMode).length}</span>
             </div>
 
             <div className="award-filter-chip-row" aria-label="Saved award and contract filters">
@@ -278,7 +371,24 @@ export function AwardingContractsProcurexPage() {
 
             <div className="awarding-tab-content">
               <div className={`tab-content ${activeQueue === 'my-urgent-actions' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="my-urgent-actions">
-                <QueueCards rows={filteredQueues['my-urgent-actions']} emptyMessage={emptyQueueMessage('my-urgent-actions', hasQueueSearch)} emptyAction={emptyQueueAction('my-urgent-actions')} onAction={followAction} />
+                {roleMode === 'ALL' ? (
+                  filteredQueues['my-urgent-actions'].length === 0 ? (
+                    <QueueCards rows={[]} emptyMessage={emptyQueueMessage('my-urgent-actions', hasQueueSearch)} emptyAction={emptyQueueAction('my-urgent-actions')} onAction={followAction} />
+                  ) : (
+                    <>
+                    <div className="urgent-group-header">
+                      <h3><span className="role-dot buyer"></span> Tasks as a Buyer</h3>
+                    </div>
+                    <QueueCards rows={filteredQueues['my-urgent-actions'].filter(r => r.roleContext === 'BUYER')} emptyMessage="No urgent buyer actions." onAction={followAction} />
+                    <div className="urgent-group-header">
+                      <h3><span className="role-dot supplier"></span> Tasks as a Supplier</h3>
+                    </div>
+                    <QueueCards rows={filteredQueues['my-urgent-actions'].filter(r => r.roleContext === 'SUPPLIER')} emptyMessage="No urgent supplier actions." onAction={followAction} />
+                    </>
+                  )
+                ) : (
+                  <QueueCards rows={filteredQueues['my-urgent-actions']} emptyMessage={emptyQueueMessage('my-urgent-actions', hasQueueSearch)} emptyAction={emptyQueueAction('my-urgent-actions')} onAction={followAction} />
+                )}
               </div>
 
               <div className={`tab-content ${activeQueue === 'awarding-in-progress' ? 'tab-content--visible' : 'tab-content--hidden'}`} data-tab="awarding-in-progress">

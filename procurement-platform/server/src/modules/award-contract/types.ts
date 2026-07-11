@@ -144,6 +144,57 @@ export type AwardNoticeDto = {
   responses: AwardResponseDto[];
 };
 
+export type AwardBidDocumentDto = {
+  id: string;
+  bidId: string;
+  documentId: string;
+  name: string;
+  documentType: string;
+  envelope: string;
+  reviewStatus: string;
+  checksum: string | null;
+  createdAt: string;
+};
+
+export type AwardWinnerDto = {
+  id: string;
+  recommendationId: string | null;
+  bidId: string | null;
+  supplierOrgId: string | null;
+  supplierName: string | null;
+  noticeId: string | null;
+  contractId: string | null;
+  amount: number | null;
+  currency: string;
+  status: string;
+  bidDocuments: AwardBidDocumentDto[];
+  payload: Record<string, unknown>;
+};
+
+export type AwardBidPackDto = {
+  id: string;
+  documentId: string | null;
+  status: string;
+  checksum: string | null;
+  generatedAt: string;
+  payload: Record<string, unknown>;
+};
+
+export type AwardGroupDto = {
+  id: string;
+  reference: string;
+  title: string;
+  status: string;
+  tenderId: string;
+  buyerOrgId: string;
+  settledAt: string | null;
+  winners: AwardWinnerDto[];
+  clauses: ContractLifecycleItemDto[];
+  negotiations: ContractLifecycleItemDto[];
+  bidPacks: AwardBidPackDto[];
+  payload: Record<string, unknown>;
+};
+
 export type AwardResponseDto = {
   id: string;
   action: AwardResponseAction;
@@ -285,8 +336,10 @@ export type AuditEventDto = {
 };
 
 export type AwardRecommendationDetailDto = AwardRecommendationListItemDto & {
+  awardGroupId: string | null;
   access: WorkflowAccessDto;
   reason: string;
+  awardGroup: AwardGroupDto;
   notice: AwardNoticeDto | null;
   contract: ContractDetailDto | null;
   approvalRoutes: Array<Record<string, unknown>>;
@@ -565,6 +618,7 @@ export type ClauseInput = {
 };
 
 export type NegotiationInput = {
+  winnerId?: string;
   clauseId?: string;
   raisedByRole: string;
   subject: string;
@@ -572,6 +626,11 @@ export type NegotiationInput = {
   counterOffer?: string;
   status?: ContractLifecycleItemStatus;
   dueDate?: string;
+  payload: Record<string, unknown>;
+};
+
+export type AwardSettlementInput = {
+  note: string;
   payload: Record<string, unknown>;
 };
 

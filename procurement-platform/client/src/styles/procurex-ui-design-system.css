@@ -26437,6 +26437,92 @@ fieldset.award-form-field {
     color: var(--warning, #92400e);
 }
 
+.award-flow-bar.wizard-step-progress {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.award-flow-step.wizard-progress-step {
+    min-height: 88px;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: start;
+    gap: 7px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: center;
+}
+
+.award-flow-step.wizard-progress-step:hover {
+    color: var(--design-ink-deep);
+}
+
+.award-flow-step.wizard-progress-step strong {
+    width: 34px;
+    height: 34px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid var(--px-line);
+    border-radius: var(--design-pill);
+    background: #ffffff;
+    color: var(--design-ink-deep);
+}
+
+.award-flow-step.wizard-progress-step.active strong,
+.award-flow-step.wizard-progress-step.completed strong {
+    border-color: var(--design-primary);
+    background: var(--design-primary);
+    color: #ffffff;
+}
+
+.award-flow-step.wizard-progress-step.locked strong {
+    border-color: rgba(242, 169, 24, 0.45);
+    background: var(--warning-light, #fef3c7);
+    color: var(--warning, #92400e);
+}
+
+.award-flow-step.wizard-progress-step span {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    max-width: 160px;
+}
+
+.award-flow-step.wizard-progress-step em {
+    color: inherit;
+    font-size: 12px;
+    line-height: 1.25;
+}
+
+.award-flow-step.wizard-progress-step small {
+    max-width: 160px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.award-flow-step.wizard-progress-step b,
+.award-flow-step.wizard-progress-step i {
+    grid-column: auto;
+    width: auto;
+    max-width: 150px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.award-flow-step.wizard-progress-step.active em,
+.award-flow-step.wizard-progress-step.completed em {
+    color: var(--design-ink-deep);
+}
+
 .award-selected-row {
     background: color-mix(in srgb, var(--primary-blue-light, #dbeafe) 58%, #fff);
     outline: 2px solid var(--primary-blue-light, #dbeafe);
@@ -26760,8 +26846,300 @@ fieldset.award-form-field {
     padding-top: 2px;
 }
 
+.award-lifecycle-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+}
+
+/* Custom roles for awarding contracts */
+.award-role-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.award-role-toggle .role-toggle-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.award-role-toggle button {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border-soft);
+    background: #f8fafc;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.award-role-toggle button:hover {
+    background: #f1f5f9;
+}
+
+.award-role-toggle button.active {
+    background: var(--brand-primary);
+    color: #fff;
+    border-color: var(--brand-primary);
+}
+
+.award-role-toggle button.active.buyer {
+    background: #2563eb;
+    border-color: #2563eb;
+}
+
+.award-role-toggle button.active.supplier {
+    background: #9333ea;
+    border-color: #9333ea;
+}
+
+.urgent-group-header {
+    margin: 28px 0 6px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+}
+
+.urgent-group-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.role-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.role-dot.buyer { background: #2563eb; }
+.role-dot.supplier { background: #9333ea; }
+
+.award-lifecycle-row.role-buyer {
+    border-left: 4px solid #2563eb;
+    background: linear-gradient(90deg, rgba(37,99,235,0.03) 0%, transparent 50%);
+}
+
+.award-lifecycle-row.role-supplier {
+    border-left: 4px solid #9333ea;
+    background: linear-gradient(90deg, rgba(147,51,234,0.03) 0%, transparent 50%);
+}
+
+.progress-stepper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-stepper .step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.5;
+}
+
+.progress-stepper .step.active {
+    opacity: 1;
+}
+
+.progress-stepper .step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+}
+
+.progress-stepper .step.active .step-dot {
+    background: var(--brand-primary);
+}
+
+.progress-stepper .step span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+}
+
+.award-lifecycle-row {
+    padding: 0;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+}
+
+.award-row-main {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.6fr) minmax(190px, 0.9fr) minmax(230px, 1.1fr) minmax(250px, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
+    padding: 18px 20px 18px 18px;
+}
+
+.award-row-identity,
+.award-row-action-summary,
+.award-row-stage,
+.award-row-meta,
+.award-row-actions {
+    min-width: 0;
+}
+
+.award-row-title {
+    gap: 8px 10px;
+}
+
+.award-row-title strong {
+    font-size: 16px;
+    line-height: 1.35;
+    min-width: 0;
+}
+
+.award-row-identity p {
+    margin: 7px 0 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.award-row-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.award-row-action-summary,
+.award-row-stage {
+    display: grid;
+    gap: 6px;
+}
+
+.award-row-stage > div {
+    display: grid;
+    gap: 6px;
+}
+
+.award-row-action-summary span,
+.award-row-stage span {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.award-row-action-summary strong,
+.award-row-stage strong {
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.award-row-stage .progress-stepper {
+    margin-top: 4px;
+}
+
+.award-row-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.award-row-meta em {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.74);
+    font-style: normal;
+    line-height: 1.25;
+}
+
+.award-row-meta strong {
+    color: var(--text-primary);
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.award-row-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.award-row-actions .btn {
+    min-width: 150px;
+    white-space: normal;
+}
+
 .award-card-empty {
     padding: 20px;
+}
+
+.awarding-contracts-page .main-content,
+.awarding-contracts-page .awarding-contracts-workspace {
+    width: 100%;
+    max-width: min(100%, 1480px);
+}
+
+.awarding-contracts-page .awarding-summary-grid {
+    grid-template-columns: repeat(6, minmax(140px, 1fr));
+}
+
+.awarding-contracts-page .awarding-summary-card {
+    min-height: 118px;
+}
+
+.awarding-contracts-page .awarding-tabs-panel {
+    padding: 28px;
+}
+
+.awarding-contracts-page .queue-toolbar {
+    align-items: end;
+    gap: 14px;
+}
+
+.awarding-contracts-page .queue-toolbar label {
+    flex: 1 1 520px;
+}
+
+.award-page > .award-floating-sidebar,
+.award-response-page > .award-floating-sidebar,
+.contract-page > .award-floating-sidebar,
+.post-award-page > .award-floating-sidebar {
+    position: sticky;
+    top: calc(var(--header-height) + 18px);
+    align-self: flex-start;
+    flex: 0 0 var(--sidebar-width);
+    width: var(--sidebar-width);
+    max-height: calc(100vh - var(--header-height) - 36px);
+    overflow-y: auto;
+    margin: 24px 0 24px 24px;
+    padding: 18px 0;
+    border: 1px solid var(--px-line-soft);
+    border-radius: var(--px-card-radius);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.07);
+}
+
+.award-floating-sidebar .evaluation-sidebar-head {
+    padding-bottom: 16px;
 }
 
 .post-award-grouped {
@@ -26776,6 +27154,26 @@ fieldset.award-form-field {
 
     .awarding-contracts-page .awarding-summary-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .award-row-main {
+        grid-template-columns: minmax(260px, 1.4fr) minmax(220px, 1fr) minmax(260px, 1fr);
+    }
+
+    .award-row-action-summary {
+        grid-column: span 1;
+    }
+
+    .award-row-meta {
+        grid-column: 1 / 3;
+    }
+
+    .award-row-actions {
+        justify-content: stretch;
+    }
+
+    .award-row-actions .btn {
+        width: 100%;
     }
 
     .award-wizard-main {
@@ -26797,6 +27195,17 @@ fieldset.award-form-field {
 
 @media (max-width: 900px) {
 
+    .award-page > .award-floating-sidebar,
+    .award-response-page > .award-floating-sidebar,
+    .contract-page > .award-floating-sidebar,
+    .post-award-page > .award-floating-sidebar {
+        position: static;
+        width: auto;
+        max-height: none;
+        margin: 16px 16px 0;
+        overflow: visible;
+    }
+
     .awarding-contracts-page .award-hero-panel,
     .award-page .award-hero-panel,
     .contract-page .award-hero-panel,
@@ -26814,6 +27223,21 @@ fieldset.award-form-field {
 
     .awarding-contracts-page .awarding-summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .award-row-main {
+        grid-template-columns: 1fr;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .award-row-meta {
+        grid-column: auto;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .progress-stepper {
+        flex-wrap: wrap;
     }
 
     .award-draft-strip {
@@ -26911,6 +27335,84 @@ fieldset.award-form-field {
 
     .awarding-contracts-page .awarding-summary-card {
         min-width: 0;
+    }
+
+    .award-role-toggle,
+    .award-filter-chip-row,
+    .awarding-contracts-page .queue-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .award-role-toggle button,
+    .award-filter-chip {
+        width: 100%;
+    }
+
+    .award-row-title {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .award-row-meta {
+        grid-template-columns: 1fr;
+    }
+
+    .award-row-actions .btn {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .contract-draft-summary-table table {
+        min-width: 0;
+    }
+
+    .contract-draft-summary-table thead {
+        display: none;
+    }
+
+    .contract-draft-summary-table tbody,
+    .contract-draft-summary-table tr,
+    .contract-draft-summary-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .contract-draft-summary-table tr {
+        padding: 12px;
+        border-bottom: 1px solid var(--border-soft);
+    }
+
+    .contract-draft-summary-table td {
+        padding: 0;
+        border-bottom: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .contract-draft-summary-table td + td {
+        margin-top: 8px;
+    }
+
+    .contract-draft-summary-table td::before {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+    }
+
+    .contract-draft-summary-table td:nth-child(1)::before {
+        content: "Draft area";
+    }
+
+    .contract-draft-summary-table td:nth-child(2)::before {
+        content: "Captured content";
+    }
+
+    .contract-draft-summary-table td:nth-child(3)::before {
+        content: "Status";
     }
 
     .award-form-grid {

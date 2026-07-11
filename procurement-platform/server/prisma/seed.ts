@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../src/db/prisma.js';
 import { withDbContext } from '../src/db/context.js';
+import { seedAwardContractDemo } from './seed-award-contract-demo.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -665,6 +666,8 @@ async function main() {
       }
     });
   }, prisma);
+
+  await seedAwardContractDemo();
 }
 
 main()
