@@ -55,7 +55,7 @@ export function validateBidDraft(input: {
   const severity: BidValidationSeverity = mode === 'submit' ? 'error' : 'warning';
   const samples = input.samples ?? [];
   const financialRows = Array.isArray(draft.financial?.items) ? draft.financial.items : [];
-  const financialFields = requiredFields(schema).filter((field) => field.section === 'financial' && field.responseType !== 'attachment');
+  const financialFields = requiredFields(schema).filter(isFinancialPricingField);
   const computedTotalAmount = computeFinancialTotal(financialRows, financialFields);
 
   const addRequiredIssue = (field: BidSubmissionSchemaFieldDto, message: string) => {
@@ -74,7 +74,7 @@ export function validateBidDraft(input: {
       if (!hasRequiredDocument(field, draft)) addRequiredIssue(field, `Required document is missing: ${field.label}.`);
       continue;
     }
-    if (field.section === 'financial') {
+    if (isFinancialPricingField(field)) {
       const row = matchingFinancialRow(field, financialRows, financialFields);
       if (!row) {
         addRequiredIssue(field, `Required financial pricing is missing: ${field.label}.`);
@@ -82,6 +82,10 @@ export function validateBidDraft(input: {
       }
       const rowIssues = validateFinancialRow(row, field);
       rowIssues.forEach((message) => addRequiredIssue(field, message));
+      continue;
+    }
+    if (field.section === 'financial') {
+      if (!hasRequiredResponse(field, draft)) addRequiredIssue(field, `Required response is missing: ${field.label}.`);
       continue;
     }
     if (field.section === 'samples') {
@@ -178,6 +182,13 @@ function schemaTender(tender: TenderValidationInput) {
 
 function requiredFields(schema: BidSubmissionSchemaDto) {
   return schema.steps.flatMap((step) => step.fields).filter((field) => field.required);
+}
+
+function isFinancialPricingField(field: BidSubmissionSchemaFieldDto) {
+  if (field.section !== 'financial' || field.responseType === 'attachment') return false;
+  if (field.responseType !== 'money' && field.responseType !== 'pricing') return false;
+  if (field.validation.itemId || field.validation.itemNo || field.validation.description || field.validation.quantity || field.validation.unit) return true;
+  return /commercialitems|boq|quantityschedule|pricingrows|financialofferrows/i.test(`${field.requirementKey} ${field.source}`);
 }
 
 function hasRequiredDocument(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {

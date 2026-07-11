@@ -938,19 +938,6 @@ function renderBidWorkspaceClarificationPrompt(label, category, context) {
     `;
 }
 
-function renderBidWorkspaceAssistancePanel(documents = []) {
-    const primaryDocument = documents[0] || 'Tender document';
-    return `
-        <aside class="bid-assistance-panel">
-            <span class="section-kicker">Bid Assistance</span>
-            <button class="btn btn-secondary" type="button" data-bid-view-tender-detail>View Tender Details</button>
-            <button class="btn btn-secondary" type="button" data-bid-ask-clarification data-clarification-category="Technical" data-clarification-context="General bid workspace question">Ask Clarification</button>
-            <button class="btn btn-secondary" type="button">${escapeBidWorkspaceHtml(`Download ${primaryDocument}`)}</button>
-            <button class="btn btn-secondary" type="button">Contact Procurement Office</button>
-        </aside>
-    `;
-}
-
 function getGoodsBidQuantityRows(tender = {}) {
     return tender.requirements?.fields?.quantityScheduleRows?.length
         ? tender.requirements.fields.quantityScheduleRows
@@ -5350,8 +5337,6 @@ function renderBiddingWorkspace() {
                             <button class="btn btn-primary" type="button" data-bid-jump-submit>Review Submission</button>
                         </div>
                     </section>
-
-                    ${renderBidWorkspaceAssistancePanel(documents)}
 
                     <div class="wizard-shell" data-bid-wizard data-bid-tender-id="${escapeBidWorkspaceHtml(tenderId)}" data-bid-uses-mandatory-gate="true" data-bid-review-step-index="${consultancyFlow ? steps.length - 1 : Math.max(steps.length - 2, 0)}">
                         <nav class="wizard-step-progress bid-step-progress" aria-label="Bid submission progress">
