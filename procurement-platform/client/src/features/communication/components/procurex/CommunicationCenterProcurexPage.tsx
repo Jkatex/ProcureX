@@ -55,7 +55,6 @@ const emptyMailbox: CommunicationListResponse = {
     sent: 0,
     drafts: 0,
     archived: 0,
-    trash: 0,
     unread: 0,
     actionRequired: 0
   },
@@ -70,8 +69,7 @@ const folders: Array<{ key: MailboxFolder; label: string }> = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Sent' },
   { key: 'unread', label: 'Unread' },
-  { key: 'archived', label: 'Archived' },
-  { key: 'trash', label: 'Trash' }
+  { key: 'archived', label: 'Archived' }
 ];
 
 function initialComposeState(overrides: Partial<ComposeState> = {}): ComposeState {
@@ -387,6 +385,13 @@ export function CommunicationCenterProcurexPage() {
     }));
   }
 
+  function selectTender(tenderId: string) {
+    setCompose((current) => ({
+      ...current,
+      tenderId
+    }));
+  }
+
   function addAttachments(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
@@ -465,19 +470,18 @@ export function CommunicationCenterProcurexPage() {
     }
   }
 
-  async function messageAction(action: 'archive' | 'delete') {
+  async function archiveSelectedMessage() {
     if (!selected) return;
     setSaving(true);
     setError('');
     try {
-      if (action === 'archive') await communicationApi.archive(selected.id);
-      else await communicationApi.deleteMessage(selected.id);
+      await communicationApi.archive(selected.id);
       setSelectedId('');
       setSelectedMessage(null);
       goCommunicationHome(true);
       await loadMailbox(folder, page, '', submittedSearch);
     } catch (caught) {
-      setError(errorMessage(caught, action === 'archive' ? 'Message could not be archived.' : 'Message could not be moved to trash.'));
+      setError(errorMessage(caught, 'Message could not be archived.'));
     } finally {
       setSaving(false);
     }
@@ -571,17 +575,28 @@ export function CommunicationCenterProcurexPage() {
                         <span className="badge badge-info">{compose.recipients.length} selected</span>
                       </div>
                     </div>
-                    <label>
+                    <label className="span-2">
                       <span>Find tender</span>
                       <input className="form-input" value={compose.tenderSearch} onChange={(event) => setCompose((current) => ({ ...current, tenderSearch: event.target.value }))} placeholder="Search tender reference or title" />
                     </label>
                     <label>
-                      <span>Tender link</span>
-                      <select className="form-input" value={compose.tenderId} onChange={(event) => setCompose((current) => ({ ...current, tenderId: event.target.value }))}>
+                      <span>Tender reference</span>
+                      <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
                         <option value="">Not linked</option>
                         {tenderOptions.map((tender) => (
                           <option key={tender.id} value={tender.id}>
-                            {tender.reference} / {tender.title}
+                            {tender.reference}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Tender title</span>
+                      <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
+                        <option value="">Not linked</option>
+                        {tenderOptions.map((tender) => (
+                          <option key={tender.id} value={tender.id}>
+                            {tender.title}
                           </option>
                         ))}
                       </select>
@@ -596,7 +611,7 @@ export function CommunicationCenterProcurexPage() {
                     </label>
                     <div className="span-2 communication-compose-attachments">
                       <div>
-                        <span>Attachments</span>
+                        <span className="form-label">Attachments</span>
                         <label className="btn btn-secondary communication-file-button">
                           Add files
                           <input type="file" multiple onChange={addAttachments} hidden />
@@ -614,9 +629,7 @@ export function CommunicationCenterProcurexPage() {
                             </span>
                           ))}
                         </div>
-                      ) : (
-                        <span className="communication-attachment-preview">Attach reports, photos, spreadsheets, or supporting files.</span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                   <div className="inline-actions">
@@ -642,8 +655,7 @@ export function CommunicationCenterProcurexPage() {
                     fullScreen
                     onReply={() => selected ? openReply(selected) : undefined}
                     onAction={() => selected ? openMessageAction(selected) : undefined}
-                    onArchive={() => void messageAction('archive')}
-                    onDelete={() => void messageAction('delete')}
+                    onArchive={() => void archiveSelectedMessage()}
                     onClose={() => goCommunicationHome()}
                   />
                 )}
@@ -780,7 +792,6 @@ function MessageDetail({
   onReply,
   onAction,
   onArchive,
-  onDelete,
   onClose
 }: {
   message: CommunicationMailboxMessage | null;
@@ -789,7 +800,6 @@ function MessageDetail({
   onReply: () => void;
   onAction: () => void;
   onArchive: () => void;
-  onDelete: () => void;
   onClose: () => void;
 }) {
   if (!message) {
@@ -823,7 +833,6 @@ function MessageDetail({
       </section>
 
       <section className="communication-message-body">
-        <span className="section-kicker">{message.tenderTitle ?? 'Communication'}</span>
         <h1>{message.subject}</h1>
         <p>{message.body}</p>
         {message.attachments.length ? (
@@ -849,7 +858,6 @@ function MessageDetail({
             <button className="btn btn-secondary" type="button" disabled={saving} onClick={onAction}>{nextAction?.label}</button>
           ) : null}
           <button className="btn btn-secondary" type="button" disabled={saving} onClick={onArchive}>Archive</button>
-          <button className="btn btn-secondary" type="button" disabled={saving} onClick={onDelete}>Move to Trash</button>
         </div>
       </section>
     </aside>
@@ -861,7 +869,6 @@ function folderCount(folder: MailboxFolder, counts: CommunicationListResponse['c
   if (folder === 'sent') return counts.sent;
   if (folder === 'unread') return counts.unread;
   if (folder === 'archived') return counts.archived;
-  if (folder === 'trash') return counts.trash;
   return counts.total;
 }
 
@@ -968,7 +975,7 @@ function resolveMessageAction(message: CommunicationMailboxMessage): { label: st
   const tenderId = message.tenderId ? encodeURIComponent(message.tenderId) : '';
   const text = `${message.category} ${message.subject} ${message.body} ${message.status}`.toLowerCase();
 
-  if (/(passed evaluation|winner|won|contract negotiation|negotiate|contract)/.test(text) && tenderId) {
+  if (/(passed evaluation|passed review|winner|won|contract negotiation|negotiate|contract)/.test(text) && tenderId) {
     return { label: 'Go to Contracts', route: `/awards-contracts/negotiation?tenderId=${tenderId}` };
   }
 
@@ -992,7 +999,7 @@ function resolveMessageAction(message: CommunicationMailboxMessage): { label: st
     return { label: 'Track Contract', route: `/awards-contracts/post-award?tenderId=${tenderId}` };
   }
 
-  if (/(amendment|published|tender)/.test(text) && tenderId) {
+  if (/(failed review|amend|amendment|published|tender)/.test(text) && tenderId) {
     return { label: 'Open Tender', route: `/procurement/supplier-tender-detail?tenderId=${tenderId}` };
   }
 
@@ -1053,7 +1060,7 @@ function displayLabel(value: string) {
 function badgeClass(value: string) {
   const normalized = value.toLowerCase();
   if (normalized.includes('urgent') || normalized.includes('action') || normalized.includes('unread')) return 'badge badge-warning';
-  if (normalized.includes('deleted') || normalized.includes('trash')) return 'badge badge-danger';
+  if (normalized.includes('deleted')) return 'badge badge-danger';
   if (normalized.includes('archived') || normalized.includes('read') || normalized.includes('replied') || normalized.includes('completed')) return 'badge badge-success';
   return 'badge badge-info';
 }

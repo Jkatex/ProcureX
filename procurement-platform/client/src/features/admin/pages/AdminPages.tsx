@@ -5,5 +5,6 @@ export { AdminComplianceProcurexPage as AdminCompliancePage } from '@/features/a
 export { AdminAnalyticsProcurexPage as AdminAnalyticsPage } from '@/features/admin/components/procurex/AdminAnalyticsProcurexPage';
 export { AdminAuditProcurexPage as AdminAuditPage } from '@/features/admin/components/procurex/AdminAuditProcurexPage';
 export { AdminDatastoreProcurexPage as AdminDatastorePage } from '@/features/admin/components/procurex/AdminDatastoreProcurexPage';
+export { AdminTenderReviewProcurexPage as AdminTenderReviewPage } from '@/features/admin/components/procurex/AdminTenderReviewProcurexPage';
 export { AdminCommunicationProcurexPage as AdminCommunicationPage } from '@/features/admin/components/procurex/AdminCommunicationProcurexPage';
 export { AdminProfileProcurexPage as AdminProfilePage } from '@/features/admin/components/procurex/AdminProfileProcurexPage';

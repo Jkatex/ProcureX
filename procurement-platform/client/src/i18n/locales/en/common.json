@@ -1075,13 +1075,13 @@
       "countBadge": "{{count}} records",
       "emptyTitle": "No procurement records yet.",
       "emptyBody": "Records will appear here when tenders, bids, clarifications, evaluations, awards, contracts, and post-award activities are created.",
-      "pagination": "Page {{page}} of {{totalPages}}",
+      "pagination": "Showing {{start}}-{{end}} of {{total}} records",
       "previous": "Previous",
       "next": "Next"
     },
     "filters": {
       "search": "Search",
-      "searchPlaceholder": "Search by reference, title, buyer, supplier",
+      "searchPlaceholder": "Search by reference or title",
       "recordType": "Record type",
       "status": "Status",
       "category": "Category",
@@ -1148,18 +1148,46 @@
     },
     "labels": {
       "notAvailable": "Not available",
+      "notRecorded": "Not recorded",
+      "buyerNotRecorded": "Buyer not recorded",
       "noEvidence": "No evidence"
+    },
+    "rowActions": {
+      "view": "View",
+      "export": "Export"
+    },
+    "detail": {
+      "summary": "Record Summary",
+      "timeline": "Procurement Timeline",
+      "documents": "Evidence/Documents",
+      "activity": "Procurement Activity History",
+      "reference": "Reference number",
+      "type": "Record type",
+      "classification": "Procurement classification",
+      "status": "Status",
+      "buyer": "Buyer",
+      "supplier": "Supplier",
+      "value": "Value",
+      "created": "Created date",
+      "documentName": "Document name",
+      "documentType": "Type",
+      "documentDate": "Date",
+      "noDocuments": "No related documents are available.",
+      "noActivity": "No activity recorded",
+      "noActivityBody": "Activity history will appear when available.",
+      "exportRecord": "Export Record PDF",
+      "close": "Close"
     },
     "types": {
       "TENDER": "Tender",
       "BID": "Bid",
-      "EVALUATION": "Evaluation",
-      "AWARD": "Award",
       "CONTRACT": "Contract",
-      "DOCUMENT": "Evidence file",
-      "COMMUNICATION": "Communication",
+      "AWARD": "Award",
+      "AMENDMENT": "Amendment",
+      "CLARIFICATION": "Clarification",
+      "CANCELLATION": "Cancellation",
       "COMPLIANCE": "Compliance",
-      "ARCHIVE": "Archive"
+      "REPORT": "Report"
     },
     "status": {
       "DRAFT": "Draft",
@@ -1169,6 +1197,7 @@
       "CLOSED": "Closed",
       "EVALUATION": "Evaluation",
       "AWARDED": "Awarded",
+      "CONTRACTED": "Contracted",
       "CANCELLED": "Cancelled",
       "SUBMITTED": "Submitted",
       "WITHDRAWN": "Withdrawn",

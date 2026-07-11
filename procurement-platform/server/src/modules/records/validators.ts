@@ -9,12 +9,14 @@ const dateFilterSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)));
 const optionalDateFilterSchema = z.union([z.literal(''), dateFilterSchema]);
+const recordIdSchema = z.string().trim().min(3).max(160).regex(/^[a-z]+:[0-9a-f-]+$/i);
 
 export const moduleStatusQuerySchema = z.object({}).strict();
 
 export const recordsQuerySchema = z
   .object({
     search: z.string().trim().max(120).optional().default(''),
+    recordId: recordIdSchema.optional(),
     recordType: z.union([allFilterSchema, z.enum(recordTypeValues)]).optional().default('all'),
     status: z.union([allFilterSchema, z.enum(recordStatusValues)]).optional().default('all'),
     category: z.string().trim().max(80).optional().default(''),
@@ -42,4 +44,8 @@ export const recordsExportQuerySchema = recordsQuerySchema.transform((query) => 
   page: 1,
   pageSize: 100
 }));
+
+export const recordParamsSchema = z.object({
+  id: recordIdSchema
+});
 

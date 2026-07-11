@@ -128,6 +128,8 @@ describe('communication module', () => {
     expect(patchMessageBodySchema.parse({ status: CommunicationStatus.ARCHIVED })).toEqual({
       status: CommunicationStatus.ARCHIVED
     });
+    expect(() => patchMessageBodySchema.parse({ folder: 'trash' })).toThrow();
+    expect(() => patchMessageBodySchema.parse({ status: CommunicationStatus.DELETED })).toThrow();
   });
 
   it('returns an empty mailbox contract when the database is unavailable', async () => {
@@ -160,7 +162,6 @@ describe('communication module', () => {
         sent: 0,
         drafts: 0,
         archived: 0,
-        trash: 0,
         unread: 0,
         actionRequired: 0
       },
@@ -213,6 +214,28 @@ describe('communication module', () => {
     });
 
     expect(listMessages).toHaveBeenCalledWith(expect.objectContaining({ organizationId: recipientOrgId }));
+  });
+
+  it('defaults admin mailbox queries to the admin organization when no filter is selected', async () => {
+    const listMessages = vi.fn().mockResolvedValue(emptyMailbox());
+    const service = new ModuleService({ listMessages } as any, adminIdentity as any);
+
+    await service.listMessages('admin-token', {
+      organizationId: '',
+      folder: 'all',
+      search: '',
+      kind: 'all',
+      status: 'all',
+      priority: 'all',
+      category: '',
+      tenderId: '',
+      page: 1,
+      pageSize: 20,
+      sortBy: 'date',
+      sortDirection: 'desc'
+    });
+
+    expect(listMessages).toHaveBeenCalledWith(expect.objectContaining({ organizationId: otherOrgId }));
   });
 
   it('blocks non-admin access to messages owned by another organization', async () => {
@@ -278,7 +301,6 @@ function emptyMailbox() {
       sent: 0,
       drafts: 0,
       archived: 0,
-      trash: 0,
       unread: 0,
       actionRequired: 0
     },

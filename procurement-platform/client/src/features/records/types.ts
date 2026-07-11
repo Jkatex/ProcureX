@@ -1,13 +1,13 @@
 export type RecordsRecordType =
   | 'TENDER'
   | 'BID'
-  | 'EVALUATION'
-  | 'AWARD'
   | 'CONTRACT'
-  | 'DOCUMENT'
-  | 'COMMUNICATION'
+  | 'AWARD'
+  | 'AMENDMENT'
+  | 'CLARIFICATION'
+  | 'CANCELLATION'
   | 'COMPLIANCE'
-  | 'ARCHIVE';
+  | 'REPORT';
 
 export type RecordsRecordStatus =
   | 'DRAFT'
@@ -17,6 +17,7 @@ export type RecordsRecordStatus =
   | 'CLOSED'
   | 'EVALUATION'
   | 'AWARDED'
+  | 'CONTRACTED'
   | 'CANCELLED'
   | 'SUBMITTED'
   | 'WITHDRAWN'
@@ -53,8 +54,12 @@ export type RecordsSortField = 'date' | 'title' | 'type' | 'status' | 'value';
 export type RecordsDashboard = {
   tenderRecords: number;
   bidRecords: number;
+  evaluationRecords: number;
+  awardRecords: number;
   contractRecords: number;
+  activeContracts: number;
   evidenceFiles: number;
+  archivedRecords: number;
   recordedValue: number;
   currency: string;
   totalRecords: number;
@@ -84,6 +89,7 @@ export type ProcurementRecord = {
 };
 
 export type RecordsQuery = {
+  recordId?: string;
   search: string;
   recordType: RecordsFilterValue<RecordsRecordType>;
   status: RecordsFilterValue<RecordsRecordStatus>;
@@ -94,6 +100,45 @@ export type RecordsQuery = {
   pageSize: number;
   sortBy: RecordsSortField;
   sortDirection: 'asc' | 'desc';
+};
+
+export type RecordsLifecycleStage = {
+  key: string;
+  label: string;
+  status: 'completed' | 'current' | 'pending';
+  date: string | null;
+  detail: string | null;
+  recordId: string | null;
+};
+
+export type RecordsDocument = {
+  id: string;
+  name: string;
+  category: string;
+  relatedRecord: string | null;
+  uploadedBy: string | null;
+  uploadedAt: string;
+  fileType: string;
+  version: string;
+  accessLevel: string;
+};
+
+export type RecordsAuditEvent = {
+  id: string;
+  occurredAt: string;
+  user: string | null;
+  organization: string | null;
+  action: string;
+  recordType: string;
+  recordReference: string | null;
+  result: string;
+};
+
+export type RecordsDetail = {
+  record: ProcurementRecord;
+  lifecycle: RecordsLifecycleStage[];
+  documents: RecordsDocument[];
+  audit: RecordsAuditEvent[];
 };
 
 export type RecordsListResponse = {

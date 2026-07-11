@@ -89,13 +89,6 @@ export class ModuleService {
     return this.repository.archive(messageId);
   }
 
-  async softDelete(token: string | undefined, messageId: string): Promise<CommunicationMessageDto | null> {
-    const context = await this.accessContext(token);
-    const original = await this.visibleMessage(context, messageId);
-    if (!original) return null;
-    return this.repository.softDelete(messageId);
-  }
-
   async listRecipients(token: string | undefined, input: { search: string; capability?: 'BUYER' | 'SUPPLIER'; pageSize: number }): Promise<CommunicationRecipientDto[]> {
     await this.accessContext(token);
     try {
@@ -131,7 +124,7 @@ export class ModuleService {
   private scopeQuery(context: CommunicationAccessContext, query: CommunicationQuery): CommunicationQuery {
     return {
       ...query,
-      organizationId: context.isAdmin ? query.organizationId : context.organizationId
+      organizationId: context.isAdmin ? query.organizationId || context.organizationId : context.organizationId
     };
   }
 
@@ -169,7 +162,6 @@ function emptyList(query: CommunicationQuery): CommunicationListDto {
       sent: 0,
       drafts: 0,
       archived: 0,
-      trash: 0,
       unread: 0,
       actionRequired: 0
     },

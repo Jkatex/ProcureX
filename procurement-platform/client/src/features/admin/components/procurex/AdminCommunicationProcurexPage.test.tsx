@@ -9,6 +9,7 @@ import { adminApi } from '@/features/admin/api';
 import { assumeUser, signOut } from '@/features/auth/slice';
 import { communicationApi } from '@/features/communication/api';
 import type { CommunicationListResponse, CommunicationMailboxMessage } from '@/features/communication/types';
+import { procurementApi } from '@/features/procurement/api';
 import { procurexTheme } from '@/styles/mui-theme';
 import { AdminCommunicationProcurexPage } from './AdminCommunicationProcurexPage';
 
@@ -32,11 +33,21 @@ vi.mock('@/features/communication/api', () => ({
     composeMessage: vi.fn(),
     replyToMessage: vi.fn(),
     archive: vi.fn(),
-    deleteMessage: vi.fn(),
     listRecipients: vi.fn(),
     listTenderLinks: vi.fn()
   }
 }));
+
+vi.mock('@/features/procurement/api', async () => {
+  const actual = await vi.importActual<typeof import('@/features/procurement/api')>('@/features/procurement/api');
+  return {
+    ...actual,
+    procurementApi: {
+      ...actual.procurementApi,
+      failTenderReview: vi.fn()
+    }
+  };
+});
 
 const apps = vi.mocked(adminApi.apps);
 const listMailbox = vi.mocked(communicationApi.listMailbox);
@@ -45,9 +56,9 @@ const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
 const archive = vi.mocked(communicationApi.archive);
-const deleteMessage = vi.mocked(communicationApi.deleteMessage);
 const listRecipients = vi.mocked(communicationApi.listRecipients);
 const listTenderLinks = vi.mocked(communicationApi.listTenderLinks);
+const failTenderReview = vi.mocked(procurementApi.failTenderReview);
 
 const now = '2026-07-02T09:00:00.000Z';
 
@@ -113,7 +124,6 @@ function mailbox(messages: CommunicationMailboxMessage[] = [message]): Communica
       sent: messages.filter((item) => item.folder === 'sent').length,
       drafts: 0,
       archived: messages.filter((item) => item.folder === 'archived').length,
-      trash: messages.filter((item) => item.folder === 'trash').length,
       unread: messages.filter((item) => !item.read).length,
       actionRequired: messages.filter((item) => item.actionRequired).length
     },
@@ -161,15 +171,29 @@ describe('AdminCommunicationProcurexPage', () => {
     markRead.mockResolvedValue({ ...message, read: true, status: 'READ' as const });
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
+    failTenderReview.mockResolvedValue({
+      success: true,
+      message: 'Tender review failed. The tender has been returned to draft for amendments.',
+      data: {
+        tenderId: '22222222-2222-4222-8222-222222222222',
+        reference: 'PX-2026-001',
+        title: 'Medical supplies',
+        status: 'Draft',
+        visibility: 'PRIVATE',
+        publishedAt: '',
+        communicationMessageId: '66666666-6666-4666-8666-666666666666',
+        amendmentRoute: '/procurement/create-tender?tenderId=22222222-2222-4222-8222-222222222222'
+      }
+    });
     archive.mockResolvedValue({ ...message, folder: 'archived', status: 'ARCHIVED', read: true, actionRequired: false });
-    deleteMessage.mockResolvedValue({ ...message, folder: 'trash', status: 'DELETED', read: true, actionRequired: false });
     listRecipients.mockResolvedValue([
       { id: 'org-1', name: 'Kilimanjaro Supplies Limited', kind: 'COMPANY', country: 'TZ', capabilities: ['SUPPLIER'] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
       { id: 'org-3', name: 'Tanzania Ports Authority', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] }
     ]);
     listTenderLinks.mockResolvedValue([
-      { id: '22222222-2222-4222-8222-222222222222', reference: 'PX-2026-001', title: 'Medical supplies', buyerName: 'Ministry of Health', status: 'OPEN' }
+      { id: '22222222-2222-4222-8222-222222222222', reference: 'PX-2026-001', title: 'Medical supplies', buyerName: 'Ministry of Health', status: 'OPEN' },
+      { id: '33333333-3333-4333-8333-333333333333', reference: 'PX-2026-002', title: 'Road maintenance', buyerName: 'Tanzania Ports Authority', status: 'OPEN' }
     ]);
   });
 
@@ -188,7 +212,7 @@ describe('AdminCommunicationProcurexPage', () => {
     expect(screen.queryByText('Admin Notice')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
     expect(screen.getByText('Next action')).toBeInTheDocument();
-    expect(screen.getByText('Medical supplies')).toBeInTheDocument();
+    expect(screen.getByText('Please confirm whether the site visit is still available on Friday.')).toBeInTheDocument();
   });
 
   it('opens compose as a full page and sends an admin message', async () => {
@@ -214,7 +238,12 @@ describe('AdminCommunicationProcurexPage', () => {
     expect(screen.getByRole('button', { name: /Remove Tanzania Ports Authority/i })).toBeInTheDocument();
     await userEvent.upload(screen.getByLabelText('Add files'), new File(['report'], 'admin-report.pdf', { type: 'application/pdf' }));
     expect(screen.getByText('admin-report.pdf')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Tender link'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
+    fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
+    expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
+    fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: '33333333-3333-4333-8333-333333333333' } });
+    expect(screen.getByLabelText('Tender reference')).toHaveDisplayValue('PX-2026-002');
+    fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
+    expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification follow-up' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the updated site visit time.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
@@ -249,6 +278,45 @@ describe('AdminCommunicationProcurexPage', () => {
     );
   });
 
+  it('sends a failed-review message before removing the tender from review', async () => {
+    const ownerDelivery: CommunicationMailboxMessage = {
+      ...sentMessage,
+      id: '66666666-6666-4666-8666-666666666666',
+      folder: 'inbox',
+      ownerOrgId: 'org-2',
+      senderOrgId: 'platform',
+      senderName: 'ProcureX Administration',
+      recipientOrgId: 'org-2',
+      recipientName: 'Ministry of Health',
+      tenderId: '22222222-2222-4222-8222-222222222222'
+    };
+    composeMessage.mockResolvedValueOnce({ message: sentMessage, deliveries: [sentMessage, ownerDelivery] });
+    renderPage([
+      '/admin/communication?view=compose&reviewDecision=fail&reviewTenderId=22222222-2222-4222-8222-222222222222&tenderId=22222222-2222-4222-8222-222222222222&tenderReference=PX-2026-001&tenderTitle=Medical+supplies&recipientOrgId=org-2&recipientName=Ministry+of+Health&category=Tender+Review&subject=Your+tender+has+failed+review&actionLabel=Amend+Tender&actionRoute=%2Fprocurement%2Fcreate-tender%3FtenderId%3D22222222-2222-4222-8222-222222222222'
+    ]);
+
+    expect(await screen.findByLabelText('Subject')).toHaveValue('Your tender has failed review');
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please attach the missing delivery schedule and update the budget summary.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
+
+    await waitFor(() => expect(composeMessage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(failTenderReview).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      { messageId: '66666666-6666-4666-8666-666666666666' }
+    ));
+    expect(composeMessage.mock.invocationCallOrder[0]).toBeLessThan(failTenderReview.mock.invocationCallOrder[0]);
+    expect(composeMessage).toHaveBeenCalledWith(expect.objectContaining({
+      recipientOrgId: 'org-2',
+      tenderId: '22222222-2222-4222-8222-222222222222',
+      subject: 'Your tender has failed review',
+      metadata: expect.objectContaining({
+        reviewDecision: 'fail',
+        actionLabel: 'Amend Tender',
+        actionRoute: '/procurement/create-tender?tenderId=22222222-2222-4222-8222-222222222222'
+      })
+    }));
+  });
+
   it('replies from the full message page', async () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
@@ -275,11 +343,4 @@ describe('AdminCommunicationProcurexPage', () => {
     await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
   });
 
-  it('moves messages to trash from the full message page', async () => {
-    renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
-    await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(message.id));
-  });
 });

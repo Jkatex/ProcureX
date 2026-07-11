@@ -3,20 +3,31 @@ import {
   CommunicationStatus,
   ComplianceCaseStatus,
   ContractStatus,
-  DocumentReviewStatus,
   EvaluationStatus,
   RecommendationStatus,
+  TenderAmendmentStatus,
   TenderStatus,
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
-import type { ChartPointDto, ProcurementRecordDto, ProcurementRecordType, RecordsQuery } from './types.js';
+import type {
+  ChartPointDto,
+  ProcurementRecordDto,
+  ProcurementRecordType,
+  RecordsAuditDto,
+  RecordsDetailDto,
+  RecordsDocumentDto,
+  RecordsLifecycleStageDto,
+  RecordsQuery,
+  RecordsRequestContext
+} from './types.js';
 
 type RepositoryRecord = Omit<ProcurementRecordDto, 'createdAt' | 'updatedAt'> & {
   createdAt: Date;
   updatedAt: Date;
   durationDays?: number | null;
+  documentNames?: string[];
 };
 
 const maxSourceRows = 2000;
@@ -26,9 +37,9 @@ const bidStatuses = Object.values(BidStatus);
 const evaluationStatuses = Object.values(EvaluationStatus);
 const recommendationStatuses = Object.values(RecommendationStatus);
 const contractStatuses = Object.values(ContractStatus);
-const documentStatuses = Object.values(DocumentReviewStatus);
 const communicationStatuses = Object.values(CommunicationStatus);
 const complianceStatuses = Object.values(ComplianceCaseStatus);
+const amendmentStatuses = Object.values(TenderAmendmentStatus);
 
 export class ModuleRepository {
   constructor(private readonly db: PrismaClient = prisma) {}
@@ -37,63 +48,33 @@ export class ModuleRepository {
     return { ready: true };
   }
 
-  async getDashboardData() {
-    const [
-      tenderRecords,
-      bidRecords,
-      contractRecords,
-      evidenceFiles,
-      evaluationRecords,
-      awardRecords,
-      communicationRecords,
-      complianceRecords,
-      archiveRecords,
-      tenderValue,
-      bidValue,
-      contractValue,
-      awardValue
-    ] = await Promise.all([
-      this.db.tender.count(),
-      this.db.bid.count(),
-      this.db.contract.count(),
-      this.db.documentObject.count(),
-      this.db.evaluationWorkspace.count(),
-      this.db.awardRecommendation.count(),
-      this.db.communicationItem.count(),
-      this.db.complianceCase.count(),
-      this.db.recordEntry.count(),
-      this.db.tender.aggregate({ _sum: { budget: true } }),
-      this.db.bid.aggregate({ _sum: { totalAmount: true } }),
-      this.db.contract.aggregate({ _sum: { amount: true } }),
-      this.db.awardRecommendation.aggregate({ _sum: { amount: true } })
-    ]);
+  async getDashboardData(context?: RecordsRequestContext) {
+    const records = await this.collectRecords(baseRecordsQuery(), context);
+    const tenderRecords = records.filter((record) => record.recordType === 'TENDER').length;
+    const bidRecords = records.filter((record) => record.recordType === 'BID').length;
+    const contractRecords = records.filter((record) => record.recordType === 'CONTRACT').length;
+    const activeContracts = records.filter((record) => record.recordType === 'CONTRACT' && record.status === ContractStatus.ACTIVE).length;
+    const evaluationRecords = records.filter((record) => record.recordType === 'REPORT').length;
+    const awardRecords = records.filter((record) => record.recordType === 'AWARD').length;
+    const archivedRecords = records.filter((record) => record.status === 'ARCHIVED').length;
 
     return {
       tenderRecords,
       bidRecords,
+      evaluationRecords,
+      awardRecords,
       contractRecords,
-      evidenceFiles,
-      recordedValue:
-        decimalToNumber(tenderValue._sum.budget) +
-        decimalToNumber(bidValue._sum.totalAmount) +
-        decimalToNumber(contractValue._sum.amount) +
-        decimalToNumber(awardValue._sum.amount),
+      activeContracts,
+      evidenceFiles: records.reduce((sum, record) => sum + record.evidenceCount, 0),
+      archivedRecords,
+      recordedValue: dedupedRecordedValue(records),
       currency: 'TZS',
-      totalRecords:
-        tenderRecords +
-        bidRecords +
-        contractRecords +
-        evidenceFiles +
-        evaluationRecords +
-        awardRecords +
-        communicationRecords +
-        complianceRecords +
-        archiveRecords
+      totalRecords: records.length
     };
   }
 
-  async listRecords(query: RecordsQuery) {
-    const records = sortRecords(await this.collectRecords(query), query);
+  async listRecords(query: RecordsQuery, context?: RecordsRequestContext) {
+    const records = sortRecords(await this.collectRecords(query, context), query);
     const start = (query.page - 1) * query.pageSize;
     const pageRecords = records.slice(start, start + query.pageSize);
 
@@ -106,12 +87,12 @@ export class ModuleRepository {
     };
   }
 
-  async listAllRecords(query: RecordsQuery) {
-    return sortRecords(await this.collectRecords(query), query);
+  async listAllRecords(query: RecordsQuery, context?: RecordsRequestContext) {
+    return sortRecords(await this.collectRecords(query, context), query);
   }
 
-  async getCharts(query: RecordsQuery) {
-    const records = await this.collectRecords(query);
+  async getCharts(query: RecordsQuery, context?: RecordsRequestContext) {
+    const records = await this.collectRecords(query, context);
     const categories = unique(records.map((record) => record.category).filter(Boolean) as string[]);
 
     if (records.length === 0) {
@@ -145,8 +126,8 @@ export class ModuleRepository {
     };
   }
 
-  async getInsights(query: RecordsQuery) {
-    const records = await this.collectRecords(query);
+  async getInsights(query: RecordsQuery, context?: RecordsRequestContext) {
+    const records = await this.collectRecords(query, context);
     const categoryCounts = groupCount(
       records.filter((record) => record.category),
       (record) => record.category ?? 'Uncategorized'
@@ -163,7 +144,7 @@ export class ModuleRepository {
       .map((record) => Number(record.durationDays));
     const awardCount = records.filter((record) => record.recordType === 'AWARD' && ['RECOMMENDED', 'APPROVED', 'AWARDED'].includes(record.status)).length;
     const cancellationCount = records.filter((record) => record.status === 'CANCELLED').length;
-    const complianceRecords = records.filter((record) => record.recordType === 'COMPLIANCE' || record.recordType === 'DOCUMENT');
+    const complianceRecords = records.filter((record) => record.recordType === 'COMPLIANCE');
     const completedCompliance = complianceRecords.filter((record) => isComplianceComplete(record.status)).length;
 
     return {
@@ -190,26 +171,100 @@ export class ModuleRepository {
     };
   }
 
-  private async collectRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
+  async getRecordDetail(recordId: string, context?: RecordsRequestContext): Promise<(Omit<RecordsDetailDto, 'record'> & { record: RepositoryRecord }) | null> {
+    const record = await this.findRecord(recordId, context);
+    if (!record) return null;
+    const [lifecycle, documents, audit] = await Promise.all([
+      this.getLifecycle(recordId, context),
+      this.getRecordDocuments(recordId, context),
+      this.getRecordAudit(recordId, context)
+    ]);
+    return { record, lifecycle, documents, audit };
+  }
+
+  async getLifecycle(recordId: string, context?: RecordsRequestContext): Promise<RecordsLifecycleStageDto[]> {
+    const record = await this.findRecord(recordId, context);
+    if (!record) return [];
+    const all = await this.collectRecords(baseRecordsQuery(), context);
+    const related = all.filter((item) => {
+      if (record.tenderId && item.tenderId === record.tenderId) return true;
+      if (record.bidId && item.bidId === record.bidId) return true;
+      if (record.contractId && item.contractId === record.contractId) return true;
+      return item.id === record.id;
+    });
+    return buildLifecycleStages(record, related);
+  }
+
+  async listDocuments(query: RecordsQuery, context?: RecordsRequestContext): Promise<RecordsDocumentDto[]> {
+    const records = await this.collectRecords(query, context);
+    return records.flatMap((record) => (record.documentNames ?? []).map((name, index) => recordDocument(record, name, index)));
+  }
+
+  async getRecordDocuments(recordId: string, context?: RecordsRequestContext): Promise<RecordsDocumentDto[]> {
+    const record = await this.findRecord(recordId, context);
+    if (!record) return [];
+    return (record.documentNames ?? []).map((name, index) => recordDocument(record, name, index));
+  }
+
+  async listAuditEvents(query: RecordsQuery, context?: RecordsRequestContext): Promise<RecordsAuditDto[]> {
+    const organizationId = scopedOrganizationId(context);
+    const where: Prisma.AuditEventWhereInput = andWhere([
+      auditScope(organizationId),
+      dateWhere(query),
+      searchWhere<Prisma.AuditEventWhereInput>(query, [
+        { event: { contains: query.search, mode: 'insensitive' } },
+        { entityType: { contains: query.search, mode: 'insensitive' } },
+        { entityRef: { contains: query.search, mode: 'insensitive' } }
+      ])
+    ]);
+    const events = await this.db.auditEvent.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: query.pageSize
+    });
+    return events.map(auditDto);
+  }
+
+  async getRecordAudit(recordId: string, context?: RecordsRequestContext): Promise<RecordsAuditDto[]> {
+    const record = await this.findRecord(recordId, context);
+    if (!record) return [];
+    const refs = [record.sourceId, record.referenceNumber, record.tenderId, record.bidId, record.contractId].filter(Boolean) as string[];
+    const events = await this.db.auditEvent.findMany({
+      where: andWhere([
+        auditScope(scopedOrganizationId(context)),
+        refs.length ? { OR: refs.map((ref) => ({ entityRef: ref })) } : {}
+      ]),
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    return events.map(auditDto);
+  }
+
+  private async findRecord(recordId: string, context?: RecordsRequestContext) {
+    return (await this.collectRecords(baseRecordsQuery(), context)).find((record) => record.id === recordId) ?? null;
+  }
+
+  private async collectRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
     const batches = await Promise.all([
-      this.listTenderRecords(query),
-      this.listBidRecords(query),
-      this.listEvaluationRecords(query),
-      this.listAwardRecords(query),
-      this.listContractRecords(query),
-      this.listDocumentRecords(query),
-      this.listCommunicationRecords(query),
-      this.listComplianceRecords(query),
-      this.listArchiveRecords(query)
+      this.listTenderRecords(query, context),
+      this.listAmendmentRecords(query, context),
+      this.listBidRecords(query, context),
+      this.listEvaluationRecords(query, context),
+      this.listAwardRecords(query, context),
+      this.listContractRecords(query, context),
+      this.listCommunicationRecords(query, context),
+      this.listComplianceRecords(query, context)
     ]);
 
     return batches.flat().filter((record) => matchesCrossFilters(record, query));
   }
 
-  private async listTenderRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
+  private async listTenderRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
     if (!typeMatches(query, 'TENDER') || !statusMatches(query, tenderStatuses)) return [];
 
-    const where: Prisma.TenderWhereInput = {
+    const where: Prisma.TenderWhereInput = andWhere([
+      tenderScope(scopedOrganizationId(context)),
+      {
       ...dateWhere(query),
       ...searchWhere(query, [
         { title: { contains: query.search, mode: 'insensitive' } },
@@ -219,7 +274,8 @@ export class ModuleRepository {
       ]),
       ...(query.status !== 'all' ? { status: query.status as TenderStatus } : {}),
       ...(query.category ? { categories: { some: { name: { equals: query.category, mode: 'insensitive' } } } } : {})
-    };
+      }
+    ]);
 
     const tenders = await this.db.tender.findMany({
       where,
@@ -228,6 +284,7 @@ export class ModuleRepository {
       include: {
         buyerOrg: { select: { name: true } },
         categories: { select: { name: true }, take: 1 },
+        _count: { select: { bids: true, contracts: true, communications: true, amendments: true } },
         documents: {
           select: {
             label: true,
@@ -259,7 +316,15 @@ export class ModuleRepository {
         bidId: null,
         contractId: null,
         evidenceCount: tender.documents.length,
-        evidence: evidenceLabels(tender.documents.map((item) => item.label ?? item.document.name)),
+        evidence: sectionEvidence([
+          'Details',
+          tender._count.bids > 0 ? 'Bids' : '',
+          tender.status === TenderStatus.CLOSED ? 'Opening' : '',
+          tender._count.amendments > 0 ? 'Clarification' : '',
+          tender._count.contracts > 0 ? 'Contract' : '',
+          tender._count.communications > 0 ? 'Clarification' : ''
+        ]),
+        documentNames: tender.documents.map((item) => item.label ?? item.document.name).filter(Boolean),
         createdAt: tender.createdAt,
         updatedAt: tender.updatedAt,
         durationDays
@@ -267,10 +332,74 @@ export class ModuleRepository {
     });
   }
 
-  private async listBidRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
+  private async listAmendmentRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
+    if (!typeMatches(query, 'AMENDMENT') || !statusMatches(query, amendmentStatuses)) return [];
+
+    const where: Prisma.TenderAmendmentWhereInput = andWhere([
+      amendmentScope(scopedOrganizationId(context)),
+      {
+        ...dateWhere(query),
+        ...searchWhere(query, [
+          { reference: { contains: query.search, mode: 'insensitive' } },
+          { title: { contains: query.search, mode: 'insensitive' } },
+          { tender: { title: { contains: query.search, mode: 'insensitive' } } },
+          { tender: { reference: { contains: query.search, mode: 'insensitive' } } },
+          { buyerOrg: { name: { contains: query.search, mode: 'insensitive' } } }
+        ]),
+        ...(query.status !== 'all' ? { status: query.status as TenderAmendmentStatus } : {}),
+        ...(query.category ? { tender: { categories: { some: { name: { equals: query.category, mode: 'insensitive' } } } } } : {})
+      }
+    ]);
+
+    const amendments = await this.db.tenderAmendment.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: maxSourceRows,
+      include: {
+        buyerOrg: { select: { name: true } },
+        tender: {
+          select: {
+            id: true,
+            reference: true,
+            title: true,
+            type: true,
+            categories: { select: { name: true }, take: 1 }
+          }
+        }
+      }
+    });
+
+    return amendments.map((amendment) => ({
+      id: `amendment:${amendment.id}`,
+      recordType: 'AMENDMENT',
+      sourceModule: 'procurement',
+      sourceId: amendment.id,
+      title: amendment.title || `Amendment - ${amendment.tender.title}`,
+      referenceNumber: amendment.reference,
+      status: amendment.status,
+      valueAmount: null,
+      currency: 'TZS',
+      category: amendment.tender.categories[0]?.name ?? null,
+      procurementType: amendment.tender.type,
+      buyerName: amendment.buyerOrg.name,
+      supplierName: null,
+      tenderId: amendment.tender.id,
+      bidId: null,
+      contractId: null,
+      evidenceCount: 1,
+      evidence: sectionEvidence(['Clarification', 'Details']),
+      documentNames: [],
+      createdAt: amendment.publishedAt ?? amendment.createdAt,
+      updatedAt: amendment.updatedAt
+    }));
+  }
+
+  private async listBidRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
     if (!typeMatches(query, 'BID') || !statusMatches(query, bidStatuses)) return [];
 
-    const where: Prisma.BidWhereInput = {
+    const where: Prisma.BidWhereInput = andWhere([
+      bidScope(scopedOrganizationId(context)),
+      {
       ...dateWhere(query),
       ...searchWhere(query, [
         { reference: { contains: query.search, mode: 'insensitive' } },
@@ -280,7 +409,8 @@ export class ModuleRepository {
       ]),
       ...(query.status !== 'all' ? { status: query.status as BidStatus } : {}),
       ...(query.category ? { tender: { categories: { some: { name: { equals: query.category, mode: 'insensitive' } } } } } : {})
-    };
+      }
+    ]);
 
     const bids = await this.db.bid.findMany({
       where,
@@ -298,8 +428,11 @@ export class ModuleRepository {
             categories: { select: { name: true }, take: 1 }
           }
         },
+        receipt: { select: { receiptRef: true, createdAt: true } },
+        versions: { select: { id: true } },
         documents: {
           select: {
+            reviewStatus: true,
             document: { select: { name: true } }
           }
         }
@@ -324,16 +457,24 @@ export class ModuleRepository {
       bidId: bid.id,
       contractId: null,
       evidenceCount: bid.documents.length,
-      evidence: evidenceLabels(bid.documents.map((item) => item.document.name)),
-      createdAt: bid.createdAt,
+      evidence: sectionEvidence([
+        'Details',
+        bid.receipt ? 'Receipt' : '',
+        bid.versions.length > 0 ? 'Bids' : '',
+        bid.documents.length > 0 ? 'Compliance' : ''
+      ]),
+      documentNames: bid.documents.map((item) => item.document.name),
+      createdAt: bid.submittedAt ?? bid.createdAt,
       updatedAt: bid.updatedAt
     }));
   }
 
-  private async listEvaluationRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
-    if (!typeMatches(query, 'EVALUATION') || !statusMatches(query, evaluationStatuses)) return [];
+  private async listEvaluationRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
+    if (!typeMatches(query, 'REPORT') || !statusMatches(query, evaluationStatuses)) return [];
 
-    const where: Prisma.EvaluationWorkspaceWhereInput = {
+    const where: Prisma.EvaluationWorkspaceWhereInput = andWhere([
+      evaluationScope(scopedOrganizationId(context)),
+      {
       ...dateWhere(query),
       ...searchWhere(query, [
         { tender: { title: { contains: query.search, mode: 'insensitive' } } },
@@ -342,7 +483,8 @@ export class ModuleRepository {
       ]),
       ...(query.status !== 'all' ? { status: query.status as EvaluationStatus } : {}),
       ...(query.category ? { tender: { categories: { some: { name: { equals: query.category, mode: 'insensitive' } } } } } : {})
-    };
+      }
+    ]);
 
     const evaluations = await this.db.evaluationWorkspace.findMany({
       where,
@@ -365,10 +507,10 @@ export class ModuleRepository {
 
     return evaluations.map((evaluation) => ({
       id: `evaluation:${evaluation.id}`,
-      recordType: 'EVALUATION',
+      recordType: 'REPORT',
       sourceModule: 'evaluation',
       sourceId: evaluation.id,
-      title: `Evaluation - ${evaluation.tender.title}`,
+      title: `Evaluation report - ${evaluation.tender.title}`,
       referenceNumber: evaluation.tender.reference,
       status: evaluation.status,
       valueAmount: null,
@@ -381,16 +523,19 @@ export class ModuleRepository {
       bidId: null,
       contractId: null,
       evidenceCount: evaluation.scores.length,
-      evidence: [],
+      evidence: sectionEvidence(['Report', evaluation.scores.length > 0 ? 'Evaluation' : '']),
+      documentNames: [],
       createdAt: evaluation.createdAt,
       updatedAt: evaluation.updatedAt
     }));
   }
 
-  private async listAwardRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
+  private async listAwardRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
     if (!typeMatches(query, 'AWARD') || !statusMatches(query, recommendationStatuses)) return [];
 
-    const where: Prisma.AwardRecommendationWhereInput = {
+    const where: Prisma.AwardRecommendationWhereInput = andWhere([
+      awardScope(scopedOrganizationId(context)),
+      {
       ...dateWhere(query),
       ...searchWhere(query, [
         { workspace: { tender: { title: { contains: query.search, mode: 'insensitive' } } } },
@@ -399,7 +544,8 @@ export class ModuleRepository {
       ]),
       ...(query.status !== 'all' ? { status: query.status as RecommendationStatus } : {}),
       ...(query.category ? { workspace: { tender: { categories: { some: { name: { equals: query.category, mode: 'insensitive' } } } } } } : {})
-    };
+      }
+    ]);
 
     const awards = await this.db.awardRecommendation.findMany({
       where,
@@ -426,7 +572,8 @@ export class ModuleRepository {
             supplierOrg: { select: { name: true } }
           }
         },
-        approvals: { select: { id: true } }
+        approvals: { select: { id: true } },
+        contracts: { select: { id: true } }
       }
     });
 
@@ -436,7 +583,7 @@ export class ModuleRepository {
       sourceModule: 'evaluation',
       sourceId: award.id,
       title: `Award recommendation - ${award.workspace.tender.title}`,
-      referenceNumber: award.workspace.tender.reference,
+      referenceNumber: award.reference,
       status: award.status,
       valueAmount: nullableDecimalToNumber(award.amount),
       currency: award.currency,
@@ -448,16 +595,19 @@ export class ModuleRepository {
       bidId: award.bid?.id ?? null,
       contractId: null,
       evidenceCount: award.approvals.length,
-      evidence: [],
+      evidence: sectionEvidence(['Award', award.approvals.length > 0 ? 'Report' : '', award.contracts.length > 0 ? 'Contract' : '']),
+      documentNames: [],
       createdAt: award.createdAt,
       updatedAt: award.createdAt
     }));
   }
 
-  private async listContractRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
+  private async listContractRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
     if (!typeMatches(query, 'CONTRACT') || !statusMatches(query, contractStatuses)) return [];
 
-    const where: Prisma.ContractWhereInput = {
+    const where: Prisma.ContractWhereInput = andWhere([
+      contractScope(scopedOrganizationId(context)),
+      {
       ...dateWhere(query),
       ...searchWhere(query, [
         { title: { contains: query.search, mode: 'insensitive' } },
@@ -467,7 +617,8 @@ export class ModuleRepository {
       ]),
       ...(query.status !== 'all' ? { status: query.status as ContractStatus } : {}),
       ...(query.category ? { tender: { categories: { some: { name: { equals: query.category, mode: 'insensitive' } } } } } : {})
-    };
+      }
+    ]);
 
     const contracts = await this.db.contract.findMany({
       where,
@@ -510,61 +661,20 @@ export class ModuleRepository {
       bidId: null,
       contractId: contract.id,
       evidenceCount: contract.versions.filter((version) => version.document).length,
-      evidence: evidenceLabels(contract.versions.map((version) => version.document?.name).filter(Boolean) as string[]),
+      evidence: sectionEvidence(['Contract', contract.awardId ? 'Award' : '', contract.versions.some((version) => version.document) ? 'Details' : '']),
+      documentNames: contract.versions.map((version) => version.document?.name).filter(Boolean) as string[],
       createdAt: contract.createdAt,
       updatedAt: contract.updatedAt
     }));
   }
 
-  private async listDocumentRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
-    if (!typeMatches(query, 'DOCUMENT')) return [];
-    if (query.status !== 'all' && !documentStatuses.includes(query.status as DocumentReviewStatus) && query.status !== 'UPLOADED') return [];
+  private async listCommunicationRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
+    if (!typeMatches(query, 'CLARIFICATION') || !statusMatches(query, communicationStatuses)) return [];
     if (query.category) return [];
 
-    const documents = await this.db.documentObject.findMany({
-      where: {
-        ...dateWhere(query),
-        ...searchWhere(query, [
-          { name: { contains: query.search, mode: 'insensitive' } },
-          { documentType: { contains: query.search, mode: 'insensitive' } }
-        ])
-      },
-      orderBy: { createdAt: 'desc' },
-      take: maxSourceRows,
-      include: {
-        ownerOrg: { select: { name: true } }
-      }
-    });
-
-    return documents.map((document) => ({
-      id: `document:${document.id}`,
-      recordType: 'DOCUMENT',
-      sourceModule: 'documents',
-      sourceId: document.id,
-      title: document.name,
-      referenceNumber: document.id,
-      status: 'UPLOADED',
-      valueAmount: null,
-      currency: 'TZS',
-      category: document.documentType,
-      procurementType: null,
-      buyerName: document.ownerOrg?.name ?? null,
-      supplierName: null,
-      tenderId: null,
-      bidId: null,
-      contractId: null,
-      evidenceCount: 1,
-      evidence: [document.name],
-      createdAt: document.createdAt,
-      updatedAt: document.createdAt
-    }));
-  }
-
-  private async listCommunicationRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
-    if (!typeMatches(query, 'COMMUNICATION') || !statusMatches(query, communicationStatuses)) return [];
-    if (query.category) return [];
-
-    const where: Prisma.CommunicationItemWhereInput = {
+    const where: Prisma.CommunicationItemWhereInput = andWhere([
+      communicationScope(scopedOrganizationId(context)),
+      {
       ...dateWhere(query),
       ...searchWhere(query, [
         { subject: { contains: query.search, mode: 'insensitive' } },
@@ -574,7 +684,8 @@ export class ModuleRepository {
         { tender: { title: { contains: query.search, mode: 'insensitive' } } }
       ]),
       ...(query.status !== 'all' ? { status: query.status as CommunicationStatus } : {})
-    };
+      }
+    ]);
 
     const communications = await this.db.communicationItem.findMany({
       where,
@@ -602,11 +713,11 @@ export class ModuleRepository {
 
     return communications.map((item) => ({
       id: `communication:${item.id}`,
-      recordType: 'COMMUNICATION',
+      recordType: 'CLARIFICATION',
       sourceModule: 'communication',
       sourceId: item.id,
       title: item.subject,
-      referenceNumber: item.tender?.reference ?? item.id,
+      referenceNumber: item.tender?.reference ?? null,
       status: item.status,
       valueAmount: null,
       currency: 'TZS',
@@ -618,22 +729,28 @@ export class ModuleRepository {
       bidId: null,
       contractId: null,
       evidenceCount: item.attachments.length,
-      evidence: evidenceLabels(item.attachments.map((attachment) => attachment.document.name)),
+      evidence: sectionEvidence(['Clarification', item.attachments.length > 0 ? 'Details' : '']),
+      documentNames: item.attachments.map((attachment) => attachment.document.name),
       createdAt: item.createdAt,
       updatedAt: item.updatedAt
     }));
   }
 
-  private async listComplianceRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
+  private async listComplianceRecords(query: RecordsQuery, context?: RecordsRequestContext): Promise<RepositoryRecord[]> {
     if (!typeMatches(query, 'COMPLIANCE') || !statusMatches(query, complianceStatuses)) return [];
     if (query.category) return [];
 
-    const cases = await this.db.complianceCase.findMany({
-      where: {
+    const where: Prisma.ComplianceCaseWhereInput = andWhere([
+      complianceScope(scopedOrganizationId(context)),
+      {
         ...dateWhere(query),
-        ...searchWhere(query, [{ title: { contains: query.search, mode: 'insensitive' } }]),
+        ...searchWhere<Prisma.ComplianceCaseWhereInput>(query, [{ title: { contains: query.search, mode: 'insensitive' } }]),
         ...(query.status !== 'all' ? { status: query.status as ComplianceCaseStatus } : {})
-      },
+      }
+    ]);
+
+    const cases = await this.db.complianceCase.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       take: maxSourceRows,
       include: {
@@ -647,7 +764,7 @@ export class ModuleRepository {
       sourceModule: 'compliance',
       sourceId: item.id,
       title: item.title,
-      referenceNumber: item.id,
+      referenceNumber: null,
       status: item.status,
       valueAmount: null,
       currency: 'TZS',
@@ -659,52 +776,13 @@ export class ModuleRepository {
       bidId: null,
       contractId: null,
       evidenceCount: 0,
-      evidence: [],
+      evidence: sectionEvidence(['Compliance', 'Report']),
+      documentNames: [],
       createdAt: item.createdAt,
       updatedAt: item.createdAt
     }));
   }
 
-  private async listArchiveRecords(query: RecordsQuery): Promise<RepositoryRecord[]> {
-    if (!typeMatches(query, 'ARCHIVE')) return [];
-    if (query.category) return [];
-
-    const entries = await this.db.recordEntry.findMany({
-      where: {
-        ...dateWhere(query),
-        ...searchWhere(query, [
-          { title: { contains: query.search, mode: 'insensitive' } },
-          { entityType: { contains: query.search, mode: 'insensitive' } },
-          { entityRef: { contains: query.search, mode: 'insensitive' } }
-        ])
-      },
-      orderBy: { createdAt: 'desc' },
-      take: maxSourceRows
-    });
-
-    return entries.map((entry) => ({
-      id: `archive:${entry.id}`,
-      recordType: 'ARCHIVE',
-      sourceModule: 'records',
-      sourceId: entry.id,
-      title: entry.title,
-      referenceNumber: entry.entityRef,
-      status: 'ARCHIVED',
-      valueAmount: null,
-      currency: 'TZS',
-      category: entry.entityType,
-      procurementType: null,
-      buyerName: null,
-      supplierName: null,
-      tenderId: null,
-      bidId: null,
-      contractId: null,
-      evidenceCount: 0,
-      evidence: [],
-      createdAt: entry.createdAt,
-      updatedAt: entry.createdAt
-    }));
-  }
 }
 
 function typeMatches(query: RecordsQuery, type: ProcurementRecordType) {
@@ -728,6 +806,7 @@ function searchWhere<T>(query: RecordsQuery, conditions: T[]) {
 
 function matchesCrossFilters(record: RepositoryRecord, query: RecordsQuery) {
   if (!typeMatches(query, record.recordType)) return false;
+  if (query.recordId && record.id !== query.recordId) return false;
   if (query.status !== 'all' && record.status !== query.status) return false;
   if (query.category && record.category?.toLowerCase() !== query.category.toLowerCase()) return false;
   if (query.startDate && record.createdAt < new Date(`${query.startDate}T00:00:00.000Z`)) return false;
@@ -752,6 +831,98 @@ function matchesCrossFilters(record: RepositoryRecord, query: RecordsQuery) {
   return haystack.includes(query.search.toLowerCase());
 }
 
+function baseRecordsQuery(): RecordsQuery {
+  return {
+    search: '',
+    recordId: undefined,
+    recordType: 'all',
+    status: 'all',
+    category: '',
+    startDate: '',
+    endDate: '',
+    page: 1,
+    pageSize: 100,
+    sortBy: 'date',
+    sortDirection: 'desc'
+  };
+}
+
+function scopedOrganizationId(context?: RecordsRequestContext) {
+  return context?.isAdmin ? '' : context?.organizationId ?? '';
+}
+
+function tenderScope(organizationId: string): Prisma.TenderWhereInput {
+  return organizationId
+    ? {
+        OR: [
+          { buyerOrgId: organizationId },
+          { bids: { some: { supplierOrgId: organizationId } } },
+          { contracts: { some: { supplierOrgId: organizationId } } },
+          { savedBy: { some: { organizationId } } }
+        ]
+      }
+    : {};
+}
+
+function bidScope(organizationId: string): Prisma.BidWhereInput {
+  return organizationId ? { OR: [{ buyerOrgId: organizationId }, { supplierOrgId: organizationId }] } : {};
+}
+
+function evaluationScope(organizationId: string): Prisma.EvaluationWorkspaceWhereInput {
+  return organizationId ? { buyerOrgId: organizationId } : {};
+}
+
+function amendmentScope(organizationId: string): Prisma.TenderAmendmentWhereInput {
+  return organizationId
+    ? {
+        OR: [
+          { buyerOrgId: organizationId },
+          {
+            AND: [
+              { status: TenderAmendmentStatus.PUBLISHED },
+              {
+                tender: {
+                  OR: [
+                    { bids: { some: { supplierOrgId: organizationId } } },
+                    { contracts: { some: { supplierOrgId: organizationId } } },
+                    { savedBy: { some: { organizationId } } }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    : {};
+}
+
+function awardScope(organizationId: string): Prisma.AwardRecommendationWhereInput {
+  return organizationId ? { OR: [{ supplierOrgId: organizationId }, { workspace: { buyerOrgId: organizationId } }] } : {};
+}
+
+function contractScope(organizationId: string): Prisma.ContractWhereInput {
+  return organizationId ? { OR: [{ buyerOrgId: organizationId }, { supplierOrgId: organizationId }] } : {};
+}
+
+function communicationScope(organizationId: string): Prisma.CommunicationItemWhereInput {
+  return organizationId ? { OR: [{ ownerOrgId: organizationId }, { senderOrgId: organizationId }, { recipientOrgId: organizationId }] } : {};
+}
+
+function complianceScope(organizationId: string): Prisma.ComplianceCaseWhereInput {
+  return organizationId ? { ownerOrgId: organizationId } : {};
+}
+
+function auditScope(organizationId: string): Prisma.AuditEventWhereInput {
+  return organizationId ? { ownerOrgId: organizationId } : {};
+}
+
+function andWhere<T extends object>(filters: T[]): T {
+  const active = filters.filter((filter) => Object.keys(filter).length > 0);
+  if (active.length === 0) return {} as T;
+  if (active.length === 1) return active[0];
+  return { AND: active } as T;
+}
+
 function sortRecords(records: RepositoryRecord[], query: RecordsQuery) {
   const direction = query.sortDirection === 'asc' ? 1 : -1;
 
@@ -773,9 +944,25 @@ function sortValue(record: RepositoryRecord, field: RecordsQuery['sortBy']) {
   return record.valueAmount ?? 0;
 }
 
-function decimalToNumber(value: unknown) {
-  const numeric = Number(value ?? 0);
-  return Number.isFinite(numeric) ? numeric : 0;
+function dedupedRecordedValue(records: RepositoryRecord[]) {
+  const byChain = new Map<string, { priority: number; amount: number }>();
+  const priorities: Partial<Record<ProcurementRecordType, number>> = {
+    TENDER: 1,
+    BID: 2,
+    AWARD: 3,
+    CONTRACT: 4
+  };
+
+  for (const record of records) {
+    const amount = record.valueAmount ?? 0;
+    const priority = priorities[record.recordType] ?? 0;
+    if (!amount || !priority) continue;
+    const chainKey = record.tenderId ?? record.bidId ?? record.contractId ?? record.id;
+    const existing = byChain.get(chainKey);
+    if (!existing || priority > existing.priority) byChain.set(chainKey, { priority, amount });
+  }
+
+  return Array.from(byChain.values()).reduce((sum, item) => sum + item.amount, 0);
 }
 
 function nullableDecimalToNumber(value: unknown) {
@@ -784,8 +971,8 @@ function nullableDecimalToNumber(value: unknown) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
-function evidenceLabels(values: string[]) {
-  return values.filter(Boolean).slice(0, 4);
+function sectionEvidence(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).slice(0, 4);
 }
 
 function daysBetween(start: Date, end: Date) {
@@ -833,7 +1020,7 @@ function groupAwardsAndCancellations(records: RepositoryRecord[]): ChartPointDto
 }
 
 function groupCompliance(records: RepositoryRecord[]): ChartPointDto[] {
-  const complianceRecords = records.filter((record) => record.recordType === 'COMPLIANCE' || record.recordType === 'DOCUMENT');
+  const complianceRecords = records.filter((record) => record.recordType === 'COMPLIANCE');
   if (complianceRecords.length === 0) return [];
 
   const completed = complianceRecords.filter((record) => isComplianceComplete(record.status)).length;
@@ -846,5 +1033,74 @@ function groupCompliance(records: RepositoryRecord[]): ChartPointDto[] {
 
 function isComplianceComplete(status: string) {
   return ['APPROVED', 'VERIFIED', 'RESOLVED', 'COMPLETED', 'CLOSED'].includes(status);
+}
+
+function recordDocument(record: RepositoryRecord, name: string, index = 0): RecordsDocumentDto {
+  const category = record.recordType;
+  return {
+    id: `${record.id}:document:${index}`,
+    name,
+    category,
+    relatedRecord: record.referenceNumber,
+    uploadedBy: record.supplierName ?? record.buyerName,
+    uploadedAt: record.createdAt.toISOString(),
+    fileType: documentFileType(name, category),
+    version: 'Current',
+    accessLevel: record.recordType === 'BID' ? 'Restricted' : 'Organization'
+  };
+}
+
+function documentFileType(name: string, category: string | null) {
+  const extension = name.split('.').pop();
+  if (extension && extension !== name && extension.length <= 5) return extension.toUpperCase();
+  if (category) return category.toUpperCase().slice(0, 24);
+  return 'FILE';
+}
+
+function auditDto(event: {
+  id: string;
+  event: string;
+  entityType: string;
+  entityRef: string | null;
+  severity: string;
+  createdAt: Date;
+}): RecordsAuditDto {
+  return {
+    id: event.id,
+    occurredAt: event.createdAt.toISOString(),
+    user: null,
+    organization: null,
+    action: event.event,
+    recordType: event.entityType,
+    recordReference: event.entityRef,
+    result: event.severity
+  };
+}
+
+function buildLifecycleStages(record: RepositoryRecord, related: RepositoryRecord[]): RecordsLifecycleStageDto[] {
+  const stageDefinitions = [
+    { key: 'tender', label: 'Tender', match: ['TENDER'] },
+    { key: 'clarifications', label: 'Clarifications', match: ['AMENDMENT', 'CLARIFICATION'] },
+    { key: 'bid', label: 'Bid Submission', match: ['BID'] },
+    { key: 'opening', label: 'Bid Opening', match: ['BID'] },
+    { key: 'evaluation', label: 'Evaluation Report', match: ['REPORT'] },
+    { key: 'award', label: 'Award', match: ['AWARD'] },
+    { key: 'contract', label: 'Contract', match: ['CONTRACT'] },
+    { key: 'closure', label: 'Completion or Closure', match: ['COMPLIANCE'] }
+  ];
+  const activeIndex = Math.max(0, stageDefinitions.findIndex((stage) => stage.match.includes(record.recordType)));
+
+  return stageDefinitions.map((stage, index) => {
+    const source = related.find((item) => stage.match.includes(item.recordType));
+    const status: RecordsLifecycleStageDto['status'] = source ? 'completed' : index === activeIndex ? 'current' : 'pending';
+    return {
+      key: stage.key,
+      label: stage.label,
+      status,
+      date: source?.createdAt.toISOString() ?? null,
+      detail: source ? `${source.recordType} / ${source.status}` : null,
+      recordId: source?.id ?? null
+    };
+  });
 }
 

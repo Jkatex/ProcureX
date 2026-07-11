@@ -1020,7 +1020,7 @@ describe('procurement tender write service', () => {
     });
   });
 
-  it('publishes owner organization tenders only when the draft is complete', async () => {
+  it('submits owner organization tenders for admin review only when the draft is complete', async () => {
     const tender = {
       id: 'tender-1',
       buyerOrgId: 'org-1',
@@ -1036,16 +1036,16 @@ describe('procurement tender write service', () => {
       metadata: {},
       categories: [{ name: 'computer supplies' }]
     };
-    const publishedTender = {
+    const submittedTender = {
       success: true,
-      message: 'Tender published successfully',
+      message: 'Tender submitted for admin review',
       data: {
         id: 'tender-1',
         reference: 'PX-GDS-2026-001',
         title: 'Supply of laboratory equipment',
-        status: 'Open',
-        visibility: 'PUBLIC_MARKETPLACE',
-        publishedAt: '2026-07-01T08:00:00.000Z',
+        status: 'Under Review',
+        visibility: 'PRIVATE',
+        publishedAt: '',
         closingDate: '2099-08-30'
       }
     };
@@ -1053,7 +1053,7 @@ describe('procurement tender write service', () => {
       getTenderForPublication: vi.fn().mockResolvedValue(tender),
       recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
       applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
-      publishTender: vi.fn().mockResolvedValue(publishedTender)
+      submitTenderForReview: vi.fn().mockResolvedValue(submittedTender)
     };
     const identity = {
       requirePermission: vi.fn().mockResolvedValue({
@@ -1063,7 +1063,7 @@ describe('procurement tender write service', () => {
     const service = new ModuleService(repository as any, identity as any);
 
     await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
-      ...publishedTender,
+      ...submittedTender,
       validation: {
         warnings: [],
         scannerIssues: [],
@@ -1092,20 +1092,20 @@ describe('procurement tender write service', () => {
         })
       })
     );
-    expect(repository.publishTender).toHaveBeenCalledWith('tender-1', 'org-1', Visibility.PUBLIC_MARKETPLACE);
+    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1' });
   });
 
-  it('allows medium-risk tender language during publish and returns scan warnings', async () => {
-    const publishedTender = {
+  it('allows medium-risk tender language during review submission and returns scan warnings', async () => {
+    const submittedTender = {
       success: true,
-      message: 'Tender published successfully',
+      message: 'Tender submitted for admin review',
       data: {
         id: 'tender-1',
         reference: 'PX-GDS-2026-001',
         title: 'Supply of laboratory equipment',
-        status: 'Open',
-        visibility: 'PUBLIC_MARKETPLACE',
-        publishedAt: '2026-07-01T08:00:00.000Z',
+        status: 'Under Review',
+        visibility: 'PRIVATE',
+        publishedAt: '',
         closingDate: '2099-08-30'
       }
     };
@@ -1127,7 +1127,7 @@ describe('procurement tender write service', () => {
       }),
       recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
       applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
-      publishTender: vi.fn().mockResolvedValue(publishedTender)
+      submitTenderForReview: vi.fn().mockResolvedValue(submittedTender)
     };
     const service = new ModuleService(repository as any, {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
@@ -1151,20 +1151,20 @@ describe('procurement tender write service', () => {
         categoryStandardization: expect.objectContaining({ standardCategories: ['ICT Equipment'] })
       })
     );
-    expect(repository.publishTender).toHaveBeenCalledWith('tender-1', 'org-1', Visibility.PUBLIC_MARKETPLACE);
+    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1' });
   });
 
-  it('publishes invited tenders with invited-only visibility', async () => {
-    const publishedTender = {
+  it('submits invited tenders for review while keeping them private', async () => {
+    const submittedTender = {
       success: true,
-      message: 'Tender published successfully',
+      message: 'Tender submitted for admin review',
       data: {
         id: 'tender-1',
         reference: 'PX-GDS-2026-001',
         title: 'Supply of laboratory equipment',
-        status: 'Open',
-        visibility: Visibility.INVITED,
-        publishedAt: '2026-07-01T08:00:00.000Z',
+        status: 'Under Review',
+        visibility: Visibility.PRIVATE,
+        publishedAt: '',
         closingDate: '2099-08-30'
       }
     };
@@ -1186,17 +1186,17 @@ describe('procurement tender write service', () => {
       }),
       recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
       applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
-      publishTender: vi.fn().mockResolvedValue(publishedTender)
+      submitTenderForReview: vi.fn().mockResolvedValue(submittedTender)
     };
     const service = new ModuleService(repository as any, {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
     } as any);
 
     await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
-      data: { status: 'Open', visibility: Visibility.INVITED },
+      data: { status: 'Under Review', visibility: Visibility.PRIVATE },
       validation: { standardizedCategories: ['ICT Equipment'] }
     });
-    expect(repository.publishTender).toHaveBeenCalledWith('tender-1', 'org-1', Visibility.INVITED);
+    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1' });
   });
 
   it('blocks high-risk tender language during publish after persisting the scan', async () => {

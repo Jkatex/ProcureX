@@ -86,6 +86,15 @@ export const adminAppRegistry: AdminApp[] = [
     generatedAt: ''
   },
   {
+    key: 'tender-review',
+    title: 'Tender Review',
+    description: 'Review newly submitted tenders before marketplace publication.',
+    route: '/admin/tender-review',
+    group: 'primary',
+    backend: { module: 'procurement', endpoint: '/api/procurement/admin/tender-review', status: 'live' },
+    generatedAt: ''
+  },
+  {
     key: 'communication-center',
     title: 'Communication Center',
     description: 'Messages, clarifications, alerts, and admin-visible communication activity.',
@@ -113,6 +122,7 @@ const adminAppIconByKey: Record<string, PlatformAppIconKind> = {
   'platform-analytics': 'evaluation',
   'full-audit-trail': 'records',
   'data-store': 'records',
+  'tender-review': 'procurement',
   'communication-center': 'communication',
   'admin-profile': 'iam'
 };
@@ -182,9 +192,6 @@ export function AdminShell({ currentPath, title, children }: { currentPath: stri
         <div className="app-topbar-actions">
           <PlatformAppsButton expanded={appsOpen} onClick={() => setAppsOpen((current) => !current)} ariaLabel="Open apps" />
           <AdminAppsDrawer open={appsOpen} organizationLabel={organizationLabel} apps={adminApps} onSelect={selectAdminApp} />
-          <button className="btn btn-secondary" type="button" onClick={() => navigate('/admin/search')}>
-            Search
-          </button>
           <div className="profile-menu-wrap">
             <AccountMenu buttonClassName="profile-button" />
           </div>
@@ -287,8 +294,8 @@ function AdminAppIcon({ appKey, fallbackKind }: { appKey: string; fallbackKind: 
 
   if (imageSrc) {
     return (
-      <span className="app-menu-icon app-menu-icon-image">
-        <img className="app-menu-image" src={imageSrc} alt="" aria-hidden="true" />
+      <span className={`admin-app-menu-icon admin-app-menu-icon-${appKey}`}>
+        <img className={`admin-app-menu-image admin-app-menu-image-${appKey}`} src={imageSrc} alt="" aria-hidden="true" />
       </span>
     );
   }

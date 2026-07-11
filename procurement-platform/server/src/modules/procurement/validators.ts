@@ -314,6 +314,20 @@ export const updateTenderBodySchema = z
 
 export const publishTenderBodySchema = z.object({}).strict();
 
+export const tenderReviewQuerySchema = z
+  .object({
+    search: z.string().trim().max(120).optional().default(''),
+    page: z.coerce.number().int().min(1).max(10000).optional().default(1),
+    pageSize: z.coerce.number().int().min(1).max(1000).optional().default(30)
+  })
+  .strict();
+
+export const failTenderReviewBodySchema = z
+  .object({
+    messageId: uuidSchema
+  })
+  .strict();
+
 const planLineFieldsSchema = z
   .object({
     tenderTitle: z.string().trim().min(1).max(220),

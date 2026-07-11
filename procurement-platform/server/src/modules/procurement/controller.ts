@@ -5,6 +5,7 @@ import {
   createTenderBodySchema,
   designFormSchemaParamsSchema,
   designFormSchemasQuerySchema,
+  failTenderReviewBodySchema,
   masterDataGroupParamsSchema,
   masterDataQuerySchema,
   moduleStatusQuerySchema,
@@ -20,6 +21,7 @@ import {
   saveAnnualPlanBodySchema,
   standardizeCategoryBodySchema,
   taxonomyQuerySchema,
+  tenderReviewQuerySchema,
   tenderAmendmentBodySchema,
   tenderAmendmentParamsSchema,
   tenderAmendmentPatchBodySchema,
@@ -164,6 +166,61 @@ export class ModuleController {
         });
         return;
       }
+      next(error);
+    }
+  };
+
+  listTenderReviews: RequestHandler = async (req, res, next) => {
+    try {
+      const query = tenderReviewQuerySchema.safeParse(req.query);
+      if (!query.success) return validationResponse(res, query.error);
+      res.json(await this.service.listTenderReviews(bearerToken(req), query.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getTenderReview: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const tender = await this.service.getTenderReview(params.data.tenderId, bearerToken(req));
+      if (!tender) throw requestError('Tender review item was not found.', 404);
+      res.json(tender);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  passTenderReview: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const body = publishTenderBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      res.json(await this.service.passTenderReview(params.data.tenderId, bearerToken(req)));
+    } catch (error) {
+      if (isPublishValidationError(error)) {
+        const candidate = error as { status?: number; errors: unknown[] };
+        res.status(candidate.status ?? 400).json({
+          success: false,
+          message: 'Tender cannot be published',
+          errors: candidate.errors
+        });
+        return;
+      }
+      next(error);
+    }
+  };
+
+  failTenderReview: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const body = failTenderReviewBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      res.json(await this.service.failTenderReview(params.data.tenderId, bearerToken(req), body.data));
+    } catch (error) {
       next(error);
     }
   };

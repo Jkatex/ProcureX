@@ -92,7 +92,11 @@ const pages = [
   ['admin', 'admin-users', 'AdminUsersProcurexPage'],
   ['admin', 'admin-compliance', 'AdminComplianceProcurexPage'],
   ['admin', 'admin-analytics', 'AdminAnalyticsProcurexPage'],
-  ['admin', 'admin-audit', 'AdminAuditProcurexPage']
+  ['admin', 'admin-audit', 'AdminAuditProcurexPage'],
+  ['admin', 'admin-datastore', 'AdminDatastoreProcurexPage'],
+  ['admin', 'admin-tender-review', 'AdminTenderReviewProcurexPage'],
+  ['admin', 'admin-communication', 'AdminCommunicationProcurexPage'],
+  ['admin', 'admin-profile', 'AdminProfileProcurexPage']
 ];
 
 const handAuthoredPages = new Set([

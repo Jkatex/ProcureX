@@ -10,6 +10,7 @@ import type {
   ProcurementRecord,
   RecordsCharts,
   RecordsDashboard,
+  RecordsDetail,
   RecordsFilterValue,
   RecordsInsights,
   RecordsQuery,
@@ -22,7 +23,7 @@ import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 export function RecordsHistoryProcurexPage() {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'records' | 'charts'>('records');
+  const [activeTab, setActiveTab] = useState<RecordsTab>(initialRecordsTab);
   const [dashboard, setDashboard] = useState<RecordsDashboard>(emptyDashboard);
   const [records, setRecords] = useState<ProcurementRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -36,7 +37,11 @@ export function RecordsHistoryProcurexPage() {
   const [loading, setLoading] = useState(true);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [chartsLoading, setChartsLoading] = useState(false);
-  const [exporting, setExporting] = useState<'csv' | 'pdf' | ''>('');
+  const [recordsError, setRecordsError] = useState('');
+  const [chartsError, setChartsError] = useState('');
+  const [exporting, setExporting] = useState('');
+  const [detail, setDetail] = useState<RecordsDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useBodyPageMetadata('records-history');
 
@@ -66,7 +71,7 @@ export function RecordsHistoryProcurexPage() {
       },
       {
         label: t('recordsApp.stats.recordedValue'),
-        value: formatMoney(dashboard.recordedValue, dashboard.currency)
+        value: formatCompactMoney(dashboard.recordedValue, dashboard.currency)
       }
     ],
     [dashboard, t]
@@ -96,13 +101,14 @@ export function RecordsHistoryProcurexPage() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadRecords() {
       setRecordsLoading(true);
+      setRecordsError('');
 
       try {
         const data = await recordsApi.listRecords(recordQuery);
@@ -116,6 +122,7 @@ export function RecordsHistoryProcurexPage() {
         setRecords([]);
         setTotalRecords(0);
         setTotalPages(1);
+        setRecordsError(t('recordsApp.errors.load'));
       } finally {
         if (mounted) setRecordsLoading(false);
       }
@@ -133,6 +140,7 @@ export function RecordsHistoryProcurexPage() {
 
     async function loadCharts() {
       setChartsLoading(true);
+      setChartsError('');
 
       try {
         const [chartData, insightData] = await Promise.all([
@@ -147,6 +155,7 @@ export function RecordsHistoryProcurexPage() {
         if (!mounted) return;
         setCharts(emptyCharts);
         setInsights(emptyInsights);
+        setChartsError(t('recordsApp.errors.load'));
       } finally {
         if (mounted) setChartsLoading(false);
       }
@@ -189,6 +198,13 @@ export function RecordsHistoryProcurexPage() {
     setChartQuery(defaultChartsQuery);
   }
 
+  function changeTab(tab: RecordsTab) {
+    setActiveTab(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+  }
+
   function sortBy(field: RecordsQuery['sortBy']) {
     const nextDirection: RecordsQuery['sortDirection'] = recordQuery.sortBy === field && recordQuery.sortDirection === 'desc' ? 'asc' : 'desc';
     const nextQuery = { ...recordQuery, sortBy: field, sortDirection: nextDirection, page: 1 };
@@ -200,17 +216,40 @@ export function RecordsHistoryProcurexPage() {
     return dateFormatter.format(new Date(value));
   }
 
-  async function exportRecords(kind: 'csv' | 'pdf') {
-    if (totalRecords === 0 || exporting) return;
+  async function exportRecords(kind: 'csv' | 'pdf', query: RecordsQuery = recordQuery, recordCount = totalRecords) {
+    if (recordCount === 0 || exporting) return;
     setExporting(kind);
 
     try {
-      const blob = kind === 'csv' ? await recordsApi.exportCsv(recordQuery) : await recordsApi.exportPdf(recordQuery);
+      const blob = kind === 'csv' ? await recordsApi.exportCsv(query) : await recordsApi.exportPdf(query);
       downloadBlob(blob, `procurex-records.${kind}`);
     } finally {
       setExporting('');
     }
   }
+
+  async function exportRecord(record: ProcurementRecord) {
+    if (exporting) return;
+    setExporting(`record:${record.id}`);
+
+    try {
+      const blob = await recordsApi.exportPdf({ ...defaultRecordsQuery, recordId: record.id, pageSize: 1 });
+      downloadBlob(blob, `${safeFilename(record.referenceNumber ?? record.title)}.pdf`);
+    } finally {
+      setExporting('');
+    }
+  }
+
+  async function viewRecord(record: ProcurementRecord) {
+    setDetailLoading(true);
+    try {
+      setDetail(await recordsApi.getDetail(record.id));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  const pagination = paginationSummary(recordQuery.page, recordQuery.pageSize, totalRecords);
 
   return (
     <>
@@ -230,35 +269,25 @@ export function RecordsHistoryProcurexPage() {
             </section>
 
             <nav className="records-history-tabs" aria-label={t('recordsApp.tabs.ariaLabel')}>
-              <button
-                className={activeTab === 'records' ? 'active' : ''}
-                type="button"
-                onClick={() => setActiveTab('records')}
-              >
+              <button className={activeTab === 'records' ? 'active' : ''} type="button" onClick={() => changeTab('records')}>
                 {t('recordsApp.tabs.records')}
               </button>
-              <button
-                className={activeTab === 'charts' ? 'active' : ''}
-                type="button"
-                onClick={() => setActiveTab('charts')}
-              >
+              <button className={activeTab === 'insights' ? 'active' : ''} type="button" onClick={() => changeTab('insights')}>
                 {t('recordsApp.tabs.charts')}
               </button>
             </nav>
 
-            <section className="journey-grid four-col records-summary-grid records-visual-stat-grid" aria-label={t('recordsApp.stats.ariaLabel')}>
-              {stats.map((stat) => (
-                <article className="kpi-card records-visual-stat-card" key={stat.label}>
-                  <div className="kpi-value">
-                    {loading && stat.label !== t('recordsApp.stats.recordedValue') ? '0' : stat.value}
-                  </div>
-                  <div className="kpi-label">{stat.label}</div>
-                </article>
-              ))}
-            </section>
-
             {activeTab === 'records' ? (
               <section className="records-tab-panel">
+                <section className="journey-grid four-col records-summary-grid records-visual-stat-grid" aria-label={t('recordsApp.stats.ariaLabel')}>
+                  {stats.map((stat) => (
+                    <article className="kpi-card records-visual-stat-card" key={stat.label}>
+                      <div className="kpi-value">{loading ? '0' : stat.value}</div>
+                      <div className="kpi-label">{stat.label}</div>
+                    </article>
+                  ))}
+                </section>
+
                 <section className="journey-panel records-filter-panel records-archive-filter-panel">
                   <div className="panel-heading records-archive-heading">
                     <div className="records-archive-heading-title">
@@ -267,28 +296,14 @@ export function RecordsHistoryProcurexPage() {
                     </div>
                     <div className="records-heading-actions records-archive-heading-actions">
                       <span className="badge badge-info">{t('recordsApp.records.countBadge', { count: totalRecords })}</span>
-                      <span className="records-disabled-export-wrap" title={totalRecords === 0 ? t('recordsApp.exports.disabledTooltip') : ''}>
-                        <button
-                          className="btn btn-secondary"
-                          type="button"
-                          disabled={totalRecords === 0 || exporting !== ''}
-                          onClick={() => void exportRecords('csv')}
-                        >
-                          <DownloadRoundedIcon fontSize="small" aria-hidden="true" />
-                          <span>{exporting === 'csv' ? t('recordsApp.exports.exporting') : t('recordsApp.exports.csv')}</span>
-                        </button>
-                      </span>
-                      <span className="records-disabled-export-wrap" title={totalRecords === 0 ? t('recordsApp.exports.disabledTooltip') : ''}>
-                        <button
-                          className="btn btn-primary"
-                          type="button"
-                          disabled={totalRecords === 0 || exporting !== ''}
-                          onClick={() => void exportRecords('pdf')}
-                        >
-                          <DownloadRoundedIcon fontSize="small" aria-hidden="true" />
-                          <span>{exporting === 'pdf' ? t('recordsApp.exports.exporting') : t('recordsApp.exports.pdf')}</span>
-                        </button>
-                      </span>
+                      <button className="btn btn-secondary" type="button" disabled={totalRecords === 0 || exporting !== ''} onClick={() => void exportRecords('csv')}>
+                        <DownloadRoundedIcon fontSize="small" aria-hidden="true" />
+                        <span>{exporting === 'csv' ? t('recordsApp.exports.exporting') : t('recordsApp.exports.csv')}</span>
+                      </button>
+                      <button className="btn btn-primary" type="button" disabled={totalRecords === 0 || exporting !== ''} onClick={() => void exportRecords('pdf')}>
+                        <DownloadRoundedIcon fontSize="small" aria-hidden="true" />
+                        <span>{exporting === 'pdf' ? t('recordsApp.exports.exporting') : t('recordsApp.exports.pdf')}</span>
+                      </button>
                     </div>
                   </div>
 
@@ -351,7 +366,7 @@ export function RecordsHistoryProcurexPage() {
                               <td className="records-record-cell">
                                 <strong>{record.title}</strong>
                                 <span>
-                                  {[record.referenceNumber, record.buyerName, record.supplierName ?? record.category]
+                                  {[safeReference(record.referenceNumber, t), record.buyerName ?? t('recordsApp.labels.buyerNotRecorded'), record.supplierName ?? record.category]
                                     .filter(Boolean)
                                     .join(' / ')}
                                 </span>
@@ -365,17 +380,22 @@ export function RecordsHistoryProcurexPage() {
                               <td>{record.valueAmount === null ? t('recordsApp.labels.notAvailable') : formatMoney(record.valueAmount, record.currency)}</td>
                               <td><EvidenceList record={record} /></td>
                               <td>
-                                <button className="btn btn-secondary records-view-button" type="button" onClick={() => openRecord(record, navigateToPage)}>
-                                  {t('actions.open')}
-                                </button>
+                                <div className="records-row-actions">
+                                  <button className="btn btn-secondary records-view-button" type="button" onClick={() => void viewRecord(record)}>
+                                    {t('recordsApp.rowActions.view')}
+                                  </button>
+                                  <button className="btn btn-secondary records-view-button" type="button" disabled={exporting !== ''} onClick={() => void exportRecord(record)}>
+                                    {exporting === `record:${record.id}` ? t('recordsApp.exports.exporting') : t('recordsApp.rowActions.export')}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
                             <td colSpan={7} className="records-empty-state records-empty-table-message">
-                              <strong>{t('recordsApp.records.emptyTitle')}</strong>
-                              <span>{t('recordsApp.records.emptyBody')}</span>
+                              <strong>{recordsError || t('recordsApp.records.emptyTitle')}</strong>
+                              <span>{recordsError ? t('recordsApp.records.emptyBody') : t('recordsApp.records.emptyBody')}</span>
                             </td>
                           </tr>
                         )}
@@ -384,25 +404,28 @@ export function RecordsHistoryProcurexPage() {
                   </div>
                   {totalRecords > 0 ? (
                     <div className="records-pagination">
-                    <span>{t('recordsApp.records.pagination', { page: recordQuery.page, totalPages })}</span>
-                    <div>
-                      <button
-                        className="records-page-button"
-                        type="button"
-                        disabled={recordQuery.page <= 1}
-                        onClick={() => setRecordQuery((current) => ({ ...current, page: current.page - 1 }))}
-                      >
-                        {t('recordsApp.records.previous')}
-                      </button>
-                      <button
-                        className="records-page-button"
-                        type="button"
-                        disabled={recordQuery.page >= totalPages}
-                        onClick={() => setRecordQuery((current) => ({ ...current, page: current.page + 1 }))}
-                      >
-                        {t('recordsApp.records.next')}
-                      </button>
-                    </div>
+                      <span>{t('recordsApp.records.pagination', pagination)}</span>
+                      <div>
+                        <button
+                          className="records-page-button"
+                          type="button"
+                          disabled={recordQuery.page <= 1}
+                          onClick={() => setRecordQuery((current) => ({ ...current, page: current.page - 1 }))}
+                        >
+                          {t('recordsApp.records.previous')}
+                        </button>
+                        <button className="records-page-button active" type="button" aria-current="page">
+                          {recordQuery.page}
+                        </button>
+                        <button
+                          className="records-page-button"
+                          type="button"
+                          disabled={recordQuery.page >= totalPages}
+                          onClick={() => setRecordQuery((current) => ({ ...current, page: current.page + 1 }))}
+                        >
+                          {t('recordsApp.records.next')}
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                 </section>
@@ -417,12 +440,10 @@ export function RecordsHistoryProcurexPage() {
                       <p>{t('recordsApp.charts.subtitle')}</p>
                     </div>
                     <div className="records-heading-actions">
-                      <span className="records-disabled-export-wrap" title={totalRecords === 0 ? t('recordsApp.exports.disabledTooltip') : ''}>
-                        <button className="btn btn-secondary" type="button" disabled={totalRecords === 0}>
-                          <DownloadRoundedIcon fontSize="small" aria-hidden="true" />
-                          <span>{t('recordsApp.exports.chartsPdf')}</span>
-                        </button>
-                      </span>
+                      <button className="btn btn-secondary" type="button" disabled={dashboard.totalRecords === 0 || exporting !== ''} onClick={() => void exportRecords('pdf', chartQuery, dashboard.totalRecords)}>
+                        <DownloadRoundedIcon fontSize="small" aria-hidden="true" />
+                        <span>{t('recordsApp.exports.chartsPdf')}</span>
+                      </button>
                     </div>
                   </div>
                   <div className="records-report-filter-grid records-empty-report-filter-grid">
@@ -458,6 +479,13 @@ export function RecordsHistoryProcurexPage() {
                   </div>
                 </section>
 
+                {chartsError ? (
+                  <section className="journey-panel records-empty-state">
+                    <strong>{chartsError}</strong>
+                    <span>{t('recordsApp.charts.emptyBody')}</span>
+                  </section>
+                ) : null}
+
                 <section className="records-insight-grid" aria-busy={chartsLoading}>
                   <InsightCard label={t('recordsApp.insights.mostActiveCategory')} value={insights.mostActiveCategory ?? t('recordsApp.labels.notAvailable')} />
                   <InsightCard
@@ -488,10 +516,18 @@ export function RecordsHistoryProcurexPage() {
                 </section>
               </section>
             )}
-
           </div>
         </main>
       </div>
+      {detail || detailLoading ? (
+        <RecordDetailDrawer
+          detail={detail}
+          loading={detailLoading}
+          formatDate={formatDate}
+          onClose={() => setDetail(null)}
+          onExport={(record) => void exportRecord(record)}
+        />
+      ) : null}
     </>
   );
 }
@@ -507,6 +543,8 @@ type AppRouteKey =
   | 'records-history'
   | 'communication-center';
 
+type RecordsTab = 'records' | 'insights';
+
 const pageToRoute: Record<AppRouteKey, string> = {
   'workspace-dashboard': '/dashboard',
   'tender-planning': '/tender-planning',
@@ -518,6 +556,11 @@ const pageToRoute: Record<AppRouteKey, string> = {
   'records-history': '/records',
   'communication-center': '/communication'
 };
+
+function initialRecordsTab(): RecordsTab {
+  if (typeof window === 'undefined') return 'records';
+  return new URLSearchParams(window.location.search).get('tab') === 'insights' ? 'insights' : 'records';
+}
 
 const defaultRecordsQuery: RecordsQuery = {
   search: '',
@@ -540,8 +583,12 @@ const defaultChartsQuery: RecordsQuery = {
 const emptyDashboard: RecordsDashboard = {
   tenderRecords: 0,
   bidRecords: 0,
+  evaluationRecords: 0,
+  awardRecords: 0,
   contractRecords: 0,
+  activeContracts: 0,
   evidenceFiles: 0,
+  archivedRecords: 0,
   recordedValue: 0,
   currency: 'TZS',
   totalRecords: 0
@@ -570,32 +617,136 @@ const recordTypeOptions: Array<{ value: RecordsFilterValue<RecordsRecordType>; l
   { value: 'all', labelKey: 'recordsApp.filters.allRecordTypes' },
   { value: 'TENDER', labelKey: 'recordsApp.types.TENDER' },
   { value: 'BID', labelKey: 'recordsApp.types.BID' },
-  { value: 'EVALUATION', labelKey: 'recordsApp.types.EVALUATION' },
-  { value: 'AWARD', labelKey: 'recordsApp.types.AWARD' },
   { value: 'CONTRACT', labelKey: 'recordsApp.types.CONTRACT' },
-  { value: 'DOCUMENT', labelKey: 'recordsApp.types.DOCUMENT' },
-  { value: 'COMMUNICATION', labelKey: 'recordsApp.types.COMMUNICATION' },
+  { value: 'AWARD', labelKey: 'recordsApp.types.AWARD' },
+  { value: 'AMENDMENT', labelKey: 'recordsApp.types.AMENDMENT' },
+  { value: 'CLARIFICATION', labelKey: 'recordsApp.types.CLARIFICATION' },
+  { value: 'CANCELLATION', labelKey: 'recordsApp.types.CANCELLATION' },
   { value: 'COMPLIANCE', labelKey: 'recordsApp.types.COMPLIANCE' },
-  { value: 'ARCHIVE', labelKey: 'recordsApp.types.ARCHIVE' }
+  { value: 'REPORT', labelKey: 'recordsApp.types.REPORT' }
 ];
 
 const statusOptions: Array<{ value: RecordsFilterValue<RecordsRecordStatus>; labelKey: string }> = [
   { value: 'all', labelKey: 'recordsApp.filters.allStatuses' },
   { value: 'DRAFT', labelKey: 'recordsApp.status.DRAFT' },
-  { value: 'PUBLISHED', labelKey: 'recordsApp.status.PUBLISHED' },
   { value: 'OPEN', labelKey: 'recordsApp.status.OPEN' },
   { value: 'CLOSED', labelKey: 'recordsApp.status.CLOSED' },
   { value: 'EVALUATION', labelKey: 'recordsApp.status.EVALUATION' },
   { value: 'AWARDED', labelKey: 'recordsApp.status.AWARDED' },
+  { value: 'CONTRACTED', labelKey: 'recordsApp.status.CONTRACTED' },
   { value: 'CANCELLED', labelKey: 'recordsApp.status.CANCELLED' },
+  { value: 'ARCHIVED', labelKey: 'recordsApp.status.ARCHIVED' },
   { value: 'SUBMITTED', labelKey: 'recordsApp.status.SUBMITTED' },
-  { value: 'ACTIVE', labelKey: 'recordsApp.status.ACTIVE' },
-  { value: 'COMPLETED', labelKey: 'recordsApp.status.COMPLETED' },
-  { value: 'APPROVED', labelKey: 'recordsApp.status.APPROVED' },
-  { value: 'REJECTED', labelKey: 'recordsApp.status.REJECTED' },
-  { value: 'RETURNED', labelKey: 'recordsApp.status.RETURNED' },
-  { value: 'ARCHIVED', labelKey: 'recordsApp.status.ARCHIVED' }
+  { value: 'COMPLETED', labelKey: 'recordsApp.status.COMPLETED' }
 ];
+
+function RecordDetailDrawer({
+  detail,
+  loading,
+  formatDate,
+  onClose,
+  onExport
+}: {
+  detail: RecordsDetail | null;
+  loading: boolean;
+  formatDate: (value: string) => string;
+  onClose: () => void;
+  onExport: (record: ProcurementRecord) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="records-detail-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="records-detail-modal" role="dialog" aria-modal="true" aria-label="Procurement record details">
+        <div className="records-detail-header">
+          <div>
+            <span className={`records-status-badge ${detail ? statusClass(detail.record.status) : 'records-status-open'}`}>
+              {loading ? 'Loading' : detail ? statusLabel(detail.record.status, t) : 'Record'}
+            </span>
+            <h2>{loading ? 'Loading record...' : detail?.record.title}</h2>
+            <p>{detail ? [safeReference(detail.record.referenceNumber, t), detail.record.buyerName, detail.record.supplierName ?? detail.record.category].filter(Boolean).join(' / ') : ''}</p>
+          </div>
+          <div className="records-row-actions">
+            {detail ? (
+              <button className="btn btn-primary" type="button" onClick={() => onExport(detail.record)}>
+                {t('recordsApp.detail.exportRecord')}
+              </button>
+            ) : null}
+            <button className="btn btn-secondary" type="button" onClick={onClose}>{t('recordsApp.detail.close')}</button>
+          </div>
+        </div>
+        {detail ? (
+          <div className="records-detail-grid">
+            <article className="records-detail-section records-summary-section">
+              <h3>{t('recordsApp.detail.summary')}</h3>
+              <dl>
+                <div><dt>{t('recordsApp.detail.reference')}</dt><dd>{safeReference(detail.record.referenceNumber, t)}</dd></div>
+                <div><dt>{t('recordsApp.detail.type')}</dt><dd>{recordTypeLabel(detail.record.recordType, t)}</dd></div>
+                <div><dt>{t('recordsApp.detail.classification')}</dt><dd>{detail.record.category ?? detail.record.procurementType ?? t('recordsApp.labels.notAvailable')}</dd></div>
+                <div><dt>{t('recordsApp.detail.status')}</dt><dd>{statusLabel(detail.record.status, t)}</dd></div>
+                <div><dt>{t('recordsApp.detail.buyer')}</dt><dd>{detail.record.buyerName ?? t('recordsApp.labels.buyerNotRecorded')}</dd></div>
+                <div><dt>{t('recordsApp.detail.supplier')}</dt><dd>{detail.record.supplierName ?? t('recordsApp.labels.notAvailable')}</dd></div>
+                <div><dt>{t('recordsApp.detail.value')}</dt><dd>{detail.record.valueAmount === null ? t('recordsApp.labels.notAvailable') : formatMoney(detail.record.valueAmount, detail.record.currency)}</dd></div>
+                <div><dt>{t('recordsApp.detail.created')}</dt><dd>{formatDate(detail.record.createdAt)}</dd></div>
+              </dl>
+            </article>
+            <article className="records-detail-section">
+              <h3>{t('recordsApp.detail.timeline')}</h3>
+              <ol className="records-timeline">
+                {detail.lifecycle.map((stage) => (
+                  <li key={stage.key}>
+                    <strong>{stage.label}</strong>
+                    <span>{stage.date ? formatDate(stage.date) : statusLabel(stage.status, t)}</span>
+                  </li>
+                ))}
+              </ol>
+            </article>
+            <article className="records-detail-section">
+              <h3>{t('recordsApp.detail.documents')}</h3>
+              <div className="data-table records-detail-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t('recordsApp.detail.documentName')}</th>
+                      <th>{t('recordsApp.detail.documentType')}</th>
+                      <th>{t('recordsApp.detail.documentDate')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.documents.length ? detail.documents.map((document) => (
+                      <tr key={document.id}>
+                        <td>{document.name}</td>
+                        <td>{humanizeEnum(document.category)}</td>
+                        <td>{formatDate(document.uploadedAt)}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td className="records-empty-state" colSpan={3}>{t('recordsApp.detail.noDocuments')}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+            <article className="records-detail-section">
+              <h3>{t('recordsApp.detail.activity')}</h3>
+              <ol className="records-timeline">
+                {detail.audit.length ? detail.audit.map((event) => (
+                  <li key={event.id}>
+                    <strong>{humanizeEnum(event.action)}</strong>
+                    <span>{formatDate(event.occurredAt)} / {humanizeEnum(event.result)}</span>
+                  </li>
+                )) : (
+                  <li><strong>{t('recordsApp.detail.noActivity')}</strong><span>{t('recordsApp.detail.noActivityBody')}</span></li>
+                )}
+              </ol>
+            </article>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
 
 function RecordsSelect({
   label,
@@ -635,12 +786,11 @@ function RecordsDateField({ label, value, onChange }: { label: string; value: st
 
 function EvidenceList({ record }: { record: ProcurementRecord }) {
   const { t } = useTranslation();
-  const labels = record.evidence.length ? record.evidence : [];
 
   return (
     <div className="records-evidence-list">
-      {labels.length ? (
-        labels.map((item) => (
+      {record.evidence.length ? (
+        record.evidence.map((item) => (
           <span className="records-evidence-chip" key={item}>{item}</span>
         ))
       ) : (
@@ -704,6 +854,21 @@ function ChartCard({
   );
 }
 
+function paginationSummary(page: number, pageSize: number, total: number) {
+  const start = total ? (page - 1) * pageSize + 1 : 0;
+  const end = Math.min(total, page * pageSize);
+  return { start, end, total };
+}
+
+function safeReference(value: string | null, t: (key: string) => string) {
+  if (!value || isUuid(value)) return t('recordsApp.labels.notRecorded');
+  return value;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function recordTypeLabel(value: string, t: (key: string, options?: Record<string, string>) => string) {
   return t(`recordsApp.types.${value}`, { defaultValue: humanizeEnum(value) });
 }
@@ -714,26 +879,23 @@ function statusLabel(value: string, t: (key: string, options?: Record<string, st
 
 function statusClass(value: string) {
   const normalized = value.toLowerCase().replace(/_/g, '-');
-  if (['draft', 'review', 'submitted', 'unread', 'read'].includes(normalized)) return 'records-status-draft';
-  if (['published', 'open', 'active', 'approved', 'verified', 'resolved'].includes(normalized)) return 'records-status-open';
+  if (['draft', 'review', 'submitted', 'unread', 'read', 'not-started'].includes(normalized)) return 'records-status-draft';
+  if (['published', 'open', 'active', 'approved', 'verified', 'resolved', 'signed', 'mobilization'].includes(normalized)) return 'records-status-open';
   if (['closed', 'completed', 'archived'].includes(normalized)) return 'records-status-closed';
   if (['evaluation', 'under-evaluation', 'in-progress', 'negotiation', 'signature-pending'].includes(normalized)) return 'records-status-evaluation';
-  if (['awarded', 'recommended'].includes(normalized)) return 'records-status-awarded';
+  if (['awarded', 'recommended', 'contracted'].includes(normalized)) return 'records-status-awarded';
   if (['cancelled', 'terminated', 'rejected', 'withdrawn', 'disqualified', 'lost'].includes(normalized)) return 'records-status-cancelled';
   return 'records-status-archived';
-}
-
-function openRecord(record: ProcurementRecord, navigateToPage: (pageKey: string) => void) {
-  if (record.recordType === 'TENDER') navigateToPage('marketplace');
-  else if (record.recordType === 'BID') navigateToPage('bidding-workspace');
-  else if (record.recordType === 'EVALUATION') navigateToPage('bid-evaluation');
-  else if (record.recordType === 'AWARD' || record.recordType === 'CONTRACT') navigateToPage('awarding-contracts');
-  else navigateToPage('records-history');
 }
 
 function formatMoney(value: number, currency: string) {
   if (!value) return `${currency} 0`;
   return `${currency} ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)}`;
+}
+
+function formatCompactMoney(value: number, currency: string) {
+  if (!value) return `${currency} 0`;
+  return `${currency} ${new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}`;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -745,6 +907,10 @@ function downloadBlob(blob: Blob, filename: string) {
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+
+function safeFilename(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'procurex-record';
 }
 
 function humanizeEnum(value: string) {

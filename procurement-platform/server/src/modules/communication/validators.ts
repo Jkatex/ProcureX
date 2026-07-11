@@ -89,8 +89,13 @@ export const replyMessageBodySchema = z
 
 export const patchMessageBodySchema = z
   .object({
-    folder: z.enum(['inbox', 'sent', 'archived', 'trash']).optional(),
-    status: z.nativeEnum(CommunicationStatus).optional(),
+    folder: z.enum(['inbox', 'sent', 'archived']).optional(),
+    status: z
+      .nativeEnum(CommunicationStatus)
+      .refine((status) => status !== CommunicationStatus.DELETED, {
+        message: 'Communication messages cannot be moved to trash or deleted.'
+      })
+      .optional(),
     priority: z.nativeEnum(CommunicationPriority).optional(),
     read: z.boolean().optional(),
     actionRequired: z.boolean().optional(),

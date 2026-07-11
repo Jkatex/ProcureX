@@ -17,7 +17,6 @@ vi.mock('@/features/communication/api', () => ({
     composeMessage: vi.fn(),
     replyToMessage: vi.fn(),
     archive: vi.fn(),
-    deleteMessage: vi.fn(),
     listRecipients: vi.fn(),
     listTenderLinks: vi.fn()
   }
@@ -29,7 +28,6 @@ const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
 const archive = vi.mocked(communicationApi.archive);
-const deleteMessage = vi.mocked(communicationApi.deleteMessage);
 const listRecipients = vi.mocked(communicationApi.listRecipients);
 const listTenderLinks = vi.mocked(communicationApi.listTenderLinks);
 
@@ -106,7 +104,6 @@ function mailbox(messages: CommunicationMailboxMessage[] = [message]): Communica
       sent: messages.filter((item) => item.folder === 'sent').length,
       drafts: 0,
       archived: 0,
-      trash: 0,
       unread: messages.filter((item) => !item.read).length,
       actionRequired: messages.filter((item) => item.actionRequired).length
     },
@@ -152,14 +149,14 @@ describe('CommunicationCenterProcurexPage', () => {
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     archive.mockResolvedValue({ ...readMessage, folder: 'archived', status: 'ARCHIVED' });
-    deleteMessage.mockResolvedValue({ ...readMessage, folder: 'trash', status: 'DELETED' });
     listRecipients.mockResolvedValue([
       { id: 'platform', name: 'Admin', kind: 'PLATFORM', country: 'TZ', capabilities: [] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
       { id: 'org-3', name: 'Tanzania Ports Authority', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] }
     ]);
     listTenderLinks.mockResolvedValue([
-      { id: '22222222-2222-4222-8222-222222222222', reference: 'PX-2026-001', title: 'Medical supplies', buyerName: 'Ministry of Health', status: 'OPEN' }
+      { id: '22222222-2222-4222-8222-222222222222', reference: 'PX-2026-001', title: 'Medical supplies', buyerName: 'Ministry of Health', status: 'OPEN' },
+      { id: '33333333-3333-4333-8333-333333333333', reference: 'PX-2026-002', title: 'Road maintenance', buyerName: 'Tanzania Ports Authority', status: 'OPEN' }
     ]);
   });
 
@@ -223,7 +220,13 @@ describe('CommunicationCenterProcurexPage', () => {
     ]);
     expect(screen.getByText('report.pdf')).toBeInTheDocument();
     expect(screen.getByText('site-photo.png')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Tender link'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
+    expect(await screen.findByRole('option', { name: 'PX-2026-001' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
+    expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
+    fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: '33333333-3333-4333-8333-333333333333' } });
+    expect(screen.getByLabelText('Tender reference')).toHaveDisplayValue('PX-2026-002');
+    fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
+    expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification request' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the meeting location.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
@@ -259,7 +262,7 @@ describe('CommunicationCenterProcurexPage', () => {
     );
   });
 
-  it('replies, archives, and deletes through the communication API', async () => {
+  it('replies and archives through the communication API', async () => {
     renderPage();
     await screen.findByRole('button', { name: /site visit schedule/i });
     await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
@@ -268,11 +271,6 @@ describe('CommunicationCenterProcurexPage', () => {
     await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
 
     await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
-    await userEvent.click(screen.getByRole('button', { name: 'Move to Trash' }));
-    await waitFor(() => expect(deleteMessage).toHaveBeenCalledWith(message.id));
-
-    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
-
     await userEvent.click(screen.getByRole('button', { name: 'Reply' }));
     expect(await screen.findByLabelText('Subject')).toHaveValue('Re: Site visit schedule');
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Confirmed for Friday.' } });

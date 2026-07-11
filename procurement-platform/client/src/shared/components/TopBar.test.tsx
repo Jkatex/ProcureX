@@ -44,7 +44,7 @@ vi.mock('@/features/communication/api', () => ({
   communicationApi: {
     listMailbox: vi.fn().mockResolvedValue({
       messages: [],
-      counts: { total: 3, inbox: 3, sent: 0, drafts: 0, archived: 0, trash: 0, unread: 3, actionRequired: 0 },
+      counts: { total: 3, inbox: 3, sent: 0, drafts: 0, archived: 0, unread: 3, actionRequired: 0 },
       totalMessages: 3,
       page: 1,
       pageSize: 1,
