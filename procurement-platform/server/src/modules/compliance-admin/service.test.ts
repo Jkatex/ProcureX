@@ -120,6 +120,7 @@ describe('compliance admin service', () => {
       '/admin/analytics',
       '/admin/audit',
       '/admin/datastore',
+      '/admin/tender-review',
       '/admin/communication',
       '/admin/profile'
     ]);

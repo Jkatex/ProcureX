@@ -14,10 +14,8 @@ export function createModuleRouter() {
   router.post('/messages/:messageId/read', controller.markRead);
   router.post('/messages/:messageId/archive', controller.archive);
   router.post('/messages/:messageId/replies', controller.reply);
-  router.delete('/messages/:messageId', controller.softDelete);
   router.get('/recipients', controller.recipients);
   router.get('/tenders', controller.tenderLinks);
 
   return router;
 }
-

@@ -822,7 +822,7 @@
           "button": "Sign in as demo user",
           "securityHint": "Open the local demo workspace"
         },
-        "note": "Your account opens the workspace allowed by its verification status."
+        "note": ""
       },
     "forgotPassword": {
       "headerBack": "Back to sign in",

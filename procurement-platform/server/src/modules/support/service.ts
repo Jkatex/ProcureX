@@ -1,12 +1,14 @@
 import { AccountType, AuditSeverity, SupportTicketStatus, type Prisma } from '@prisma/client';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { auditPayload, type RequestAuditContext } from '../shared/audit.js';
+import { SmtpSupportEmailSender, type SupportEmailSender } from './email.js';
 import { ModuleRepository, toCommentDto, toTicketDto } from './repository.js';
 import {
   moduleDefinition,
   type AddSupportTicketCommentInput,
   type CreateSupportTicketInput,
   type ModuleStatus,
+  type PublicContactInput,
   type SupportTicketListDto
 } from './types.js';
 
@@ -19,7 +21,8 @@ function requestError(message: string, status = 400) {
 export class ModuleService {
   constructor(
     private readonly repository = new ModuleRepository(),
-    private readonly identity = new IdentityService()
+    private readonly identity = new IdentityService(),
+    private readonly supportEmail: SupportEmailSender = new SmtpSupportEmailSender()
   ) {}
 
   async status(): Promise<ModuleStatus> {
@@ -80,7 +83,19 @@ export class ModuleService {
       payload: auditPayload({ ...audit, details: { category: ticket.category, priority: ticket.priority } })
     });
 
+    await this.sendTicketCreatedEmail(ticket, user, audit);
+
     return toTicketDto(ticket);
+  }
+
+  async publicContact(input: PublicContactInput, audit?: RequestAuditContext) {
+    await this.supportEmail.sendPublicContact(input);
+    await this.repository.createAuditEvent({
+      event: 'support.public_contact.sent',
+      entityType: 'support_contact',
+      payload: auditPayload({ ...audit, details: { email: input.email, requestType: input.requestType } })
+    });
+    return { status: 'sent' as const };
   }
 
   async addComment(token: string | undefined, ticketId: string, input: AddSupportTicketCommentInput, audit?: RequestAuditContext) {
@@ -131,7 +146,46 @@ export class ModuleService {
 
     return toTicketDto(updated);
   }
+
+  private async sendTicketCreatedEmail(ticket: TicketEmailRecord, user: SupportSessionUser, audit?: RequestAuditContext) {
+    try {
+      await this.supportEmail.sendTicketCreated({
+        id: ticket.id,
+        subject: ticket.subject,
+        category: ticket.category,
+        priority: ticket.priority,
+        description: ticket.description,
+        ownerUserId: ticket.ownerUserId,
+        ownerEmail: user.email ?? null,
+        ownerName: user.displayName ?? ticket.ownerUser.displayName ?? null,
+        ownerOrgId: ticket.ownerOrgId,
+        organizationName: ticket.ownerOrg?.name ?? null
+      });
+    } catch (error) {
+      console.warn(error instanceof Error ? error.message : 'Support ticket email failed.');
+      await this.repository
+        .createAuditEvent({
+          actorUserId: ticket.ownerUserId,
+          ownerOrgId: ticket.ownerOrgId,
+          event: 'support.ticket.email_failed',
+          entityType: 'support_ticket',
+          entityRef: ticket.id,
+          severity: AuditSeverity.WARNING,
+          payload: auditPayload({ ...audit, details: { category: ticket.category, priority: ticket.priority } })
+        })
+        .catch(() => undefined);
+    }
+  }
 }
+
+type TicketEmailRecord = Awaited<ReturnType<ModuleRepository['createTicket']>>;
+
+type SupportSessionUser = {
+  id: string;
+  email?: string | null;
+  displayName?: string | null;
+  organizationId?: string | null;
+};
 
 function canAccessTicket(
   user: { id: string; accountType: AccountType; organizationId?: string },

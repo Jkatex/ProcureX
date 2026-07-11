@@ -1,8 +1,10 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { communicationApi } from '@/features/communication/api';
+import { procurementApi } from '@/features/procurement/api';
 import type {
+  CommunicationAttachmentUpload,
   CommunicationListResponse,
   CommunicationMailboxMessage,
   CommunicationMailboxQuery,
@@ -22,6 +24,16 @@ type ComposeState = {
   body: string;
   organizationSearch: string;
   tenderSearch: string;
+  attachments: ComposeAttachment[];
+  replyToMessageId: string;
+};
+
+type ComposeAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  documentType: string;
 };
 
 const emptyMailbox: CommunicationListResponse = {
@@ -32,7 +44,6 @@ const emptyMailbox: CommunicationListResponse = {
     sent: 0,
     drafts: 0,
     archived: 0,
-    trash: 0,
     unread: 0,
     actionRequired: 0
   },
@@ -46,13 +57,12 @@ const folders: Array<{ key: MailboxFolder; label: string }> = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Sent' },
   { key: 'unread', label: 'Unread' },
-  { key: 'archived', label: 'Archived' },
-  { key: 'trash', label: 'Trash' }
+  { key: 'archived', label: 'Archived' }
 ];
 
 const pageSize = 30;
 
-function initialComposeState(): ComposeState {
+function initialComposeState(overrides: Partial<ComposeState> = {}): ComposeState {
   return {
     recipients: [],
     tenderId: '',
@@ -60,7 +70,10 @@ function initialComposeState(): ComposeState {
     subject: '',
     body: '',
     organizationSearch: '',
-    tenderSearch: ''
+    tenderSearch: '',
+    attachments: [],
+    replyToMessageId: '',
+    ...overrides
   };
 }
 
@@ -77,22 +90,27 @@ export function AdminCommunicationProcurexPage() {
   const [dateSearch, setDateSearch] = useState('');
   const [page, setPage] = useState(1);
   const [compose, setCompose] = useState<ComposeState>(() => initialComposeState());
+  const [replySource, setReplySource] = useState<CommunicationMailboxMessage | null>(null);
   const [organizations, setOrganizations] = useState<CommunicationRecipient[]>([]);
   const [tenders, setTenders] = useState<CommunicationTenderLink[]>([]);
-  const [replyBody, setReplyBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [messageLoading, setMessageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const composePrefillKeyRef = useRef('');
 
   useBodyPageMetadata('admin-communication');
 
   const routeView = searchParams.get('view');
-  const routeMessageId = routeView === 'message' ? searchParams.get('id') ?? '' : '';
-  const composeOpen = routeView === 'compose';
+  const routeMessageId = routeView === 'message' || routeView === 'reply' ? searchParams.get('id') ?? '' : '';
+  const searchParamKey = searchParams.toString();
+  const replyOpen = routeView === 'reply';
+  const composeOpen = routeView === 'compose' || replyOpen;
   const messageView = routeView === 'message';
   const senderOrgId = user?.organizationId ?? '';
   const senderMailboxName = user?.organization || user?.displayName || 'Admin mailbox';
+  const reviewDecision = searchParams.get('reviewDecision');
+  const reviewTenderId = searchParams.get('reviewTenderId') || searchParams.get('tenderId') || '';
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder = folder, nextPage = 1, nextSelectedId = '', nextSearch = submittedSearch) => {
@@ -146,13 +164,16 @@ export function AdminCommunicationProcurexPage() {
           ...current.counts,
           unread: Math.max(0, current.counts.unread - 1)
         },
-        messages: current.messages.map((item) => (item.id === updated.id ? updated : item))
+        messages: folder === 'unread'
+          ? current.messages.filter((item) => item.id !== updated.id)
+          : current.messages.map((item) => (item.id === updated.id ? updated : item)),
+        totalMessages: folder === 'unread' ? Math.max(0, current.totalMessages - 1) : current.totalMessages
       }));
       return updated;
     } catch {
       return message;
     }
-  }, []);
+  }, [folder]);
 
   const loadMessage = useCallback(
     async (messageId: string) => {
@@ -164,7 +185,6 @@ export function AdminCommunicationProcurexPage() {
         const message = mailboxMessage ?? (await communicationApi.getMessage(messageId));
         setSelectedId(message.id);
         setSelectedMessage(message);
-        setReplyBody('');
         await markMessageRead(message);
       } catch (caught) {
         setSelectedId('');
@@ -177,12 +197,33 @@ export function AdminCommunicationProcurexPage() {
     [mailbox.messages, markMessageRead]
   );
 
+  const loadReplySource = useCallback(
+    async (messageId: string) => {
+      if (!messageId) return;
+      setMessageLoading(true);
+      setError('');
+      try {
+        const mailboxMessage = mailbox.messages.find((message) => message.id === messageId);
+        const message = mailboxMessage ?? (await communicationApi.getMessage(messageId));
+        await markMessageRead(message);
+        setReplySource(message);
+        setCompose(replyComposeState(message));
+      } catch (caught) {
+        setReplySource(null);
+        setCompose(initialComposeState());
+        setError(errorMessage(caught, 'Admin reply could not be prepared.'));
+      } finally {
+        setMessageLoading(false);
+      }
+    },
+    [mailbox.messages, markMessageRead]
+  );
+
   useEffect(() => {
     if (!messageView) {
       setMessageLoading(false);
       setSelectedId('');
       setSelectedMessage(null);
-      setReplyBody('');
       return;
     }
 
@@ -201,6 +242,32 @@ export function AdminCommunicationProcurexPage() {
 
     void loadMessage(routeMessageId);
   }, [loadMessage, markMessageRead, messageView, routeMessageId, selectedMessage]);
+
+  useEffect(() => {
+    if (!replyOpen) {
+      if (!compose.replyToMessageId) setReplySource(null);
+      return;
+    }
+
+    if (!routeMessageId) {
+      setError('Admin reply link is missing a message id.');
+      setReplySource(null);
+      setCompose(initialComposeState());
+      return;
+    }
+
+    if (replySource?.id === routeMessageId && compose.replyToMessageId === routeMessageId) return;
+    void loadReplySource(routeMessageId);
+  }, [compose.replyToMessageId, loadReplySource, replyOpen, replySource, routeMessageId]);
+
+  useEffect(() => {
+    if (!composeOpen || replyOpen) return;
+    if (composePrefillKeyRef.current === searchParamKey) return;
+    composePrefillKeyRef.current = searchParamKey;
+
+    const prefilledCompose = composeStateFromParams(searchParams);
+    if (prefilledCompose) setCompose(prefilledCompose);
+  }, [composeOpen, replyOpen, searchParamKey, searchParams]);
 
   useEffect(() => {
     if (!composeOpen) return;
@@ -250,17 +317,32 @@ export function AdminCommunicationProcurexPage() {
     () => (recipientSearchTerm ? availableRecipients.filter((recipient) => recipientMatchesSearch(recipient, recipientSearchTerm)) : []),
     [availableRecipients, recipientSearchTerm]
   );
+  const tenderOptions = useMemo(() => {
+    const prefilledTender = tenderLinkFromParams(searchParams);
+    const replyTender = replySource?.tenderId
+      ? {
+          id: replySource.tenderId,
+          reference: replySource.tenderReference ?? replySource.tenderId,
+          title: replySource.tenderTitle ?? 'Linked tender',
+          buyerName: replySource.senderName ?? replySource.recipientName ?? 'Buyer',
+          status: 'OPEN'
+        }
+      : null;
+    const options = [...tenders];
+    [prefilledTender, replyTender].forEach((item) => {
+      if (item && !options.some((tender) => tender.id === item.id)) options.unshift(item);
+    });
+    return options;
+  }, [replySource, searchParamKey, searchParams, tenders]);
 
   function goAdminCommunicationHome(replace = false) {
     navigate('/admin/communication', { replace });
     setSelectedId('');
     setSelectedMessage(null);
-    setReplyBody('');
   }
 
   function openCompose() {
     setCompose(initialComposeState());
-    setReplyBody('');
     setSelectedId('');
     setSelectedMessage(null);
     setSearchParams({ view: 'compose' });
@@ -269,7 +351,6 @@ export function AdminCommunicationProcurexPage() {
   function openMessage(message: CommunicationMailboxMessage) {
     setSelectedId(message.id);
     setSelectedMessage(message);
-    setReplyBody('');
     setSearchParams({ view: 'message', id: message.id });
   }
 
@@ -295,6 +376,39 @@ export function AdminCommunicationProcurexPage() {
     }));
   }
 
+  function selectTender(tenderId: string) {
+    setCompose((current) => ({
+      ...current,
+      tenderId
+    }));
+  }
+
+  function addAttachments(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
+    setCompose((current) => ({
+      ...current,
+      attachments: [
+        ...current.attachments,
+        ...files.map((file) => ({
+          id: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          documentType: documentTypeForFile(file)
+        }))
+      ].slice(0, 20)
+    }));
+    event.target.value = '';
+  }
+
+  function removeAttachment(attachmentId: string) {
+    setCompose((current) => ({
+      ...current,
+      attachments: current.attachments.filter((attachment) => attachment.id !== attachmentId)
+    }));
+  }
+
   async function submitCompose(event: FormEvent) {
     event.preventDefault();
     const recipientOrgIds = Array.from(new Set(compose.recipients.map((recipient) => recipient.id).filter((id) => id && id !== senderOrgId)));
@@ -306,17 +420,43 @@ export function AdminCommunicationProcurexPage() {
     setSaving(true);
     setError('');
     try {
-      const results = await Promise.all(recipientOrgIds.map((recipientOrgId) => communicationApi.composeMessage({
-        senderOrgId,
-        recipientOrgId,
-        tenderId: compose.tenderId.trim() || undefined,
-        kind: communicationKindForCategory(compose.category),
-        category: compose.category,
-        subject: compose.subject.trim(),
-        body: compose.body.trim()
-      })));
+      const attachmentUploads = compose.attachments.map(toAttachmentUpload);
+      const metadata = compose.replyToMessageId ? { replyMode: 'compose-page' } : metadataFromComposeParams(searchParams);
+      const results = compose.replyToMessageId
+        ? [
+            await communicationApi.replyToMessage(compose.replyToMessageId, {
+              senderOrgId,
+              recipientOrgId: recipientOrgIds[0],
+              subject: compose.subject.trim(),
+              category: compose.category,
+              body: compose.body.trim(),
+              attachmentUploads,
+              metadata
+            })
+          ]
+        : await Promise.all(recipientOrgIds.map((recipientOrgId) => communicationApi.composeMessage({
+          senderOrgId,
+          recipientOrgId,
+          tenderId: compose.tenderId.trim() || undefined,
+          kind: communicationKindForCategory(compose.category),
+          category: compose.category,
+          subject: compose.subject.trim(),
+          body: compose.body.trim(),
+          attachmentUploads,
+          metadata
+        })));
       const result = results[0];
       if (!result) throw new Error('No message was sent.');
+      if (reviewDecision === 'fail' && reviewTenderId && !compose.replyToMessageId) {
+        const ownerDelivery =
+          result.deliveries.find((delivery) => delivery.folder !== 'sent' && delivery.tenderId === reviewTenderId) ??
+          result.deliveries.find((delivery) => delivery.folder === 'inbox') ??
+          result.message;
+        await procurementApi.failTenderReview(reviewTenderId, { messageId: ownerDelivery.id });
+        setCompose(initialComposeState());
+        navigate('/admin/tender-review', { replace: true });
+        return;
+      }
       setFolder('sent');
       setSelectedId(result.message.id);
       setSelectedMessage(result.message);
@@ -330,43 +470,30 @@ export function AdminCommunicationProcurexPage() {
     }
   }
 
-  async function submitReply(event: FormEvent) {
-    event.preventDefault();
-    if (!selected || !replyBody.trim()) return;
-
-    setSaving(true);
-    setError('');
-    try {
-      const result = await communicationApi.replyToMessage(selected.id, { body: replyBody.trim() });
-      setReplyBody('');
-      setFolder('sent');
-      setSelectedId(result.message.id);
-      setSelectedMessage(result.message);
-      setSearchParams({ view: 'message', id: result.message.id }, { replace: true });
-      await loadMailbox('sent', 1, result.message.id, submittedSearch);
-    } catch (caught) {
-      setError(errorMessage(caught, 'Admin reply could not be sent.'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function messageAction(action: 'archive' | 'delete') {
+  async function archiveSelectedMessage() {
     if (!selected) return;
     setSaving(true);
     setError('');
     try {
-      if (action === 'archive') await communicationApi.archive(selected.id);
-      else await communicationApi.deleteMessage(selected.id);
+      await communicationApi.archive(selected.id);
       setSelectedId('');
       setSelectedMessage(null);
       goAdminCommunicationHome(true);
       await loadMailbox(folder, page, '', submittedSearch);
     } catch (caught) {
-      setError(errorMessage(caught, action === 'archive' ? 'Message could not be archived.' : 'Message could not be moved to trash.'));
+      setError(errorMessage(caught, 'Message could not be archived.'));
     } finally {
       setSaving(false);
     }
+  }
+
+  function openReply(message: CommunicationMailboxMessage) {
+    setSearchParams({ view: 'reply', id: message.id });
+  }
+
+  function openMessageAction(message: CommunicationMailboxMessage) {
+    const action = resolveMessageAction(message, true);
+    if (action) navigate(action.route);
   }
 
   return (
@@ -397,8 +524,8 @@ export function AdminCommunicationProcurexPage() {
             <form className="communication-compose-panel full-screen" onSubmit={submitCompose}>
               <div className="panel-heading">
                 <div>
-                  <span className="section-kicker">New message</span>
-                  <h2>Send procurement communication</h2>
+                  <span className="section-kicker">{replyOpen ? 'Reply message' : 'New message'}</span>
+                  <h2>{replyOpen ? 'Reply to sender' : 'Send procurement communication'}</h2>
                 </div>
                 <button className="btn btn-secondary" type="button" onClick={() => goAdminCommunicationHome()}>
                   Close
@@ -438,7 +565,7 @@ export function AdminCommunicationProcurexPage() {
                       {recipientSearchResults.length ? (
                         recipientSearchResults.map((recipient) => (
                           <button className="communication-recipient-result" type="button" key={recipient.id} onClick={() => addRecipient(recipient)}>
-                            <strong>Add {recipient.name}</strong>
+                            <strong>{recipient.name}</strong>
                           </button>
                         ))
                       ) : (
@@ -450,7 +577,7 @@ export function AdminCommunicationProcurexPage() {
                     <span className="badge badge-info">{compose.recipients.length} selected</span>
                   </div>
                 </div>
-                <label>
+                <label className="span-2">
                   <span>Find tender</span>
                   <input
                     className="form-input"
@@ -460,12 +587,23 @@ export function AdminCommunicationProcurexPage() {
                   />
                 </label>
                 <label>
-                  <span>Tender link</span>
-                  <select className="form-input" value={compose.tenderId} onChange={(event) => setCompose((current) => ({ ...current, tenderId: event.target.value }))}>
+                  <span>Tender reference</span>
+                  <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
                     <option value="">Not linked</option>
-                    {tenders.map((tender) => (
+                    {tenderOptions.map((tender) => (
                       <option key={tender.id} value={tender.id}>
-                        {tender.reference} / {tender.title}
+                        {tender.reference}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Tender title</span>
+                  <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
+                    <option value="">Not linked</option>
+                    {tenderOptions.map((tender) => (
+                      <option key={tender.id} value={tender.id}>
+                        {tender.title}
                       </option>
                     ))}
                   </select>
@@ -478,10 +616,32 @@ export function AdminCommunicationProcurexPage() {
                   <span>Message</span>
                   <textarea className="form-input" rows={6} value={compose.body} onChange={(event) => setCompose((current) => ({ ...current, body: event.target.value }))} placeholder="Write your message" required />
                 </label>
+                <div className="span-2 communication-compose-attachments">
+                  <div>
+                    <span className="form-label">Attachments</span>
+                    <label className="btn btn-secondary communication-file-button">
+                      Add files
+                      <input type="file" multiple onChange={addAttachments} hidden />
+                    </label>
+                  </div>
+                  {compose.attachments.length ? (
+                    <div className="communication-attachment-list" aria-label="Selected attachments">
+                      {compose.attachments.map((attachment) => (
+                        <span className="communication-attachment-item" key={attachment.id}>
+                          <span>{attachment.name}</span>
+                          <em>{formatFileSize(attachment.size)}</em>
+                          <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
+                            x
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
               <div className="inline-actions">
                 <button className="btn btn-primary" type="submit" disabled={saving}>
-                  {saving ? 'Sending...' : 'Send Message'}
+                  {saving ? 'Sending...' : replyOpen ? 'Send Reply' : 'Send Message'}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => goAdminCommunicationHome()}>
                   Cancel
@@ -498,12 +658,10 @@ export function AdminCommunicationProcurexPage() {
             ) : (
               <MessageDetail
                 message={selected}
-                replyBody={replyBody}
                 saving={saving}
-                onArchive={() => void messageAction('archive')}
-                onDelete={() => void messageAction('delete')}
-                onReply={submitReply}
-                onReplyBody={setReplyBody}
+                onArchive={() => void archiveSelectedMessage()}
+                onReply={() => selected ? openReply(selected) : undefined}
+                onAction={() => selected ? openMessageAction(selected) : undefined}
                 onClose={() => goAdminCommunicationHome()}
               />
             )}
@@ -636,21 +794,17 @@ export function AdminCommunicationProcurexPage() {
 
 function MessageDetail({
   message,
-  replyBody,
   saving,
   onReply,
-  onReplyBody,
+  onAction,
   onArchive,
-  onDelete,
   onClose
 }: {
   message: CommunicationMailboxMessage | null;
-  replyBody: string;
   saving: boolean;
-  onReply: (event: FormEvent) => void;
-  onReplyBody: (value: string) => void;
+  onReply: () => void;
+  onAction: () => void;
   onArchive: () => void;
-  onDelete: () => void;
   onClose: () => void;
 }) {
   if (!message) {
@@ -659,7 +813,7 @@ function MessageDetail({
         <strong>Message not found</strong>
         <span>Return to the mailbox list and open another communication item.</span>
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Back to inbox
+          Return to mailbox
         </button>
       </aside>
     );
@@ -668,19 +822,12 @@ function MessageDetail({
   const sentMessage = message.folder === 'sent';
   const contextPartyLabel = sentMessage ? 'Receiver' : 'Sender';
   const contextPartyName = sentMessage ? message.recipientName : message.senderName;
+  const nextAction = resolveMessageAction(message, true);
+  const showWorkflowAction = Boolean(nextAction);
 
   return (
     <aside className="communication-detail full-screen">
       <section className="communication-context-panel communication-context-panel-primary">
-        <div className="panel-heading">
-          <div>
-            <span className="section-kicker">Message context</span>
-            <strong>{message.tenderTitle ?? message.subject}</strong>
-          </div>
-          <button className="btn btn-secondary" type="button" onClick={onClose}>
-            Back to inbox
-          </button>
-        </div>
         <div className="record-summary compact">
           <div><span>{contextPartyLabel}</span><strong>{contextPartyName ?? 'Platform'}</strong></div>
           <div><span>Date</span><strong>{formatDate(message.createdAt)}</strong></div>
@@ -688,16 +835,10 @@ function MessageDetail({
           <div><span>Status</span><strong>{message.actionRequired ? 'Action required' : 'Workflow active'}</strong></div>
           <div><span>Visibility</span><strong>{message.visibility ?? 'Private'}</strong></div>
         </div>
-        <div className="communication-detail-badges">
-          <span className={badgeClass(message.category)}>{message.category}</span>
-          <span className={badgeClass(message.status)}>{displayLabel(message.status)}</span>
-          <span className={badgeClass(message.priority)}>{displayLabel(message.priority)}</span>
-        </div>
       </section>
 
       <section className="communication-message-body">
-        <span className="section-kicker">Message</span>
-        <h2>{message.subject}</h2>
+        <h1>{message.subject}</h1>
         <p>{message.body}</p>
         {message.attachments.length ? (
           <div className="communication-attachments">
@@ -711,47 +852,19 @@ function MessageDetail({
         ) : null}
       </section>
 
-      {message.thread.length ? (
-        <section className="communication-thread">
-          {message.thread.map((entry) => (
-            <article key={`${entry.createdAt}:${entry.senderName}:${entry.body}`}>
-              <div>
-                <strong>{entry.senderName ?? 'Platform'}</strong>
-                <time>{formatDate(entry.createdAt)}</time>
-              </div>
-              <p>{entry.body}</p>
-              {entry.notice ? <span className="badge badge-info">{entry.notice}</span> : null}
-            </article>
-          ))}
-        </section>
-      ) : null}
-
       <section className="communication-action-panel">
         <div>
           <span className="section-kicker">Next action</span>
           <strong>{messageActionText(message)}</strong>
         </div>
         <div className="inline-actions">
+          <button className="btn btn-primary" type="button" disabled={saving} onClick={onReply}>Reply</button>
+          {showWorkflowAction ? (
+            <button className="btn btn-secondary" type="button" disabled={saving} onClick={onAction}>{nextAction?.label}</button>
+          ) : null}
           <button className="btn btn-secondary" type="button" disabled={saving} onClick={onArchive}>Archive</button>
-          <button className="btn btn-secondary" type="button" disabled={saving} onClick={onDelete}>Move to Trash</button>
         </div>
       </section>
-
-      <form className="communication-reply-box" onSubmit={onReply}>
-        <div>
-          <span className="section-kicker">Reply</span>
-          <strong>Send a response from this thread</strong>
-        </div>
-        <label>
-          <span>Response message</span>
-          <textarea className="form-input" rows={4} value={replyBody} onChange={(event) => onReplyBody(event.target.value)} placeholder="Write a reply" />
-        </label>
-        <div className="inline-actions">
-          <button className="btn btn-primary" type="submit" disabled={saving || !replyBody.trim()}>
-            {saving ? 'Sending...' : 'Send Reply'}
-          </button>
-        </div>
-      </form>
     </aside>
   );
 }
@@ -761,8 +874,94 @@ function folderCount(folder: MailboxFolder, counts: CommunicationListResponse['c
   if (folder === 'sent') return counts.sent;
   if (folder === 'unread') return counts.unread;
   if (folder === 'archived') return counts.archived;
-  if (folder === 'trash') return counts.trash;
   return counts.total;
+}
+
+function replyComposeState(message: CommunicationMailboxMessage): ComposeState {
+  const recipientOrgId = otherPartyOrgId(message);
+  const recipientName = otherPartyName(message);
+  const isClarification = isClarificationMessage(message);
+
+  return initialComposeState({
+    recipients: recipientOrgId
+      ? [
+          {
+            id: recipientOrgId,
+            name: recipientName ?? 'Message sender',
+            kind: 'COMPANY',
+            country: '',
+            capabilities: []
+          }
+        ]
+      : [],
+    tenderId: message.tenderId ?? '',
+    category: isClarification ? 'Clarification' : message.category,
+    subject: isClarification ? 'Providing clarification' : prefixReplySubject(message.subject),
+    body: '',
+    replyToMessageId: message.id
+  });
+}
+
+function composeStateFromParams(params: URLSearchParams): ComposeState | null {
+  const tenderId = params.get('tenderId') ?? '';
+  const recipientOrgId = params.get('recipientOrgId') ?? '';
+  const recipientName = params.get('recipientName') ?? '';
+  const subject = params.get('subject') ?? params.get('title') ?? '';
+  const category = params.get('category') ?? (params.get('mode') === 'clarification' ? 'Clarification' : '');
+
+  if (!tenderId && !recipientOrgId && !subject && !category) return null;
+
+  return initialComposeState({
+    recipients: recipientOrgId
+      ? [
+          {
+            id: recipientOrgId,
+            name: recipientName || 'Selected recipient',
+            kind: 'COMPANY',
+            country: '',
+            capabilities: []
+          }
+        ]
+      : [],
+    tenderId,
+    category: category || 'General Message',
+    subject: subject || (category.toLowerCase().includes('clarification') ? 'Seeking clarification' : ''),
+    body: ''
+  });
+}
+
+function tenderLinkFromParams(params: URLSearchParams): CommunicationTenderLink | null {
+  const id = params.get('tenderId');
+  if (!id) return null;
+  return {
+    id,
+    reference: params.get('tenderReference') || id,
+    title: params.get('tenderTitle') || 'Linked tender',
+    buyerName: params.get('buyerName') || params.get('recipientName') || 'Buyer',
+    status: params.get('tenderStatus') || 'OPEN'
+  };
+}
+
+function metadataFromComposeParams(params: URLSearchParams): Record<string, unknown> {
+  const actionLabel = params.get('actionLabel');
+  const actionRoute = params.get('actionRoute');
+  const mode = params.get('mode');
+  const reviewDecision = params.get('reviewDecision');
+  return {
+    ...(mode ? { mode } : {}),
+    ...(reviewDecision ? { reviewDecision } : {}),
+    ...(actionLabel ? { actionLabel } : {}),
+    ...(actionRoute ? { actionRoute } : {})
+  };
+}
+
+function toAttachmentUpload(attachment: ComposeAttachment): CommunicationAttachmentUpload {
+  return {
+    name: attachment.name,
+    documentType: attachment.documentType,
+    mimeType: attachment.type || undefined,
+    size: attachment.size
+  };
 }
 
 function communicationKindForCategory(category: string) {
@@ -774,10 +973,102 @@ function communicationKindForCategory(category: string) {
 }
 
 function messageActionText(message: CommunicationMailboxMessage) {
+  const action = resolveMessageAction(message, true);
+  if (isClarificationMessage(message)) return 'Reply to keep the clarification linked to this tender.';
+  if (action) return `Reply or continue with ${action.label.toLowerCase()}.`;
   if (message.actionRequired) return 'Reply or resolve this communication item';
   if (message.folder === 'sent') return 'Await recipient response';
   if (!message.read) return 'Review message';
   return 'Reply to this message';
+}
+
+function resolveMessageAction(message: CommunicationMailboxMessage, admin = false): { label: string; route: string } | null {
+  const metadataAction = actionFromMetadata(message.metadata, admin);
+  if (metadataAction) return metadataAction;
+  if (isClarificationMessage(message)) return null;
+
+  const tenderId = message.tenderId ? encodeURIComponent(message.tenderId) : '';
+  const text = `${message.category} ${message.subject} ${message.body} ${message.status}`.toLowerCase();
+  const adminTenderRoute = message.tenderReference || message.tenderId
+    ? `/admin/search?query=${encodeURIComponent(message.tenderReference ?? message.tenderId ?? '')}`
+    : '';
+
+  if (admin && adminTenderRoute) return { label: 'Open Tender Record', route: adminTenderRoute };
+
+  if (/(passed evaluation|passed review|winner|won|contract negotiation|negotiate|contract)/.test(text) && tenderId) {
+    return { label: 'Go to Contracts', route: `/awards-contracts/negotiation?tenderId=${tenderId}` };
+  }
+
+  if (/(invited|invitation|start bidding|submit bid|bid now)/.test(text) && tenderId) {
+    return { label: 'Start Bidding', route: `/bidding?tenderId=${tenderId}` };
+  }
+
+  if (/(deadline|closed|bidding has closed|start evaluation|evaluate|evaluation)/.test(text) && tenderId) {
+    return { label: 'Start Evaluation', route: `/evaluation?tenderId=${tenderId}` };
+  }
+
+  if (/(award recommendation|recommendation|award decision)/.test(text) && tenderId) {
+    return { label: 'Review Award', route: `/awards-contracts/recommendation?tenderId=${tenderId}` };
+  }
+
+  if (/(award response|accept award|respond to award)/.test(text) && tenderId) {
+    return { label: 'Respond to Award', route: `/awards-contracts/award-response?tenderId=${tenderId}` };
+  }
+
+  if (/(delivery|invoice|payment|post-award|performance)/.test(text) && tenderId) {
+    return { label: 'Track Contract', route: `/awards-contracts/post-award?tenderId=${tenderId}` };
+  }
+
+  if (/(failed review|amend|amendment|published|tender)/.test(text) && tenderId) {
+    return { label: 'Open Tender', route: `/procurement/supplier-tender-detail?tenderId=${tenderId}` };
+  }
+
+  return null;
+}
+
+function actionFromMetadata(metadata: Record<string, unknown>, admin = false): { label: string; route: string } | null {
+  const route = admin
+    ? stringMetadata(metadata.adminActionRoute) ?? stringMetadata(metadata.adminRoute) ?? stringMetadata(metadata.actionRoute) ?? stringMetadata(metadata.route) ?? stringMetadata(metadata.nextRoute)
+    : stringMetadata(metadata.actionRoute) ?? stringMetadata(metadata.route) ?? stringMetadata(metadata.nextRoute);
+  if (!route) return null;
+  return {
+    label: stringMetadata(metadata.actionLabel) ?? stringMetadata(metadata.label) ?? 'Open linked action',
+    route
+  };
+}
+
+function otherPartyOrgId(message: CommunicationMailboxMessage) {
+  if (message.folder === 'sent') return message.recipientOrgId ?? '';
+  return message.senderOrgId ?? '';
+}
+
+function otherPartyName(message: CommunicationMailboxMessage) {
+  if (message.folder === 'sent') return message.recipientName ?? '';
+  return message.senderName ?? '';
+}
+
+function isClarificationMessage(message: CommunicationMailboxMessage) {
+  return message.kind === 'CLARIFICATION' || /clarification/i.test(`${message.category} ${message.subject}`);
+}
+
+function prefixReplySubject(subject: string) {
+  return /^re:/i.test(subject) ? subject : `Re: ${subject}`;
+}
+
+function documentTypeForFile(file: File) {
+  if (file.type) return file.type;
+  const extension = file.name.includes('.') ? file.name.split('.').pop() : '';
+  return extension ? extension.toUpperCase() : 'Attachment';
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function stringMetadata(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function formatInputDate(value: string) {

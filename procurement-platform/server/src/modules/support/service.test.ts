@@ -103,12 +103,31 @@ class FakeIdentityService {
   }
 }
 
+class FakeSupportEmail {
+  tickets: any[] = [];
+  contacts: any[] = [];
+  failTicket = false;
+
+  sendTicketCreated(input: any) {
+    this.tickets.push(input);
+    if (this.failTicket) return Promise.reject(new Error('SMTP unavailable'));
+    return Promise.resolve();
+  }
+
+  sendPublicContact(input: any) {
+    this.contacts.push(input);
+    return Promise.resolve();
+  }
+}
+
 function makeService() {
   const repository = new FakeSupportRepository();
   const identity = new FakeIdentityService({
     buyer: {
       user: {
         id: 'user-1',
+        email: 'buyer@example.test',
+        displayName: 'Buyer User',
         accountType: AccountType.USER,
         organizationId: 'org-1'
       }
@@ -123,11 +142,14 @@ function makeService() {
     admin: {
       user: {
         id: 'admin-1',
+        email: 'admin@example.test',
+        displayName: 'Admin User',
         accountType: AccountType.ADMIN
       }
     }
   });
-  return { repository, service: new ModuleService(repository as any, identity as any) };
+  const supportEmail = new FakeSupportEmail();
+  return { repository, service: new ModuleService(repository as any, identity as any, supportEmail as any), supportEmail };
 }
 
 describe('support module', () => {
@@ -142,7 +164,7 @@ describe('support module', () => {
   });
 
   it('creates, comments, scopes, and audits support tickets', async () => {
-    const { repository, service } = makeService();
+    const { repository, service, supportEmail } = makeService();
     const ticket = await service.createTicket('buyer', {
       subject: 'Tender access',
       category: 'Technical',
@@ -159,7 +181,54 @@ describe('support module', () => {
     expect(repository.auditEvents.map((event) => event.event)).toEqual(
       expect.arrayContaining(['support.ticket.created', 'support.ticket.commented', 'support.ticket.status_changed'])
     );
+    expect(supportEmail.tickets).toHaveLength(1);
+    expect(supportEmail.tickets[0]).toMatchObject({
+      id: ticket.id,
+      ownerUserId: 'user-1',
+      ownerEmail: 'buyer@example.test',
+      organizationName: 'Owner Org',
+      subject: 'Tender access'
+    });
     await expect(service.getTicket('outsider', ticket.id)).rejects.toMatchObject({ status: 403 });
     await expect(service.getTicket('admin', ticket.id)).resolves.toMatchObject({ id: ticket.id });
+  });
+
+  it('keeps ticket creation successful when support email delivery fails', async () => {
+    const { repository, service, supportEmail } = makeService();
+    supportEmail.failTicket = true;
+
+    const ticket = await service.createTicket('buyer', {
+      subject: 'Login support',
+      category: 'Account access',
+      priority: SupportTicketPriority.NORMAL,
+      description: 'I cannot sign in to my account.'
+    });
+
+    expect(ticket.subject).toBe('Login support');
+    expect(repository.auditEvents.map((event) => event.event)).toEqual(expect.arrayContaining(['support.ticket.created', 'support.ticket.email_failed']));
+  });
+
+  it('sends public contact requests to support email', async () => {
+    const { repository, service, supportEmail } = makeService();
+
+    await expect(
+      service.publicContact({
+        fullName: 'Public User',
+        email: 'public@example.test',
+        phone: '+255700000001',
+        organization: 'Public Org',
+        requestType: 'General support',
+        message: 'I need help before creating an account.'
+      })
+    ).resolves.toEqual({ status: 'sent' });
+
+    expect(supportEmail.contacts).toEqual([
+      expect.objectContaining({
+        fullName: 'Public User',
+        email: 'public@example.test',
+        message: 'I need help before creating an account.'
+      })
+    ]);
+    expect(repository.auditEvents.map((event) => event.event)).toContain('support.public_contact.sent');
   });
 });

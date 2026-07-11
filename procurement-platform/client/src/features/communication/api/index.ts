@@ -52,11 +52,6 @@ export const communicationApi = {
     return response.data;
   },
 
-  async deleteMessage(messageId: string) {
-    const response = await apiClient.delete<CommunicationMailboxMessage>(`/api/communication/messages/${messageId}`);
-    return response.data;
-  },
-
   async listRecipients(query: { search?: string; capability?: 'BUYER' | 'SUPPLIER'; pageSize?: number } = {}) {
     const response = await apiClient.get<{ recipients: CommunicationRecipient[] }>('/api/communication/recipients', {
       params: query

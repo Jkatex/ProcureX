@@ -90,7 +90,7 @@ export function SupplierTenderDetailProcurexPage() {
                 </div>
                 <div className="supplier-detail-action-row">
                   <button className="btn btn-secondary" type="button" disabled={tender.ownedByCurrentOrganization}>{tender.isSaved ? 'Saved' : 'Save Tender'}</button>
-                  <Link className="btn btn-secondary" to="/communication">Ask Buyer</Link>
+                  <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask clarification</Link>
                 </div>
               </div>
             </section>
@@ -243,7 +243,7 @@ function SupplierQuestions({ tender }: { tender: TenderDetail }) {
                   <strong>{formatDate(tender.closingDate)}</strong>
                   <p>Supplier clarification messages are tracked in the communication center and linked to this tender record.</p>
                 </div>
-                <Link className="btn btn-secondary" to="/communication">Ask Buyer</Link>
+                <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask clarification</Link>
               </div>
             </TenderDocumentSection>
           )
@@ -330,4 +330,21 @@ function commercialModel(tender: TenderDetail) {
   if (/consultancy/i.test(tender.type)) return 'Financial Proposal';
   if (/service|non consultancy/i.test(tender.type)) return 'Service Commercial Schedule';
   return 'Quantity Schedule';
+}
+
+function clarificationComposeUrl(tender: TenderDetail) {
+  const params = new URLSearchParams({
+    view: 'compose',
+    mode: 'clarification',
+    tenderId: tender.id,
+    tenderReference: tender.reference,
+    tenderTitle: tender.title,
+    recipientName: tender.organization,
+    buyerName: tender.organization,
+    category: 'Clarification',
+    subject: 'Seeking clarification'
+  });
+
+  if (tender.buyerOrgId) params.set('recipientOrgId', tender.buyerOrgId);
+  return `/communication?${params.toString()}`;
 }

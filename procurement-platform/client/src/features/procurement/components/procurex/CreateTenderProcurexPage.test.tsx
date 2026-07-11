@@ -105,14 +105,14 @@ beforeEach(() => {
   });
   procurementApiMock.publishTender.mockResolvedValue({
     success: true,
-    message: 'Tender published successfully',
+    message: 'Tender submitted for admin review',
     data: {
       id: '11111111-1111-4111-8111-111111111111',
       reference: 'PX-GDS-2026-001',
       title: 'Backend Tender',
-      status: 'Open',
-      visibility: 'PUBLIC_MARKETPLACE',
-      publishedAt: '2026-07-01T09:00:00.000Z',
+      status: 'Under Review',
+      visibility: 'PRIVATE',
+      publishedAt: '',
       closingDate: '2026-08-20'
     },
     validation: { warnings: [], scannerIssues: [], standardizedCategories: ['Medical equipment'] }
@@ -1315,7 +1315,7 @@ describe('CreateTenderProcurexPage', () => {
     );
   });
 
-  it('blocks publish before backend calls when estimated budget is missing', async () => {
+  it('blocks review submission before backend calls when estimated budget is missing', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
@@ -1330,14 +1330,14 @@ describe('CreateTenderProcurexPage', () => {
       await user.click(checkbox);
     }
 
-    await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
 
-    expect(await screen.findByText('Add a positive estimated budget before publishing this tender.')).toBeInTheDocument();
+    expect(await screen.findByText('Add a positive estimated budget before submitting this tender for review.')).toBeInTheDocument();
     expect(procurementApiMock.createTender).not.toHaveBeenCalled();
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
 
-  it('submit requires confirmations, then saves and publishes through backend APIs', async () => {
+  it('submit requires confirmations, then saves and sends the tender to admin review', async () => {
     const user = userEvent.setup();
     renderWithRoutes();
 
@@ -1346,15 +1346,15 @@ describe('CreateTenderProcurexPage', () => {
     await addDefaultCategory(user);
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
 
-    expect(screen.getByText('Evaluation submission')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Submit Tender for Evaluation' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'If the tender passes evaluation:' })).toBeInTheDocument();
+    expect(screen.getByText('Review submission')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Submit Tender for Review' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'If the tender passes review:' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'If the tender does not pass:' })).toBeInTheDocument();
     expect(screen.getByText('I confirm the tender information is complete and accurate.')).toBeInTheDocument();
     expect(screen.getByText('I understand the tender will be reviewed before publication.')).toBeInTheDocument();
     expect(screen.getByText('I understand rejected tenders will return as draft with comments.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download Tender PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Submit Tender for Evaluation' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Download Tender PDF' }));
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender PDF generator is not available in this frontend yet.')).toBe(true);
@@ -1363,14 +1363,14 @@ describe('CreateTenderProcurexPage', () => {
       await user.click(checkbox);
     }
 
-    await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
 
     await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
     expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender was saved to the backend and published to the marketplace.')).toBe(true);
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender was saved and sent to admin review.')).toBe(true);
   });
 
-  it('shows backend publish validation errors', async () => {
+  it('shows backend review validation errors', async () => {
     procurementApiMock.publishTender.mockRejectedValueOnce({
       response: {
         data: {
@@ -1388,13 +1388,13 @@ describe('CreateTenderProcurexPage', () => {
     for (const checkbox of screen.getAllByRole('checkbox')) {
       await user.click(checkbox);
     }
-    await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
 
     expect(await screen.findByText('Tender requirements are required before publishing.')).toBeInTheDocument();
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
   });
 
-  it('blocks invited tender publish until backend method persistence is available', async () => {
+  it('blocks invited tender review submission until backend method persistence is available', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
@@ -1406,9 +1406,9 @@ describe('CreateTenderProcurexPage', () => {
     for (const checkbox of screen.getAllByRole('checkbox')) {
       await user.click(checkbox);
     }
-    await user.click(screen.getByRole('button', { name: 'Submit Tender for Evaluation' }));
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
 
-    expect(await screen.findByText('Invited Tender publishing is not yet supported by the backend. Select Open Tender before publishing.')).toBeInTheDocument();
+    expect(await screen.findByText('Invited Tender review submission is not yet supported by the frontend. Select Open Tender before submitting.')).toBeInTheDocument();
     expect(procurementApiMock.createTender).not.toHaveBeenCalled();
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });

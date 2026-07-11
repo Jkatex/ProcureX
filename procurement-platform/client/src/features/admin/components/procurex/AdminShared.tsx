@@ -7,6 +7,7 @@ import { AccountMenu } from '@/shared/components/AccountMenu';
 import { notificationFromApiError } from '@/shared/api/errors';
 import type { CreateNotificationInput } from '@/shared/types/notifications';
 import { PlatformAppsButton, PlatformAppIcon, type PlatformAppIconKind } from '@/shared/components/procurex/PlatformAppsDrawer';
+import { resolveAdminAppIconAsset } from './adminAppIconAssets';
 
 export type AdminCommandConfig = {
   title: string;
@@ -85,6 +86,15 @@ export const adminAppRegistry: AdminApp[] = [
     generatedAt: ''
   },
   {
+    key: 'tender-review',
+    title: 'Tender Review',
+    description: 'Review newly submitted tenders before marketplace publication.',
+    route: '/admin/tender-review',
+    group: 'primary',
+    backend: { module: 'procurement', endpoint: '/api/procurement/admin/tender-review', status: 'live' },
+    generatedAt: ''
+  },
+  {
     key: 'communication-center',
     title: 'Communication Center',
     description: 'Messages, clarifications, alerts, and admin-visible communication activity.',
@@ -112,6 +122,7 @@ const adminAppIconByKey: Record<string, PlatformAppIconKind> = {
   'platform-analytics': 'evaluation',
   'full-audit-trail': 'records',
   'data-store': 'records',
+  'tender-review': 'procurement',
   'communication-center': 'communication',
   'admin-profile': 'iam'
 };
@@ -181,9 +192,6 @@ export function AdminShell({ currentPath, title, children }: { currentPath: stri
         <div className="app-topbar-actions">
           <PlatformAppsButton expanded={appsOpen} onClick={() => setAppsOpen((current) => !current)} ariaLabel="Open apps" />
           <AdminAppsDrawer open={appsOpen} organizationLabel={organizationLabel} apps={adminApps} onSelect={selectAdminApp} />
-          <button className="btn btn-secondary" type="button" onClick={() => navigate('/admin/search')}>
-            Search
-          </button>
           <div className="profile-menu-wrap">
             <AccountMenu buttonClassName="profile-button" />
           </div>
@@ -250,7 +258,7 @@ export function AdminShell({ currentPath, title, children }: { currentPath: stri
   );
 }
 
-function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: boolean; organizationLabel: string; apps: AdminApp[]; onSelect: (route: string) => void }) {
+export function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: boolean; organizationLabel: string; apps: AdminApp[]; onSelect: (route: string) => void }) {
   return (
     <div className={`app-drawer-menu${open ? ' open' : ''}`} data-app-menu aria-hidden={!open}>
       <div className="app-menu-header">
@@ -270,7 +278,7 @@ function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: bo
           data-navigate={item.key}
           onClick={() => onSelect(item.route)}
         >
-          <PlatformAppIcon kind={adminAppIconByKey[item.key] ?? 'records'} />
+          <AdminAppIcon appKey={item.key} fallbackKind={adminAppIconByKey[item.key] ?? 'records'} />
           <span>
             <strong>{item.title}</strong>
             <em>{item.description}</em>
@@ -279,6 +287,20 @@ function AdminAppsDrawer({ open, organizationLabel, apps, onSelect }: { open: bo
       ))}
     </div>
   );
+}
+
+function AdminAppIcon({ appKey, fallbackKind }: { appKey: string; fallbackKind: PlatformAppIconKind }) {
+  const imageSrc = resolveAdminAppIconAsset(appKey);
+
+  if (imageSrc) {
+    return (
+      <span className={`admin-app-menu-icon admin-app-menu-icon-${appKey}`}>
+        <img className={`admin-app-menu-image admin-app-menu-image-${appKey}`} src={imageSrc} alt="" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return <PlatformAppIcon kind={fallbackKind} useImage={false} />;
 }
 
 export function AdminHero({

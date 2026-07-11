@@ -117,8 +117,10 @@ describe('WorkspaceDashboardProcurexPage', () => {
     expect(screen.getByText('Active orders')).toBeInTheDocument();
     expect(screen.getByText(/\+18%/)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Procurement Status Overview' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Latest workspace movement' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Procurement lifecycle status' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Latest workspace movement' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Procurement lifecycle status' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Needs your attention' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Deadline timeline' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Recommended first actions' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Workspace apps' })).not.toBeInTheDocument();
   });

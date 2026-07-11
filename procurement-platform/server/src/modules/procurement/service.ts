@@ -44,6 +44,11 @@ import {
   type TenderAmendmentPatchInput,
   type TenderAmendmentResponseDto,
   type TenderAmendmentsResponseDto,
+  type TenderReviewDecisionResponseDto,
+  type TenderReviewDetailDto,
+  type TenderReviewFailInput,
+  type TenderReviewListDto,
+  type TenderReviewQuery,
   type TenderDocumentDownloadResponseDto,
   type TenderDocumentStreamDto,
   type TenderDetailDto,
@@ -346,7 +351,7 @@ export class ModuleService {
       );
     }
 
-    const published = await this.repository.publishTender(tenderId, organizationId, visibility);
+    const published = await this.repository.submitTenderForReview(tenderId, organizationId, { userId: session.user.id });
     if (!published) throw requestError('Tender was not found.', 404);
     return {
       ...published,
@@ -357,6 +362,84 @@ export class ModuleService {
         standardizedCategories: categoryStandardization.standardCategories
       }
     };
+  }
+
+  async listTenderReviews(token: string | undefined, query: TenderReviewQuery): Promise<TenderReviewListDto> {
+    await this.identity.requireAdmin(token);
+    return this.repository.listTenderReviews(query);
+  }
+
+  async getTenderReview(tenderId: string, token: string | undefined): Promise<TenderReviewDetailDto | null> {
+    await this.identity.requireAdmin(token);
+    return this.repository.getTenderReview(tenderId);
+  }
+
+  async passTenderReview(tenderId: string, token: string | undefined): Promise<TenderReviewDecisionResponseDto> {
+    const session = await this.identity.requireAdmin(token);
+    const tender = await this.repository.getTenderForPublication(tenderId);
+    if (!tender) throw requestError('Tender was not found.', 404);
+    if (tender.status !== TenderStatus.REVIEW) {
+      throw publishValidationError(
+        [{ step: 'admin-review', field: 'status', message: 'Only tenders awaiting admin review can be passed.', severity: 'error' }],
+        409
+      );
+    }
+
+    const basicErrors = basicPublishIssues(tender);
+    if (basicErrors.length > 0) throw publishValidationError(basicErrors, 400);
+
+    const schemaErrors = schemaPublishIssues(tender);
+    if (schemaErrors.length > 0) throw publishValidationError(schemaErrors, 400);
+
+    const evaluationErrors = evaluationCriteriaIssues(objectMetadata(tender.metadata));
+    if (evaluationErrors.length > 0) throw publishValidationError(evaluationErrors, 400);
+
+    const categoryStandardization = standardizeCategoryList(tender.categories.map((category) => category.name), tender.type);
+    const warnings = categoryStandardizationWarnings(categoryStandardization);
+    await this.repository.applyTenderCategoryStandardization(
+      tenderId,
+      categoryStandardization.standardCategories,
+      withCategoryStandardization(objectMetadata(tender.metadata), categoryStandardization)
+    );
+
+    const languageScan = scanTenderLanguage(languageScanInputFromTender(tender));
+    await this.repository.recordTenderLanguageScan(tender.id, languageScan);
+    if (languageScan.riskLevel === 'High') {
+      throw publishValidationError(
+        [
+          ...languageScan.issues.map((issue) => ({
+            step: 'language-scan',
+            field: issue.field,
+            message: `${issue.type}: ${issue.suggestion}`,
+            severity: 'error' as const
+          }))
+        ],
+        409
+      );
+    }
+    if (languageScan.riskLevel === 'Medium') {
+      warnings.push(...languageScan.issues.map((issue) => `${issue.type}: ${issue.suggestion}`));
+    }
+
+    const visibility = targetVisibilityForMethod(tender.method);
+    if (!visibility) {
+      throw publishValidationError(
+        [{ step: 'visibility', field: 'method', message: 'Unsupported procurement method for publication.', severity: 'error' }],
+        400
+      );
+    }
+
+    const adminOrgId = await this.repository.resolvePlatformOrganizationId(session.user.organizationId);
+    const result = await this.repository.passTenderReview(tenderId, { adminOrgId, adminUserId: session.user.id }, visibility);
+    if (!result) throw requestError('Tender review item was not found.', 404);
+    return result;
+  }
+
+  async failTenderReview(tenderId: string, token: string | undefined, input: TenderReviewFailInput): Promise<TenderReviewDecisionResponseDto> {
+    const session = await this.identity.requireAdmin(token);
+    const result = await this.repository.failTenderReview(tenderId, { adminUserId: session.user.id }, input);
+    if (!result) throw requestError('Tender review item was not found.', 404);
+    return result;
   }
 
   async closeTender(tenderId: string, token: string | undefined): Promise<CloseTenderResponseDto> {

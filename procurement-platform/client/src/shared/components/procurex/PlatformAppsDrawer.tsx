@@ -156,8 +156,8 @@ export function PlatformAppsDrawer({ open, organizationLabel, onSelect }: Platfo
   );
 }
 
-export function PlatformAppIcon({ kind }: { kind: PlatformAppIconKind }) {
-  const imageSrc = resolveAppIconAsset(kind);
+export function PlatformAppIcon({ kind, useImage = true }: { kind: PlatformAppIconKind; useImage?: boolean }) {
+  const imageSrc = useImage ? resolveAppIconAsset(kind) : null;
 
   if (imageSrc) {
     return (

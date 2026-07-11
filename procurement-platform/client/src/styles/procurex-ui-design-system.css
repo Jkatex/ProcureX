@@ -3173,9 +3173,42 @@ textarea.form-input {
     border: 1px solid var(--border-soft);
     border-radius: 8px;
     background: var(--surface-soft);
+    max-width: 100%;
 }
 
 .communication-attachment-item span {
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.communication-attachment-item button {
+    min-height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.communication-compose-attachments {
+    display: grid;
+    gap: 10px;
+    color: var(--text-secondary);
+}
+
+.communication-compose-attachments > div:first-child,
+.communication-attachment-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.communication-compose-attachments .form-label {
+    margin-bottom: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
     font-weight: 800;
 }
 
@@ -3241,10 +3274,12 @@ textarea.form-input {
     padding: clamp(24px, 3vw, 34px);
 }
 
+.communication-message-body h1,
 .communication-message-body h2 {
     margin: 0;
     font-size: clamp(24px, 3vw, 34px);
     line-height: 1.18;
+    overflow-wrap: anywhere;
 }
 
 .communication-message-body p,
@@ -3257,6 +3292,7 @@ textarea.form-input {
 .communication-detail.full-screen .communication-message-body p {
     font-size: 16px;
     line-height: 1.75;
+    max-width: 82ch;
 }
 
 .communication-action-panel {
@@ -3274,6 +3310,10 @@ textarea.form-input {
     display: block;
     margin-top: 4px;
     color: var(--text-primary);
+}
+
+.communication-action-panel .inline-actions {
+    justify-content: flex-end;
 }
 
 .communication-attachments button {
@@ -5903,8 +5943,19 @@ ul.closure-checklist {
 }
 
 .communication-file-button {
+    display: inline-flex;
     position: relative;
     overflow: hidden;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.communication-compose-grid label.communication-file-button {
+    display: inline-flex;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 800;
 }
 
 @media (max-width: 860px) {
@@ -13728,6 +13779,22 @@ ul.closure-checklist {
     object-fit: contain;
 }
 
+.admin-app-menu-icon {
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-lg);
+    background: transparent;
+}
+
+.admin-app-menu-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
 .app-menu-dashboard .app-menu-icon,
 .app-tone-dashboard .app-icon {
     background: #e0f2fe;
@@ -21082,6 +21149,213 @@ body:not([data-page="iam-verification"]) .communication-shell {
     grid-template-columns: minmax(0, 1fr) !important;
 }
 
+.admin-tender-review-notice {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid rgba(0, 128, 128, 0.2);
+    border-radius: 8px;
+    background: rgba(0, 128, 128, 0.08);
+    color: var(--text-primary);
+}
+
+.admin-tender-review-queue-panel {
+    display: grid;
+    min-width: 0;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--card-bg);
+}
+
+.admin-tender-review-queue-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.admin-tender-review-queue-header strong {
+    font-size: 16px;
+}
+
+.admin-tender-review-queue-header span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.admin-tender-review-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.admin-tender-review-list {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    max-height: none;
+}
+
+.admin-tender-review-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(280px, 1.55fr) minmax(180px, 1fr) minmax(94px, 0.55fr) minmax(140px, 0.8fr) minmax(150px, 0.85fr) minmax(118px, 0.7fr) minmax(110px, 0.7fr);
+    gap: 0;
+    align-items: stretch;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    background: var(--card-bg);
+    padding: 0;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.admin-tender-review-row:hover {
+    background: var(--surface-soft);
+}
+
+.admin-tender-review-row em {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.admin-tender-review-cell {
+    display: grid;
+    align-content: start;
+    min-width: 0;
+    min-height: 100%;
+    gap: 6px;
+    padding: 16px 14px;
+    border-left: 1px solid var(--border-soft);
+}
+
+.admin-tender-review-cell:first-child {
+    border-left: 0;
+}
+
+.admin-tender-review-row strong,
+.admin-tender-review-row h3 {
+    overflow-wrap: anywhere;
+}
+
+.admin-tender-review-row strong {
+    line-height: 1.3;
+}
+
+.admin-tender-review-row h3 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.3;
+}
+
+.admin-tender-review-reference,
+.admin-tender-review-cell time {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-tender-review-status-cell .badge {
+    width: max-content;
+    max-width: 100%;
+}
+
+.admin-tender-review-empty {
+    display: grid;
+    min-height: 140px;
+    place-items: center;
+    padding: 24px;
+    border: 1px dashed var(--border-soft);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.admin-tender-review-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+}
+
+.admin-tender-review-summary>div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--surface-soft);
+}
+
+.admin-tender-review-summary span,
+.admin-tender-review-message-body .section-kicker,
+.admin-tender-review-context-panel .section-kicker {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.admin-tender-review-summary strong {
+    overflow-wrap: anywhere;
+}
+
+.admin-tender-review-message-body,
+.admin-tender-review-context-panel {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--card-bg);
+}
+
+.admin-tender-review-message-body p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+
+@media (max-width: 1180px) {
+    .admin-tender-review-row {
+        grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(150px, 1fr));
+    }
+
+    .admin-tender-review-cell:nth-child(4) {
+        border-left: 0;
+    }
+}
+
+@media (max-width: 720px) {
+    .admin-tender-review-toolbar,
+    .admin-tender-review-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-tender-review-cell {
+        border-left: 0;
+        border-top: 1px solid var(--border-soft);
+    }
+
+    .admin-tender-review-cell:first-child {
+        border-top: 0;
+    }
+}
+
 .iam-profile-page {
     display: grid;
     gap: 22px;
@@ -26967,6 +27241,13 @@ body[data-page="admin-audit"] {
     align-items: start;
 }
 
+.admin-registry-with-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 18px;
+    align-items: start;
+}
+
 .admin-drawer {
     position: sticky;
     top: 88px;
@@ -26987,6 +27268,38 @@ body[data-page="admin-audit"] {
 .admin-drawer-profile strong,
 .admin-drawer-profile span {
     display: block;
+}
+
+.admin-account-sidebar {
+    align-self: start;
+}
+
+.admin-account-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1150;
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(15, 23, 42, 0.28);
+}
+
+.admin-account-sidebar-floating {
+    position: static;
+    top: auto;
+    width: min(420px, 100%);
+    height: 100%;
+    overflow: auto;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    box-shadow: -18px 0 48px rgba(15, 23, 42, 0.18);
+}
+
+.admin-account-sidebar-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
 }
 
 .admin-detail-list {
@@ -27126,6 +27439,7 @@ body[data-page="admin-audit"] {
 @media (max-width: 1100px) {
     .admin-kpi-grid.four-col,
     .admin-kpi-grid.six-col,
+    .admin-registry-with-sidebar,
     .admin-split-with-drawer {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -27138,6 +27452,7 @@ body[data-page="admin-audit"] {
 @media (max-width: 760px) {
     .admin-kpi-grid.four-col,
     .admin-kpi-grid.six-col,
+    .admin-registry-with-sidebar,
     .admin-split-with-drawer,
     .admin-urgency-card,
     .admin-donut-fallback {
@@ -31956,6 +32271,22 @@ body[data-page="admin-audit"] {
 }
 
 .app-menu-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.admin-app-menu-icon {
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-lg);
+    background: transparent;
+}
+
+.admin-app-menu-image {
     display: block;
     width: 100%;
     height: 100%;

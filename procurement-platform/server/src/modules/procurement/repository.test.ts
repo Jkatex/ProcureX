@@ -1,4 +1,4 @@
-import { BidStatus, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
+import { BidStatus, CommunicationStatus, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleRepository } from './repository.js';
 
@@ -17,17 +17,19 @@ describe('procurement public welcome repository', () => {
     await repository.getWelcomeData();
 
     expect(db.tender.count).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         status: TenderStatus.OPEN,
-        visibility: Visibility.PUBLIC_MARKETPLACE
-      }
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        closingDate: { gt: expect.any(Date) }
+      })
     });
     expect(db.tender.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
+        where: expect.objectContaining({
           status: TenderStatus.OPEN,
-          visibility: Visibility.PUBLIC_MARKETPLACE
-        },
+          visibility: Visibility.PUBLIC_MARKETPLACE,
+          closingDate: { gt: expect.any(Date) }
+        }),
         take: 3
       })
     );
@@ -368,6 +370,52 @@ describe('procurement marketplace repository', () => {
       ])
     );
     expect(db.tender.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes public marketplace tenders once their submission deadline has passed', async () => {
+    const activeTender = tenderDetailRecord({
+      id: 'tender-active',
+      reference: 'PX-2026-ACTIVE',
+      title: 'Active supply tender',
+      status: TenderStatus.OPEN,
+      publishedAt: new Date(Date.now() - 86400000),
+      closingDate: new Date(Date.now() + 86400000),
+      categories: [{ name: 'Goods' }]
+    });
+    const expiredTender = tenderDetailRecord({
+      id: 'tender-expired',
+      reference: 'PX-2026-EXPIRED',
+      title: 'Expired supply tender',
+      status: TenderStatus.OPEN,
+      publishedAt: new Date(Date.now() - 86400000 * 3),
+      closingDate: new Date(Date.now() - 1000),
+      categories: [{ name: 'Goods' }]
+    });
+    const db = {
+      tender: {
+        findMany: vi.fn().mockResolvedValue([expiredTender, activeTender])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const payload = await repository.getMarketplaceData(
+      {},
+      { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 }
+    );
+
+    expect(payload.tenders).toMatchObject([{ id: 'tender-active' }]);
+    expect(payload.tenders).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'tender-expired' })]));
+    expect(payload.summary.openTenders).toBe(1);
+    expect(payload.pagination.matching).toBe(1);
+    expect(db.tender.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          visibility: Visibility.PUBLIC_MARKETPLACE,
+          status: { in: [TenderStatus.OPEN, TenderStatus.PUBLISHED] },
+          closingDate: { gt: expect.any(Date) }
+        })
+      })
+    );
   });
 
   it('applies production marketplace sort modes to repository queries', async () => {
@@ -865,7 +913,7 @@ describe('procurement tender write repository', () => {
       success: true,
       data: {
         id: 'tender-review',
-        status: 'Draft',
+        status: 'Under Review',
         updatedAt: '2026-06-26T08:45:00.000Z'
       }
     });
@@ -1043,6 +1091,210 @@ describe('procurement tender write repository', () => {
     expect(result?.data).toMatchObject({
       status: 'Open',
       visibility: Visibility.INVITED
+    });
+  });
+
+  it('submits owner tenders to the admin review queue as private review records', async () => {
+    const updatedTender = tenderDetailRecord({
+      id: 'tender-review',
+      reference: 'PX-GDS-2026-REVIEW',
+      title: 'Supply of laboratory equipment',
+      buyerOrgId: 'org-1',
+      status: TenderStatus.REVIEW,
+      visibility: Visibility.PRIVATE,
+      publishedAt: null
+    });
+    const tx = {
+      tender: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce({ id: 'tender-review', buyerOrgId: 'org-1', status: TenderStatus.DRAFT, metadata: { source: 'test' } })
+          .mockResolvedValueOnce(updatedTender),
+        update: vi.fn().mockResolvedValue(updatedTender)
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: vi.fn((callback) => callback(tx))
+    } as any);
+
+    const result = await repository.submitTenderForReview('tender-review', 'org-1', { userId: 'user-1' });
+
+    expect(tx.tender.update).toHaveBeenCalledWith({
+      where: { id: 'tender-review' },
+      data: expect.objectContaining({
+        status: TenderStatus.REVIEW,
+        visibility: Visibility.PRIVATE,
+        publishedAt: null,
+        metadata: expect.objectContaining({
+          source: 'test',
+          adminReview: expect.objectContaining({
+            status: 'PENDING',
+            submittedByUserId: 'user-1',
+            attempts: 1
+          })
+        })
+      })
+    });
+    expect(result).toMatchObject({
+      success: true,
+      message: 'Tender submitted for admin review',
+      data: {
+        id: 'tender-review',
+        status: 'Under Review',
+        visibility: Visibility.PRIVATE,
+        publishedAt: ''
+      }
+    });
+  });
+
+  it('passes tender review by publishing and creating the owner inbox notification in one transaction', async () => {
+    const reviewTender = tenderDetailRecord({
+      id: 'tender-review',
+      reference: 'PX-GDS-2026-REVIEW',
+      buyerOrgId: 'buyer-org-1',
+      status: TenderStatus.REVIEW,
+      visibility: Visibility.PRIVATE,
+      metadata: { adminReview: { status: 'PENDING', attempts: 1 } },
+      buyerOrg: { id: 'buyer-org-1', name: 'Buyer Authority' },
+      ownerUser: { id: 'owner-user-1', displayName: 'Tender Owner', email: 'owner@example.test' }
+    });
+    const publishedTender = {
+      ...reviewTender,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z')
+    };
+    const tx = {
+      tender: {
+        findFirst: vi.fn().mockResolvedValue(reviewTender),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue(publishedTender)
+      },
+      communicationItem: {
+        create: vi.fn().mockResolvedValueOnce({ id: 'sent-message' }).mockResolvedValueOnce({ id: 'recipient-message' })
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: vi.fn((callback) => callback(tx))
+    } as any);
+
+    const result = await repository.passTenderReview(
+      'tender-review',
+      { adminOrgId: 'platform-org-1', adminUserId: 'admin-user-1' },
+      Visibility.PUBLIC_MARKETPLACE
+    );
+
+    expect(tx.tender.updateMany).toHaveBeenCalledWith({
+      where: { id: 'tender-review', status: TenderStatus.REVIEW },
+      data: expect.objectContaining({
+        status: TenderStatus.OPEN,
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        publishedAt: expect.any(Date),
+        metadata: expect.objectContaining({
+          adminReview: expect.objectContaining({
+            status: 'PASSED',
+            decidedByUserId: 'admin-user-1'
+          })
+        })
+      })
+    });
+    expect(tx.communicationItem.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          ownerOrgId: 'buyer-org-1',
+          senderOrgId: 'platform-org-1',
+          recipientOrgId: 'buyer-org-1',
+          tenderId: 'tender-review',
+          folder: 'inbox',
+          status: CommunicationStatus.UNREAD,
+          read: false,
+          payload: expect.objectContaining({
+            deliveryRole: 'recipient',
+            senderCopyId: 'sent-message',
+            metadata: expect.objectContaining({
+              reviewDecision: 'PASS',
+              actionLabel: 'View Tender',
+              actionRoute: '/procurement/tender-details?tenderId=tender-review'
+            })
+          })
+        })
+      })
+    );
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        tenderId: 'tender-review',
+        status: 'Open',
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        communicationMessageId: 'recipient-message'
+      }
+    });
+  });
+
+  it('fails tender review only after confirming the failure message was sent to the tender owner', async () => {
+    const tx = {
+      tender: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'tender-review',
+          reference: 'PX-GDS-2026-REVIEW',
+          title: 'Supply of laboratory equipment',
+          buyerOrgId: 'buyer-org-1',
+          status: TenderStatus.REVIEW,
+          visibility: Visibility.PRIVATE,
+          publishedAt: null,
+          metadata: { adminReview: { status: 'PENDING', attempts: 2 } }
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({
+          id: 'tender-review',
+          reference: 'PX-GDS-2026-REVIEW',
+          title: 'Supply of laboratory equipment',
+          status: TenderStatus.DRAFT,
+          visibility: Visibility.PRIVATE,
+          publishedAt: null
+        })
+      },
+      communicationItem: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'recipient-message',
+          tenderId: 'tender-review',
+          ownerOrgId: 'buyer-org-1',
+          recipientOrgId: 'buyer-org-1'
+        })
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: vi.fn((callback) => callback(tx))
+    } as any);
+
+    const result = await repository.failTenderReview('tender-review', { adminUserId: 'admin-user-1' }, { messageId: 'recipient-message' });
+
+    expect(tx.communicationItem.findUnique.mock.invocationCallOrder[0]).toBeLessThan(tx.tender.updateMany.mock.invocationCallOrder[0]);
+    expect(tx.tender.updateMany).toHaveBeenCalledWith({
+      where: { id: 'tender-review', status: TenderStatus.REVIEW },
+      data: expect.objectContaining({
+        status: TenderStatus.DRAFT,
+        visibility: Visibility.PRIVATE,
+        publishedAt: null,
+        metadata: expect.objectContaining({
+          adminReview: expect.objectContaining({
+            status: 'FAILED',
+            messageId: 'recipient-message',
+            decidedByUserId: 'admin-user-1'
+          })
+        })
+      })
+    });
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        tenderId: 'tender-review',
+        status: 'Draft',
+        visibility: Visibility.PRIVATE,
+        communicationMessageId: 'recipient-message',
+        amendmentRoute: '/procurement/create-tender?tenderId=tender-review'
+      }
     });
   });
 

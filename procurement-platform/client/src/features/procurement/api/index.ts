@@ -3,6 +3,7 @@ import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
 import type { Bid, SessionUser, Tender } from '@/shared/types/domain';
 import { toTenderType } from '../createTenderConfig';
+import { isActiveMarketplaceTender } from '../marketplaceTenderVisibility';
 import type {
   CreateTenderDraft,
   CreateTenderPayload,
@@ -12,6 +13,9 @@ import type {
   MyBidRow,
   MyTenderRow,
   PublishTenderResponse,
+  TenderReviewDecisionResponse,
+  TenderReviewDetail,
+  TenderReviewListResponse,
   TenderDetail,
   UpdateTenderPayload,
   UpdateTenderResponse
@@ -62,6 +66,24 @@ export const procurementApi = {
   async publishTender(tenderId: string): Promise<PublishTenderResponse> {
     const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, {});
     return response.data;
+  },
+  async listTenderReviews(query: { search?: string; page?: number; pageSize?: number } = {}): Promise<TenderReviewListResponse> {
+    const response = await apiClient.get<TenderReviewListResponse>('/api/procurement/admin/tender-review', {
+      params: query
+    });
+    return response.data;
+  },
+  async getTenderReview(tenderId: string): Promise<TenderReviewDetail> {
+    const response = await apiClient.get<TenderReviewDetail>(`/api/procurement/admin/tender-review/${tenderId}`);
+    return response.data;
+  },
+  async passTenderReview(tenderId: string): Promise<TenderReviewDecisionResponse> {
+    const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/pass`, {});
+    return response.data;
+  },
+  async failTenderReview(tenderId: string, input: { messageId: string }): Promise<TenderReviewDecisionResponse> {
+    const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/fail`, input);
+    return response.data;
   }
 };
 
@@ -70,7 +92,7 @@ type WorkItemFixture = Awaited<ReturnType<typeof mockApi.getWorkItems>>[number];
 function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
   return {
     ...payload,
-    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow),
+    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow).filter(isActiveMarketplaceTender),
     myTenders: (payload.myTenders ?? []).map((row) => ({
       ...row,
       tender: row.tender ? normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow) : undefined
@@ -130,9 +152,10 @@ function buildMarketplacePayload(tenders: Tender[], bids: Bid[], workItems: Work
   const normalizedTenders = tenders.map((tender) => normalizeFixtureTender(tender, currentUser));
   const myTenderRows = buildMyTenderRows(normalizedTenders, workItems, currentUser);
   const myBidRows = buildMyBidRows(normalizedTenders, bids, workItems, currentUser);
+  const activeMarketplaceTenders = normalizedTenders.filter(isActiveMarketplaceTender);
 
   return {
-    tenders: normalizedTenders.map((tender) => ({
+    tenders: activeMarketplaceTenders.map((tender) => ({
       ...tender,
       hasDraftBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'draft'),
       hasSubmittedBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted'),
@@ -153,13 +176,13 @@ export function mergeSessionMarketplaceData(
   const sessionMyTenderRows = drafts.map((draft): MyTenderRow => ({
     id: draft.id,
     title: draft.title || 'Untitled tender draft',
-    section: draft.status === 'DRAFT' ? 'draft' : 'posted',
-    status: draft.status === 'DRAFT' ? 'Draft' : 'Posted',
+    section: draft.status === 'PUBLISHED' ? 'posted' : 'draft',
+    status: draft.status === 'PUBLISHED' ? 'Posted' : draft.status === 'SUBMITTED' ? 'Under Review' : 'Draft',
     type: toTenderType(draft.procurementTypeId),
     tender: draft.status === 'PUBLISHED' ? createMarketplaceTenderFromDraft(draft, organization) : undefined,
     lastActivity: draft.publishedAt?.slice(0, 10) || draft.updatedAt.slice(0, 10),
-    actionLabel: draft.status === 'DRAFT' ? 'Continue Draft' : 'View My Tender',
-    nav: draft.status === 'DRAFT' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=${draft.id}`
+    actionLabel: draft.status === 'PUBLISHED' ? 'View My Tender' : draft.status === 'SUBMITTED' ? 'Review Pending' : 'Continue Draft',
+    nav: draft.status === 'PUBLISHED' ? `/procurement/tender-details?tenderId=${draft.id}` : '/procurement/create-tender'
   }));
 
   const existingTenderIds = new Set(sessionTenderRows.map((row) => row.id));
@@ -167,7 +190,7 @@ export function mergeSessionMarketplaceData(
 
   return {
     ...payload,
-    tenders: [...sessionTenderRows, ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
+    tenders: [...sessionTenderRows.filter(isActiveMarketplaceTender), ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
     myTenders: [...sessionMyTenderRows, ...payload.myTenders.filter((row) => !existingMyTenderIds.has(row.id))]
   };
 }

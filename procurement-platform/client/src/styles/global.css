@@ -1816,6 +1816,13 @@ img {
   }
 }
 
+.admin-json-preview {
+  max-height: 340px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .records-empty-app .main-content {
   background: #f5f8fc;
 }
