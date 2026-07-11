@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { TenderDetail } from '../../types';
+import type { TenderDetail, TenderDetailDocument } from '../../types';
 
 export type PrototypeTab = {
   id: string;
@@ -159,7 +159,17 @@ export function CommercialTable({ tender, priceLabel = 'Rate / Estimate' }: { te
   );
 }
 
-export function DocumentCards({ tender, emptyText = 'No tender documents configured.' }: { tender: TenderDetail; emptyText?: string }) {
+export function DocumentCards({
+  tender,
+  emptyText = 'No tender documents configured.',
+  onViewDocument,
+  onDownloadDocument
+}: {
+  tender: TenderDetail;
+  emptyText?: string;
+  onViewDocument?: (document: TenderDetailDocument) => void;
+  onDownloadDocument?: (document: TenderDetailDocument) => void;
+}) {
   const documents = tender.documents ?? [];
   if (!documents.length) return <div className="scope-empty">{emptyText}</div>;
   return (
@@ -169,10 +179,10 @@ export function DocumentCards({ tender, emptyText = 'No tender documents configu
           <strong>{document.name}</strong>
           <span>{document.label || document.documentType || 'Available for review'}</span>
           <div className="attachment-actions">
-            <button className="btn btn-secondary" type="button">
+            <button className="btn btn-secondary" type="button" onClick={() => onViewDocument?.(document)}>
               View
             </button>
-            <button className="btn btn-secondary" type="button">
+            <button className="btn btn-secondary" type="button" onClick={() => onDownloadDocument?.(document)}>
               Download
             </button>
           </div>
