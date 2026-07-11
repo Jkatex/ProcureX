@@ -249,7 +249,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation?recommendation=rec-1');
 
     await waitFor(() => expect(screen.getByRole('tab', { name: /Evaluation result/i })).toHaveClass('active'));
-    expect(screen.getByRole('heading', { name: /Step 1 of 6: Evaluation result/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Step 1 of 9: Evaluation result/i })).toBeInTheDocument();
     expect(screen.getAllByText('6 readiness checks').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Award readiness review' })).toBeInTheDocument();
     expect(screen.getByText('Evaluation handoff checks')).toBeInTheDocument();
@@ -260,12 +260,13 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(screen.queryByText(/Actor user ID/i)).not.toBeInTheDocument();
     expect(screen.getByRole('row', { name: /Medical supplies tender/i })).toHaveAttribute('aria-current', 'true');
 
-    await user.click(screen.getByRole('tab', { name: /Supplier response/i }));
-    expect(screen.getByText('Single-user approval history')).toBeInTheDocument();
-    expect(screen.getByText('Single-user award approval')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Step 3 Approval/i }));
     expect(screen.queryByText(/ID bd822b04/)).not.toBeInTheDocument();
-    expect(screen.getByText('Tie-breaker register')).toBeInTheDocument();
-    expect(screen.getByText('Budget commitments')).toBeInTheDocument();
+    expect(screen.getByText('Tie-breaker and feasibility')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Step 4 Winners/i }));
+    expect(screen.getByText('Winning bidders and source bid documents')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Step 5 Award clauses/i }));
+    expect(screen.getByText('Negotiated terms before notice')).toBeInTheDocument();
   });
 
   it('renders dashboard queue items as action cards', async () => {
@@ -610,7 +611,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(within(tieDialog).queryByLabelText(/Outcome bid ID/i)).not.toBeInTheDocument();
     await user.click(within(tieDialog).getByRole('button', { name: 'Close' }));
 
-    await user.click(screen.getByRole('tab', { name: /Step 4 Notice/i }));
+    await user.click(screen.getByRole('tab', { name: /Step 7 Settlement/i }));
     const notice = container.querySelector('[data-award-contract-form="Award notification"]') as HTMLElement;
     await user.click(within(notice).getByRole('button', { name: 'Open action' }));
     expect(screen.getByRole('searchbox', { name: /Notice recipient/i })).toBeInTheDocument();
@@ -876,7 +877,9 @@ describe('awards and contracts empty lifecycle flow', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open action' }));
     expect(screen.getByRole('dialog', { name: 'Inspection' })).toBeInTheDocument();
-    await user.type(screen.getByRole('searchbox', { name: /Milestone/i }), 'Delivery');
+    const milestoneSearch = screen.getByRole('searchbox', { name: /Milestone/i });
+    await user.clear(milestoneSearch);
+    await user.type(milestoneSearch, 'Delivery');
     await user.click(screen.getByRole('option', { name: /Delivery milestone/i }));
     await user.click(screen.getByRole('button', { name: 'Submit' }));
 

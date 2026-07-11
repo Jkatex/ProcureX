@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import type { FlowLockReason, FlowStep } from '../../types';
 
 const dirtyMessage = 'You have unsaved award or contract action changes. Leave without saving?';
@@ -109,6 +109,7 @@ export function AwardContractFlowBar<TId extends string>({
   const activeIndex = Math.max(0, steps.findIndex((step) => step.id === active));
   const activeStep = steps[activeIndex];
   const activeStatus = activeStep ? flowStepStatus(active, activeStep, activeIndex, activeIndex) : 'available';
+  const progressRatio = steps.length <= 1 ? 0 : activeIndex / (steps.length - 1);
   return (
     <section className="award-flow-shell" aria-label={label}>
       {activeStep ? (
@@ -124,13 +125,19 @@ export function AwardContractFlowBar<TId extends string>({
           </div>
         </div>
       ) : null}
-      <div className="award-flow-bar" role="tablist" aria-label={label}>
+      <div
+        className="wizard-step-progress award-flow-bar"
+        role="tablist"
+        aria-label={label}
+        style={{ '--wizard-progress-ratio': progressRatio } as CSSProperties}
+      >
         {steps.map((step, index) => {
           const status = flowStepStatus(active, step, index, activeIndex);
           const countLabel = flowCountLabel(step);
+          const progressState = status === 'current' ? 'active' : status === 'complete' ? 'completed' : '';
           return (
             <button
-              className={`award-flow-step ${status}${step.id === active ? ' active' : ''}`}
+              className={`wizard-progress-step award-flow-step ${progressState} ${status}${step.id === active ? ' active' : ''}`}
               type="button"
               role="tab"
               aria-selected={step.id === active}
