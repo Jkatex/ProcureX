@@ -40,8 +40,13 @@ type TenderQueueRow = {
   procurementType: Exclude<ProcurementTypeFilter, 'all'>;
   closingDate: string | null;
   submittedBidCount: number;
+  requirementCount: number;
+  criteriaCount: number;
   ready: boolean;
+  readinessReason: string | null;
   status: string;
+  tenderStatus: string;
+  bidOpeningStatus: string;
   stage: string | null;
   progress: number;
   updatedAt?: string;
@@ -183,12 +188,17 @@ export function BidEvaluationProcurexPage() {
       try {
         const data = await evaluationApi.getWorkspace(selectedTenderId);
         if (!mounted) return;
+        const workspaceStages = data.tender ? stagesForType(data.tender.procurementType) : stagesForType('GOODS');
+        const restoredStageId = restoreStageId(data.summary.activeStageId, workspaceStages);
+        const restoredBidId = data.summary.selectedBidId && data.bids.some((bid) => bid.id === data.summary.selectedBidId)
+          ? data.summary.selectedBidId
+          : data.bids[0]?.id ?? '';
         setWorkspace(data);
-        setSelectedBidId(data.bids[0]?.id ?? '');
+        setSelectedBidId(restoredBidId);
         setExpandedBidId('');
         setScoreDrafts(createScoreDrafts(data));
         setDecisionDrafts(createDecisionDrafts(data));
-        setActiveStageId('opening');
+        setActiveStageId(restoredStageId);
       } catch {
         if (!mounted) return;
         setWorkspace(null);
@@ -239,6 +249,10 @@ export function BidEvaluationProcurexPage() {
     window.setTimeout(() => {
       document.querySelector('[data-evaluation-workspace-panel]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 80);
+  }
+
+  function viewTender(tenderId: string) {
+    navigate(`/procurement/tender-details?tenderId=${encodeURIComponent(tenderId)}`);
   }
 
   function updateScoreDraft(bidId: string, criterionId: string, patch: Partial<ScoreDraft>) {
@@ -302,6 +316,8 @@ export function BidEvaluationProcurexPage() {
           status: draft.status,
           comment: draft.comment
         })),
+        activeStageId: normalizedStageId,
+        selectedBidId: selectedBidId || undefined,
         complete
       });
       setWorkspace(saved);
@@ -374,6 +390,7 @@ export function BidEvaluationProcurexPage() {
               filteredRows={filteredQueueRows}
               loading={loading}
               onOpenWorkspace={openWorkspace}
+              onViewTender={viewTender}
               recordsLoading={recordsLoading}
               search={search}
               setSearch={setSearch}
@@ -397,6 +414,7 @@ function EvaluationTenderListView({
   filteredRows,
   loading,
   onOpenWorkspace,
+  onViewTender,
   recordsLoading,
   search,
   setSearch,
@@ -412,6 +430,7 @@ function EvaluationTenderListView({
   filteredRows: TenderQueueRow[];
   loading: boolean;
   onOpenWorkspace: (tenderId: string) => void;
+  onViewTender: (tenderId: string) => void;
   recordsLoading: boolean;
   search: string;
   setSearch: (value: string) => void;
@@ -518,31 +537,37 @@ function EvaluationTenderListView({
           <span className="badge badge-success">{readyCount} ready</span>
         </div>
         <div className="evaluation-tender-list">
-          {filteredRows.length ? filteredRows.map((row) => (
-            <article className={`evaluation-tender-row ${row.ready ? 'is-ready' : 'is-locked'}`} key={row.tenderId}>
-              <div className="evaluation-tender-row-main">
-                <span className="section-kicker">{typeLabel(row.procurementType)} procurement</span>
-                <h3>{row.title}</h3>
-                <p>{row.reference} / {row.buyerName}</p>
-              </div>
-              <div className="evaluation-tender-row-meta">
-                <div><span>Closing date</span><strong>{row.closingDate ? dateFormatter.format(new Date(row.closingDate)) : '-'}</strong></div>
-                <div><span>Requirements</span><strong>{row.submittedBidCount}</strong></div>
-                <div><span>Criteria</span><strong>{criteriaCountForType(row.procurementType)}</strong></div>
-                <div><span>Progress</span><strong>{row.progress}%</strong></div>
-              </div>
-              <div className="evaluation-tender-row-status">
-                <span className="badge badge-info">{statusLabel(row.status)}</span>
-                <span className={row.ready ? 'badge badge-success' : 'badge badge-warning'}>{row.ready ? 'Evaluation open' : 'Evaluation opens after tender closing'}</span>
-                <div className="evaluation-progress-track"><span style={{ width: `${clampPercent(row.progress)}%` }} /></div>
-              </div>
-              <div className="evaluation-tender-row-actions">
-                <button className="btn btn-primary" type="button" disabled={!row.ready} onClick={() => onOpenWorkspace(row.tenderId)}>
-                  {row.status === 'IN_PROGRESS' ? 'Continue Evaluation' : row.ready ? 'Start Evaluation' : 'Locked'}
-                </button>
-              </div>
-            </article>
-          )) : <div className="scope-empty">No tenders match the current evaluation filters.</div>}
+          {filteredRows.length ? filteredRows.map((row) => {
+            const action = evaluationAction(row);
+            return (
+              <article className={`evaluation-tender-row ${row.ready ? 'is-ready' : 'is-locked'}`} key={row.tenderId}>
+                <div className="evaluation-tender-row-main">
+                  <span className="section-kicker">{typeLabel(row.procurementType)} procurement</span>
+                  <h3>{row.title}</h3>
+                  <p>{row.reference} / {typeLabel(row.procurementType)} / {row.buyerName}</p>
+                </div>
+                <div className="evaluation-tender-row-meta">
+                  <div><span>Closing date</span><strong>{row.closingDate ? dateFormatter.format(new Date(row.closingDate)) : '-'}</strong></div>
+                  <div><span>Requirements</span><strong>{row.requirementCount}</strong></div>
+                  <div><span>Criteria</span><strong>{row.criteriaCount}</strong></div>
+                  <div><span>Progress</span><strong>{row.progress}%</strong></div>
+                </div>
+                <div className="evaluation-tender-row-status">
+                  <span className="badge badge-warning">{row.bidOpeningStatus || statusLabel(row.tenderStatus)}</span>
+                  <span className={row.ready ? 'badge badge-success' : 'badge badge-warning'}>{evaluationAvailabilityLabel(row)}</span>
+                  <div className="evaluation-progress-track"><span style={{ width: `${clampPercent(row.progress)}%` }} /></div>
+                </div>
+                <div className="evaluation-tender-row-actions">
+                  <button className="btn btn-secondary" type="button" onClick={() => onViewTender(row.tenderId)}>View Tender</button>
+                  <button className="btn btn-primary" type="button" disabled={action.disabled} onClick={() => {
+                    if (!action.disabled) onOpenWorkspace(row.tenderId);
+                  }}>
+                    {action.label}
+                  </button>
+                </div>
+              </article>
+            );
+          }) : <div className="scope-empty">No tenders match the current evaluation filters.</div>}
         </div>
       </section>
     </>
@@ -1194,8 +1219,13 @@ function buildQueueRows(readyTenders: ReadyEvaluationTender[], records: Evaluati
       procurementType: record.procurementType,
       closingDate: record.closingDate,
       submittedBidCount: record.submittedBidCount,
+      requirementCount: 0,
+      criteriaCount: 0,
       ready: record.status !== 'COMPLETED' && record.submittedBidCount > 0,
+      readinessReason: null,
       status: record.status,
+      tenderStatus: 'EVALUATION',
+      bidOpeningStatus: 'Opening Completed',
       stage: record.currentStage,
       progress: record.progressPercentage,
       updatedAt: record.updatedAt
@@ -1211,10 +1241,15 @@ function buildQueueRows(readyTenders: ReadyEvaluationTender[], records: Evaluati
       procurementType: ready.procurementType,
       closingDate: ready.closingDate,
       submittedBidCount: ready.submittedBidCount,
-      ready: true,
-      status: existing?.status ?? 'NOT_STARTED',
-      stage: existing?.stage ?? 'OPENING',
-      progress: existing?.progress ?? 0,
+      requirementCount: ready.requirementCount,
+      criteriaCount: ready.criteriaCount,
+      ready: ready.ready,
+      readinessReason: ready.readinessReason,
+      status: existing?.status ?? ready.status,
+      tenderStatus: ready.tenderStatus,
+      bidOpeningStatus: ready.bidOpeningStatus,
+      stage: existing?.stage ?? ready.currentStage ?? 'OPENING',
+      progress: existing?.progress ?? ready.progressPercentage,
       updatedAt: existing?.updatedAt
     });
   }
@@ -1226,7 +1261,7 @@ function queueRowMatches(row: TenderQueueRow, search: string, status: Evaluation
   if (status !== 'all' && row.status !== status) return false;
   if (type !== 'all' && row.procurementType !== type) return false;
   if (!normalizedSearch) return true;
-  return [row.reference, row.title, row.buyerName, row.procurementType, row.status].join(' ').toLowerCase().includes(normalizedSearch);
+  return [row.reference, row.title, row.buyerName, row.procurementType, row.status, row.tenderStatus, row.bidOpeningStatus, row.readinessReason ?? ''].join(' ').toLowerCase().includes(normalizedSearch);
 }
 
 function draftMatches(draft: EvaluationDraft, search: string, type: ProcurementTypeFilter) {
@@ -1234,6 +1269,19 @@ function draftMatches(draft: EvaluationDraft, search: string, type: ProcurementT
   const normalizedSearch = search.trim().toLowerCase();
   if (!normalizedSearch) return true;
   return [draft.reference, draft.title, draft.procurementType, draft.currentStage ?? ''].join(' ').toLowerCase().includes(normalizedSearch);
+}
+
+function evaluationAvailabilityLabel(row: TenderQueueRow) {
+  if (row.status === 'COMPLETED') return 'Evaluation completed';
+  if (row.ready) return row.status === 'IN_PROGRESS' ? 'Evaluation in progress' : 'Evaluation open';
+  return row.readinessReason ?? 'Evaluation locked';
+}
+
+function evaluationAction(row: TenderQueueRow) {
+  if (row.status === 'COMPLETED') return { label: 'View Results', disabled: false };
+  if (row.status === 'IN_PROGRESS') return { label: 'Continue Evaluation', disabled: false };
+  if (row.ready) return { label: 'Start Evaluation', disabled: false };
+  return { label: 'Locked', disabled: true };
 }
 
 function createScoreDrafts(workspace: EvaluationWorkspace): ScoreDraftMap {
@@ -1483,14 +1531,33 @@ function statusLabel(value: string | null) {
 
 function stageLabel(value: string | null) {
   if (!value) return 'Opening Register';
-  return humanizeEnum(value);
+  const labels: Record<string, string> = {
+    opening: 'Opening Register',
+    OPENING: 'Opening Register',
+    administrative: 'Administrative & Eligibility Evaluation',
+    ELIGIBILITY: 'Administrative & Eligibility Evaluation',
+    PRELIMINARY: 'Administrative & Eligibility Evaluation',
+    criteria: 'Custom Evaluation Criteria',
+    TECHNICAL: 'Custom Evaluation Criteria',
+    financial: 'Financial Review',
+    boq: 'Financial Review',
+    pricing: 'Service Pricing Review',
+    FINANCIAL: 'Financial Review',
+    sla: 'SLA / Performance Review',
+    postqual: 'Post-Qualification',
+    CLARIFICATIONS: 'Post-Qualification',
+    ranking: 'Final Ranking',
+    COMPARISON: 'Final Ranking',
+    report: 'Evaluation Report',
+    REPORT: 'Evaluation Report',
+    RECOMMENDATION: 'Evaluation Report'
+  };
+  return labels[value] ?? humanizeEnum(value);
 }
 
-function criteriaCountForType(type: Exclude<ProcurementTypeFilter, 'all'>) {
-  if (type === 'SERVICE') return 5;
-  if (type === 'WORKS') return 5;
-  if (type === 'GOODS') return 5;
-  return 5;
+function restoreStageId(savedStageId: string | null, stages: Array<{ id: EvaluationStageId; label: string }>): EvaluationStageId {
+  const saved = stages.find((stage) => stage.id === savedStageId);
+  return saved?.id ?? stages[0]?.id ?? 'opening';
 }
 
 function draftKey(bidId: string, criterionId: string) {

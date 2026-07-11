@@ -23031,14 +23031,14 @@ body:not([data-page="iam-verification"]) .communication-shell {
 
 .evaluation-tender-row {
     display: grid;
-    grid-template-columns: minmax(260px, 1.2fr) minmax(320px, 1fr) minmax(180px, 0.55fr) auto;
-    gap: 16px;
+    grid-template-columns: minmax(300px, 1.25fr) minmax(360px, 1fr) minmax(220px, 0.6fr) minmax(190px, auto);
+    gap: 18px;
     align-items: center;
     min-width: 0;
     border: 1px solid var(--px-line-soft);
     border-radius: var(--px-card-radius-sm);
     background: #ffffff;
-    padding: 16px;
+    padding: 24px;
 }
 
 .evaluation-tender-row.is-locked {
@@ -23055,7 +23055,8 @@ body:not([data-page="iam-verification"]) .communication-shell {
 }
 
 .evaluation-tender-row h3 {
-    font-size: 18px;
+    font-size: 20px;
+    letter-spacing: 0;
 }
 
 .evaluation-tender-row p,
@@ -23073,15 +23074,16 @@ body:not([data-page="iam-verification"]) .communication-shell {
 .evaluation-tender-row-meta {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
 }
 
 .evaluation-tender-row-meta div {
     min-width: 0;
-    border: 1px solid var(--border);
+    min-height: 78px;
+    border: 1px solid var(--px-line-soft);
     border-radius: 8px;
-    background: var(--background);
-    padding: 10px;
+    background: #ffffff;
+    padding: 14px;
 }
 
 .evaluation-tender-row-meta span,
@@ -23108,6 +23110,40 @@ body:not([data-page="iam-verification"]) .communication-shell {
     display: grid;
     gap: 10px;
     align-content: center;
+}
+
+.evaluation-tender-row-status .badge {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 36px;
+    white-space: normal;
+}
+
+.evaluation-tender-row-actions .btn {
+    width: 100%;
+    min-width: 180px;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+    .evaluation-tender-row {
+        grid-template-columns: 1fr;
+    }
+
+    .evaluation-tender-row-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .evaluation-tender-row-actions .btn {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 760px) {
+    .evaluation-tender-row-actions {
+        grid-template-columns: 1fr;
+    }
 }
 
 .evaluation-locked-panel,

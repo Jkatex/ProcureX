@@ -56,6 +56,15 @@ export type ReadyEvaluationTender = {
   procurementType: Exclude<ProcurementTypeFilter, 'all'>;
   closingDate: string;
   submittedBidCount: number;
+  requirementCount: number;
+  criteriaCount: number;
+  ready: boolean;
+  status: Exclude<EvaluationStatusFilter, 'all'>;
+  tenderStatus: string;
+  bidOpeningStatus: string;
+  currentStage: string | null;
+  progressPercentage: number;
+  readinessReason: string | null;
 };
 
 export type ReadyEvaluationResponse = {
@@ -96,6 +105,8 @@ export type EvaluationWorkspace = {
     } | null;
     updatedAt: string | null;
     lastSavedAt: string | null;
+    activeStageId: string | null;
+    selectedBidId: string | null;
   };
   criteria: EvaluationWorkspaceCriterion[];
   bids: EvaluationWorkspaceBid[];
@@ -183,4 +194,6 @@ export type SaveEvaluationWorkspaceInput = {
     comment: string;
   }>;
   complete?: boolean;
+  activeStageId?: string;
+  selectedBidId?: string;
 };

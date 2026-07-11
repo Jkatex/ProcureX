@@ -26,9 +26,9 @@ export class ModuleService {
     };
   }
 
-  async dashboard(): Promise<EvaluationDashboardDto> {
+  async dashboard(context?: EvaluationRequestContext): Promise<EvaluationDashboardDto> {
     try {
-      const [publishedTenders, readyToEvaluate, draftedEvaluations, lockedUntilClosing, totalRecords] = await this.repository.getDashboardData();
+      const [publishedTenders, readyToEvaluate, draftedEvaluations, lockedUntilClosing, totalRecords] = await this.repository.getDashboardData(undefined, context);
 
       return {
         publishedTenders,
@@ -43,9 +43,9 @@ export class ModuleService {
     }
   }
 
-  async records(query: EvaluationRecordsQuery): Promise<EvaluationRecordsResponseDto> {
+  async records(query: EvaluationRecordsQuery, context?: EvaluationRequestContext): Promise<EvaluationRecordsResponseDto> {
     try {
-      const data = await this.repository.listRecords(query);
+      const data = await this.repository.listRecords(query, context);
 
       return {
         totalRecords: data.totalRecords,
@@ -57,7 +57,7 @@ export class ModuleService {
           buyerName: record.tender.buyerOrg.name,
           procurementType: record.tender.type,
           status: record.status,
-          currentStage: record.currentStage,
+          currentStage: readString(record.payload, 'activeStageId') ?? record.currentStage,
           progressPercentage: record.progress,
           recommendationStatus: record.recommendations[0]?.status ?? null,
           submittedBidCount: record.tender.bids.length,
@@ -72,9 +72,9 @@ export class ModuleService {
     }
   }
 
-  async drafts(): Promise<EvaluationDraftsResponseDto> {
+  async drafts(context?: EvaluationRequestContext): Promise<EvaluationDraftsResponseDto> {
     try {
-      const drafts = await this.repository.listDrafts();
+      const drafts = await this.repository.listDrafts(context);
 
       return {
         drafts: drafts.map((draft) => ({
@@ -83,7 +83,7 @@ export class ModuleService {
           reference: draft.tender.reference,
           title: draft.tender.title,
           procurementType: draft.tender.type,
-          currentStage: draft.currentStage,
+          currentStage: readString(draft.payload, 'activeStageId') ?? draft.currentStage,
           progressPercentage: draft.progress,
           submittedBidCount: draft.tender.bids.length,
           updatedAt: draft.updatedAt.toISOString()
@@ -95,20 +95,33 @@ export class ModuleService {
     }
   }
 
-  async ready(): Promise<ReadyEvaluationResponseDto> {
+  async ready(context?: EvaluationRequestContext): Promise<ReadyEvaluationResponseDto> {
     try {
-      const tenders = await this.repository.listReadyTenders();
+      const tenders = await this.repository.listReadyTenders(context);
 
       return {
-        tenders: tenders.map((tender) => ({
-          tenderId: tender.id,
-          reference: tender.reference,
-          title: tender.title,
-          buyerName: tender.buyerOrg.name,
-          procurementType: tender.type,
-          closingDate: tender.closingDate?.toISOString() ?? '',
-          submittedBidCount: tender.bids.length
-        }))
+        tenders: tenders.map((tender) => {
+          const readiness = tenderReadiness(tender);
+          const bidOpeningStatus = bidOpeningStatusLabel(tender);
+          return {
+            tenderId: tender.id,
+            reference: tender.reference,
+            title: tender.title,
+            buyerName: tender.buyerOrg.name,
+            procurementType: tender.type,
+            closingDate: tender.closingDate?.toISOString() ?? '',
+            submittedBidCount: tender.bids.length,
+            requirementCount: tender.requirementRows.length || countRequirementItems(tender.requirements),
+            criteriaCount: tender.evaluation?.criteria.length ?? countEvaluationCriteria(tender.metadata),
+            ready: readiness.ready,
+            status: readiness.status,
+            tenderStatus: tender.status,
+            bidOpeningStatus,
+            currentStage: readString(tender.evaluation?.payload, 'activeStageId') ?? tender.evaluation?.currentStage ?? null,
+            progressPercentage: tender.evaluation?.progress ?? 0,
+            readinessReason: readiness.reason
+          };
+        })
       };
     } catch (error) {
       if (isDatabaseUnavailable(error)) return { tenders: [] };
@@ -159,7 +172,9 @@ const emptyWorkspace: EvaluationWorkspaceDto = {
     evaluationStatus: 'NOT_STARTED',
     recommendedBidder: null,
     updatedAt: null,
-    lastSavedAt: null
+    lastSavedAt: null,
+    activeStageId: null,
+    selectedBidId: null
   },
   criteria: [],
   bids: [],
@@ -278,7 +293,9 @@ function toWorkspaceDto(tender: EvaluationWorkspaceTenderRecord | null, auditEve
           }
         : null,
       updatedAt: workspace?.updatedAt.toISOString() ?? null,
-      lastSavedAt: readString(workspace?.payload, 'lastSavedAt') ?? lastAudit?.createdAt.toISOString() ?? null
+      lastSavedAt: readString(workspace?.payload, 'lastSavedAt') ?? lastAudit?.createdAt.toISOString() ?? null,
+      activeStageId: readString(workspace?.payload, 'activeStageId'),
+      selectedBidId: readString(workspace?.payload, 'selectedBidId')
     },
     criteria: criteria.map((criterion) => ({
       id: criterion.id,
@@ -316,6 +333,99 @@ function workspaceAvailability(tender: EvaluationWorkspaceTenderRecord) {
     return { isReady: false, reason: 'Evaluation is already completed.' };
   }
   return { isReady: true, reason: null };
+}
+
+function tenderReadiness(tender: {
+  status: string;
+  closingDate: Date | null;
+  bids: Array<unknown>;
+  metadata?: Prisma.JsonValue;
+  evaluation: {
+    status: string;
+  } | null;
+}) {
+  const openingStatus = bidOpeningStatusValue(tender);
+  if (tender.evaluation?.status === 'COMPLETED') {
+    return {
+      ready: false,
+      status: 'COMPLETED',
+      reason: 'Evaluation is already completed'
+    };
+  }
+  if (tender.evaluation?.status === 'IN_PROGRESS' || tender.evaluation?.status === 'RETURNED') {
+    return {
+      ready: true,
+      status: tender.evaluation.status,
+      reason: null
+    };
+  }
+  if (!tender.closingDate || tender.closingDate > new Date()) {
+    return {
+      ready: false,
+      status: tender.evaluation?.status ?? 'LOCKED',
+      reason: 'Evaluation opens after tender closing'
+    };
+  }
+  if (!openingComplete(openingStatus)) {
+    return {
+      ready: false,
+      status: tender.evaluation?.status ?? 'LOCKED',
+      reason: 'Bid opening is incomplete'
+    };
+  }
+  if (tender.bids.length === 0) {
+    return {
+      ready: false,
+      status: tender.evaluation?.status ?? 'LOCKED',
+      reason: 'No submitted bids available for evaluation yet'
+    };
+  }
+  return {
+    ready: true,
+    status: tender.evaluation?.status ?? 'NOT_STARTED',
+    reason: null
+  };
+}
+
+function bidOpeningStatusValue(tender: { status: string; bids: Array<unknown>; metadata?: Prisma.JsonValue; evaluation?: { status: string } | null }) {
+  const metadata = jsonObject(tender.metadata);
+  const direct = metadata.bidOpeningStatus ?? metadata.openingStatus;
+  if (typeof direct === 'string' && direct.trim()) return direct.trim().toUpperCase();
+  if (tender.evaluation && ['IN_PROGRESS', 'RETURNED', 'COMPLETED'].includes(tender.evaluation.status)) return 'COMPLETED';
+  if (['CLOSED', 'EVALUATION'].includes(tender.status) && tender.bids.length > 0) return 'COMPLETED';
+  return 'PENDING';
+}
+
+function bidOpeningStatusLabel(tender: { status: string; bids: Array<unknown>; metadata?: Prisma.JsonValue; evaluation?: { status: string } | null }) {
+  const value = bidOpeningStatusValue(tender);
+  if (openingComplete(value)) return 'Opening Completed';
+  if (value === 'OPENED') return 'Opened';
+  return humanizeEnum(value);
+}
+
+function openingComplete(value: string) {
+  return ['COMPLETED', 'COMPLETE', 'OPENED'].includes(value);
+}
+
+function countRequirementItems(value: Prisma.JsonValue | null | undefined): number {
+  if (Array.isArray(value)) return value.length;
+  if (!value || typeof value !== 'object') return 0;
+  return Object.values(value as Record<string, unknown>).reduce<number>((sum, item) => {
+    if (Array.isArray(item)) return sum + item.length;
+    if (item && typeof item === 'object') {
+      const rows = (item as Record<string, unknown>).rows;
+      if (Array.isArray(rows)) return sum + rows.length;
+      return sum + Object.keys(item).length;
+    }
+    return item === null || item === undefined || item === '' ? sum : sum + 1;
+  }, 0);
+}
+
+function countEvaluationCriteria(metadata: Prisma.JsonValue | null | undefined): number {
+  const criteria = jsonObject(metadata).evaluationCriteria;
+  if (Array.isArray(criteria)) return criteria.length;
+  if (criteria && typeof criteria === 'object') return Object.keys(criteria).length;
+  return 0;
 }
 
 function financialDocumentsVisible(currentStage: EvaluationStage | null | undefined, envelope: string) {
