@@ -4607,6 +4607,267 @@ body:not([data-page="iam-verification"]) .tender-wizard-page .wizard-rail,
   opacity: 1 !important;
 }
 
+.tender-wizard-page .bid-command-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(116px, 1fr)) minmax(150px, auto);
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(13, 31, 50, 0.06);
+}
+
+.tender-wizard-page .bid-command-metric {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-right: 1px solid var(--border-soft);
+}
+
+.tender-wizard-page .bid-command-metric span,
+.tender-wizard-page .bid-command-readiness span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.tender-wizard-page .bid-command-metric strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.tender-wizard-page .bid-command-readiness {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  padding: 8px 12px;
+  border: 1px solid rgba(242, 169, 24, 0.42);
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--text-primary);
+}
+
+.tender-wizard-page .bid-command-readiness.is-ready {
+  border-color: rgba(49, 162, 76, 0.42);
+  background: var(--success-bg);
+}
+
+.tender-wizard-page .bid-command-readiness strong {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 950;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.tender-wizard-page .bid-financial-boq {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.07);
+}
+
+.tender-wizard-page .bid-financial-boq-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.tender-wizard-page .bid-financial-boq-heading h3 {
+  margin: 0 0 4px;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.tender-wizard-page .bid-financial-boq-heading span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tender-wizard-page .bid-financial-boq-total {
+  min-width: 150px;
+  text-align: right;
+}
+
+.tender-wizard-page .bid-financial-boq-total strong {
+  display: block;
+  margin-top: 3px;
+  color: #071a33;
+  font-size: 20px;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.tender-wizard-page .bid-financial-boq-scroll {
+  width: 100%;
+  max-height: 440px;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.tender-wizard-page .bid-financial-boq-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.tender-wizard-page .bid-financial-boq-table th,
+.tender-wizard-page .bid-financial-boq-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+.tender-wizard-page .bid-financial-boq-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eef3f8;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.tender-wizard-page .bid-financial-boq-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.tender-wizard-page .bid-financial-boq-table th:nth-child(1),
+.tender-wizard-page .bid-financial-boq-table td:nth-child(1) {
+  width: 72px;
+  text-align: center;
+}
+
+.tender-wizard-page .bid-financial-boq-table th:nth-child(2),
+.tender-wizard-page .bid-financial-boq-table td:nth-child(2) {
+  width: auto;
+  white-space: normal;
+}
+
+.tender-wizard-page .bid-financial-boq-table th:nth-child(3),
+.tender-wizard-page .bid-financial-boq-table td:nth-child(3) {
+  width: 92px;
+  text-align: right;
+}
+
+.tender-wizard-page .bid-financial-boq-table th:nth-child(4),
+.tender-wizard-page .bid-financial-boq-table td:nth-child(4) {
+  width: 92px;
+}
+
+.tender-wizard-page .bid-financial-boq-table th:nth-child(5),
+.tender-wizard-page .bid-financial-boq-table td:nth-child(5) {
+  width: 190px;
+}
+
+.tender-wizard-page .bid-financial-boq-table th:nth-child(6),
+.tender-wizard-page .bid-financial-boq-table td:nth-child(6) {
+  width: 160px;
+  text-align: right;
+}
+
+.tender-wizard-page .bid-boq-item-no {
+  color: #475569;
+  font-weight: 900;
+}
+
+.tender-wizard-page .bid-boq-description {
+  color: #0f172a;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.tender-wizard-page .bid-boq-total {
+  font-weight: 950;
+}
+
+.tender-wizard-page .bid-boq-rate-field {
+  display: grid;
+  grid-template-columns: auto minmax(88px, 1fr);
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.52);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.tender-wizard-page .bid-boq-rate-field span {
+  padding: 0 10px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.tender-wizard-page .bid-boq-rate-field .form-input {
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  border-left: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
+  text-align: right;
+}
+
+.tender-wizard-page .bid-boq-rate-field .form-input:focus {
+  box-shadow: inset 0 0 0 2px rgba(0, 95, 115, 0.18);
+}
+
+@media (max-width: 900px) {
+  .tender-wizard-page .bid-command-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tender-wizard-page .bid-command-metric {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .tender-wizard-page .bid-command-readiness {
+    grid-column: 1 / -1;
+    border-radius: 12px;
+  }
+
+  .tender-wizard-page .bid-financial-boq-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tender-wizard-page .bid-financial-boq-total {
+    text-align: left;
+  }
+}
+
 @media (max-width: 700px) {
   .tender-wizard-page .journey-hero.compact {
     align-content: start !important;
@@ -4659,5 +4920,19 @@ body:not([data-page="iam-verification"]) .tender-wizard-page .wizard-rail,
 
   .tender-wizard-page .panel-heading > div {
     min-width: 0;
+  }
+
+  .tender-wizard-page .bid-command-bar {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .tender-wizard-page .bid-command-metric {
+    padding: 8px 6px;
+  }
+
+  .tender-wizard-page .bid-command-readiness {
+    grid-column: auto;
   }
 }

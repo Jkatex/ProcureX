@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
-import type { BidDocumentEnvelope, BidDocumentInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, CreateBidSampleInput, PatchBidSampleInput } from '../../types';
+import type { BidDocumentEnvelope, BidDocumentInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, BidSubmissionSchemaDto, BidSubmissionSchemaFieldDto, BidSubmissionSchemaStepDto, CreateBidSampleInput, PatchBidSampleInput } from '../../types';
 
 type WorkflowType = 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
 type Envelope = BidDocumentEnvelope;
@@ -83,6 +83,8 @@ type SampleItemOption = {
   label: string;
 };
 
+type SchemaResponseState = Record<string, unknown>;
+
 const WORKFLOW_VERSION = 'procurex-v1';
 
 export function BiddingWorkspaceProcurexPage() {
@@ -101,24 +103,60 @@ export function BiddingWorkspaceProcurexPage() {
   const [sampleSaving, setSampleSaving] = useState(false);
   const [sampleEdits, setSampleEdits] = useState<Record<string, SampleFormState>>({});
   const [form, setForm] = useState<BidFormState>(() => emptyBidForm());
+  const [schema, setSchema] = useState<BidSubmissionSchemaDto | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaResponses, setSchemaResponses] = useState<SchemaResponseState>({});
+  const [reviewEditTarget, setReviewEditTarget] = useState<string | null>(null);
 
   const workflow = useMemo(() => workflowFromTender(tender), [tender]);
-  const sampleRequirements = useMemo(() => normalizeSampleRequirements(tender), [tender]);
+  const sampleRequirements = useMemo(() => schemaSampleRequirements(schema, tender), [schema, tender]);
   const sampleItemOptions = useMemo(() => sampleOptionsFromTender(tender, sampleRequirements), [tender, sampleRequirements]);
-  const steps = useMemo(() => workflowSteps(workflow, tender), [workflow, tender]);
-  const totalAmount = useMemo(() => totalFromForm(form, workflow), [form, workflow]);
-  const gate = useMemo(() => bidGateStatus(form, documents, tender), [form, documents, tender]);
-  const validationIssues = useMemo(() => validateForm(workflow, form, documents, totalAmount), [workflow, form, documents, totalAmount]);
+  const steps = useMemo(() => (schema ? schemaSteps(schema) : []), [schema]);
+  const totalAmount = useMemo(() => (schema ? schemaTotalFromResponses(schema, schemaResponses) : totalFromForm(form, workflow)), [form, schema, schemaResponses, workflow]);
+  const gate = useMemo(() => schemaGateStatus(schema, schemaResponses, documents), [documents, schema, schemaResponses]);
+  const validationIssues = useMemo(() => (schema ? validateSchemaResponses(schema, schemaResponses, documents, samples) : validateForm(workflow, form, documents, totalAmount)), [documents, form, samples, schema, schemaResponses, totalAmount, workflow]);
   const completeness = useMemo(() => {
-    const all = Math.max(1, steps.length - 1);
-    const complete = Math.max(0, all - validationIssues.length);
-    return { percent: Math.min(100, Math.round((complete / all) * 100)), sectionsComplete: complete, totalSections: all };
-  }, [steps.length, validationIssues.length]);
+    if (!schema) {
+      const all = Math.max(1, steps.length - 1);
+      const complete = Math.max(0, all - validationIssues.length);
+      return { percent: Math.min(100, Math.round((complete / all) * 100)), sectionsComplete: complete, totalSections: all };
+    }
+    return schemaCompleteness(schema, schemaResponses, documents, samples);
+  }, [documents, samples, schema, schemaResponses, steps.length, validationIssues.length]);
 
   useEffect(() => {
     if (!tender) return;
     setForm((current) => mergeTenderDefaults(current, tender, workflow));
   }, [tender, workflow]);
+
+  useEffect(() => {
+    if (!tenderId) {
+      setSchema(null);
+      return;
+    }
+
+    let mounted = true;
+    setSchemaLoading(true);
+    biddingApi
+      .getTenderSchema(tenderId)
+      .then((nextSchema) => {
+        if (!mounted) return;
+        setSchema(nextSchema);
+        setActiveStep(0);
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        setSchema(null);
+        setStatus(errorMessage(error, 'Bid response fields could not be loaded from the tender requirements.'));
+      })
+      .finally(() => {
+        if (mounted) setSchemaLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [tenderId]);
 
   useEffect(() => {
     if (!tenderId) {
@@ -155,7 +193,7 @@ export function BiddingWorkspaceProcurexPage() {
   }, [tenderId, steps.length]);
 
   useEffect(() => {
-    if (!bid?.id || !hasSampleRequirements(tender)) {
+    if (!bid?.id || !schemaStep(schema, 'samples')) {
       setSamples([]);
       setSampleEdits({});
       return;
@@ -182,7 +220,21 @@ export function BiddingWorkspaceProcurexPage() {
     return () => {
       mounted = false;
     };
-  }, [bid?.id, tender, sampleSaving]);
+  }, [bid?.id, sampleSaving, schema]);
+
+  useEffect(() => {
+    if (!reviewEditTarget) return;
+    const timeout = window.setTimeout(() => {
+      const target = document.querySelector<HTMLElement>(`[data-bid-review-source-id="${reviewEditTarget}"]`);
+      if (!target) return;
+      target.classList.add('bid-review-edit-target');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const focusTarget = target.querySelector<HTMLElement>('textarea, input:not([type="hidden"]), select, button:not([disabled])');
+      focusTarget?.focus({ preventScroll: true });
+      window.setTimeout(() => target.classList.remove('bid-review-edit-target'), 2200);
+    }, 80);
+    return () => window.clearTimeout(timeout);
+  }, [activeStep, reviewEditTarget]);
 
   function hydrateDraft(draft: BidDto) {
     const payload = draft.payload;
@@ -190,6 +242,14 @@ export function BiddingWorkspaceProcurexPage() {
     const technical = objectPayload(payload.technical);
     const financial = objectPayload(payload.financial);
     const declarations = objectPayload(payload.declarations);
+    const responseState = Object.fromEntries(draft.responses.map((item) => [item.requirementKey, responseValue(item.response)]));
+    setSchemaResponses({
+      ...responseState,
+      ...schemaResponsesFromPayload(administrative),
+      ...schemaResponsesFromPayload(technical),
+      ...schemaResponsesFromPayload(financial),
+      ...schemaResponsesFromPayload(declarations)
+    });
     setForm((current) => ({
       administrative: { ...current.administrative, ...administrative },
       technical: { ...current.technical, ...technical },
@@ -206,23 +266,23 @@ export function BiddingWorkspaceProcurexPage() {
   }
 
   function draftPayload(): BidDraftPayload {
-    const technical = backendTechnicalPayload(workflow, form.technical);
-    const normalizedForm = { ...form, technical };
-    const responses = responseList(workflow, normalizedForm);
+    const technical = schema ? schemaSectionPayload(schema, schemaResponses, 'technical') : backendTechnicalPayload(workflow, form.technical);
+    const responses = schema ? schemaResponseList(schema, schemaResponses) : responseList(workflow, { ...form, technical });
+    const financialItems = schema ? schemaFinancialRows(schema, schemaResponses) : form.financial.items.map(withTotal);
     const draftDocuments = documents.map(bidDocumentInputFromDto);
     return {
       workflowType: workflow,
       workflowVersion: WORKFLOW_VERSION,
-      administrative: form.administrative,
+      administrative: schema ? schemaSectionPayload(schema, schemaResponses, 'administrative') : form.administrative,
       technical,
       financial: {
-        items: form.financial.items.map(withTotal),
-        boqItems: form.financial.boqItems.map(withTotal),
-        fees: form.financial.fees.map(withTotal),
-        paymentTerms: form.financial.paymentTerms,
-        validityDays: form.financial.validityDays
+        items: financialItems,
+        boqItems: schema && workflow === 'works' ? financialItems : form.financial.boqItems.map(withTotal),
+        fees: schema && workflow === 'consultancy' ? financialItems : form.financial.fees.map(withTotal),
+        paymentTerms: schema ? String(schemaResponses['financial.paymentTerms'] ?? '') : form.financial.paymentTerms,
+        validityDays: schema ? String(schemaResponses['financial.validityDays'] ?? '') : form.financial.validityDays
       },
-      declarations: form.declarations,
+      declarations: schema ? schemaSectionPayload(schema, schemaResponses, 'declarations') : form.declarations,
       responses,
       documents: draftDocuments,
       fileManifest: { documentCount: documents.length, checksums: documents.map((document) => document.checksum).filter(Boolean) },
@@ -403,6 +463,15 @@ export function BiddingWorkspaceProcurexPage() {
     setActiveStep(Math.min(Math.max(index, 0), steps.length - 1));
   }
 
+  function editReviewField(sourceId: string) {
+    if (isSubmitted || receipt) return;
+    const stepId = schema ? schemaSourceStepId(schema, sourceId) : reviewSourceStepId(sourceId, workflow);
+    const index = steps.findIndex((step) => step.id === stepId);
+    setReviewEditTarget(sourceId);
+    setStatus('Jumped to the source field. Update it, then return to Review Submission.');
+    if (index > -1) setActiveStep(index);
+  }
+
   function continueStep() {
     if (!isSubmitted && !receipt && !canLeaveStep(activeStep)) return;
     setActiveStep((current) => Math.min(current + 1, steps.length - 1));
@@ -415,6 +484,15 @@ export function BiddingWorkspaceProcurexPage() {
   function canLeaveStep(index: number) {
     const step = steps[index];
     if (!step) return true;
+    const currentSchemaStep = schemaStep(schema, step.id);
+    if (currentSchemaStep && !['review', 'receipt'].includes(currentSchemaStep.id)) {
+      const missing = currentSchemaStep.fields.filter((field) => field.required && !schemaFieldComplete(field, schemaResponses, documents, samples));
+      if (missing.length) {
+        setStatus(`Complete required tender fields before continuing: ${missing.map((field) => field.label).join(', ')}.`);
+        return false;
+      }
+      return true;
+    }
     if (step.id === 'eligibility' && !gate.complete) {
       setStatus(gate.message);
       return false;
@@ -429,8 +507,11 @@ export function BiddingWorkspaceProcurexPage() {
   if (!tenderId) return <WorkspaceEmpty message="Open a tender from the marketplace to start or continue a bid." />;
   if (tenderLoading) return <WorkspaceEmpty message="Loading tender..." />;
   if (isError || !tender) return <WorkspaceEmpty message="Tender could not be loaded. Return to the marketplace and try again." />;
+  if (schemaLoading) return <WorkspaceEmpty message="Loading bid response fields from the tender requirements..." />;
+  if (!schema) return <WorkspaceEmpty message="Bid response fields could not be loaded from the tender requirements." />;
 
   const loadedTender = tender;
+  const loadedSchema = schema;
   const isSubmitted = bid?.status === 'SUBMITTED';
   const uploading = Boolean(uploadingKey);
   const currentStepIndex = Math.min(activeStep, steps.length - 1);
@@ -441,7 +522,7 @@ export function BiddingWorkspaceProcurexPage() {
     <div className="procurement-app-page">
       <main className="procurement-market-shell">
         <div className="journey-page tender-wizard-page bid-flow-page" data-bid-total={totalAmount} data-bid-workflow={workflow}>
-        <section className="journey-hero compact" aria-hidden="true">
+        <section className="journey-hero compact">
           <div>
             <span className="section-kicker">{workflowLabel(workflow)} bid</span>
             <h1>Bid Submission Workspace</h1>
@@ -469,7 +550,15 @@ export function BiddingWorkspaceProcurexPage() {
           </div>
         </section>
 
-        <BidAssistancePanel tender={tender} saving={saving} uploading={uploading} isSubmitted={isSubmitted} onSave={saveDraft} onReview={jumpToReview} onWithdraw={withdrawBid} />
+        <BidCommandBar
+          tender={tender}
+          requiredInputs={requiredSchemaFieldCount(loadedSchema)}
+          totalAmount={totalAmount}
+          documents={documents}
+          samples={samples}
+          validationIssues={validationIssues}
+          completeness={completeness}
+        />
 
         <section className="wizard-shell">
           <nav className="wizard-step-progress bid-step-progress" aria-label="Bid submission progress">
@@ -519,179 +608,65 @@ export function BiddingWorkspaceProcurexPage() {
       return <ReceiptPanel receipt={receipt} totalAmount={totalAmount} currency={loadedTender.currency} documents={documents} onWithdraw={withdrawBid} canWithdraw={!saving && !uploading && isSubmitted} />;
     }
 
-    if (stepId === 'eligibility') {
-      return (
-        <EligibilityGate
-          gate={gate}
-          tender={loadedTender}
-          administrative={form.administrative}
-          onPatch={patchAdmin}
-          uploadBox={<UploadBox envelope="ADMINISTRATIVE" title="Eligibility and administrative evidence" documentType="ADMINISTRATIVE_EVIDENCE" requirementKey="eligibility" onFiles={addFiles} {...uploadBoxState('eligibility')} />}
-        />
-      );
-    }
-    if (stepId === 'goods-technical') {
-      return (
-        <>
-          <TextArea label="Product compliance statement" value={String(form.technical.productCompliance || '')} onChange={(value) => patchTechnical('productCompliance', value)} />
-          <EditablePriceTable className="goods-offer-table" rows={form.financial.items} currency={loadedTender.currency} rateLabel="Quoted unit price" onChange={(rows) => patchFinancial('items', rows)} showTax />
-          <UploadBox envelope="TECHNICAL" title="Product brochures, catalogues, and specification evidence" documentType="TECHNICAL_PRODUCT_SPEC" requirementKey="goods-technical" onFiles={addFiles} {...uploadBoxState('goods-technical')} />
-        </>
-      );
-    }
-    if (stepId === 'goods-financial') {
-      return (
-        <>
-          <EditablePriceTable className="goods-offer-table" rows={form.financial.items} currency={loadedTender.currency} rateLabel="Unit price" onChange={(rows) => patchFinancial('items', rows)} showTax />
-          <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Financial offer and price schedule" documentType="FINANCIAL_OFFER" requirementKey="goods-financial" onFiles={addFiles} {...uploadBoxState('goods-financial')} />
-        </>
-      );
-    }
-    if (stepId === 'goods-samples') {
-      return (
-        <>
-          <TextArea label="Sample dispatch and delivery evidence" value={String(form.technical.samplePlan || '')} onChange={(value) => patchTechnical('samplePlan', value)} />
-          <SampleTrackingSection
-            requirements={sampleRequirements}
-            itemOptions={sampleItemOptions}
+    const currentSchemaStep = schemaStep(loadedSchema, stepId);
+    if (currentSchemaStep) {
+      if (currentSchemaStep.id === 'review') {
+        return (
+          <ReviewPanel
+            tender={loadedTender}
+            schema={loadedSchema}
+            responses={schemaResponses}
+            documents={documents}
             samples={samples}
-            edits={sampleEdits}
-            loading={sampleLoading}
-            saving={sampleSaving}
-            disabled={saving || uploading || sampleSaving || Boolean(bid && bid.status !== 'DRAFT')}
-            onAdd={addSampleRecord}
-            onEdit={(sampleId, patch) => {
-              setSampleEdits((current) => ({
-                ...current,
-                [sampleId]: { ...(current[sampleId] ?? emptySampleForm()), ...patch }
-              }));
-            }}
-            onSave={saveSampleRecord}
-            onSubmit={markSampleSubmitted}
+            issues={validationIssues}
+            totalAmount={totalAmount}
+            currency={loadedTender.currency}
+            completeness={completeness}
+            isSubmitted={isSubmitted || Boolean(receipt)}
+            onEditField={editReviewField}
           />
-          <UploadBox envelope="TECHNICAL" title="Sample dispatch receipts and photos" documentType="SAMPLE_EVIDENCE" requirementKey="goods-samples" onFiles={addFiles} {...uploadBoxState('goods-samples')} />
-        </>
-      );
+        );
+      }
+      if (currentSchemaStep.id === 'receipt') {
+        return <div className="scope-empty">Submit the bid to generate a receipt.</div>;
+      }
+      if (currentSchemaStep.id === 'samples') {
+        return (
+          <div data-bid-review-source-id={currentSchemaStep.id}>
+            <SampleTrackingSection
+              requirements={sampleRequirements}
+              itemOptions={sampleItemOptions}
+              samples={samples}
+              edits={sampleEdits}
+              loading={sampleLoading}
+              saving={sampleSaving}
+              disabled={saving || uploading || sampleSaving || Boolean(bid && bid.status !== 'DRAFT')}
+              onAdd={addSampleRecord}
+              onEdit={(sampleId, patch) => {
+                setSampleEdits((current) => ({
+                  ...current,
+                  [sampleId]: { ...(current[sampleId] ?? emptySampleForm()), ...patch }
+                }));
+              }}
+              onSave={saveSampleRecord}
+              onSubmit={markSampleSubmitted}
+            />
+            <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />
+          </div>
+        );
+      }
+      if (currentSchemaStep.id === 'declarations') {
+        return (
+          <div data-bid-review-source-id={currentSchemaStep.id}>
+            <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />
+            <SchemaSubmitPanel saving={saving} uploading={uploading} isSubmitted={isSubmitted} onSave={saveDraft} onSubmit={submitBid} />
+          </div>
+        );
+      }
+      return <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />;
     }
-    if (stepId === 'works-capacity') {
-      return (
-        <div className="form-grid">
-          <TextArea label="Similar works experience" value={String(form.technical.experience || '')} onChange={(value) => patchTechnical('experience', value)} />
-          <TextArea label="Key personnel and equipment" value={String(form.technical.capacity || '')} onChange={(value) => patchTechnical('capacity', value)} />
-          <TextArea label="Health, safety, and environmental plan" value={String(form.technical.hse || '')} onChange={(value) => patchTechnical('hse', value)} />
-          <UploadBox envelope="TECHNICAL" title="Works capacity evidence" documentType="WORKS_CAPACITY" requirementKey="works-capacity" onFiles={addFiles} {...uploadBoxState('works-capacity')} />
-        </div>
-      );
-    }
-    if (stepId === 'works-technical') {
-      return (
-        <div className="form-grid">
-          <TextArea label="Methodology and construction approach" value={String(form.technical.methodology || '')} onChange={(value) => patchTechnical('methodology', value)} />
-          <TextArea label="Work programme and schedule" value={String(form.technical.workPlan || '')} onChange={(value) => patchTechnical('workPlan', value)} />
-          <TextArea label="Site response and drawings register" value={String(form.technical.siteResponse || '')} onChange={(value) => patchTechnical('siteResponse', value)} />
-        </div>
-      );
-    }
-    if (stepId === 'works-financial') {
-      return (
-        <>
-          <EditablePriceTable className="works-boq-table premium-review-table" rows={form.financial.boqItems} currency={loadedTender.currency} rateLabel="Unit rate" onChange={(rows) => patchFinancial('boqItems', rows)} />
-          <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Priced BOQ and commercial offer" documentType="WORKS_BOQ" requirementKey="works-financial" onFiles={addFiles} {...uploadBoxState('works-financial')} />
-        </>
-      );
-    }
-    if (stepId === 'services-methodology') {
-      return (
-        <div className="form-grid">
-          <TextArea label="Understanding of service scope" value={String(form.technical.methodology || '')} onChange={(value) => patchTechnical('methodology', value)} />
-          <TextArea label="Workflow and quality assurance" value={String(form.technical.qualityAssurance || '')} onChange={(value) => patchTechnical('qualityAssurance', value)} />
-          <TextArea label="Risk management approach" value={String(form.technical.riskPlan || '')} onChange={(value) => patchTechnical('riskPlan', value)} />
-        </div>
-      );
-    }
-    if (stepId === 'services-delivery') {
-      return (
-        <div className="form-grid">
-          <TextArea label="Delivery plan, milestones, and locations" value={String(form.technical.deliveryPlan || '')} onChange={(value) => patchTechnical('deliveryPlan', value)} />
-          <TextArea label="Service schedule and availability" value={String(form.technical.serviceSchedule || '')} onChange={(value) => patchTechnical('serviceSchedule', value)} />
-          <TextArea label="Coverage locations and response times" value={String(form.technical.serviceLocations || '')} onChange={(value) => patchTechnical('serviceLocations', value)} />
-        </div>
-      );
-    }
-    if (stepId === 'services-staffing') {
-      return (
-        <div className="form-grid">
-          <TextArea label="Staffing, capacity, and continuity plan" value={String(form.technical.staffingPlan || '')} onChange={(value) => patchTechnical('staffingPlan', value)} />
-          <TextArea label="Named personnel and role coverage" value={String(form.technical.personnelPlan || '')} onChange={(value) => patchTechnical('personnelPlan', value)} />
-          <TextArea label="Tools, equipment, and continuity arrangements" value={String(form.technical.continuityPlan || '')} onChange={(value) => patchTechnical('continuityPlan', value)} />
-        </div>
-      );
-    }
-    if (stepId === 'services-sla') {
-      return (
-        <div className="form-grid">
-          <TextArea label="SLA commitment" value={String(form.technical.sla || '')} onChange={(value) => patchTechnical('sla', value)} />
-          <TextArea label="Reporting plan" value={String(form.technical.reportingPlan || '')} onChange={(value) => patchTechnical('reportingPlan', value)} />
-          <TextArea label="Performance, ESG, and labor compliance" value={String(form.technical.performanceCompliance || '')} onChange={(value) => patchTechnical('performanceCompliance', value)} />
-          <UploadBox envelope="TECHNICAL" title="SLA, staffing, and reporting evidence" documentType="SERVICE_TECHNICAL_EVIDENCE" requirementKey="services-sla" onFiles={addFiles} {...uploadBoxState('services-sla')} />
-        </div>
-      );
-    }
-    if (stepId === 'services-commercial') {
-      return (
-        <>
-          <EditablePriceTable className="service-pricing-table premium-commercial-table" rows={form.financial.items} currency={loadedTender.currency} rateLabel="Billing rate" onChange={(rows) => patchFinancial('items', rows)} />
-          <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Service pricing schedule" documentType="SERVICE_PRICING" requirementKey="services-commercial" onFiles={addFiles} {...uploadBoxState('services-commercial')} />
-        </>
-      );
-    }
-    if (stepId === 'consultancy-technical') {
-      return (
-        <div className="form-grid">
-          <TextArea label="TOR understanding and technical proposal" value={String(form.technical.technicalProposal || '')} onChange={(value) => patchTechnical('technicalProposal', value)} />
-          <TextArea label="Methodology and work plan" value={String(form.technical.methodology || '')} onChange={(value) => patchTechnical('methodology', value)} />
-          <TextArea label="Team qualifications and evidence" value={String(form.technical.teamQualifications || '')} onChange={(value) => patchTechnical('teamQualifications', value)} />
-          <UploadBox envelope="TECHNICAL" title="Technical proposal envelope" documentType="CONSULTANCY_TECHNICAL_PROPOSAL" requirementKey="consultancy-technical" onFiles={addFiles} {...uploadBoxState('consultancy-technical')} />
-        </div>
-      );
-    }
-    if (stepId === 'consultancy-financial') {
-      return (
-        <>
-          <EditablePriceTable className="service-pricing-table premium-commercial-table" rows={form.financial.fees} currency={loadedTender.currency} rateLabel="Fee rate" onChange={(rows) => patchFinancial('fees', rows)} />
-          <TermsPanel form={form} patchFinancial={patchFinancialText} />
-          <UploadBox envelope="FINANCIAL" title="Financial proposal envelope" documentType="CONSULTANCY_FINANCIAL_PROPOSAL" requirementKey="consultancy-financial" onFiles={addFiles} {...uploadBoxState('consultancy-financial')} />
-        </>
-      );
-    }
-    if (stepId === 'review') {
-      return (
-        <>
-          <ReviewPanel workflow={workflow} form={form} documents={documents} issues={validationIssues} totalAmount={totalAmount} currency={loadedTender.currency} gate={gate} />
-          {reviewIncludesDeclaration(workflow) ? <DeclarationSubmitPanel saving={saving} uploading={uploading} isSubmitted={isSubmitted} form={form} onPatch={patchDeclaration} onSave={saveDraft} onSubmit={submitBid} /> : null}
-        </>
-      );
-    }
-    if (stepId === 'declaration') {
-      return <DeclarationSubmitPanel saving={saving} uploading={uploading} isSubmitted={isSubmitted} form={form} onPatch={patchDeclaration} onSave={saveDraft} onSubmit={submitBid} />;
-    }
-    return (
-      <div className="record-summary tender-detail-summary">
-        {receipt ? (
-          <>
-            <SummaryItem label="Receipt reference" value={receipt.receiptRef} />
-            <SummaryItem label="Receipt hash" value={receipt.receiptHash} />
-            <SummaryItem label="Submitted" value={formatDate(receipt.createdAt)} />
-            <SummaryItem label="Bid reference" value={receipt.bid.reference} />
-          </>
-        ) : (
-          <SummaryItem label="Receipt" value="Submit the bid to generate a receipt." />
-        )}
-      </div>
-    );
+
+    return <div className="scope-empty">No bid response fields were configured for this section.</div>;
   }
 
   function uploadBoxState(requirementKey: string) {
@@ -719,6 +694,14 @@ export function BiddingWorkspaceProcurexPage() {
 
   function patchDeclaration(key: string, value: boolean | string) {
     setForm((current) => ({ ...current, declarations: { ...current.declarations, [key]: value } }));
+  }
+
+  function patchSchemaResponse(field: BidSubmissionSchemaFieldDto, value: unknown) {
+    setSchemaResponses((current) => ({
+      ...current,
+      [field.requirementKey]: value,
+      [field.id]: value
+    }));
   }
 }
 
@@ -762,63 +745,283 @@ function StepPanel({ kicker, title, description, badge, className, children }: {
   );
 }
 
-function BidAssistancePanel({ tender, saving, uploading, isSubmitted, onSave, onReview, onWithdraw }: { tender: TenderDetail; saving: boolean; uploading: boolean; isSubmitted: boolean; onSave: () => void; onReview: () => void; onWithdraw: () => void }) {
-  const primaryDocument = tender.documents?.[0]?.name || 'Tender document';
+function BidCommandBar({
+  tender,
+  requiredInputs,
+  totalAmount,
+  documents,
+  samples,
+  validationIssues,
+  completeness
+}: {
+  tender: TenderDetail;
+  requiredInputs: number;
+  totalAmount: number;
+  documents: BidDocumentState[];
+  samples: BidSampleDto[];
+  validationIssues: string[];
+  completeness: { percent: number; sectionsComplete: number; totalSections: number };
+}) {
+  const pendingCount = validationIssues.length;
+  const readinessLabel = pendingCount ? `${pendingCount} pending` : 'Ready';
   return (
-    <aside className="bid-assistance-panel">
-      <span className="section-kicker">Bid Assistance</span>
-      <Link className="btn btn-secondary" to={`/procurement/supplier-tender-detail?tenderId=${tender.id}`}>
-        View Tender Details
-      </Link>
-      <Link className="btn btn-secondary" to="/communication">
-        Ask Clarification
-      </Link>
-      <button className="btn btn-secondary" type="button" disabled>
-        {`Download ${primaryDocument}`}
-      </button>
-      <button className="btn btn-secondary" type="button" disabled>
-        Contact Procurement Office
-      </button>
-      <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSave}>
-        Save Draft
-      </button>
-      {isSubmitted ? (
-        <button className="btn btn-secondary" type="button" disabled={saving || uploading} onClick={onWithdraw}>
-          Withdraw
-        </button>
-      ) : (
-        <button className="btn btn-primary" type="button" disabled={saving || uploading} onClick={onReview}>
-          Review Submission
-        </button>
-      )}
+    <aside className="bid-command-bar" aria-label="Bid workspace status">
+      <BidCommandMetric label="Required inputs" value={String(requiredInputs)} />
+      <BidCommandMetric label="Evidence" value={String(documents.length)} />
+      <BidCommandMetric label="Samples" value={String(samples.length)} />
+      <BidCommandMetric label="Total" value={formatMoney(totalAmount, tender.currency || 'TZS')} />
+      <div className={`bid-command-readiness ${pendingCount ? 'is-pending' : 'is-ready'}`}>
+        <span>{readinessLabel}</span>
+        <strong>{`${completeness.percent}% complete`}</strong>
+      </div>
     </aside>
   );
 }
 
-function CheckCard({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+function BidCommandMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bid-command-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function SchemaStepFields({
+  step,
+  responses,
+  documents,
+  currency,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  step: BidSubmissionSchemaStepDto;
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  currency: string;
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) => Promise<void>;
+}) {
+  const fields = step.fields.filter((field) => {
+    if (field.section === 'review' || field.section === 'receipt') return false;
+    if (step.id === 'samples' && field.responseType === 'structured') return false;
+    return true;
+  });
+  if (!fields.length) return <div className="scope-empty">No bid response fields were configured for this section.</div>;
+  if (step.id === 'financial') {
+    const pricingFields = fields.filter(isSchemaBoqPricingField);
+    const otherFields = fields.filter((field) => !isSchemaBoqPricingField(field));
+    return (
+      <div className="bid-schema-field-list">
+        {pricingFields.length ? <SchemaFinancialTable fields={pricingFields} responses={responses} currency={currency} disabled={disabled} onPatch={onPatch} /> : null}
+        {otherFields.map((field) => (
+          <SchemaFieldControl key={field.id} field={field} value={schemaFieldValue(field, responses)} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="bid-schema-field-list">
+      {fields.map((field) => (
+        <SchemaFieldControl key={field.id} field={field} value={schemaFieldValue(field, responses)} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+      ))}
+    </div>
+  );
+}
+
+function SchemaFinancialTable({
+  fields,
+  responses,
+  currency,
+  disabled,
+  onPatch
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  currency: string;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  const grandTotal = fields.reduce((sum, field) => sum + schemaFinancialFieldTotal(field, responses), 0);
+  return (
+    <section className="bid-financial-boq" aria-label="BOQ pricing schedule">
+      <div className="bid-financial-boq-heading">
+        <div>
+          <h3>BOQ pricing schedule</h3>
+          <span>{`${fields.length} tender line item${fields.length === 1 ? '' : 's'} ready for pricing`}</span>
+        </div>
+        <div className="bid-financial-boq-total">
+          <span>Bid total</span>
+          <strong>{formatMoney(grandTotal, currency)}</strong>
+        </div>
+      </div>
+      <div className="bid-financial-boq-scroll">
+        <table className="bid-financial-boq-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th>Rate</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fields.map((field, index) => {
+              const row = schemaFinancialRow(field, responses, index);
+              return (
+                <tr data-bid-review-source-id={field.id} key={field.id}>
+                  <td className="bid-boq-item-no">{row.itemNo}</td>
+                  <td className="bid-boq-description">{row.description}</td>
+                  <td className="bid-boq-number">{String(row.quantity)}</td>
+                  <td>{row.unit}</td>
+                  <td>
+                    <div className="bid-boq-rate-field">
+                      <span>{currency}</span>
+                      <input className="form-input" type="number" min={Number(field.validation.min ?? 0)} value={String(schemaFieldValue(field, responses) ?? '')} disabled={disabled} aria-label={`Rate for ${row.description}`} onChange={(event) => onPatch(field, Number(event.target.value) || 0)} />
+                    </div>
+                  </td>
+                  <td className="bid-boq-total">{formatMoney(row.total ?? 0, currency)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function SchemaFieldControl({
+  field,
+  value,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: unknown;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) => Promise<void>;
+}) {
+  const sourceId = field.id;
+  const hint = String(field.validation.prompt ?? '');
+  if (field.type === 'file' || field.responseType === 'attachment') {
+    const uploaded = documentsForSchemaField(documents, field);
+    return (
+      <div data-bid-review-source-id={sourceId}>
+        <UploadBox
+          envelope={field.envelope}
+          title={field.label}
+          documentType={String(field.validation.documentType ?? field.responseType ?? 'BID_DOCUMENT')}
+          requirementKey={field.requirementKey}
+          disabled={disabled}
+          isUploading={uploadingKey === field.requirementKey}
+          onFiles={onFiles}
+        />
+        {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : hint ? <span className="form-hint">{hint}</span> : null}
+      </div>
+    );
+  }
+
+  if (field.responseType === 'money' || field.responseType === 'pricing') {
+    return (
+      <label data-bid-review-source-id={sourceId}>
+        <span>{field.label}</span>
+        <input className="form-input" type="number" min={Number(field.validation.min ?? 0)} value={String(value ?? '')} disabled={disabled} onChange={(event) => onPatch(field, Number(event.target.value) || 0)} />
+        <small className="form-hint">{schemaFinancialHint(field)}</small>
+      </label>
+    );
+  }
+
+  if (field.type === 'boolean' || field.responseType === 'boolean' || field.responseType === 'declaration' || field.responseType === 'acknowledgement') {
+    return (
+      <div data-bid-review-source-id={sourceId}>
+        <CheckCard label={field.label} checked={value === true} disabled={disabled} onChange={(checked) => onPatch(field, checked)} />
+        {hint ? <span className="form-hint">{hint}</span> : null}
+      </div>
+    );
+  }
+
+  if (field.type === 'select' && Array.isArray(field.validation.options)) {
+    const options = field.validation.options.map(String);
+    return (
+      <label data-bid-review-source-id={sourceId}>
+        <span>{field.label}</span>
+        <select className="form-input" value={String(value ?? '')} disabled={disabled} onChange={(event) => onPatch(field, event.target.value)}>
+          <option value="">Select response</option>
+          {options.map((option) => (
+            <option value={option} key={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        {hint ? <small className="form-hint">{hint}</small> : null}
+      </label>
+    );
+  }
+
+  const inputType = field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text';
+  if (field.type === 'textarea' || field.responseType === 'text') {
+    return <TextArea label={field.label} value={String(value ?? '')} disabled={disabled} hint={hint} sourceId={sourceId} onChange={(nextValue) => onPatch(field, nextValue)} />;
+  }
+
+  return <Input label={field.label} value={String(value ?? '')} type={inputType} disabled={disabled} hint={hint} sourceId={sourceId} onChange={(nextValue) => onPatch(field, field.type === 'number' ? Number(nextValue) || 0 : nextValue)} />;
+}
+
+function SchemaSubmitPanel({ saving, uploading, isSubmitted, onSave, onSubmit }: { saving: boolean; uploading: boolean; isSubmitted: boolean; onSave: () => void; onSubmit: () => void }) {
+  return (
+    <div className="submit-strip">
+      <div>
+        <strong>Ready to seal</strong>
+        <span>The system will check required tender response fields, seal the bid package, and store a receipt.</span>
+      </div>
+      <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSave}>
+        Save Draft
+      </button>
+      <button className="btn btn-primary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSubmit}>
+        Submit Sealed Bid
+      </button>
+    </div>
+  );
+}
+
+function CheckCard({ label, checked, disabled = false, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
   return (
     <label className="tender-detail-field-card">
       <span>{label}</span>
       <strong>{checked ? 'Confirmed' : 'Pending'}</strong>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
     </label>
   );
 }
 
-function TextArea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextArea({ label, value, disabled = false, hint, sourceId, onChange }: { label: string; value: string; disabled?: boolean; hint?: string; sourceId?: string; onChange: (value: string) => void }) {
   return (
-    <label>
+    <label data-bid-review-source-id={sourceId}>
       <span>{label}</span>
-      <textarea className="form-input" rows={5} value={value} onChange={(event) => onChange(event.target.value)} />
+      <textarea className="form-input" rows={5} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+      {hint ? <small className="form-hint">{hint}</small> : null}
     </label>
   );
 }
 
-function Input({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function Input({ label, value, type = 'text', disabled = false, hint, sourceId, onChange }: { label: string; value: string; type?: string; disabled?: boolean; hint?: string; sourceId?: string; onChange: (value: string) => void }) {
   return (
-    <label>
+    <label data-bid-review-source-id={sourceId}>
       <span>{label}</span>
-      <input className="form-input" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input className="form-input" type={type} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+      {hint ? <small className="form-hint">{hint}</small> : null}
     </label>
   );
 }
@@ -1172,20 +1375,229 @@ function EligibilityGate({ gate, tender, administrative, onPatch, uploadBox }: {
   );
 }
 
-function ReviewPanel({ workflow, form, documents, issues, totalAmount, currency, gate }: { workflow: WorkflowType; form: BidFormState; documents: BidDocumentState[]; issues: string[]; totalAmount: number; currency: string; gate: GateStatus }) {
+type ReviewDocumentRow = {
+  id: string;
+  label: string;
+  requirement: string;
+  value: string;
+  mandatory: boolean;
+  complete: boolean;
+  sourceId: string;
+  upload?: boolean;
+};
+
+type ReviewDocumentSection = {
+  id: string;
+  title: string;
+  rows: ReviewDocumentRow[];
+};
+
+function ReviewPanel({
+  tender,
+  schema,
+  responses,
+  documents,
+  samples,
+  issues,
+  totalAmount,
+  currency,
+  completeness,
+  isSubmitted,
+  onEditField
+}: {
+  tender: TenderDetail;
+  schema: BidSubmissionSchemaDto;
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  samples: BidSampleDto[];
+  issues: string[];
+  totalAmount: number;
+  currency: string;
+  completeness: { percent: number; sectionsComplete: number; totalSections: number };
+  isSubmitted: boolean;
+  onEditField: (sourceId: string) => void;
+}) {
+  const sections = reviewDocumentSections(schema, responses, documents, samples, currency);
+  const responseCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
+  const statusLabel = isSubmitted ? 'Submitted' : issues.length ? 'Draft review' : 'Ready for submission';
   return (
     <>
       <div className="record-summary tender-detail-summary">
-        <SummaryItem label="Eligibility readiness" value={gate.complete ? 'Complete' : `${gate.remaining} pending`} />
-        <SummaryItem label="Workflow" value={workflowLabel(workflow)} />
-        <SummaryItem label="Administrative" value={form.administrative.eligible && form.administrative.authorized ? 'Complete' : 'Incomplete'} />
-        <SummaryItem label="Technical responses" value={responseList(workflow, form).length ? `${responseList(workflow, form).length} response groups` : 'Incomplete'} />
+        <SummaryItem label="Eligibility readiness" value={sectionReadiness(schema, responses, documents, samples, 'administrative')} />
+        <SummaryItem label="Workflow" value={schema.tenderType} />
+        <SummaryItem label="Administrative" value={sectionReadiness(schema, responses, documents, samples, 'administrative')} />
+        <SummaryItem label="Technical responses" value={`${schemaSectionRows(schema, responses, documents, samples, currency, 'technical').length} response fields`} />
         <SummaryItem label="Documents" value={`${documents.length} evidence record${documents.length === 1 ? '' : 's'}`} />
         <SummaryItem label="Financial total" value={formatMoney(totalAmount, currency)} />
       </div>
       {issues.length ? <div className="scope-empty">Complete required sections before submitting: {issues.join(', ')}.</div> : <div className="scope-empty">Bid package is ready for sealed submission.</div>}
+      <div className="evaluation-bid-document-review">
+        <div className="bid-response-document procurex-bid-package-document">
+          <div className="bid-response-document-masthead">
+            <div className="bid-response-document-mark">PX</div>
+            <div>
+              <span>ProcureX e-Procurement</span>
+              <strong>Supplier Bid Submission Review</strong>
+            </div>
+            <em>{isSubmitted ? 'Read only' : 'Editable review'}</em>
+          </div>
+          <header className="bid-response-document-cover">
+            <div>
+              <span className="section-kicker">Tender Bid Submission Review</span>
+              <h3>{tender.title}</h3>
+              <p>This review summarizes supplier responses, completeness status, uploaded evidence, pricing, and final checks before sealed submission.</p>
+            </div>
+            <div className="bid-response-document-status">
+              <span className={`bid-status-chip ${isSubmitted ? 'submitted' : 'review'}`}>{statusLabel}</span>
+              {!isSubmitted ? <span className="bid-status-chip editable">Edits enabled</span> : null}
+              <span className="bid-status-chip offer">{formatMoney(totalAmount, currency)}</span>
+            </div>
+          </header>
+          <div className="bid-response-document-meta">
+            <article>
+              <span>Tender reference</span>
+              <strong>{tender.reference}</strong>
+              <em>Tender information</em>
+            </article>
+            <article>
+              <span>Tender title</span>
+              <strong>{tender.title}</strong>
+              <em>Tender information</em>
+            </article>
+            <article>
+              <span>Supplier / bid status</span>
+              <strong>{statusLabel}</strong>
+              <em>Supplier information</em>
+            </article>
+            <article className="bid-value-card">
+              <span>Financial total</span>
+              <strong>{formatMoney(totalAmount, currency)}</strong>
+              <em>Commercial offer</em>
+            </article>
+            <article>
+              <span>Responses captured</span>
+              <strong>{String(responseCount)}</strong>
+              <em>Bid package scope</em>
+            </article>
+            <article>
+              <span>Documents count</span>
+              <strong>{String(documents.length)}</strong>
+              <em>Evidence manifest</em>
+            </article>
+            <article>
+              <span>Completeness</span>
+              <strong>{`${completeness.percent}%`}</strong>
+              <em>{issues.length ? `${issues.length} pending` : 'Ready'}</em>
+            </article>
+          </div>
+          <div className="bid-response-document-sections">
+            {sections.map((section, sectionIndex) => (
+              <article className="bid-response-document-section" key={section.id}>
+                <div className="bid-response-document-section-heading">
+                  <span>{String(sectionIndex + 1).padStart(2, '0')}</span>
+                  <div>
+                    <h4>{section.title}</h4>
+                    <small>{`${section.rows.length} supplier response${section.rows.length === 1 ? '' : 's'}`}</small>
+                  </div>
+                </div>
+                <div className="bid-response-document-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Requirement</th>
+                        <th>Supplier response</th>
+                        <th>Action needed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {section.rows.map((row) => (
+                        <tr className={row.complete ? '' : 'is-incomplete'} key={row.id}>
+                          <td>
+                            <span className={`bid-requirement-marker ${row.mandatory ? (row.complete ? 'required-complete' : 'required-incomplete') : row.complete ? 'optional-complete' : 'optional-empty'}`}>
+                              {row.complete ? 'Complete' : 'Missing'}
+                            </span>
+                          </td>
+                          <td>
+                            <strong>{row.label}</strong>
+                            <small>{row.requirement}</small>
+                          </td>
+                          <td>{row.value}</td>
+                          <td>
+                            <span>{row.complete ? 'No action needed' : row.upload ? 'Upload evidence file' : 'Complete supplier response'}</span>
+                            {isSubmitted ? (
+                              <span className="bid-review-readonly">Read only</span>
+                            ) : (
+                              <button className="bid-review-edit-button" type="button" onClick={() => onEditField(row.sourceId)}>
+                                {row.upload ? 'Replace file' : 'Change'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            ))}
+          </div>
+          <footer className="bid-response-document-footer">
+            <span>{tender.reference}</span>
+            <strong>{isSubmitted ? 'Submitted record' : 'Supplier editable review'}</strong>
+          </footer>
+        </div>
+      </div>
     </>
   );
+}
+
+function reviewDocumentSections(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string): ReviewDocumentSection[] {
+  return schema.steps
+    .filter((step) => !['review', 'receipt'].includes(step.id))
+    .map((step) => ({
+      id: step.id,
+      title: schemaReviewSectionTitle(step),
+      rows: schemaSectionRows(schema, responses, documents, samples, currency, step.id)
+    }))
+    .filter((section) => section.rows.length);
+}
+
+function schemaSectionRows(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string, sectionId: string): ReviewDocumentRow[] {
+  const step = schema.steps.find((item) => item.id === sectionId);
+  if (!step) return [];
+  return step.fields
+    .filter((field) => field.section !== 'review' && field.section !== 'receipt')
+    .map((field) => schemaReviewRow(field, responses, documents, samples, currency));
+}
+
+function schemaReviewRow(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string): ReviewDocumentRow {
+  if (field.type === 'file' || field.responseType === 'attachment') {
+    const files = documentsForSchemaField(documents, field);
+    return reviewRow(field.id, field.label, schemaRequirementText(field), files.length ? documentNames(files) : 'Missing file', field.required, Boolean(files.length), field.id, true);
+  }
+  if (field.section === 'samples') {
+    const sample = samples.find((item) => sampleMatchesField(item, field));
+    const value = sample ? `${sample.sampleName} / Qty ${sample.quantity ?? '-'} / ${sampleStatusLabel(sample.trackingStatus)}` : 'Missing sample record';
+    return reviewRow(field.id, field.label, schemaRequirementText(field), value, field.required, Boolean(sample), field.id);
+  }
+  if (isSchemaBoqPricingField(field)) {
+    const amount = Number(schemaFieldValue(field, responses) ?? 0);
+    const quantity = Number(field.validation.quantity ?? 1) || 1;
+    const total = Math.max(0, amount * quantity);
+    return reviewRow(field.id, field.label, schemaFinancialHint(field), total > 0 ? `${formatMoney(amount, currency)} / total ${formatMoney(total, currency)}` : 'Missing price', field.required, total > 0, field.id);
+  }
+  const value = schemaFieldValue(field, responses);
+  const complete = schemaFieldComplete(field, responses, documents, samples);
+  const displayValue = value === true ? 'Confirmed' : value === false || value === undefined || value === '' ? (field.type === 'boolean' ? 'Missing confirmation' : 'Missing response') : String(value);
+  return reviewRow(field.id, field.label, schemaRequirementText(field), displayValue, field.required, complete, field.id);
+}
+
+function reviewRow(id: string, label: string, requirement: string, value: string, mandatory: boolean, complete: boolean, sourceId: string, upload = false): ReviewDocumentRow {
+  return { id, label, requirement, value, mandatory, complete, sourceId, upload };
+}
+
+function documentNames(documents: BidDocumentState[]) {
+  return documents.map((document) => document.name).join(', ');
 }
 
 function DeclarationSubmitPanel({ saving, uploading, isSubmitted, form, onPatch, onSave, onSubmit }: { saving: boolean; uploading: boolean; isSubmitted: boolean; form: BidFormState; onPatch: (key: string, value: boolean | string) => void; onSave: () => void; onSubmit: () => void }) {
@@ -1217,6 +1629,47 @@ function DeclarationSubmitPanel({ saving, uploading, isSubmitted, form, onPatch,
   );
 }
 
+function downloadBidRecord(receipt: BidReceiptDto, totalAmount: number, currency: string, documents: BidDocumentState[]) {
+  const bid = receipt.bid;
+  const record = {
+    tenderReference: bid.tenderReference || bid.tenderId,
+    tenderTitle: bid.tenderTitle,
+    bidReference: bid.reference,
+    receiptRef: receipt.receiptRef,
+    receiptHash: receipt.receiptHash,
+    submittedAt: receipt.createdAt,
+    status: bid.status,
+    totalAmount: totalAmount || bid.totalAmount,
+    currency,
+    supplierName: bid.supplierName,
+    buyerName: bid.buyerName,
+    documents: documents.map((document) => ({
+      name: document.name,
+      documentType: document.documentType,
+      envelope: document.envelope,
+      reviewStatus: document.reviewStatus,
+      checksum: document.checksum ?? null
+    }))
+  };
+  const blob = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${safeFileName(bid.reference || receipt.receiptRef || 'bid-record')}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function printSubmissionReceipt() {
+  window.print();
+}
+
+function safeFileName(value: string) {
+  return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'bid-record';
+}
+
 function ReceiptPanel({ receipt, totalAmount, currency, documents, onWithdraw, canWithdraw }: { receipt: BidReceiptDto; totalAmount: number; currency: string; documents: BidDocumentState[]; onWithdraw: () => void; canWithdraw: boolean }) {
   return (
     <>
@@ -1236,10 +1689,10 @@ function ReceiptPanel({ receipt, totalAmount, currency, documents, onWithdraw, c
           <SummaryItem label="Bid reference" value={receipt.bid.reference} />
         </div>
         <div className="inline-actions">
-          <button className="btn btn-secondary" type="button" disabled>
+          <button className="btn btn-secondary" type="button" aria-label="Download submitted bid record" title="Download submitted bid record" onClick={() => downloadBidRecord(receipt, totalAmount, currency, documents)}>
             Download Bid Record
           </button>
-          <button className="btn btn-secondary" type="button" disabled>
+          <button className="btn btn-secondary" type="button" aria-label="Print submission receipt" title="Print submission receipt" onClick={printSubmissionReceipt}>
             Print Submission Receipt
           </button>
           {canWithdraw ? (
@@ -1328,6 +1781,216 @@ function samplePatchFromForm(input: SampleFormState, sample: BidSampleDto): Patc
   return patch;
 }
 
+function schemaSteps(schema: BidSubmissionSchemaDto): Step[] {
+  return schema.steps.map((step, index) => ({
+    id: step.id,
+    label: step.label,
+    title: schemaReviewSectionTitle(step),
+    description: schemaStepDescription(step),
+    kicker: `Step ${String(index + 1).padStart(2, '0')}`
+  }));
+}
+
+function schemaStep(schema: BidSubmissionSchemaDto | null, stepId: string) {
+  return schema?.steps.find((step) => step.id === stepId);
+}
+
+function schemaStepDescription(step: BidSubmissionSchemaStepDto) {
+  if (!step.fields.length) return 'No supplier response fields configured for this step.';
+  return `${step.fields.length} tender-derived supplier response field${step.fields.length === 1 ? '' : 's'}.`;
+}
+
+function schemaReviewSectionTitle(step: BidSubmissionSchemaStepDto) {
+  const labels: Record<string, string> = {
+    administrative: 'Administrative and Eligibility',
+    technical: 'Technical Response',
+    financial: 'Financial Offer',
+    samples: 'Sample Submission',
+    declarations: 'Supplier Declarations',
+    review: 'Review Submission',
+    receipt: 'Submission Receipt'
+  };
+  return labels[step.id] ?? step.label;
+}
+
+function schemaFieldValue(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState) {
+  return responses[field.requirementKey] ?? responses[field.id];
+}
+
+function responseValue(response: Record<string, unknown>) {
+  if ('value' in response) return response.value;
+  if ('checked' in response) return response.checked;
+  if ('rate' in response) return response.rate;
+  return response;
+}
+
+function schemaResponsesFromPayload(payload: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, value]));
+}
+
+function schemaResponseList(schema: BidSubmissionSchemaDto, responses: SchemaResponseState) {
+  return actionableSchemaFields(schema)
+    .filter((field) => field.section !== 'samples' && field.type !== 'file' && field.responseType !== 'attachment')
+    .map((field) => ({
+      requirementKey: field.requirementKey,
+      response: { value: schemaFieldValue(field, responses) }
+    }));
+}
+
+function schemaSectionPayload(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, section: 'administrative' | 'technical' | 'financial' | 'declarations') {
+  const fields = actionableSchemaFields(schema).filter((field) => field.section === section && field.type !== 'file' && field.responseType !== 'attachment');
+  return Object.fromEntries(fields.map((field) => [schemaPayloadKey(field), schemaFieldValue(field, responses)]));
+}
+
+function schemaPayloadKey(field: BidSubmissionSchemaFieldDto) {
+  return field.requirementKey.split('.').at(-1) || field.id.split('.').at(-1) || field.id;
+}
+
+function actionableSchemaFields(schema: BidSubmissionSchemaDto) {
+  return schema.steps.flatMap((step) => step.fields).filter((field) => field.section !== 'review' && field.section !== 'receipt');
+}
+
+function requiredSchemaFieldCount(schema: BidSubmissionSchemaDto) {
+  return actionableSchemaFields(schema).filter((field) => field.required).length;
+}
+
+function validateSchemaResponses(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
+  return actionableSchemaFields(schema)
+    .filter((field) => field.required && !schemaFieldComplete(field, responses, documents, samples))
+    .map((field) => field.label);
+}
+
+function schemaCompleteness(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
+  const fields = actionableSchemaFields(schema).filter((field) => field.required);
+  const totalSections = Math.max(1, fields.length);
+  const sectionsComplete = fields.filter((field) => schemaFieldComplete(field, responses, documents, samples)).length;
+  return { percent: Math.round((sectionsComplete / totalSections) * 100), sectionsComplete, totalSections };
+}
+
+function schemaFieldComplete(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
+  if (field.type === 'file' || field.responseType === 'attachment') return documentsForSchemaField(documents, field).length > 0;
+  if (field.section === 'samples') return samples.some((sample) => sampleMatchesField(sample, field));
+  const value = schemaFieldValue(field, responses);
+  if (field.type === 'boolean' || field.responseType === 'boolean' || field.responseType === 'declaration' || field.responseType === 'acknowledgement') return value === true;
+  if (field.responseType === 'money' || field.responseType === 'pricing') return Number(value) > 0;
+  return String(value ?? '').trim().length > 0;
+}
+
+function schemaGateStatus(schema: BidSubmissionSchemaDto | null, responses: SchemaResponseState, documents: BidDocumentState[]): GateStatus {
+  const fields = schema?.steps.find((step) => step.id === 'administrative')?.fields ?? [];
+  const items = fields
+    .filter((field) => field.required)
+    .map((field) => ({
+      id: field.id,
+      label: field.label,
+      category: field.source || 'Administrative',
+      mandatory: field.required,
+      complete: schemaFieldComplete(field, responses, documents, [])
+    }));
+  const completeMandatory = items.filter((item) => item.complete).length;
+  const remaining = Math.max(0, items.length - completeMandatory);
+  return {
+    items,
+    mandatoryTotal: items.length,
+    completeMandatory,
+    remaining,
+    complete: remaining === 0,
+    message: remaining ? `${completeMandatory} of ${items.length} mandatory administrative requirements complete. Complete ${remaining} more to continue.` : 'Administrative requirements complete. You can continue to the bid workflow.'
+  };
+}
+
+function schemaTotalFromResponses(schema: BidSubmissionSchemaDto, responses: SchemaResponseState) {
+  return schemaFinancialFields(schema).reduce((sum, field) => sum + schemaFinancialFieldTotal(field, responses), 0);
+}
+
+function schemaFinancialFields(schema: BidSubmissionSchemaDto) {
+  return actionableSchemaFields(schema).filter(isSchemaBoqPricingField);
+}
+
+function isSchemaPricingField(field: BidSubmissionSchemaFieldDto) {
+  return field.responseType === 'money' || field.responseType === 'pricing';
+}
+
+function isSchemaBoqPricingField(field: BidSubmissionSchemaFieldDto) {
+  if (field.section !== 'financial' || !isSchemaPricingField(field)) return false;
+  if (field.validation.itemId || field.validation.itemNo || field.validation.description || field.validation.quantity || field.validation.unit) return true;
+  return /commercialitems|boq|quantityschedule|pricingrows|financialofferrows/i.test(`${field.requirementKey} ${field.source}`);
+}
+
+function schemaFinancialRows(schema: BidSubmissionSchemaDto, responses: SchemaResponseState): PriceRow[] {
+  return schemaFinancialFields(schema)
+    .map((field, index) => schemaFinancialRow(field, responses, index));
+}
+
+function schemaFinancialRow(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState, index: number): PriceRow & { total: number } {
+  const rate = Number(schemaFieldValue(field, responses) ?? 0);
+  const quantity = Number(field.validation.quantity ?? 1) || 1;
+  return withTotal({
+    id: String(field.validation.itemId ?? field.id),
+    itemNo: String(field.validation.itemNo ?? index + 1),
+    description: String(field.validation.description ?? field.label.replace(/^Unit rate for\s+/i, '')),
+    quantity,
+    unit: String(field.validation.unit ?? 'Lot'),
+    rate,
+    taxIncluded: true,
+    discount: 0
+  }) as PriceRow & { total: number };
+}
+
+function schemaFinancialFieldTotal(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState) {
+  return Math.max(0, schemaFinancialRow(field, responses, 0).total ?? 0);
+}
+
+function schemaFinancialHint(field: BidSubmissionSchemaFieldDto) {
+  const quantity = field.validation.quantity ? `Qty ${field.validation.quantity}` : '';
+  const unit = field.validation.unit ? String(field.validation.unit) : '';
+  return [quantity, unit].filter(Boolean).join(' ') || 'Enter the tender-required financial response.';
+}
+
+function documentsForSchemaField(documents: BidDocumentState[], field: BidSubmissionSchemaFieldDto) {
+  const documentType = String(field.validation.documentType ?? '');
+  return documents.filter((document) => {
+    const requirementKey = String(document.metadata?.requirementKey ?? '');
+    const fieldId = String(document.metadata?.fieldId ?? '');
+    return requirementKey === field.requirementKey || requirementKey === field.id || fieldId === field.id || (documentType && document.documentType === documentType);
+  });
+}
+
+function schemaRequirementText(field: BidSubmissionSchemaFieldDto) {
+  return String(field.validation.prompt ?? field.source ?? field.requirementKey);
+}
+
+function schemaSourceStepId(schema: BidSubmissionSchemaDto, sourceId: string) {
+  const step = schema.steps.find((item) => item.id === sourceId || item.fields.some((field) => field.id === sourceId || field.requirementKey === sourceId));
+  return step?.id ?? sourceId;
+}
+
+function sectionReadiness(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], section: string) {
+  const fields = actionableSchemaFields(schema).filter((field) => field.section === section && field.required);
+  if (!fields.length) return 'No required fields';
+  const complete = fields.filter((field) => schemaFieldComplete(field, responses, documents, samples)).length;
+  return complete === fields.length ? 'Complete' : `${fields.length - complete} pending`;
+}
+
+function schemaSampleRequirements(schema: BidSubmissionSchemaDto | null, tender?: TenderDetail | null): SampleRequirement[] {
+  const fields = schema?.steps.find((step) => step.id === 'samples')?.fields ?? [];
+  if (!fields.length) return normalizeSampleRequirements(tender);
+  return fields.map((field, index) => ({
+    id: field.id,
+    relatedItem: String(field.validation.relatedItem ?? ''),
+    sampleName: field.label || `Sample ${index + 1}`,
+    quantity: Number(field.validation.quantity ?? 1) || 1,
+    deliveryLocation: String(field.validation.deliveryLocation ?? ''),
+    deliveryDeadline: typeof field.validation.deliveryDeadline === 'string' ? field.validation.deliveryDeadline : undefined,
+    mandatory: field.required
+  }));
+}
+
+function sampleMatchesField(sample: BidSampleDto, field: BidSubmissionSchemaFieldDto) {
+  const relatedItem = String(field.validation.relatedItem ?? '');
+  return Boolean((relatedItem && sample.relatedItem === relatedItem) || sample.sampleName === field.label);
+}
+
 function workflowFromTender(tender?: TenderDetail | null): WorkflowType {
   const type = String(tender?.type || '').toLowerCase();
   if (type.includes('goods')) return 'goods';
@@ -1337,54 +2000,26 @@ function workflowFromTender(tender?: TenderDetail | null): WorkflowType {
   return 'generic';
 }
 
-function workflowSteps(workflow: WorkflowType, tender?: TenderDetail | null): Step[] {
-  const step = (id: string, label: string, title: string, description: string, index: number): Step => ({
-    id,
-    label,
-    title,
-    description,
-    kicker: `Step ${String(index).padStart(2, '0')}`
-  });
-  const base: Step[] = [step('eligibility', 'Eligibility and Document Requirements', 'Eligibility and Document Requirements', 'Licenses, certifications, submission files, and document uploads', 1)];
-  if (workflow === 'goods') {
-    base.push(step('goods-technical', 'Technical Response', 'Technical Response', 'Fill the buyer product specification table', 2));
-    base.push(step('goods-financial', 'Quantity Schedule / Financial Offer', 'Quantity Schedule / Financial Offer', 'Quantity schedule, delivery, and commercial terms', 3));
-    if (hasSampleRequirements(tender)) base.push(step('goods-samples', 'Samples', 'Sample Submission Response', 'Sample dispatch and delivery evidence', 4));
-    base.push(step('review', 'Review Submission', 'Review Submission', 'Check missing responses before declaration', base.length + 1));
-    base.push(step('declaration', 'Supplier Declaration and Submit', 'Supplier Declaration and Submit', 'Digital declaration and sealed submission', base.length + 1));
-  } else if (workflow === 'works') {
-    base.push(step('works-capacity', 'Technical Capacity', 'Technical Capacity and Experience', 'Experience, personnel, equipment, finance, and HSE', 2));
-    base.push(step('works-technical', 'Technical Proposal', 'Technical Proposal and Work Program', 'Methodology, schedule, drawings, and site response', 3));
-    base.push(step('works-financial', 'Financial Proposal / BOQ Pricing', 'Financial Proposal / BOQ Pricing', 'BOQ pricing, cost breakdown, and commercial terms', 4));
-    base.push(step('review', 'Review Submission', 'Review Submission', 'Check missing contractor response items', 5));
-    base.push(step('declaration', 'Declaration and Submission', 'Declaration and Submission', 'Digital signing and final submission', 6));
-  } else if (workflow === 'services') {
-    base.push(step('services-methodology', 'Methodology', 'Service Understanding and Methodology', 'Service understanding, workflow, QA, and risk approach', 2));
-    base.push(step('services-delivery', 'Delivery Plan', 'Service Schedule and Delivery Plan', 'Schedule, locations, SLA timers, and milestones', 3));
-    base.push(step('services-staffing', 'Staffing, Capacity and Continuity Plan', 'Staffing, Capacity and Continuity Plan', 'Roles, named personnel, tools, continuity, and capacity evidence', 4));
-    base.push(step('services-sla', 'SLA and Reporting', 'Performance, SLA, Reporting and Compliance', 'Performance metrics, reporting, ESG, and documents', 5));
-    base.push(step('services-commercial', 'Commercial Pricing', 'Commercial Pricing and Cost Breakdown', 'Cost breakdown, billing, taxes, milestones, and SLA-linked commercial terms', 6));
-    base.push(step('review', 'Review Submission', 'Review Submission', 'Review, declare, and submit service bid', 7));
-  } else if (workflow === 'consultancy') {
-    base.push(step('consultancy-technical', 'Technical Proposal', 'Technical Proposal', 'TOR response, methodology, qualifications, evidence, and documents', 2));
-    base.push(step('consultancy-financial', 'Financial Proposal', 'Financial Proposal', 'Fees, reimbursables, taxes, validity, and payment terms', 3));
-    base.push(step('review', 'Review and Submit', 'Review and Submit', 'Check tender-required items and submit the sealed proposal', 4));
-  } else {
-    base.push(step('services-methodology', 'Dynamic Responses', 'Dynamic Responses', 'Answer optional and technical tender requirements', 2));
-    base.push(step('services-commercial', 'Financial Offer', 'Financial Offer', 'Rates and commercial schedule', 3));
-    base.push(step('review', 'Review Submission', 'Review Submission', 'Review, declare, and submit sealed bid', 4));
-    base.push(step('receipt', 'Receipt', 'Receipt', 'Bid hash and post-submission actions', 5));
-  }
-  return base;
-}
-
 function reviewIncludesDeclaration(workflow: WorkflowType) {
   return workflow === 'services' || workflow === 'consultancy' || workflow === 'generic';
 }
 
+function reviewSourceStepId(sourceId: string, workflow: WorkflowType) {
+  if (sourceId === 'declaration') return reviewIncludesDeclaration(workflow) ? 'review' : 'declaration';
+  return sourceId;
+}
+
+function financialSourceId(workflow: WorkflowType) {
+  if (workflow === 'works') return 'works-financial';
+  if (workflow === 'consultancy') return 'consultancy-financial';
+  if (workflow === 'services' || workflow === 'generic') return 'services-commercial';
+  return 'goods-financial';
+}
+
 function receiptStepIndex(steps: Step[], workflow: WorkflowType) {
+  const receiptIndex = steps.findIndex((step) => step.id === 'receipt');
+  if (receiptIndex > -1) return receiptIndex;
   if (workflow === 'generic') {
-    const receiptIndex = steps.findIndex((step) => step.id === 'receipt');
     return receiptIndex > -1 ? receiptIndex : Math.max(0, steps.length - 1);
   }
   const reviewIndex = steps.findIndex((step) => step.id === 'review');
@@ -1394,6 +2029,7 @@ function receiptStepIndex(steps: Step[], workflow: WorkflowType) {
 }
 
 function isReceiptPanelStep(workflow: WorkflowType, stepId: string) {
+  if (stepId === 'receipt') return true;
   if (workflow === 'generic') return stepId === 'receipt';
   if (workflow === 'services' || workflow === 'consultancy') return stepId === 'review';
   return stepId === 'declaration';

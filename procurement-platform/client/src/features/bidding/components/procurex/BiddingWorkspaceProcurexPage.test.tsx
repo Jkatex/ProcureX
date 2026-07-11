@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
-import type { BidDto, BidSampleDto } from '../../types';
+import type { BidDocumentEnvelope, BidDto, BidSampleDto, BidSubmissionSchemaDto, BidSubmissionSchemaFieldDto, BidSubmissionSchemaStepDto, BidSubmissionStepId } from '../../types';
 import { BiddingWorkspaceProcurexPage } from './BiddingWorkspaceProcurexPage';
 
 vi.mock('@/features/procurement/hooks', () => ({
@@ -14,6 +14,7 @@ vi.mock('@/features/procurement/hooks', () => ({
 describe('BiddingWorkspaceProcurexPage document upload', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(biddingApi, 'getTenderSchema').mockResolvedValue(bidSchema());
     vi.mocked(useTenderDetail).mockReturnValue({
       data: tenderDetail(),
       status: 'success',
@@ -30,7 +31,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
           id: 'bid-doc-1',
           documentId: 'doc-1',
           name: 'technical.pdf',
-          documentType: 'TECHNICAL_PRODUCT_SPEC',
+          documentType: 'TECHNICAL_PRODUCT_BROCHURES',
           envelope: 'TECHNICAL',
           reviewStatus: 'UPLOADED',
           checksum: 'a'.repeat(64),
@@ -74,7 +75,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     expect(biddingApi.saveTenderDraft).toHaveBeenCalledWith('tender-1', expect.objectContaining({ documents: [] }));
     expect(biddingApi.uploadDocuments).toHaveBeenCalledWith('bid-1', {
       files: [file],
-      documentType: 'TECHNICAL_PRODUCT_SPEC',
+      documentType: 'TECHNICAL_PRODUCT_BROCHURES',
       envelope: 'TECHNICAL',
       metadata: { requirementKey: 'goods-technical' }
     });
@@ -82,17 +83,17 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
     await waitFor(() => expect(biddingApi.updateBid).toHaveBeenCalled());
     const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls[0][1];
-    expect(savedPayload.technical).toEqual(
-      expect.objectContaining({
-        productCompliance: expect.any(String),
-        approach: expect.any(String),
-        deliveryPlan: expect.any(String)
-      })
+    expect(savedPayload.responses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          requirementKey: 'productCompliance'
+        })
+      ])
     );
     expect(savedPayload.documents).toEqual([
       expect.objectContaining({
         name: 'technical.pdf',
-        documentType: 'TECHNICAL_PRODUCT_SPEC',
+        documentType: 'TECHNICAL_PRODUCT_BROCHURES',
         envelope: 'TECHNICAL',
         checksum: 'a'.repeat(64),
         metadata: expect.objectContaining({ requirementKey: 'goods-technical', storage: 'local-dev' })
@@ -129,6 +130,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
 describe('BiddingWorkspaceProcurexPage sample tracking', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(biddingApi, 'getTenderSchema').mockResolvedValue(bidSchema());
     vi.mocked(useTenderDetail).mockReturnValue({
       data: tenderDetail(),
       status: 'success',
@@ -158,6 +160,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
       isLoading: false,
       isError: false
     });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(bidSchema({ withSamples: true }));
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
 
     render(
@@ -178,6 +181,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
       isLoading: false,
       isError: false
     });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(bidSchema({ withSamples: true }));
     const draft = bidDto();
     const sample = sampleDto({ trackingStatus: 'SUBMITTED', submittedAt: '2026-07-09T10:15:00.000Z' });
     const callOrder: string[] = [];
@@ -226,6 +230,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
       isLoading: false,
       isError: false
     });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(bidSchema({ withSamples: true }));
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(bidDto());
     vi.spyOn(biddingApi, 'listSamples').mockResolvedValue([
       sampleDto({ trackingStatus: 'RECEIVED', receivedAt: '2026-07-09T11:00:00.000Z' })
@@ -253,6 +258,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
       isLoading: false,
       isError: false
     });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(bidSchema({ withSamples: true }));
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(bidDto({ status: 'SUBMITTED', submittedAt: '2026-07-09T10:00:00.000Z' }));
     vi.spyOn(biddingApi, 'listSamples').mockResolvedValue([sampleDto()]);
 
@@ -273,6 +279,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
 describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(biddingApi, 'getTenderSchema').mockResolvedValue(bidSchema());
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
     vi.spyOn(biddingApi, 'submitBid').mockResolvedValue({ receiptRef: 'BID-PX-1', receiptHash: 'hash-1', createdAt: '2026-07-09T10:30:00.000Z', bid: bidDto({ status: 'SUBMITTED' }) });
     vi.mocked(useTenderDetail).mockReturnValue({
@@ -284,12 +291,12 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
   });
 
   it.each([
-    ['goods', tenderDetail(), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit']],
-    ['goods samples', tenderDetailWithSamples(), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Samples', 'Review Submission', 'Supplier Declaration and Submit']],
-    ['works', tenderDetail({ type: 'WORKS' }), ['Eligibility and Document Requirements', 'Technical Capacity', 'Technical Proposal', 'Financial Proposal / BOQ Pricing', 'Review Submission', 'Declaration and Submission']],
-    ['services', tenderDetail({ type: 'SERVICE' }), ['Eligibility and Document Requirements', 'Methodology', 'Delivery Plan', 'Staffing, Capacity and Continuity Plan', 'SLA and Reporting', 'Commercial Pricing', 'Review Submission']],
-    ['consultancy', tenderDetail({ type: 'CONSULTANCY' }), ['Eligibility and Document Requirements', 'Technical Proposal', 'Financial Proposal', 'Review and Submit']],
-    ['generic', tenderDetail({ type: undefined }), ['Eligibility and Document Requirements', 'Dynamic Responses', 'Financial Offer', 'Review Submission', 'Receipt']]
+    ['goods', tenderDetail(), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit', 'Receipt']],
+    ['goods samples', tenderDetailWithSamples(), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Samples', 'Review Submission', 'Supplier Declaration and Submit', 'Receipt']],
+    ['works', tenderDetail({ type: 'WORKS' }), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit', 'Receipt']],
+    ['services', tenderDetail({ type: 'SERVICE' }), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit', 'Receipt']],
+    ['consultancy', tenderDetail({ type: 'CONSULTANCY' }), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit', 'Receipt']],
+    ['generic', tenderDetail({ type: undefined }), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit', 'Receipt']]
   ])('renders exact %s step order', async (_name, tender, expected) => {
     vi.mocked(useTenderDetail).mockReturnValue({
       data: tender,
@@ -297,6 +304,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       isLoading: false,
       isError: false
     });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(bidSchema({ withSamples: expected.includes('Samples') }));
 
     render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
@@ -308,7 +316,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(progressStepLabels()).toEqual(expected);
   });
 
-  it('uses procurex-ui visual shell, assistance panel, and progress step markup', async () => {
+  it('uses procurex-ui visual shell, compact status bar, and progress step markup', async () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
         <BiddingWorkspaceProcurexPage />
@@ -321,13 +329,24 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(container.querySelector('.procurement-market-summary')).not.toBeInTheDocument();
     expect(container.querySelector('.kpi-card')).not.toBeInTheDocument();
 
-    const assistance = container.querySelector('.bid-assistance-panel');
-    expect(assistance).toBeInTheDocument();
-    expect(within(assistance as HTMLElement).getByText('Bid Assistance')).toBeInTheDocument();
-    expect(within(assistance as HTMLElement).getByRole('link', { name: 'View Tender Details' })).toBeInTheDocument();
-    expect(within(assistance as HTMLElement).getByRole('link', { name: 'Ask Clarification' })).toBeInTheDocument();
-    expect(within(assistance as HTMLElement).getByRole('button', { name: 'Save Draft' })).toBeInTheDocument();
-    expect(within(assistance as HTMLElement).getByRole('button', { name: 'Review Submission' })).toBeInTheDocument();
+    const heroActions = container.querySelector('.hero-action-stack');
+    expect(heroActions).toBeInTheDocument();
+    expect(within(heroActions as HTMLElement).getByText('View Tender Details')).toBeInTheDocument();
+    expect(within(heroActions as HTMLElement).getByText('Ask Clarification')).toBeInTheDocument();
+    expect(within(heroActions as HTMLElement).getByText('Save Draft')).toBeInTheDocument();
+    expect(within(heroActions as HTMLElement).getByText('Review Submission')).toBeInTheDocument();
+
+    expect(container.querySelector('.bid-assistance-panel')).not.toBeInTheDocument();
+    const commandBar = container.querySelector('.bid-command-bar');
+    expect(commandBar).toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).getByText('Required inputs')).toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).getByText('Evidence')).toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).getByText('Samples')).toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).getByText('Total')).toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).getByText(/% complete/i)).toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).getByText(/pending|Ready/i)).toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).queryByText('Tender type')).not.toBeInTheDocument();
+    expect(within(commandBar as HTMLElement).queryByText('Steps')).not.toBeInTheDocument();
 
     const progressButtons = within(screen.getByRole('navigation', { name: 'Bid submission progress' })).getAllByRole('button');
     expect(progressButtons[0]).toHaveClass('wizard-progress-step', 'active');
@@ -351,11 +370,11 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
-    expect(screen.getAllByText(/unlock the bid workflow/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Administrative and Eligibility' })).toBeInTheDocument();
+    expect(screen.getAllByText(/Complete required tender fields before continuing/i).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByRole('button', { name: /Technical Response/i })[0]);
-    expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Administrative and Eligibility' })).toBeInTheDocument();
 
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
@@ -376,6 +395,116 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(biddingApi.submitBid).not.toHaveBeenCalled();
   });
 
+  it('renders BOQ rows in the financial offer and saves entered rates by requirement key', async () => {
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.change(screen.getByLabelText('Product compliance statement'), { target: { value: 'Compliant laptop specification.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('heading', { name: 'Financial Offer' })).toBeInTheDocument();
+    const boqTable = screen.getByRole('table');
+    expect(boqTable).toHaveClass('bid-financial-boq-table');
+    expect(screen.getByText('BOQ pricing schedule')).toBeInTheDocument();
+    expect(within(boqTable).getByText('Laptop')).toBeInTheDocument();
+    expect(within(boqTable).getByText('Each')).toBeInTheDocument();
+    expect(within(boqTable).queryByText('Response for Financial')).not.toBeInTheDocument();
+    const standaloneFinancialInput = screen.getByText('Response for Financial').closest('label')?.querySelector('input') as HTMLInputElement | null;
+    expect(standaloneFinancialInput).toBeInTheDocument();
+    expect(screen.queryByText('Quoted unit price')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Rate for Laptop'), { target: { value: '2500000' } });
+    fireEvent.change(standaloneFinancialInput!, { target: { value: '85' } });
+
+    expect(screen.getAllByText('TZS 2,500,000').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
+
+    await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
+    const savedPayload = vi.mocked(biddingApi.saveTenderDraft).mock.calls[0][1];
+    expect(savedPayload.responses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          requirementKey: 'unitRate',
+          response: { value: 2500000 }
+        }),
+        expect.objectContaining({
+          requirementKey: 'evaluationCriteria.financial',
+          response: { value: 85 }
+        })
+      ])
+    );
+    expect(savedPayload.financial.items).toEqual([
+      expect.objectContaining({ id: 'line-1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000, total: 2500000 })
+    ]);
+  });
+
+  it('renders the supplier bid submission review document with editable response rows', async () => {
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+
+    expect(screen.getByText('Supplier Bid Submission Review')).toBeInTheDocument();
+    const reviewDocument = document.querySelector('.bid-response-document') as HTMLElement;
+    expect(reviewDocument).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Administrative and Eligibility')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Technical Response')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Financial Offer')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Supplier Declarations')).toBeInTheDocument();
+    expect(screen.getAllByText('Complete').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Missing').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Replace file' }).length).toBeGreaterThan(0);
+  });
+
+  it('uses review Change actions to navigate back to the editable technical source field', async () => {
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+
+    const productRow = screen.getByText('Product compliance statement').closest('tr') as HTMLTableRowElement;
+    fireEvent.click(within(productRow).getByRole('button', { name: 'Change' }));
+
+    expect(screen.getByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Product compliance statement')).toBeInTheDocument();
+    expect(screen.getByText('Jumped to the source field. Update it, then return to Review Submission.')).toBeInTheDocument();
+  });
+
+  it('renders submitted bid review rows as read-only without edit buttons', async () => {
+    vi.mocked(biddingApi.getTenderDraft).mockResolvedValue(bidDto({ status: 'SUBMITTED', submittedAt: '2026-07-09T10:00:00.000Z' }));
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: /Review Submission/i })[0]);
+
+    expect(screen.getByText('Supplier Bid Submission Review')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Replace file' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Read only').length).toBeGreaterThan(0);
+  });
+
   it('renders services declaration inside review without a standalone declaration step', async () => {
     vi.mocked(useTenderDetail).mockReturnValue({
       data: tenderDetail({ type: 'SERVICE' }),
@@ -391,14 +520,22 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
 
     expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    expect(progressStepLabels()).not.toContain('Declaration and Submit');
+    expect(progressStepLabels()).toContain('Supplier Declaration and Submit');
     fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Ready to seal')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit Sealed Bid' })).toBeInTheDocument();
   });
 
   it('renders receipt in the final panel after successful submit', async () => {
+    const createObjectUrl = vi.fn(() => 'blob:bid-record');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectUrl });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const print = vi.fn();
+    Object.defineProperty(window, 'print', { configurable: true, value: print });
     const draft = bidDto({
       payload: {
         administrative: { eligible: true, taxCompliant: true, authorized: true, documentsConfirmed: true },
@@ -417,6 +554,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
           checksum: 'a'.repeat(64),
           metadata: { requirementKey: 'eligibility', size: 12, mimeType: 'application/pdf' }
         }
+      ],
+      responses: [
+        { requirementKey: 'unitRate', response: { value: 2500000 } }
       ]
     });
     const submitted = bidDto({
@@ -444,6 +584,20 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
     expect(screen.getByText('hash-1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Draft' })).toBeDisabled();
+    const downloadButton = screen.getByRole('button', { name: 'Download submitted bid record' });
+    const printButton = screen.getByRole('button', { name: 'Print submission receipt' });
+    expect(downloadButton).toBeEnabled();
+    expect(printButton).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Withdraw Submission' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Return to Dashboard' })).toBeInTheDocument();
+
+    fireEvent.click(downloadButton);
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
+    expect(anchorClick).toHaveBeenCalled();
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:bid-record');
+
+    fireEvent.click(printButton);
+    expect(print).toHaveBeenCalled();
   });
 });
 
@@ -469,6 +623,100 @@ function checkCard(label: string) {
     .find(Boolean);
   if (!checkbox) throw new Error(`Checkbox not found for ${label}`);
   if (!checkbox.checked) fireEvent.click(checkbox);
+}
+
+function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?: BidSubmissionSchemaStepDto[] } = {}): BidSubmissionSchemaDto {
+  const { tenderType = 'GOODS', withSamples = false } = options;
+  const steps =
+    options.steps ??
+    [
+      step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+        field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+        field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+        field('administrative.authorized', 'Confirm authorized representative', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'authorized'),
+        field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed'),
+        field('administrative.eligibilityDocument', 'Eligibility and administrative evidence', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', false, 'eligibility', {
+          documentType: 'ADMINISTRATIVE_EVIDENCE'
+        })
+      ]),
+      step('technical', 'Technical Response', 'TECHNICAL', [
+        field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance'),
+        field('technical.productEvidence', 'Product brochures, catalogues, and specification evidence', 'file', 'technical', 'attachment', 'TECHNICAL', false, 'goods-technical', {
+          documentType: 'TECHNICAL_PRODUCT_BROCHURES'
+        })
+      ]),
+      step('financial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
+        field('financial.unitRate', 'Unit rate for Laptop', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'unitRate', {
+          itemId: 'line-1',
+          itemNo: '1',
+          description: 'Laptop',
+          quantity: 1,
+          unit: 'Each',
+          min: 0
+        }),
+        field('financial.offerDocument', 'Financial offer and price schedule', 'file', 'financial', 'attachment', 'FINANCIAL', false, 'goods-financial', {
+          documentType: 'FINANCIAL_OFFER'
+        }),
+        field('criteria.financial', 'Response for Financial', 'number', 'financial', 'money', 'FINANCIAL', false, 'evaluationCriteria.financial')
+      ]),
+      ...(withSamples
+        ? [
+            step('samples', 'Samples', 'TECHNICAL', [
+              field('samples.laptop', 'Laptop sample', 'table', 'samples', 'structured', 'TECHNICAL', true, 'sample-req-1', {
+                relatedItem: 'line-1',
+                quantity: 2,
+                deliveryLocation: 'PMU office',
+                deliveryDeadline: '2099-09-01'
+              })
+            ])
+          ]
+        : []),
+      step('review', 'Review Submission', 'COMBINED', []),
+      step('declarations', 'Supplier Declaration and Submit', 'COMBINED', [
+        field('declarations.confirmAccuracy', 'I confirm the bid is accurate and complete', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'confirmAccuracy'),
+        field('declarations.acceptTerms', 'I accept the tender and contract terms', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'acceptTerms'),
+        field('declarations.noConflict', 'I declare no conflict of interest', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'noConflict'),
+        field('declarations.antiCorruption', 'I confirm anti-corruption compliance', 'boolean', 'declarations', 'declaration', 'COMBINED', false, 'antiCorruption')
+      ]),
+      step('receipt', 'Receipt', 'COMBINED', [])
+    ];
+  return {
+    tenderId: 'tender-1',
+    tenderReference: 'PX-2026-001',
+    tenderTitle: 'Supply of laptops',
+    tenderType,
+    schemaVersion: 'bid-submission-schema-v1',
+    steps
+  };
+}
+
+function step(id: BidSubmissionStepId, label: string, envelope: BidDocumentEnvelope, fields: BidSubmissionSchemaFieldDto[]): BidSubmissionSchemaStepDto {
+  return { id, label, envelope, required: fields.some((item) => item.required), fields };
+}
+
+function field(
+  id: string,
+  label: string,
+  type: BidSubmissionSchemaFieldDto['type'],
+  section: BidSubmissionStepId,
+  responseType: BidSubmissionSchemaFieldDto['responseType'],
+  envelope: BidDocumentEnvelope,
+  required: boolean,
+  requirementKey = id,
+  validation: Record<string, unknown> = {}
+): BidSubmissionSchemaFieldDto {
+  return {
+    id,
+    requirementKey,
+    label,
+    type,
+    section,
+    required,
+    responseType,
+    envelope,
+    source: section,
+    validation
+  };
 }
 
 function tenderDetail(patch: Partial<TenderDetail> = {}): TenderDetail {

@@ -24,6 +24,7 @@ const allowedDocumentTypes = new Set([
   'SUPPORTING_DOCUMENT',
   'BID_EVIDENCE'
 ]);
+const schemaDocumentTypePattern = /^(ADMIN|TECHNICAL|FINANCIAL|COMBINED)_[A-Z0-9][A-Z0-9_]{0,113}$/;
 const allowedExtensions = new Set(['.pdf', '.docx', '.xlsx', '.csv', '.txt', '.jpg', '.jpeg', '.png']);
 const unsafeExtensions = new Set([
   '.exe',
@@ -95,7 +96,7 @@ export function maxBidDocumentBytes() {
 export function validateBidDocumentDescriptor(input: { name: string; documentType: string; envelope?: string; mimeType?: string; size?: number }) {
   const documentType = input.documentType.trim().toUpperCase();
   const envelope = (input.envelope || 'COMBINED').trim().toUpperCase();
-  if (!allowedDocumentTypes.has(documentType)) throw requestError('Unsupported bid document type.', 400);
+  if (!allowedDocumentTypes.has(documentType) && !schemaDocumentTypePattern.test(documentType)) throw requestError('Unsupported bid document type.', 400);
   if (!allowedEnvelopes.has(envelope)) throw requestError('Invalid bid document payload.', 400);
   validateFileSafety({
     name: input.name,
