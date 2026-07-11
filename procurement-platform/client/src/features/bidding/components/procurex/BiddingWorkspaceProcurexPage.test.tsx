@@ -529,6 +529,13 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
   });
 
   it('renders receipt in the final panel after successful submit', async () => {
+    const createObjectUrl = vi.fn(() => 'blob:bid-record');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectUrl });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const print = vi.fn();
+    Object.defineProperty(window, 'print', { configurable: true, value: print });
     const draft = bidDto({
       payload: {
         administrative: { eligible: true, taxCompliant: true, authorized: true, documentsConfirmed: true },
@@ -577,6 +584,20 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
     expect(screen.getByText('hash-1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Draft' })).toBeDisabled();
+    const downloadButton = screen.getByRole('button', { name: 'Download submitted bid record' });
+    const printButton = screen.getByRole('button', { name: 'Print submission receipt' });
+    expect(downloadButton).toBeEnabled();
+    expect(printButton).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Withdraw Submission' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Return to Dashboard' })).toBeInTheDocument();
+
+    fireEvent.click(downloadButton);
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
+    expect(anchorClick).toHaveBeenCalled();
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:bid-record');
+
+    fireEvent.click(printButton);
+    expect(print).toHaveBeenCalled();
   });
 });
 

@@ -1629,6 +1629,47 @@ function DeclarationSubmitPanel({ saving, uploading, isSubmitted, form, onPatch,
   );
 }
 
+function downloadBidRecord(receipt: BidReceiptDto, totalAmount: number, currency: string, documents: BidDocumentState[]) {
+  const bid = receipt.bid;
+  const record = {
+    tenderReference: bid.tenderReference || bid.tenderId,
+    tenderTitle: bid.tenderTitle,
+    bidReference: bid.reference,
+    receiptRef: receipt.receiptRef,
+    receiptHash: receipt.receiptHash,
+    submittedAt: receipt.createdAt,
+    status: bid.status,
+    totalAmount: totalAmount || bid.totalAmount,
+    currency,
+    supplierName: bid.supplierName,
+    buyerName: bid.buyerName,
+    documents: documents.map((document) => ({
+      name: document.name,
+      documentType: document.documentType,
+      envelope: document.envelope,
+      reviewStatus: document.reviewStatus,
+      checksum: document.checksum ?? null
+    }))
+  };
+  const blob = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${safeFileName(bid.reference || receipt.receiptRef || 'bid-record')}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function printSubmissionReceipt() {
+  window.print();
+}
+
+function safeFileName(value: string) {
+  return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'bid-record';
+}
+
 function ReceiptPanel({ receipt, totalAmount, currency, documents, onWithdraw, canWithdraw }: { receipt: BidReceiptDto; totalAmount: number; currency: string; documents: BidDocumentState[]; onWithdraw: () => void; canWithdraw: boolean }) {
   return (
     <>
@@ -1648,10 +1689,10 @@ function ReceiptPanel({ receipt, totalAmount, currency, documents, onWithdraw, c
           <SummaryItem label="Bid reference" value={receipt.bid.reference} />
         </div>
         <div className="inline-actions">
-          <button className="btn btn-secondary" type="button" disabled>
+          <button className="btn btn-secondary" type="button" aria-label="Download submitted bid record" title="Download submitted bid record" onClick={() => downloadBidRecord(receipt, totalAmount, currency, documents)}>
             Download Bid Record
           </button>
-          <button className="btn btn-secondary" type="button" disabled>
+          <button className="btn btn-secondary" type="button" aria-label="Print submission receipt" title="Print submission receipt" onClick={printSubmissionReceipt}>
             Print Submission Receipt
           </button>
           {canWithdraw ? (
