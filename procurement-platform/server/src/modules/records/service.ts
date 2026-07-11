@@ -1,17 +1,31 @@
 import { ModuleRepository } from './repository.js';
+import { ModuleService as IdentityService } from '../identity/service.js';
 import {
   moduleDefinition,
   type ProcurementRecordDto,
+  type RecordsAuditDto,
   type RecordsChartsDto,
   type RecordsDashboardDto,
+  type RecordsDetailDto,
+  type RecordsDocumentDto,
   type RecordsInsightsDto,
   type RecordsListDto,
   type RecordsQuery,
+  type RecordsRequestContext,
   type ModuleStatus
 } from './types.js';
 
+function requestError(message: string, status = 400) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = status;
+  return error;
+}
+
 export class ModuleService {
-  constructor(private readonly repository = new ModuleRepository()) {}
+  constructor(
+    private readonly repository = new ModuleRepository(),
+    private readonly identity = new IdentityService()
+  ) {}
 
   async status(): Promise<ModuleStatus> {
     await this.repository.health();
@@ -22,18 +36,20 @@ export class ModuleService {
     };
   }
 
-  async dashboard(): Promise<RecordsDashboardDto> {
+  async dashboard(context?: RecordsRequestContext): Promise<RecordsDashboardDto> {
+    const accessContext = await this.accessContext(context);
     try {
-      return await this.repository.getDashboardData();
+      return await this.repository.getDashboardData(accessContext);
     } catch (error) {
       if (isDatabaseUnavailable(error)) return emptyDashboard;
       throw error;
     }
   }
 
-  async records(query: RecordsQuery): Promise<RecordsListDto> {
+  async records(query: RecordsQuery, context?: RecordsRequestContext): Promise<RecordsListDto> {
+    const accessContext = await this.accessContext(context);
     try {
-      const data = await this.repository.listRecords(query);
+      const data = await this.repository.listRecords(query, accessContext);
 
       return {
         ...data,
@@ -53,27 +69,91 @@ export class ModuleService {
     }
   }
 
-  async charts(query: RecordsQuery): Promise<RecordsChartsDto> {
+  async charts(query: RecordsQuery, context?: RecordsRequestContext): Promise<RecordsChartsDto> {
+    const accessContext = await this.accessContext(context);
     try {
-      return await this.repository.getCharts(query);
+      return await this.repository.getCharts(query, accessContext);
     } catch (error) {
       if (isDatabaseUnavailable(error)) return emptyCharts;
       throw error;
     }
   }
 
-  async insights(query: RecordsQuery): Promise<RecordsInsightsDto> {
+  async insights(query: RecordsQuery, context?: RecordsRequestContext): Promise<RecordsInsightsDto> {
+    const accessContext = await this.accessContext(context);
     try {
-      return await this.repository.getInsights(query);
+      return await this.repository.getInsights(query, accessContext);
     } catch (error) {
       if (isDatabaseUnavailable(error)) return emptyInsights;
       throw error;
     }
   }
 
-  async exportCsv(query: RecordsQuery) {
+  async detail(recordId: string, context?: RecordsRequestContext): Promise<RecordsDetailDto | null> {
+    const accessContext = await this.accessContext(context);
     try {
-      const records = (await this.repository.listAllRecords(query)).map(toDto);
+      const detail = await this.repository.getRecordDetail(recordId, accessContext);
+      return detail ? { ...detail, record: toDto(detail.record) } : null;
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return null;
+      throw error;
+    }
+  }
+
+  async lifecycle(recordId: string, context?: RecordsRequestContext) {
+    const accessContext = await this.accessContext(context);
+    try {
+      return await this.repository.getLifecycle(recordId, accessContext);
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return [];
+      throw error;
+    }
+  }
+
+  async documents(query: RecordsQuery, context?: RecordsRequestContext): Promise<RecordsDocumentDto[]> {
+    const accessContext = await this.accessContext(context);
+    try {
+      return await this.repository.listDocuments(query, accessContext);
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return [];
+      throw error;
+    }
+  }
+
+  async recordDocuments(recordId: string, context?: RecordsRequestContext): Promise<RecordsDocumentDto[]> {
+    const accessContext = await this.accessContext(context);
+    try {
+      return await this.repository.getRecordDocuments(recordId, accessContext);
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return [];
+      throw error;
+    }
+  }
+
+  async audit(query: RecordsQuery, context?: RecordsRequestContext): Promise<RecordsAuditDto[]> {
+    const accessContext = await this.accessContext(context);
+    try {
+      return await this.repository.listAuditEvents(query, accessContext);
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return [];
+      throw error;
+    }
+  }
+
+  async recordAudit(recordId: string, context?: RecordsRequestContext): Promise<RecordsAuditDto[]> {
+    const accessContext = await this.accessContext(context);
+    try {
+      return await this.repository.getRecordAudit(recordId, accessContext);
+    } catch (error) {
+      if (isDatabaseUnavailable(error)) return [];
+      throw error;
+    }
+  }
+
+  async exportCsv(query: RecordsQuery, context?: RecordsRequestContext) {
+    const accessContext = await this.accessContext(context);
+    try {
+      const records = (await this.repository.listAllRecords(query, accessContext)).map(toDto);
       return {
         filename: `procurex-records-${dateStamp()}.csv`,
         content: buildCsv(records)
@@ -89,9 +169,10 @@ export class ModuleService {
     }
   }
 
-  async exportPdf(query: RecordsQuery) {
+  async exportPdf(query: RecordsQuery, context?: RecordsRequestContext) {
+    const accessContext = await this.accessContext(context);
     try {
-      const records = (await this.repository.listAllRecords(query)).map(toDto);
+      const records = (await this.repository.listAllRecords(query, accessContext)).map(toDto);
       return {
         filename: `procurex-records-${dateStamp()}.pdf`,
         content: buildSimplePdf(records)
@@ -106,13 +187,31 @@ export class ModuleService {
       throw error;
     }
   }
+
+  private async accessContext(context?: RecordsRequestContext): Promise<RecordsRequestContext> {
+    if (context?.token) {
+      const session = await this.identity.requireSession(context.token);
+      return {
+        userId: session.user.id,
+        organizationId: session.user.organizationId ?? undefined,
+        isAdmin: session.user.accountType === 'ADMIN'
+      };
+    }
+
+    if (context?.organizationId || context?.userId || context?.isAdmin) return context;
+    throw requestError('Authentication is required.', 401);
+  }
 }
 
 const emptyDashboard: RecordsDashboardDto = {
   tenderRecords: 0,
   bidRecords: 0,
+  evaluationRecords: 0,
+  awardRecords: 0,
   contractRecords: 0,
+  activeContracts: 0,
   evidenceFiles: 0,
+  archivedRecords: 0,
   recordedValue: 0,
   currency: 'TZS',
   totalRecords: 0

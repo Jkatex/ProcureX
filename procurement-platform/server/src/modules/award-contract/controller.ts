@@ -7,6 +7,7 @@ import {
   awardApprovalStepBodySchema,
   awardNotificationBodySchema,
   awardNoticeResponseBodySchema,
+  awardSettlementBodySchema,
   awardTieBreakerBodySchema,
   acceptanceBodySchema,
   budgetCommitmentBodySchema,
@@ -246,6 +247,52 @@ export class ModuleController {
       const body = budgetCommitmentBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid budget commitment payload.');
       res.status(201).json(await this.service.createBudgetCommitmentForRecommendation(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  upsertAwardClause: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award recommendation id.');
+      const body = clauseBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award clause payload.');
+      res.json(await this.service.upsertAwardClause(params.data.id, body.data, await this.requirePermissionContext(req, 'award.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createAwardNegotiation: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award recommendation id.');
+      const body = negotiationBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award negotiation payload.');
+      res.status(201).json(await this.service.createAwardNegotiation(params.data.id, body.data, await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  generateAwardBidPack: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award recommendation id.');
+      res.status(201).json(await this.service.generateAwardBidPack(params.data.id, await this.requirePermissionContext(req, 'award.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  settleAwardGroup: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award recommendation id.');
+      const body = awardSettlementBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award settlement payload.');
+      res.json(await this.service.settleAwardGroup(params.data.id, body.data, await this.requirePermissionContext(req, 'award.manage')));
     } catch (error) {
       next(error);
     }

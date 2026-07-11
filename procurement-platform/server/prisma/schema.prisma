@@ -1249,6 +1249,7 @@ model EvaluationWorkspace {
   criteria        EvaluationCriterion[]
   scores          EvaluationScore[]
   recommendations AwardRecommendation[]
+  awardGroups     AwardGroup[]
 
   @@index([buyerOrgId, status])
   @@map("evaluation_workspaces")
@@ -1314,6 +1315,7 @@ model AwardRecommendation {
   id            String               @id @default(uuid()) @db.Uuid
   reference     String               @unique
   workspaceId   String               @map("workspace_id") @db.Uuid
+  awardGroupId  String?              @map("award_group_id") @db.Uuid
   bidId         String?              @map("bid_id") @db.Uuid
   supplierOrgId String?              @map("supplier_org_id") @db.Uuid
   status        RecommendationStatus @default(DRAFT)
@@ -1323,14 +1325,131 @@ model AwardRecommendation {
   payload       Json                 @default("{}")
   createdAt     DateTime             @default(now()) @map("created_at")
   workspace     EvaluationWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  awardGroup    AwardGroup?          @relation(fields: [awardGroupId], references: [id], onDelete: SetNull)
   bid           Bid?                 @relation(fields: [bidId], references: [id], onDelete: SetNull)
   approvals     ApprovalStep[]
   contracts     Contract[]
   notice        AwardNotice?
 
   @@index([workspaceId, status])
+  @@index([awardGroupId])
   @@index([supplierOrgId])
   @@map("award_recommendations")
+  @@schema("evaluation")
+}
+
+model AwardGroup {
+  id              String               @id @default(uuid()) @db.Uuid
+  reference       String               @unique
+  workspaceId     String               @map("workspace_id") @db.Uuid
+  tenderId        String               @map("tender_id") @db.Uuid
+  buyerOrgId      String               @map("buyer_org_id") @db.Uuid
+  title           String
+  status          String               @default("NEGOTIATION")
+  payload         Json                 @default("{}")
+  settledAt       DateTime?            @map("settled_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  workspace       EvaluationWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recommendations AwardRecommendation[]
+  winners         AwardWinner[]
+  clauses         AwardClause[]
+  negotiations    AwardNegotiation[]
+  bidPacks        AwardBidPack[]
+
+  @@index([workspaceId, status])
+  @@index([buyerOrgId, status])
+  @@index([tenderId])
+  @@map("award_groups")
+  @@schema("evaluation")
+}
+
+model AwardWinner {
+  id               String      @id @default(uuid()) @db.Uuid
+  awardGroupId     String      @map("award_group_id") @db.Uuid
+  recommendationId String?     @unique @map("recommendation_id") @db.Uuid
+  bidId            String?     @map("bid_id") @db.Uuid
+  supplierOrgId    String?     @map("supplier_org_id") @db.Uuid
+  noticeId         String?     @map("notice_id") @db.Uuid
+  contractId       String?     @map("contract_id") @db.Uuid
+  amount           Decimal?    @db.Decimal(18, 2)
+  currency         String      @default("TZS")
+  status           String      @default("RECOMMENDED")
+  payload          Json        @default("{}")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  awardGroup       AwardGroup  @relation(fields: [awardGroupId], references: [id], onDelete: Cascade)
+
+  @@index([awardGroupId, status])
+  @@index([supplierOrgId])
+  @@index([bidId])
+  @@map("award_winners")
+  @@schema("evaluation")
+}
+
+model AwardClause {
+  id              String                      @id @default(uuid()) @db.Uuid
+  awardGroupId    String                      @map("award_group_id") @db.Uuid
+  winnerId        String?                     @map("winner_id") @db.Uuid
+  clauseKey       String                      @map("clause_key")
+  title           String
+  body            String?
+  category        String                      @default("general")
+  status          ContractLifecycleItemStatus @default(OPEN)
+  buyerComment    String?                     @map("buyer_comment")
+  supplierComment String?                     @map("supplier_comment")
+  legalComment    String?                     @map("legal_comment")
+  payload         Json                        @default("{}")
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
+  awardGroup      AwardGroup                  @relation(fields: [awardGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([awardGroupId, clauseKey])
+  @@index([awardGroupId, status])
+  @@index([winnerId])
+  @@map("award_clauses")
+  @@schema("evaluation")
+}
+
+model AwardNegotiation {
+  id             String                      @id @default(uuid()) @db.Uuid
+  awardGroupId   String                      @map("award_group_id") @db.Uuid
+  winnerId       String?                     @map("winner_id") @db.Uuid
+  clauseId       String?                     @map("clause_id") @db.Uuid
+  raisedByRole   String                      @map("raised_by_role")
+  raisedByOrgId  String?                     @map("raised_by_org_id") @db.Uuid
+  subject        String
+  position       String?
+  counterOffer   String?                     @map("counter_offer")
+  status         ContractLifecycleItemStatus @default(OPEN)
+  dueDate        DateTime?                   @map("due_date")
+  payload        Json                        @default("{}")
+  createdAt      DateTime                    @default(now()) @map("created_at")
+  updatedAt      DateTime                    @updatedAt @map("updated_at")
+  awardGroup     AwardGroup                  @relation(fields: [awardGroupId], references: [id], onDelete: Cascade)
+
+  @@index([awardGroupId, status])
+  @@index([winnerId])
+  @@index([clauseId])
+  @@map("award_negotiations")
+  @@schema("evaluation")
+}
+
+model AwardBidPack {
+  id           String     @id @default(uuid()) @db.Uuid
+  awardGroupId String     @map("award_group_id") @db.Uuid
+  documentId   String?    @map("document_id") @db.Uuid
+  status       String     @default("GENERATED")
+  checksum     String?
+  payload      Json       @default("{}")
+  generatedAt  DateTime   @default(now()) @map("generated_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  awardGroup   AwardGroup @relation(fields: [awardGroupId], references: [id], onDelete: Cascade)
+
+  @@index([awardGroupId, status])
+  @@index([documentId])
+  @@map("award_bid_packs")
   @@schema("evaluation")
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../../db/prisma.js';
 import { AWARD_CONTRACT_DEMO_PREFIX, seedAwardContractDemo } from '../../../prisma/seed-award-contract-demo.js';
+import { ModuleRepository } from './repository.js';
 
 const runDbSeedSmoke = process.env.RUN_AWARD_CONTRACT_DEMO_SEED_TEST === 'true';
 const describeDb = runDbSeedSmoke ? describe : describe.skip;
@@ -32,7 +33,7 @@ describeDb('award-contract demo seed', () => {
       }
     });
 
-    expect(contracts).toHaveLength(12);
+    expect(contracts.length).toBeGreaterThanOrEqual(12);
     expect(new Set(contracts.map((contract: any) => contract.status)).size).toBeGreaterThanOrEqual(12);
 
     const rich = contracts.find((contract: any) => contract.reference === `${AWARD_CONTRACT_DEMO_PREFIX}-CONTRACT-ACTIVE-GOODS`);
@@ -54,7 +55,35 @@ describeDb('award-contract demo seed', () => {
     expect(rich?.closeout).toBeTruthy();
     expect(rich?.supplierPerformanceRecords.length).toBeGreaterThan(0);
 
-    await expect(db.user.count({ where: { email: 'award-demo@procurex.tz' } })).resolves.toBe(1);
+    const groups = await db.awardGroup.findMany({
+      where: { reference: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } },
+      include: {
+        winners: true,
+        clauses: true,
+        negotiations: true,
+        bidPacks: true
+      }
+    });
+    expect(groups.length).toBeGreaterThanOrEqual(2);
+    expect(groups.some((group: any) => group.reference === `${AWARD_CONTRACT_DEMO_PREFIX}-GROUP-NEGOTIATION-WATER` && group.winners.length >= 2 && group.clauses.length >= 3 && group.negotiations.length >= 2)).toBe(true);
+    expect(groups.some((group: any) => group.reference === `${AWARD_CONTRACT_DEMO_PREFIX}-GROUP-SETTLED-CLINIC` && group.winners.length >= 2 && group.bidPacks.length >= 1 && group.winners.every((winner: any) => winner.noticeId && winner.contractId))).toBe(true);
+    await expect(db.bidDocument.count({ where: { document: { objectKey: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } } } })).resolves.toBeGreaterThan(0);
+
+    const demoUser = await db.user.findUnique({
+      where: { email: 'demo@procurex.tz' },
+      include: { memberships: { where: { status: 'ACTIVE', isDefault: true } } }
+    });
+    expect(demoUser).toBeTruthy();
+    const demoOrgId = demoUser?.memberships[0]?.organizationId;
+    expect(demoOrgId).toBeTruthy();
+    if (!demoOrgId) throw new Error('Demo user default organization was not seeded.');
+    const demoDashboard = await new ModuleRepository(db).dashboard({ userId: demoUser!.id, organizationId: demoOrgId, isAdmin: false });
+    expect(demoDashboard.queues['awarding-in-progress'].length).toBeGreaterThan(0);
+    expect(demoDashboard.queues['awards-received'].length).toBeGreaterThan(0);
+    expect(demoDashboard.queues['contracts-in-progress'].length).toBeGreaterThan(0);
+    expect(demoDashboard.queues['active-contracts'].length).toBeGreaterThan(0);
+    expect(demoDashboard.queues['closed-contracts'].length).toBeGreaterThan(0);
+    await expect(db.user.count({ where: { email: 'award-demo@procurex.tz' } })).resolves.toBe(0);
     await expect(
       db.user.count({
         where: {

@@ -150,7 +150,59 @@ export type ContractLifecycleItemDto = {
   updatedAt: string | null;
 };
 
+export type AwardBidDocumentDto = {
+  id: string;
+  bidId: string;
+  documentId: string;
+  name: string;
+  documentType: string;
+  envelope: string;
+  reviewStatus: string;
+  checksum: string | null;
+  createdAt: string;
+};
+
+export type AwardWinnerDto = {
+  id: string;
+  recommendationId: string | null;
+  bidId: string | null;
+  supplierOrgId: string | null;
+  supplierName: string | null;
+  noticeId: string | null;
+  contractId: string | null;
+  amount: number | null;
+  currency: string;
+  status: string;
+  bidDocuments: AwardBidDocumentDto[];
+  payload: Record<string, unknown>;
+};
+
+export type AwardBidPackDto = {
+  id: string;
+  documentId: string | null;
+  status: string;
+  checksum: string | null;
+  generatedAt: string;
+  payload: Record<string, unknown>;
+};
+
+export type AwardGroupDto = {
+  id: string;
+  reference: string;
+  title: string;
+  status: string;
+  tenderId: string;
+  buyerOrgId: string;
+  settledAt: string | null;
+  winners: AwardWinnerDto[];
+  clauses: ContractLifecycleItemDto[];
+  negotiations: ContractLifecycleItemDto[];
+  bidPacks: AwardBidPackDto[];
+  payload: Record<string, unknown>;
+};
+
 export type AwardRecommendationDetailDto = LifecycleAction & {
+  awardGroupId?: string | null;
   reference?: string | null;
   tenderReference?: string | null;
   tenderTitle?: string | null;
@@ -171,6 +223,7 @@ export type AwardRecommendationDetailDto = LifecycleAction & {
     responses?: Array<{ id: string; action: string; note: string; actorOrgId?: string | null; actorUserId?: string | null; createdAt: string }>;
   } | null;
   contract?: ContractDetailDto | null;
+  awardGroup?: AwardGroupDto;
   access?: WorkflowAccess;
   approvalRoutes?: Array<Record<string, unknown>>;
   tieBreakers?: Array<Record<string, unknown>>;

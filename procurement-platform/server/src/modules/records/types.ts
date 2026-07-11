@@ -14,13 +14,13 @@ export type ModuleStatus = {
 export const recordTypeValues = [
   'TENDER',
   'BID',
-  'EVALUATION',
-  'AWARD',
   'CONTRACT',
-  'DOCUMENT',
-  'COMMUNICATION',
+  'AWARD',
+  'AMENDMENT',
+  'CLARIFICATION',
+  'CANCELLATION',
   'COMPLIANCE',
-  'ARCHIVE'
+  'REPORT'
 ] as const;
 
 export type ProcurementRecordType = (typeof recordTypeValues)[number];
@@ -33,6 +33,7 @@ export const recordStatusValues = [
   'CLOSED',
   'EVALUATION',
   'AWARDED',
+  'CONTRACTED',
   'CANCELLED',
   'SUBMITTED',
   'WITHDRAWN',
@@ -70,6 +71,7 @@ export const sortFieldValues = ['date', 'title', 'type', 'status', 'value'] as c
 export type RecordsSortField = (typeof sortFieldValues)[number];
 
 export type RecordsQuery = {
+  recordId?: string;
   search: string;
   recordType: ProcurementRecordType | 'all';
   status: ProcurementRecordStatus | 'all';
@@ -82,11 +84,22 @@ export type RecordsQuery = {
   sortDirection: 'asc' | 'desc';
 };
 
+export type RecordsRequestContext = {
+  token?: string;
+  userId?: string;
+  organizationId?: string;
+  isAdmin?: boolean;
+};
+
 export type RecordsDashboardDto = {
   tenderRecords: number;
   bidRecords: number;
+  evaluationRecords: number;
+  awardRecords: number;
   contractRecords: number;
+  activeContracts: number;
   evidenceFiles: number;
+  archivedRecords: number;
   recordedValue: number;
   currency: string;
   totalRecords: number;
@@ -113,6 +126,45 @@ export type ProcurementRecordDto = {
   evidence: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type RecordsDetailDto = {
+  record: ProcurementRecordDto;
+  lifecycle: RecordsLifecycleStageDto[];
+  documents: RecordsDocumentDto[];
+  audit: RecordsAuditDto[];
+};
+
+export type RecordsLifecycleStageDto = {
+  key: string;
+  label: string;
+  status: 'completed' | 'current' | 'pending';
+  date: string | null;
+  detail: string | null;
+  recordId: string | null;
+};
+
+export type RecordsDocumentDto = {
+  id: string;
+  name: string;
+  category: string;
+  relatedRecord: string | null;
+  uploadedBy: string | null;
+  uploadedAt: string;
+  fileType: string;
+  version: string;
+  accessLevel: string;
+};
+
+export type RecordsAuditDto = {
+  id: string;
+  occurredAt: string;
+  user: string | null;
+  organization: string | null;
+  action: string;
+  recordType: string;
+  recordReference: string | null;
+  result: string;
 };
 
 export type RecordsListDto = {

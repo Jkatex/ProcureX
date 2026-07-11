@@ -155,6 +155,33 @@ describe('bidding document upload helpers', () => {
     await rm(uploadDir, { recursive: true, force: true });
   });
 
+  it('accepts schema-generated multipart document types', async () => {
+    const uploadDir = await mkdtemp(join(tmpdir(), 'procurex-bid-docs-'));
+    process.env.BID_DOCUMENT_UPLOAD_DIR = uploadDir;
+    const app = uploadParserApp();
+
+    const response = await request(app)
+      .post('/upload')
+      .field('documentType', 'ADMIN_MANUFACTURER_AUTHORIZATION')
+      .field('envelope', 'ADMINISTRATIVE')
+      .field('metadata', JSON.stringify({ requirementKey: 'supportingDocumentRows.doc-1' }))
+      .attach('file', Buffer.from('%PDF-1.4\nmanufacturer authorization'), {
+        filename: 'manufacturer-authorization.pdf',
+        contentType: 'application/pdf'
+      })
+      .expect(201);
+
+    expect(response.body).toEqual([
+      expect.objectContaining({
+        name: 'manufacturer-authorization.pdf',
+        documentType: 'ADMIN_MANUFACTURER_AUTHORIZATION',
+        envelope: 'ADMINISTRATIVE',
+        metadata: expect.objectContaining({ requirementKey: 'supportingDocumentRows.doc-1' })
+      })
+    ]);
+    await rm(uploadDir, { recursive: true, force: true });
+  });
+
   it('rejects unsafe file extensions, spoofed PDF content, oversized files, and unknown document types', async () => {
     const uploadDir = await mkdtemp(join(tmpdir(), 'procurex-bid-docs-'));
     process.env.BID_DOCUMENT_UPLOAD_DIR = uploadDir;
@@ -302,8 +329,39 @@ describe('bid submission schema builder', () => {
 
     expect(schema.tenderType).toBe('WORKS');
     expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['Site engineer', 'Concrete mixer']));
-    expect(stepFields(schema, 'financial')).toEqual([expect.objectContaining({ label: 'Unit rate for Partition works' })]);
+    expect(stepFields(schema, 'financial')).toEqual([
+      expect.objectContaining({
+        requirementKey: 'commercialItems.boq-1.unitRate',
+        label: 'Unit rate for Partition works',
+        validation: expect.objectContaining({ itemId: 'boq-1', itemNo: '1', description: 'Partition works', quantity: 1, unit: 'Lot' })
+      })
+    ]);
     expect(stepFields(schema, 'administrative')).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Contractor registration', type: 'file' })]));
+  });
+
+  it('derives service BOQ rows when top-level commercial items are empty', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'SERVICE',
+        commercialItems: [],
+        requirements: {
+          services: {
+            fields: {
+              serviceBoqRows: [{ id: 'service-boq-1', description: 'Monthly cleaning service', quantity: 12, unit: 'Month' }]
+            }
+          },
+          commercialItems: []
+        }
+      })
+    );
+
+    expect(stepFields(schema, 'financial')).toEqual([
+      expect.objectContaining({
+        requirementKey: 'commercialItems.service-boq-1.unitRate',
+        label: 'Unit rate for Monthly cleaning service',
+        validation: expect.objectContaining({ itemId: 'service-boq-1', itemNo: '1', description: 'Monthly cleaning service', quantity: 12, unit: 'Month' })
+      })
+    ]);
   });
 
   it('derives service schedule, staffing, SLA, and commercial pricing sections', () => {
@@ -663,6 +721,51 @@ describe('bidding service rules', () => {
       mode: 'submit'
     });
     expect(present.valid).toBe(true);
+  });
+
+  it('validates BOQ pricing through financial rows and standalone financial criteria through responses', () => {
+    const tender = tenderRecord({
+      type: 'GOODS',
+      metadata: { evaluationCriteria: [{ id: 'financial', name: 'Financial score', weight: 10 }] },
+      commercialItems: [{ id: 'item-1', itemNo: '1', description: 'Medical equipment', quantity: 1, unit: 'Lot', rate: 0, total: 0, payload: {} }]
+    });
+    const pricedDraft = {
+      ...draftInput(),
+      financial: { items: [{ itemId: 'item-1', description: 'Medical equipment', quantity: 1, unit: 'Lot', rate: 250000000 }] }
+    };
+
+    const missingCriterion = validateBidDraft({ draft: pricedDraft, tender, mode: 'submit' });
+
+    expect(missingCriterion.valid).toBe(false);
+    expect(missingCriterion.computedTotalAmount).toBe(250000000);
+    expect(missingCriterion.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'evaluationCriteria.financial',
+          message: expect.stringContaining('Required response is missing')
+        })
+      ])
+    );
+    expect(missingCriterion.issues).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          field: 'evaluationCriteria.financial',
+          message: expect.stringContaining('Required financial pricing is missing')
+        })
+      ])
+    );
+
+    const presentCriterion = validateBidDraft({
+      draft: {
+        ...pricedDraft,
+        responses: [...pricedDraft.responses, { requirementKey: 'evaluationCriteria.financial', response: { value: 85 } }]
+      },
+      tender,
+      mode: 'submit'
+    });
+
+    expect(presentCriterion.valid).toBe(true);
+    expect(presentCriterion.computedTotalAmount).toBe(250000000);
   });
 
   it('rejects non-open or private tenders before draft creation', async () => {

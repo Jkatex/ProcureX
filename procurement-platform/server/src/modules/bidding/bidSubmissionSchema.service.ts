@@ -53,7 +53,7 @@ export function buildBidSubmissionSchema(tender: TenderSchemaInput): BidSubmissi
   const workflow = workflowFromTenderType(tender.type);
   const fields = requirementFields(requirements, workflow);
   const requirementRows = tender.requirementRows ?? [];
-  const commercial = commercialItems(tender, requirements, fields);
+  const commercial = commercialItems(tender, requirements, fields, workflow);
   const samples = sampleFields(requirements, fields);
   const criteria = evaluationCriteria(metadata);
   const documents = documentFields(fields, requirementRows, metadata);
@@ -316,7 +316,7 @@ function collectRequirementValue(key: string, value: unknown, output: BidSubmiss
   }
 }
 
-function commercialItems(tender: TenderSchemaInput, requirements: Record<string, unknown>, fields: Record<string, unknown>): CommercialItem[] {
+function commercialItems(tender: TenderSchemaInput, requirements: Record<string, unknown>, fields: Record<string, unknown>, workflow: WorkflowType): CommercialItem[] {
   const normalized = (tender.commercialItems ?? []).map((item, index) => ({
     id: item.id || `commercial-${index + 1}`,
     itemNo: item.itemNo,
@@ -328,16 +328,40 @@ function commercialItems(tender: TenderSchemaInput, requirements: Record<string,
     source: 'commercialItems'
   }));
   if (normalized.length) return normalized;
-  const rows = firstArray(requirements.commercialItems, fields.quantityScheduleRows, fields.boqRows, fields.boqItems, fields.serviceBoqRows, fields.serviceScheduleRows, fields.financialOfferRows, fields.commercialPricingRows);
+  const candidates: Array<[string, unknown]> =
+    workflow === 'works'
+      ? [
+          ['requirements.works.fields.boqRows', fields.boqRows],
+          ['requirements.works.fields.boqItems', fields.boqItems],
+          ['requirements.commercialItems', requirements.commercialItems],
+          ['requirements.works.fields.financialOfferRows', fields.financialOfferRows],
+          ['requirements.works.fields.commercialPricingRows', fields.commercialPricingRows]
+        ]
+      : workflow === 'services'
+        ? [
+            ['requirements.services.fields.serviceBoqRows', fields.serviceBoqRows],
+            ['requirements.services.fields.commercialPricingRows', fields.commercialPricingRows],
+            ['requirements.commercialItems', requirements.commercialItems],
+            ['requirements.services.fields.financialOfferRows', fields.financialOfferRows]
+          ]
+        : [
+            ['requirements.commercialItems', requirements.commercialItems],
+            ['requirements.goods.fields.quantityScheduleRows', fields.quantityScheduleRows],
+            ['requirements.fields.boqRows', fields.boqRows],
+            ['requirements.fields.boqItems', fields.boqItems],
+            ['requirements.fields.financialOfferRows', fields.financialOfferRows],
+            ['requirements.fields.commercialPricingRows', fields.commercialPricingRows]
+          ];
+  const [source, rows] = firstNonEmptyArray(...candidates);
   return rows.filter(isRecord).map((row, index) => ({
     id: stringValue(row.id) || `commercial-${index + 1}`,
     itemNo: stringValue(row.itemNo ?? row.itemNumber) || String(index + 1),
-    description: stringValue(row.description ?? row.itemDescription ?? row.workItem ?? row.serviceTask ?? row.productName ?? row.name) || `Commercial item ${index + 1}`,
-    quantity: numberValue(row.quantity),
-    unit: stringValue(row.unit ?? row.unitOfMeasure),
+    description: stringValue(row.description ?? row.itemDescription ?? row.workItem ?? row.workDescription ?? row.serviceTask ?? row.serviceDescription ?? row.activity ?? row.productName ?? row.name) || `Commercial item ${index + 1}`,
+    quantity: numberValue(row.quantity ?? row.qty),
+    unit: stringValue(row.unit ?? row.unitOfMeasure ?? row.uom),
     rate: numberValue(row.rate ?? row.unitPrice),
     total: numberValue(row.total ?? row.totalPrice),
-    source: 'requirements.commercialItems'
+    source
   }));
 }
 
@@ -494,6 +518,11 @@ function isAdministrativeText(text: string) {
 
 function firstArray(...values: unknown[]) {
   return (values.find(Array.isArray) as unknown[] | undefined) ?? [];
+}
+
+function firstNonEmptyArray(...values: Array<[string, unknown]>): [string, unknown[]] {
+  const found = values.find(([, value]) => Array.isArray(value) && value.length);
+  return found ? [found[0], found[1] as unknown[]] : ['requirements.commercialItems', []];
 }
 
 function payloadTitle(payload: Record<string, unknown>, fallback: string) {

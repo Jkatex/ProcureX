@@ -272,7 +272,7 @@ export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
 
 export function AwardSidebar({ title, subtitle, activeQueue = 'my-urgent-actions', extraItems }: SidebarProps) {
   return (
-    <aside className="sidebar evaluation-sidebar">
+    <aside className="sidebar evaluation-sidebar award-floating-sidebar">
       <div className="evaluation-sidebar-head">
         <h3>{title}</h3>
         <span>{subtitle}</span>

@@ -17,6 +17,7 @@ import {
   ContractTerminationStatus,
   ContractTerminationType,
   ContractType,
+  DocumentReviewStatus,
   EnvelopeType,
   EvaluationStage,
   EvaluationStatus,
@@ -41,6 +42,8 @@ const scrypt = promisify(scryptCallback);
 
 export const AWARD_CONTRACT_DEMO_DATASET = 'award-contract-full';
 export const AWARD_CONTRACT_DEMO_PREFIX = 'PX-DEMO-AC';
+const MAIN_DEMO_USER_EMAIL = 'demo@procurex.tz';
+const MAIN_DEMO_ORGANIZATION_NAME = 'Kilimanjaro Supplies Limited';
 
 const demoOrganizationNames = [
   'ProcureX Demo Compliance Authority',
@@ -92,11 +95,9 @@ function demoPayload(extra: Record<string, unknown> = {}) {
     ...extra
   };
 }
-
 function ref(suffix: string) {
   return `${AWARD_CONTRACT_DEMO_PREFIX}-${suffix}`;
 }
-
 function daysFromNow(days: number, hour = 9) {
   const date = new Date();
   date.setUTCHours(hour, 0, 0, 0);
@@ -152,6 +153,10 @@ async function resetDemoDataset(db: AnyDb) {
     ? await db.awardRecommendation.findMany({ where: { workspaceId: { in: workspaceIds } }, select: { id: true } })
     : [];
   const recommendationIds = recommendations.map((item: { id: string }) => item.id);
+  const awardGroups = workspaceIds.length
+    ? await db.awardGroup.findMany({ where: { workspaceId: { in: workspaceIds } }, select: { id: true } })
+    : [];
+  const awardGroupIds = awardGroups.map((item: { id: string }) => item.id);
   const bids = tenderIds.length ? await db.bid.findMany({ where: { tenderId: { in: tenderIds } }, select: { id: true } }) : [];
   const bidIds = bids.map((item: { id: string }) => item.id);
   const terminations = contractIds.length
@@ -265,6 +270,11 @@ async function resetDemoDataset(db: AnyDb) {
     );
   }
   await deleteIfIds(db, 'awardNotice', 'recommendationId', recommendationIds);
+  await deleteIfIds(db, 'awardBidPack', 'awardGroupId', awardGroupIds);
+  await deleteIfIds(db, 'awardNegotiation', 'awardGroupId', awardGroupIds);
+  await deleteIfIds(db, 'awardClause', 'awardGroupId', awardGroupIds);
+  await deleteIfIds(db, 'awardWinner', 'awardGroupId', awardGroupIds);
+  await deleteIfIds(db, 'awardGroup', 'id', awardGroupIds);
   await deleteIfIds(db, 'approvalStep', 'recommendationId', recommendationIds);
   await deleteIfIds(db, 'awardRecommendation', 'id', recommendationIds);
 
@@ -347,6 +357,90 @@ async function upsertOrganization(db: AnyDb, name: string, kind: OrganizationKin
   return org;
 }
 
+function mergedDemoMetadata(current: unknown, extra: Record<string, unknown> = {}) {
+  const currentObject = current && typeof current === 'object' && !Array.isArray(current) ? current as Record<string, unknown> : {};
+  return {
+    ...currentObject,
+    ...demoPayload(extra)
+  };
+}
+
+async function upsertMainDemoOrganization(db: AnyDb) {
+  const existing = await db.organization.findUnique({ where: { name: MAIN_DEMO_ORGANIZATION_NAME } });
+  const org = await db.organization.upsert({
+    where: { name: MAIN_DEMO_ORGANIZATION_NAME },
+    update: {
+      kind: OrganizationKind.COMPANY,
+      country: 'TZ',
+      metadata: mergedDemoMetadata(existing?.metadata, {
+        demoAccount: true,
+        seededAwardContractDemo: true,
+        entityType: 'company',
+        registrySource: 'BRELA',
+        registryNumber: '123456789'
+      })
+    },
+    create: {
+      name: MAIN_DEMO_ORGANIZATION_NAME,
+      kind: OrganizationKind.COMPANY,
+      country: 'TZ',
+      metadata: demoPayload({
+        demoAccount: true,
+        seededAwardContractDemo: true,
+        entityType: 'company',
+        registrySource: 'BRELA',
+        registryNumber: '123456789'
+      })
+    }
+  });
+
+  for (const capability of [OrganizationCapabilityName.BUYER, OrganizationCapabilityName.SUPPLIER]) {
+    await db.organizationCapability.upsert({
+      where: { organizationId_capability: { organizationId: org.id, capability } },
+      update: { enabled: true },
+      create: { organizationId: org.id, capability, enabled: true }
+    });
+  }
+
+  await db.organizationProfile.upsert({
+    where: { organizationId: org.id },
+    update: {
+      summary: 'Verified demo organization with awardable tenders and contract lifecycle records.',
+      payload: mergedDemoMetadata(undefined, { demoAccount: true, seededAwardContractDemo: true })
+    },
+    create: {
+      organizationId: org.id,
+      summary: 'Verified demo organization with awardable tenders and contract lifecycle records.',
+      payload: demoPayload({ demoAccount: true, seededAwardContractDemo: true })
+    }
+  });
+
+  await db.buyerProfile.upsert({
+    where: { organizationId: org.id },
+    update: { procuringType: 'Demo procuring entity', budgetCode: ref('BUDGET-GENERAL'), payload: demoPayload({ demoAccount: true }) },
+    create: { organizationId: org.id, procuringType: 'Demo procuring entity', budgetCode: ref('BUDGET-GENERAL'), payload: demoPayload({ demoAccount: true }) }
+  });
+
+  await db.supplierProfile.upsert({
+    where: { organizationId: org.id },
+    update: {
+      trustTier: TrustTier.PLATINUM,
+      riskLevel: RiskLevel.LOW,
+      bidLimit: 999999999999,
+      categories: ['goods', 'works', 'services', 'consultancy']
+    },
+    create: {
+      organizationId: org.id,
+      trustTier: TrustTier.PLATINUM,
+      riskLevel: RiskLevel.LOW,
+      bidLimit: 999999999999,
+      categories: ['goods', 'works', 'services', 'consultancy']
+    }
+  });
+
+  return org;
+}
+
 async function upsertUser(db: AnyDb, org: any, email: string, displayName: string, title: string, accountType: AccountType = AccountType.USER) {
   const user = await db.user.upsert({
     where: { email },
@@ -380,8 +474,57 @@ async function upsertUser(db: AnyDb, org: any, email: string, displayName: strin
   return user;
 }
 
+async function upsertMainDemoUser(db: AnyDb, org: any) {
+  const existing = await db.user.findUnique({ where: { email: MAIN_DEMO_USER_EMAIL } });
+  const user = await db.user.upsert({
+    where: { email: MAIN_DEMO_USER_EMAIL },
+    update: {
+      displayName: 'Demo Verified User',
+      accountType: AccountType.USER,
+      verificationStatus: VerificationStatus.APPROVED,
+      passwordHash: await hashSeedPassword('Demo123!'),
+      metadata: mergedDemoMetadata(existing?.metadata, {
+        phoneVerified: true,
+        emailVerified: true,
+        demoAccount: true,
+        seededAwardContractDemo: true,
+        verifiedName: MAIN_DEMO_ORGANIZATION_NAME
+      })
+    },
+    create: {
+      email: MAIN_DEMO_USER_EMAIL,
+      phone: '+255713333444',
+      displayName: 'Demo Verified User',
+      accountType: AccountType.USER,
+      verificationStatus: VerificationStatus.APPROVED,
+      passwordHash: await hashSeedPassword('Demo123!'),
+      metadata: demoPayload({
+        phoneVerified: true,
+        emailVerified: true,
+        demoAccount: true,
+        seededAwardContractDemo: true,
+        verifiedName: MAIN_DEMO_ORGANIZATION_NAME
+      })
+    }
+  });
+
+  await db.account.upsert({
+    where: { provider_providerUserId: { provider: 'password', providerUserId: MAIN_DEMO_USER_EMAIL } },
+    update: { accountType: AccountType.USER },
+    create: { userId: user.id, provider: 'password', providerUserId: MAIN_DEMO_USER_EMAIL, accountType: AccountType.USER }
+  });
+
+  await db.organizationMember.upsert({
+    where: { organizationId_userId: { organizationId: org.id, userId: user.id } },
+    update: { status: 'ACTIVE', isDefault: true, title: 'Demo verified operator' },
+    create: { organizationId: org.id, userId: user.id, status: 'ACTIVE', isDefault: true, title: 'Demo verified operator' }
+  });
+
+  return user;
+}
+
 async function createActors(db: AnyDb) {
-  const mainOrg = await upsertOrganization(db, 'PX Demo Buyer Supplier Company', OrganizationKind.COMPANY, [OrganizationCapabilityName.BUYER, OrganizationCapabilityName.SUPPLIER]);
+  const mainOrg = await upsertMainDemoOrganization(db);
   const externalBuyerOrg = await upsertOrganization(db, 'PX Demo External Buyer Authority', OrganizationKind.COMPANY, [OrganizationCapabilityName.BUYER]);
   const supplierOrgs = {
     accepted: await upsertOrganization(db, 'PX Demo Accepted Supplier Ltd', OrganizationKind.COMPANY, [OrganizationCapabilityName.SUPPLIER]),
@@ -391,7 +534,7 @@ async function createActors(db: AnyDb) {
     closed: await upsertOrganization(db, 'PX Demo Closed Supplier Ltd', OrganizationKind.COMPANY, [OrganizationCapabilityName.SUPPLIER])
   };
 
-  const demoUser = await upsertUser(db, mainOrg, 'award-demo@procurex.tz', 'Award Contract Demo User', 'Buyer and supplier demo lead');
+  const demoUser = await upsertMainDemoUser(db, mainOrg);
   const mainActor = { org: mainOrg, user: demoUser };
   const externalBuyerActor = { org: externalBuyerOrg, user: demoUser };
 
@@ -446,6 +589,25 @@ async function createDocument(db: AnyDb, ownerOrgId: string, uploadedByUserId: s
       metadata: demoPayload({ documentKey: key })
     }
   });
+}
+
+async function seedBidDocuments(db: AnyDb, bid: any, supplier: DemoActor, key: string) {
+  const documents = [
+    { suffix: 'ELIGIBILITY', name: 'Eligibility and registration pack.pdf', documentType: 'BID_ELIGIBILITY', envelope: EnvelopeType.COMBINED },
+    { suffix: 'TECHNICAL', name: 'Technical methodology and delivery plan.pdf', documentType: 'BID_TECHNICAL', envelope: EnvelopeType.TECHNICAL },
+    { suffix: 'FINANCIAL', name: 'Priced BOQ and financial offer.pdf', documentType: 'BID_FINANCIAL', envelope: EnvelopeType.FINANCIAL }
+  ];
+  for (const document of documents) {
+    const object = await createDocument(db, supplier.org.id, supplier.user.id, `BID-${key}-${document.suffix}`, `${bid.reference} ${document.name}`, document.documentType);
+    await db.bidDocument.create({
+      data: {
+        bidId: bid.id,
+        documentId: object.id,
+        envelope: document.envelope,
+        reviewStatus: DocumentReviewStatus.VERIFIED
+      }
+    });
+  }
 }
 
 async function createAwardBase(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, scenario: DemoScenario, recommendationStatus: RecommendationStatus) {
@@ -512,6 +674,7 @@ async function createAwardBase(db: AnyDb, actors: Awaited<ReturnType<typeof crea
   await db.bidReceipt.create({
     data: { bidId: bid.id, receiptRef: ref(`RECEIPT-${scenario.key}`), receiptHash: ref(`RECEIPT-HASH-${scenario.key}`) }
   });
+  await seedBidDocuments(db, bid, scenario.supplier, scenario.key);
   const workspace = await db.evaluationWorkspace.create({
     data: {
       tenderId: tender.id,
@@ -556,7 +719,65 @@ async function createAwardBase(db: AnyDb, actors: Awaited<ReturnType<typeof crea
       payload: demoPayload({ scenarioKey: scenario.key, contractStatus: scenario.status, procurementType: scenario.procurementType })
     }
   });
-  return { tender, bid, workspace, recommendation };
+  return { tender, bid, workspace, criterion, recommendation };
+}
+
+async function createSiblingAwardRecommendation(
+  db: AnyDb,
+  actors: Awaited<ReturnType<typeof createActors>>,
+  base: Awaited<ReturnType<typeof createAwardBase>>,
+  supplier: DemoActor,
+  key: string,
+  amount: number,
+  status: RecommendationStatus
+) {
+  const bid = await db.bid.create({
+    data: {
+      tenderId: base.tender.id,
+      buyerOrgId: base.tender.buyerOrgId,
+      supplierOrgId: supplier.org.id,
+      submittedByUserId: supplier.user.id,
+      reference: ref(`BID-${key}`),
+      status: status === RecommendationStatus.APPROVED ? BidStatus.AWARDED : BidStatus.UNDER_EVALUATION,
+      submittedAt: daysFromNow(-24),
+      totalAmount: amount,
+      currency: 'TZS',
+      payload: demoPayload({ scenarioKey: key, groupedAward: true })
+    }
+  });
+  await db.bidVersion.create({
+    data: { bidId: bid.id, versionNo: 1, envelope: EnvelopeType.COMBINED, sealedHash: ref(`HASH-${key}`), payload: demoPayload({ version: 1, groupedAward: true }) }
+  });
+  await db.bidReceipt.create({
+    data: { bidId: bid.id, receiptRef: ref(`RECEIPT-${key}`), receiptHash: ref(`RECEIPT-HASH-${key}`) }
+  });
+  await seedBidDocuments(db, bid, supplier, key);
+  await db.evaluationScore.create({
+    data: {
+      workspaceId: base.workspace.id,
+      criterionId: base.criterion.id,
+      bidId: bid.id,
+      evaluatorUserId: actors.technical.user.id,
+      score: status === RecommendationStatus.APPROVED ? 91 : 84,
+      comment: 'Seeded grouped award score for multi-winner testing.',
+      lockedAt: daysFromNow(-11),
+      payload: demoPayload({ groupedAward: true })
+    }
+  });
+  const recommendation = await db.awardRecommendation.create({
+    data: {
+      reference: ref(`AWD-${key}`),
+      workspaceId: base.workspace.id,
+      bidId: bid.id,
+      supplierOrgId: supplier.org.id,
+      status,
+      amount,
+      currency: 'TZS',
+      reason: `${base.tender.title} grouped winner for ${supplier.org.name}.`,
+      payload: demoPayload({ scenarioKey: key, groupedAward: true })
+    }
+  });
+  return { tender: base.tender, bid, workspace: base.workspace, criterion: base.criterion, recommendation };
 }
 
 async function seedAwardSideRecords(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, base: Awaited<ReturnType<typeof createAwardBase>>, index: number) {
@@ -1578,6 +1799,312 @@ async function seedAwardOnlyVariety(db: AnyDb, actors: Awaited<ReturnType<typeof
   }
 }
 
+async function seedGroupedAwardDemo(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>) {
+  const negotiationScenario: DemoScenario = {
+    key: 'GROUP-NEGOTIATION-WATER',
+    title: 'Water testing kits multi-winner award',
+    procurementType: 'GOODS',
+    status: ContractStatus.DRAFT,
+    supplier: actors.suppliers.accepted,
+    amount: 72000000
+  };
+  const negotiationBase = await createAwardBase(db, actors, negotiationScenario, RecommendationStatus.RECOMMENDED);
+  const negotiationSibling = await createSiblingAwardRecommendation(
+    db,
+    actors,
+    negotiationBase,
+    actors.suppliers.risky,
+    'GROUP-NEGOTIATION-WATER-LOT-2',
+    68000000,
+    RecommendationStatus.RECOMMENDED
+  );
+  await seedAwardSideRecords(db, actors, negotiationBase, 21);
+  await seedAwardSideRecords(db, actors, negotiationSibling, 22);
+  const negotiationGroup = await db.awardGroup.create({
+    data: {
+      reference: ref('GROUP-NEGOTIATION-WATER'),
+      workspaceId: negotiationBase.workspace.id,
+      tenderId: negotiationBase.tender.id,
+      buyerOrgId: negotiationBase.tender.buyerOrgId,
+      title: 'Water testing kits negotiated multi-winner award',
+      status: 'NEGOTIATION',
+      payload: demoPayload({ groupedAward: true, scenario: 'multi-winner-negotiation', lots: ['Lab kits', 'Field kits'] })
+    }
+  });
+  await db.awardRecommendation.updateMany({
+    where: { id: { in: [negotiationBase.recommendation.id, negotiationSibling.recommendation.id] } },
+    data: { awardGroupId: negotiationGroup.id }
+  });
+  const negotiationWinnerOne = await db.awardWinner.create({
+    data: {
+      awardGroupId: negotiationGroup.id,
+      recommendationId: negotiationBase.recommendation.id,
+      bidId: negotiationBase.bid.id,
+      supplierOrgId: negotiationScenario.supplier.org.id,
+      amount: negotiationScenario.amount,
+      currency: 'TZS',
+      status: 'NEGOTIATION',
+      payload: demoPayload({ lot: 'Lot 1 - laboratory water testing kits', deliveryWindow: '21 days' })
+    }
+  });
+  const negotiationWinnerTwo = await db.awardWinner.create({
+    data: {
+      awardGroupId: negotiationGroup.id,
+      recommendationId: negotiationSibling.recommendation.id,
+      bidId: negotiationSibling.bid.id,
+      supplierOrgId: actors.suppliers.risky.org.id,
+      amount: 68000000,
+      currency: 'TZS',
+      status: 'NEGOTIATION',
+      payload: demoPayload({ lot: 'Lot 2 - field reagent kits', deliveryWindow: '28 days' })
+    }
+  });
+  const negotiationClause = await db.awardClause.create({
+    data: {
+      awardGroupId: negotiationGroup.id,
+      winnerId: negotiationWinnerOne.id,
+      clauseKey: 'delivery-schedule',
+      title: 'Delivery schedule and inspection lots',
+      body: 'Winners shall deliver by lot with buyer inspection at warehouse receipt.',
+      category: 'delivery',
+      status: ContractLifecycleItemStatus.IN_PROGRESS,
+      buyerComment: 'Buyer requests phased deliveries before school laboratory opening.',
+      supplierComment: 'Supplier confirms Lot 1 but requests two extra days for Lot 2.',
+      legalComment: 'Confirm delay damages before settlement.',
+      payload: demoPayload({ groupedAward: true, clauseType: 'negotiated' })
+    }
+  });
+  await db.awardClause.createMany({
+    data: [
+      {
+        awardGroupId: negotiationGroup.id,
+        winnerId: negotiationWinnerTwo.id,
+        clauseKey: 'performance-security',
+        title: 'Performance security',
+        body: 'Each winner shall submit performance security equal to ten percent of awarded lot value.',
+        category: 'security',
+        status: ContractLifecycleItemStatus.APPROVED,
+        buyerComment: 'Accepted by buyer.',
+        supplierComment: 'Accepted by supplier.',
+        legalComment: 'Compliant.',
+        payload: demoPayload({ groupedAward: true })
+      },
+      {
+        awardGroupId: negotiationGroup.id,
+        clauseKey: 'payment-retention',
+        title: 'Retention and payment release',
+        body: 'Five percent retention is released after acceptance certificate and warranty confirmation.',
+        category: 'payment',
+        status: ContractLifecycleItemStatus.OPEN,
+        buyerComment: 'Finance wants retention confirmed before notices.',
+        supplierComment: 'Awaiting final finance response.',
+        legalComment: 'Open item blocks settlement.',
+        payload: demoPayload({ groupedAward: true })
+      }
+    ]
+  });
+  await db.awardNegotiation.createMany({
+    data: [
+      {
+        awardGroupId: negotiationGroup.id,
+        winnerId: negotiationWinnerOne.id,
+        clauseId: negotiationClause.id,
+        raisedByRole: 'BUYER',
+        raisedByOrgId: negotiationBase.tender.buyerOrgId,
+        subject: 'Confirm split delivery dates',
+        position: 'Buyer requires Lot 1 within 21 days and Lot 2 within 28 days.',
+        counterOffer: 'Supplier can meet Lot 1 and requests Lot 2 delivery at 30 days.',
+        status: ContractLifecycleItemStatus.IN_PROGRESS,
+        dueDate: daysFromNow(1),
+        payload: demoPayload({ groupedAward: true, thread: 'delivery' })
+      },
+      {
+        awardGroupId: negotiationGroup.id,
+        winnerId: negotiationWinnerTwo.id,
+        raisedByRole: 'SUPPLIER',
+        raisedByOrgId: actors.suppliers.risky.org.id,
+        subject: 'Warranty replacement wording',
+        position: 'Supplier accepts replacement within seven business days after defect confirmation.',
+        counterOffer: 'Buyer accepts with batch traceability records attached.',
+        status: ContractLifecycleItemStatus.CLOSED,
+        dueDate: daysFromNow(-1),
+        payload: demoPayload({ groupedAward: true, thread: 'warranty' })
+      }
+    ]
+  });
+
+  const settledScenario: DemoScenario = {
+    key: 'GROUP-SETTLED-CLINIC',
+    title: 'Clinic equipment installation settled award',
+    procurementType: 'GOODS',
+    status: ContractStatus.SIGNATURE_PENDING,
+    supplier: actors.suppliers.accepted,
+    amount: 132000000
+  };
+  const settledBase = await createAwardBase(db, actors, settledScenario, RecommendationStatus.APPROVED);
+  const settledSibling = await createSiblingAwardRecommendation(
+    db,
+    actors,
+    settledBase,
+    actors.suppliers.self,
+    'GROUP-SETTLED-CLINIC-LOT-2',
+    54000000,
+    RecommendationStatus.APPROVED
+  );
+  await seedAwardSideRecords(db, actors, settledBase, 31);
+  await seedAwardSideRecords(db, actors, settledSibling, 32);
+  const settledGroup = await db.awardGroup.create({
+    data: {
+      reference: ref('GROUP-SETTLED-CLINIC'),
+      workspaceId: settledBase.workspace.id,
+      tenderId: settledBase.tender.id,
+      buyerOrgId: settledBase.tender.buyerOrgId,
+      title: 'Clinic equipment installation settled award',
+      status: 'NOTICED',
+      settledAt: daysFromNow(-2),
+      payload: demoPayload({ groupedAward: true, scenario: 'settled-forming-contracts', settlementNote: 'Negotiations closed and notices issued to all winners.' })
+    }
+  });
+  await db.awardRecommendation.updateMany({
+    where: { id: { in: [settledBase.recommendation.id, settledSibling.recommendation.id] } },
+    data: { awardGroupId: settledGroup.id }
+  });
+  const settledClauseRows = [
+    {
+      clauseKey: 'installation-acceptance',
+      title: 'Installation and acceptance',
+      body: 'Equipment is accepted only after commissioning certificate, user training, and asset tagging.',
+      category: 'delivery',
+      status: ContractLifecycleItemStatus.APPROVED,
+      buyerComment: 'Accepted after technical review.',
+      supplierComment: 'Accepted by winner.',
+      legalComment: 'Ready for contract formation.'
+    },
+    {
+      clauseKey: 'payment-milestones',
+      title: 'Payment milestones',
+      body: 'Forty percent on delivery, forty percent on installation, twenty percent after acceptance.',
+      category: 'payment',
+      status: ContractLifecycleItemStatus.APPROVED,
+      buyerComment: 'Budget commitment confirmed.',
+      supplierComment: 'Accepted.',
+      legalComment: 'Ready.'
+    },
+    {
+      clauseKey: 'training-warranty',
+      title: 'Training and warranty',
+      body: 'Supplier shall provide on-site user training and twelve months warranty support.',
+      category: 'warranty',
+      status: ContractLifecycleItemStatus.WAIVED,
+      buyerComment: 'Warranty wording folded into installation clause.',
+      supplierComment: 'No objection.',
+      legalComment: 'Waiver recorded.'
+    }
+  ];
+  await db.awardClause.createMany({
+    data: settledClauseRows.map((clause) => ({
+      awardGroupId: settledGroup.id,
+      ...clause,
+      payload: demoPayload({ groupedAward: true, settled: true })
+    }))
+  });
+  await db.awardNegotiation.createMany({
+    data: [
+      {
+        awardGroupId: settledGroup.id,
+        raisedByRole: 'BUYER',
+        raisedByOrgId: settledBase.tender.buyerOrgId,
+        subject: 'Close installation acceptance wording',
+        position: 'Buyer required commissioning and training evidence.',
+        counterOffer: 'Suppliers accepted with asset tagging checklist attached.',
+        status: ContractLifecycleItemStatus.CLOSED,
+        dueDate: daysFromNow(-3),
+        payload: demoPayload({ groupedAward: true, settled: true })
+      },
+      {
+        awardGroupId: settledGroup.id,
+        raisedByRole: 'SUPPLIER',
+        raisedByOrgId: settledScenario.supplier.org.id,
+        subject: 'Confirm payment milestone percentages',
+        position: 'Supplier requested 50 percent on delivery.',
+        counterOffer: 'Buyer settled at 40/40/20 with faster acceptance review.',
+        status: ContractLifecycleItemStatus.CLOSED,
+        dueDate: daysFromNow(-2),
+        payload: demoPayload({ groupedAward: true, settled: true })
+      }
+    ]
+  });
+  const bidPackDocument = await createDocument(db, settledBase.tender.buyerOrgId, settledBase.tender.ownerUserId, 'AWARD-BID-PACK-GROUP-SETTLED-CLINIC', 'Clinic equipment installation award bid pack.json', 'AWARD_BID_PACK');
+  await db.awardBidPack.create({
+    data: {
+      awardGroupId: settledGroup.id,
+      documentId: bidPackDocument.id,
+      status: 'GENERATED',
+      checksum: ref('BID-PACK-CHECKSUM-GROUP-SETTLED-CLINIC'),
+      payload: demoPayload({
+        generatedBy: 'seed-award-contract-demo',
+        winners: [settledBase.recommendation.reference, settledSibling.recommendation.reference],
+        clauses: settledClauseRows.map((clause) => clause.clauseKey),
+        notices: 'issued'
+      }),
+      generatedAt: daysFromNow(-2)
+    }
+  });
+
+  const settledWinnerOne = await db.awardWinner.create({
+    data: {
+      awardGroupId: settledGroup.id,
+      recommendationId: settledBase.recommendation.id,
+      bidId: settledBase.bid.id,
+      supplierOrgId: settledScenario.supplier.org.id,
+      amount: settledScenario.amount,
+      currency: 'TZS',
+      status: AwardNoticeStatus.ACCEPTED,
+      payload: demoPayload({ lot: 'Lot 1 - diagnostic equipment', settled: true })
+    }
+  });
+  const settledWinnerTwo = await db.awardWinner.create({
+    data: {
+      awardGroupId: settledGroup.id,
+      recommendationId: settledSibling.recommendation.id,
+      bidId: settledSibling.bid.id,
+      supplierOrgId: actors.suppliers.self.org.id,
+      amount: 54000000,
+      currency: 'TZS',
+      status: AwardNoticeStatus.ACCEPTED,
+      payload: demoPayload({ lot: 'Lot 2 - installation and training', settled: true })
+    }
+  });
+
+  const settledContractOne = await createNoticeAndContract(db, actors, settledScenario, settledBase, AwardNoticeStatus.ACCEPTED);
+  await seedContractCore(db, actors, settledScenario, settledContractOne.contract, false);
+  const settledDeliveryOne = await seedContractDelivery(db, actors, settledScenario, settledContractOne.contract, false);
+  await seedFinance(db, actors, settledScenario, settledContractOne.contract, settledDeliveryOne, false);
+  await seedDocumentsAndApprovals(db, actors, settledScenario, settledContractOne.contract);
+
+  const siblingScenario: DemoScenario = {
+    ...settledScenario,
+    key: 'GROUP-SETTLED-CLINIC-LOT-2',
+    status: ContractStatus.ACTIVE,
+    supplier: actors.suppliers.self,
+    amount: 54000000
+  };
+  const settledContractTwo = await createNoticeAndContract(db, actors, siblingScenario, settledSibling, AwardNoticeStatus.ACCEPTED);
+  await seedContractCore(db, actors, siblingScenario, settledContractTwo.contract, false);
+  const settledDeliveryTwo = await seedContractDelivery(db, actors, siblingScenario, settledContractTwo.contract, false);
+  await seedFinance(db, actors, siblingScenario, settledContractTwo.contract, settledDeliveryTwo, false);
+  await seedDocumentsAndApprovals(db, actors, siblingScenario, settledContractTwo.contract);
+
+  await db.awardWinner.update({
+    where: { id: settledWinnerOne.id },
+    data: { noticeId: settledContractOne.notice.id, contractId: settledContractOne.contract.id }
+  });
+  await db.awardWinner.update({
+    where: { id: settledWinnerTwo.id },
+    data: { noticeId: settledContractTwo.notice.id, contractId: settledContractTwo.contract.id }
+  });
+}
+
 async function seedCompliance(db: AnyDb, actors: Awaited<ReturnType<typeof createActors>>, referenceContract: any, referenceTenderId: string, referenceBidId: string) {
   await db.collusionAlert.create({
     data: {
@@ -1744,6 +2271,7 @@ export async function seedAwardContractDemo() {
   await withDbContext(adminContext, async (tx) => {
     const db = tx as AnyDb;
     await seedAwardOnlyVariety(db, actors);
+    await seedGroupedAwardDemo(db, actors);
   });
 
   if (richContract && complianceTenderId && complianceBidId) {
@@ -1777,4 +2305,3 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exit(1);
     });
 }
- 

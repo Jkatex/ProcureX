@@ -67,6 +67,15 @@ export type ReadyEvaluationTenderDto = {
   procurementType: string;
   closingDate: string;
   submittedBidCount: number;
+  requirementCount: number;
+  criteriaCount: number;
+  ready: boolean;
+  status: string;
+  tenderStatus: string;
+  bidOpeningStatus: string;
+  currentStage: string | null;
+  progressPercentage: number;
+  readinessReason: string | null;
 };
 
 export type ReadyEvaluationResponseDto = {
@@ -89,6 +98,7 @@ export type EvaluationDecisionStatus =
 export type EvaluationRequestContext = {
   userId?: string;
   organizationId?: string;
+  isAdmin?: boolean;
 };
 
 export type EvaluationWorkspaceTenderDto = {
@@ -113,6 +123,8 @@ export type EvaluationWorkspaceSummaryDto = {
   } | null;
   updatedAt: string | null;
   lastSavedAt: string | null;
+  activeStageId: string | null;
+  selectedBidId: string | null;
 };
 
 export type EvaluationWorkspaceCriterionDto = {
@@ -212,4 +224,6 @@ export type SaveEvaluationWorkspaceInput = {
   scores: EvaluationScoreInput[];
   decisions: EvaluationDecisionInput[];
   complete: boolean;
+  activeStageId?: string;
+  selectedBidId?: string;
 };

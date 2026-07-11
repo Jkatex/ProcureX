@@ -344,6 +344,7 @@ export const clauseBodySchema = z
 
 export const negotiationBodySchema = z
   .object({
+    winnerId: uuidSchema.optional(),
     clauseId: uuidSchema.optional(),
     raisedByRole: z.string().trim().min(1).max(80),
     subject: nonEmptyText.max(220),
@@ -351,6 +352,13 @@ export const negotiationBodySchema = z
     counterOffer: z.string().trim().max(4000).optional().default(''),
     status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
     dueDate: z.string().trim().date().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const awardSettlementBodySchema = z
+  .object({
+    note: optionalNote,
     payload: jsonObjectSchema
   })
   .strict();

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { procurementApi } from '../../api';
+import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';
 import { useTenderDetail } from '../../hooks';
-import type { TenderDetail } from '../../types';
+import type { TenderDetail, TenderDetailDocument } from '../../types';
 import {
   CommercialTable,
   DetailBadges,
@@ -24,7 +24,7 @@ export function SupplierTenderDetailProcurexPage() {
   const [params] = useSearchParams();
   const tenderId = params.get('tenderId');
   const { data: tender, isLoading, isError } = useTenderDetail(tenderId);
-  const [isRecordingDownload, setIsRecordingDownload] = useState(false);
+  const [isPreparingDownload, setIsPreparingDownload] = useState(false);
 
   if (!tenderId) return <EmptyTenderDetail message="Open a tender from the marketplace to view its supplier tender pack." />;
   if (isLoading) return <EmptyTenderDetail message="Loading tender detail..." />;
@@ -33,15 +33,21 @@ export function SupplierTenderDetailProcurexPage() {
   const alreadyBid = tender.currentBid?.status === 'SUBMITTED' || tender.hasSubmittedBid;
   const canBid = Boolean(tender.canBid ?? (!tender.ownedByCurrentOrganization && !alreadyBid));
   const bidUrl = `/bidding?tenderId=${tender.id}`;
-  const primaryDocumentId = tender.documents?.[0]?.id;
-  const recordDownload = async () => {
-    if (!primaryDocumentId || isRecordingDownload) return;
-    setIsRecordingDownload(true);
+  const handleDownloadDocument = async (document?: TenderDetailDocument) => {
+    if (isPreparingDownload) return;
+    setIsPreparingDownload(true);
     try {
-      await procurementApi.recordTenderDocumentDownload(tender.id, primaryDocumentId);
+      await downloadTenderDocument(tender, document);
+    } catch (error) {
+      console.error('Tender document download failed', error);
     } finally {
-      setIsRecordingDownload(false);
+      setIsPreparingDownload(false);
     }
+  };
+  const handleOpenDocument = (document?: TenderDetailDocument) => {
+    void openTenderDocument(tender, document, 'documents').catch((error) => {
+      console.error('Tender document open failed', error);
+    });
   };
 
   return (
@@ -78,9 +84,9 @@ export function SupplierTenderDetailProcurexPage() {
                   <button className="btn btn-primary supplier-detail-primary-action" type="button" disabled>Bidding unavailable</button>
                 )}
                 <div className="supplier-detail-action-row">
-                  <button className="btn btn-secondary" type="button">Open Document</button>
-                  <button className="btn btn-secondary" type="button" disabled={isRecordingDownload || !primaryDocumentId} onClick={recordDownload}>
-                    {isRecordingDownload ? 'Recording...' : 'Download Document'}
+                  <button className="btn btn-secondary" type="button" onClick={() => handleOpenDocument()}>Open Document</button>
+                  <button className="btn btn-secondary" type="button" disabled={isPreparingDownload} onClick={() => void handleDownloadDocument()}>
+                    {isPreparingDownload ? 'Preparing...' : 'Download Document'}
                   </button>
                 </div>
                 <div className="supplier-detail-action-row">
@@ -93,7 +99,17 @@ export function SupplierTenderDetailProcurexPage() {
             <PrototypeTabs
               defaultTabId="procurement-details"
               tabs={[
-                { id: 'procurement-details', label: 'Procurement details', content: <SupplierProcurementDetails tender={tender} /> },
+                {
+                  id: 'procurement-details',
+                  label: 'Procurement details',
+                  content: (
+                    <SupplierProcurementDetails
+                      tender={tender}
+                      onOpenDocument={handleOpenDocument}
+                      onDownloadDocument={(document) => void handleDownloadDocument(document)}
+                    />
+                  )
+                },
                 { id: 'questions-requirements', label: 'Questions and requirements', content: <SupplierQuestions tender={tender} /> }
               ]}
             />
@@ -104,7 +120,15 @@ export function SupplierTenderDetailProcurexPage() {
   );
 }
 
-export function SupplierProcurementDetails({ tender }: { tender: TenderDetail }) {
+export function SupplierProcurementDetails({
+  tender,
+  onOpenDocument,
+  onDownloadDocument
+}: {
+  tender: TenderDetail;
+  onOpenDocument: (document: TenderDetailDocument) => void;
+  onDownloadDocument: (document: TenderDetailDocument) => void;
+}) {
   return (
     <div className="supplier-detail-procurement-document">
       <section className="tender-document-view supplier-procurement-full-document">
@@ -122,7 +146,7 @@ export function SupplierProcurementDetails({ tender }: { tender: TenderDetail })
         <CustomerInformation tender={tender} />
         <PurchaseInformation tender={tender} />
         <TenderDocumentation tender={tender} />
-        <TenderDocuments tender={tender} />
+        <TenderDocuments tender={tender} onOpenDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
         <SupplierBuyerNotice tender={tender} />
       </section>
     </div>
@@ -197,10 +221,18 @@ function TenderDocumentation({ tender }: { tender: TenderDetail }) {
   );
 }
 
-function TenderDocuments({ tender }: { tender: TenderDetail }) {
+function TenderDocuments({
+  tender,
+  onOpenDocument,
+  onDownloadDocument
+}: {
+  tender: TenderDetail;
+  onOpenDocument: (document: TenderDetailDocument) => void;
+  onDownloadDocument: (document: TenderDetailDocument) => void;
+}) {
   return (
     <TenderDocumentSection number="4" title="Documents" kicker="Tender pack" id="documents">
-      <DocumentCards tender={tender} />
+      <DocumentCards tender={tender} onViewDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
     </TenderDocumentSection>
   );
 }
