@@ -453,6 +453,7 @@ export type MyTenderRow = {
 
 export type MyBidRow = {
   id: string;
+  tenderId?: string;
   title: string;
   section: 'draft' | 'submitted';
   status: string;
@@ -574,6 +575,11 @@ export type TenderDetail = MarketplaceTenderRow & {
     submitted: number;
     withdrawn: number;
   };
+  submittedBidBusinesses?: Array<{
+    id: string;
+    name: string;
+    submittedAt: string | null;
+  }>;
   currentBid?: {
     id: string;
     reference?: string;

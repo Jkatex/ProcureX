@@ -46,6 +46,7 @@ export type Tender = {
   hasDraftBid?: boolean;
   hasSubmittedBid?: boolean;
   isSaved?: boolean;
+  visibility?: 'PUBLIC_MARKETPLACE' | 'INVITED' | 'PRIVATE' | string;
   categories: string[];
 };
 

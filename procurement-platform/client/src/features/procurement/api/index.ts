@@ -116,6 +116,7 @@ function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
     commercialItems: tender.commercialItems ?? [],
     documents: tender.documents ?? [],
     bidSummary: tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    submittedBidBusinesses: tender.submittedBidBusinesses ?? [],
     currentBid: tender.currentBid ?? null,
     activity: tender.activity
   };
@@ -129,6 +130,7 @@ function normalizeMarketplaceTenderRow<T extends MarketplaceTenderRow>(tender: T
     categories: normalizeCategoryList(tender.categories, category),
     currency: tender.currency || 'TZS',
     ownerOrganization: tender.ownerOrganization || tender.organization,
+    visibility: tender.visibility || 'PUBLIC_MARKETPLACE',
     createdByCurrentUser: Boolean(tender.createdByCurrentUser),
     ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
     canBid: Boolean(tender.canBid),
@@ -177,12 +179,12 @@ export function mergeSessionMarketplaceData(
     id: draft.id,
     title: draft.title || 'Untitled tender draft',
     section: draft.status === 'PUBLISHED' ? 'posted' : 'draft',
-    status: draft.status === 'PUBLISHED' ? 'Posted' : draft.status === 'SUBMITTED' ? 'Under Review' : 'Draft',
+    status: draft.status === 'PUBLISHED' ? 'Open' : draft.status === 'SUBMITTED' ? 'Awaiting Review' : 'Draft',
     type: toTenderType(draft.procurementTypeId),
-    tender: draft.status === 'PUBLISHED' ? createMarketplaceTenderFromDraft(draft, organization) : undefined,
+    tender: createMarketplaceTenderFromDraft(draft, organization),
     lastActivity: draft.publishedAt?.slice(0, 10) || draft.updatedAt.slice(0, 10),
-    actionLabel: draft.status === 'PUBLISHED' ? 'View My Tender' : draft.status === 'SUBMITTED' ? 'Review Pending' : 'Continue Draft',
-    nav: draft.status === 'PUBLISHED' ? `/procurement/tender-details?tenderId=${draft.id}` : '/procurement/create-tender'
+    actionLabel: draft.status === 'PUBLISHED' ? 'View tender' : draft.status === 'SUBMITTED' ? 'Awaiting review' : 'Continue creating',
+    nav: draft.status === 'PUBLISHED' ? `/procurement/tender-details?tenderId=${draft.id}` : `/procurement/create-tender?draftId=${draft.id}`
   }));
 
   const existingTenderIds = new Set(sessionTenderRows.map((row) => row.id));
@@ -214,6 +216,7 @@ function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization
     hasDraftBid: false,
     hasSubmittedBid: false,
     isSaved: false,
+    visibility: 'PUBLIC_MARKETPLACE',
     categories: draft.categories.length ? draft.categories : [draft.procurementTypeId]
   };
 }
@@ -248,6 +251,7 @@ function buildTenderDetailFallback(tender: Tender): TenderDetail {
     ],
     documents: [{ id: 'document-1', name: `${tender.reference} tender document`, documentType: 'TENDER_DOCUMENT', label: 'Tender document' }],
     bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    submittedBidBusinesses: [],
     currentBid: null
   };
 }
@@ -353,7 +357,8 @@ function normalizeFixtureTender(tender: Tender, currentUser?: SessionUser | null
     canBid: false,
     hasDraftBid: false,
     hasSubmittedBid: false,
-    isSaved: false
+    isSaved: false,
+    visibility: tender.visibility || 'PUBLIC_MARKETPLACE'
   };
 }
 
@@ -361,6 +366,7 @@ function canBidOnFixtureTender(tender: Tender, myBidRows: MyBidRow[]) {
   const status = String(tender.status).toUpperCase();
   const hasSubmittedBid = myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted');
   if (tender.ownedByCurrentOrganization) return false;
+  if (String(tender.visibility ?? '').toUpperCase() !== 'PUBLIC_MARKETPLACE') return false;
   if (status !== 'OPEN' && status !== 'PUBLISHED') return false;
   if (hasSubmittedBid) return false;
   return Date.parse(`${tender.closingDate}T23:59:59.999Z`) > Date.now();

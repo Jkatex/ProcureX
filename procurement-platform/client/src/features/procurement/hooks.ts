@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppSelector } from '@/app/store';
-import { procurementApi } from './api';
+import { mergeSessionMarketplaceData, procurementApi } from './api';
 import type { MarketplacePayload, TenderDetail } from './types';
 
 export function useTenders() {
@@ -11,6 +11,8 @@ export function useMarketplaceData() {
   const [data, setData] = useState<MarketplacePayload | null>(null);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const user = useAppSelector((state) => state.auth.user);
+  const createTenderDrafts = useAppSelector((state) => state.procurement.createTenderDrafts);
+  const publishedTenders = useAppSelector((state) => state.procurement.publishedTenders);
 
   useEffect(() => {
     let isMounted = true;
@@ -20,7 +22,7 @@ export function useMarketplaceData() {
       .getMarketplace(user)
       .then((payload) => {
         if (!isMounted) return;
-        setData(payload);
+        setData(mergeSessionMarketplaceData(payload, createTenderDrafts, publishedTenders, user?.organization));
         setStatus('success');
       })
       .catch(() => {
@@ -31,7 +33,7 @@ export function useMarketplaceData() {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [createTenderDrafts, publishedTenders, user]);
 
   return {
     data,
