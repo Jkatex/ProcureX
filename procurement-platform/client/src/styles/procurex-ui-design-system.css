@@ -25960,8 +25960,84 @@ button.dashboard-status-line:hover {
     color: var(--design-body, var(--text-primary));
 }
 
-.award-action-launcher-head,
-.award-drawer-heading {
+.award-action-inline-row {
+    padding: 0;
+    overflow: hidden;
+}
+
+.award-action-table-row {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.5fr) minmax(110px, 0.65fr) minmax(110px, 0.65fr) minmax(130px, 0.7fr) auto;
+    gap: 0;
+    align-items: stretch;
+    min-width: 0;
+}
+
+.award-action-cell {
+    display: grid;
+    gap: 5px;
+    align-content: center;
+    min-width: 0;
+    padding: 14px 16px;
+    border-left: 1px solid var(--design-hairline, var(--border-soft));
+}
+
+.award-action-cell:first-child {
+    border-left: 0;
+}
+
+.award-action-cell span {
+    color: var(--design-muted, var(--text-muted));
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.award-action-cell strong,
+.award-action-cell h2 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.award-action-cell-main h2 {
+    font-size: 16px;
+    line-height: 1.3;
+}
+
+.award-action-cell-select {
+    justify-items: end;
+}
+
+.award-action-inline-row.selected .award-action-table-row {
+    background: color-mix(in srgb, var(--design-accent, var(--primary)) 7%, transparent);
+}
+
+.award-action-form-inline {
+    margin: 0;
+    border-width: 1px 0 0;
+    border-radius: 0;
+    padding: 18px;
+    background: color-mix(in srgb, var(--design-canvas, var(--card-bg)) 96%, var(--design-muted, #eef2f7));
+}
+
+.award-inline-form-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.award-inline-form-heading h2 {
+    margin: 0;
+}
+
+.award-inline-form-heading p {
+    margin: 4px 0 0;
+    color: var(--design-muted, var(--text-muted));
+    font-size: 13px;
+}
+
+.award-action-launcher-head {
     display: flex;
     justify-content: space-between;
     gap: 16px;
@@ -25969,14 +26045,12 @@ button.dashboard-status-line:hover {
 }
 
 .award-action-launcher h2,
-.award-drawer-heading h2,
 .award-form-section h3 {
     margin: 0;
     color: var(--design-heading, var(--text-primary));
 }
 
-.award-action-launcher p,
-.award-drawer-heading p {
+.award-action-launcher p {
     margin: 4px 0 0;
     color: var(--design-muted, var(--text-muted));
     font-size: 13px;
@@ -25995,47 +26069,6 @@ button.dashboard-status-line:hover {
     padding: 4px 8px;
     color: var(--design-muted, var(--text-muted));
     font-size: 12px;
-}
-
-.award-action-drawer-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    display: flex;
-    justify-content: flex-end;
-    background: rgba(15, 23, 42, 0.28);
-}
-
-.award-action-drawer {
-    width: min(720px, 100vw);
-    height: 100vh;
-    overflow: auto;
-    background: var(--design-canvas, var(--card-bg));
-    box-shadow: -20px 0 50px rgba(15, 23, 42, 0.22);
-}
-
-.award-action-form-drawer {
-    min-height: 100%;
-    border: 0;
-    border-radius: 0;
-    padding: 22px;
-}
-
-.award-drawer-heading {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    margin: -22px -22px 4px;
-    padding: 20px 22px;
-    border-bottom: 1px solid var(--design-hairline, var(--border-soft));
-    background: var(--design-canvas, var(--card-bg));
-}
-
-.award-drawer-heading-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-end;
 }
 
 .award-form-section {
@@ -26092,15 +26125,6 @@ button.dashboard-status-line:hover {
     color: var(--design-muted, var(--text-muted));
     font-size: 12px;
     overflow-wrap: anywhere;
-}
-
-.award-drawer-footer {
-    position: sticky;
-    bottom: 0;
-    margin: 6px -22px -22px;
-    padding: 14px 22px;
-    border-top: 1px solid var(--design-hairline, var(--border-soft));
-    background: var(--design-canvas, var(--card-bg));
 }
 
 .award-action-form .panel-heading {
@@ -26943,8 +26967,14 @@ fieldset.award-form-field {
 
 .progress-stepper {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+}
+
+.award-inline-form-footer {
+    justify-content: flex-end;
 }
 
 .progress-stepper .step {
@@ -26974,6 +27004,7 @@ fieldset.award-form-field {
     font-weight: 600;
     color: var(--text-primary);
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .award-lifecycle-row {
@@ -26984,9 +27015,9 @@ fieldset.award-form-field {
 
 .award-row-main {
     display: grid;
-    grid-template-columns: minmax(260px, 1.6fr) minmax(190px, 0.9fr) minmax(230px, 1.1fr) minmax(250px, 1fr) auto;
-    align-items: center;
-    gap: 18px;
+    grid-template-columns: minmax(0, 2fr) minmax(180px, 0.85fr) minmax(220px, 1fr) minmax(260px, 1.25fr) minmax(148px, auto);
+    align-items: stretch;
+    gap: 14px;
     width: 100%;
     padding: 18px 20px 18px 18px;
 }
@@ -27000,13 +27031,26 @@ fieldset.award-form-field {
 }
 
 .award-row-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: 8px 10px;
+    min-width: 0;
 }
 
 .award-row-title strong {
+    flex: 1 1 240px;
     font-size: 16px;
     line-height: 1.35;
     min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.award-row-title .badge {
+    flex: 0 1 auto;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .award-row-identity p {
@@ -27014,6 +27058,7 @@ fieldset.award-form-field {
     color: var(--text-secondary);
     font-size: 13px;
     line-height: 1.45;
+    overflow-wrap: anywhere;
 }
 
 .award-row-badges {
@@ -27048,6 +27093,7 @@ fieldset.award-form-field {
     color: var(--text-primary);
     font-size: 14px;
     line-height: 1.4;
+    overflow-wrap: anywhere;
 }
 
 .award-row-stage .progress-stepper {
@@ -27056,8 +27102,9 @@ fieldset.award-form-field {
 
 .award-row-meta {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(82px, 1fr));
     gap: 10px;
+    align-content: start;
 }
 
 .award-row-meta em {
@@ -27070,6 +27117,7 @@ fieldset.award-form-field {
     background: rgba(255, 255, 255, 0.74);
     font-style: normal;
     line-height: 1.25;
+    overflow-wrap: anywhere;
 }
 
 .award-row-meta strong {
@@ -27080,12 +27128,17 @@ fieldset.award-form-field {
 
 .award-row-actions {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    min-width: 0;
 }
 
 .award-row-actions .btn {
-    min-width: 150px;
+    width: 100%;
+    min-width: 132px;
+    max-width: 190px;
     white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .award-card-empty {
@@ -27095,7 +27148,34 @@ fieldset.award-form-field {
 .awarding-contracts-page .main-content,
 .awarding-contracts-page .awarding-contracts-workspace {
     width: 100%;
-    max-width: min(100%, 1480px);
+    max-width: min(100%, 1480px) !important;
+}
+
+.awarding-contracts-page--prototype > .main-content {
+    width: min(1480px, calc(100% - 48px)) !important;
+    margin: 0 auto !important;
+    padding-inline: 0 !important;
+}
+
+.award-role-context-panel {
+    display: grid;
+    gap: 10px;
+    padding: 22px;
+}
+
+.award-role-context-panel h2,
+.award-role-context-panel p {
+    margin: 0;
+}
+
+.award-role-context-panel h2 {
+    color: var(--text-primary);
+    font-size: 18px;
+}
+
+.award-role-context-panel p {
+    color: var(--text-secondary);
+    line-height: 1.5;
 }
 
 .awarding-contracts-page .awarding-summary-grid {
@@ -27117,6 +27197,45 @@ fieldset.award-form-field {
 
 .awarding-contracts-page .queue-toolbar label {
     flex: 1 1 520px;
+}
+
+.awarding-contracts-page .awarding-tabs-panel .panel-heading {
+    align-items: start;
+}
+
+.awarding-contracts-page .awarding-tabs-panel .panel-heading h2 {
+    margin: 8px 0 4px;
+    color: var(--text-primary);
+}
+
+.awarding-contracts-page .awarding-tabs-panel .panel-heading p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.awarding-contracts-page .awarding-contracts-table table {
+    min-width: 1120px;
+}
+
+.awarding-contracts-page .awarding-contracts-table th,
+.awarding-contracts-page .awarding-contracts-table td {
+    vertical-align: top;
+}
+
+.awarding-contracts-page .awarding-contracts-table td:nth-child(2),
+.awarding-contracts-page .awarding-contracts-table td:nth-child(3) {
+    min-width: 220px;
+}
+
+.awarding-contracts-page .awarding-contracts-table td:last-child .btn {
+    min-width: 110px;
+}
+
+.award-page > .award-floating-sidebar,
+.award-response-page > .award-floating-sidebar,
+.contract-page > .award-floating-sidebar,
+.post-award-page > .award-floating-sidebar {
+    display: block !important;
 }
 
 .award-page > .award-floating-sidebar,
@@ -27157,10 +27276,15 @@ fieldset.award-form-field {
     }
 
     .award-row-main {
-        grid-template-columns: minmax(260px, 1.4fr) minmax(220px, 1fr) minmax(260px, 1fr);
+        grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.95fr) minmax(260px, 1fr);
+        align-items: stretch;
     }
 
     .award-row-action-summary {
+        grid-column: span 1;
+    }
+
+    .award-row-stage {
         grid-column: span 1;
     }
 
@@ -27169,10 +27293,12 @@ fieldset.award-form-field {
     }
 
     .award-row-actions {
+        grid-column: 3;
         justify-content: stretch;
     }
 
     .award-row-actions .btn {
+        max-width: none;
         width: 100%;
     }
 
@@ -27194,6 +27320,51 @@ fieldset.award-form-field {
 }
 
 @media (max-width: 900px) {
+
+    .award-action-table-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .award-action-cell {
+        border-left: 0;
+        border-top: 1px solid var(--design-hairline, var(--border-soft));
+    }
+
+    .award-action-cell:first-child {
+        border-top: 0;
+    }
+
+    .award-action-cell-select {
+        justify-items: stretch;
+    }
+
+    .award-action-cell-select .btn {
+        width: 100%;
+    }
+
+    .award-inline-form-heading {
+        display: grid;
+    }
+
+    .award-row-main {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .award-row-action-summary,
+    .award-row-stage,
+    .award-row-meta,
+    .award-row-actions {
+        grid-column: 1;
+    }
+
+    .award-row-actions {
+        justify-content: stretch;
+    }
+
+    .award-row-actions .btn {
+        max-width: none;
+    }
 
     .award-page > .award-floating-sidebar,
     .award-response-page > .award-floating-sidebar,

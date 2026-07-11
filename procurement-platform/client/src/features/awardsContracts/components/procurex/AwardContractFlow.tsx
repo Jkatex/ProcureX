@@ -107,24 +107,9 @@ export function AwardContractFlowBar<TId extends string>({
   onSelect: (id: TId) => void;
 }) {
   const activeIndex = Math.max(0, steps.findIndex((step) => step.id === active));
-  const activeStep = steps[activeIndex];
-  const activeStatus = activeStep ? flowStepStatus(active, activeStep, activeIndex, activeIndex) : 'available';
   const progressRatio = steps.length <= 1 ? 0 : activeIndex / (steps.length - 1);
   return (
     <section className="award-flow-shell" aria-label={label}>
-      {activeStep ? (
-        <div className="award-flow-current">
-          <div>
-            <span className="section-kicker">Workflow step</span>
-            <h2>Step {activeIndex + 1} of {steps.length}: {activeStep.label}</h2>
-            <p>{activeStep.summary ?? activeStep.description}</p>
-          </div>
-          <div className="award-flow-current-meta">
-            <FlowStatusBadge value={activeStep.statusLabel ?? defaultFlowStatusLabel(activeStatus)} />
-            {flowCountLabel(activeStep) ? <span>{flowCountLabel(activeStep)}</span> : null}
-          </div>
-        </div>
-      ) : null}
       <div
         className="wizard-step-progress award-flow-bar"
         role="tablist"
