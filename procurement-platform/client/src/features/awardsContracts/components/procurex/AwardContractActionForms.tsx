@@ -61,6 +61,7 @@ type ActionFormPanelProps = {
   onComplete?: (result: unknown) => void;
   children?: ReactNode;
   drawerSummary?: ReactNode;
+  defaultSelected?: boolean;
 };
 
 export const lifecycleStatusOptions = ['OPEN', 'IN_PROGRESS', 'SUBMITTED', 'APPROVED', 'REJECTED', 'WAIVED', 'CLOSED'].map((value) => option(value));
@@ -366,17 +367,16 @@ export function ActionFormPanel({
   onSubmit,
   onComplete,
   children,
-  drawerSummary
+  drawerSummary,
+  defaultSelected = false
 }: ActionFormPanelProps) {
   const access = useAwardContractAccess();
   const actionDefinition = actionDefinitionForTitle(title);
   const owner = actionDefinition?.owner ?? inferActionOwner(title, badge);
   const allowed = canUseWorkflowOwner(access, owner);
-  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(defaultSelected);
   const formKey = useMemo(() => slug(title), [title]);
-  const drawerTitleId = `award-action-${formKey}-title`;
-  const openButtonRef = useRef<HTMLButtonElement | null>(null);
-  const drawerRef = useRef<HTMLElement | null>(null);
+  const formTitleId = `award-action-${formKey}-title`;
   const defaults = useMemo(
     () => Object.fromEntries(fields.map((field) => [field.name, initialValues?.[field.name] ?? defaultValue(field)])) as AwardContractFormValues,
     [fields, initialValues]
@@ -386,7 +386,7 @@ export function ActionFormPanel({
   const [message, setMessage] = useState('');
   const dirtyRef = useRef(false);
   const isDirty = useMemo(() => JSON.stringify(values) !== JSON.stringify(defaults), [defaults, values]);
-  useAwardContractFlowGuard(open && isDirty);
+  useAwardContractFlowGuard(selected && isDirty);
 
   useEffect(() => {
     setValues(defaults);
@@ -394,56 +394,8 @@ export function ActionFormPanel({
   }, [defaults]);
 
   useEffect(() => {
-    dirtyRef.current = open && isDirty;
-  }, [isDirty, open]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const launcherButton = openButtonRef.current;
-    const focusableSelector = [
-      'button:not([disabled])',
-      'input:not([disabled])',
-      'select:not([disabled])',
-      'textarea:not([disabled])',
-      'a[href]',
-      '[tabindex]:not([tabindex="-1"])'
-    ].join(',');
-    const focusables = () => Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
-    window.requestAnimationFrame(() => {
-      focusables()[0]?.focus();
-    });
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        if (dirtyRef.current && !confirmAwardContractNavigation()) return;
-        setOpen(false);
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const items = focusables();
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      const restoreTarget = previouslyFocused && previouslyFocused !== document.body ? previouslyFocused : launcherButton;
-      if (restoreTarget && document.contains(restoreTarget)) {
-        window.requestAnimationFrame(() => restoreTarget.focus());
-      }
-    };
-  }, [open]);
+    dirtyRef.current = selected && isDirty;
+  }, [isDirty, selected]);
 
   const built = buildAwardContractPayload(fields, values);
   const blocked = saving || built.errors.length > 0;
@@ -465,10 +417,10 @@ export function ActionFormPanel({
     setValues((current) => ({ ...current, [name]: value }));
   }
 
-  function closeDrawer() {
+  function closeInlineForm() {
     if (saving) return;
-    if (open && isDirty && !confirmAwardContractNavigation()) return;
-    setOpen(false);
+    if (selected && isDirty && !confirmAwardContractNavigation()) return;
+    setSelected(false);
   }
 
   async function submit(event: FormEvent) {
@@ -485,7 +437,7 @@ export function ActionFormPanel({
       setMessage(`${title} saved.`);
       onComplete?.(result);
       clearAwardContractDirtyWork();
-      setOpen(false);
+      setSelected(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `${title} could not be saved.`);
     } finally {
@@ -494,85 +446,86 @@ export function ActionFormPanel({
   }
 
   return (
-    <article className="award-action-launcher" data-award-contract-form={title}>
-      <div className="award-action-launcher-head">
-        <div>
+    <article className={`award-action-launcher award-action-inline-row${selected ? ' selected' : ''}`} data-award-contract-form={title}>
+      <div className="award-action-table-row">
+        <div className="award-action-cell award-action-cell-main">
           {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
           <h2>{title}</h2>
-          <p>{counts.linked ? `${counts.linked} linked selector${counts.linked === 1 ? '' : 's'}` : 'Direct workflow action'}{counts.required ? ` - ${counts.required} required` : ''}</p>
+          <p>{actionDefinition?.group ?? 'Workflow action'}</p>
         </div>
-        <StatusBadge value={badge} />
-      </div>
-      <div className="award-action-launcher-meta">
-        <span>{actionDefinition?.group ?? 'Workflow action'}</span>
-        <span>{owner === 'ANY' ? 'Shared action' : owner === 'BUYER' ? 'Buyer action' : owner === 'SUPPLIER' ? 'Supplier action' : 'Admin action'}</span>
-        {counts.advanced ? <span>{counts.advanced} advanced field{counts.advanced === 1 ? '' : 's'}</span> : null}
-      </div>
-      <div className="inline-actions">
-        <button className="btn btn-primary btn-sm" type="button" ref={openButtonRef} onClick={() => setOpen(true)}>Open action</button>
-      </div>
-      {!open && message ? <FlowChangeAlert message={message} /> : null}
-      {open ? (
-        <div className="award-action-drawer-backdrop" role="presentation">
-          <aside className="award-action-drawer" role="dialog" aria-modal="true" aria-labelledby={drawerTitleId} ref={drawerRef}>
-            <form className="award-action-form award-action-form-drawer" noValidate onSubmit={submit}>
-              <div className="award-drawer-heading">
-                <div>
-                  {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
-                  <h2 id={drawerTitleId}>{title}</h2>
-                  <p>{owner === 'ANY' ? 'Shared workflow action' : owner === 'BUYER' ? 'Buyer-owned workflow action' : owner === 'SUPPLIER' ? 'Supplier-owned workflow action' : 'Admin-owned workflow action'}</p>
-                </div>
-                <div className="award-drawer-heading-actions">
-                  <StatusBadge value={badge} />
-                  <button className="btn btn-secondary btn-sm" type="button" onClick={closeDrawer}>Close</button>
-                </div>
-              </div>
-              {drawerSummary ?? children ?? <ActionReviewSummary fields={fields} values={values} />}
-              {Array.from(fieldsBySection.entries()).map(([section, sectionFields]) => {
-                const content = (
-                  <div className="award-form-grid">
-                    {sectionFields.map((field) => (
-                      <AwardContractField
-                        field={field}
-                        formKey={formKey}
-                        value={values[field.name] ?? defaultValue(field)}
-                        onChange={(value) => setValue(field.name, value)}
-                        key={field.name}
-                      />
-                    ))}
-                  </div>
-                );
-                if (section === 'payload') {
-                  return (
-                    <details className="award-form-section award-form-section-advanced" key={section}>
-                      <summary>{sectionLabels[section as keyof typeof sectionLabels]}</summary>
-                      {content}
-                    </details>
-                  );
-                }
-                return (
-                  <section className="award-form-section" key={section}>
-                    <h3>{sectionLabels[section as keyof typeof sectionLabels]}</h3>
-                    {content}
-                  </section>
-                );
-              })}
-              {built.errors.length > 0 ? <p className="panel-note">{built.errors[0]}</p> : null}
-              {message ? <p className="panel-note" aria-live="polite">{message}</p> : null}
-              <div className="inline-actions award-drawer-footer">
-                <button className="btn btn-primary btn-sm" type="submit" disabled={blocked}>
-                  {saving ? 'Saving...' : submitLabel}
-                </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setValues(defaults)}>
-                  Reset
-                </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={closeDrawer}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </aside>
+        <div className="award-action-cell">
+          <span>Owner</span>
+          <strong>{owner === 'ANY' ? 'Shared' : owner === 'BUYER' ? 'Buyer' : owner === 'SUPPLIER' ? 'Supplier' : 'Admin'}</strong>
         </div>
+        <div className="award-action-cell">
+          <span>Required</span>
+          <strong>{counts.required ? `${counts.required} fields` : 'Optional'}</strong>
+        </div>
+        <div className="award-action-cell">
+          <span>Status</span>
+          <StatusBadge value={badge} />
+        </div>
+        <div className="award-action-cell award-action-cell-select">
+          <button className="btn btn-primary btn-sm" type="button" aria-expanded={selected} onClick={() => (selected ? closeInlineForm() : setSelected(true))}>
+            {selected ? 'Hide' : 'Select'}
+          </button>
+        </div>
+      </div>
+      {message ? <FlowChangeAlert message={message} /> : null}
+      {selected ? (
+        <form className="award-action-form award-action-form-inline" aria-labelledby={formTitleId} noValidate onSubmit={submit}>
+          <div className="award-inline-form-heading">
+            <div>
+              {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
+              <h2 id={formTitleId}>{title}</h2>
+              <p>{owner === 'ANY' ? 'Shared workflow action' : owner === 'BUYER' ? 'Buyer-owned workflow action' : owner === 'SUPPLIER' ? 'Supplier-owned workflow action' : 'Admin-owned workflow action'}</p>
+            </div>
+            <StatusBadge value={badge} />
+          </div>
+          {drawerSummary ?? children ?? <ActionReviewSummary fields={fields} values={values} />}
+          {Array.from(fieldsBySection.entries()).map(([section, sectionFields]) => {
+            const content = (
+              <div className="award-form-grid">
+                {sectionFields.map((field) => (
+                  <AwardContractField
+                    field={field}
+                    formKey={formKey}
+                    value={values[field.name] ?? defaultValue(field)}
+                    onChange={(value) => setValue(field.name, value)}
+                    key={field.name}
+                  />
+                ))}
+              </div>
+            );
+            if (section === 'payload') {
+              return (
+                <details className="award-form-section award-form-section-advanced" key={section}>
+                  <summary>{sectionLabels[section as keyof typeof sectionLabels]}</summary>
+                  {content}
+                </details>
+              );
+            }
+            return (
+              <section className="award-form-section" key={section}>
+                <h3>{sectionLabels[section as keyof typeof sectionLabels]}</h3>
+                {content}
+              </section>
+            );
+          })}
+          {built.errors.length > 0 ? <p className="panel-note">{built.errors[0]}</p> : null}
+          {message ? <p className="panel-note" aria-live="polite">{message}</p> : null}
+          <div className="inline-actions award-inline-form-footer">
+            <button className="btn btn-primary btn-sm" type="submit" disabled={blocked}>
+              {saving ? 'Saving...' : submitLabel}
+            </button>
+            <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setValues(defaults)}>
+              Reset
+            </button>
+            <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={closeInlineForm}>
+              Cancel
+            </button>
+          </div>
+        </form>
       ) : null}
     </article>
   );

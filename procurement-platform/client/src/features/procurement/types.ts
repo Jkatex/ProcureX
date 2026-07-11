@@ -545,6 +545,15 @@ export type PublishTenderFailure = {
   errors: Array<{ step?: string; field?: string; message: string; severity?: string }>;
 };
 
+export type TenderDetailDocument = {
+  id: string;
+  name: string;
+  documentType: string;
+  label: string | null;
+  openUrl?: string;
+  downloadUrl?: string;
+};
+
 export type TenderDetail = MarketplaceTenderRow & {
   buyerOrgId?: string;
   ownerUserId?: string | null;
@@ -566,7 +575,7 @@ export type TenderDetail = MarketplaceTenderRow & {
     total: number;
     payload: Record<string, unknown>;
   }>;
-  documents?: Array<{ id: string; name: string; documentType: string; label: string | null }>;
+  documents?: TenderDetailDocument[];
   canBid?: boolean;
   bidSummary?: {
     total: number;

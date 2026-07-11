@@ -104,6 +104,13 @@ export function PostAwardTrackingProcurexPage() {
     navigate({ pathname: '/awards-contracts/post-award', search: searchWithFlowStep(location.search, step) });
   }
 
+  function refreshContractAndAdvance(step: PostAwardGroupId) {
+    return (result: unknown) => {
+      refreshContract(result);
+      selectFlowStep(step);
+    };
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const invoices = contract?.invoices ?? [];
   const payments = contract?.payments ?? [];
@@ -166,7 +173,19 @@ export function PostAwardTrackingProcurexPage() {
       const statusLabel = !contract ? 'Locked' : lockedByFormation ? 'Locked' : section.count && section.count > 0 ? 'Complete' : 'Ready';
       return {
         id: section.id,
-        label: section.id === 'risk' ? 'Risk' : section.id === 'changes' ? 'Changes' : section.id === 'termination' ? 'Termination' : section.id === 'warranty' ? 'Warranty' : section.label,
+        label: section.id === 'cmp'
+          ? 'Overview'
+          : section.id === 'delivery'
+            ? 'Milestones'
+            : section.id === 'risk'
+              ? 'Issues'
+              : section.id === 'changes'
+                ? 'Variations'
+                : section.id === 'closeout'
+                  ? 'Closure'
+                  : section.id === 'registers'
+                    ? 'Activity'
+                    : section.label,
         description: section.description,
         summary: `Work on ${section.label.toLowerCase()} for the selected contract without leaving the post-award flow.`,
         count: section.count,
@@ -309,7 +328,7 @@ export function PostAwardTrackingProcurexPage() {
                   payload: JSON.stringify(contract.managementPlan?.payload ?? {}, null, 2)
                 }}
                 onSubmit={(payload) => awardsContractsApi.upsertManagementPlan(contract.id, payload)}
-                onComplete={refreshContract}
+                onComplete={refreshContractAndAdvance('delivery')}
               />
               <ActionFormPanel
                 title="Contract status"
@@ -1035,7 +1054,7 @@ export function PostAwardTrackingProcurexPage() {
                 ]}
                 initialValues={{ status: 'APPROVED', completionCertificate: false, finalAccountApproved: false, payload: '{}' }}
                 onSubmit={(payload) => awardsContractsApi.upsertCloseout(contract.id, payload)}
-                onComplete={refreshContract}
+                onComplete={refreshContractAndAdvance('performance')}
               />
               </>
               ) : null}
@@ -1056,7 +1075,7 @@ export function PostAwardTrackingProcurexPage() {
                 ]}
                 initialValues={{ overallScore: '80', timeScore: '80', qualityScore: '80', costScore: '80', complianceScore: '80', payload: '{}' }}
                 onSubmit={(payload) => awardsContractsApi.upsertSupplierPerformance(contract.id, payload)}
-                onComplete={refreshContract}
+                onComplete={refreshContractAndAdvance('registers')}
               />
               <ActionFormPanel
                 title="Performance score"

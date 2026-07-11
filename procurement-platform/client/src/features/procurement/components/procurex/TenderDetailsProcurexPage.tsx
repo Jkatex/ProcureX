@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { procurementApi } from '../../api';
+import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';
 import { useTenderDetail } from '../../hooks';
-import type { TenderDetail } from '../../types';
+import type { TenderDetail, TenderDetailDocument } from '../../types';
 import {
   CommercialTable,
   DetailBadges,
@@ -27,7 +27,7 @@ export function TenderDetailsProcurexPage() {
   const [params] = useSearchParams();
   const tenderId = params.get('tenderId');
   const { data: tender, isLoading, isError } = useTenderDetail(tenderId);
-  const [isRecordingDownload, setIsRecordingDownload] = useState(false);
+  const [isPreparingDownload, setIsPreparingDownload] = useState(false);
 
   if (!tenderId) return <BuyerEmpty message="Open one of your tenders from My Tenders to view buyer details." />;
   if (isLoading) return <BuyerEmpty message="Loading buyer tender detail..." />;
@@ -38,15 +38,21 @@ export function TenderDetailsProcurexPage() {
   const interestedSuppliers = Math.max(tender.bidSummary?.total ?? 0, tender.hasDraftBid || tender.hasSubmittedBid ? 1 : 0);
   const marketplaceViews = activityValue(tender.activity?.marketplaceViews, 180 + interestedSuppliers * 22);
   const documentDownloads = activityValue(tender.activity?.documentDownloads, 45 + (tender.documents?.length ?? 0) * 11);
-  const primaryDocumentId = tender.documents?.[0]?.id;
-  const recordDownload = async () => {
-    if (!primaryDocumentId || isRecordingDownload) return;
-    setIsRecordingDownload(true);
+  const handleDownloadDocument = async (document?: TenderDetailDocument) => {
+    if (isPreparingDownload) return;
+    setIsPreparingDownload(true);
     try {
-      await procurementApi.recordTenderDocumentDownload(tender.id, primaryDocumentId);
+      await downloadTenderDocument(tender, document);
+    } catch (error) {
+      console.error('Tender document download failed', error);
     } finally {
-      setIsRecordingDownload(false);
+      setIsPreparingDownload(false);
     }
+  };
+  const handleOpenDocument = (document?: TenderDetailDocument) => {
+    void openTenderDocument(tender, document, 'documents').catch((error) => {
+      console.error('Tender document open failed', error);
+    });
   };
 
   return (
@@ -75,9 +81,9 @@ export function TenderDetailsProcurexPage() {
                 <p>{tender.id} / {tender.organization}. Manage live tender interactions, amendments, supplier clarifications, and evaluation readiness.</p>
               </div>
               <div className="hero-action-stack">
-                <button className="btn btn-secondary" type="button">Open Document</button>
-                <button className="btn btn-secondary" type="button" disabled={isRecordingDownload || !primaryDocumentId} onClick={recordDownload}>
-                  {isRecordingDownload ? 'Recording...' : 'Download Document'}
+                <button className="btn btn-secondary" type="button" onClick={() => handleOpenDocument()}>Open Document</button>
+                <button className="btn btn-secondary" type="button" disabled={isPreparingDownload} onClick={() => void handleDownloadDocument()}>
+                  {isPreparingDownload ? 'Preparing...' : 'Download Document'}
                 </button>
                 <button className="btn btn-secondary" type="button">Create Amendment</button>
                 <Link className="btn btn-primary" to="/evaluation">Open Evaluation</Link>
@@ -99,7 +105,13 @@ export function TenderDetailsProcurexPage() {
               </article>
             </section>
 
-            <BuyerTabbedDetail tender={tender} remainingDays={remainingDays} past={past} />
+            <BuyerTabbedDetail
+              tender={tender}
+              remainingDays={remainingDays}
+              past={past}
+              onOpenDocument={handleOpenDocument}
+              onDownloadDocument={(document) => void handleDownloadDocument(document)}
+            />
             <BuyerAmendmentPlaceholder />
           </div>
         </main>
@@ -108,13 +120,29 @@ export function TenderDetailsProcurexPage() {
   );
 }
 
-function BuyerTabbedDetail({ tender, remainingDays, past }: { tender: TenderDetail; remainingDays: number; past: boolean }) {
+function BuyerTabbedDetail({
+  tender,
+  remainingDays,
+  past,
+  onOpenDocument,
+  onDownloadDocument
+}: {
+  tender: TenderDetail;
+  remainingDays: number;
+  past: boolean;
+  onOpenDocument: (document: TenderDetailDocument) => void;
+  onDownloadDocument: (document: TenderDetailDocument) => void;
+}) {
   return (
     <PrototypeTabs
       variant="buyer"
       defaultTabId="procurement-details"
       tabs={[
-        { id: 'procurement-details', label: 'Procurement details', content: <BuyerTenderDocument tender={tender} /> },
+        {
+          id: 'procurement-details',
+          label: 'Procurement details',
+          content: <BuyerTenderDocument tender={tender} onOpenDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
+        },
         { id: 'questions-amendments', label: 'Questions and amendments', content: <BuyerQuestions tender={tender} /> },
         { id: 'supplier-activity', label: 'Supplier activity', content: <BuyerSupplierActivity tender={tender} remainingDays={remainingDays} past={past} /> },
         { id: 'evaluation-records', label: 'Evaluation and records', content: <BuyerEvaluationAndRecords tender={tender} past={past} /> }
@@ -266,7 +294,15 @@ function BuyerEvaluationAndRecords({ tender, past }: { tender: TenderDetail; pas
   );
 }
 
-function BuyerTenderDocument({ tender }: { tender: TenderDetail }) {
+function BuyerTenderDocument({
+  tender,
+  onOpenDocument,
+  onDownloadDocument
+}: {
+  tender: TenderDetail;
+  onOpenDocument: (document: TenderDetailDocument) => void;
+  onDownloadDocument: (document: TenderDetailDocument) => void;
+}) {
   return (
     <div className="supplier-detail-procurement-document">
       <section className="tender-document-view supplier-procurement-full-document">
@@ -295,8 +331,8 @@ function BuyerTenderDocument({ tender }: { tender: TenderDetail }) {
         <TenderDocumentSection number="3" title="Requirements" kicker="Buyer requirements">
           <RequirementCards tender={tender} />
         </TenderDocumentSection>
-        <TenderDocumentSection number="4" title="Documents" kicker="Tender pack">
-          <DocumentCards tender={tender} />
+        <TenderDocumentSection number="4" title="Documents" kicker="Tender pack" id="documents">
+          <DocumentCards tender={tender} onViewDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
         </TenderDocumentSection>
         <TenderDocumentSection number="5" title="Timeline" kicker="Monitoring">
           <TimelineList tender={tender} />

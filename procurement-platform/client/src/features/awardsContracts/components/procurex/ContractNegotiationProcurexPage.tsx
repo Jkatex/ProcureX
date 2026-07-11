@@ -124,6 +124,13 @@ export function ContractNegotiationProcurexPage() {
     navigate({ pathname: '/awards-contracts/negotiation', search: searchWithFlowStep(location.search, step) });
   }
 
+  function refreshContractAndAdvance(step: ContractFlowStepId) {
+    return (result: unknown) => {
+      refreshContract(result);
+      selectFlowStep(step);
+    };
+  }
+
   const sections: Array<WorkflowSection<ContractFormationGroupId>> = [
     { id: 'draft', label: 'Draft', description: 'Version and generated content.', count: contract ? 1 : 0 },
     { id: 'clauses', label: 'Agreed Terms', description: 'Read-only award clauses.', count: contract?.clauses?.length ?? 0 },
@@ -138,13 +145,13 @@ export function ContractNegotiationProcurexPage() {
     const signaturesPending = { message: 'Activation readiness is locked until required contract signatures are completed.', actionLabel: 'Go to Signatures', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
     const registerCount = sections.find((section) => section.id === 'registers')?.count ?? 0;
     return [
-      { id: 'draft', label: 'Draft', description: 'Generated contract content', summary: 'Review the generated contract draft, parties, commercial terms, dates, and document context.', status: contract ? 'complete' : 'locked', statusLabel: contract ? 'Complete' : 'Locked', count: contract ? 1 : 0, countLabel: 'drafts', lockReason: noContract },
-      { id: 'clauses', label: 'Agreed clauses', description: 'Read-only award terms', summary: 'Review clauses carried over from the settled award. Clause negotiation is managed in Awarding before contract formation.', status: contract ? 'available' : 'locked', statusLabel: (contract?.clauses?.length ?? 0) > 0 ? 'Carried over' : 'Ready', count: contract?.clauses?.length ?? 0, countLabel: 'clauses', lockReason: noContract },
-      { id: 'negotiation', label: 'Award history', description: 'Read-only settlement history', summary: 'Review historical negotiation points. New negotiation belongs in Awarding before contract formation.', status: contract ? 'available' : 'locked', statusLabel: (contract?.negotiations?.length ?? 0) > 0 ? 'Historical' : 'No open points', count: contract?.negotiations?.length ?? 0, countLabel: 'points', lockReason: noContract },
-      { id: 'approval', label: 'Approval', description: 'Owner approval', summary: 'Capture owner, legal, finance, or technical approval before signatures.', status: contract?.workflowApprovals?.length ? 'complete' : contract ? 'available' : 'locked', statusLabel: contract?.workflowApprovals?.length ? 'Complete' : 'Needs action', count: contract?.workflowApprovals?.length ?? 0, countLabel: 'approvals', lockReason: noContract },
+      { id: 'draft', label: 'Contract Basis', description: 'Generated contract content', summary: 'Review the generated contract draft, parties, commercial terms, dates, and document context.', status: contract ? 'complete' : 'locked', statusLabel: contract ? 'Complete' : 'Locked', count: contract ? 1 : 0, countLabel: 'drafts', lockReason: noContract },
+      { id: 'clauses', label: 'Clauses', description: 'Read-only award terms', summary: 'Review clauses carried over from the settled award. Clause negotiation is managed in Awarding before contract formation.', status: contract ? 'available' : 'locked', statusLabel: (contract?.clauses?.length ?? 0) > 0 ? 'Carried over' : 'Ready', count: contract?.clauses?.length ?? 0, countLabel: 'clauses', lockReason: noContract },
+      { id: 'negotiation', label: 'Negotiation', description: 'Read-only settlement history', summary: 'Review historical negotiation points. New negotiation belongs in Awarding before contract formation.', status: contract ? 'available' : 'locked', statusLabel: (contract?.negotiations?.length ?? 0) > 0 ? 'Historical' : 'No open points', count: contract?.negotiations?.length ?? 0, countLabel: 'points', lockReason: noContract },
+      { id: 'approval', label: 'Documents', description: 'Owner approval', summary: 'Capture owner, legal, finance, or technical approval before signatures.', status: contract?.workflowApprovals?.length ? 'complete' : contract ? 'available' : 'locked', statusLabel: contract?.workflowApprovals?.length ? 'Complete' : 'Needs action', count: contract?.workflowApprovals?.length ?? 0, countLabel: 'approvals', lockReason: noContract },
       { id: 'signatures', label: 'Signatures', description: 'Request and complete signing', summary: 'Request signatures and complete buyer or supplier signing without leaving the flow.', status: !contract ? 'locked' : pendingSignatures.length === 0 && contract.signatures.length > 0 ? 'complete' : 'available', statusLabel: pendingSignatures.length === 0 && (contract?.signatures.length ?? 0) > 0 ? 'Complete' : contract ? 'Needs action' : 'Locked', count: contract?.signatures?.length ?? 0, countLabel: 'signatures', lockReason: noContract },
-      { id: 'readiness', label: 'Activation readiness', description: 'Final checks before execution', summary: 'Confirm signatures and activation requirements before post-award execution begins.', status: !contract ? 'locked' : pendingSignatures.length > 0 ? 'locked' : 'available', statusLabel: !contract ? 'Locked' : pendingSignatures.length > 0 ? 'Locked' : 'Ready', count: contract ? 3 : 0, countLabel: 'readiness checks', lockReason: !contract ? noContract : signaturesPending },
-      { id: 'registers', label: 'Records', description: 'Formation history', summary: 'Review all contract formation records and audit context in one place.', status: contract ? 'available' : 'locked', statusLabel: contract ? 'Ready' : 'Locked', count: registerCount, countLabel: 'records', lockReason: noContract }
+      { id: 'readiness', label: 'Effectiveness', description: 'Final checks before execution', summary: 'Confirm signatures and activation requirements before post-award execution begins.', status: !contract ? 'locked' : pendingSignatures.length > 0 ? 'locked' : 'available', statusLabel: !contract ? 'Locked' : pendingSignatures.length > 0 ? 'Locked' : 'Ready', count: contract ? 3 : 0, countLabel: 'readiness checks', lockReason: !contract ? noContract : signaturesPending },
+      { id: 'registers', label: 'Activity', description: 'Formation history', summary: 'Review all contract formation records and audit context in one place.', status: contract ? 'available' : 'locked', statusLabel: contract ? 'Ready' : 'Locked', count: registerCount, countLabel: 'records', lockReason: noContract }
     ];
   }, [contract, contractId, pendingSignatures.length, sections]);
 
@@ -295,7 +302,7 @@ export function ContractNegotiationProcurexPage() {
                       }, null, 2)
                     }}
                     onSubmit={(payload) => awardsContractsApi.saveDraft(contract.id, payload)}
-                    onComplete={refreshContract}
+                    onComplete={refreshContractAndAdvance('clauses')}
                   />
                 </ActionWorkspace>
               ) : null}
@@ -347,7 +354,7 @@ export function ContractNegotiationProcurexPage() {
                       payload: JSON.stringify({ model: 'single-user', source: 'contract-negotiation-workspace' }, null, 2)
                     }}
                     onSubmit={(payload) => awardsContractsApi.upsertWorkflowApproval(contract.id, payload)}
-                    onComplete={refreshContract}
+                    onComplete={refreshContractAndAdvance('signatures')}
                   />
                 </ActionWorkspace>
               ) : null}
@@ -389,7 +396,7 @@ export function ContractNegotiationProcurexPage() {
                     ]}
                     initialValues={{ roles: ['BUYER', 'SUPPLIER'] }}
                     onSubmit={(payload) => awardsContractsApi.createSignatureRequests(contract.id, payload.roles as Array<'BUYER' | 'SUPPLIER'>)}
-                    onComplete={refreshContract}
+                    onComplete={refreshContractAndAdvance('readiness')}
                   />
                   {(contract.signatures ?? []).map((signature) => (
                     <ActionFormPanel
@@ -413,7 +420,7 @@ export function ContractNegotiationProcurexPage() {
                         signatureKeyphrase: String(payload.signatureKeyphrase),
                         payload: payload.payload as Record<string, unknown>
                       })}
-                      onComplete={refreshContract}
+                      onComplete={refreshContractAndAdvance('readiness')}
                       key={signature.id}
                     />
                   ))}

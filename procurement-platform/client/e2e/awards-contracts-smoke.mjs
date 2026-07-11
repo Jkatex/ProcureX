@@ -197,28 +197,23 @@ async function openFirstQueueRecord(page, queue, label, expectedPath) {
   const row = await pickQueueRecord(page, queue, expectedPath);
   const visibleQueue = page.locator(`[data-tab="${queue}"].tab-content--visible`);
   await visibleQueue.waitFor({ state: 'visible', timeout: 15000 });
-  const card = visibleQueue.locator('.award-lifecycle-card').filter({ hasText: row.title }).first();
-  await card.waitFor({ state: 'visible', timeout: 15000 });
-  await card.locator('button.btn-primary').first().click();
-  const dialog = page.getByRole('dialog').first();
-  await dialog.waitFor({ state: 'visible', timeout: 10000 });
-  await dialog.getByRole('button', { name: /continue/i }).click();
+  const recordRow = visibleQueue.locator('tr').filter({ hasText: row.title }).first();
+  await recordRow.waitFor({ state: 'visible', timeout: 15000 });
+  await recordRow.locator('button.btn-primary').first().click();
   await page.waitForURL((url) => url.pathname.includes(expectedPath), { timeout: 15000 });
 }
 
 async function submitSupplierClarification(page) {
-  const responseTab = page.getByRole('tab', { name: /Response/i }).first();
+  const responseTab = page.getByRole('tab', { name: /Accept or Decline/i }).first();
   await responseTab.click();
-  await page.getByRole('button', { name: 'Open action' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Supplier award response' });
-  await dialog.waitFor({ state: 'visible', timeout: 10000 });
-  await dialog.getByLabel(/Response action/i).selectOption('REQUEST_CLARIFICATION');
-  await dialog.getByLabel(/Response note/i).fill('E2E smoke clarification request for seeded award data.');
+  const responseForm = page.locator('[data-award-contract-form="Supplier award response"]');
+  await responseForm.getByRole('button', { name: 'Select' }).click();
+  await responseForm.getByLabel(/Response action/i).selectOption('REQUEST_CLARIFICATION');
+  await responseForm.getByLabel(/Response note/i).fill('E2E smoke clarification request for seeded award data.');
   const responsePromise = page.waitForResponse((response) => response.url().includes('/api/award-contract/notices/') && response.url().includes('/respond'), { timeout: 20000 });
-  await dialog.getByRole('button', { name: 'Submit Response' }).click();
+  await responseForm.getByRole('button', { name: 'Submit Response' }).click();
   const response = await responsePromise;
   if (!response.ok()) throw new Error(`Supplier response API returned ${response.status()}.`);
-  await page.getByRole('dialog', { name: 'Supplier award response' }).waitFor({ state: 'detached', timeout: 20000 });
   await assertHealthyPage(page, 'supplier award response after clarification', ['Supplier award workspace']);
 }
 

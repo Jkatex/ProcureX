@@ -189,16 +189,16 @@ export function AwardResponseProcurexPage() {
     const pendingResponse = { message: 'Record a supplier response before contract handoff can continue.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
     const missingContract = { message: 'Contract handoff is not linked yet. Required documents can continue after the buyer creates the draft contract.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
     return [
-      { id: 'award-notice', label: 'Award notice', description: 'Review received award', summary: 'Confirm the received award notice, deadline, buyer, value, and response state.', status: activeAward ? 'complete' : 'locked', statusLabel: activeAward ? 'Complete' : 'Locked', count: awards.length, countLabel: 'awards received', lockReason: noAward },
-      { id: 'response', label: 'Response', description: 'Accept, clarify, or decline', summary: 'Submit the supplier response and keep the selected award in the same flow.', status: !activeAward ? 'locked' : !hasNotice ? 'locked' : hasResponse ? 'complete' : 'available', statusLabel: hasResponse ? 'Response submitted' : hasNotice ? 'Needs action' : 'Locked', count: activeAward ? 1 : 0, countLabel: 'selected award', lockReason: !activeAward ? noAward : missingNotice },
-      { id: 'required-documents', label: 'Required documents', description: 'Prepare pre-contract files', summary: 'Prepare required supplier documents after the contract handoff exists.', status: !activeAward ? 'locked' : !contractHandoffId ? 'locked' : 'available', statusLabel: contractHandoffId ? 'Ready' : 'Locked', count: preContractDocuments.length, countLabel: 'documents', lockReason: !activeAward ? noAward : missingContract },
-      { id: 'activity', label: 'Activity', description: 'Notice, response, and audit history', summary: 'Review notice events, response history, and contract handoff activity.', status: activeAward ? 'available' : 'locked', statusLabel: activeAward ? 'Ready' : 'Locked', count: responseActivityRecords.length, countLabel: 'activity records', lockReason: noAward },
-      { id: 'contract-handoff', label: 'Contract handoff', description: 'Move to draft contract', summary: 'Continue to contract formation once the response and linked contract are ready.', status: !activeAward ? 'locked' : !hasResponse || !contractHandoffId ? 'locked' : 'complete', statusLabel: contractHandoffId ? 'Linked' : hasResponse ? 'Pending contract' : 'Pending response', count: contractHandoffId ? 1 : 0, countLabel: 'linked contracts', lockReason: !activeAward ? noAward : !hasResponse ? pendingResponse : missingContract }
+      { id: 'award-notice', label: 'Award Notice', description: 'Review received award', summary: 'Confirm the received award notice, deadline, buyer, value, and response state.', status: activeAward ? 'complete' : 'locked', statusLabel: activeAward ? 'Complete' : 'Locked', count: awards.length, countLabel: 'awards received', lockReason: noAward },
+      { id: 'response', label: 'Accept or Decline', description: 'Accept, clarify, or decline', summary: 'Submit the supplier response and keep the selected award in the same flow.', status: !activeAward ? 'locked' : !hasNotice ? 'locked' : hasResponse ? 'complete' : 'available', statusLabel: hasResponse ? 'Response submitted' : hasNotice ? 'Needs action' : 'Locked', count: activeAward ? 1 : 0, countLabel: 'selected award', lockReason: !activeAward ? noAward : missingNotice },
+      { id: 'required-documents', label: 'Required Conditions', description: 'Prepare pre-contract files', summary: 'Prepare required supplier documents after the contract handoff exists.', status: !activeAward ? 'locked' : !contractHandoffId ? 'locked' : 'available', statusLabel: contractHandoffId ? 'Ready' : 'Locked', count: preContractDocuments.length, countLabel: 'documents', lockReason: !activeAward ? noAward : missingContract },
+      { id: 'activity', label: 'Clarification', description: 'Notice, response, and audit history', summary: 'Review notice events, response history, and contract handoff activity.', status: activeAward ? 'available' : 'locked', statusLabel: activeAward ? 'Ready' : 'Locked', count: responseActivityRecords.length, countLabel: 'activity records', lockReason: noAward },
+      { id: 'contract-handoff', label: 'Contract Formation', description: 'Move to draft contract', summary: 'Continue to contract formation once the response and linked contract are ready.', status: !activeAward ? 'locked' : !hasResponse || !contractHandoffId ? 'locked' : 'complete', statusLabel: contractHandoffId ? 'Linked' : hasResponse ? 'Pending contract' : 'Pending response', count: contractHandoffId ? 1 : 0, countLabel: 'linked contracts', lockReason: !activeAward ? noAward : !hasResponse ? pendingResponse : missingContract }
     ];
   }, [activeAward, activeAwardId, awards.length, contractHandoffId, hasNotice, hasResponse, responseActivityRecords.length]);
 
   function selectAward(award: LifecycleAction) {
-    navigate(`/awards-contracts/award-response?award=${award.awardId ?? award.id}&step=award-notice`);
+    navigate(`/awards-contracts/award-response?award=${award.awardId ?? award.id}&step=response`);
   }
 
   function selectFlowStep(step: AwardResponseStepId) {
@@ -220,6 +220,10 @@ export function AwardResponseProcurexPage() {
     setResponseMessages((current) => ({ ...current, [award.id]: `Supplier response submitted: ${responseAction}` }));
     setFlowAlert(`Supplier response submitted: ${responseAction}. The award detail has been refreshed.`);
     await refreshAwards(recommendationIdForAward(award));
+    navigate({
+      pathname: '/awards-contracts/award-response',
+      search: searchWithFlowStep(location.search, contractHandoffId ? 'contract-handoff' : 'required-documents')
+    });
   }
 
   return (

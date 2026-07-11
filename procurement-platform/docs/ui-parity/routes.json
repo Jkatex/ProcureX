@@ -23,6 +23,7 @@
   { "name": "bid-evaluation", "prototypePage": "bid-evaluation", "reactPath": "/evaluation" },
   { "name": "awarding-contracts", "prototypePage": "awarding-contracts", "reactPath": "/awards-contracts" },
   { "name": "award-recommendation", "prototypePage": "award-recommendation", "reactPath": "/awards-contracts/recommendation" },
+  { "name": "award-response", "prototypePage": "award-response", "reactPath": "/awards-contracts/award-response" },
   { "name": "contract-negotiation", "prototypePage": "contract-negotiation", "reactPath": "/awards-contracts/negotiation" },
   { "name": "post-award-tracking", "prototypePage": "post-award-tracking", "reactPath": "/awards-contracts/post-award" },
   { "name": "communication-center", "prototypePage": "communication-center", "reactPath": "/communication" },
