@@ -16,7 +16,7 @@ vi.mock('@/features/communication/api', () => ({
     markRead: vi.fn(),
     composeMessage: vi.fn(),
     replyToMessage: vi.fn(),
-    archive: vi.fn(),
+    getAttachment: vi.fn(),
     listRecipients: vi.fn(),
     listTenderLinks: vi.fn()
   }
@@ -27,7 +27,6 @@ const getMessage = vi.mocked(communicationApi.getMessage);
 const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
-const archive = vi.mocked(communicationApi.archive);
 const listRecipients = vi.mocked(communicationApi.listRecipients);
 const listTenderLinks = vi.mocked(communicationApi.listTenderLinks);
 
@@ -148,7 +147,6 @@ describe('CommunicationCenterProcurexPage', () => {
     markRead.mockResolvedValue(readMessage);
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
-    archive.mockResolvedValue({ ...readMessage, folder: 'archived', status: 'ARCHIVED' });
     listRecipients.mockResolvedValue([
       { id: 'platform', name: 'Admin', kind: 'PLATFORM', country: 'TZ', capabilities: [] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
@@ -177,7 +175,9 @@ describe('CommunicationCenterProcurexPage', () => {
     expect(screen.queryByText('Message context')).not.toBeInTheDocument();
     expect(screen.queryByText('General Message')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.getByText('agenda.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('PDF')).not.toBeInTheDocument();
   });
 
   it('reloads mailbox data for search and folder changes', async () => {
@@ -262,15 +262,13 @@ describe('CommunicationCenterProcurexPage', () => {
     );
   });
 
-  it('replies and archives through the communication API', async () => {
+  it('replies through the communication API without archive controls', async () => {
     renderPage();
     await screen.findByRole('button', { name: /site visit schedule/i });
     await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
 
-    await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
-    await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
 
-    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Reply' }));
     expect(await screen.findByLabelText('Subject')).toHaveValue('Re: Site visit schedule');
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Confirmed for Friday.' } });

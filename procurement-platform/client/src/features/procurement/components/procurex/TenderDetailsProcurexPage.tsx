@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';
 import { useTenderDetail } from '../../hooks';
+import { procurementApi } from '../../api';
 import type { TenderDetail, TenderDetailDocument } from '../../types';
 import {
   DetailSummary,
@@ -63,11 +64,13 @@ export function TenderDetailsProcurexPage() {
                 <h1>{tender.title}</h1>
                 <p>{tender.organization}. View the supplier-facing tender information and manage tender activity.</p>
               </div>
-              <div className="hero-action-stack">
-                <button className="btn btn-secondary" type="button" onClick={() => handleOpenDocument()}>Open Document</button>
-                <button className="btn btn-secondary" type="button" disabled={isPreparingDownload} onClick={() => void handleDownloadDocument()}>
-                  {isPreparingDownload ? 'Preparing...' : 'Download Document'}
-                </button>
+              <div className="hero-action-stack buyer-detail-actions">
+                <div className="buyer-detail-action-row">
+                  <button className="btn btn-secondary" type="button" onClick={() => handleOpenDocument()}>Open Document</button>
+                  <button className="btn btn-secondary" type="button" disabled={isPreparingDownload} onClick={() => void handleDownloadDocument()}>
+                    {isPreparingDownload ? 'Preparing...' : 'Download Document'}
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -110,10 +113,41 @@ export function TenderDetailsProcurexPage() {
 
 function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
   const summary = tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 };
-  const submittedBusinesses = tender.submittedBidBusinesses ?? [];
-  const clarificationCount = tender.activity?.clarifications ?? 0;
+  const clarificationInquiries = tender.clarificationInquiries ?? [];
   const [notice, setNotice] = useState(() => buyerNoticeText(tender));
+  const [savedNotice, setSavedNotice] = useState(() => buyerNoticeText(tender));
   const [noticeMessage, setNoticeMessage] = useState('');
+  const [isSavingNotice, setIsSavingNotice] = useState(false);
+
+  async function saveBuyerNotice() {
+    setIsSavingNotice(true);
+    setNoticeMessage('');
+    try {
+      const result = await procurementApi.updateBuyerNotice(tender.id, notice);
+      setNotice(result.data.buyerNotice);
+      setSavedNotice(result.data.buyerNotice);
+      setNoticeMessage('Buyer notice saved for bidders.');
+    } catch {
+      setNoticeMessage('Buyer notice could not be saved. Try again.');
+    } finally {
+      setIsSavingNotice(false);
+    }
+  }
+
+  async function removeBuyerNotice() {
+    setIsSavingNotice(true);
+    setNoticeMessage('');
+    try {
+      const result = await procurementApi.updateBuyerNotice(tender.id, '');
+      setNotice(result.data.buyerNotice);
+      setSavedNotice(result.data.buyerNotice);
+      setNoticeMessage('Buyer notice removed for bidders.');
+    } catch {
+      setNoticeMessage('Buyer notice could not be removed. Try again.');
+    } finally {
+      setIsSavingNotice(false);
+    }
+  }
 
   return (
     <section className="buyer-tender-section buyer-tender-activity" aria-label="Tender activity">
@@ -131,39 +165,35 @@ function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
             rows={[
               { label: 'Submitted bids', value: summary.submitted },
               { label: 'Draft bids', value: summary.draft },
-              { label: 'Withdrawn bids', value: summary.withdrawn },
-              { label: 'Total bid records', value: summary.total }
+              { label: 'Days remaining until tender closes', value: daysRemainingUntil(tender.closingDate) }
             ]}
             compact
           />
-          <div className="inbox-list">
-            {submittedBusinesses.length ? (
-              submittedBusinesses.map((business) => (
-                <div className="inbox-item" key={business.id}>
-                  <div>
-                    <strong>{business.name}</strong>
-                    <span>{business.submittedAt ? `Submitted ${formatDate(business.submittedAt)}` : 'Submitted bid recorded'}</span>
-                  </div>
-                  <em>Submitted</em>
-                </div>
-              ))
-            ) : (
-              <div className="scope-empty">No submitted bids yet.</div>
-            )}
-          </div>
         </article>
 
         <article className="journey-panel control-panel">
           <span className="section-kicker">Clarification inquiries</span>
           <h3>Clarification inquiries</h3>
-          <p>
-            {clarificationCount
-              ? `${clarificationCount} clarification ${clarificationCount === 1 ? 'inquiry is' : 'inquiries are'} linked to this tender.`
-              : 'No clarification inquiries are linked to this tender yet.'}
-          </p>
-          <Link className="btn btn-secondary" to={buyerClarificationUrl(tender)}>
-            Open clarification messages
-          </Link>
+          <div className="inbox-list buyer-clarification-list">
+            {clarificationInquiries.length ? (
+              clarificationInquiries.map((message) => (
+                <Link
+                  className={`inbox-item buyer-clarification-link ${message.read ? 'is-read' : 'is-unread'}`}
+                  key={message.id}
+                  to={`/communication?view=message&id=${message.id}`}
+                >
+                  <div>
+                    <strong>{message.subject}</strong>
+                    <span className="buyer-clarification-sender">{message.senderName ?? 'Supplier'}</span>
+                    <span className="buyer-clarification-body">{message.body}</span>
+                  </div>
+                  <em>{formatDate(message.createdAt)}</em>
+                </Link>
+              ))
+            ) : (
+              <div className="scope-empty">No clarification inquiries are linked to this tender yet.</div>
+            )}
+          </div>
         </article>
 
         <article className="journey-panel control-panel buyer-notice-panel">
@@ -180,14 +210,27 @@ function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
             }}
             placeholder="Write an update for all bidders..."
           />
-          <button
-            className="btn btn-secondary"
-            type="button"
-            onClick={() => setNoticeMessage('Buyer notice persistence is not connected for published tenders yet.')}
-          >
-            Save notice
-          </button>
-          {noticeMessage ? <span className="tender-detail-muted">{noticeMessage}</span> : null}
+          <div className="buyer-notice-actions">
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={isSavingNotice}
+              onClick={() => void saveBuyerNotice()}
+            >
+              {isSavingNotice ? 'Saving...' : 'Save notice'}
+            </button>
+            {savedNotice ? (
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={isSavingNotice}
+                onClick={() => void removeBuyerNotice()}
+              >
+                Remove notice
+              </button>
+            ) : null}
+          </div>
+          {noticeMessage ? <span className="tender-detail-muted" aria-live="polite">{noticeMessage}</span> : null}
         </article>
 
         <article className="journey-panel control-panel">
@@ -212,13 +255,10 @@ function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
   );
 }
 
-function buyerClarificationUrl(tender: TenderDetail) {
-  const params = new URLSearchParams({
-    tenderId: tender.id,
-    category: 'Clarification',
-    subject: `Clarification for ${tender.title}`
-  });
-  return `/communication?${params.toString()}`;
+function daysRemainingUntil(closingDate: string) {
+  const closingTime = new Date(closingDate.includes('T') ? closingDate : `${closingDate}T23:59:59.999Z`).getTime();
+  if (!Number.isFinite(closingTime)) return 'Not set';
+  return Math.max(0, Math.ceil((closingTime - Date.now()) / 86_400_000));
 }
 
 function BuyerEmpty({ message, title = 'Tender detail' }: { message: string; title?: string }) {

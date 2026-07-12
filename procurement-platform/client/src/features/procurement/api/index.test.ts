@@ -86,6 +86,7 @@ describe('procurementApi tender detail fallback', () => {
     expect(result.categories).toEqual(['Medical Equipment']);
     expect(result.requirementRows).toEqual([]);
     expect(result.bidSummary).toEqual({ total: 0, draft: 0, submitted: 0, withdrawn: 0 });
+    expect(result.clarificationInquiries).toEqual([]);
     expect(result.activity).toEqual({ marketplaceViews: 9, documentDownloads: 2, clarifications: 0 });
   });
 
@@ -99,6 +100,26 @@ describe('procurementApi tender detail fallback', () => {
       message: 'Document download recorded'
     });
     expect(apiClient.post).toHaveBeenCalledWith('/api/procurement/tenders/tender-1/documents/doc-1/download', {});
+  });
+
+  it('updates buyer notices through the procurement endpoint', async () => {
+    vi.spyOn(apiClient, 'patch').mockResolvedValueOnce({
+      data: {
+        success: true,
+        message: 'Buyer notice saved successfully',
+        data: {
+          id: 'tender-1',
+          buyerNotice: 'Updated bidder instruction',
+          updatedAt: '2099-08-01T10:00:00.000Z'
+        }
+      }
+    });
+
+    await expect(procurementApi.updateBuyerNotice('tender-1', 'Updated bidder instruction')).resolves.toMatchObject({
+      success: true,
+      data: { buyerNotice: 'Updated bidder instruction' }
+    });
+    expect(apiClient.patch).toHaveBeenCalledWith('/api/procurement/tenders/tender-1/buyer-notice', { buyerNotice: 'Updated bidder instruction' });
   });
 
   it('keeps persisted ids in session-published My Tenders links', () => {

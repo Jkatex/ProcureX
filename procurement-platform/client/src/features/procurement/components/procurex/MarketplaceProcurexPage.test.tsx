@@ -71,6 +71,7 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByRole('tab', { name: 'Recommended', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'All Tenders' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Invited Tenders' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'My Workspace' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Marketplace' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'My Tenders' })).not.toBeInTheDocument();
@@ -211,6 +212,51 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByRole('tab', { name: 'All Tenders', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'All tenders' })).toBeInTheDocument();
+  });
+
+  it('shows invited tenders between all tenders and workspace with empty prompt', async () => {
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [],
+      invitedTenders: [],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=invited-tenders');
+
+    expect(await screen.findByRole('tab', { name: 'Invited Tenders', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Invited tenders' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search title, buyer, reference, sector, location' })).toBeInTheDocument();
+    expect(screen.getByText('Tenders you are invited to, will appear here')).toBeInTheDocument();
+  });
+
+  it('lists and searches invited tenders without publishing them in All Tenders', async () => {
+    const user = userEvent.setup();
+    const invitedTender = marketplaceTender({
+      id: 'invited-open-tender',
+      reference: 'PX-INV-001',
+      title: 'Invited Cleaning Tender',
+      visibility: 'INVITED',
+      organization: 'Invitation Buyer',
+      canBid: true
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [],
+      invitedTenders: [invitedTender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=invited-tenders');
+
+    expect(await screen.findByText('Invited Cleaning Tender')).toBeInTheDocument();
+    const tenderRow = screen.getByText('Invited Cleaning Tender').closest('article');
+    expect(within(tenderRow!).getByRole('link', { name: /^Bid$/i })).toHaveAttribute('href', '/bidding?tenderId=invited-open-tender');
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search title, buyer, reference, sector, location' }), 'nothing-matches');
+
+    expect(screen.queryByText('Invited Cleaning Tender')).not.toBeInTheDocument();
+    expect(screen.getByText('Tenders you are invited to, will appear here')).toBeInTheDocument();
   });
 
   it('uses buyer-safe actions for owned tenders', async () => {

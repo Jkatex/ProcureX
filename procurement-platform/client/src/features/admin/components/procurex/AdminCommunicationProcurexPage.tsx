@@ -4,6 +4,7 @@ import { useAppSelector } from '@/app/store';
 import { communicationApi } from '@/features/communication/api';
 import { procurementApi } from '@/features/procurement/api';
 import type {
+  CommunicationAttachment,
   CommunicationAttachmentUpload,
   CommunicationListResponse,
   CommunicationMailboxMessage,
@@ -34,6 +35,7 @@ type ComposeAttachment = {
   size: number;
   type: string;
   documentType: string;
+  file: File;
 };
 
 const emptyMailbox: CommunicationListResponse = {
@@ -56,8 +58,7 @@ const emptyMailbox: CommunicationListResponse = {
 const folders: Array<{ key: MailboxFolder; label: string }> = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Sent' },
-  { key: 'unread', label: 'Unread' },
-  { key: 'archived', label: 'Archived' }
+  { key: 'unread', label: 'Unread' }
 ];
 
 const pageSize = 30;
@@ -395,7 +396,8 @@ export function AdminCommunicationProcurexPage() {
           name: file.name,
           size: file.size,
           type: file.type,
-          documentType: documentTypeForFile(file)
+          documentType: documentTypeForFile(file),
+          file
         }))
       ].slice(0, 20)
     }));
@@ -420,7 +422,7 @@ export function AdminCommunicationProcurexPage() {
     setSaving(true);
     setError('');
     try {
-      const attachmentUploads = compose.attachments.map(toAttachmentUpload);
+      const attachmentUploads = await Promise.all(compose.attachments.map(toAttachmentUpload));
       const metadata = compose.replyToMessageId ? { replyMode: 'compose-page' } : metadataFromComposeParams(searchParams);
       const results = compose.replyToMessageId
         ? [
@@ -465,23 +467,6 @@ export function AdminCommunicationProcurexPage() {
       await loadMailbox('sent', 1, result.message.id, submittedSearch);
     } catch (caught) {
       setError(errorMessage(caught, 'Admin message could not be sent.'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function archiveSelectedMessage() {
-    if (!selected) return;
-    setSaving(true);
-    setError('');
-    try {
-      await communicationApi.archive(selected.id);
-      setSelectedId('');
-      setSelectedMessage(null);
-      goAdminCommunicationHome(true);
-      await loadMailbox(folder, page, '', submittedSearch);
-    } catch (caught) {
-      setError(errorMessage(caught, 'Message could not be archived.'));
     } finally {
       setSaving(false);
     }
@@ -659,7 +644,6 @@ export function AdminCommunicationProcurexPage() {
               <MessageDetail
                 message={selected}
                 saving={saving}
-                onArchive={() => void archiveSelectedMessage()}
                 onReply={() => selected ? openReply(selected) : undefined}
                 onAction={() => selected ? openMessageAction(selected) : undefined}
                 onClose={() => goAdminCommunicationHome()}
@@ -726,7 +710,7 @@ export function AdminCommunicationProcurexPage() {
                 </button>
               </form>
               <div className="communication-tabs">
-                {[folders[0], folders[1], folders[3], folders[2]].map((item) => (
+                {folders.map((item) => (
                   <button className={folder === item.key ? 'active' : ''} type="button" key={item.key} onClick={() => setFolder(item.key)}>
                     {item.label}
                   </button>
@@ -797,14 +781,12 @@ function MessageDetail({
   saving,
   onReply,
   onAction,
-  onArchive,
   onClose
 }: {
   message: CommunicationMailboxMessage | null;
   saving: boolean;
   onReply: () => void;
   onAction: () => void;
-  onArchive: () => void;
   onClose: () => void;
 }) {
   if (!message) {
@@ -843,10 +825,17 @@ function MessageDetail({
         {message.attachments.length ? (
           <div className="communication-attachments">
             {message.attachments.map((attachment) => (
-              <span className="communication-attachment-item" key={attachment.id}>
-                <span>{attachment.name}</span>
-                <em>{attachment.documentType}</em>
-              </span>
+              <div className="communication-attachment-card" key={attachment.id}>
+                <span className="communication-attachment-name">{attachment.name}</span>
+                <span className="communication-attachment-actions">
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void openCommunicationAttachment(message.id, attachment)}>
+                    Open
+                  </button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void downloadCommunicationAttachment(message.id, attachment)}>
+                    Download
+                  </button>
+                </span>
+              </div>
             ))}
           </div>
         ) : null}
@@ -862,7 +851,6 @@ function MessageDetail({
           {showWorkflowAction ? (
             <button className="btn btn-secondary" type="button" disabled={saving} onClick={onAction}>{nextAction?.label}</button>
           ) : null}
-          <button className="btn btn-secondary" type="button" disabled={saving} onClick={onArchive}>Archive</button>
         </div>
       </section>
     </aside>
@@ -873,7 +861,6 @@ function folderCount(folder: MailboxFolder, counts: CommunicationListResponse['c
   if (folder === 'inbox') return counts.inbox;
   if (folder === 'sent') return counts.sent;
   if (folder === 'unread') return counts.unread;
-  if (folder === 'archived') return counts.archived;
   return counts.total;
 }
 
@@ -955,13 +942,58 @@ function metadataFromComposeParams(params: URLSearchParams): Record<string, unkn
   };
 }
 
-function toAttachmentUpload(attachment: ComposeAttachment): CommunicationAttachmentUpload {
+async function toAttachmentUpload(attachment: ComposeAttachment): Promise<CommunicationAttachmentUpload> {
   return {
     name: attachment.name,
     documentType: attachment.documentType,
     mimeType: attachment.type || undefined,
-    size: attachment.size
+    size: attachment.size,
+    contentBase64: await readFileAsBase64(attachment.file)
   };
+}
+
+async function openCommunicationAttachment(messageId: string, attachment: CommunicationAttachment) {
+  try {
+    const blob = await communicationApi.getAttachment(messageId, attachment.id, 'open');
+    const url = URL.createObjectURL(blob);
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (!opened) downloadBlob(url, attachment.name);
+  } catch {
+    window.alert(`Could not open ${attachment.name}.`);
+  }
+}
+
+async function downloadCommunicationAttachment(messageId: string, attachment: CommunicationAttachment) {
+  try {
+    const blob = await communicationApi.getAttachment(messageId, attachment.id, 'download');
+    const url = URL.createObjectURL(blob);
+    downloadBlob(url, attachment.name);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    window.alert(`Could not download ${attachment.name}.`);
+  }
+}
+
+function downloadBlob(url: string, fileName: string) {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'attachment';
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error('Attachment could not be read.'));
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      resolve(result.includes(',') ? result.slice(result.indexOf(',') + 1) : result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function communicationKindForCategory(category: string) {

@@ -48,6 +48,8 @@ import type {
   TenderDocumentStreamDto,
   TenderLanguageScanDto,
   UnsaveTenderResponseDto,
+  UpdateBuyerNoticeInput,
+  UpdateBuyerNoticeResponseDto,
   UpdateTenderInput,
   UpdateTenderResponseDto,
   UpdateProcurementPlanInput
@@ -115,6 +117,10 @@ const tenderReviewQueueInclude = {
   categories: { select: { name: true }, orderBy: { name: 'asc' } }
 } satisfies Prisma.TenderInclude;
 
+const tenderClarificationInquiryInclude = {
+  senderOrg: { select: { id: true, name: true } }
+} satisfies Prisma.CommunicationItemInclude;
+
 function tenderReviewDetailInclude() {
   return {
     ...tenderDetailInclude(),
@@ -126,8 +132,9 @@ type MarketplaceTenderRecord = Prisma.TenderGetPayload<{ include: typeof marketp
 type TenderDetailRecord = Prisma.TenderGetPayload<{ include: ReturnType<typeof tenderDetailInclude> }>;
 type TenderReviewQueueRecord = Prisma.TenderGetPayload<{ include: typeof tenderReviewQueueInclude }>;
 type TenderReviewDetailRecord = Prisma.TenderGetPayload<{ include: ReturnType<typeof tenderReviewDetailInclude> }>;
+type TenderClarificationInquiryRecord = Prisma.CommunicationItemGetPayload<{ include: typeof tenderClarificationInquiryInclude }>;
 type MarketplaceBidRecord = Prisma.BidGetPayload<{ include: { tender: { include: typeof marketplaceTenderInclude }; receipt: { select: { receiptHash: true } } } }>;
-type MarketplaceContext = { organizationId?: string; userId?: string };
+type MarketplaceContext = { organizationId?: string; userId?: string; organizationName?: string };
 type MarketplaceBidState = { hasDraftBid: boolean; hasSubmittedBid: boolean };
 type TenderActivity = { marketplaceViews: number; documentDownloads: number; clarifications: number };
 type MarketplaceTenderRowContext = MarketplaceContext & {
@@ -152,6 +159,17 @@ function auditEventDelegate(db: PrismaClient) {
 
 export class ModuleRepository {
   constructor(private readonly db: PrismaClient = prisma) {}
+
+  private async marketplaceContextWithOrganizationName(context: MarketplaceContext): Promise<MarketplaceContext> {
+    if (!context.organizationId || context.organizationName) return context;
+    const organizationDelegate = (this.db as unknown as { organization?: { findUnique?: PrismaClient['organization']['findUnique'] } }).organization;
+    if (!organizationDelegate?.findUnique) return context;
+    const organization = await organizationDelegate.findUnique({
+      where: { id: context.organizationId },
+      select: { name: true }
+    });
+    return { ...context, organizationName: organization?.name };
+  }
 
   async health() {
     return { ready: true };
@@ -204,18 +222,32 @@ export class ModuleRepository {
   }
 
   async getMarketplaceData(context: MarketplaceContext, query: MarketplaceQuery): Promise<ProcurementMarketplacePayload> {
+    const marketplaceContext = await this.marketplaceContextWithOrganizationName(context);
     const publicWhere = marketplaceWhere(query);
-    const [matchingTenders, myTenderRecords, myBidRecords, savedTenderRecords] = await Promise.all([
+    const [matchingTenders, invitedTenderRecords, myTenderRecords, myBidRecords, savedTenderRecords] = await Promise.all([
       this.db.tender.findMany({
         where: publicWhere,
         include: marketplaceTenderInclude,
         orderBy: marketplaceOrderBy(query.sort),
         take: 1000
       }),
-      context.organizationId
+      marketplaceContext.organizationId
         ? this.db.tender.findMany({
             where: {
-              buyerOrgId: context.organizationId,
+              visibility: Visibility.INVITED,
+              status: { in: [TenderStatus.OPEN, TenderStatus.PUBLISHED] },
+              closingDate: { gt: new Date() },
+              NOT: { buyerOrgId: marketplaceContext.organizationId }
+            },
+            include: marketplaceTenderInclude,
+            orderBy: marketplaceOrderBy('deadline'),
+            take: 500
+          })
+        : Promise.resolve([]),
+      marketplaceContext.organizationId
+        ? this.db.tender.findMany({
+            where: {
+              buyerOrgId: marketplaceContext.organizationId,
               ...(query.visibility ? { visibility: query.visibility as Visibility } : {}),
               status: {
                 in: [
@@ -235,10 +267,10 @@ export class ModuleRepository {
             take: 500
           })
         : Promise.resolve([]),
-      context.organizationId
+      marketplaceContext.organizationId
         ? this.db.bid.findMany({
             where: {
-              supplierOrgId: context.organizationId,
+              supplierOrgId: marketplaceContext.organizationId,
               status: { not: BidStatus.WITHDRAWN }
             },
             include: {
@@ -249,9 +281,9 @@ export class ModuleRepository {
             take: 500
           })
         : Promise.resolve([]),
-      context.organizationId
+      marketplaceContext.organizationId
         ? this.db.savedTender.findMany({
-            where: { organizationId: context.organizationId },
+            where: { organizationId: marketplaceContext.organizationId },
             select: { tenderId: true }
           })
         : Promise.resolve([])
@@ -265,15 +297,24 @@ export class ModuleRepository {
     const bidStates = bidStatesByTender(myBidRecords);
     const rows = pagedTenders.map((tender) =>
       toMarketplaceTenderRow(tender, {
-        ...context,
+        ...marketplaceContext,
         savedTenderIds,
         bidState: bidStates.get(tender.id)
       })
     );
-    const myTenders = myTenderRecords.map((tender) => toMyTenderRow(tender, { ...context, savedTenderIds }));
+    const invitedTenders = invitedTenderRecords
+      .filter((tender) => isInvitedTenderForContext(tender, marketplaceContext))
+      .map((tender) =>
+        toMarketplaceTenderRow(tender, {
+          ...marketplaceContext,
+          savedTenderIds,
+          bidState: bidStates.get(tender.id)
+        })
+      );
+    const myTenders = myTenderRecords.map((tender) => toMyTenderRow(tender, { ...marketplaceContext, savedTenderIds }));
     const myBids = myBidRecords.map((bid) =>
       toMyBidRow(bid, {
-        ...context,
+        ...marketplaceContext,
         savedTenderIds,
         bidState: bidStates.get(bid.tenderId) ?? bidStateFromStatus(bid.status)
       })
@@ -281,6 +322,7 @@ export class ModuleRepository {
 
     return {
       tenders: rows,
+      invitedTenders,
       myTenders,
       myBids,
       summary: marketplaceSummary(sortedTenders, myTenders, myBids),
@@ -289,32 +331,37 @@ export class ModuleRepository {
   }
 
   async getTenderDetail(tenderId: string, context: MarketplaceContext) {
+    const marketplaceContext = await this.marketplaceContextWithOrganizationName(context);
     const tender = await this.db.tender.findUnique({
       where: { id: tenderId },
       include: tenderDetailInclude()
     });
-    if (!tender || !canViewTenderDetail(tender, context.organizationId)) return null;
-    if (shouldRecordMarketplaceView(tender, context.organizationId)) {
-      await this.recordTenderView(tender, context);
+    if (!tender || !canViewTenderDetail(tender, marketplaceContext)) return null;
+    if (shouldRecordMarketplaceView(tender, marketplaceContext.organizationId)) {
+      await this.recordTenderView(tender, marketplaceContext);
     }
-    const activity = await this.tenderActivity(tender.id);
-    return toTenderDetailDto(tender, context, activity);
+    const [activity, clarificationInquiries] = await Promise.all([
+      this.tenderActivity(tender.id),
+      this.tenderClarificationInquiries(tender, marketplaceContext)
+    ]);
+    return toTenderDetailDto(tender, marketplaceContext, activity, clarificationInquiries);
   }
 
   async recordTenderDocumentDownload(tenderId: string, documentId: string, context: MarketplaceContext) {
+    const marketplaceContext = await this.marketplaceContextWithOrganizationName(context);
     const tender = await this.db.tender.findUnique({
       where: { id: tenderId },
       include: tenderDetailInclude()
     });
-    if (!tender || !canViewTenderDetail(tender, context.organizationId)) return null;
+    if (!tender || !canViewTenderDetail(tender, marketplaceContext)) return null;
     const belongsToTender = tender.documents.some((document) => document.document.id === documentId);
     if (!belongsToTender) return null;
     await this.createTenderAuditEvent({
       tender,
-      context,
+      context: marketplaceContext,
       event: tenderDocumentDownloadedEvent,
       payload: {
-        viewerOrgId: context.organizationId ?? null,
+        viewerOrgId: marketplaceContext.organizationId ?? null,
         documentId,
         source: 'tender-detail'
       }
@@ -331,6 +378,7 @@ export class ModuleRepository {
     context: MarketplaceContext,
     disposition: TenderDocumentStreamDto['disposition']
   ): Promise<TenderDocumentStreamDto | null> {
+    const marketplaceContext = await this.marketplaceContextWithOrganizationName(context);
     const tender = await this.db.tender.findUnique({
       where: { id: tenderId },
       select: {
@@ -338,6 +386,7 @@ export class ModuleRepository {
         buyerOrgId: true,
         status: true,
         visibility: true,
+        metadata: true,
         documents: {
           where: { documentId },
           select: {
@@ -353,16 +402,16 @@ export class ModuleRepository {
         }
       }
     });
-    if (!tender || !canViewTenderDetail(tender, context.organizationId)) return null;
+    if (!tender || !canViewTenderDetail(tender, marketplaceContext)) return null;
     const document = tender.documents[0]?.document;
     if (!document) return null;
     if (disposition === 'attachment') {
       await this.createTenderAuditEvent({
         tender,
-        context,
+        context: marketplaceContext,
         event: tenderDocumentDownloadedEvent,
         payload: {
-          viewerOrgId: context.organizationId ?? null,
+          viewerOrgId: marketplaceContext.organizationId ?? null,
           documentId,
           source: 'tender-document-stream'
         }
@@ -378,17 +427,19 @@ export class ModuleRepository {
   }
 
   async listTenderAmendments(tenderId: string, context: MarketplaceContext): Promise<TenderAmendmentsResponseDto | null> {
+    const marketplaceContext = await this.marketplaceContextWithOrganizationName(context);
     const tender = await this.db.tender.findUnique({
       where: { id: tenderId },
       select: {
         id: true,
         buyerOrgId: true,
         status: true,
-        visibility: true
+        visibility: true,
+        metadata: true
       }
     });
-    if (!tender || !canViewTenderDetail(tender, context.organizationId)) return null;
-    const isOwner = Boolean(context.organizationId && tender.buyerOrgId === context.organizationId);
+    if (!tender || !canViewTenderDetail(tender, marketplaceContext)) return null;
+    const isOwner = Boolean(marketplaceContext.organizationId && tender.buyerOrgId === marketplaceContext.organizationId);
     const amendments = await this.db.tenderAmendment.findMany({
       where: {
         tenderId,
@@ -734,6 +785,48 @@ export class ModuleRepository {
     });
   }
 
+  async updateTenderBuyerNotice(
+    tenderId: string,
+    input: UpdateBuyerNoticeInput,
+    context: { organizationId: string; userId: string }
+  ): Promise<UpdateBuyerNoticeResponseDto | null> {
+    return this.db.$transaction(async (tx) => {
+      const existing = await tx.tender.findUnique({
+        where: { id: tenderId },
+        select: {
+          id: true,
+          buyerOrgId: true,
+          status: true,
+          metadata: true
+        }
+      });
+      if (!existing) return null;
+      if (existing.buyerOrgId !== context.organizationId) {
+        throw requestError('Only the owner organization can update this tender.', 403);
+      }
+      if (!isBuyerNoticeEditableStatus(existing.status)) {
+        throw requestError('Buyer notice cannot be updated for this tender.', 409);
+      }
+
+      const buyerNotice = input.buyerNotice.trim();
+      const metadata = {
+        ...objectPayload(existing.metadata),
+        buyerNotice,
+        buyerNoticeUpdatedAt: new Date().toISOString(),
+        buyerNoticeUpdatedByUserId: context.userId
+      };
+      const tender = await tx.tender.update({
+        where: { id: tenderId },
+        data: { metadata: metadata as Prisma.InputJsonObject },
+        select: {
+          id: true,
+          updatedAt: true
+        }
+      });
+      return toUpdateBuyerNoticeResponseDto(tender, buyerNotice);
+    });
+  }
+
   async submitTenderForReview(
     tenderId: string,
     organizationId: string,
@@ -806,6 +899,36 @@ export class ModuleRepository {
       totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
       generatedAt: new Date().toISOString()
     };
+  }
+
+  private async tenderClarificationInquiries(
+    tender: Pick<TenderDetailRecord, 'id' | 'buyerOrgId'>,
+    context: MarketplaceContext
+  ): Promise<TenderClarificationInquiryRecord[]> {
+    if (!context.organizationId || context.organizationId !== tender.buyerOrgId) return [];
+    const communicationDelegate = (this.db as unknown as {
+      communicationItem?: {
+        findMany?: (args: Prisma.CommunicationItemFindManyArgs) => Promise<TenderClarificationInquiryRecord[]>;
+      };
+    }).communicationItem;
+    if (!communicationDelegate?.findMany) return [];
+
+    const inquiries = await communicationDelegate.findMany({
+      where: {
+        tenderId: tender.id,
+        ownerOrgId: context.organizationId,
+        recipientOrgId: context.organizationId,
+        senderOrgId: { not: context.organizationId },
+        folder: 'inbox',
+        kind: CommunicationKind.CLARIFICATION,
+        status: { not: CommunicationStatus.DELETED }
+      },
+      include: tenderClarificationInquiryInclude,
+      orderBy: [{ createdAt: 'desc' }],
+      take: 50
+    });
+
+    return inquiries.filter((inquiry) => isOriginalIncomingTenderClarificationInquiry(inquiry, tender.buyerOrgId)).slice(0, 20);
   }
 
   async getTenderReview(tenderId: string): Promise<TenderReviewDetailDto | null> {
@@ -1591,7 +1714,7 @@ function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, context: Market
     closingDate: dateOnly(tender.closingDate),
     createdByCurrentUser,
     ownedByCurrentOrganization,
-    canBid: canBidOnTender(tender, context.organizationId, hasSubmittedBid),
+    canBid: canBidOnTender(tender, context, hasSubmittedBid),
     hasDraftBid,
     hasSubmittedBid,
     isSaved: Boolean(context.organizationId && context.savedTenderIds?.has(tender.id))
@@ -1679,6 +1802,18 @@ function toUpdateTenderResponseDto(tender: { id: string; reference: string; titl
       reference: tender.reference,
       title: tender.title,
       status: frontendTenderStatus(tender.status),
+      updatedAt: tender.updatedAt.toISOString()
+    }
+  };
+}
+
+function toUpdateBuyerNoticeResponseDto(tender: { id: string; updatedAt: Date }, buyerNotice: string): UpdateBuyerNoticeResponseDto {
+  return {
+    success: true,
+    message: 'Buyer notice saved successfully',
+    data: {
+      id: tender.id,
+      buyerNotice,
       updatedAt: tender.updatedAt.toISOString()
     }
   };
@@ -1905,7 +2040,12 @@ function unsaveTenderResponse(): UnsaveTenderResponseDto {
   };
 }
 
-function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceContext = {}, activity: TenderActivity = emptyTenderActivity()): TenderDetailDto {
+function toTenderDetailDto(
+  tender: TenderDetailRecord,
+  context: MarketplaceContext = {},
+  activity: TenderActivity = emptyTenderActivity(),
+  clarificationInquiries: TenderClarificationInquiryRecord[] = []
+): TenderDetailDto {
   const createdByCurrentUser = Boolean(context.userId && tender.ownerUserId === context.userId);
   const ownedByCurrentOrganization = Boolean(context.organizationId && tender.buyerOrgId === context.organizationId);
   const currentOrgBids = context.organizationId ? tender.bids.filter((bid) => bid.supplierOrgId === context.organizationId) : [];
@@ -1981,11 +2121,12 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     })),
     createdByCurrentUser,
     ownedByCurrentOrganization,
-    canBid: canBidOnTender(tender, context.organizationId, hasSubmittedBid),
+    canBid: canBidOnTender(tender, context, hasSubmittedBid),
     hasDraftBid,
     hasSubmittedBid,
     bidSummary: ownedByCurrentOrganization ? summary : { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
     submittedBidBusinesses,
+    clarificationInquiries: ownedByCurrentOrganization ? clarificationInquiries.map(toTenderClarificationInquiryDto) : [],
     currentBid: currentBid
       ? {
           id: currentBid.id,
@@ -2002,6 +2143,31 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
 
 function tenderDocumentActionUrl(tenderId: string, documentId: string, action: 'open' | 'download') {
   return `/api/procurement/tenders/${tenderId}/documents/${documentId}/${action}`;
+}
+
+function toTenderClarificationInquiryDto(inquiry: TenderClarificationInquiryRecord) {
+  return {
+    id: inquiry.id,
+    senderOrgId: inquiry.senderOrgId,
+    senderName: inquiry.senderOrg?.name ?? null,
+    subject: inquiry.subject,
+    body: inquiry.body,
+    status: inquiry.status,
+    read: inquiry.read,
+    createdAt: inquiry.createdAt.toISOString(),
+    updatedAt: inquiry.updatedAt.toISOString()
+  };
+}
+
+function isOriginalIncomingTenderClarificationInquiry(inquiry: TenderClarificationInquiryRecord, buyerOrgId: string) {
+  const payload = objectPayload(inquiry.payload);
+  return (
+    inquiry.folder === 'inbox' &&
+    inquiry.ownerOrgId === buyerOrgId &&
+    inquiry.recipientOrgId === buyerOrgId &&
+    inquiry.senderOrgId !== buyerOrgId &&
+    !stringPayload(payload.relatedMessageId)
+  );
 }
 
 function amendmentSummary(amendments: Array<{ status: TenderAmendmentStatus }> | undefined, includeDrafts: boolean) {
@@ -2057,13 +2223,19 @@ function emptyTenderActivity(): TenderActivity {
   };
 }
 
-function canViewTenderDetail(tender: { buyerOrgId: string; status: TenderStatus; visibility: Visibility }, organizationId?: string) {
-  if (organizationId && tender.buyerOrgId === organizationId) return true;
-  return isPublicOpenTender(tender);
+function canViewTenderDetail(tender: { buyerOrgId: string; status: TenderStatus; visibility: Visibility; metadata?: unknown }, context: MarketplaceContext) {
+  if (context.organizationId && tender.buyerOrgId === context.organizationId) return true;
+  return isPublicOpenTender(tender) || isInvitedTenderForContext(tender, context);
 }
 
 function isPublicOpenTender(tender: { status: TenderStatus; visibility: Visibility }) {
   return tender.visibility === Visibility.PUBLIC_MARKETPLACE && (tender.status === TenderStatus.OPEN || tender.status === TenderStatus.PUBLISHED);
+}
+
+function isInvitedTenderForContext(tender: { buyerOrgId: string; status: TenderStatus; visibility: Visibility; metadata?: unknown }, context: MarketplaceContext) {
+  if (!context.organizationId || tender.buyerOrgId === context.organizationId) return false;
+  if (tender.visibility !== Visibility.INVITED || (tender.status !== TenderStatus.OPEN && tender.status !== TenderStatus.PUBLISHED)) return false;
+  return isOrganizationInvited(tender.metadata, context);
 }
 
 function shouldRecordMarketplaceView(tender: { buyerOrgId: string; status: TenderStatus; visibility: Visibility }, organizationId?: string) {
@@ -2071,12 +2243,50 @@ function shouldRecordMarketplaceView(tender: { buyerOrgId: string; status: Tende
   return !organizationId || tender.buyerOrgId !== organizationId;
 }
 
-function canBidOnTender(tender: Pick<TenderDetailRecord, 'buyerOrgId' | 'status' | 'visibility' | 'closingDate'>, organizationId: string | undefined, hasSubmittedBid: boolean) {
-  if (!organizationId) return false;
-  if (tender.buyerOrgId === organizationId) return false;
-  if (!isPublicOpenTender(tender)) return false;
+function canBidOnTender(tender: Pick<TenderDetailRecord, 'buyerOrgId' | 'status' | 'visibility' | 'closingDate' | 'metadata'>, context: MarketplaceContext, hasSubmittedBid: boolean) {
+  if (!context.organizationId) return false;
+  if (tender.buyerOrgId === context.organizationId) return false;
+  if (!isPublicOpenTender(tender) && !isInvitedTenderForContext(tender, context)) return false;
   if (hasSubmittedBid) return false;
   return tender.closingDate ? tender.closingDate.getTime() > Date.now() : false;
+}
+
+function isOrganizationInvited(metadata: unknown, context: MarketplaceContext) {
+  const inviteValues = invitedSupplierValues(metadata).map(normalizeInvitationValue);
+  if (!inviteValues.length) return false;
+  const identityValues = [context.organizationId, context.organizationName, context.userId]
+    .map(normalizeInvitationValue)
+    .filter(Boolean);
+  return identityValues.some((identity) => inviteValues.includes(identity));
+}
+
+function invitedSupplierValues(metadata: unknown): string[] {
+  const record = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? (metadata as Record<string, unknown>) : {};
+  const values = [
+    record.invitedSuppliers,
+    record.invitedSupplierNames,
+    record.invitedOrganizations,
+    record.invitedOrganizationIds,
+    record.invitedUserIds
+  ];
+  return values.flatMap(invitationValueStrings);
+}
+
+function invitationValueStrings(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(invitationValueStrings);
+  if (typeof value === 'string') return [value];
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return [record.id, record.name, record.organizationId, record.organizationName, record.email].flatMap(invitationValueStrings);
+  }
+  return [];
+}
+
+function normalizeInvitationValue(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 }
 
 function isSubmittedBidStatus(status: BidStatus) {
@@ -2381,6 +2591,10 @@ function tenderUpdateInput(input: UpdateTenderInput): Prisma.TenderUpdateInput {
 
 function isEditableTenderStatus(status: TenderStatus) {
   return status === TenderStatus.DRAFT || status === TenderStatus.REVIEW;
+}
+
+function isBuyerNoticeEditableStatus(status: TenderStatus) {
+  return status !== TenderStatus.CANCELLED;
 }
 
 function generateTenderReference(type: TenderType) {

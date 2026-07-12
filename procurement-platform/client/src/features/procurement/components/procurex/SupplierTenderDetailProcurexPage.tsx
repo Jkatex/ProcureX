@@ -97,6 +97,7 @@ export function SupplierTenderDetailProcurexPage() {
             </section>
 
             <PrototypeTabs
+              variant="supplierTender"
               defaultTabId="procurement-details"
               tabs={[
                 {
@@ -110,7 +111,11 @@ export function SupplierTenderDetailProcurexPage() {
                     />
                   )
                 },
-                { id: 'questions-requirements', label: 'Questions and requirements', content: <SupplierQuestions tender={tender} /> }
+                {
+                  id: 'clarification-buyer-notice',
+                  label: 'Clarification and buyer notice',
+                  content: <SupplierClarificationAndBuyerNotice tender={tender} />
+                }
               ]}
             />
           </div>
@@ -147,7 +152,6 @@ export function SupplierProcurementDetails({
         <PurchaseInformation tender={tender} />
         <TenderDocumentation tender={tender} />
         <TenderDocuments tender={tender} onOpenDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
-        <SupplierBuyerNotice tender={tender} />
       </section>
     </div>
   );
@@ -237,48 +241,27 @@ function TenderDocuments({
   );
 }
 
-function SupplierBuyerNotice({ tender }: { tender: TenderDetail }) {
+function SupplierClarificationAndBuyerNotice({ tender }: { tender: TenderDetail }) {
   const notice = buyerNoticeText(tender);
   return (
-    <TenderDocumentSection number="5" title="Buyer Notice" kicker="Buyer updates" id="buyer-notice">
-      {notice ? <p>{notice}</p> : <div className="scope-empty">No buyer notice has been published for this tender.</div>}
-    </TenderDocumentSection>
-  );
-}
+    <div className="supplier-clarification-notice-stack">
+      <section className="journey-panel control-panel supplier-clarification-panel">
+        <span className="section-kicker">Clarification</span>
+        <h2>Ask for clarification</h2>
+        <div className="supplier-clarification-action-card">
+          <div>
+            <p>Send your question through the communication center so it stays linked to this tender.</p>
+          </div>
+          <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask clarification</Link>
+        </div>
+      </section>
 
-function SupplierQuestions({ tender }: { tender: TenderDetail }) {
-  return (
-    <PrototypeTabs
-      defaultTabId="clarifications"
-      tabs={[
-        {
-          id: 'clarifications',
-          label: 'Clarifications',
-          content: (
-            <TenderDocumentSection number="1" title="Clarifications" kicker="Questions and requirements">
-              <div className="clarification-deadline-card">
-                <div>
-                  <span className="section-kicker">Clarification deadline</span>
-                  <strong>{formatDate(tender.closingDate)}</strong>
-                  <p>Supplier clarification messages are tracked in the communication center and linked to this tender record.</p>
-                </div>
-                <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask clarification</Link>
-              </div>
-            </TenderDocumentSection>
-          )
-        },
-        {
-          id: 'public-qa',
-          label: 'Public Q&A',
-          content: <TenderDocumentSection number="2" title="Public Q&A" kicker="Published buyer responses"><div className="scope-empty">No public clarifications have been published yet.</div></TenderDocumentSection>
-        },
-        {
-          id: 'amendments',
-          label: 'Published Amendments',
-          content: <TenderDocumentSection number="3" title="Published Amendments" kicker="Tender addenda"><div className="scope-empty">No amendments have been published yet.</div></TenderDocumentSection>
-        }
-      ]}
-    />
+      <section className="journey-panel control-panel supplier-buyer-notice-panel">
+        <span className="section-kicker">Buyer updates</span>
+        <h2>Buyer notice</h2>
+        {notice ? <p className="supplier-buyer-notice-text">{notice}</p> : <div className="scope-empty">No buyer notice has been published for this tender.</div>}
+      </section>
+    </div>
   );
 }
 

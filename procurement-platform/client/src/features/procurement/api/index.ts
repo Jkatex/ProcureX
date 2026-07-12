@@ -3,7 +3,7 @@ import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
 import type { Bid, SessionUser, Tender } from '@/shared/types/domain';
 import { toTenderType } from '../createTenderConfig';
-import { isActiveMarketplaceTender } from '../marketplaceTenderVisibility';
+import { isActiveInvitedTender, isActiveMarketplaceTender } from '../marketplaceTenderVisibility';
 import type {
   CreateTenderDraft,
   CreateTenderPayload,
@@ -17,6 +17,7 @@ import type {
   TenderReviewDetail,
   TenderReviewListResponse,
   TenderDetail,
+  UpdateBuyerNoticeResponse,
   UpdateTenderPayload,
   UpdateTenderResponse
 } from '../types';
@@ -63,6 +64,10 @@ export const procurementApi = {
     const response = await apiClient.patch<UpdateTenderResponse>(`/api/procurement/tenders/${tenderId}`, payload);
     return response.data;
   },
+  async updateBuyerNotice(tenderId: string, buyerNotice: string): Promise<UpdateBuyerNoticeResponse> {
+    const response = await apiClient.patch<UpdateBuyerNoticeResponse>(`/api/procurement/tenders/${tenderId}/buyer-notice`, { buyerNotice });
+    return response.data;
+  },
   async publishTender(tenderId: string): Promise<PublishTenderResponse> {
     const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, {});
     return response.data;
@@ -90,9 +95,12 @@ export const procurementApi = {
 type WorkItemFixture = Awaited<ReturnType<typeof mockApi.getWorkItems>>[number];
 
 function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
+  const normalizedTenders = (payload.tenders ?? []).map(normalizeMarketplaceTenderRow);
+  const normalizedInvitedTenders = (payload.invitedTenders ?? normalizedTenders).map(normalizeMarketplaceTenderRow);
   return {
     ...payload,
-    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow).filter(isActiveMarketplaceTender),
+    tenders: normalizedTenders.filter(isActiveMarketplaceTender),
+    invitedTenders: normalizedInvitedTenders.filter(isActiveInvitedTender),
     myTenders: (payload.myTenders ?? []).map((row) => ({
       ...row,
       tender: row.tender ? normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow) : undefined
@@ -117,6 +125,7 @@ function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
     documents: tender.documents ?? [],
     bidSummary: tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
     submittedBidBusinesses: tender.submittedBidBusinesses ?? [],
+    clarificationInquiries: tender.clarificationInquiries ?? [],
     currentBid: tender.currentBid ?? null,
     activity: tender.activity
   };
@@ -155,9 +164,16 @@ function buildMarketplacePayload(tenders: Tender[], bids: Bid[], workItems: Work
   const myTenderRows = buildMyTenderRows(normalizedTenders, workItems, currentUser);
   const myBidRows = buildMyBidRows(normalizedTenders, bids, workItems, currentUser);
   const activeMarketplaceTenders = normalizedTenders.filter(isActiveMarketplaceTender);
+  const activeInvitedTenders = normalizedTenders.filter(isActiveInvitedTender);
 
   return {
     tenders: activeMarketplaceTenders.map((tender) => ({
+      ...tender,
+      hasDraftBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'draft'),
+      hasSubmittedBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted'),
+      canBid: canBidOnFixtureTender(tender, myBidRows)
+    })),
+    invitedTenders: activeInvitedTenders.map((tender) => ({
       ...tender,
       hasDraftBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'draft'),
       hasSubmittedBid: myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted'),
@@ -193,6 +209,7 @@ export function mergeSessionMarketplaceData(
   return {
     ...payload,
     tenders: [...sessionTenderRows.filter(isActiveMarketplaceTender), ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
+    invitedTenders: payload.invitedTenders ?? [],
     myTenders: [...sessionMyTenderRows, ...payload.myTenders.filter((row) => !existingMyTenderIds.has(row.id))]
   };
 }
@@ -252,6 +269,7 @@ function buildTenderDetailFallback(tender: Tender): TenderDetail {
     documents: [{ id: 'document-1', name: `${tender.reference} tender document`, documentType: 'TENDER_DOCUMENT', label: 'Tender document' }],
     bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
     submittedBidBusinesses: [],
+    clarificationInquiries: [],
     currentBid: null
   };
 }
@@ -366,7 +384,7 @@ function canBidOnFixtureTender(tender: Tender, myBidRows: MyBidRow[]) {
   const status = String(tender.status).toUpperCase();
   const hasSubmittedBid = myBidRows.some((bid) => bid.tenderReference === tender.reference && bid.section === 'submitted');
   if (tender.ownedByCurrentOrganization) return false;
-  if (String(tender.visibility ?? '').toUpperCase() !== 'PUBLIC_MARKETPLACE') return false;
+  if (!['PUBLIC_MARKETPLACE', 'INVITED'].includes(String(tender.visibility ?? '').toUpperCase())) return false;
   if (status !== 'OPEN' && status !== 'PUBLISHED') return false;
   if (hasSubmittedBid) return false;
   return Date.parse(`${tender.closingDate}T23:59:59.999Z`) > Date.now();

@@ -52,6 +52,7 @@ const supplierTender: TenderDetail = {
     evaluationCriteria: [{ criterion: 'Methodology', weight: 60 }]
   },
   metadata: {
+    buyerNotice: 'Please use Gate B for the mandatory site visit.',
     worksRequirements: {
       scopeSummary: 'Renovate regional office workspaces',
       siteVisitRequirement: 'Mandatory'
@@ -87,6 +88,7 @@ describe('SupplierTenderDetailProcurexPage', () => {
   });
 
   it('renders the procurex-ui style supplier tender detail for backend tenders', async () => {
+    const user = userEvent.setup();
     vi.spyOn(procurementApi, 'getTenderDetail').mockResolvedValue(supplierTender);
 
     render(
@@ -100,19 +102,24 @@ describe('SupplierTenderDetailProcurexPage', () => {
     expect(screen.getByRole('button', { name: 'Open Document' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download Document' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Tender' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ask clarification' }).getAttribute('href')).toContain('/communication?');
+    expect(screen.getAllByRole('link', { name: 'Ask clarification' }).some((link) => link.getAttribute('href')?.includes('/communication?'))).toBe(true);
     expect(screen.queryByText('Mandatory before bid')).not.toBeInTheDocument();
     expect(screen.queryByText('Additional responses')).not.toBeInTheDocument();
     expect(screen.queryByText('Time remaining')).not.toBeInTheDocument();
     expect(screen.queryByText('Jump to')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Procurement details', selected: true })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Questions and requirements' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Complaints' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Monitoring and reporting' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Clarification and buyer notice' })).toBeInTheDocument();
     expect(screen.getByText('Customer Information')).toBeInTheDocument();
     expect(screen.getByText('Purchase Information')).toBeInTheDocument();
     expect(screen.getByText('Tender Documentation')).toBeInTheDocument();
-    expect(screen.getByText('Buyer Notice')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Buyer notice' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Clarification and buyer notice' }));
+
+    expect(screen.getByRole('tab', { name: 'Clarification and buyer notice', selected: true })).toBeInTheDocument();
+    expect(screen.queryByText('Clarification deadline')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Buyer notice' })).toBeInTheDocument();
+    expect(screen.getByText('Please use Gate B for the mandatory site visit.')).toBeInTheDocument();
   });
 
   it('downloads a consolidated tender pack PDF from the main supplier action', async () => {

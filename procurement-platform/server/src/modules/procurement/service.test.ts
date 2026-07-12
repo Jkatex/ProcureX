@@ -490,6 +490,7 @@ describe('procurement planning service', () => {
 
     await expect(service.marketplace(undefined, query)).resolves.toEqual({
       tenders: [],
+      invitedTenders: [],
       myTenders: [],
       myBids: [],
       summary: {
@@ -1018,6 +1019,35 @@ describe('procurement tender write service', () => {
       status: 409,
       message: 'An organization profile is required.'
     });
+  });
+
+  it('updates buyer notices for the authenticated owner organization', async () => {
+    const updatedNotice = {
+      success: true,
+      message: 'Buyer notice saved successfully',
+      data: {
+        id: 'tender-1',
+        buyerNotice: 'Site visit starts at Gate B.',
+        updatedAt: '2099-08-01T10:00:00.000Z'
+      }
+    };
+    const repository = {
+      updateTenderBuyerNotice: vi.fn().mockResolvedValue(updatedNotice)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.updateTenderBuyerNotice('tender-1', 'token-1', { buyerNotice: 'Site visit starts at Gate B.' })).resolves.toEqual(updatedNotice);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.updateTenderBuyerNotice).toHaveBeenCalledWith(
+      'tender-1',
+      { buyerNotice: 'Site visit starts at Gate B.' },
+      { organizationId: 'org-1', userId: 'user-1' }
+    );
   });
 
   it('submits owner organization tenders for admin review only when the draft is complete', async () => {

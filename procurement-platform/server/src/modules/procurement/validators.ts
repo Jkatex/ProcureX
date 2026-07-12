@@ -312,6 +312,12 @@ export const updateTenderBodySchema = z
     };
   });
 
+export const buyerNoticeBodySchema = z
+  .object({
+    buyerNotice: z.string().trim().max(5000).optional().default('')
+  })
+  .strict();
+
 export const publishTenderBodySchema = z.object({}).strict();
 
 export const tenderReviewQuerySchema = z

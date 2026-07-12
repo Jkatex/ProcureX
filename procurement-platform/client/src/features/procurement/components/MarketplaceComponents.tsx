@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import type { MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../types';
 
-export type MarketplaceTabId = 'recommended' | 'all-tenders' | 'my-workspace';
+export type MarketplaceTabId = 'recommended' | 'all-tenders' | 'invited-tenders' | 'my-workspace';
 
 type MarketplaceFiltersValue = {
   query: string;
@@ -74,6 +74,7 @@ export function MarketplaceTabs({ activeTab, onTabChange }: MarketplaceTabsProps
   const tabs: Array<{ id: MarketplaceTabId; label: string }> = [
     { id: 'recommended', label: 'Recommended' },
     { id: 'all-tenders', label: 'All Tenders' },
+    { id: 'invited-tenders', label: 'Invited Tenders' },
     { id: 'my-workspace', label: 'My Workspace' }
   ];
 
@@ -345,8 +346,7 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
 
 function TenderRowCard({ tender, isSaved, isSaving = false, onToggleSaved }: TenderRowCardProps) {
   const ownedByCurrentOrganization = Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser);
-  const isPublicMarketplace = isPublicMarketplaceVisibility(tender.visibility);
-  const canBid = isPublicMarketplace && !ownedByCurrentOrganization && Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !tender.hasSubmittedBid));
+  const canBid = isBiddableVisibility(tender.visibility) && !ownedByCurrentOrganization && Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !tender.hasSubmittedBid));
   const daysRemaining = getDaysRemaining(tender.closingDate);
   const detailUrl = ownedByCurrentOrganization ? `/procurement/tender-details?tenderId=${tender.id}` : `/procurement/supplier-tender-detail?tenderId=${tender.id}`;
   const bidUrl = `/bidding?tenderId=${tender.id}`;
@@ -493,13 +493,14 @@ function isOpenStatus(value: string) {
   return /^(open|published)$/i.test(value.trim());
 }
 
-function isPublicMarketplaceVisibility(value: unknown) {
-  return String(value ?? '')
+function isBiddableVisibility(value: unknown) {
+  const normalized = String(value ?? '')
     .trim()
     .replace(/([a-z])([A-Z])/g, '$1_$2')
     .replace(/[\s-]+/g, '_')
     .replace(/_+/g, '_')
-    .toUpperCase() === 'PUBLIC_MARKETPLACE';
+    .toUpperCase();
+  return normalized === 'PUBLIC_MARKETPLACE' || normalized === 'INVITED';
 }
 
 function getDaysRemaining(closingDate: string) {

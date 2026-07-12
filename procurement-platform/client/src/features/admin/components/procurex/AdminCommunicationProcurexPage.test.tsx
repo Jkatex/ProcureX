@@ -32,7 +32,7 @@ vi.mock('@/features/communication/api', () => ({
     markRead: vi.fn(),
     composeMessage: vi.fn(),
     replyToMessage: vi.fn(),
-    archive: vi.fn(),
+    getAttachment: vi.fn(),
     listRecipients: vi.fn(),
     listTenderLinks: vi.fn()
   }
@@ -55,7 +55,6 @@ const getMessage = vi.mocked(communicationApi.getMessage);
 const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
-const archive = vi.mocked(communicationApi.archive);
 const listRecipients = vi.mocked(communicationApi.listRecipients);
 const listTenderLinks = vi.mocked(communicationApi.listTenderLinks);
 const failTenderReview = vi.mocked(procurementApi.failTenderReview);
@@ -185,7 +184,6 @@ describe('AdminCommunicationProcurexPage', () => {
         amendmentRoute: '/procurement/create-tender?tenderId=22222222-2222-4222-8222-222222222222'
       }
     });
-    archive.mockResolvedValue({ ...message, folder: 'archived', status: 'ARCHIVED', read: true, actionRequired: false });
     listRecipients.mockResolvedValue([
       { id: 'org-1', name: 'Kilimanjaro Supplies Limited', kind: 'COMPANY', country: 'TZ', capabilities: ['SUPPLIER'] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
@@ -211,6 +209,7 @@ describe('AdminCommunicationProcurexPage', () => {
     expect(screen.queryByText('Message context')).not.toBeInTheDocument();
     expect(screen.queryByText('Admin Notice')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.getByText('Next action')).toBeInTheDocument();
     expect(screen.getByText('Please confirm whether the site visit is still available on Friday.')).toBeInTheDocument();
   });
@@ -333,14 +332,6 @@ describe('AdminCommunicationProcurexPage', () => {
         subject: 'Re: Site visit schedule'
       })
     ));
-  });
-
-  it('archives from the full message page', async () => {
-    renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
-
-    fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
-    await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
   });
 
 });

@@ -3191,6 +3191,33 @@ textarea.form-input {
     line-height: 1;
 }
 
+.communication-attachment-card {
+    display: flex;
+    width: min(100%, 520px);
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.communication-attachment-name {
+    min-width: 0;
+    color: var(--text-primary);
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.communication-attachment-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 8px;
+    align-items: center;
+}
+
 .communication-compose-attachments {
     display: grid;
     gap: 10px;
@@ -8341,6 +8368,7 @@ ul.closure-checklist {
     justify-content: center;
     min-height: 42px;
     white-space: normal;
+    text-align: center;
 }
 
 .supplier-detail-primary-action {
@@ -8751,6 +8779,23 @@ ul.closure-checklist {
     gap: 24px;
 }
 
+.buyer-detail-actions {
+    width: min(100%, 360px);
+}
+
+.buyer-detail-action-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.buyer-detail-action-row .btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+}
+
 .buyer-tender-status-list,
 .buyer-tender-detail-rows {
     display: flex;
@@ -8919,6 +8964,20 @@ ul.closure-checklist {
 
 .supplier-clarification-panel .clarification-deadline-card {
     margin-bottom: 12px;
+}
+
+.supplier-clarification-action-card {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    background: var(--surface-soft);
+}
+
+.supplier-clarification-action-card p {
+    margin: 0;
+    color: var(--text-secondary);
 }
 
 .clarification-deadline-card strong {
@@ -9285,9 +9344,23 @@ ul.closure-checklist {
     font-size: 17px;
 }
 
+.supplier-tender-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 10px;
+    padding: 8px;
+}
+
+.supplier-tender-tabs .supplier-detail-tab {
+    width: 100%;
+    min-height: 56px;
+    font-size: 17px;
+}
+
 .marketplace-tabs {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
     gap: 10px;
     padding: 8px;
@@ -9303,6 +9376,7 @@ ul.closure-checklist {
 
 @media (max-width: 640px) {
     .marketplace-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px;
         padding: 6px;
     }
@@ -9336,6 +9410,97 @@ ul.closure-checklist {
 .supplier-detail-procurement-document {
     display: grid;
     gap: 0;
+}
+
+.supplier-tender-detail-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.supplier-detail-main-column,
+.supplier-clarification-notice-column {
+    min-width: 0;
+}
+
+.supplier-clarification-notice-column {
+    position: sticky;
+    top: 18px;
+}
+
+.supplier-clarification-notice-stack {
+    display: grid;
+    gap: 16px;
+}
+
+.supplier-clarification-notice-stack .journey-panel {
+    margin: 0;
+}
+
+.supplier-buyer-notice-text {
+    white-space: pre-wrap;
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+.buyer-clarification-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.buyer-clarification-link.is-unread {
+    border-color: rgba(0, 128, 128, 0.38);
+    background: var(--primary-blue-light);
+    box-shadow: inset 4px 0 0 var(--primary-blue);
+}
+
+.buyer-clarification-link.is-read {
+    background: var(--card-bg);
+}
+
+.buyer-clarification-link:hover {
+    border-color: var(--border);
+    background: var(--surface-soft);
+}
+
+.buyer-clarification-link.is-unread:hover {
+    border-color: rgba(0, 128, 128, 0.52);
+    background: rgba(0, 128, 128, 0.14);
+}
+
+.buyer-clarification-link span {
+    color: var(--text-secondary);
+}
+
+.buyer-clarification-link.is-unread strong {
+    color: var(--text-primary);
+}
+
+.buyer-clarification-link.is-read strong,
+.buyer-clarification-link.is-read .buyer-clarification-sender {
+    font-weight: 600;
+}
+
+.buyer-clarification-sender,
+.buyer-clarification-body {
+    display: block;
+}
+
+.buyer-clarification-sender {
+    margin-top: 4px;
+    font-weight: 700;
+    color: var(--text-primary) !important;
+}
+
+.buyer-clarification-body {
+    margin-top: 2px;
+}
+
+.buyer-notice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 .supplier-procurement-full-document .tender-document-section {
@@ -13117,8 +13282,13 @@ ul.closure-checklist {
     .tender-document-section-heading,
     .tender-document-two-column,
     .bid-dynamic-summary,
+    .supplier-tender-detail-split,
     .split-list {
         grid-template-columns: 1fr;
+    }
+
+    .supplier-clarification-notice-column {
+        position: static;
     }
 
     .tender-document-view {
@@ -14781,8 +14951,39 @@ ul.closure-checklist {
     padding: 24px;
 }
 
+.procurement-tender-list.market-list {
+    gap: 18px;
+}
+
 .market-row {
     align-items: start;
+}
+
+.procurement-tender-list.market-list .market-row.procurement-tender-row {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+    min-height: 172px;
+    align-items: stretch;
+    gap: 20px;
+    padding: 20px !important;
+    border: 1px solid var(--border-soft) !important;
+    border-radius: var(--radius-xl) !important;
+    background: var(--card-bg) !important;
+}
+
+.procurement-tender-list.market-list .market-row.procurement-tender-row:last-child {
+    padding: 20px !important;
+    border: 1px solid var(--border-soft) !important;
+}
+
+.procurement-tender-list.market-list .market-row.procurement-tender-row>div:first-child {
+    display: grid;
+    align-content: start;
+    min-width: 0;
+}
+
+.procurement-tender-list.market-list .market-row .tender-row-actions {
+    align-content: center;
+    align-items: center;
 }
 
 .workspace-hero {

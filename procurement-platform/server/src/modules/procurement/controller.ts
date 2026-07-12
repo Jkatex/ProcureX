@@ -2,6 +2,7 @@ import type { RequestHandler, Response } from 'express';
 import type { ZodError } from 'zod';
 import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService, PUBLISH_VALIDATION_FAILED_CODE } from './service.js';
 import {
+  buyerNoticeBodySchema,
   createTenderBodySchema,
   designFormSchemaParamsSchema,
   designFormSchemasQuerySchema,
@@ -244,6 +245,20 @@ export class ModuleController {
       const tender = await this.service.updateTender(params.data.tenderId, bearerToken(req), body.data);
       if (!tender) throw requestError('Tender was not found.', 404);
       res.json(tender);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateTenderBuyerNotice: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const body = buyerNoticeBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      const result = await this.service.updateTenderBuyerNotice(params.data.tenderId, bearerToken(req), body.data);
+      if (!result) throw requestError('Tender was not found.', 404);
+      res.json(result);
     } catch (error) {
       next(error);
     }

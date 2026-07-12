@@ -9,6 +9,7 @@ export function createModuleRouter() {
   router.get('/status', controller.status);
   router.get('/messages', controller.messages);
   router.post('/messages', controller.compose);
+  router.get('/messages/:messageId/attachments/:attachmentId/:disposition', controller.attachment);
   router.get('/messages/:messageId', controller.message);
   router.patch('/messages/:messageId', controller.patch);
   router.post('/messages/:messageId/read', controller.markRead);
