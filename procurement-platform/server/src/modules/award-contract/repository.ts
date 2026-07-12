@@ -23,7 +23,10 @@ import { prisma } from '../../db/prisma.js';
 import { signCanonicalPayloadHash } from '../identity/signing.js';
 import type {
   AwardContractRequestContext,
+  AwardDecisionDraftInput,
   AwardDecisionInput,
+  AwardGroupDto,
+  AwardSourceDocumentDto,
   AwardApprovalRouteInput,
   AwardApprovalStepInput,
   AwardNotificationInput,
@@ -458,6 +461,42 @@ function canonicalJson(value: unknown): string {
 
 function sha256(value: string) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeFilename(value: string) {
+  return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-').replace(/^-+|-+$/g, '') || 'document';
+}
+
+function sourceDocumentDto(input: Omit<AwardSourceDocumentDto, 'openUrl' | 'downloadUrl'>): AwardSourceDocumentDto {
+  const baseUrl = input.documentId ? `/api/documents/${input.documentId}/content` : '';
+  return {
+    ...input,
+    openUrl: baseUrl,
+    downloadUrl: baseUrl ? `${baseUrl}?download=true` : ''
+  };
+}
+
+function awardDecisionDraftPayload(input: AwardDecisionDraftInput): Record<string, unknown> {
+  return {
+    ...(input.selectedSupplier !== undefined ? { selectedSupplier: input.selectedSupplier } : {}),
+    ...(input.awardAmount !== undefined ? { awardAmount: input.awardAmount } : {}),
+    ...(input.currency !== undefined ? { currency: input.currency } : {}),
+    ...(input.awardDate !== undefined ? { awardDate: input.awardDate } : {}),
+    ...(input.reason !== undefined ? { reason: input.reason } : {}),
+    ...(input.conditions !== undefined ? { conditions: input.conditions } : {}),
+    ...(input.confirmationBy !== undefined ? { confirmationBy: input.confirmationBy } : {}),
+    ...(input.confirmations !== undefined ? { confirmations: input.confirmations } : {}),
+    note: input.note
+  };
 }
 
 function contractReference() {
@@ -1366,12 +1405,15 @@ export class ModuleRepository {
       this.db.budgetCommitment.findMany({ where: { recommendationId: record.id }, orderBy: { createdAt: 'desc' } }),
       this.awardGroupDetail(record, context)
     ]);
+    const sourceDocuments = await this.recommendationSourceDocuments(record, awardGroup);
 
     return {
       ...listRecommendationDto(record),
       awardGroupId: awardGroup.id,
       access: workflowAccess({ buyerOrgId: record.workspace.buyerOrgId, supplierOrgId: record.supplierOrgId }, context),
       reason: record.reason ?? '',
+      payload: objectPayload(record.payload),
+      sourceDocuments,
       awardGroup,
       notice: record.notice ? noticeDto(record.notice) : null,
       contract,
@@ -1399,6 +1441,20 @@ export class ModuleRepository {
     };
   }
 
+  async saveAwardDecisionDraft(id: string, input: AwardDecisionDraftInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const recommendation = await tx.awardRecommendation.findUnique({
+        where: { id },
+        include: recommendationInclude
+      });
+      if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+      assertBuyerAccess(recommendation, context);
+      await this.updateAwardDecisionDraft(tx, recommendation, input, context, 'award.decision_draft.saved');
+    });
+
+    return this.getRecommendation(id, context);
+  }
+
   async approveRecommendation(id: string, input: AwardDecisionInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
       const recommendation = await tx.awardRecommendation.findUnique({
@@ -1409,13 +1465,14 @@ export class ModuleRepository {
       assertBuyerAccess(recommendation, context);
       if (!recommendation.supplierOrgId || !recommendation.bidId) throw requestError('Award recommendation must reference a supplier bid.', 409);
 
+      await this.updateAwardDecisionDraft(tx, recommendation, input, context, 'award.decision.approved');
       await this.upsertApprovalStep(tx, recommendation.id, context.userId, ApprovalStatus.APPROVED, 'approved', input.note);
       await this.upsertSingleUserAwardApproval(tx, recommendation.id, context, ApprovalStatus.APPROVED, input.note);
       await tx.awardRecommendation.update({
         where: { id: recommendation.id },
         data: {
           status: RecommendationStatus.APPROVED,
-          reason: input.note || recommendation.reason
+          reason: input.reason || input.note || recommendation.reason
         }
       });
       await this.findOrCreateAwardGroup(tx, recommendation);
@@ -3289,6 +3346,128 @@ export class ModuleRepository {
       await this.audit(tx, item.contract.buyerOrgId, context.userId, `contract.${label}.updated`, 'contract', contractId, { itemId, status: input.status });
     });
     return this.getContract(contractId, context);
+  }
+
+  async evaluationReport(id: string, context: AwardContractRequestContext) {
+    const recommendation = await this.getRecommendation(id, context);
+    if (!recommendation) throw requestError('Award recommendation was not found.', 404);
+    const rows = [
+      ['Tender', recommendation.tenderTitle],
+      ['Tender reference', recommendation.tenderReference],
+      ['Recommended supplier', recommendation.supplierName ?? 'Not set'],
+      ['Award amount', recommendation.amount === null ? 'Not priced' : `${recommendation.currency} ${recommendation.amount.toLocaleString()}`],
+      ['Recommendation reason', recommendation.reason || 'No reason recorded'],
+      ['Award status', recommendation.status]
+    ];
+    const winnerRows = recommendation.awardGroup.winners.map((winner, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(winner.supplierName ?? 'Supplier pending')}</td>
+        <td>${escapeHtml(winner.status)}</td>
+        <td>${winner.amount === null ? 'Not priced' : `${escapeHtml(winner.currency)} ${winner.amount.toLocaleString()}`}</td>
+      </tr>
+    `).join('');
+
+    return {
+      filename: `${safeFilename(recommendation.tenderReference || recommendation.reference)}-evaluation-report.html`,
+      contentType: 'text/html; charset=utf-8',
+      body: `<!doctype html>
+        <html>
+          <head><meta charset="utf-8"><title>Evaluation report</title></head>
+          <body style="font-family: Arial, sans-serif; color: #172033; max-width: 920px; margin: 32px auto; line-height: 1.5;">
+            <h1>Evaluation Report</h1>
+            <p>This generated report summarizes the evaluation outcome used for the award decision.</p>
+            <table style="width:100%;border-collapse:collapse;margin:24px 0;">
+              <tbody>${rows.map(([label, value]) => `<tr><th style="text-align:left;border:1px solid #d8dee8;padding:10px;width:220px;">${escapeHtml(label)}</th><td style="border:1px solid #d8dee8;padding:10px;">${escapeHtml(String(value ?? '-'))}</td></tr>`).join('')}</tbody>
+            </table>
+            <h2>Recommended winners</h2>
+            <table style="width:100%;border-collapse:collapse;">
+              <thead><tr><th style="border:1px solid #d8dee8;padding:10px;">Rank</th><th style="border:1px solid #d8dee8;padding:10px;">Supplier</th><th style="border:1px solid #d8dee8;padding:10px;">Status</th><th style="border:1px solid #d8dee8;padding:10px;">Amount</th></tr></thead>
+              <tbody>${winnerRows || '<tr><td colspan="4" style="border:1px solid #d8dee8;padding:10px;">No winners recorded.</td></tr>'}</tbody>
+            </table>
+          </body>
+        </html>`
+    };
+  }
+
+  private async updateAwardDecisionDraft(
+    tx: DbClient,
+    recommendation: RecommendationRecord,
+    input: AwardDecisionDraftInput,
+    context: AwardContractRequestContext,
+    event: string
+  ) {
+    const currentPayload = objectPayload(recommendation.payload);
+    const currentDraft = objectPayload(currentPayload.awardDecisionDraft);
+    const nextDraft = {
+      ...currentDraft,
+      ...awardDecisionDraftPayload(input),
+      savedAt: new Date().toISOString(),
+      savedByUserId: context.userId ?? null
+    };
+    await tx.awardRecommendation.update({
+      where: { id: recommendation.id },
+      data: {
+        ...(input.awardAmount !== undefined ? { amount: input.awardAmount } : {}),
+        ...(input.currency ? { currency: input.currency } : {}),
+        ...(input.reason || input.note ? { reason: input.reason || input.note } : {}),
+        payload: {
+          ...currentPayload,
+          awardDecisionDraft: nextDraft
+        } as Prisma.InputJsonObject
+      }
+    });
+    await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, event, 'award_recommendation', recommendation.id, {
+      note: input.note,
+      awardAmount: input.awardAmount,
+      currency: input.currency
+    });
+  }
+
+  private async recommendationSourceDocuments(record: RecommendationRecord, awardGroup: AwardGroupDto): Promise<AwardSourceDocumentDto[]> {
+    const documents: AwardSourceDocumentDto[] = [];
+    const tenderDocuments = await this.db.tenderDocument.findMany({
+      where: { tenderId: record.workspace.tenderId },
+      include: { document: { select: { id: true, name: true, documentType: true } } },
+      orderBy: { createdAt: 'asc' }
+    });
+    for (const row of tenderDocuments) {
+      documents.push(sourceDocumentDto({
+        id: `tender-${row.id}`,
+        sourceType: 'tender',
+        documentId: row.documentId,
+        label: row.label || 'Tender Document',
+        name: row.document.name,
+        status: row.document.documentType
+      }));
+    }
+
+    for (const winner of awardGroup.winners) {
+      for (const row of winner.bidDocuments) {
+        documents.push(sourceDocumentDto({
+          id: `bid-${row.id}`,
+          sourceType: 'bid',
+          documentId: row.documentId,
+          label: 'Bid Document',
+          name: row.name,
+          status: row.reviewStatus,
+          supplierName: winner.supplierName,
+          bidId: row.bidId
+        }));
+      }
+    }
+
+    documents.push({
+      id: `evaluation-report-${record.id}`,
+      sourceType: 'evaluation-report',
+      documentId: null,
+      label: 'Evaluation Report',
+      name: `${record.workspace.tender.reference} evaluation report`,
+      status: 'Generated',
+      openUrl: `/api/award-contract/recommendations/${record.id}/evaluation-report`,
+      downloadUrl: `/api/award-contract/recommendations/${record.id}/evaluation-report?download=true`
+    });
+    return documents;
   }
 
   private async awardGroupDetail(record: RecommendationRecord, context: AwardContractRequestContext) {

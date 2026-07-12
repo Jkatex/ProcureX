@@ -458,6 +458,7 @@ export function CreateTenderProcurexPage() {
 
   function changeType(typeId: CreateTenderProcurementTypeId) {
     patchDraft(normalizeDraftForType({ ...draft, procurementTypeId: typeId }, typeId));
+    setNewCategory('');
   }
 
   function selectCategory(category: string) {
@@ -752,11 +753,12 @@ export function CreateTenderProcurexPage() {
                     draft={draft}
                     selectedType={selectedType}
                     availableCategories={availableCategories}
-                    newCategory={newCategory}
+                    categorySearch={newCategory}
                     newSupplier={newSupplier}
                     onTypeChange={changeType}
                     onPatch={patchPlanAware}
-                    onNewCategory={selectCategory}
+                    onCategorySearch={setNewCategory}
+                    onAddCategory={selectCategory}
                     onRemoveCategory={removeCategory}
                     onNewSupplier={setNewSupplier}
                     onAddSupplier={addSupplier}
@@ -1007,11 +1009,12 @@ function PlanningStep({
   draft,
   selectedType,
   availableCategories,
-  newCategory,
+  categorySearch,
   newSupplier,
   onTypeChange,
   onPatch,
-  onNewCategory,
+  onCategorySearch,
+  onAddCategory,
   onRemoveCategory,
   onNewSupplier,
   onAddSupplier
@@ -1019,15 +1022,23 @@ function PlanningStep({
   draft: CreateTenderDraft;
   selectedType: { id: CreateTenderProcurementTypeId; label: string; description: string };
   availableCategories: string[];
-  newCategory: string;
+  categorySearch: string;
   newSupplier: string;
   onTypeChange: (typeId: CreateTenderProcurementTypeId) => void;
   onPatch: (field: keyof CreateTenderDraft, value: CreateTenderDraft[keyof CreateTenderDraft]) => void;
-  onNewCategory: (value: string) => void;
+  onCategorySearch: (value: string) => void;
+  onAddCategory: (value: string) => void;
   onRemoveCategory: (category: string) => void;
   onNewSupplier: (value: string) => void;
   onAddSupplier: () => void;
 }) {
+  const normalizedSearch = categorySearch.trim().toLowerCase();
+  const availableResults = availableCategories
+    .filter((category) => !draft.categories.includes(category))
+    .filter((category) => !normalizedSearch || category.toLowerCase().includes(normalizedSearch))
+    .slice(0, 12);
+  const resultOpen = Boolean(categorySearch.trim());
+
   return (
     <div className="wizard-step-surface planning-step-surface">
       {draft.planFilledFields.length ? <div className="planning-section planning-section-notice">Planning-autofill notice: selected plan values pre-filled this tender draft.</div> : null}
@@ -1056,17 +1067,32 @@ function PlanningStep({
           </div>
         </div>
         <div className="planning-control-grid">
-          <label>
-            Category
-            <select value={newCategory} onChange={(event) => onNewCategory(event.target.value)}>
-              <option value="">Select category</option>
-              {availableCategories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="form-group iam-searchable-selector tender-category-search">
+            <label className="form-label" htmlFor="create-tender-category-search">
+              Category
+            </label>
+            <div className="category-picker">
+              <input
+                id="create-tender-category-search"
+                className="form-input"
+                type="search"
+                value={categorySearch}
+                placeholder={`Search ${selectedType.label.toLowerCase()} categories`}
+                onChange={(event) => onCategorySearch(event.target.value)}
+              />
+              <div className={resultOpen ? 'category-results open' : 'category-results'} role="listbox" aria-label={`${selectedType.label} categories`}>
+                {availableResults.length ? (
+                  availableResults.map((category) => (
+                    <button className="category-result-option" type="button" key={category} onClick={() => onAddCategory(category)}>
+                      {category}
+                    </button>
+                  ))
+                ) : (
+                  <span className="category-result-empty">No matching categories.</span>
+                )}
+              </div>
+            </div>
+          </div>
           <label>
             Procurement method
             <select value={draft.method} onChange={(event) => onPatch('method', event.target.value)}>
@@ -1078,12 +1104,15 @@ function PlanningStep({
             </select>
           </label>
         </div>
-        <div className="market-row category-chip-row">
+        <div className="selected-category-list category-chip-row">
           {draft.categories.length ? (
             draft.categories.map((category) => (
-              <button key={category} className="status-badge removable" type="button" onClick={() => onRemoveCategory(category)}>
-                {category} x
-              </button>
+              <div className="selected-category-row" key={category}>
+                <span>{category}</span>
+                <button className="selected-category-remove" type="button" onClick={() => onRemoveCategory(category)} aria-label={`Remove ${category}`}>
+                  Remove
+                </button>
+              </div>
             ))
           ) : (
             <span className="form-hint">No categories added yet.</span>

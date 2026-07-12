@@ -85,6 +85,20 @@ export const contractQuerySchema = z
 
 export const awardDecisionBodySchema = z
   .object({
+    selectedSupplier: z.string().trim().max(240).optional(),
+    awardAmount: z.coerce.number().finite().nonnegative().optional(),
+    currency: z.string().trim().min(3).max(3).optional(),
+    awardDate: z.string().trim().date().optional(),
+    reason: z.string().trim().max(4000).optional(),
+    conditions: z.string().trim().max(4000).optional(),
+    confirmationBy: z.string().trim().max(160).optional(),
+    confirmations: z
+      .object({
+        evaluationReviewed: z.boolean().optional(),
+        documentsReviewed: z.boolean().optional(),
+        authorityConfirmed: z.boolean().optional()
+      })
+      .optional(),
     note: optionalNote
   })
   .strict();

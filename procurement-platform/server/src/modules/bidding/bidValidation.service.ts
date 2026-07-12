@@ -100,7 +100,7 @@ export function validateBidDraft(input: {
   }
 
   validateDocumentDescriptors(draft.documents ?? [], issues, mode);
-  if (schema.steps.some((step) => step.id === 'financial') && financialFields.length > 0 && computedTotalAmount <= 0) {
+  if (financialFields.length > 0 && computedTotalAmount <= 0) {
     issues.push({
       section: 'financial',
       field: 'computedTotalAmount',
@@ -323,7 +323,8 @@ function completeness(schema: BidSubmissionSchemaDto, issues: BidValidationIssue
   const result: Record<string, boolean> = {};
   for (const step of schema.steps) {
     if (step.id === 'receipt') continue;
-    result[step.id] = !issues.some((issue) => issue.section === step.id || (step.id === 'administrative' && issue.section === 'documents'));
+    const sections = new Set(step.fields.map((field) => field.section));
+    result[step.id] = !issues.some((issue) => issue.section === step.id || sections.has(issue.section as any) || (step.id === 'administrative' && issue.section === 'documents'));
   }
   return result;
 }

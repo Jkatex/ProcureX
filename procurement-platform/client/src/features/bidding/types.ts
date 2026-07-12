@@ -76,7 +76,29 @@ export type BidReceiptDto = NonNullable<BidDto['receipt']> & {
   bid: BidDto;
 };
 
-export type BidSubmissionStepId = 'administrative' | 'technical' | 'financial' | 'samples' | 'declarations' | 'review' | 'receipt';
+export type BidSubmissionSection = 'administrative' | 'technical' | 'financial' | 'samples' | 'declarations' | 'review' | 'receipt';
+
+export type BidSubmissionStepId =
+  | BidSubmissionSection
+  | 'goodsTechnical'
+  | 'goodsFinancial'
+  | 'goodsSamples'
+  | 'goodsReview'
+  | 'goodsDeclaration'
+  | 'worksCapacity'
+  | 'worksTechnicalProposal'
+  | 'worksFinancial'
+  | 'worksReview'
+  | 'worksDeclaration'
+  | 'servicesMethodology'
+  | 'servicesDeliveryPlan'
+  | 'servicesStaffing'
+  | 'servicesSla'
+  | 'servicesCommercial'
+  | 'servicesReview'
+  | 'consultancyTechnical'
+  | 'consultancyFinancial'
+  | 'consultancyReview';
 
 export type BidSubmissionFieldType = 'text' | 'textarea' | 'number' | 'date' | 'boolean' | 'select' | 'file' | 'table';
 
@@ -97,7 +119,7 @@ export type BidSubmissionSchemaFieldDto = {
   requirementKey: string;
   label: string;
   type: BidSubmissionFieldType;
-  section: BidSubmissionStepId;
+  section: BidSubmissionSection;
   required: boolean;
   responseType: BidSubmissionResponseType;
   envelope: BidDocumentEnvelope;

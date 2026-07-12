@@ -91,7 +91,7 @@ export function SupplierTenderDetailProcurexPage() {
                 </div>
                 <div className="supplier-detail-action-row">
                   <button className="btn btn-secondary" type="button" disabled={tender.ownedByCurrentOrganization}>{tender.isSaved ? 'Saved' : 'Save Tender'}</button>
-                  <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask clarification</Link>
+                  <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask Buyer</Link>
                 </div>
               </div>
             </section>
@@ -262,7 +262,7 @@ function SupplierQuestions({ tender }: { tender: TenderDetail }) {
                   <strong>{formatDate(tender.closingDate)}</strong>
                   <p>Supplier clarification messages are tracked in the communication center and linked to this tender record.</p>
                 </div>
-                <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask clarification</Link>
+                <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask Buyer</Link>
               </div>
             </TenderDocumentSection>
           )
