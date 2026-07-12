@@ -19,7 +19,7 @@ export function useMarketplaceData() {
 
     setStatus('loading');
     procurementApi
-      .getMarketplace(user)
+      .getMarketplace()
       .then((payload) => {
         if (!isMounted) return;
         setData(mergeSessionMarketplaceData(payload, createTenderDrafts, publishedTenders, user?.organization));

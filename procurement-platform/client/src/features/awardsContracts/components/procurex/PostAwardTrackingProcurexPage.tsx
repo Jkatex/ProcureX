@@ -13,6 +13,7 @@ import {
   option,
   recordPickerOptions,
   riskLevelOptions,
+  trustTierOptions,
   terminationStatusOptions,
   terminationTypeOptions
 } from './AwardContractActionForms';
@@ -1060,12 +1061,12 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'supplierOrgId', label: 'Supplier organization', kind: 'select', options: supplierOrgOptions, helpText: 'Leave blank to use the supplier linked to this contract.' },
                   { name: 'riskLevel', label: 'Risk level', kind: 'select', options: riskLevelOptions },
                   { name: 'riskScore', label: 'Risk score', kind: 'number', min: 0, max: 100 },
-                  { name: 'trustTier', label: 'Trust tier', kind: 'text' },
+                  { name: 'trustTier', label: 'Trust tier', kind: 'select', options: trustTierOptions },
                   { name: 'activeAlerts', label: 'Active alerts', kind: 'number', min: 0 },
                   { name: 'openViolations', label: 'Open violations', kind: 'number', min: 0 },
-                  { name: 'summary', label: 'Risk summary', kind: 'textarea' },
+                  { name: 'summary', label: 'Reason for change', kind: 'textarea', required: true },
                   { name: 'drivers', label: 'Risk drivers', kind: 'textarea', rows: 4, transform: 'driverArray', helpText: 'Enter one driver per line.' },
-                  { name: 'payload', label: 'Supplier risk payload', kind: 'json', rows: 4 }
+                  { name: 'payload', label: 'Advanced payload', kind: 'json', rows: 4, advanced: true }
                 ]}
                 initialValues={{
                   riskLevel: String(contract.supplierRiskProfile?.riskLevel ?? 'MEDIUM'),
@@ -1073,6 +1074,7 @@ export function PostAwardTrackingProcurexPage() {
                   trustTier: String(contract.supplierRiskProfile?.trustTier ?? 'UNVERIFIED'),
                   activeAlerts: String(contract.supplierRiskProfile?.activeAlerts ?? '0'),
                   openViolations: String(contract.supplierRiskProfile?.openViolations ?? '0'),
+                  summary: String(contract.supplierRiskProfile?.summary ?? 'Supplier risk reviewed during contract tracking.'),
                   drivers: driverLines(contract.supplierRiskProfile?.drivers),
                   payload: JSON.stringify(contract.supplierRiskProfile?.payload ?? {}, null, 2)
                 }}

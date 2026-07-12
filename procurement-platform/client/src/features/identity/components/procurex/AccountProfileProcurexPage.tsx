@@ -10,6 +10,7 @@ import { apiClient } from '@/shared/api/http';
 import { notificationFromApiError } from '@/shared/api/errors';
 import { AccountMenu } from '@/shared/components/AccountMenu';
 import { NotificationCard } from '@/shared/components/NotificationCard';
+import { displayTrustRiskLabel, riskLevelSummary, trustTierSummary } from '@/shared/trustRisk';
 import { TanzaniaLocationSelector } from '@/shared/components/TanzaniaLocationSelector';
 import {
   PlatformAppsButton,
@@ -250,6 +251,7 @@ export function AccountProfileProcurexPage() {
   const payload = useMemo(() => objectValue(verification?.payload), [verification]);
   const registryRecord = objectValue(payload.registryRecord);
   const reasons = reviewReasons(verification);
+  const trustRisk = user?.trustRisk;
   const requiredValues = [
     profile.fullName,
     profile.emailAddress,
@@ -490,6 +492,51 @@ export function AccountProfileProcurexPage() {
                   <span>Last updated</span>
                   <strong>{verification?.updatedAt ? new Date(verification.updatedAt).toLocaleString() : 'Not saved yet'}</strong>
                 </div>
+              </div>
+              <div className="iam-trust-risk-panel">
+                <div className="iam-section-heading">
+                  <div>
+                    <span className="section-kicker">Trust and risk</span>
+                    <h2>Account assessment</h2>
+                  </div>
+                  <span className={statusBadge(user?.verificationStatus)}>{displayTrustRiskLabel(user?.trustTier ?? 'UNVERIFIED')}</span>
+                </div>
+                <div className="iam-overview-grid">
+                  <div className="iam-readonly-row">
+                    <span>Trust tier</span>
+                    <strong>{displayTrustRiskLabel(user?.trustTier ?? 'UNVERIFIED')}</strong>
+                  </div>
+                  <div className="iam-readonly-row">
+                    <span>Risk level</span>
+                    <strong>{displayTrustRiskLabel(user?.riskLevel ?? 'MEDIUM')}</strong>
+                  </div>
+                  <div className="iam-readonly-row">
+                    <span>Screening</span>
+                    <strong>{displayTrustRiskLabel(user?.screeningStatus ?? 'NOT_RUN')}</strong>
+                  </div>
+                  <div className="iam-readonly-row">
+                    <span>Score</span>
+                    <strong>{trustRisk?.score ?? 'Not assessed yet'}</strong>
+                  </div>
+                </div>
+                <div className="auth-note">
+                  <strong>Trust:</strong> {trustTierSummary(user?.trustTier, trustRisk?.reasons)}
+                  <br />
+                  <strong>Risk:</strong> {riskLevelSummary(user?.riskLevel, user?.screeningStatus)}
+                </div>
+                {trustRisk?.history?.length ? (
+                  <details className="iam-trust-history">
+                    <summary>Trust history</summary>
+                    <div className="admin-timeline compact">
+                      {trustRisk.history.map((entry) => (
+                        <div key={`${entry.createdAt}:${entry.nextTier}`}>
+                          <strong>{displayTrustRiskLabel(entry.nextTier)} / {displayTrustRiskLabel(entry.riskLevel)}</strong>
+                          <span>{entry.score} points - {entry.reasons.join(' ') || 'No additional reasons recorded.'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
               </div>
               {reasons.length ? <div className="auth-note">Admin review reasons: {reasons.join(' ')}</div> : null}
             </section>

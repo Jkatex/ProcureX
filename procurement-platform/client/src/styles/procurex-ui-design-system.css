@@ -26579,6 +26579,27 @@ fieldset.award-form-field {
     background: var(--surface-soft);
 }
 
+.contract-clause-action-card {
+    display: grid;
+    gap: 12px;
+}
+
+.contract-clause-actions {
+    justify-content: flex-start;
+}
+
+.contract-clause-inline-form {
+    margin-top: 4px;
+}
+
+.contract-amendment-list {
+    margin-bottom: 12px;
+}
+
+.contract-amendment-record .award-detail-list {
+    margin-top: 8px;
+}
+
 .award-action-review-summary span,
 .post-award-health-grid span,
 .award-lifecycle-timeline span,

@@ -84,8 +84,10 @@ export function AwardRecommendationProcurexPage() {
     void loadDetail();
   }, [loadDetail]);
 
-  const selectedContractId = detail?.notice?.contractId ?? detail?.contract?.id ?? activeRecommendation?.contractId ?? '';
-  const hasNotice = Boolean(detail?.notice ?? activeRecommendation?.noticeId);
+  const selectedContractId = detail ? detail.notice?.contractId ?? detail.contract?.id ?? '' : activeRecommendation?.contractId ?? '';
+  const isAwardConfirmed = detail?.status === 'APPROVED' || activeRecommendation?.status === 'APPROVED';
+  const hasNotice = detail ? Boolean(detail.notice) : Boolean(activeRecommendation?.noticeId);
+  const supplierAccepted = detail?.notice?.status === 'ACCEPTED';
   const hasSupplierResponse = Boolean(detail?.notice?.responses?.length) || /accepted|declined|clarification/i.test(detail?.notice?.status ?? activeRecommendation?.status ?? '');
   const access = detail?.access ?? {
     viewerRole: activeRecommendation?.roleContext ?? 'NONE',
@@ -124,18 +126,23 @@ export function AwardRecommendationProcurexPage() {
 
   async function sendNotices() {
     if (!activeRecommendationId) return;
+    if (!isAwardConfirmed) {
+      notifyAward('warning', 'Confirm award first', 'Confirm the award before sending notices.');
+      return;
+    }
     try {
       const note = String(recommendationDraft(detail).reason ?? detail?.reason ?? 'Award terms settled and notices sent.');
       setDetail(await awardsContractsApi.settleAwardGroup(activeRecommendationId, note, { source: 'simple-award-workspace' }));
       notifyAward('success', 'Notices sent', 'Award notices were prepared for the selected supplier.');
     } catch (error) {
-      notifyAward('error', 'Notices not sent', apiErrorMessage(error, 'Notices could not be sent.'));
+      const message = apiErrorMessage(error, 'Notices could not be sent.');
+      notifyAward('error', 'Notices not sent', /open clauses|negotiation points/i.test(message) ? 'Notices could not be sent. Please try again.' : message);
     }
   }
 
   function generateContract() {
-    if (!selectedContractId) {
-      notifyAward('warning', 'Contract not ready', 'Confirm the award, send notices, and wait for supplier acceptance before generating the contract.');
+    if (!isAwardConfirmed || !hasNotice || !supplierAccepted || !selectedContractId) {
+      notifyAward('warning', 'Contract not ready', 'Confirm the award, send notices, then wait for supplier acceptance.');
       return;
     }
     navigate(`/awards-contracts/negotiation?contract=${selectedContractId}`);
@@ -205,8 +212,8 @@ export function AwardRecommendationProcurexPage() {
               <AwardDecisionForm recommendation={detail ?? (activeRecommendation as unknown as AwardRecommendationDetailDto)} saving={isSaving} onSave={saveDecision} onConfirm={confirmDecision} />
 
               <div className="award-simple-actions award-simple-actions-secondary">
-                <button className="btn btn-secondary" type="button" onClick={() => void sendNotices()}>Send notices</button>
-                <button className="btn btn-primary" type="button" onClick={generateContract}>Generate contract</button>
+                <button className="btn btn-secondary" type="button" onClick={() => void sendNotices()}>{hasNotice ? 'Resend notices' : 'Send notices'}</button>
+                <button className="btn btn-primary" type="button" onClick={generateContract} aria-disabled={!isAwardConfirmed || !hasNotice || !supplierAccepted || !selectedContractId}>Generate contract</button>
               </div>
 
               <section className="award-simple-details-stack" aria-label="Supporting award information">
@@ -296,9 +303,9 @@ export function AwardRecommendationProcurexPage() {
 
                 <ExpandableAwardDetails title="Contract readiness" summary="Check what is still needed before contract preparation">
                   <ul className="award-simple-ready-list">
-                    <li className={detail?.status === 'APPROVED' ? 'complete' : 'blocked'}><span>{detail?.status === 'APPROVED' ? 'OK' : '!'}</span><strong>Award confirmed</strong></li>
+                    <li className={isAwardConfirmed ? 'complete' : 'blocked'}><span>{isAwardConfirmed ? 'OK' : '!'}</span><strong>Award confirmed</strong></li>
                     <li className={hasNotice ? 'complete' : 'blocked'}><span>{hasNotice ? 'OK' : '!'}</span><strong>Notices sent</strong></li>
-                    <li className={hasSupplierResponse ? 'complete' : 'blocked'}><span>{hasSupplierResponse ? 'OK' : '!'}</span><strong>Supplier response recorded</strong></li>
+                    <li className={supplierAccepted ? 'complete' : 'blocked'}><span>{supplierAccepted ? 'OK' : '!'}</span><strong>Supplier accepted</strong></li>
                     <li className={selectedContractId ? 'complete' : 'blocked'}><span>{selectedContractId ? 'OK' : '!'}</span><strong>Contract linked</strong></li>
                   </ul>
                 </ExpandableAwardDetails>

@@ -22,6 +22,10 @@ const userInclude = {
       organization: {
         include: {
           supplierProfile: true,
+          trustTierHistory: {
+            orderBy: { createdAt: 'desc' },
+            take: 5
+          },
           capabilities: {
             where: { enabled: true }
           }
@@ -45,6 +49,10 @@ const sessionInclude = {
   organization: {
     include: {
       supplierProfile: true,
+      trustTierHistory: {
+        orderBy: { createdAt: 'desc' },
+        take: 5
+      },
       capabilities: {
         where: { enabled: true }
       }

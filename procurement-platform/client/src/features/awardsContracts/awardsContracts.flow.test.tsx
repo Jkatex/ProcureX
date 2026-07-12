@@ -31,6 +31,18 @@ function renderFlow(page: ReactNode, initialEntry: string) {
   );
 }
 
+function captureAwardNotifications() {
+  const notifications: Array<{ tone: string; title: string; message: string }> = [];
+  const listener = (event: Event) => {
+    notifications.push((event as CustomEvent).detail);
+  };
+  window.addEventListener('procurex:notify', listener);
+  return {
+    notifications,
+    stop: () => window.removeEventListener('procurex:notify', listener)
+  };
+}
+
 function lifecycleAction(overrides: Partial<LifecycleAction> & Pick<LifecycleAction, 'id' | 'title'>): LifecycleAction {
   return {
     id: overrides.id,
@@ -273,7 +285,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(screen.getByLabelText(/Reason for award/i)).toHaveValue('Best evaluated responsive bidder.');
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm award' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Send notices' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Send notices' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Generate contract' })).toBeInTheDocument();
     expect(screen.queryByText(/Workflow step/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Evaluation Results/i })).not.toBeInTheDocument();
@@ -282,6 +294,155 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(documents).not.toHaveAttribute('open');
     expect(screen.getByText('Bid ranking')).toBeInTheDocument();
     expect(screen.getAllByText('Waiting period').length).toBeGreaterThan(0);
+  });
+
+  it('asks the buyer to confirm the award before sending notices', async () => {
+    const user = userEvent.setup();
+    const notifications = captureAwardNotifications();
+    const awardAction = lifecycleAction({
+      id: 'award-rec-unconfirmed',
+      awardId: 'rec-unconfirmed',
+      title: 'Medical supplies tender',
+      otherParty: 'Kilimanjaro Supplies',
+      status: 'RECOMMENDED',
+      nextRoute: '/awards-contracts/recommendation?recommendation=rec-unconfirmed'
+    });
+    vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
+      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      queues: {
+        'my-urgent-actions': [],
+        'awarding-in-progress': [awardAction],
+        'awards-received': [],
+        'contracts-in-progress': [],
+        'active-contracts': [],
+        'closed-contracts': []
+      }
+    });
+    vi.spyOn(awardsContractsApi, 'recommendation').mockResolvedValue({
+      ...awardAction,
+      supplierName: 'Kilimanjaro Supplies',
+      tenderTitle: 'Medical supplies tender',
+      reason: 'Best evaluated responsive bidder.'
+    });
+    const settleAwardGroup = vi.spyOn(awardsContractsApi, 'settleAwardGroup').mockResolvedValue({} as never);
+
+    try {
+      renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation?recommendation=rec-unconfirmed');
+      await waitFor(() => expect(screen.getAllByRole('button', { name: 'Send notices' }).length).toBeGreaterThan(0));
+      await user.click(screen.getAllByRole('button', { name: 'Send notices' })[0]);
+
+      expect(settleAwardGroup).not.toHaveBeenCalled();
+      expect(notifications.notifications).toEqual(expect.arrayContaining([
+        expect.objectContaining({ title: 'Confirm award first', message: 'Confirm the award before sending notices.' })
+      ]));
+    } finally {
+      notifications.stop();
+    }
+  });
+
+  it('sends notices after confirmation and hides internal clause errors from the toast', async () => {
+    const user = userEvent.setup();
+    const notifications = captureAwardNotifications();
+    const awardAction = lifecycleAction({
+      id: 'award-rec-approved',
+      awardId: 'rec-approved',
+      title: 'Medical supplies tender',
+      otherParty: 'Kilimanjaro Supplies',
+      status: 'APPROVED',
+      nextRoute: '/awards-contracts/recommendation?recommendation=rec-approved'
+    });
+    const approvedDetail = {
+      ...awardAction,
+      status: 'APPROVED',
+      supplierName: 'Kilimanjaro Supplies',
+      tenderTitle: 'Medical supplies tender',
+      reason: 'Best evaluated responsive bidder.'
+    };
+    vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
+      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      queues: {
+        'my-urgent-actions': [],
+        'awarding-in-progress': [awardAction],
+        'awards-received': [],
+        'contracts-in-progress': [],
+        'active-contracts': [],
+        'closed-contracts': []
+      }
+    });
+    vi.spyOn(awardsContractsApi, 'recommendation').mockResolvedValue(approvedDetail);
+    const settleAwardGroup = vi.spyOn(awardsContractsApi, 'settleAwardGroup')
+      .mockRejectedValueOnce(new Error('Award cannot be settled until open clauses and negotiation points are approved, completed, or waived.'))
+      .mockResolvedValueOnce({
+        ...approvedDetail,
+        notice: { id: 'notice-1', reference: 'AN-1', status: 'PENDING_RESPONSE', contractId: null, responses: [] }
+      });
+
+    try {
+      renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation?recommendation=rec-approved');
+      await waitFor(() => expect(screen.getAllByRole('button', { name: 'Send notices' }).length).toBeGreaterThan(0));
+      await user.click(screen.getAllByRole('button', { name: 'Send notices' })[0]);
+      await waitFor(() => expect(settleAwardGroup).toHaveBeenCalledTimes(1));
+      expect(notifications.notifications.at(-1)).toMatchObject({
+        title: 'Notices not sent',
+        message: 'Notices could not be sent. Please try again.'
+      });
+      expect(notifications.notifications.at(-1)?.message).not.toMatch(/open clauses|negotiation points/i);
+
+      await user.click(screen.getAllByRole('button', { name: 'Send notices' })[0]);
+      await waitFor(() => expect(settleAwardGroup).toHaveBeenCalledTimes(2));
+      expect(notifications.notifications).toEqual(expect.arrayContaining([
+        expect.objectContaining({ title: 'Notices sent' })
+      ]));
+    } finally {
+      notifications.stop();
+    }
+  });
+
+  it('gates contract generation until the supplier accepts and a contract is linked', async () => {
+    const user = userEvent.setup();
+    const notifications = captureAwardNotifications();
+    const awardAction = lifecycleAction({
+      id: 'award-rec-contract',
+      awardId: 'rec-contract',
+      title: 'Medical supplies tender',
+      otherParty: 'Kilimanjaro Supplies',
+      status: 'APPROVED',
+      nextRoute: '/awards-contracts/recommendation?recommendation=rec-contract'
+    });
+    vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
+      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      queues: {
+        'my-urgent-actions': [],
+        'awarding-in-progress': [awardAction],
+        'awards-received': [],
+        'contracts-in-progress': [],
+        'active-contracts': [],
+        'closed-contracts': []
+      }
+    });
+    vi.spyOn(awardsContractsApi, 'recommendation').mockResolvedValue({
+      ...awardAction,
+      supplierName: 'Kilimanjaro Supplies',
+      tenderTitle: 'Medical supplies tender',
+      reason: 'Best evaluated responsive bidder.',
+      notice: { id: 'notice-1', reference: 'AN-1', status: 'PENDING_RESPONSE', contractId: null, responses: [] }
+    });
+
+    try {
+      renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation?recommendation=rec-contract');
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Generate contract' })).toBeInTheDocument());
+      await user.click(screen.getByRole('button', { name: 'Generate contract' }));
+
+      expect(screen.getByTestId('location')).toHaveTextContent('/awards-contracts/recommendation?recommendation=rec-contract');
+      expect(notifications.notifications).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Contract not ready',
+          message: 'Confirm the award, send notices, then wait for supplier acceptance.'
+        })
+      ]));
+    } finally {
+      notifications.stop();
+    }
   });
 
   it('renders dashboard queue items as prototype table rows', async () => {
@@ -715,6 +876,101 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(screen.getByText('History')).toBeInTheDocument();
   });
 
+  it('edits contract clauses and creates amendment requests from review terms', async () => {
+    const user = userEvent.setup();
+    const contract = contractDetail({
+      status: 'NEGOTIATION',
+      clauses: [
+        {
+          id: 'clause-1',
+          type: 'clause',
+          title: 'Payment terms',
+          status: 'OPEN',
+          dueDate: null,
+          note: 'Pay within 30 days.',
+          payload: { clauseKey: 'payment_terms', category: 'commercial', buyerComment: 'Buyer review pending.' },
+          createdAt: new Date().toISOString(),
+          updatedAt: null
+        }
+      ],
+      negotiations: [
+        {
+          id: 'negotiation-1',
+          type: 'Supplier',
+          title: 'Extend payment period',
+          status: 'OPEN',
+          dueDate: null,
+          note: 'Supplier requested 45 days.',
+          payload: { clauseId: 'clause-1', raisedByRole: 'Supplier', counterOffer: '45 days' },
+          createdAt: new Date().toISOString(),
+          updatedAt: null
+        }
+      ]
+    });
+    vi.spyOn(awardsContractsApi, 'contract').mockResolvedValue(contract);
+    const upsertClause = vi.spyOn(awardsContractsApi, 'upsertClause').mockResolvedValue({ ...contract, clauses: [{ ...contract.clauses![0], note: 'Pay within 21 days.', status: 'APPROVED' }] });
+    const createNegotiation = vi.spyOn(awardsContractsApi, 'createNegotiation').mockResolvedValue({
+      ...contract,
+      negotiations: [
+        ...(contract.negotiations ?? []),
+        {
+          id: 'negotiation-2',
+          type: 'Buyer',
+          title: 'Clarify payment timing',
+          status: 'OPEN',
+          dueDate: null,
+          note: 'Please confirm timing.',
+          payload: { clauseId: 'clause-1' },
+          createdAt: new Date().toISOString(),
+          updatedAt: null
+        }
+      ]
+    });
+
+    renderFlow(<ContractNegotiationProcurexPage />, '/awards-contracts/negotiation?contract=contract-1&step=clauses');
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Payment terms' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Edit clause' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request amendment' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.getByText('Amendment requests')).toBeInTheDocument();
+    expect(screen.getByText('Extend payment period')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit clause' }));
+    await user.clear(screen.getByLabelText('Clause text'));
+    await user.type(screen.getByLabelText('Clause text'), 'Pay within 21 days.');
+    await user.type(screen.getByLabelText('Reason for change'), 'Aligned with approved offer.');
+    await user.click(screen.getByRole('button', { name: 'Save clause' }));
+
+    await waitFor(() =>
+      expect(upsertClause).toHaveBeenCalledWith('contract-1', expect.objectContaining({
+        clauseKey: 'payment_terms',
+        title: 'Payment terms',
+        body: 'Pay within 21 days.',
+        status: 'OPEN',
+        buyerComment: 'Buyer review pending.',
+        payload: expect.objectContaining({ changeReason: 'Aligned with approved offer.' })
+      }))
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Request amendment' }));
+    await user.clear(screen.getByLabelText('Request subject *'));
+    await user.type(screen.getByLabelText('Request subject *'), 'Clarify payment timing');
+    await user.type(screen.getByLabelText('Request text *'), 'Please confirm whether payment starts after invoice approval.');
+    await user.type(screen.getByLabelText('Suggested wording'), 'Payment starts after accepted invoice.');
+    await user.click(screen.getByRole('button', { name: 'Send amendment request' }));
+
+    await waitFor(() =>
+      expect(createNegotiation).toHaveBeenCalledWith('contract-1', expect.objectContaining({
+        clauseId: 'clause-1',
+        subject: 'Clarify payment timing',
+        position: 'Please confirm whether payment starts after invoice approval.',
+        counterOffer: 'Payment starts after accepted invoice.',
+        status: 'OPEN'
+      }))
+    );
+  });
+
   it('filters post-award contract management actions by focused group', async () => {
     const user = userEvent.setup();
     const contract = {
@@ -827,7 +1083,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     const form = container.querySelector('[data-award-contract-form="Goods inspection"]') as HTMLElement;
     await user.click(within(form).getByRole('button', { name: 'Select' }));
     expect(screen.queryByRole('dialog', { name: 'Goods inspection' })).not.toBeInTheDocument();
-    expect(within(form).queryByText('Advanced payload')).not.toBeInTheDocument();
+    expect(within(form).getByText('Advanced payload')).toBeInTheDocument();
     expect(within(form).queryByLabelText(/Goods inspection payload/i)).not.toBeInTheDocument();
     expect(within(form).queryByText(/JSON array/i)).not.toBeInTheDocument();
 
@@ -951,7 +1207,7 @@ describe('awards and contracts empty lifecycle flow', () => {
 
     await user.click(screen.getByRole('button', { name: 'Select' }));
     expect(screen.queryByRole('dialog', { name: 'Tie-breaker' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Advanced payload')).not.toBeInTheDocument();
+    expect(screen.getByText('Advanced payload')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Response payload/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Step key/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Tie-break criteria/i)).toBeInTheDocument();

@@ -9,6 +9,7 @@ import { apiErrorMessage, notificationFromApiError } from '@/shared/api/errors';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { TanzaniaLocationSelector } from '@/shared/components/TanzaniaLocationSelector';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import { riskLevelSummary, trustTierSummary } from '@/shared/trustRisk';
 import type { CreateNotificationInput, NotificationTone } from '@/shared/types/notifications';
 import { isValidTanzaniaLocation, type TanzaniaLocationSelection } from '@procurex/shared';
 
@@ -776,6 +777,11 @@ export function IdentityVerificationProcurexPage() {
                     <strong>Review reasons:</strong> {result.reviewReasons.join(' ')}
                   </div>
                 ) : null}
+                <div className="auth-note">
+                  <strong>Trust:</strong> {trustTierSummary(result?.user.trustTier ?? authUser?.trustTier, result?.user.trustRisk?.reasons ?? [])}
+                  <br />
+                  <strong>Risk:</strong> {riskLevelSummary(result?.user.riskLevel ?? authUser?.riskLevel, result?.user.screeningStatus ?? authUser?.screeningStatus)}
+                </div>
               </div>
 
               <div className="ekyc-step-actions split">

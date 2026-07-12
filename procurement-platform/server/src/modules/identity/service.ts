@@ -329,6 +329,7 @@ function toSessionUser(user: UserWithDefaultOrg): SessionUserDto {
     riskLevel: access.riskLevel,
     featureGates: access.featureGates,
     screeningStatus: access.screeningStatus,
+    trustRisk: trustRiskDto(organization, access),
     preferences: preferenceDto(user.preference),
     location: userLocation(user)
   };
@@ -360,8 +361,33 @@ function toSessionUserFromSession(session: SessionWithUser): SessionUserDto {
     riskLevel: access.riskLevel,
     featureGates: access.featureGates,
     screeningStatus: access.screeningStatus,
+    trustRisk: trustRiskDto(organization, access),
     preferences: preferenceDto(session.user.preference),
     location: userLocation(session.user)
+  };
+}
+
+function trustRiskDto(
+  organization: (UserWithDefaultOrg['memberships'][number]['organization'] | SessionWithUser['organization']) | null | undefined,
+  access: ReturnType<typeof accessForUser>
+): SessionUserDto['trustRisk'] {
+  const history = (organization?.trustTierHistory ?? []).map((entry) => ({
+    previousTier: entry.previousTier,
+    nextTier: entry.nextTier,
+    riskLevel: entry.riskLevel,
+    score: entry.score,
+    reasons: metadataArray(entry.reasons).map(String),
+    createdAt: entry.createdAt.toISOString()
+  }));
+  const latest = history[0];
+  return {
+    trustTier: access.trustTier,
+    riskLevel: access.riskLevel,
+    screeningStatus: access.screeningStatus,
+    score: latest?.score ?? null,
+    reasons: latest?.reasons ?? (access.trustTier === 'UNVERIFIED' ? ['Not assessed yet. Complete identity verification to receive a trust tier.'] : []),
+    assessedAt: latest?.createdAt ?? null,
+    history
   };
 }
 
