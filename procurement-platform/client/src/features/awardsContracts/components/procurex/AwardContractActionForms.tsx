@@ -438,8 +438,8 @@ export function ActionFormPanel({
       onComplete?.(result);
       clearAwardContractDirtyWork();
       setSelected(false);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : `${title} could not be saved.`);
+    } catch {
+      setMessage(`${title} could not be saved.`);
     } finally {
       setSaving(false);
     }

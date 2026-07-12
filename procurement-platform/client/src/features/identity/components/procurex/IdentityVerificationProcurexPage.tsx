@@ -84,7 +84,8 @@ function friendlyIdentityMessage(error: unknown, fallback: string) {
   if (status === 409 && /duplicate|already uses/i.test(serverMessage)) {
     return 'This registry number is already linked to an approved ProcureX account. The verification will need admin review.';
   }
-  if (status === 409) return serverMessage || 'The registry record must be fetched and confirmed before submitting.';
+  if (status === 409 && /invalid keyphrase/i.test(serverMessage)) return 'The keyphrase does not match this digital signature.';
+  if (status === 409) return 'The registry record must be fetched and confirmed before submitting.';
   if (status === 502) return 'The registry service is not available right now. Please try again later.';
 
   return apiErrorMessage(error, fallback);

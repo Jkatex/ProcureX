@@ -5,6 +5,7 @@ import { useNotifications } from '@/features/notifications/hooks';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
+import { downloadTenderDocument } from '../../tenderDocumentActions';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import type {
@@ -12,6 +13,7 @@ import type {
   CreateTenderConsultancyAssignmentActivityRow,
   CreateTenderConsultancyDeliverableRow,
   CreateTenderDraft,
+  CreateTenderDraftStatus,
   CreateTenderPayload,
   CreateTenderEligibilityRequirementRow,
   CreateTenderEvaluationCriterion,
@@ -328,6 +330,7 @@ export function CreateTenderProcurexPage() {
   const [activeStep, setActiveStep] = useState(0);
   const [validationMessage, setValidationMessage] = useState('');
   const [isPersisting, setIsPersisting] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [loadedTenderId, setLoadedTenderId] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
@@ -556,14 +559,14 @@ export function CreateTenderProcurexPage() {
     if (!canSaveDraft) {
       setValidationMessage('Add a tender detail first, then you can save this draft.');
       notifyWarning('Tender draft not ready', 'Add at least one tender detail before saving.', {
-        reason: 'ProcureX needs meaningful tender information before it can create a backend draft.'
+        reason: 'ProcureX needs meaningful tender information before it can save this draft.'
       });
       return;
     }
     if (!draft.title.trim() || draft.title.trim().length < 5) {
       setValidationMessage('Add a tender title with at least 5 characters before saving.');
       notifyWarning('Tender title required', 'Add a clear tender title before saving the draft.', {
-        reason: 'The backend needs a title to create a persistent tender draft.'
+        reason: 'ProcureX needs a title before it can save this tender draft.'
       });
       return;
     }
@@ -579,7 +582,7 @@ export function CreateTenderProcurexPage() {
           action: { label: 'Open My Tenders', to: '/procurement/my-tenders' }
         });
       } else {
-        notifySuccess('Tender draft saved', 'Your tender draft was saved to the backend.', {
+        notifySuccess('Tender draft saved', 'Your tender draft was saved.', {
           reason: 'You can continue editing it from My Tenders after logout or from another browser session.',
           action: { label: 'Open My Tenders', to: '/procurement/my-tenders' }
         });
@@ -589,7 +592,7 @@ export function CreateTenderProcurexPage() {
       const message = getApiErrorMessage(error, 'Tender draft could not be saved.');
       setValidationMessage(message);
       notifyError('Tender draft not saved', message, {
-        reason: 'ProcureX could not persist this draft. Check your sign-in state and required fields, then try again.'
+        reason: 'ProcureX could not save this draft. Check your sign-in state and required fields, then try again.'
       });
     } finally {
       setIsPersisting(false);
@@ -605,10 +608,10 @@ export function CreateTenderProcurexPage() {
       return;
     }
     if (draft.method === 'Invited Tender') {
-      const message = 'Invited Tender review submission is not yet supported by the frontend. Select Open Tender before submitting.';
+      const message = 'Invited Tender review submission is not available yet. Select Open Tender before submitting.';
       setValidationMessage(message);
       notifyWarning('Invited tender review unavailable', message, {
-        reason: 'The backend create/update contract does not persist tender method yet, so this review path is limited to public marketplace tenders.'
+        reason: 'This review path is currently limited to public marketplace tenders.'
       });
       return;
     }
@@ -616,7 +619,7 @@ export function CreateTenderProcurexPage() {
       const message = 'Add a positive estimated budget before submitting this tender for review.';
       setValidationMessage(message);
       notifyWarning('Tender budget required', message, {
-        reason: 'The backend review pipeline requires a tender budget before a draft can be sent to admin review.'
+        reason: 'ProcureX requires a tender budget before a draft can be sent to admin review.'
       });
       setActiveStep(0);
       return;
@@ -641,25 +644,33 @@ export function CreateTenderProcurexPage() {
       dispatch(submitCreateTenderForEvaluation(submitted));
       const warningCount = reviewResponse.validation?.warnings.length ?? 0;
       notifySuccess('Tender submitted for review', 'Your tender was saved and sent to admin review.', {
-        reason: warningCount ? `${warningCount} review warning${warningCount === 1 ? '' : 's'} returned by backend validation.` : 'It will appear in the admin Tender Review queue.'
+        reason: warningCount ? `${warningCount} review warning${warningCount === 1 ? '' : 's'} should be checked before final approval.` : 'It will appear in the admin Tender Review queue.'
       });
       navigate('/procurement/my-tenders');
     } catch (error) {
       const message = getApiErrorMessage(error, 'Tender could not be submitted for review.');
       setValidationMessage(message);
       notifyError('Tender not submitted', message, {
-        reason: 'The backend review pipeline rejected this tender or the request failed.'
+        reason: 'ProcureX could not send this tender to admin review.'
       });
     } finally {
       setIsPersisting(false);
     }
   }
 
-  function downloadTenderPdfStub() {
-    const message = 'Tender PDF generator is not available in this frontend yet.';
-    notifyWarning('Tender PDF unavailable', message, {
-      reason: 'The React frontend has the publication action in place, but PDF export is not wired in this pass.'
-    });
+  async function downloadTenderPdf() {
+    if (isGeneratingPdf) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      await downloadTenderDocument(draftToTenderDetail(draft));
+    } catch {
+      notifyError('Tender PDF could not be generated', 'Try again after checking the tender details, or save the draft and retry.', {
+        reason: 'The browser PDF generator could not create the consolidated tender pack.'
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   }
 
   return (
@@ -787,7 +798,8 @@ export function CreateTenderProcurexPage() {
                     onPatch={patchDraft}
                     confirmationsComplete={confirmationsComplete}
                     isPersisting={isPersisting}
-                    onDownloadPdf={downloadTenderPdfStub}
+                    isGeneratingPdf={isGeneratingPdf}
+                    onDownloadPdf={downloadTenderPdf}
                     onSubmitTender={submitTender}
                   />
                 ) : null}
@@ -4608,6 +4620,7 @@ function PublicationStep({
   onPatch,
   confirmationsComplete,
   isPersisting,
+  isGeneratingPdf,
   onDownloadPdf,
   onSubmitTender
 }: {
@@ -4615,7 +4628,8 @@ function PublicationStep({
   onPatch: (patch: Partial<CreateTenderDraft>) => void;
   confirmationsComplete: boolean;
   isPersisting: boolean;
-  onDownloadPdf: () => void;
+  isGeneratingPdf: boolean;
+  onDownloadPdf: () => void | Promise<void>;
   onSubmitTender: () => void | Promise<void>;
 }) {
   const setConfirmationGroup = (patch: Partial<Record<CreateTenderConfirmationId, boolean>>) => {
@@ -4673,8 +4687,8 @@ function PublicationStep({
               <span data-system-publish-note>Submit the tender for admin review. The creation wizard will close after submission.</span>
             </div>
             <div className="system-evaluation-action-buttons">
-              <button className="btn btn-secondary" type="button" onClick={onDownloadPdf}>
-                Download Tender PDF
+              <button className="btn btn-secondary" type="button" onClick={onDownloadPdf} disabled={isGeneratingPdf || isPersisting}>
+                {isGeneratingPdf ? 'Generating PDF...' : 'Download Tender PDF'}
               </button>
               <button className="btn btn-primary" type="button" onClick={onSubmitTender} disabled={!confirmationsComplete || isPersisting}>
                 {isPersisting ? 'Submitting...' : 'Submit Tender for Review'}
@@ -5123,11 +5137,161 @@ function createTenderPersistencePayload(draft: CreateTenderDraft): CreateTenderP
   };
 }
 
+function draftToTenderDetail(draft: CreateTenderDraft): TenderDetail {
+  const payload = createTenderPersistencePayload(draft);
+  const now = new Date().toISOString();
+
+  return {
+    id: draft.id,
+    reference: draft.reference || draft.id,
+    title: payload.title || 'Untitled tender',
+    organization: draft.procuringEntity || payload.location || 'Procuring entity',
+    ownerOrganization: draft.procuringEntity || 'Procuring entity',
+    type: toPdfTenderType(draft.procurementTypeId) as TenderDetail['type'],
+    category: payload.categories[0],
+    categories: payload.categories,
+    status: toPdfTenderStatus(draft.status) as TenderDetail['status'],
+    budget: payload.budget ?? 0,
+    currency: payload.currency || 'TZS',
+    closingDate: payload.closingDate || draft.submissionDate || '',
+    location: payload.location,
+    description: payload.description,
+    createdByCurrentUser: true,
+    ownedByCurrentOrganization: true,
+    canBid: false,
+    hasDraftBid: false,
+    hasSubmittedBid: false,
+    isSaved: false,
+    method: draft.method,
+    visibility: 'PUBLIC_MARKETPLACE',
+    publishedAt: draft.publishedAt || draft.submittedAt || now,
+    requirements: payload.requirements,
+    metadata: payload.metadata,
+    requirementRows: draftRequirementRows(draft),
+    milestones: draftMilestones(draft),
+    commercialItems: draftCommercialItems(draft),
+    documents: draftPdfDocuments(draft),
+    bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    submittedBidBusinesses: [],
+    currentBid: null,
+    activity: { marketplaceViews: 0, documentDownloads: 0, clarifications: 0 }
+  };
+}
+
+function draftRequirementRows(draft: CreateTenderDraft): TenderDetail['requirementRows'] {
+  const rows: TenderDetail['requirementRows'] = [];
+
+  rows.push(
+    ...Object.entries(draft.requirements)
+      .filter(([, value]) => value.trim())
+      .map(([key, value]) => ({ id: `summary-${key}`, section: 'Summary', payload: { title: humanizeDraftLabel(key), value } }))
+  );
+  rows.push(...draft.eligibilityRequirements.map((row) => ({ id: row.id, section: 'Eligibility', payload: { ...row, title: row.requirementName } })));
+  rows.push(...draft.financialRequirements.map((row) => ({ id: row.id, section: 'Financial', payload: { ...row, title: row.requirementType } })));
+  rows.push(...draft.regulatoryLicenseRequirements.map((row) => ({ id: row.id, section: 'Regulatory license', payload: { ...row, title: row.license } })));
+  rows.push(...draft.evaluationCriteria.map((row) => ({ id: row.id, section: 'Evaluation', payload: { ...row, title: row.label } })));
+
+  return rows;
+}
+
+function draftMilestones(draft: CreateTenderDraft): TenderDetail['milestones'] {
+  const rows: TenderDetail['milestones'] = draft.milestones.map((milestone) => ({
+    id: milestone.id,
+    name: milestone.label,
+    dueDate: milestone.dueDate || null,
+    payload: {}
+  }));
+
+  rows.push(
+    ...draft.worksRequirements.worksMilestoneRows.map((milestone) => ({
+      id: milestone.id,
+      name: milestone.milestone,
+      dueDate: milestone.targetDate || null,
+      payload: { source: 'Works milestone' }
+    }))
+  );
+
+  return rows.filter((row) => row.name || row.dueDate);
+}
+
+function draftCommercialItems(draft: CreateTenderDraft): TenderDetail['commercialItems'] {
+  if (draft.procurementTypeId === 'services') {
+    return draft.serviceRequirements.serviceBoqRows.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, row.rate));
+  }
+  if (draft.procurementTypeId === 'works') {
+    return [
+      ...draft.worksRequirements.boqRows.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, row.rate)),
+      ...draft.worksRequirements.lumpSumPricingRows.map((row, index) => commercialItemFromValues(row.id, draft.worksRequirements.boqRows.length + index, row.description || row.section, 1, 'Lot', row.amount, { section: row.section }))
+    ];
+  }
+
+  return draft.commercialItems.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, row.unitPrice));
+}
+
+function commercialItemFromValues(id: string, index: number, description: string, quantityValue: string | number, unit: string | null, rateValue: string | number | undefined, payload: Record<string, unknown> = {}) {
+  const quantity = parsePdfNumber(quantityValue) || 1;
+  const rate = parsePdfNumber(rateValue) || 0;
+  const total = rate ? Math.round(quantity * rate * 100) / 100 : 0;
+
+  return {
+    id,
+    itemNo: String(index + 1),
+    description: description || `Commercial item ${index + 1}`,
+    quantity,
+    unit,
+    rate,
+    total,
+    payload
+  };
+}
+
+function draftPdfDocuments(draft: CreateTenderDraft): TenderDetail['documents'] {
+  const names = [
+    ...draft.attachments,
+    ...draft.worksRequirements.technicalSpecificationDocuments.flatMap((row) => [row.uploadName, row.documentTitle === 'Others' ? row.customDocumentTitle : row.documentTitle]),
+    ...draft.worksRequirements.drawingDesignRows.flatMap((row) => [row.uploadName, row.documentType === 'Other' ? row.otherDocumentName : row.documentType]),
+    draft.worksRequirements.siteSurveyUploadName,
+    ...draft.serviceRequirements.supportingDocumentRows.map((row) => row.documentName),
+    ...draft.consultancyRequirements.supportingDocumentRows.flatMap((row) => [row.uploadName, row.documentTitle])
+  ]
+    .map((name) => String(name || '').trim())
+    .filter(Boolean);
+
+  return [...new Set(names)].map((name, index) => ({
+    id: `draft-document-${index + 1}`,
+    name,
+    documentType: 'DRAFT_ATTACHMENT',
+    label: 'Draft attachment'
+  }));
+}
+
 function toBackendTenderType(typeId: CreateTenderProcurementTypeId): CreateTenderPayload['type'] {
   if (typeId === 'works') return 'Works';
   if (typeId === 'services') return 'Non Consultancy';
   if (typeId === 'consultancy') return 'Consultancy';
   return 'Goods';
+}
+
+function toPdfTenderType(typeId: CreateTenderProcurementTypeId) {
+  if (typeId === 'works') return 'WORKS';
+  if (typeId === 'services') return 'SERVICE';
+  if (typeId === 'consultancy') return 'CONSULTANCY';
+  return 'GOODS';
+}
+
+function toPdfTenderStatus(status: CreateTenderDraftStatus) {
+  if (status === 'PUBLISHED') return 'PUBLISHED';
+  if (status === 'SUBMITTED') return 'EVALUATION';
+  return 'DRAFT';
+}
+
+function humanizeDraftLabel(value: string) {
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (letter) => letter.toUpperCase());
 }
 
 function normalizeBackendCategories(draft: CreateTenderDraft, type: CreateTenderPayload['type']) {
@@ -5269,23 +5433,18 @@ function getDraftValidationNote(validation?: TenderDraftValidation) {
   return notes.slice(0, 3).join(' ');
 }
 
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (!isRecordValue(error)) return fallback;
-  const response = isRecordValue(error.response) ? error.response : undefined;
-  const data = response && isRecordValue(response.data) ? response.data : undefined;
-  const errors = Array.isArray(data?.errors) ? data.errors : [];
-  const errorMessages = errors
-    .map((item) => (isRecordValue(item) && typeof item.message === 'string' ? item.message : ''))
-    .filter(Boolean);
-  if (errorMessages.length) return errorMessages.slice(0, 4).join(' ');
-  if (typeof data?.message === 'string') return data.message;
-  if (typeof error.message === 'string') return error.message;
+function getApiErrorMessage(_error: unknown, fallback: string) {
   return fallback;
 }
 
 function parsePositiveNumber(value: string | number | undefined) {
   const number = Number(String(value ?? '').replace(/,/g, '').trim());
   return Number.isFinite(number) && number > 0 ? number : undefined;
+}
+
+function parsePdfNumber(value: string | number | undefined) {
+  const number = Number(String(value ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
 function multiplyNumericStrings(left: string | number | undefined, right: string | number | undefined) {

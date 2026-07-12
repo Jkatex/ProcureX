@@ -102,7 +102,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     expect(savedPayload.documents[0]).not.toBeInstanceOf(File);
   });
 
-  it('displays backend upload validation messages', async () => {
+  it('keeps backend upload validation messages out of the workspace status', async () => {
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
     vi.spyOn(biddingApi, 'uploadDocuments').mockRejectedValue({
@@ -123,7 +123,8 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
 
     fireEvent.change(uploadInput!, { target: { files: [new File(['bad'], 'bad.exe', { type: 'application/x-msdownload' })] } });
 
-    expect(await screen.findByText('Unsupported bid document file type.')).toBeInTheDocument();
+    expect(await screen.findByText('Document upload failed.')).toBeInTheDocument();
+    expect(screen.queryByText('Unsupported bid document file type.')).not.toBeInTheDocument();
   });
 });
 
