@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { procurementApi } from '../../api';
+import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';
 import { useTenderDetail } from '../../hooks';
-import type { TenderDetail } from '../../types';
+import type { TenderDetail, TenderDetailDocument } from '../../types';
 import {
   CommercialTable,
   DetailBadges,
@@ -13,13 +13,10 @@ import {
   PrototypeTabs,
   RequirementCards,
   TenderDocumentSection,
-  TimelineList,
-  daysRemaining,
   formatDate,
   formatMoney,
   formatStatus,
   formatTenderType,
-  requirementCounts,
   tenderCategories
 } from './TenderDetailPrototypeComponents';
 
@@ -27,26 +24,30 @@ export function SupplierTenderDetailProcurexPage() {
   const [params] = useSearchParams();
   const tenderId = params.get('tenderId');
   const { data: tender, isLoading, isError } = useTenderDetail(tenderId);
-  const [isRecordingDownload, setIsRecordingDownload] = useState(false);
+  const [isPreparingDownload, setIsPreparingDownload] = useState(false);
 
   if (!tenderId) return <EmptyTenderDetail message="Open a tender from the marketplace to view its supplier tender pack." />;
   if (isLoading) return <EmptyTenderDetail message="Loading tender detail..." />;
   if (isError || !tender) return <EmptyTenderDetail message="Tender detail could not be loaded. Return to the marketplace and try again." />;
 
-  const counts = requirementCounts(tender);
-  const remainingDays = daysRemaining(tender.closingDate);
   const alreadyBid = tender.currentBid?.status === 'SUBMITTED' || tender.hasSubmittedBid;
   const canBid = Boolean(tender.canBid ?? (!tender.ownedByCurrentOrganization && !alreadyBid));
   const bidUrl = `/bidding?tenderId=${tender.id}`;
-  const primaryDocumentId = tender.documents?.[0]?.id;
-  const recordDownload = async () => {
-    if (!primaryDocumentId || isRecordingDownload) return;
-    setIsRecordingDownload(true);
+  const handleDownloadDocument = async (document?: TenderDetailDocument) => {
+    if (isPreparingDownload) return;
+    setIsPreparingDownload(true);
     try {
-      await procurementApi.recordTenderDocumentDownload(tender.id, primaryDocumentId);
+      await downloadTenderDocument(tender, document);
+    } catch (error) {
+      console.error('Tender document download failed', error);
     } finally {
-      setIsRecordingDownload(false);
+      setIsPreparingDownload(false);
     }
+  };
+  const handleOpenDocument = (document?: TenderDetailDocument) => {
+    void openTenderDocument(tender, document, 'documents').catch((error) => {
+      console.error('Tender document open failed', error);
+    });
   };
 
   return (
@@ -83,9 +84,9 @@ export function SupplierTenderDetailProcurexPage() {
                   <button className="btn btn-primary supplier-detail-primary-action" type="button" disabled>Bidding unavailable</button>
                 )}
                 <div className="supplier-detail-action-row">
-                  <button className="btn btn-secondary" type="button">Open Document</button>
-                  <button className="btn btn-secondary" type="button" disabled={isRecordingDownload || !primaryDocumentId} onClick={recordDownload}>
-                    {isRecordingDownload ? 'Recording...' : 'Download Document'}
+                  <button className="btn btn-secondary" type="button" onClick={() => handleOpenDocument()}>Open Document</button>
+                  <button className="btn btn-secondary" type="button" disabled={isPreparingDownload} onClick={() => void handleDownloadDocument()}>
+                    {isPreparingDownload ? 'Preparing...' : 'Download Document'}
                   </button>
                 </div>
                 <div className="supplier-detail-action-row">
@@ -95,20 +96,21 @@ export function SupplierTenderDetailProcurexPage() {
               </div>
             </section>
 
-            <section className="journey-grid four-col">
-              <Kpi label="Mandatory before bid" value={String(counts.mandatory)} />
-              <Kpi label="Additional responses" value={String(counts.optional)} />
-              <Kpi label="Time remaining" value={`${remainingDays}d`} />
-              <Kpi label="Clarifications" value="0" />
-            </section>
-
             <PrototypeTabs
               defaultTabId="procurement-details"
               tabs={[
-                { id: 'procurement-details', label: 'Procurement details', content: <SupplierProcurementDetails tender={tender} /> },
-                { id: 'questions-requirements', label: 'Questions and requirements', content: <SupplierQuestions tender={tender} /> },
-                { id: 'complaints', label: 'Complaints', content: <SupplierComplaints /> },
-                { id: 'monitoring-reporting', label: 'Monitoring and reporting', content: <SupplierMonitoring tender={tender} remainingDays={remainingDays} /> }
+                {
+                  id: 'procurement-details',
+                  label: 'Procurement details',
+                  content: (
+                    <SupplierProcurementDetails
+                      tender={tender}
+                      onOpenDocument={handleOpenDocument}
+                      onDownloadDocument={(document) => void handleDownloadDocument(document)}
+                    />
+                  )
+                },
+                { id: 'questions-requirements', label: 'Questions and requirements', content: <SupplierQuestions tender={tender} /> }
               ]}
             />
           </div>
@@ -118,18 +120,17 @@ export function SupplierTenderDetailProcurexPage() {
   );
 }
 
-function SupplierProcurementDetails({ tender }: { tender: TenderDetail }) {
+export function SupplierProcurementDetails({
+  tender,
+  onOpenDocument,
+  onDownloadDocument
+}: {
+  tender: TenderDetail;
+  onOpenDocument: (document: TenderDetailDocument) => void;
+  onDownloadDocument: (document: TenderDetailDocument) => void;
+}) {
   return (
     <div className="supplier-detail-procurement-document">
-      <div className="supplier-detail-jump-nav">
-        <span>Jump to</span>
-        <div>
-          <a href="#customer-information">Customer information</a>
-          <a href="#purchase-information">Purchase information</a>
-          <a href="#tender-documentation">Tender documentation</a>
-          <a href="#documents">Documents</a>
-        </div>
-      </div>
       <section className="tender-document-view supplier-procurement-full-document">
         <header className="tender-document-cover">
           <div>
@@ -145,7 +146,8 @@ function SupplierProcurementDetails({ tender }: { tender: TenderDetail }) {
         <CustomerInformation tender={tender} />
         <PurchaseInformation tender={tender} />
         <TenderDocumentation tender={tender} />
-        <TenderDocuments tender={tender} />
+        <TenderDocuments tender={tender} onOpenDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
+        <SupplierBuyerNotice tender={tender} />
       </section>
     </div>
   );
@@ -219,10 +221,27 @@ function TenderDocumentation({ tender }: { tender: TenderDetail }) {
   );
 }
 
-function TenderDocuments({ tender }: { tender: TenderDetail }) {
+function TenderDocuments({
+  tender,
+  onOpenDocument,
+  onDownloadDocument
+}: {
+  tender: TenderDetail;
+  onOpenDocument: (document: TenderDetailDocument) => void;
+  onDownloadDocument: (document: TenderDetailDocument) => void;
+}) {
   return (
     <TenderDocumentSection number="4" title="Documents" kicker="Tender pack" id="documents">
-      <DocumentCards tender={tender} />
+      <DocumentCards tender={tender} onViewDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
+    </TenderDocumentSection>
+  );
+}
+
+function SupplierBuyerNotice({ tender }: { tender: TenderDetail }) {
+  const notice = buyerNoticeText(tender);
+  return (
+    <TenderDocumentSection number="5" title="Buyer Notice" kicker="Buyer updates" id="buyer-notice">
+      {notice ? <p>{notice}</p> : <div className="scope-empty">No buyer notice has been published for this tender.</div>}
     </TenderDocumentSection>
   );
 }
@@ -263,40 +282,6 @@ function SupplierQuestions({ tender }: { tender: TenderDetail }) {
   );
 }
 
-function SupplierComplaints() {
-  return (
-    <PrototypeTabs
-      defaultTabId="submit-complaint"
-      tabs={[
-        { id: 'submit-complaint', label: 'Submit Complaint', content: <TenderDocumentSection number="1" title="Submit Complaint" kicker="Supplier remedy"><div className="scope-empty">Complaint submission is not connected in this workspace yet.</div></TenderDocumentSection> },
-        { id: 'complaint-history', label: 'Complaint History', content: <TenderDocumentSection number="2" title="Complaint History" kicker="Records"><div className="scope-empty">No complaints submitted yet.</div></TenderDocumentSection> },
-        { id: 'complaint-status', label: 'Complaint Status', content: <TenderDocumentSection number="3" title="Complaint Status" kicker="Buyer/admin response"><div className="scope-empty">No complaints submitted yet.</div></TenderDocumentSection> }
-      ]}
-    />
-  );
-}
-
-function SupplierMonitoring({ tender, remainingDays }: { tender: TenderDetail; remainingDays: number }) {
-  return (
-    <PrototypeTabs
-      defaultTabId="timeline"
-      tabs={[
-        { id: 'timeline', label: 'Tender Timeline', content: <TenderDocumentSection number="1" title="Tender Timeline" kicker="Monitoring"><TimelineList tender={tender} /></TenderDocumentSection> },
-        { id: 'milestones', label: 'Milestones', content: <TenderDocumentSection number="2" title="Milestones" kicker="Key dates"><DetailValue value={tender.milestones ?? []} /></TenderDocumentSection> },
-        {
-          id: 'evaluation-status',
-          label: 'Evaluation Status',
-          content: (
-            <TenderDocumentSection number="3" title="Evaluation Status" kicker="Published criteria">
-              <DetailSummary rows={[{ label: 'Time remaining', value: `${remainingDays}d` }, { label: 'Bid state', value: tender.currentBid?.status || 'Not started' }, { label: 'Evaluation', value: 'Pending tender close' }]} />
-            </TenderDocumentSection>
-          )
-        }
-      ]}
-    />
-  );
-}
-
 function EmptyTenderDetail({ message }: { message: string }) {
   return (
     <div className="procurement-app-page supplier-tender-detail-page">
@@ -316,20 +301,18 @@ function EmptyTenderDetail({ message }: { message: string }) {
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="kpi-card">
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-label">{label}</div>
-    </div>
-  );
-}
-
 function commercialModel(tender: TenderDetail) {
   if (/works/i.test(tender.type)) return 'Bill of Quantities';
   if (/consultancy/i.test(tender.type)) return 'Financial Proposal';
   if (/service|non consultancy/i.test(tender.type)) return 'Service Commercial Schedule';
   return 'Quantity Schedule';
+}
+
+export function buyerNoticeText(tender: TenderDetail) {
+  const metadata = tender.metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return '';
+  const value = (metadata as Record<string, unknown>).buyerNotice;
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function clarificationComposeUrl(tender: TenderDetail) {

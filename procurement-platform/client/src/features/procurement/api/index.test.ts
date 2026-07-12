@@ -118,5 +118,6 @@ describe('procurementApi tender detail fallback', () => {
     expect(result.tenders[0].id).toBe('11111111-1111-4111-8111-111111111111');
     expect(result.myTenders[0].nav).toBe('/procurement/tender-details?tenderId=11111111-1111-4111-8111-111111111111');
     expect(result.myTenders[0].nav).not.toContain('session-');
+    expect(result.myTenders[0].actionLabel).toBe('View tender');
   });
 });

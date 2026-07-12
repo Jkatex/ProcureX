@@ -1,7 +1,7 @@
 import type { MarketplaceTenderRow } from './types';
 
 type TenderDeadline = Pick<MarketplaceTenderRow, 'closingDate'>;
-type TenderVisibility = Pick<MarketplaceTenderRow, 'status' | 'closingDate'>;
+type TenderVisibility = Pick<MarketplaceTenderRow, 'status' | 'closingDate' | 'visibility'>;
 
 export function hasActiveMarketplaceDeadline(tender: TenderDeadline, now = Date.now()) {
   const closingTime = Date.parse(tender.closingDate);
@@ -10,7 +10,7 @@ export function hasActiveMarketplaceDeadline(tender: TenderDeadline, now = Date.
 
 export function isActiveMarketplaceTender(tender: TenderVisibility, now = Date.now()) {
   const status = normalizeMarketplaceStatus(tender.status);
-  return (status === 'OPEN' || status === 'PUBLISHED') && hasActiveMarketplaceDeadline(tender, now);
+  return isPublicMarketplaceVisibility(tender.visibility) && (status === 'OPEN' || status === 'PUBLISHED') && hasActiveMarketplaceDeadline(tender, now);
 }
 
 function normalizeMarketplaceStatus(status: unknown) {
@@ -20,4 +20,8 @@ function normalizeMarketplaceStatus(status: unknown) {
     .replace(/[\s-]+/g, '_')
     .replace(/_+/g, '_')
     .toUpperCase();
+}
+
+function isPublicMarketplaceVisibility(visibility: unknown) {
+  return normalizeMarketplaceStatus(visibility) === 'PUBLIC_MARKETPLACE';
 }

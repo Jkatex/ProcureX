@@ -95,11 +95,9 @@ function demoPayload(extra: Record<string, unknown> = {}) {
     ...extra
   };
 }
-
 function ref(suffix: string) {
   return `${AWARD_CONTRACT_DEMO_PREFIX}-${suffix}`;
 }
-
 function daysFromNow(days: number, hour = 9) {
   const date = new Date();
   date.setUTCHours(hour, 0, 0, 0);
@@ -2307,4 +2305,3 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exit(1);
     });
 }
- 
