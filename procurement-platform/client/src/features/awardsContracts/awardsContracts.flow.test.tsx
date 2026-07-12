@@ -5,7 +5,6 @@ import { Provider } from 'react-redux';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { store } from '@/app/store';
 import '@/i18n';
-import { summaryCards } from './fixtures';
 import { awardsContractsApi } from './api';
 import type { ContractDetailDto, LifecycleAction } from './types';
 import { AwardingContractsProcurexPage } from './components/procurex/AwardingContractsProcurexPage';
@@ -122,12 +121,12 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(within(panel!).getByText(/No supplier awards have been received yet/i)).toBeInTheDocument();
   });
 
-  it('updates dashboard queue URLs from summary cards and side navigation', async () => {
+  it('updates dashboard queue URLs from the top queue tabs', async () => {
     const user = userEvent.setup();
     const { container } = renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Go to Closed Contracts tab' })).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Go to Closed Contracts tab' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Closed Contracts' })).toBeInTheDocument());
+    await user.click(screen.getByRole('tab', { name: 'Closed Contracts' }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/awards-contracts?queue=closed-contracts'));
     expect(screen.getByRole('tab', { name: 'Closed Contracts' })).toHaveClass('active');
 
@@ -141,10 +140,10 @@ describe('awards and contracts empty lifecycle flow', () => {
     renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
 
     await waitFor(() => expect(screen.getByRole('tab', { name: 'My Urgent Actions' })).toBeInTheDocument());
-    for (const card of summaryCards) {
-      const summary = screen.getByRole('button', { name: `Go to ${card.label} tab` });
-      expect(within(summary).getByText('0')).toBeInTheDocument();
-    }
+    expect(screen.getByText('Urgent actions')).toBeInTheDocument();
+    expect(screen.getByText('Awards')).toBeInTheDocument();
+    expect(screen.getByText('Contract actions')).toBeInTheDocument();
+    expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(3);
   });
 
   it('shows an empty urgent actions queue', async () => {
@@ -184,24 +183,22 @@ describe('awards and contracts empty lifecycle flow', () => {
 
   it('renders empty child workspaces without selected records', async () => {
     renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation');
-    await waitFor(() => expect(screen.getByText('No evaluation result is ready for awarding.')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Back to Award Queue' })).toHaveAttribute('data-route-search', 'queue=awarding-in-progress');
+    await waitFor(() => expect(screen.getByText('No recommendation is ready yet.')).toBeInTheDocument());
 
     renderFlow(<AwardResponseProcurexPage />, '/awards-contracts/award-response');
     await waitFor(() => expect(screen.getAllByText('No award selected').length).toBeGreaterThan(0));
-    expect(screen.getByRole('button', { name: 'Open Awards Received Queue' })).toHaveAttribute('data-route-search', 'queue=awards-received');
+    expect(screen.getByRole('button', { name: 'Open awards received' })).toHaveAttribute('data-route-search', 'queue=awards-received');
 
     renderFlow(<ContractNegotiationProcurexPage />, '/awards-contracts/negotiation');
     expect(screen.getByText('No contract is in progress.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Back to Contract Queue' })).toHaveAttribute('data-route-search', 'queue=contracts-in-progress');
+    expect(screen.getByRole('button', { name: 'Back to contracts' })).toHaveAttribute('data-route-search', 'queue=contracts-in-progress');
 
     renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award');
     expect(screen.getByText('No post-award records are available yet.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to Active Contracts' })).toHaveAttribute('data-route-search', 'queue=active-contracts');
   });
 
-  it('groups populated award recommendation controls into readable workflow sections', async () => {
-    const user = userEvent.setup();
+  it('renders the award decision form first and keeps supporting details collapsed', async () => {
     const awardAction = {
       id: 'award-rec-1',
       roleContext: 'BUYER' as const,
@@ -219,6 +216,7 @@ describe('awards and contracts empty lifecycle flow', () => {
       status: 'RECOMMENDED',
       amount: 140000000,
       currency: 'TZS',
+      reason: 'Best evaluated responsive bidder.',
       nextRoute: '/awards-contracts/recommendation?recommendation=rec-1'
     };
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
@@ -234,6 +232,31 @@ describe('awards and contracts empty lifecycle flow', () => {
     });
     vi.spyOn(awardsContractsApi, 'recommendation').mockResolvedValue({
       ...awardAction,
+      supplierName: 'Kilimanjaro Supplies',
+      tenderTitle: 'Medical supplies tender',
+      reason: 'Best evaluated responsive bidder.',
+      sourceDocuments: [
+        {
+          id: 'tender-doc-1',
+          sourceType: 'tender',
+          documentId: 'doc-1',
+          label: 'Tender Document',
+          name: 'Medical supplies tender',
+          status: 'Available',
+          openUrl: '/api/documents/doc-1/content',
+          downloadUrl: '/api/documents/doc-1/content?download=true'
+        },
+        {
+          id: 'evaluation-report-rec-1',
+          sourceType: 'evaluation-report',
+          documentId: null,
+          label: 'Evaluation Report',
+          name: 'Evaluation report',
+          status: 'Generated',
+          openUrl: '/api/award-contract/recommendations/rec-1/evaluation-report',
+          downloadUrl: '/api/award-contract/recommendations/rec-1/evaluation-report?download=true'
+        }
+      ],
       approvalRoutes: [{ id: 'bd822b04-54c0-4c89-a4f2-32c8db2cf72f', title: 'Single-user award approval', status: 'APPROVED', note: 'Seeded single-user approval.' }],
       tieBreakers: [{ id: 'tie-1', title: 'Delivery tie-breaker', status: 'RESOLVED', note: 'Tie-breaker resolved.' }],
       feasibilityChecks: [{ id: 'feasibility-1', title: 'Delivery feasibility', status: 'APPROVED', note: 'Feasibility approved.' }],
@@ -245,25 +268,20 @@ describe('awards and contracts empty lifecycle flow', () => {
 
     renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation?recommendation=rec-1');
 
-    await waitFor(() => expect(screen.getByRole('tab', { name: /Evaluation Results/i })).toHaveClass('active'));
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: /Confirm award for Kilimanjaro Supplies/i }).length).toBeGreaterThan(0));
+    expect(screen.getByLabelText(/Selected supplier/i)).toHaveValue('Kilimanjaro Supplies');
+    expect(screen.getByLabelText(/Reason for award/i)).toHaveValue('Best evaluated responsive bidder.');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm award' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send notices' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate contract' })).toBeInTheDocument();
     expect(screen.queryByText(/Workflow step/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText('6 readiness checks').length).toBeGreaterThan(0);
-    expect(screen.getByRole('heading', { name: 'Award readiness review' })).toBeInTheDocument();
-    expect(screen.getByText('Evaluation handoff checks')).toBeInTheDocument();
-    expect(screen.getAllByText('Evaluation committee').length).toBeGreaterThan(0);
-    expect(screen.getByText('Buyer procurement officer')).toBeInTheDocument();
-    expect(screen.getByText('Budget owner')).toBeInTheDocument();
-    expect(screen.queryByText('Logged-in buyer user')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Actor user ID/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('row', { name: /Medical supplies tender/i })).toHaveAttribute('aria-current', 'true');
+    expect(screen.queryByRole('tab', { name: /Evaluation Results/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: /Step 3 Approval/i }));
-    expect(screen.queryByText(/ID bd822b04/)).not.toBeInTheDocument();
-    expect(screen.getByText('Tie-breaker and feasibility')).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: /Step 4 Notices/i }));
-    expect(screen.getByText('Winning bidders and source bid documents')).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: /Step 5 Standstill/i }));
-    expect(screen.getByText('Negotiated terms before notice')).toBeInTheDocument();
+    const documents = screen.getByText('Documents used for this award').closest('details') as HTMLDetailsElement;
+    expect(documents).not.toHaveAttribute('open');
+    expect(screen.getByText('Bid ranking')).toBeInTheDocument();
+    expect(screen.getAllByText('Waiting period').length).toBeGreaterThan(0);
   });
 
   it('renders dashboard queue items as prototype table rows', async () => {
@@ -501,24 +519,20 @@ describe('awards and contracts empty lifecycle flow', () => {
     renderFlow(<AwardResponseProcurexPage />, '/awards-contracts/award-response?award=rec-supplier-refresh');
 
     await waitFor(() => expect(screen.getAllByText('Water pumps award notice').length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.getByText('AWN-001')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('AWN-001').length).toBeGreaterThan(0));
 
-    await user.click(screen.getByRole('tab', { name: /Accept or Decline/i }));
     expect(screen.queryByRole('button', { name: 'Open action' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Select' }));
-    await user.click(screen.getByRole('button', { name: 'Submit Response' }));
+    await user.click(screen.getByRole('button', { name: 'Submit response' }));
 
     await waitFor(() => expect(respond).toHaveBeenCalledWith('notice-supplier-refresh', 'ACCEPT', expect.any(String), expect.any(Object)));
-    const registersTab = screen.getAllByRole('tab').find((tab) => within(tab).queryByText('Clarification'));
-    expect(registersTab).toBeDefined();
-    await user.click(registersTab!);
+    await user.click(screen.getByText('Response history'));
 
     await waitFor(() => expect(screen.getByText('SUPPLIER_ACCEPTED_AWARD')).toBeInTheDocument());
-    expect(screen.getByText(/Linked contract is ready for negotiation/i)).toBeInTheDocument();
+    expect(screen.getByText(/Linked contract is ready for preparation/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Supplier response submitted: ACCEPT/i).length).toBeGreaterThan(0);
   });
 
-  it('uses linked pickers for award recommendation context fields', async () => {
+  it('shows source document actions in the award recommendation details', async () => {
     const user = userEvent.setup();
     const awardAction = lifecycleAction({
       id: 'award-picker-rec',
@@ -545,9 +559,45 @@ describe('awards and contracts empty lifecycle flow', () => {
       ...awardAction,
       reference: 'AWR-001',
       tenderReference: 'TDR-001',
+      tenderTitle: 'Clinic equipment tender',
+      reason: 'Best evaluated supplier.',
       supplierOrgId: 'supplier-org-1',
       supplierName: 'Moshi Clinical Supplies',
       bidId: 'bid-1',
+      sourceDocuments: [
+        {
+          id: 'tender-doc-picker',
+          sourceType: 'tender',
+          documentId: 'doc-tender',
+          label: 'Tender Document',
+          name: 'Clinic equipment tender',
+          status: 'Available',
+          openUrl: '/api/documents/doc-tender/content',
+          downloadUrl: '/api/documents/doc-tender/content?download=true'
+        },
+        {
+          id: 'bid-doc-picker',
+          sourceType: 'bid',
+          documentId: 'doc-bid',
+          label: 'Bid Document',
+          name: 'Submitted bid',
+          status: 'Available',
+          supplierName: 'Moshi Clinical Supplies',
+          bidId: 'bid-1',
+          openUrl: '/api/documents/doc-bid/content',
+          downloadUrl: '/api/documents/doc-bid/content?download=true'
+        },
+        {
+          id: 'evaluation-report-picker',
+          sourceType: 'evaluation-report',
+          documentId: null,
+          label: 'Evaluation Report',
+          name: 'Evaluation report',
+          status: 'Generated',
+          openUrl: '/api/award-contract/recommendations/rec-picker-1/evaluation-report',
+          downloadUrl: '/api/award-contract/recommendations/rec-picker-1/evaluation-report?download=true'
+        }
+      ],
       notice: { id: 'notice-picker-1', reference: 'AWN-001', status: 'PENDING_RESPONSE', contractId: 'contract-picker-1' },
       contract: {
         id: 'contract-picker-1',
@@ -585,23 +635,18 @@ describe('awards and contracts empty lifecycle flow', () => {
 
     const { container } = renderFlow(<AwardRecommendationProcurexPage />, '/awards-contracts/recommendation?recommendation=rec-picker-1');
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Clinic equipment award' })).toBeInTheDocument());
-    await user.click(screen.getByRole('tab', { name: /Approval/i }));
-    const tieBreaker = container.querySelector('[data-award-contract-form="Tie-breaker"]') as HTMLElement;
-    await user.click(within(tieBreaker).getByRole('button', { name: 'Select' }));
-    expect(screen.queryByRole('dialog', { name: 'Tie-breaker' })).not.toBeInTheDocument();
-    expect(within(tieBreaker).getByRole('searchbox', { name: /Tie-break outcome bid/i })).toBeInTheDocument();
-    expect(within(tieBreaker).queryByLabelText(/Outcome bid ID/i)).not.toBeInTheDocument();
-    await user.click(within(tieBreaker).getByRole('button', { name: 'Cancel' }));
-
-    await user.click(screen.getByRole('tab', { name: /Step 7 Documents/i }));
-    const notice = container.querySelector('[data-award-contract-form="Award notification"]') as HTMLElement;
-    await user.click(within(notice).getByRole('button', { name: 'Select' }));
-    expect(within(notice).getByRole('searchbox', { name: /Notice recipient/i })).toBeInTheDocument();
-    expect(within(notice).queryByLabelText(/Recipient organization ID/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: /Confirm award for Moshi Clinical Supplies/i }).length).toBeGreaterThan(0));
+    const documents = screen.getByText('Documents used for this award').closest('details') as HTMLDetailsElement;
+    await user.click(within(documents).getByText('Documents used for this award'));
+    expect(within(documents).getByText('Tender Document')).toBeInTheDocument();
+    expect(within(documents).getByText('Bid Documents')).toBeInTheDocument();
+    expect(within(documents).getByText('Evaluation Report')).toBeInTheDocument();
+    expect(within(documents).getAllByRole('button', { name: 'Open' }).length).toBeGreaterThanOrEqual(2);
+    expect(within(documents).getAllByRole('button', { name: 'Download' }).length).toBeGreaterThanOrEqual(2);
+    expect(container.querySelector('[data-award-contract-form="Tie-breaker"]')).not.toBeInTheDocument();
   });
 
-  it('renders grouped contract formation and post-award tabs from contract detail', async () => {
+  it('renders form-first contract formation and post-award workspaces from contract detail', async () => {
     const contract = {
       id: 'contract-1',
       reference: 'PX-C-1',
@@ -650,23 +695,24 @@ describe('awards and contracts empty lifecycle flow', () => {
     vi.spyOn(awardsContractsApi, 'contract').mockResolvedValue(contract);
 
     const contractRender = renderFlow(<ContractNegotiationProcurexPage />, '/awards-contracts/negotiation?contract=contract-1');
-    await waitFor(() => expect(screen.getByRole('tab', { name: /Contract Basis/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Prepare contract' })).toBeInTheDocument());
     expect(screen.getAllByText('PX-C-1').length).toBeGreaterThan(0);
-    expect(screen.getByText('Selected Contract')).toBeInTheDocument();
+    expect(screen.queryByText('Selected Contract')).not.toBeInTheDocument();
     expect(screen.getByText('Commercial terms')).toBeInTheDocument();
     expect(screen.queryByText(/\{"buyer"/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Documents/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Activity/i })).toBeInTheDocument();
+    expect(screen.getByText('Review terms')).toBeInTheDocument();
+    expect(screen.getByText('Approve contract')).toBeInTheDocument();
+    expect(screen.getByText('Saved records')).toBeInTheDocument();
     contractRender.unmount();
 
     renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award?contract=contract-1');
-    await waitFor(() => expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Track delivery' })).toBeInTheDocument());
     expect(screen.getAllByText('PX-C-1').length).toBeGreaterThan(0);
-    expect(screen.getByText('Selected Contract')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Post-award health summary' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Payments/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Termination/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Activity/i })).toBeInTheDocument();
+    expect(screen.queryByText('Selected Contract')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Post-award health summary' })).not.toBeInTheDocument();
+    expect(screen.getByText('Payments')).toBeInTheDocument();
+    expect(screen.getByText('Termination')).toBeInTheDocument();
+    expect(screen.getByText('History')).toBeInTheDocument();
   });
 
   it('filters post-award contract management actions by focused group', async () => {
@@ -720,9 +766,9 @@ describe('awards and contracts empty lifecycle flow', () => {
     const { container } = renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award?contract=contract-1');
     const form = (title: string) => container.querySelector(`[data-award-contract-form="${title}"]`);
 
-    await waitFor(() => expect(screen.getByRole('tab', { name: /Overview/i })).toHaveClass('active'));
-    expect(screen.getByText('Overdue work')).toBeInTheDocument();
-    expect(screen.getByText('Payment blockers')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Track delivery' })).toBeInTheDocument());
+    expect(screen.queryByText('Overdue work')).not.toBeInTheDocument();
+    expect(screen.queryByText('Payment blockers')).not.toBeInTheDocument();
     expect(form('Contract Management Plan')).toBeInTheDocument();
     expect(form('Contract status')).toBeInTheDocument();
     expect(form('Milestone')).toBeInTheDocument();
@@ -730,7 +776,8 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(form('Termination')).not.toBeInTheDocument();
     expect(form('Supplier performance')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: /Payments/i }));
+    await user.click(screen.getByText('Payments'));
+    await user.click(screen.getByRole('button', { name: 'Work on payments' }));
     expect(form('Invoice submission')).toBeInTheDocument();
     expect(form('Payment review')).toBeInTheDocument();
     expect(form('Payment approval')).toBeInTheDocument();
@@ -751,14 +798,16 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(within(paymentReview).queryByLabelText('Invoice ID')).not.toBeInTheDocument();
     await user.click(within(paymentReview).getByRole('button', { name: 'Cancel' }));
 
-    await user.click(screen.getByRole('tab', { name: /Termination/i }));
+    await user.click(screen.getByText('Termination'));
+    await user.click(screen.getByRole('button', { name: 'Work on termination' }));
     expect(form('Termination')).toBeInTheDocument();
     expect(form('Termination notice')).toBeInTheDocument();
     expect(form('Invoice submission')).not.toBeInTheDocument();
     expect(form('Risk')).not.toBeInTheDocument();
     expect(form('Deliverable')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: /Activity/i }));
+    await user.click(screen.getByText('History'));
+    await user.click(screen.getByRole('button', { name: 'Work on saved records' }));
     expect(screen.getByText('Mobilization')).toBeInTheDocument();
     expect(screen.getByText('Invoices')).toBeInTheDocument();
     expect(container.querySelector('[data-award-contract-form]')).not.toBeInTheDocument();
@@ -774,7 +823,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     const goodsInspection = vi.spyOn(awardsContractsApi, 'createGoodsInspection').mockResolvedValue(contract);
     const { container } = renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award?contract=contract-1&step=inspections');
 
-    await waitFor(() => expect(screen.getByRole('tab', { name: /Inspections/i })).toHaveClass('active'));
+    await waitFor(() => expect(screen.getByText('Inspections and acceptance')).toBeInTheDocument());
     const form = container.querySelector('[data-award-contract-form="Goods inspection"]') as HTMLElement;
     await user.click(within(form).getByRole('button', { name: 'Select' }));
     expect(screen.queryByRole('dialog', { name: 'Goods inspection' })).not.toBeInTheDocument();

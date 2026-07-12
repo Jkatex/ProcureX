@@ -71,7 +71,9 @@ async function fillBasicStep(user: ReturnType<typeof userEvent.setup>, title = '
 }
 
 async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, category = 'Medical equipment') {
-  await user.selectOptions(screen.getByLabelText('Category'), category);
+  await user.clear(screen.getByLabelText('Category'));
+  await user.type(screen.getByLabelText('Category'), category);
+  await user.click(await screen.findByRole('button', { name: category }));
 }
 
 beforeEach(() => {
@@ -798,32 +800,34 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Conformity to technical specifications')).toBeInTheDocument();
   }, 10000);
 
-  it('category selection auto-adds, prevents duplicates, includes Others last, and supports removing categories', async () => {
+  it('category selection searches, auto-adds, prevents duplicates, and supports removing categories', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
-    const categorySelect = screen.getByLabelText('Category') as HTMLSelectElement;
-    const options = within(categorySelect).getAllByRole('option').map((option) => option.textContent);
-    expect(options.at(-1)).toBe('Others');
+    const categorySearch = screen.getByLabelText('Category') as HTMLInputElement;
+    expect(categorySearch).toHaveAttribute('type', 'search');
     expect(screen.queryByRole('button', { name: 'Add Category' })).not.toBeInTheDocument();
 
-    await user.selectOptions(categorySelect, 'Medical equipment');
+    await user.type(categorySearch, 'Medical equipment');
+    await user.click(await screen.findByRole('button', { name: 'Medical equipment' }));
 
-    const categoryButton = screen.getByRole('button', { name: 'Medical equipment x' });
-    expect(categoryButton).toBeInTheDocument();
-    expect(categorySelect).toHaveValue('');
+    expect(screen.getByText('Medical equipment')).toBeInTheDocument();
+    expect(categorySearch).toHaveValue('');
 
-    await user.selectOptions(categorySelect, 'Medical equipment');
-    expect(screen.getAllByRole('button', { name: 'Medical equipment x' })).toHaveLength(1);
+    await user.type(categorySearch, 'Medical equipment');
+    expect(screen.queryByRole('button', { name: 'Medical equipment' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Medical equipment')).toHaveLength(1);
+    await user.clear(categorySearch);
 
-    await user.selectOptions(categorySelect, 'Others');
-    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
+    await user.type(categorySearch, 'Others');
+    await user.click(await screen.findByRole('button', { name: 'Others' }));
+    expect(screen.getByText('Others')).toBeInTheDocument();
 
-    await user.click(categoryButton);
+    await user.click(screen.getByRole('button', { name: 'Remove Medical equipment' }));
 
-    expect(screen.queryByRole('button', { name: 'Medical equipment x' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
+    expect(screen.queryByText('Medical equipment')).not.toBeInTheDocument();
+    expect(screen.getByText('Others')).toBeInTheDocument();
   });
 
   it('invited tender reveals invited supplier controls', async () => {
@@ -856,7 +860,8 @@ describe('CreateTenderProcurexPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Procurement Planning' })).toBeInTheDocument();
     expect(screen.getByText('Planning-autofill notice: selected plan values pre-filled this tender draft.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Healthcare infrastructure x' })).toBeInTheDocument();
+    expect(screen.getByText('Healthcare infrastructure')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove Healthcare infrastructure' })).toBeInTheDocument();
   });
 
   it('planning handoff pre-fills Basic Information and warns when edited', async () => {

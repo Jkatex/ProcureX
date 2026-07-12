@@ -11,3 +11,14 @@ export type ModuleStatus = {
   description: string;
 };
 
+export type DocumentRequestContext = {
+  userId?: string;
+  organizationId?: string;
+  isAdmin?: boolean;
+};
+
+export type DocumentContent = {
+  filename: string;
+  contentType: string;
+  body: string;
+};

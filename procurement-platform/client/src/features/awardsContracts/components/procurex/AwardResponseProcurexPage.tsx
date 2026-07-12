@@ -2,27 +2,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
-import type { AwardRecommendationDetailDto, FlowStep, LifecycleAction } from '../../types';
+import type { AwardRecommendationDetailDto, LifecycleAction } from '../../types';
 import { ActionFormPanel, lifecycleStatusOptions, option } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
-import { AwardContractFlowBar, FlowChangeAlert, LockedFlowStepPanel, flowStepFromSearch, searchWithFlowStep } from './AwardContractFlow';
+import { LockedFlowStepPanel } from './AwardContractFlow';
+import { AwardPlainRecordList, ExpandableAwardDetails, notifyAward } from './AwardContractSimpleShared';
 import {
-  ActionWorkspace,
   AwardHero,
-  AwardSidebar,
   formatMoney,
   lifecycleActionMatches,
   LifecycleActionCard,
   ProcurexAwardFrame,
-  RecordRegister,
   RemoteStatePanel,
   SimpleTable,
-  StatusBadge,
-  TopSummary
+  StatusBadge
 } from './AwardsContractsProcurexShared';
 
 function getAwardId(search: string) {
   return new URLSearchParams(search).get('award') || '';
+}
+
+function getOpenSection(search: string) {
+  return new URLSearchParams(search).get('step') || '';
 }
 
 function recommendationIdForAward(award: LifecycleAction | null) {
@@ -34,36 +35,23 @@ const preContractDocuments = [
   'Performance security',
   'Advance payment guarantee',
   'Insurance',
-  'Power of attorney / signatory authorization',
+  'Power of attorney or signatory authorization',
   'Work plan or delivery schedule',
   'Bank details'
 ];
-
-type AwardResponseGroupId = 'awards' | 'response' | 'documents' | 'registers';
-const awardResponseStepIds = ['award-notice', 'response', 'required-documents', 'activity', 'contract-handoff'] as const;
-type AwardResponseStepId = (typeof awardResponseStepIds)[number];
-const awardResponseStepToGroup: Record<AwardResponseStepId, AwardResponseGroupId> = {
-  'award-notice': 'awards',
-  response: 'response',
-  'required-documents': 'documents',
-  activity: 'registers',
-  'contract-handoff': 'documents'
-};
 
 export function AwardResponseProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const selectedAwardId = useMemo(() => getAwardId(location.search), [location.search]);
+  const openSection = useMemo(() => getOpenSection(location.search), [location.search]);
   const [awards, setAwards] = useState<LifecycleAction[]>([]);
   const [awardSearch, setAwardSearch] = useState('');
   const [awardDetail, setAwardDetail] = useState<AwardRecommendationDetailDto | null>(null);
   const [detailError, setDetailError] = useState('');
   const [responseMessages, setResponseMessages] = useState<Record<string, string>>({});
-  const [flowAlert, setFlowAlert] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const activeStep = useMemo(() => flowStepFromSearch(location.search, awardResponseStepIds, 'award-notice'), [location.search]);
-  const activeGroup = awardResponseStepToGroup[activeStep];
 
   const loadAwards = useCallback(async () => {
     setIsLoading(true);
@@ -122,11 +110,10 @@ export function AwardResponseProcurexPage() {
   const contractHandoffId = awardDetail?.notice?.contractId ?? activeAward?.contractId;
   const contractHandoffStatus = contractHandoffId ? 'Contract linked' : 'Pending contract handoff';
   const hasNotice = Boolean(activeAward?.noticeId ?? awardDetail?.notice?.id);
-  const hasResponse = Boolean(latestPersistedResponse) || /accepted|declined|clarification/i.test(noticeStatus);
+
   const responseActivityRecords = useMemo(() => {
     const records: Array<Record<string, unknown>> = [];
     const localMessage = activeAward ? responseMessages[activeAward.id] : '';
-
     if (localMessage && activeAward) {
       records.push({
         id: `latest-${activeAward.id}`,
@@ -136,17 +123,15 @@ export function AwardResponseProcurexPage() {
         createdAt: new Date().toISOString()
       });
     }
-
     if (awardDetail?.notice) {
       records.push({
         id: awardDetail.notice.id,
         title: awardDetail.notice.reference ?? 'Award notice',
         status: awardDetail.notice.status,
-        note: awardDetail.notice.contractId ? 'Linked contract is ready for negotiation' : 'Contract handoff pending',
+        note: awardDetail.notice.contractId ? 'Linked contract is ready for preparation' : 'Contract handoff pending',
         createdAt: awardDetail.notice.issuedAt
       });
     }
-
     for (const response of awardDetail?.notice?.responses ?? []) {
       records.push({
         id: response.id,
@@ -156,7 +141,6 @@ export function AwardResponseProcurexPage() {
         createdAt: response.createdAt
       });
     }
-
     for (const audit of awardDetail?.audit ?? []) {
       records.push({
         id: `${audit.event}-${audit.createdAt}`,
@@ -166,43 +150,11 @@ export function AwardResponseProcurexPage() {
         createdAt: audit.createdAt
       });
     }
-
     return records;
   }, [activeAward, awardDetail, responseMessages]);
-  const activeFlowLock = useMemo(() => {
-    const noAward = { message: 'Select an award notice before continuing the supplier response flow.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
-    const missingNotice = { message: 'The selected award does not have an issued notice yet, so supplier response actions are locked.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
-    const pendingResponse = { message: 'Record a supplier response before contract handoff can continue.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
-    const missingContract = { message: 'Contract handoff is not linked yet. Complete or refresh the response workflow after the buyer creates the draft contract.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
-    if (!activeAward) return noAward;
-    if (activeStep === 'response' && !hasNotice) return missingNotice;
-    if (activeStep === 'required-documents' && !contractHandoffId) return missingContract;
-    if (activeStep === 'contract-handoff') {
-      if (!hasResponse) return pendingResponse;
-      if (!contractHandoffId) return missingContract;
-    }
-    return null;
-  }, [activeAward, activeAwardId, activeStep, contractHandoffId, hasNotice, hasResponse]);
-  const flowSteps = useMemo<Array<FlowStep<AwardResponseStepId>>>(() => {
-    const noAward = { message: 'Select an award notice before continuing the supplier response flow.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
-    const missingNotice = { message: 'The selected award does not have an issued notice yet, so supplier response actions are locked.', actionLabel: 'Open Awards Received Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=awards-received' };
-    const pendingResponse = { message: 'Record a supplier response before contract handoff can continue.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
-    const missingContract = { message: 'Contract handoff is not linked yet. Required documents can continue after the buyer creates the draft contract.', actionLabel: 'Go to Response Step', navigatePage: 'award-response', routeSearch: `award=${activeAwardId}&step=response` };
-    return [
-      { id: 'award-notice', label: 'Award Notice', description: 'Review received award', summary: 'Confirm the received award notice, deadline, buyer, value, and response state.', status: activeAward ? 'complete' : 'locked', statusLabel: activeAward ? 'Complete' : 'Locked', count: awards.length, countLabel: 'awards received', lockReason: noAward },
-      { id: 'response', label: 'Accept or Decline', description: 'Accept, clarify, or decline', summary: 'Submit the supplier response and keep the selected award in the same flow.', status: !activeAward ? 'locked' : !hasNotice ? 'locked' : hasResponse ? 'complete' : 'available', statusLabel: hasResponse ? 'Response submitted' : hasNotice ? 'Needs action' : 'Locked', count: activeAward ? 1 : 0, countLabel: 'selected award', lockReason: !activeAward ? noAward : missingNotice },
-      { id: 'required-documents', label: 'Required Conditions', description: 'Prepare pre-contract files', summary: 'Prepare required supplier documents after the contract handoff exists.', status: !activeAward ? 'locked' : !contractHandoffId ? 'locked' : 'available', statusLabel: contractHandoffId ? 'Ready' : 'Locked', count: preContractDocuments.length, countLabel: 'documents', lockReason: !activeAward ? noAward : missingContract },
-      { id: 'activity', label: 'Clarification', description: 'Notice, response, and audit history', summary: 'Review notice events, response history, and contract handoff activity.', status: activeAward ? 'available' : 'locked', statusLabel: activeAward ? 'Ready' : 'Locked', count: responseActivityRecords.length, countLabel: 'activity records', lockReason: noAward },
-      { id: 'contract-handoff', label: 'Contract Formation', description: 'Move to draft contract', summary: 'Continue to contract formation once the response and linked contract are ready.', status: !activeAward ? 'locked' : !hasResponse || !contractHandoffId ? 'locked' : 'complete', statusLabel: contractHandoffId ? 'Linked' : hasResponse ? 'Pending contract' : 'Pending response', count: contractHandoffId ? 1 : 0, countLabel: 'linked contracts', lockReason: !activeAward ? noAward : !hasResponse ? pendingResponse : missingContract }
-    ];
-  }, [activeAward, activeAwardId, awards.length, contractHandoffId, hasNotice, hasResponse, responseActivityRecords.length]);
 
   function selectAward(award: LifecycleAction) {
-    navigate(`/awards-contracts/award-response?award=${award.awardId ?? award.id}&step=response`);
-  }
-
-  function selectFlowStep(step: AwardResponseStepId) {
-    navigate({ pathname: '/awards-contracts/award-response', search: searchWithFlowStep(location.search, step) });
+    navigate(`/awards-contracts/award-response?award=${award.awardId ?? award.id}`);
   }
 
   async function refreshAwards(awardId = activeAwardId) {
@@ -213,51 +165,30 @@ export function AwardResponseProcurexPage() {
   async function recordResponse(award: LifecycleAction, payload: Record<string, unknown>) {
     if (!award.noticeId) {
       setResponseMessages((current) => ({ ...current, [award.id]: 'Award notice is not available yet.' }));
+      notifyAward('warning', 'Award notice unavailable', 'The selected award does not have an issued notice yet.');
       return;
     }
     const responseAction = String(payload.action) as 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE';
     await awardsContractsApi.respondToNotice(award.noticeId, responseAction, String(payload.note ?? ''), payload.payload as Record<string, unknown>);
     setResponseMessages((current) => ({ ...current, [award.id]: `Supplier response submitted: ${responseAction}` }));
-    setFlowAlert(`Supplier response submitted: ${responseAction}. The award detail has been refreshed.`);
+    notifyAward('success', 'Supplier response sent', `Response submitted: ${responseAction}.`);
     await refreshAwards(recommendationIdForAward(award));
-    navigate({
-      pathname: '/awards-contracts/award-response',
-      search: searchWithFlowStep(location.search, contractHandoffId ? 'contract-handoff' : 'required-documents')
-    });
   }
 
   return (
     <ProcurexAwardFrame pageKey="award-response">
-      <div className="main-layout procurement-layout evaluation-app-layout award-response-page" data-award-contract-workspace data-award-current-step="supplier-acceptance">
-        <AwardSidebar title="Awards Received" subtitle={activeAward?.title ?? 'Supplier response workspace'} activeQueue="awards-received" />
-
+      <div className="main-layout procurement-layout evaluation-app-layout award-response-page award-simple-page" data-award-contract-workspace data-award-current-step="supplier-acceptance">
         <main className="main-content procurement-content evaluation-workspace award-response-workspace">
           <AwardHero
-            kicker="Supplier-side award response"
+            kicker="Supplier award response"
             title={activeAward?.title ?? 'Awards received by your organization'}
-            copy="Review award notices, accept or decline awards, request clarification, and prepare required pre-contract documents."
+            copy="Respond to the award first. Supporting notices, documents, contract handoff, and history are below."
             stats={[
               { value: awards.length, label: 'Awards received' },
               { value: activeAward?.status ?? 'None', label: 'Selected award status' },
               { value: activeAward?.currentStage ?? 'None', label: 'Current stage' }
             ]}
           />
-
-          {activeAward ? (
-            <TopSummary
-              items={[
-                { label: 'Selected Award', value: activeAward.title },
-                { label: 'Buyer', value: activeAward.otherParty },
-                { label: 'Award Value', value: activeAward.amount === null ? 'Not priced' : formatMoney(activeAward.amount, activeAward.currency) },
-                { label: 'Notice Reference', value: noticeReference },
-                { label: 'Notice Status', value: <StatusBadge value={noticeStatus} /> },
-                { label: 'Response Status', value: <StatusBadge value={responseStatus} /> },
-                { label: 'Response Deadline', value: activeAward.dueDate ? new Date(activeAward.dueDate).toLocaleDateString() : 'Not dated' },
-                { label: 'Contract Handoff', value: <StatusBadge value={contractHandoffStatus} /> }
-              ]}
-            />
-          ) : null}
-          <FlowChangeAlert message={flowAlert} />
 
           {isLoading ? (
             <RemoteStatePanel
@@ -290,57 +221,73 @@ export function AwardResponseProcurexPage() {
             />
           ) : null}
 
-          <section className="procurement-panel evaluation-panel awarding-tabs-panel">
-            <div className="panel-heading">
-              <div>
-                <span className="section-kicker">Supplier award workspace</span>
-                <h2>Supplier response wizard</h2>
-              </div>
-              <StatusBadge value={flowSteps.find((step) => step.id === activeStep)?.label ?? 'Awards'} />
-            </div>
-            <AwardContractFlowBar steps={flowSteps} active={activeStep} onSelect={selectFlowStep} label="Supplier award response flow" />
-          </section>
-
           {!isLoading && !loadError && !activeAward ? (
-          <AwardContractAccessProvider access={access}>
-          <section className="procurement-panel evaluation-panel">
-              <div className="panel-heading">
-                <div><span className="section-kicker">Award detail</span><h2>No award selected</h2></div>
-                <StatusBadge value="No records" />
-              </div>
-              <div className="scope-empty">Award response details will appear here after your organization receives an award.</div>
-              <div className="inline-actions">
-                <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=awards-received">Open Awards Received Queue</button>
-              </div>
-          </section>
-          </AwardContractAccessProvider>
-          ) : !isLoading && !loadError ? (
-            <>
-              {activeFlowLock ? (
-                <LockedFlowStepPanel title={`${flowSteps.find((step) => step.id === activeStep)?.label ?? 'Workflow'} is locked`} reason={activeFlowLock} />
-              ) : null}
+            <AwardContractAccessProvider access={access}>
+              <section className="procurement-panel evaluation-panel">
+                <div className="panel-heading">
+                  <div><span className="section-kicker">Respond to award</span><h2>No award selected</h2></div>
+                  <StatusBadge value="No records" />
+                </div>
+                <div className="scope-empty">Award response details will appear here after your organization receives an award.</div>
+                <div className="inline-actions">
+                  <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=awards-received">Open awards received</button>
+                </div>
+              </section>
+            </AwardContractAccessProvider>
+          ) : null}
 
-              {!activeFlowLock && activeStep === 'contract-handoff' && contractHandoffId ? (
-                <section className="procurement-panel evaluation-panel">
-                  <div className="panel-heading">
-                    <div><span className="section-kicker">Contract handoff</span><h2>Continue to contract formation</h2></div>
-                    <StatusBadge value="Ready" />
+          {!isLoading && !loadError && activeAward ? (
+            <AwardContractAccessProvider access={access}>
+              <section className="procurement-panel evaluation-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Respond to award</span>
+                    <h2>Respond to award</h2>
+                    <p>Accept the award, ask for clarification, or decline it. Required documents and history stay available below.</p>
                   </div>
-                  <div className="scope-empty">The award response is linked to a draft contract. Continue without restarting the supplier flow.</div>
-                  <div className="inline-actions">
-                    <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${contractHandoffId}&step=draft`)}>Open Contract</button>
-                  </div>
-                </section>
-              ) : null}
+                  <StatusBadge value={noticeStatus} />
+                </div>
 
-              {!activeFlowLock && activeStep !== 'contract-handoff' ? (
-              <>
-              {activeGroup === 'awards' ? (
-                <section className="procurement-panel evaluation-panel">
-                  <div className="panel-heading">
-                    <div><span className="section-kicker">Awards received</span><h2>Choose the award notice to work on</h2></div>
-                    <StatusBadge value={`${filteredAwards.length} awards`} />
+                <div className="award-readonly-summary">
+                  <article><span>Award</span><strong>{activeAward.title}</strong></article>
+                  <article><span>Buyer</span><strong>{activeAward.otherParty}</strong></article>
+                  <article><span>Value</span><strong>{activeAward.amount === null ? 'Not priced' : formatMoney(activeAward.amount, activeAward.currency)}</strong></article>
+                  <article><span>Notice</span><strong>{noticeReference}</strong></article>
+                  <article><span>Response</span><strong>{responseStatus}</strong></article>
+                  <article><span>Deadline</span><strong>{activeAward.dueDate ? new Date(activeAward.dueDate).toLocaleDateString() : 'Not dated'}</strong></article>
+                  <article><span>Contract</span><strong>{contractHandoffStatus}</strong></article>
+                </div>
+
+                {!hasNotice ? (
+                  <LockedFlowStepPanel
+                    title="Response is locked"
+                    reason={{ message: 'The selected award does not have an issued notice yet, so a supplier response cannot be submitted.' }}
+                  />
+                ) : (
+                  <div className="award-simple-form-stack">
+                    <ActionFormPanel
+                      title="Supplier award response"
+                      badge="Supplier"
+                      submitLabel="Submit response"
+                      fields={[
+                        { name: 'action', label: 'Response', kind: 'select', required: true, options: [option('ACCEPT', 'Accept'), option('REQUEST_CLARIFICATION', 'Request clarification'), option('DECLINE', 'Decline')] },
+                        { name: 'note', label: 'Message to buyer', kind: 'textarea' },
+                        { name: 'payload', label: 'Response payload', kind: 'json', rows: 4 }
+                      ]}
+                      initialValues={{
+                        action: 'ACCEPT',
+                        note: 'Award response submitted from ProcureX supplier workspace',
+                        payload: JSON.stringify({ source: 'award-response-workspace', awardId: activeAward.awardId ?? activeAward.id }, null, 2)
+                      }}
+                      onSubmit={(payload) => recordResponse(activeAward, payload)}
+                      defaultSelected
+                    />
                   </div>
+                )}
+              </section>
+
+              <section className="award-simple-details-stack" aria-label="Award response supporting details">
+                <ExpandableAwardDetails title="Awards received" summary={`${filteredAwards.length} of ${awards.length} awards`} open={openSection === 'award-notice'}>
                   <div className="queue-toolbar">
                     <label>
                       Search
@@ -361,120 +308,64 @@ export function AwardResponseProcurexPage() {
                       ))}
                     </div>
                   )}
-                </section>
-              ) : null}
+                </ExpandableAwardDetails>
 
-              {activeGroup === 'response' ? (
-                <section className="procurement-panel evaluation-panel">
-                  <ActionWorkspace
-                    kicker="Supplier actions"
-                    title="Record your award response"
-                    badge={activeAward.status}
-                    context={
-                      <>
-                        <TopSummary
-                          items={[
-                            { label: 'Award', value: activeAward.title },
-                            { label: 'Buyer', value: activeAward.otherParty },
-                            { label: 'Value', value: activeAward.amount === null ? 'Not priced' : formatMoney(activeAward.amount, activeAward.currency) },
-                            { label: 'Notice reference', value: noticeReference },
-                            { label: 'Notice status', value: <StatusBadge value={noticeStatus} /> },
-                            { label: 'Response status', value: <StatusBadge value={responseStatus} /> },
-                            { label: 'Response deadline', value: activeAward.dueDate ? new Date(activeAward.dueDate).toLocaleDateString() : 'Not dated' },
-                            { label: 'Contract handoff', value: <StatusBadge value={contractHandoffStatus} /> }
-                          ]}
-                        />
-                        <p className="award-workspace-note" data-award-response-status>
-                          {latestPersistedResponse ? `Latest response: ${latestPersistedResponse.action}` : responseMessages[activeAward.id] || activeAward.requiredAction}
-                        </p>
-                      </>
-                    }
-                  >
-                <ActionFormPanel
-                  title="Supplier award response"
-                  badge="Supplier"
-                  submitLabel="Submit Response"
-                  fields={[
-                    { name: 'action', label: 'Response action', kind: 'select', required: true, options: [option('ACCEPT', 'Accept'), option('REQUEST_CLARIFICATION', 'Request clarification'), option('DECLINE', 'Decline')] },
-                    { name: 'note', label: 'Response note', kind: 'textarea' },
-                    { name: 'payload', label: 'Response payload', kind: 'json', rows: 4 }
-                  ]}
-                  initialValues={{
-                    action: 'ACCEPT',
-                    note: 'Award response submitted from ProcureX supplier workspace',
-                    payload: JSON.stringify({ source: 'award-response-workspace', awardId: activeAward.awardId ?? activeAward.id }, null, 2)
-                  }}
-                  onSubmit={(payload) => recordResponse(activeAward, payload)}
-                />
-                  </ActionWorkspace>
-                </section>
-              ) : null}
+                <ExpandableAwardDetails title="Required documents" summary={`${preContractDocuments.length} common documents`} open={openSection === 'required-documents'}>
+                  <SimpleTable headers={['Document', 'Owner', 'Status', 'Action']}>
+                    {preContractDocuments.map((document) => (
+                      <tr key={document}>
+                        <td><strong>{document}</strong></td>
+                        <td>Supplier Representative</td>
+                        <td><StatusBadge value="Required" /></td>
+                        <td>{contractHandoffId ? 'Use form below' : 'Available after contract draft'}</td>
+                      </tr>
+                    ))}
+                  </SimpleTable>
+                  {contractHandoffId ? (
+                    <ActionFormPanel
+                      title="Pre-contract required document"
+                      badge="Document"
+                      submitLabel="Submit document"
+                      fields={[
+                        { name: 'documentType', label: 'Document type', kind: 'text', required: true },
+                        { name: 'title', label: 'Title', kind: 'text', required: true },
+                        { name: 'ownerRole', label: 'Document owner', kind: 'select', required: true, options: [option('Supplier Representative'), option('Buyer Representative'), option('Contract Manager')] },
+                        { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                        { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded document outside this workflow.' },
+                        { name: 'dueDate', label: 'Due date', kind: 'date' },
+                        { name: 'reviewedAt', label: 'Reviewed at', kind: 'datetime' },
+                        { name: 'note', label: 'Note', kind: 'textarea' },
+                        { name: 'payload', label: 'Document payload', kind: 'json', rows: 4 }
+                      ]}
+                      initialValues={{
+                        documentType: 'performance-security',
+                        title: 'Performance security',
+                        ownerRole: 'Supplier Representative',
+                        status: 'SUBMITTED',
+                        payload: '{}'
+                      }}
+                      onSubmit={(payload) => awardsContractsApi.upsertRequiredDocument(contractHandoffId, payload)}
+                      defaultSelected
+                    />
+                  ) : <div className="scope-empty">Required document submission becomes available after contract draft creation.</div>}
+                </ExpandableAwardDetails>
 
-              {activeGroup === 'documents' ? (
-                <section className="procurement-panel evaluation-panel">
-                  <ActionWorkspace
-                    kicker="Documents required"
-                    title="Pre-contract checklist"
-                    badge="Pending Review"
-                    context={
-                      <SimpleTable headers={['Document', 'Owner', 'Status', 'Action']}>
-                        {preContractDocuments.map((document) => (
-                          <tr key={document}>
-                            <td><strong>{document}</strong></td>
-                            <td>Supplier Representative</td>
-                            <td><StatusBadge value="Required" /></td>
-                            <td>{contractHandoffId ? 'Use form' : 'Available after contract draft'}</td>
-                          </tr>
-                        ))}
-                      </SimpleTable>
-                    }
-                  >
-                    {contractHandoffId ? (
-                  <ActionFormPanel
-                    title="Pre-contract required document"
-                    badge="Document"
-                    submitLabel="Submit Document Requirement"
-                    fields={[
-                      { name: 'documentType', label: 'Document type', kind: 'text', required: true },
-                      { name: 'title', label: 'Title', kind: 'text', required: true },
-                      { name: 'ownerRole', label: 'Document owner', kind: 'select', required: true, options: [option('Supplier Representative'), option('Buyer Representative'), option('Contract Manager')] },
-                      { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
-                      { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded document outside this workflow.' },
-                      { name: 'dueDate', label: 'Due date', kind: 'date' },
-                      { name: 'reviewedAt', label: 'Reviewed at', kind: 'datetime' },
-                      { name: 'note', label: 'Note', kind: 'textarea' },
-                      { name: 'payload', label: 'Document payload', kind: 'json', rows: 4 }
-                    ]}
-                    initialValues={{
-                      documentType: 'performance-security',
-                      title: 'Performance security',
-                      ownerRole: 'Supplier Representative',
-                      status: 'SUBMITTED',
-                      payload: '{}'
-                    }}
-                    onSubmit={(payload) => awardsContractsApi.upsertRequiredDocument(contractHandoffId, payload)}
-                  />
-                    ) : <div className="scope-empty">Required document submission becomes available after contract draft creation.</div>}
-                  </ActionWorkspace>
-                </section>
-              ) : null}
-
-              {activeGroup === 'registers' ? (
-                <section className="procurement-panel evaluation-panel">
-                  <div className="panel-heading">
-                    <div><span className="section-kicker">Registers</span><h2>Supplier response activity</h2></div>
-                    <StatusBadge value={`${responseActivityRecords.length} records`} />
+                <ExpandableAwardDetails title="Contract handoff" summary={contractHandoffId ? 'Contract is linked' : 'Waiting for draft contract'} open={openSection === 'contract-handoff'}>
+                  <div className="scope-empty">
+                    {contractHandoffId ? 'The award response is linked to a draft contract. Continue without restarting the supplier flow.' : 'The buyer has not linked a draft contract yet.'}
                   </div>
-                  <RecordRegister
-                    title="Supplier response activity"
-                    records={responseActivityRecords}
-                    emptyMessage="No persisted supplier response activity is available yet."
-                  />
-                </section>
-              ) : null}
-              </>
-              ) : null}
-            </>
+                  {contractHandoffId ? (
+                    <div className="inline-actions">
+                      <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${contractHandoffId}`)}>Open contract</button>
+                    </div>
+                  ) : null}
+                </ExpandableAwardDetails>
+
+                <ExpandableAwardDetails title="Response history" summary={`${responseActivityRecords.length} records`} open={openSection === 'activity'}>
+                  <AwardPlainRecordList records={responseActivityRecords} emptyMessage="No persisted supplier response activity is available yet." />
+                </ExpandableAwardDetails>
+              </section>
+            </AwardContractAccessProvider>
           ) : null}
         </main>
       </div>

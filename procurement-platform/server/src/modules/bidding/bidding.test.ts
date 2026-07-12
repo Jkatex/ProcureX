@@ -294,7 +294,7 @@ describe('bid submission schema builder', () => {
       tenderType: 'GOODS',
       schemaVersion: 'bid-submission-schema-v1'
     });
-    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'technical', 'financial', 'samples', 'declarations', 'review', 'receipt']);
+    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'goodsTechnical', 'goodsFinancial', 'goodsSamples', 'goodsReview', 'goodsDeclaration']);
     expect(stepFields(schema, 'administrative')).toEqual(
       expect.arrayContaining([expect.objectContaining({ label: 'Manufacturer authorization', type: 'file', envelope: 'ADMINISTRATIVE', required: true })])
     );
@@ -328,6 +328,7 @@ describe('bid submission schema builder', () => {
     );
 
     expect(schema.tenderType).toBe('WORKS');
+    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'worksCapacity', 'worksTechnicalProposal', 'worksFinancial', 'worksReview', 'worksDeclaration']);
     expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['Site engineer', 'Concrete mixer']));
     expect(stepFields(schema, 'financial')).toEqual([
       expect.objectContaining({
@@ -383,7 +384,7 @@ describe('bid submission schema builder', () => {
     );
 
     expect(schema.tenderType).toBe('SERVICE');
-    expect(schema.steps.map((step) => step.id)).toEqual(expect.arrayContaining(['technical', 'financial']));
+    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'servicesMethodology', 'servicesDeliveryPlan', 'servicesStaffing', 'servicesSla', 'servicesCommercial', 'servicesReview']);
     expect(stepFields(schema, 'technical')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: 'Supervisor' }),
@@ -410,7 +411,7 @@ describe('bid submission schema builder', () => {
     );
 
     expect(schema.tenderType).toBe('CONSULTANCY');
-    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'technical', 'financial', 'declarations', 'review', 'receipt']);
+    expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'consultancyTechnical', 'consultancyFinancial', 'consultancyReview']);
     expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['TOR understanding', 'Inception report', 'Response for Consultant methodology']));
     expect(stepFields(schema, 'financial')).toEqual([expect.objectContaining({ label: 'Financial proposal', envelope: 'FINANCIAL' })]);
   });
@@ -433,6 +434,37 @@ describe('bid submission schema builder', () => {
         validation: expect.objectContaining({ quantity: 5, unit: 'Each' })
       })
     ]);
+  });
+
+  it('sweeps dynamic tender requirement fields into the supplier submission schema', () => {
+    const schema = buildBidSubmissionSchema(
+      schemaTender({
+        type: 'WORKS',
+        requirements: {
+          works: {
+            fields: {
+              hsePolicyRequired: true,
+              customMethodologyRows: [{ id: 'method-1', requirementName: 'Traffic management methodology', mandatory: true }],
+              regulatoryLicenseRows: [{ id: 'license-1', license: 'Contractor registration certificate', requiresUpload: true, mandatory: true }]
+            },
+            lists: {
+              mandatorySiteResponses: ['Confirm site access plan']
+            }
+          }
+        }
+      })
+    );
+
+    expect(stepFields(schema, 'administrative')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: 'Contractor registration certificate', type: 'file', required: true })])
+    );
+    expect(stepFields(schema, 'technical')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Traffic management methodology', responseType: 'text', required: true }),
+        expect.objectContaining({ label: 'Hse Policy', responseType: 'boolean', required: true }),
+        expect.objectContaining({ label: 'Confirm site access plan', responseType: 'boolean', required: true })
+      ])
+    );
   });
 
   it('does not expose buyer-only or internal metadata in generated fields', () => {
@@ -636,10 +668,10 @@ describe('bidding service rules', () => {
         computedTotalAmount: 20,
         completeness: expect.objectContaining({
           administrative: false,
-          technical: false,
-          financial: true,
-          samples: false,
-          declarations: false
+          goodsTechnical: false,
+          goodsFinancial: true,
+          goodsSamples: false,
+          goodsDeclaration: false
         }),
         schemaVersion: 'bid-submission-schema-v1',
         missingRequiredFields: expect.arrayContaining([
@@ -1770,7 +1802,7 @@ function schemaTender(overrides: Record<string, unknown> = {}) {
 }
 
 function stepFields(schema: ReturnType<typeof buildBidSubmissionSchema>, stepId: string) {
-  return schema.steps.find((step) => step.id === stepId)?.fields ?? [];
+  return schema.steps.find((step) => step.id === stepId)?.fields ?? schema.steps.flatMap((step) => step.fields).filter((field) => field.section === stepId);
 }
 
 function validBidPayload() {

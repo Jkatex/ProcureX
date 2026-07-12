@@ -56,7 +56,7 @@ describe('SupplierTenderDetailProcurexPage', () => {
     expect(screen.getByRole('button', { name: 'Open Document' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download Document' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Tender' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ask Buyer' })).toHaveAttribute('href', '/communication');
+    expect(screen.getByRole('link', { name: 'Ask Buyer' })).toHaveAttribute('href', expect.stringContaining('/communication?view=compose&mode=clarification'));
     expect(screen.getByText('Mandatory before bid')).toBeInTheDocument();
     expect(screen.getByText('Additional responses')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Procurement details', selected: true })).toBeInTheDocument();

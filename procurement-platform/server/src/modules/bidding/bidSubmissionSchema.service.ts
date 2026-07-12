@@ -2,6 +2,7 @@ import type {
   BidSchemaEnvelope,
   BidSubmissionFieldType,
   BidSubmissionResponseType,
+  BidSubmissionSection,
   BidSubmissionSchemaDto,
   BidSubmissionSchemaFieldDto,
   BidSubmissionSchemaStepDto,
@@ -57,35 +58,32 @@ export function buildBidSubmissionSchema(tender: TenderSchemaInput): BidSubmissi
   const samples = sampleFields(requirements, fields);
   const criteria = evaluationCriteria(metadata);
   const documents = documentFields(fields, requirementRows, metadata);
+  const dynamicRequirements = dynamicRequirementFields(requirements, workflow);
+  const workflowResponses = workflowResponseFields(fields, commercial, workflow);
 
-  const administrative = [
+  const administrative = uniqueFields([
     field('administrative.eligible', 'administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', true, 'boolean', 'ADMINISTRATIVE', 'system'),
     field('administrative.authorized', 'administrative.authorizedRepresentative', 'Confirm authorized representative', 'boolean', 'administrative', true, 'boolean', 'ADMINISTRATIVE', 'system'),
-    ...documents.filter((item) => item.section === 'administrative')
-  ];
+    ...documents.filter((item) => item.section === 'administrative'),
+    ...dynamicRequirements.filter((item) => item.section === 'administrative')
+  ]);
   const technical = uniqueFields([
     ...technicalFields(workflow, requirements, fields, requirementRows),
+    ...workflowResponses.filter((item) => item.section === 'technical'),
     ...documents.filter((item) => item.section === 'technical'),
+    ...dynamicRequirements.filter((item) => item.section === 'technical'),
     ...criteriaFields(criteria).filter((item) => item.section === 'technical')
   ]);
   const financial = uniqueFields([
     ...financialFields(workflow, commercial, fields, requirements),
+    ...workflowResponses.filter((item) => item.section === 'financial'),
     ...documents.filter((item) => item.section === 'financial'),
+    ...dynamicRequirements.filter((item) => item.section === 'financial'),
     ...criteriaFields(criteria).filter((item) => item.section === 'financial')
   ]);
   const declarations = declarationFields(fields);
 
-  const steps: BidSubmissionSchemaStepDto[] = [
-    step('administrative', 'Administrative', 'ADMINISTRATIVE', administrative),
-    ...(technical.length ? [step('technical', 'Technical', 'TECHNICAL', technical)] : []),
-    ...(financial.length ? [step('financial', 'Financial', 'FINANCIAL', financial)] : []),
-    ...(samples.length ? [step('samples', 'Samples', 'TECHNICAL', samples)] : []),
-    step('declarations', 'Declarations', 'COMBINED', declarations),
-    step('review', 'Review', 'COMBINED', [
-      field('review.confirmComplete', 'review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', true, 'acknowledgement', 'COMBINED', 'system')
-    ]),
-    step('receipt', 'Receipt', 'COMBINED', [])
-  ];
+  const steps = workflowSteps(workflow, { administrative, technical, financial, samples, declarations });
 
   return {
     tenderId: tender.id,
@@ -95,6 +93,98 @@ export function buildBidSubmissionSchema(tender: TenderSchemaInput): BidSubmissi
     schemaVersion,
     steps
   };
+}
+
+function workflowSteps(
+  workflow: WorkflowType,
+  groups: {
+    administrative: BidSubmissionSchemaFieldDto[];
+    technical: BidSubmissionSchemaFieldDto[];
+    financial: BidSubmissionSchemaFieldDto[];
+    samples: BidSubmissionSchemaFieldDto[];
+    declarations: BidSubmissionSchemaFieldDto[];
+  }
+): BidSubmissionSchemaStepDto[] {
+  const review = reviewFields();
+  const eligibility = step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', groups.administrative);
+
+  if (workflow === 'goods') {
+    return compactSteps([
+      eligibility,
+      step('goodsTechnical', 'Technical Response', 'TECHNICAL', groups.technical),
+      step('goodsFinancial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', groups.financial),
+      groups.samples.length ? step('goodsSamples', 'Sample Submission', 'TECHNICAL', groups.samples) : null,
+      step('goodsReview', 'Review Submission', 'COMBINED', review),
+      step('goodsDeclaration', 'Supplier Declaration and Submit', 'COMBINED', groups.declarations)
+    ]);
+  }
+
+  if (workflow === 'works') {
+    const capacity = groups.technical.filter(isWorksCapacityField);
+    const proposal = groups.technical.filter((field) => !capacity.includes(field));
+    const financialCapacity = groups.financial.filter(isWorksCapacityField);
+    const pricing = groups.financial.filter((field) => !financialCapacity.includes(field));
+    return compactSteps([
+      eligibility,
+      step('worksCapacity', 'Technical Capacity and Experience', 'TECHNICAL', uniqueFields([...capacity, ...financialCapacity])),
+      step('worksTechnicalProposal', 'Technical Proposal and Work Program', 'TECHNICAL', proposal),
+      step('worksFinancial', 'Financial Proposal / BOQ Pricing', 'FINANCIAL', pricing),
+      step('worksReview', 'Review Submission', 'COMBINED', review),
+      step('worksDeclaration', 'Declaration and Submission', 'COMBINED', groups.declarations)
+    ]);
+  }
+
+  if (workflow === 'services') {
+    const methodology = groups.technical.filter((field) => /methodology|scope|understanding|approach/i.test(stepRouteText(field)));
+    const delivery = groups.technical.filter((field) => !methodology.includes(field) && /delivery|deliverable|milestone|schedule/i.test(stepRouteText(field)));
+    const staffing = groups.technical.filter((field) => !methodology.includes(field) && !delivery.includes(field) && /staff|personnel|supervision|equipment|tools|capacity|continuity/i.test(stepRouteText(field)));
+    const sla = groups.technical.filter((field) => !methodology.includes(field) && !delivery.includes(field) && !staffing.includes(field));
+    return compactSteps([
+      eligibility,
+      step('servicesMethodology', 'Service Understanding and Methodology', 'TECHNICAL', methodology.length ? methodology : groups.technical.slice(0, 1)),
+      step('servicesDeliveryPlan', 'Service Schedule and Delivery Plan', 'TECHNICAL', delivery),
+      step('servicesStaffing', 'Staffing, Capacity and Continuity Plan', 'TECHNICAL', staffing),
+      step('servicesSla', 'Performance, SLA, Reporting and Compliance', 'TECHNICAL', sla),
+      step('servicesCommercial', 'Commercial Pricing and Cost Breakdown', 'FINANCIAL', groups.financial),
+      step('servicesReview', 'Review Submission', 'COMBINED', uniqueFields([...groups.declarations, ...review]))
+    ]);
+  }
+
+  if (workflow === 'consultancy') {
+    return compactSteps([
+      eligibility,
+      step('consultancyTechnical', 'Technical Proposal', 'TECHNICAL', groups.technical),
+      step('consultancyFinancial', 'Financial Proposal', 'FINANCIAL', groups.financial),
+      step('consultancyReview', 'Review and Submit', 'COMBINED', uniqueFields([...groups.declarations, ...review]))
+    ]);
+  }
+
+  return compactSteps([
+    eligibility,
+    groups.technical.length ? step('technical', 'Technical Response', 'TECHNICAL', groups.technical) : null,
+    groups.financial.length ? step('financial', 'Financial Offer', 'FINANCIAL', groups.financial) : null,
+    groups.samples.length ? step('samples', 'Sample Submission', 'TECHNICAL', groups.samples) : null,
+    step('declarations', 'Declarations and Submit', 'COMBINED', groups.declarations),
+    step('review', 'Review Submission', 'COMBINED', review)
+  ]);
+}
+
+function compactSteps(steps: Array<BidSubmissionSchemaStepDto | null>): BidSubmissionSchemaStepDto[] {
+  return steps.filter((item): item is BidSubmissionSchemaStepDto => Boolean(item));
+}
+
+function reviewFields() {
+  return [
+    field('review.confirmComplete', 'review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', true, 'acknowledgement', 'COMBINED', 'system')
+  ];
+}
+
+function isWorksCapacityField(field: BidSubmissionSchemaFieldDto) {
+  return /capacity|experience|similar|project|personnel|expert|cv|qualification|equipment|plant|hse|safety|environment|financial capacity|bank|statement|credit/i.test(stepRouteText(field));
+}
+
+function stepRouteText(field: BidSubmissionSchemaFieldDto) {
+  return `${field.id} ${field.requirementKey} ${field.label} ${field.source} ${field.validation.control ?? ''} ${field.validation.prompt ?? ''}`;
 }
 
 function technicalFields(
@@ -189,6 +279,124 @@ function documentFields(fields: Record<string, unknown>, requirementRows: Array<
   return uniqueFields(documents);
 }
 
+const dynamicSkipKeyPattern =
+  /contractClauseCards$|quantityScheduleRows|boqRows|boqItems|lumpSumPricingRows|commercialPricingRows|financialOfferRows|serviceBoqRows|productSpecificationTemplate|sampleRequirementRows|supportingDocumentRows|regulatoryLicenseRequirementRows|regulatoryLicenseRows|eligibilityRequirementCards|otherEligibilityRequirements|technicalSpecificationDocuments|declarationRows|declarations|submissionDeclarations/i;
+
+function dynamicRequirementFields(requirements: Record<string, unknown>, workflow: WorkflowType) {
+  const output: BidSubmissionSchemaFieldDto[] = [];
+  const containers = requirementContainers(requirements, workflow);
+
+  for (const [path, container] of containers) {
+    Object.entries(objectPayload(container.fields)).forEach(([key, value]) => collectDynamicRequirement(`${path}.fields.${key}`, key, value, output));
+    Object.entries(objectPayload(container.lists)).forEach(([key, value]) => collectDynamicRequirement(`${path}.lists.${key}`, key, value, output));
+  }
+
+  Object.entries(objectPayload(requirements.fields)).forEach(([key, value]) => collectDynamicRequirement(`requirements.fields.${key}`, key, value, output));
+  Object.entries(objectPayload(requirements.lists)).forEach(([key, value]) => collectDynamicRequirement(`requirements.lists.${key}`, key, value, output));
+
+  return uniqueFields(output);
+}
+
+function requirementContainers(requirements: Record<string, unknown>, workflow: WorkflowType): Array<[string, Record<string, unknown>]> {
+  const singular = workflow === 'services' ? 'service' : workflow;
+  return [
+    [`requirements.${workflow}`, objectPayload(requirements[workflow])],
+    [`requirements.${singular}`, objectPayload(requirements[singular])]
+  ].filter(([, value]) => Object.keys(value).length) as Array<[string, Record<string, unknown>]>;
+}
+
+function collectDynamicRequirement(path: string, key: string, value: unknown, output: BidSubmissionSchemaFieldDto[]) {
+  if (dynamicSkipKeyPattern.test(key) || !isMeaningfulRequirementValue(value)) return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      if (!isMeaningfulRequirementValue(item)) return;
+      const payload: Record<string, unknown> = isRecord(item) ? item : { text: item };
+      pushDynamicRequirement(`${path}.${stringValue(payload.id) || index + 1}`, key, payload, output, index);
+    });
+    return;
+  }
+  if (isRecord(value)) {
+    pushDynamicRequirement(path, key, value, output, 0);
+    return;
+  }
+  if (typeof value === 'boolean') {
+    if (!value || !/required|mandatory|need|upload|cv|certificate|statement|license|declaration|confirm/i.test(key)) return;
+    pushDynamicRequirement(path, key, { title: humanize(key).replace(/\s+(Required|Mandatory)$/i, ''), mandatory: true, responseType: 'boolean' }, output, 0);
+    return;
+  }
+  if (/required|mandatory|upload|certificate|license|evidence|declaration|confirm|technical|method|scope|schedule|delivery|warranty|financial|price|cost/i.test(key)) {
+    pushDynamicRequirement(path, key, { title: humanize(key), description: stringValue(value), mandatory: /required|mandatory/i.test(key) }, output, 0);
+  }
+}
+
+function pushDynamicRequirement(path: string, key: string, payload: Record<string, unknown>, output: BidSubmissionSchemaFieldDto[], index: number) {
+  const title = payloadTitle(payload, `${humanize(key)} ${index + 1}`);
+  if (!title || !isSupplierFacingRequirement(key, payload)) return;
+  const text = `${key} ${title} ${payloadSummary(payload)}`;
+  const dynamicType = dynamicFieldType(text, payload);
+  const envelope = envelopeFromText(text);
+  const section: BidSubmissionSection = envelope === 'FINANCIAL' ? 'financial' : envelope === 'ADMINISTRATIVE' ? 'administrative' : 'technical';
+  const required = dynamicRequirementRequired(key, payload);
+  const validation = validationHints({ ...payload, prompt: stringValue(payload.description ?? payload.notes ?? payload.requirementDescription) || undefined });
+
+  if (dynamicType === 'file') {
+    output.push(fileField(`dynamic.${safeKey(path)}`, path, title, envelope === 'COMBINED' ? 'ADMINISTRATIVE' : envelope, required, 'requirements.dynamic', payload));
+    return;
+  }
+
+  output.push(
+    field(
+      `dynamic.${safeKey(path)}`,
+      path,
+      title,
+      dynamicType,
+      section,
+      required,
+      responseTypeForField(dynamicType),
+      envelope === 'COMBINED' ? 'TECHNICAL' : envelope,
+      'requirements.dynamic',
+      validation
+    )
+  );
+}
+
+function dynamicFieldType(text: string, payload: Record<string, unknown>): BidSubmissionFieldType {
+  if (stringValue(payload.responseType).toLowerCase() === 'boolean') return 'boolean';
+  if (stringValue(payload.responseType).toLowerCase() === 'upload') return 'file';
+  const configured = fieldType(payload);
+  if (configured !== 'textarea' || /type|fieldType|inputType/i.test(Object.keys(payload).join(' '))) return configured;
+  if (payload.requiresUpload === true || isDocumentText(text)) return 'file';
+  if (/declaration|acknowledge|confirm|eligibility|conflict|anti.corruption|anti corruption/i.test(text)) return 'boolean';
+  if (isFinancialText(text)) return 'number';
+  return 'textarea';
+}
+
+function dynamicRequirementRequired(key: string, payload: Record<string, unknown>) {
+  if (payload.mandatory === false || payload.required === false) return false;
+  if (['mandatory', 'mandatoryActivity', 'required', 'sampleRequired', 'requiresUpload', 'cvRequired'].some((fieldName) => normalizeFlag(payload[fieldName]))) return true;
+  return /required|mandatory/i.test(key);
+}
+
+function isSupplierFacingRequirement(key: string, payload: Record<string, unknown>) {
+  const text = `${key} ${payloadSummary(payload)}`;
+  if (isPrivateKey(key) || /buyerOnly|internal|evaluationOnly/i.test(text)) return false;
+  return isDocumentText(text) || isFinancialText(text) || isTechnicalText(text) || isAdministrativeText(text) || /required|mandatory|declaration|confirm|cv|certificate|license|evidence|method|scope|schedule|delivery|warranty|personnel|equipment|experience/i.test(text);
+}
+
+function isMeaningfulRequirementValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'number' || typeof value === 'boolean') return true;
+  if (Array.isArray(value)) return value.some(isMeaningfulRequirementValue);
+  if (isRecord(value)) return Object.entries(value).some(([key, item]) => !isPrivateKey(key) && isMeaningfulRequirementValue(item));
+  return false;
+}
+
+function normalizeFlag(value: unknown) {
+  if (value === true) return true;
+  return /^(yes|true|required|mandatory|1)$/i.test(stringValue(value));
+}
+
 function collectDocuments(value: unknown, output: BidSubmissionSchemaFieldDto[], source: string) {
   if (!Array.isArray(value)) return;
   value.filter(isRecord).forEach((row, index) => {
@@ -246,6 +454,172 @@ function sampleFields(requirements: Record<string, unknown>, fields: Record<stri
   );
 }
 
+function workflowResponseFields(fields: Record<string, unknown>, commercial: CommercialItem[], workflow: WorkflowType) {
+  if (workflow === 'goods') return goodsWorkflowFields(fields, commercial);
+  if (workflow === 'works') return worksWorkflowFields(fields);
+  if (workflow === 'services') return serviceWorkflowFields(fields);
+  if (workflow === 'consultancy') return consultancyWorkflowFields(fields);
+  return [];
+}
+
+function goodsWorkflowFields(fields: Record<string, unknown>, commercial: CommercialItem[]) {
+  const output: BidSubmissionSchemaFieldDto[] = [];
+  const specificationRows = productSpecificationRows(fields.productSpecificationTemplate);
+  const rows = specificationRows.length
+    ? specificationRows
+    : commercial.map((item, index) => ({
+        id: item.id || `commercial-${index + 1}`,
+        itemNo: item.itemNo || String(index + 1),
+        productName: item.description,
+        quantity: item.quantity,
+        unit: item.unit,
+        mandatory: false
+      }));
+
+  rows.forEach((row, index) => {
+    const title = stringValue(row.productName ?? row.requestedProduct ?? row.productDescription ?? row.description ?? row.itemDescription) || `Product specification ${index + 1}`;
+    output.push(
+      field(
+        `goods.productSpecification.${row.id || index + 1}`,
+        `goods.productSpecification.${row.id || index + 1}`,
+        `Product specification response - ${title}`,
+        'table',
+        'technical',
+        row.mandatory !== false,
+        'structured',
+        'TECHNICAL',
+        'requirements.goods.productSpecificationTemplate',
+        compact({
+          control: 'goodsProductSpecification',
+          itemNo: stringValue(row.itemNo ?? row.itemNumber) || String(index + 1),
+          requestedProduct: title,
+          buyerSpecification: stringValue(row.specification ?? row.technicalSpecification ?? row.materialQuality ?? row.minimumSpecification ?? row.value) || undefined,
+          quantity: numberValue(row.quantity),
+          unit: stringValue(row.unit ?? row.unitOfMeasure) || undefined,
+          prompt: payloadSummary(row)
+        })
+      )
+    );
+  });
+
+  collectWorkflowText(fields.deliveryRequirements ?? fields.deliverySchedule, output, 'goods.deliveryPlan', 'Delivery and logistics response', 'goodsDeliveryPlan', true);
+  collectWorkflowText(fields.warrantyRequirements ?? fields.afterSalesRequirements, output, 'goods.warrantyAfterSales', 'Warranty and after-sales response', 'goodsWarranty', false);
+  return output;
+}
+
+function worksWorkflowFields(fields: Record<string, unknown>) {
+  const output: BidSubmissionSchemaFieldDto[] = [];
+  const siteVisitText = stringValue(fields.siteVisitRequirement);
+  if (siteVisitText) {
+    output.push(
+      field('works.siteVisit', 'works.siteVisit', 'Site visit response', 'select', 'technical', /mandatory|required/i.test(siteVisitText), 'text', 'TECHNICAL', 'requirements.works.siteVisitRequirement', {
+        control: 'worksSiteVisit',
+        prompt: siteVisitText,
+        options: ['Conducted', 'Scheduled', 'Not conducted', 'Not applicable']
+      })
+    );
+    output.push(fileField('works.siteVisitEvidence', 'works.siteVisitEvidence', 'Site visit evidence upload', 'TECHNICAL', /mandatory|required/i.test(siteVisitText), 'requirements.works.siteVisitRequirement', { prompt: siteVisitText }));
+  }
+
+  if (normalizeFlag(fields.similarCompletedProjectsRequired)) {
+    output.push(structuredWorkflowField('works.similarProjects', 'Similar completed project evidence', 'worksSimilarProject', true, 'requirements.works.similarCompletedProjectsRequired', fields));
+  }
+  if (normalizeFlag(fields.keyPersonnelCvsRequired)) {
+    output.push(structuredWorkflowField('works.keyPersonnel', 'Key personnel CV and qualification response', 'worksPersonnel', true, 'requirements.works.keyPersonnelCvsRequired', fields));
+  }
+  if (normalizeFlag(fields.bankStatementsRequired)) {
+    output.push(fileField('works.financialCapacityEvidence', 'works.financialCapacityEvidence', 'Financial capacity and bank statement evidence', 'FINANCIAL', true, 'requirements.works.bankStatementsRequired', { prompt: stringValue(fields.bankStatementPeriod) || 'Upload bank statements or financial capacity evidence.' }));
+  }
+
+  collectWorkflowRows(fields.personnelRequirementRows, output, 'works.personnelRequirement', 'worksPersonnel', 'Personnel requirement response');
+  collectWorkflowRows(fields.equipmentRequirementRows, output, 'works.equipmentRequirement', 'worksEquipment', 'Equipment availability response');
+  collectWorkflowRows(fields.worksMilestoneRows, output, 'works.workProgram', 'worksWorkProgram', 'Work program and milestone response');
+  collectWorkflowText(fields.mainConstructionActivities ?? fields.scopeSummary, output, 'works.methodStatement', 'Method statement and scope response', 'worksMethodStatement', true);
+  return output;
+}
+
+function serviceWorkflowFields(fields: Record<string, unknown>) {
+  const output: BidSubmissionSchemaFieldDto[] = [];
+  collectWorkflowText(fields.scopeOfServices, output, 'services.methodology', 'Service methodology response', 'serviceMethodology', true);
+  collectWorkflowRows(fields.personnelRequirementRows, output, 'services.personnelRequirement', 'serviceStaffing', 'Staffing and supervision response');
+  collectWorkflowRows(fields.equipmentRequirementRows, output, 'services.equipmentRequirement', 'serviceEquipment', 'Tools and equipment response');
+  collectWorkflowRows(fields.serviceMilestones, output, 'services.deliveryMilestone', 'serviceMilestone', 'Delivery milestone response');
+  collectWorkflowRows(fields.serviceDeliverables, output, 'services.deliverable', 'serviceDeliverable', 'Service deliverable response');
+  collectWorkflowText(fields.slaRequirement, output, 'services.sla', 'SLA and performance response', 'serviceSla', true);
+  collectWorkflowText(fields.reportingRequirements, output, 'services.reporting', 'Reporting and communication response', 'serviceReporting', false);
+  collectWorkflowText(fields.riskAssessmentRequirement, output, 'services.riskManagement', 'Risk, safety, and continuity response', 'serviceRisk', false);
+  return output;
+}
+
+function consultancyWorkflowFields(fields: Record<string, unknown>) {
+  const output: BidSubmissionSchemaFieldDto[] = [];
+  collectWorkflowText(fields.consultancyGeneralObjective ?? fields.backgroundNarrative, output, 'consultancy.torUnderstanding', 'TOR understanding and methodology response', 'consultancyTorUnderstanding', true);
+  collectWorkflowRows(fields.specificObjectiveRows, output, 'consultancy.specificObjective', 'consultancyObjective', 'Specific objective response');
+  collectWorkflowRows(fields.assignmentActivityRows, output, 'consultancy.assignmentActivity', 'consultancyActivity', 'Assignment activity response');
+  collectWorkflowRows(fields.consultantResponsibilityRows, output, 'consultancy.consultantResponsibility', 'consultancyResponsibility', 'Consultant responsibility response');
+  collectWorkflowRows(fields.deliverableRows, output, 'consultancy.deliverable', 'consultancyDeliverable', 'Deliverable response');
+  collectWorkflowRows(fields.reportingRequirementRows, output, 'consultancy.reporting', 'consultancyReporting', 'Reporting response');
+  collectWorkflowRows(fields.keyExpertRows, output, 'consultancy.keyExpert', 'consultancyKeyExpert', 'Key expert response');
+  return output;
+}
+
+function productSpecificationRows(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  const payload = objectPayload(value);
+  if (Array.isArray(payload.rows)) return payload.rows.filter(isRecord).map((row) => objectPayload(row.values ?? row));
+  if (Array.isArray(payload.items)) return payload.items.filter(isRecord);
+  return [];
+}
+
+function collectWorkflowRows(value: unknown, output: BidSubmissionSchemaFieldDto[], baseKey: string, control: string, fallbackLabel: string) {
+  firstArray(value).filter(isRecord).forEach((row, index) => {
+    const title = payloadTitle(row, `${fallbackLabel} ${index + 1}`);
+    output.push(
+      structuredWorkflowField(
+        `${baseKey}.${row.id || index + 1}`,
+        `${fallbackLabel} - ${title}`,
+        control,
+        row.mandatory !== false && row.required !== false,
+        baseKey,
+        row,
+        index
+      )
+    );
+  });
+}
+
+function collectWorkflowText(value: unknown, output: BidSubmissionSchemaFieldDto[], requirementKey: string, label: string, control: string, required: boolean) {
+  if (!isMeaningfulRequirementValue(value)) return;
+  const payload = isRecord(value) ? value : { prompt: value };
+  output.push(
+    field(
+      requirementKey,
+      requirementKey,
+      label,
+      'textarea',
+      'technical',
+      required,
+      'text',
+      'TECHNICAL',
+      requirementKey,
+      compact({
+        control,
+        prompt: stringValue(payload.prompt ?? payload.description ?? payload.requirementDescription ?? value) || payloadSummary(payload)
+      })
+    )
+  );
+}
+
+function structuredWorkflowField(id: string, label: string, control: string, required: boolean, source: string, payload: Record<string, unknown>, index = 0) {
+  return field(id, id, label, 'table', 'technical', required, 'structured', 'TECHNICAL', source, {
+    ...validationHints(payload),
+    control,
+    prompt: stringValue(payload.prompt ?? payload.description ?? payload.requirementDescription) || payloadSummary(payload),
+    rowIndex: index + 1,
+    buyerRequirement: payloadSummary(payload)
+  });
+}
+
 function criteriaFields(criteria: Record<string, unknown>[]) {
   return criteria.map((criterion, index) => {
     const label = stringValue(criterion.name ?? criterion.label ?? criterion.title ?? criterion.criterion) || `Evaluation criterion ${index + 1}`;
@@ -284,7 +658,7 @@ function declarationFields(fields: Record<string, unknown>) {
       ];
 }
 
-function collectRequirementValue(key: string, value: unknown, output: BidSubmissionSchemaFieldDto[], section: BidSubmissionStepId, envelope: BidSchemaEnvelope, source: string) {
+function collectRequirementValue(key: string, value: unknown, output: BidSubmissionSchemaFieldDto[], section: BidSubmissionSection, envelope: BidSchemaEnvelope, source: string) {
   if (Array.isArray(value)) {
     value.filter(isRecord).forEach((row, index) => {
       const type = fieldType(row);
@@ -392,7 +766,7 @@ function field(
   requirementKey: string,
   label: string,
   type: BidSubmissionFieldType,
-  section: BidSubmissionStepId,
+  section: BidSubmissionSection,
   required: boolean,
   responseType: BidSubmissionResponseType,
   envelope: BidSchemaEnvelope,
@@ -450,9 +824,9 @@ function workflowFromTenderType(type: unknown): WorkflowType {
 
 function envelopeFromText(text: string): BidSchemaEnvelope {
   const value = text.toLowerCase();
-  if (/financial|commercial|price|pricing|boq|bank|turnover|tax|fee|cost/.test(value)) return 'FINANCIAL';
-  if (/administrative|eligibility|registration|license|certificate|authorization|statutory/.test(value)) return 'ADMINISTRATIVE';
-  if (/technical|method|spec|personnel|equipment|sla|\btor\b|drawing|hse|scope|sample|warranty|delivery/.test(value)) return 'TECHNICAL';
+  if (/tax clearance|vat registration|business registration|certificate of incorporation|administrative|eligibility|registration|license|certificate|authorization|statutory/.test(value)) return 'ADMINISTRATIVE';
+  if (/financial|commercial|price|pricing|boq|bank|turnover|fee|cost/.test(value)) return 'FINANCIAL';
+  if (/technical|method|spec|personnel|equipment|sla|\btor\b|drawing|hse|scope|sample|warranty|delivery|site/.test(value)) return 'TECHNICAL';
   if (/combined|declaration|submission/.test(value)) return 'COMBINED';
   return 'ADMINISTRATIVE';
 }
@@ -535,11 +909,13 @@ function payloadTitle(payload: Record<string, unknown>, fallback: string) {
         payload.position ??
         payload.positionTitle ??
         payload.equipmentName ??
+        payload.license ??
         payload.requirementName ??
         payload.documentName ??
         payload.documentTitle ??
         payload.category ??
         payload.specificationName ??
+        payload.text ??
         payload.description ??
         payload.sampleDescription
     ) || humanize(fallback)

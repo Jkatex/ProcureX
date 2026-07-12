@@ -186,6 +186,19 @@ export type AwardBidPackDto = {
   payload: Record<string, unknown>;
 };
 
+export type AwardSourceDocumentDto = {
+  id: string;
+  sourceType: 'tender' | 'bid' | 'evaluation-report';
+  documentId: string | null;
+  label: string;
+  name: string;
+  status: string;
+  supplierName?: string | null;
+  bidId?: string | null;
+  openUrl: string;
+  downloadUrl: string;
+};
+
 export type AwardGroupDto = {
   id: string;
   reference: string;
@@ -211,6 +224,8 @@ export type AwardRecommendationDetailDto = LifecycleAction & {
   supplierOrgId?: string | null;
   supplierName?: string | null;
   bidId?: string | null;
+  reason?: string;
+  payload?: Record<string, unknown>;
   notice?: {
     id: string;
     reference?: string | null;
@@ -224,6 +239,7 @@ export type AwardRecommendationDetailDto = LifecycleAction & {
   } | null;
   contract?: ContractDetailDto | null;
   awardGroup?: AwardGroupDto;
+  sourceDocuments?: AwardSourceDocumentDto[];
   access?: WorkflowAccess;
   approvalRoutes?: Array<Record<string, unknown>>;
   tieBreakers?: Array<Record<string, unknown>>;
@@ -232,6 +248,22 @@ export type AwardRecommendationDetailDto = LifecycleAction & {
   awardNotifications?: Array<Record<string, unknown>>;
   budgetCommitments?: Array<Record<string, unknown>>;
   audit?: Array<{ event: string; actorUserId: string | null; createdAt: string }>;
+};
+
+export type AwardDecisionDraftInput = {
+  selectedSupplier?: string;
+  awardAmount?: number;
+  currency?: string;
+  awardDate?: string;
+  reason?: string;
+  conditions?: string;
+  confirmationBy?: string;
+  confirmations?: {
+    evaluationReviewed?: boolean;
+    documentsReviewed?: boolean;
+    authorityConfirmed?: boolean;
+  };
+  note: string;
 };
 
 export type ContractDetailDto = {

@@ -89,9 +89,19 @@ export class ModuleService {
     return recommendation;
   }
 
+  async evaluationReport(id: string, context: AwardContractRequestContext) {
+    return this.repository.evaluationReport(id, context);
+  }
+
   async approveRecommendation(id: string, input: AwardDecisionInput, context: AwardContractRequestContext) {
     const recommendation = await this.repository.approveRecommendation(id, input, context);
     if (!recommendation) throw requestError('Award recommendation was not found after approval.', 404);
+    return recommendation;
+  }
+
+  async saveAwardDecisionDraft(id: string, input: AwardDecisionInput, context: AwardContractRequestContext) {
+    const recommendation = await this.repository.saveAwardDecisionDraft(id, input, context);
+    if (!recommendation) throw requestError('Award recommendation was not found after draft save.', 404);
     return recommendation;
   }
 
