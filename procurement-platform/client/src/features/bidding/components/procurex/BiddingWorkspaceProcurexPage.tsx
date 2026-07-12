@@ -2870,12 +2870,8 @@ function humanize(value: string) {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function errorMessage(error: unknown, fallback: string) {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const response = (error as { response?: { data?: { message?: string } } }).response;
-    if (response?.data?.message) return response.data.message;
-  }
-  return error instanceof Error ? error.message : fallback;
+function errorMessage(_error: unknown, fallback: string) {
+  return fallback;
 }
 
 function formatMoney(value: number, currency: string) {

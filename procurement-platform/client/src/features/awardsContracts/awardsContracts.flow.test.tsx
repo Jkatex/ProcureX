@@ -185,7 +185,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
 
     await waitFor(() => expect(screen.getByText('Awarding and contracts could not be loaded')).toBeInTheDocument());
-    expect(screen.getByText('API offline')).toBeInTheDocument();
+    expect(screen.getByText('Awarding and contract records could not be loaded.')).toBeInTheDocument();
     expect(screen.queryByText('No urgent award or contract actions yet.')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Retry loading' }));

@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@mui/material';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -10,17 +10,12 @@ import { assumeUser, signOut } from '@/features/auth/slice';
 import { demoUsers } from '@/shared/data/fixtures';
 import { procurexTheme } from '@/styles/mui-theme';
 import { procurementApi } from '../../api';
-import { openTenderDocument } from '../../tenderDocumentActions';
-import type { MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow, TenderDetail } from '../../types';
+import type { MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../../types';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
-
-vi.mock('../../tenderDocumentActions', () => ({
-  openTenderDocument: vi.fn()
-}));
 
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="location">{location.pathname}</span>;
+  return <span data-testid="location">{location.pathname}{location.search}</span>;
 }
 
 function renderMarketplace(route = '/procurement/marketplace') {
@@ -41,7 +36,6 @@ describe('MarketplaceProcurexPage', () => {
     vi.restoreAllMocks();
     store.dispatch(signOut());
     store.dispatch(assumeUser(demoUsers.user));
-    vi.mocked(openTenderDocument).mockResolvedValue(undefined);
     vi.spyOn(procurementApi, 'saveTender').mockResolvedValue({ success: true, message: 'Tender saved successfully' });
     vi.spyOn(procurementApi, 'unsaveTender').mockResolvedValue({ success: true, message: 'Tender removed from saved tenders' });
   });
@@ -279,8 +273,8 @@ describe('MarketplaceProcurexPage', () => {
     const tenderRow = screen.getByText('Public Open Tender').closest('article');
 
     expect(within(tenderRow!).getByRole('link', { name: 'View Tender' })).toHaveAttribute('href', '/procurement/supplier-tender-detail?tenderId=public-open-tender');
-    expect(within(tenderRow!).getByRole('button', { name: /^Bid$/i })).toBeEnabled();
-    expect(within(tenderRow!).queryByRole('link', { name: /^Bid$/i })).not.toBeInTheDocument();
+    expect(within(tenderRow!).getByRole('link', { name: /^Bid$/i })).toHaveAttribute('href', '/bidding?tenderId=public-open-tender');
+    expect(within(tenderRow!).queryByRole('button', { name: /^Bid$/i })).not.toBeInTheDocument();
   });
 
   it('shows only public open marketplace tenders in All Tenders', async () => {
@@ -549,16 +543,14 @@ describe('MarketplaceProcurexPage', () => {
     expect(procurementApi.saveTender).toHaveBeenCalledWith('tender-2');
   });
 
-  it('opens the bid document from a submitted My Bids row without navigating to bidding', async () => {
+  it('opens the bidding workspace from a submitted My Bids row', async () => {
     const user = userEvent.setup();
     const tender = marketplaceTender({
       id: 'submitted-tender',
       reference: 'PX-SUB-001',
       title: 'Submitted Tender'
     });
-    const document = { id: 'doc-1', name: 'Submitted tender document.pdf', documentType: 'PDF', label: 'Tender document', openUrl: '/documents/doc-1/open' };
-    const detail = tenderDetail(tender, { documents: [document] });
-    const getTenderDetail = vi.spyOn(procurementApi, 'getTenderDetail').mockResolvedValueOnce(detail);
+    const getTenderDetail = vi.spyOn(procurementApi, 'getTenderDetail').mockRejectedValue(new Error('Bid navigation should not fetch tender detail'));
 
     vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
       tenders: [],
@@ -580,15 +572,16 @@ describe('MarketplaceProcurexPage', () => {
 
     renderMarketplace('/procurement/my-bids');
 
-    await user.click(await screen.findByRole('button', { name: 'Open Bid' }));
+    const openBidLink = await screen.findByRole('link', { name: 'Open Bid' });
+    expect(openBidLink).toHaveAttribute('href', '/bidding?tenderId=submitted-tender');
 
-    await waitFor(() => expect(getTenderDetail).toHaveBeenCalledWith('submitted-tender'));
-    expect(openTenderDocument).toHaveBeenCalledWith(detail, document, 'documents');
-    expect(screen.queryByRole('link', { name: 'Open Bid' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('location')).toHaveTextContent('/procurement/my-bids');
+    await user.click(openBidLink);
+
+    expect(getTenderDetail).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location')).toHaveTextContent('/bidding?tenderId=submitted-tender');
   });
 
-  it('opens the bid document from an active marketplace bid button without navigating to bidding', async () => {
+  it('opens the bidding workspace from an active marketplace bid link', async () => {
     const user = userEvent.setup();
     const tender = marketplaceTender({
       id: 'open-tender',
@@ -596,8 +589,7 @@ describe('MarketplaceProcurexPage', () => {
       title: 'Open Tender',
       hasDraftBid: true
     });
-    const detail = tenderDetail(tender);
-    const getTenderDetail = vi.spyOn(procurementApi, 'getTenderDetail').mockResolvedValueOnce(detail);
+    const getTenderDetail = vi.spyOn(procurementApi, 'getTenderDetail').mockRejectedValue(new Error('Bid navigation should not fetch tender detail'));
 
     vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
       tenders: [tender],
@@ -608,48 +600,13 @@ describe('MarketplaceProcurexPage', () => {
     renderMarketplace();
 
     const tenderRow = (await screen.findByText('Open Tender')).closest('article');
-    await user.click(within(tenderRow!).getByRole('button', { name: 'Continue Bid' }));
+    const continueBidLink = within(tenderRow!).getByRole('link', { name: 'Continue Bid' });
+    expect(continueBidLink).toHaveAttribute('href', '/bidding?tenderId=open-tender');
 
-    await waitFor(() => expect(getTenderDetail).toHaveBeenCalledWith('open-tender'));
-    expect(openTenderDocument).toHaveBeenCalledWith(detail, detail.documents?.[0], 'documents');
-    expect(within(tenderRow!).queryByRole('link', { name: 'Continue Bid' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('location')).toHaveTextContent('/procurement/marketplace');
-  });
+    await user.click(continueBidLink);
 
-  it('shows a recoverable error when the bid document cannot be opened', async () => {
-    const user = userEvent.setup();
-    const tender = marketplaceTender({
-      id: 'error-tender',
-      reference: 'PX-ERR-001',
-      title: 'Error Tender'
-    });
-
-    vi.spyOn(procurementApi, 'getTenderDetail').mockRejectedValueOnce(new Error('missing detail'));
-    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
-      tenders: [],
-      myTenders: [],
-      myBids: [
-        {
-          id: 'my-bid-error',
-          title: tender.title,
-          section: 'submitted',
-          status: 'Submitted',
-          tender,
-          tenderReference: tender.reference,
-          lastActivity: '2026-06-09',
-          actionLabel: 'Open Bid',
-          nav: `/bidding?tenderId=${tender.id}`
-        }
-      ]
-    } satisfies MarketplacePayload);
-
-    renderMarketplace('/procurement/my-bids');
-
-    await user.click(await screen.findByRole('button', { name: 'Open Bid' }));
-
-    expect(await screen.findByText('Bid document could not be opened. Open the tender detail and try again.')).toBeInTheDocument();
-    expect(openTenderDocument).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Open Bid' })).toBeEnabled();
+    expect(getTenderDetail).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location')).toHaveTextContent('/bidding?tenderId=open-tender');
   });
 });
 
@@ -674,31 +631,6 @@ function marketplaceTender(overrides: Partial<MarketplaceTenderRow> = {}): Marke
     isSaved: false,
     visibility: 'PUBLIC_MARKETPLACE',
     categories: ['Goods'],
-    ...overrides
-  };
-}
-
-function tenderDetail(tender: MarketplaceTenderRow, overrides: Partial<TenderDetail> = {}): TenderDetail {
-  return {
-    ...tender,
-    method: 'Open Tender',
-    visibility: 'PUBLIC_MARKETPLACE',
-    publishedAt: '2026-07-01T08:00:00.000Z',
-    requirements: {},
-    requirementRows: [],
-    milestones: [],
-    commercialItems: [],
-    documents: [
-      {
-        id: 'document-1',
-        name: `${tender.reference} tender document.pdf`,
-        documentType: 'PDF',
-        label: 'Tender document',
-        openUrl: `/api/procurement/tenders/${tender.id}/documents/document-1/open`
-      }
-    ],
-    bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
-    currentBid: null,
     ...overrides
   };
 }
