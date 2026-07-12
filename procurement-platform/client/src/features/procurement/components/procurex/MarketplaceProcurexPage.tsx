@@ -6,7 +6,8 @@ import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWo
 import { procurementApi } from '../../api';
 import { useMarketplaceData } from '../../hooks';
 import { isActiveMarketplaceTender } from '../../marketplaceTenderVisibility';
-import type { MarketplaceTenderRow } from '../../types';
+import { openTenderDocument } from '../../tenderDocumentActions';
+import type { MarketplaceTenderRow, MyBidRow } from '../../types';
 import {
   MarketplaceCategoryGrid,
   MarketplaceFilters,
@@ -52,7 +53,9 @@ export function MarketplaceProcurexPage() {
   const [filters, setFilters] = useState<MarketplaceFiltersState>(emptyFilters);
   const [savedTenderIds, setSavedTenderIds] = useState<Set<string>>(() => new Set());
   const [savingTenderIds, setSavingTenderIds] = useState<Set<string>>(() => new Set());
+  const [openingBidTenderIds, setOpeningBidTenderIds] = useState<Set<string>>(() => new Set());
   const [saveError, setSaveError] = useState('');
+  const [bidDocumentError, setBidDocumentError] = useState('');
   const [deadlineNow, setDeadlineNow] = useState(() => Date.now());
   const activeTab = getActiveTab(location.pathname);
   const organization = user?.organization || demoUsers.user.organization;
@@ -130,6 +133,31 @@ export function MarketplaceProcurexPage() {
     }
   }
 
+  async function openBidDocument(tender: Pick<MarketplaceTenderRow, 'id'>) {
+    const tenderId = tender.id;
+    if (openingBidTenderIds.has(tenderId)) return;
+
+    setBidDocumentError('');
+    setOpeningBidTenderIds((current) => new Set(current).add(tenderId));
+    try {
+      const detail = await procurementApi.getTenderDetail(tenderId);
+      await openTenderDocument(detail, detail.documents?.[0], 'documents');
+    } catch (error) {
+      console.error('Bid document open failed', error);
+      setBidDocumentError('Bid document could not be opened. Open the tender detail and try again.');
+    } finally {
+      setOpeningBidTenderIds((current) => {
+        const next = new Set(current);
+        next.delete(tenderId);
+        return next;
+      });
+    }
+  }
+
+  function openMyBidDocument(row: MyBidRow) {
+    void openBidDocument(row.tender);
+  }
+
   return (
     <ProcurexWorkspaceChrome title="Procurement">
       <div className="procurement-app-page" data-marketplace-root>
@@ -139,6 +167,7 @@ export function MarketplaceProcurexPage() {
           {isLoading ? <div className="scope-empty">Loading marketplace...</div> : null}
           {isError ? <div className="scope-empty">Marketplace data could not be loaded. Try refreshing the page.</div> : null}
           {saveError ? <div className="scope-empty">{saveError}</div> : null}
+          {bidDocumentError ? <div className="scope-empty">{bidDocumentError}</div> : null}
 
           {data ? (
             <>
@@ -166,7 +195,9 @@ export function MarketplaceProcurexPage() {
                         tenders={visibleTenders}
                         savedTenderIds={savedTenderIds}
                         savingTenderIds={savingTenderIds}
+                        openingBidTenderIds={openingBidTenderIds}
                         onToggleSaved={toggleSaved}
+                        onOpenBidDocument={(tender) => void openBidDocument(tender)}
                       />
                     </section>
                   ) : null}
@@ -211,7 +242,14 @@ export function MarketplaceProcurexPage() {
                         kicker="Bid records"
                         rows={data.myBids.filter((row) => row.section === 'submitted')}
                         empty="No submitted bid records for this account."
-                        renderRow={(row) => <MyBidRowCard key={row.id} row={row} />}
+                        renderRow={(row) => (
+                          <MyBidRowCard
+                            key={row.id}
+                            row={row}
+                            isOpeningBidDocument={openingBidTenderIds.has(row.tender.id)}
+                            onOpenBidDocument={openMyBidDocument}
+                          />
+                        )}
                       />
                     </section>
                   ) : null}

@@ -34,14 +34,18 @@ type TenderListPanelProps = {
   tenders: MarketplaceTenderRow[];
   savedTenderIds: Set<string>;
   savingTenderIds?: Set<string>;
+  openingBidTenderIds?: Set<string>;
   onToggleSaved: (tender: MarketplaceTenderRow) => void;
+  onOpenBidDocument: (tender: MarketplaceTenderRow) => void;
 };
 
 type TenderRowCardProps = {
   tender: MarketplaceTenderRow;
   isSaved: boolean;
   isSaving?: boolean;
+  isOpeningBidDocument?: boolean;
   onToggleSaved: (tender: MarketplaceTenderRow) => void;
+  onOpenBidDocument: (tender: MarketplaceTenderRow) => void;
 };
 
 export function MarketplaceHero({ organization, canCreateTender }: MarketplaceHeroProps) {
@@ -199,7 +203,14 @@ export function MarketplaceCategoryGrid({ tenders, onSelectType }: { tenders: Ma
   );
 }
 
-export function TenderListPanel({ tenders, savedTenderIds, savingTenderIds = new Set(), onToggleSaved }: TenderListPanelProps) {
+export function TenderListPanel({
+  tenders,
+  savedTenderIds,
+  savingTenderIds = new Set(),
+  openingBidTenderIds = new Set(),
+  onToggleSaved,
+  onOpenBidDocument
+}: TenderListPanelProps) {
   return (
     <section className="procurement-list-panel">
       <div className="panel-heading">
@@ -217,7 +228,9 @@ export function TenderListPanel({ tenders, savedTenderIds, savingTenderIds = new
               tender={tender}
               isSaved={savedTenderIds.has(tender.id)}
               isSaving={savingTenderIds.has(tender.id)}
+              isOpeningBidDocument={openingBidTenderIds.has(tender.id)}
               onToggleSaved={onToggleSaved}
+              onOpenBidDocument={onOpenBidDocument}
             />
           ))
         ) : (
@@ -286,7 +299,17 @@ export function MyTenderRowCard({ row }: { row: MyTenderRow }) {
   );
 }
 
-export function MyBidRowCard({ row }: { row: MyBidRow }) {
+export function MyBidRowCard({
+  row,
+  isOpeningBidDocument = false,
+  onOpenBidDocument
+}: {
+  row: MyBidRow;
+  isOpeningBidDocument?: boolean;
+  onOpenBidDocument?: (row: MyBidRow) => void;
+}) {
+  const opensBidDocument = row.actionLabel === 'Open Bid' && onOpenBidDocument;
+
   return (
     <article className="procurement-tender-row market-row">
       <div>
@@ -306,21 +329,33 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
         </div>
       </div>
       <div className="tender-row-actions">
-        <Link className="btn btn-primary" to={row.nav}>
-          {row.actionLabel}
-        </Link>
+        {opensBidDocument ? (
+          <button className="btn btn-primary" type="button" disabled={isOpeningBidDocument} onClick={() => onOpenBidDocument(row)}>
+            {isOpeningBidDocument ? 'Opening...' : row.actionLabel}
+          </button>
+        ) : (
+          <Link className="btn btn-primary" to={row.nav}>
+            {row.actionLabel}
+          </Link>
+        )}
       </div>
     </article>
   );
 }
 
-function TenderRowCard({ tender, isSaved, isSaving = false, onToggleSaved }: TenderRowCardProps) {
+function TenderRowCard({
+  tender,
+  isSaved,
+  isSaving = false,
+  isOpeningBidDocument = false,
+  onToggleSaved,
+  onOpenBidDocument
+}: TenderRowCardProps) {
   const createdByCurrentUser = Boolean(tender.createdByCurrentUser);
   const ownedByCurrentOrganization = Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser);
   const canBid = Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !ownedByCurrentOrganization && !tender.hasSubmittedBid));
   const daysRemaining = getDaysRemaining(tender.closingDate);
   const detailUrl = ownedByCurrentOrganization ? `/procurement/tender-details?tenderId=${tender.id}` : `/procurement/supplier-tender-detail?tenderId=${tender.id}`;
-  const bidUrl = `/bidding?tenderId=${tender.id}`;
   const bidLabel = tender.hasSubmittedBid ? 'Already Bid' : tender.hasDraftBid ? 'Continue Bid' : 'Bid';
   const saveDisabled = ownedByCurrentOrganization || isSaving;
 
@@ -354,9 +389,9 @@ function TenderRowCard({ tender, isSaved, isSaving = false, onToggleSaved }: Ten
         </Link>
         {!ownedByCurrentOrganization ? (
           canBid ? (
-            <Link className="btn btn-primary" to={bidUrl}>
-              {bidLabel}
-            </Link>
+            <button className="btn btn-primary" type="button" disabled={isOpeningBidDocument} onClick={() => onOpenBidDocument(tender)}>
+              {isOpeningBidDocument ? 'Opening...' : bidLabel}
+            </button>
           ) : (
             <button className="btn btn-primary" type="button" disabled>
               {bidLabel}
