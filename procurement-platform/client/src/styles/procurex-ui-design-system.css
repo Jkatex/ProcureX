@@ -5246,6 +5246,10 @@ ul.closure-checklist {
     gap: 12px;
 }
 
+.marketplace-category-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .marketplace-category-card {
     display: flex;
     justify-content: space-between;
@@ -5259,6 +5263,45 @@ ul.closure-checklist {
     box-shadow: var(--shadow-sm);
     color: var(--text-primary);
     text-align: left;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.marketplace-category-card strong {
+    white-space: nowrap;
+}
+
+.marketplace-category-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 34px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--surface-soft);
+    border: 1px solid var(--border-soft);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.marketplace-category-card.active .marketplace-category-count {
+    background: var(--card-bg);
+    border-color: currentColor;
+    color: var(--primary-blue);
+}
+
+.marketplace-category-card:hover {
+    border-color: var(--primary-blue);
+    background: var(--primary-blue-light);
+    transform: translateY(-1px);
+}
+
+.marketplace-category-card.active {
+    border-color: var(--primary-blue);
+    background: var(--primary-blue-light);
+    color: var(--primary-blue);
 }
 
 .market-row.is-owned {
@@ -9226,6 +9269,49 @@ ul.closure-checklist {
     border-color: var(--text-primary);
     background: var(--text-primary);
     color: var(--card-bg);
+}
+
+.buyer-tender-detail-page .buyer-detail-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 10px;
+    padding: 8px;
+}
+
+.buyer-tender-detail-page .buyer-detail-tabs .supplier-detail-tab {
+    width: 100%;
+    min-height: 56px;
+    font-size: 17px;
+}
+
+.marketplace-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 10px;
+    padding: 8px;
+}
+
+.marketplace-tabs .supplier-detail-tab {
+    width: 100%;
+    min-height: 58px;
+    padding: 14px 18px;
+    font-size: 18px;
+    line-height: 1.15;
+}
+
+@media (max-width: 640px) {
+    .marketplace-tabs {
+        gap: 6px;
+        padding: 6px;
+    }
+
+    .marketplace-tabs .supplier-detail-tab {
+        min-height: 52px;
+        padding: 12px 8px;
+        font-size: 15px;
+    }
 }
 
 .supplier-detail-subtabs>.supplier-detail-tabs .supplier-detail-tab {
@@ -14652,12 +14738,37 @@ ul.closure-checklist {
     padding: 16px;
 }
 
-.market-search-field input {
+.procurement-search-panel.marketplace-search-panel {
+    grid-template-columns: minmax(220px, 1.25fr) minmax(180px, 1fr) minmax(300px, 1.15fr);
+}
+
+.procurement-search-panel.marketplace-search-panel-simple {
+    grid-template-columns: minmax(260px, 1fr);
+}
+
+.market-search-field input,
+.market-budget-range-field input {
     width: 100%;
     min-height: 44px;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 0 14px;
+}
+
+.market-budget-range-field {
+    display: grid;
+    grid-template-columns: auto minmax(100px, 1fr) minmax(100px, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-height: 44px;
+    padding: 0;
+}
+
+.market-budget-range-field span {
+    color: var(--text-secondary);
+    font-size: 17px;
+    font-weight: 400;
+    white-space: nowrap;
 }
 
 .procurement-market-summary {
@@ -14908,6 +15019,14 @@ ul.closure-checklist {
     justify-content: flex-end;
 }
 
+.marketplace-disabled-action:disabled {
+    background: var(--surface-soft);
+    border-color: var(--border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 1;
+}
+
 .procure-icon.small {
     width: 36px;
     height: 36px;
@@ -15078,6 +15197,18 @@ ul.closure-checklist {
     .launcher-intro-hero,
     .procurement-search-panel {
         grid-template-columns: 1fr;
+    }
+
+    .procurement-search-panel.marketplace-search-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .market-budget-range-field {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .market-budget-range-field span {
+        grid-column: 1 / -1;
     }
 }
 
@@ -16999,6 +17130,7 @@ small,
 textarea.form-input,
 select.form-input,
 .market-search-field input,
+.market-budget-range-field input,
 .otp-input,
 .otp-input-new,
 .password-input-new,
@@ -17020,7 +17152,8 @@ textarea.form-input,
     border-radius: var(--radius-lg) !important;
 }
 
-.market-search-field input {
+.market-search-field input,
+.market-budget-range-field input {
     background: var(--design-canvas) !important;
 }
 
@@ -17029,6 +17162,7 @@ textarea.form-input,
 textarea.form-input:focus,
 select.form-input:focus,
 .market-search-field input:focus,
+.market-budget-range-field input:focus,
 .otp-input:focus,
 .otp-input-new:focus,
 .password-input-new:focus,
@@ -18270,6 +18404,7 @@ h6,
 textarea.form-input,
 select.form-input,
 .market-search-field input,
+.market-budget-range-field input,
 .otp-input,
 .otp-input-new,
 .password-input-new,
@@ -18296,6 +18431,7 @@ textarea.form-input,
 textarea.form-input:focus,
 select.form-input:focus,
 .market-search-field input:focus,
+.market-budget-range-field input:focus,
 .otp-input:focus,
 .otp-input-new:focus,
 .password-input-new:focus,
@@ -20493,6 +20629,7 @@ body[data-page="communication-center"] {
 .form-input-new,
 .chat-input,
 .market-search-field input,
+.market-budget-range-field input,
 .marketplace-search input {
     min-height: 46px;
     border: 1px solid var(--px-line) !important;
@@ -20505,6 +20642,7 @@ body[data-page="communication-center"] {
 .form-input-new:focus,
 .chat-input:focus,
 .market-search-field input:focus,
+.market-budget-range-field input:focus,
 .marketplace-search input:focus {
     border-color: var(--design-primary) !important;
     box-shadow: 0 0 0 3px rgba(0, 128, 128, 0.12) !important;
@@ -23031,14 +23169,14 @@ body:not([data-page="iam-verification"]) .communication-shell {
 
 .evaluation-tender-row {
     display: grid;
-    grid-template-columns: minmax(260px, 1.2fr) minmax(320px, 1fr) minmax(180px, 0.55fr) auto;
-    gap: 16px;
+    grid-template-columns: minmax(300px, 1.25fr) minmax(360px, 1fr) minmax(220px, 0.6fr) minmax(190px, auto);
+    gap: 18px;
     align-items: center;
     min-width: 0;
     border: 1px solid var(--px-line-soft);
     border-radius: var(--px-card-radius-sm);
     background: #ffffff;
-    padding: 16px;
+    padding: 24px;
 }
 
 .evaluation-tender-row.is-locked {
@@ -23055,7 +23193,8 @@ body:not([data-page="iam-verification"]) .communication-shell {
 }
 
 .evaluation-tender-row h3 {
-    font-size: 18px;
+    font-size: 20px;
+    letter-spacing: 0;
 }
 
 .evaluation-tender-row p,
@@ -23073,15 +23212,16 @@ body:not([data-page="iam-verification"]) .communication-shell {
 .evaluation-tender-row-meta {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
 }
 
 .evaluation-tender-row-meta div {
     min-width: 0;
-    border: 1px solid var(--border);
+    min-height: 78px;
+    border: 1px solid var(--px-line-soft);
     border-radius: 8px;
-    background: var(--background);
-    padding: 10px;
+    background: #ffffff;
+    padding: 14px;
 }
 
 .evaluation-tender-row-meta span,
@@ -23108,6 +23248,40 @@ body:not([data-page="iam-verification"]) .communication-shell {
     display: grid;
     gap: 10px;
     align-content: center;
+}
+
+.evaluation-tender-row-status .badge {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 36px;
+    white-space: normal;
+}
+
+.evaluation-tender-row-actions .btn {
+    width: 100%;
+    min-width: 180px;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+    .evaluation-tender-row {
+        grid-template-columns: 1fr;
+    }
+
+    .evaluation-tender-row-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .evaluation-tender-row-actions .btn {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 760px) {
+    .evaluation-tender-row-actions {
+        grid-template-columns: 1fr;
+    }
 }
 
 .evaluation-locked-panel,
@@ -28389,6 +28563,7 @@ body[data-page="admin-audit"] {
 }
 
 .guest-category-grid.marketplace-category-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     margin: 0;
 }
 

@@ -125,8 +125,13 @@ export type EvaluationWorkspaceAuditRecord = Prisma.AuditEventGetPayload<{
   };
 }>;
 
-function readyTenderWhere(now: Date): Prisma.TenderWhereInput {
+function buyerScope(context?: EvaluationRequestContext) {
+  return context?.organizationId && !context.isAdmin ? { buyerOrgId: context.organizationId } : {};
+}
+
+function readyTenderWhere(now: Date, context?: EvaluationRequestContext): Prisma.TenderWhereInput {
   return {
+    ...buyerScope(context),
     status: { in: [...publishedTenderStatuses] },
     closingDate: { lte: now },
     bids: {
@@ -153,15 +158,24 @@ function readyTenderWhere(now: Date): Prisma.TenderWhereInput {
   };
 }
 
-function lockedTenderWhere(now: Date): Prisma.TenderWhereInput {
+function publishedTenderWhere(context?: EvaluationRequestContext): Prisma.TenderWhereInput {
   return {
+    ...buyerScope(context),
+    status: { in: [...publishedTenderStatuses] }
+  };
+}
+
+function lockedTenderWhere(now: Date, context?: EvaluationRequestContext): Prisma.TenderWhereInput {
+  return {
+    ...buyerScope(context),
     status: { in: [...lockableTenderStatuses] },
     closingDate: { gt: now }
   };
 }
 
-function draftEvaluationWhere(): Prisma.EvaluationWorkspaceWhereInput {
+function draftEvaluationWhere(context?: EvaluationRequestContext): Prisma.EvaluationWorkspaceWhereInput {
   return {
+    ...(context?.organizationId && !context.isAdmin ? { buyerOrgId: context.organizationId } : {}),
     status: { in: [...draftEvaluationStatuses] },
     scores: {
       some: {}
@@ -169,8 +183,10 @@ function draftEvaluationWhere(): Prisma.EvaluationWorkspaceWhereInput {
   };
 }
 
-function recordsWhere(query: EvaluationRecordsQuery): Prisma.EvaluationWorkspaceWhereInput {
-  const tenderWhere: Prisma.TenderWhereInput = {};
+function recordsWhere(query: EvaluationRecordsQuery, context?: EvaluationRequestContext): Prisma.EvaluationWorkspaceWhereInput {
+  const tenderWhere: Prisma.TenderWhereInput = {
+    ...buyerScope(context)
+  };
 
   if (query.search) {
     tenderWhere.OR = [
@@ -184,7 +200,9 @@ function recordsWhere(query: EvaluationRecordsQuery): Prisma.EvaluationWorkspace
     tenderWhere.type = query.type;
   }
 
-  const where: Prisma.EvaluationWorkspaceWhereInput = {};
+  const where: Prisma.EvaluationWorkspaceWhereInput = {
+    ...(context?.organizationId && !context.isAdmin ? { buyerOrgId: context.organizationId } : {})
+  };
 
   if (query.status !== 'all') {
     where.status = query.status;
@@ -208,7 +226,7 @@ function requestError(message: string, status = 400) {
 function scopedTenderWhere(tenderId: string, context?: EvaluationRequestContext): Prisma.TenderWhereInput {
   return {
     id: tenderId,
-    ...(context?.organizationId ? { buyerOrgId: context.organizationId } : {})
+    ...(context?.organizationId && !context.isAdmin ? { buyerOrgId: context.organizationId } : {})
   };
 }
 
@@ -325,6 +343,18 @@ function rankingSnapshot(
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
+function stageForActiveStageId(activeStageId: string | undefined): EvaluationStage | undefined {
+  if (!activeStageId) return undefined;
+  if (activeStageId === 'opening') return EvaluationStage.OPENING;
+  if (activeStageId === 'administrative') return EvaluationStage.ELIGIBILITY;
+  if (activeStageId === 'criteria') return EvaluationStage.TECHNICAL;
+  if (activeStageId === 'financial' || activeStageId === 'boq' || activeStageId === 'pricing') return EvaluationStage.FINANCIAL;
+  if (activeStageId === 'sla' || activeStageId === 'postqual') return EvaluationStage.CLARIFICATIONS;
+  if (activeStageId === 'ranking') return EvaluationStage.COMPARISON;
+  if (activeStageId === 'report') return EvaluationStage.REPORT;
+  return undefined;
+}
+
 function roundScore(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -352,30 +382,33 @@ export class ModuleRepository {
     return { ready: true };
   }
 
-  async getDashboardData(now = new Date()) {
+  async getDashboardData(now = new Date(), context?: EvaluationRequestContext) {
     return Promise.all([
       this.db.tender.count({
         where: {
+          ...buyerScope(context),
           status: {
             in: [...publishedTenderStatuses]
           }
         }
       }),
       this.db.tender.count({
-        where: readyTenderWhere(now)
+        where: readyTenderWhere(now, context)
       }),
       this.db.evaluationWorkspace.count({
-        where: draftEvaluationWhere()
+        where: draftEvaluationWhere(context)
       }),
       this.db.tender.count({
-        where: lockedTenderWhere(now)
+        where: lockedTenderWhere(now, context)
       }),
-      this.db.evaluationWorkspace.count()
+      this.db.evaluationWorkspace.count({
+        where: context?.organizationId && !context.isAdmin ? { buyerOrgId: context.organizationId } : {}
+      })
     ]);
   }
 
-  async listRecords(query: EvaluationRecordsQuery) {
-    const where = recordsWhere(query);
+  async listRecords(query: EvaluationRecordsQuery, context?: EvaluationRequestContext) {
+    const where = recordsWhere(query, context);
     const [records, totalRecords] = await Promise.all([
       this.db.evaluationWorkspace.findMany({
         where,
@@ -421,9 +454,9 @@ export class ModuleRepository {
     return { records, totalRecords };
   }
 
-  async listDrafts() {
+  async listDrafts(context?: EvaluationRequestContext) {
     return this.db.evaluationWorkspace.findMany({
-      where: draftEvaluationWhere(),
+      where: draftEvaluationWhere(context),
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       take: 50,
       include: {
@@ -447,9 +480,9 @@ export class ModuleRepository {
     });
   }
 
-  async listReadyTenders(now = new Date()) {
+  async listReadyTenders(context?: EvaluationRequestContext) {
     return this.db.tender.findMany({
-      where: readyTenderWhere(now),
+      where: publishedTenderWhere(context),
       orderBy: [{ closingDate: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
       take: 50,
       select: {
@@ -457,10 +490,31 @@ export class ModuleRepository {
         reference: true,
         title: true,
         type: true,
+        status: true,
         closingDate: true,
+        requirements: true,
+        metadata: true,
+        requirementRows: {
+          select: {
+            id: true
+          }
+        },
         buyerOrg: {
           select: {
             name: true
+          }
+        },
+        evaluation: {
+          select: {
+            status: true,
+            currentStage: true,
+            progress: true,
+            payload: true,
+            criteria: {
+              select: {
+                id: true
+              }
+            }
           }
         },
         bids: {
@@ -516,7 +570,7 @@ export class ModuleRepository {
             tenderId: tender.id,
             buyerOrgId: tender.buyerOrgId,
             status: EvaluationStatus.IN_PROGRESS,
-            currentStage: EvaluationStage.TECHNICAL,
+            currentStage: EvaluationStage.OPENING,
             progress: 0
           },
           include: {
@@ -538,6 +592,9 @@ export class ModuleRepository {
 
       const submittedBidIds = new Set(tender.bids.map((bid) => bid.id));
       const criteriaById = new Map(criteria.map((criterion) => [criterion.id, criterion]));
+      if (input.selectedBidId && !submittedBidIds.has(input.selectedBidId)) {
+        throw requestError('Selected bid must belong to a submitted bid on this tender.');
+      }
 
       for (const score of input.scores) {
         const criterion = criteriaById.get(score.criterionId);
@@ -594,11 +651,14 @@ export class ModuleRepository {
       const evaluatedBidCount = tender.bids.filter((bid) => isBidEvaluated(bid.id, criteria, freshScores)).length;
       const progress = tender.bids.length > 0 ? Math.round((evaluatedBidCount / tender.bids.length) * 100) : 0;
       const completed = input.complete && tender.bids.length > 0 && evaluatedBidCount === tender.bids.length;
+      const activeStage = stageForActiveStageId(input.activeStageId);
       const payload = {
         ...workspacePayload(workspace.payload),
         decisions: nextDecisions,
         rankings,
         lastSavedAt: new Date().toISOString(),
+        ...(input.activeStageId ? { activeStageId: input.activeStageId } : {}),
+        ...(input.selectedBidId ? { selectedBidId: input.selectedBidId } : {}),
         ...(completed ? { completedAt: new Date().toISOString() } : {})
       };
 
@@ -608,7 +668,7 @@ export class ModuleRepository {
         },
         data: {
           status: completed ? EvaluationStatus.COMPLETED : EvaluationStatus.IN_PROGRESS,
-          currentStage: completed ? EvaluationStage.RECOMMENDATION : EvaluationStage.TECHNICAL,
+          currentStage: completed ? EvaluationStage.RECOMMENDATION : activeStage ?? workspace.currentStage ?? EvaluationStage.OPENING,
           progress,
           payload: payload as Prisma.InputJsonObject
         }

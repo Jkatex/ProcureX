@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAppDispatch } from '@/app/store';
+import { useAppDispatch, useAppSelector } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
-import { saveCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
+import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import type {
@@ -373,8 +373,10 @@ export function CreateTenderProcurexPage() {
         : evaluationSummary.state === 'over'
           ? 'badge-error'
           : 'badge-warning'
-      : 'badge-info';
+          : 'badge-info';
+  const draftId = searchParams.get('draftId') ?? '';
   const editTenderId = searchParams.get('tenderId') ?? '';
+  const savedDraft = useAppSelector((state) => state.procurement.createTenderDrafts.find((item) => item.id === draftId));
 
   useEffect(() => {
     const bridge = readPlanningBridge();
@@ -388,7 +390,16 @@ export function CreateTenderProcurexPage() {
   }, []);
 
   useEffect(() => {
-    if (!editTenderId || loadedTenderId === editTenderId) return;
+    if (!draftId || !savedDraft || loadedTenderId === `draft:${draftId}`) return;
+    setDraft(savedDraft);
+    dispatch(selectCreateTenderDraft(draftId));
+    setLoadedTenderId(`draft:${draftId}`);
+    setActiveStep(getCreateTenderResumeStep(savedDraft));
+    setValidationMessage('');
+  }, [dispatch, draftId, loadedTenderId, savedDraft]);
+
+  useEffect(() => {
+    if (draftId || !editTenderId || loadedTenderId === editTenderId) return;
     let active = true;
 
     async function loadEditableTender() {
@@ -5597,6 +5608,29 @@ function autoBalanceCriteria(criteria: CreateTenderEvaluationCriterion[], change
   });
 
   return criteria.map((criterion) => (criterion.id === changedCriterionId ? { ...criterion, weight: changedWeight } : balancedOthers.shift() ?? criterion));
+}
+
+function getCreateTenderResumeStep(draft: CreateTenderDraft) {
+  if (!draft.title.trim() || !draft.fundingSource || !draft.submissionDate || !draft.openingDate || (!draft.contact.email.trim() && !draft.contact.phone.trim())) return 0;
+  if (!draft.procurementTypeId || !draft.categories.length || !draft.method) return 1;
+  if (!hasTenderRequirementProgress(draft)) return 2;
+  if (!draft.evaluationCriteria.length || getEvaluationSummary(draft.evaluationCriteria).state !== 'balanced') return 3;
+  if (!Object.values(draft.confirmations).every(Boolean)) return 4;
+  return 5;
+}
+
+function hasTenderRequirementProgress(draft: CreateTenderDraft) {
+  return Boolean(
+    Object.values(draft.requirements).some(Boolean) ||
+      draft.commercialItems.length ||
+      draft.productSpecifications.length ||
+      draft.sampleRequirements.length ||
+      draft.financialRequirements.length ||
+      draft.eligibilityRequirements.length ||
+      draft.regulatoryLicenseRequirements.length ||
+      draft.deliverables.length ||
+      draft.attachments.length
+  );
 }
 
 function validateStep(step: number, draft: CreateTenderDraft, total: number) {
