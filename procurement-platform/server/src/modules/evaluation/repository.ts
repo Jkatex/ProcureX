@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
+import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import type { EvaluationDecisionStatus, EvaluationRecordsQuery, EvaluationRequestContext, SaveEvaluationWorkspaceInput } from './types.js';
 
 const publishedTenderStatuses = [
@@ -732,6 +733,31 @@ export class ModuleRepository {
             }
           });
         }
+      }
+
+      if (completed) {
+        if (!context?.userId || !input.signatureKeyphrase) {
+          throw requestError('Digital signature keyphrase is required to complete evaluation.', 400);
+        }
+        await signSensitiveAction(tx, {
+          userId: context.userId,
+          organizationId: context.organizationId ?? tender.buyerOrgId,
+          signatureKeyphrase: input.signatureKeyphrase,
+          moduleKey: 'evaluation',
+          actionKey: 'workspace.complete',
+          entityType: 'evaluation_workspace',
+          entityRef: workspace.id,
+          payload: {
+            tenderId: tender.id,
+            workspaceId: workspace.id,
+            progress,
+            completedAt: payload.completedAt ?? null,
+            evaluatedBidCount,
+            submittedBidCount: tender.bids.length,
+            recommendedBidId: recommendedDecision?.[0] ?? null,
+            rankings
+          }
+        });
       }
 
       await tx.auditEvent.create({

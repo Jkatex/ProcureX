@@ -362,6 +362,15 @@ export function ContractNegotiationProcurexPage() {
 
   const draft = contract?.payload?.draft as Record<string, unknown> | undefined;
   const pendingSignatures = contract?.signatures?.filter((signature) => signature.status !== 'SIGNED') ?? [];
+  const isPreAwardContract = Boolean(contract && !contract.awardId && !contract.supplierOrgId);
+  const viewerRole = contract?.access?.viewerRole ?? 'NONE';
+  const canRequestSignatures = viewerRole === 'BUYER' || viewerRole === 'ADMIN';
+  const signableSignatures = (contract?.signatures ?? []).filter((signature) => {
+    if (signature.status === 'SIGNED') return false;
+    if (viewerRole === 'ADMIN') return true;
+    return signature.role === viewerRole;
+  });
+  const readonlySignatureCount = Math.max((contract?.signatures?.length ?? 0) - signableSignatures.length, 0);
 
   function refreshContract(result: unknown) {
     setContract(result as ContractDetailDto);
@@ -372,9 +381,11 @@ export function ContractNegotiationProcurexPage() {
       <div className="main-layout procurement-layout evaluation-app-layout contract-page award-simple-page" data-award-contract-workspace>
         <main className="main-content procurement-content evaluation-workspace contract-workspace">
           <AwardHero
-            kicker="Contract preparation"
+            kicker={isPreAwardContract ? 'Pre-award contract preparation' : 'Contract preparation'}
             title={contract?.title ?? 'No contract record selected'}
-            copy="Prepare the contract from the accepted award, approve it, collect signatures, and confirm it is ready to start."
+            copy={isPreAwardContract
+              ? 'Prepare contract clauses, document versions, and amendment notes after tender publication. Award, supplier, signatures, and execution stay locked until evaluation results are available.'
+              : 'Prepare the contract from the accepted award, approve it, collect signatures, and confirm it is ready to start.'}
             stats={[
               { value: contract?.amount ?? 0, label: 'Contract value' },
               { value: contract?.status ?? 'None', label: 'Current status' },
@@ -425,23 +436,25 @@ export function ContractNegotiationProcurexPage() {
                 <div className="panel-heading">
                   <div>
                     <span className="section-kicker">Prepare contract</span>
-                    <h2>Prepare contract</h2>
-                    <p>Start with the contract version. Use the sections below only when you need approvals, signatures, or supporting records.</p>
+                    <h2>{isPreAwardContract ? 'Prepare contract before award' : 'Prepare contract'}</h2>
+                    <p>{isPreAwardContract
+                      ? 'Draft the contract document and clauses now. Awarding, supplier acceptance, signatures, and execution controls unlock after evaluation and award.'
+                      : 'Start with the contract version. Use the sections below only when you need approvals, signatures, or supporting records.'}</p>
                   </div>
                   <StatusBadge value={contract.status} />
                 </div>
 
                 <div className="award-readonly-summary">
                   <article><span>Buyer</span><strong>{contract.buyerName}</strong></article>
-                  <article><span>Supplier</span><strong>{contract.supplierName ?? 'Supplier pending'}</strong></article>
+                  <article><span>Supplier</span><strong>{contract.supplierName ?? (isPreAwardContract ? 'Locked until award' : 'Supplier pending')}</strong></article>
                   <article><span>Reference</span><strong>{contract.reference}</strong></article>
                   <article><span>Value</span><strong>{contract.amount === null ? 'Not priced' : formatMoney(contract.amount, contract.currency)}</strong></article>
                   <article><span>Tender</span><strong>{contract.tenderReference ?? draftValue(draft?.tender)}</strong></article>
-                  <article><span>Pending signatures</span><strong>{pendingSignatures.length}</strong></article>
+                  <article><span>Award status</span><strong>{isPreAwardContract ? 'Awaiting evaluation result' : contract.awardId ? 'Linked' : 'Pending'}</strong></article>
                 </div>
 
                 <SimpleTable headers={['Draft area', 'Captured content', 'Status']} className="contract-draft-summary-table">
-                  <tr><td><strong>Parties</strong></td><td>{contract.buyerName} / {contract.supplierName ?? draftValue(draft?.parties)}</td><td><StatusBadge value={contract.supplierName ? 'Ready' : 'Pending'} /></td></tr>
+                  <tr><td><strong>Parties</strong></td><td>{contract.buyerName} / {contract.supplierName ?? (isPreAwardContract ? 'Supplier selected after evaluation' : draftValue(draft?.parties))}</td><td><StatusBadge value={contract.supplierName ? 'Ready' : 'Locked'} /></td></tr>
                   <tr><td><strong>Tender</strong></td><td>{contract.tenderReference ?? draftValue(draft?.tender)}</td><td><StatusBadge value={contract.tenderReference || draft?.tender ? 'Ready' : 'Pending'} /></td></tr>
                   <tr><td><strong>Commercial terms</strong></td><td>{contract.amount === null ? draftValue(draft?.financials) : formatMoney(contract.amount, contract.currency)}</td><td><StatusBadge value={contract.amount !== null || draft?.financials ? 'Ready' : 'Pending'} /></td></tr>
                   <tr><td><strong>Terms</strong></td><td>{contract.clauses?.length ? `${contract.clauses.length} terms ready for review` : draftValue(draft?.clauses)}</td><td><StatusBadge value={contract.clauses?.length ? 'Ready' : 'Pending'} /></td></tr>
@@ -505,6 +518,34 @@ export function ContractNegotiationProcurexPage() {
                   />
                 </ExpandableAwardDetails>
 
+                <ExpandableAwardDetails title="Required documents" summary={`${contract.requiredDocuments?.length ?? 0} document requirement${contract.requiredDocuments?.length === 1 ? '' : 's'}`} open={openSection === 'documents'}>
+                  <AwardPlainRecordList records={(contract.requiredDocuments ?? []) as Array<Record<string, unknown>>} emptyMessage="No required contract documents are saved yet." />
+                  <ActionFormPanel
+                    title="Required document"
+                    badge="Document"
+                    submitLabel="Save document requirement"
+                    fields={[
+                      { name: 'documentType', label: 'Document type', kind: 'text', required: true },
+                      { name: 'title', label: 'Title', kind: 'text', required: true },
+                      { name: 'ownerRole', label: 'Owner', kind: 'select', required: true, options: [option('Supplier Representative'), option('Buyer Representative'), option('Contract Manager'), option('Legal'), option('Finance')] },
+                      { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                      { name: 'documentId', label: 'Linked document reference', kind: 'uuid', placeholder: 'Optional document reference' },
+                      { name: 'dueDate', label: 'Due date', kind: 'date' },
+                      { name: 'note', label: 'Note', kind: 'textarea' },
+                      { name: 'payload', label: 'Document payload', kind: 'json', advanced: true, rows: 4 }
+                    ]}
+                    initialValues={{
+                      documentType: '',
+                      title: '',
+                      ownerRole: 'Supplier Representative',
+                      status: 'OPEN',
+                      payload: JSON.stringify({ source: isPreAwardContract ? 'pre-award-contract-preparation' : 'contract-negotiation-workspace' }, null, 2)
+                    }}
+                    onSubmit={(payload) => awardsContractsApi.upsertRequiredDocument(contract.id, payload)}
+                    onComplete={refreshContract}
+                  />
+                </ExpandableAwardDetails>
+
                 <ExpandableAwardDetails title="Approve contract" summary={`${contract.workflowApprovals?.length ?? 0} approval records`} open={openSection === 'approval'}>
                   <AwardPlainRecordList records={(contract.workflowApprovals ?? []) as Array<Record<string, unknown>>} emptyMessage="No owner approvals are saved yet." />
                   <ActionFormPanel
@@ -531,64 +572,88 @@ export function ContractNegotiationProcurexPage() {
                 </ExpandableAwardDetails>
 
                 <ExpandableAwardDetails title="Sign contract" summary={`${pendingSignatures.length} pending signature${pendingSignatures.length === 1 ? '' : 's'}`} open={openSection === 'signatures'}>
-                  <SimpleTable headers={['Role', 'Signer', 'Status', 'Signed at']}>
-                    {(contract.signatures ?? []).length === 0 ? (
-                      <tr><td colSpan={4}><div className="scope-empty">No signature requests have been created yet.</div></td></tr>
-                    ) : contract.signatures.map((signature) => (
-                      <tr key={signature.id}>
-                        <td>{signature.role}</td>
-                        <td>{signature.signerName || 'Pending signer'}</td>
-                        <td><StatusBadge value={signature.status} /></td>
-                        <td>{signature.signedAt ? new Date(signature.signedAt).toLocaleString() : 'Not signed'}</td>
-                      </tr>
-                    ))}
-                  </SimpleTable>
-                  <ActionFormPanel
-                    title="Signature request"
-                    badge="Signature"
-                    submitLabel="Request signatures"
-                    fields={[
-                      { name: 'roles', label: 'Required signature roles', kind: 'multi', required: true, options: signatureOptions() }
-                    ]}
-                    initialValues={{ roles: ['BUYER', 'SUPPLIER'] }}
-                    onSubmit={(payload) => awardsContractsApi.createSignatureRequests(contract.id, payload.roles as Array<'BUYER' | 'SUPPLIER'>)}
-                    onComplete={refreshContract}
-                    defaultSelected
-                  />
-                  {(contract.signatures ?? []).map((signature) => (
-                    <ActionFormPanel
-                      title={`Sign ${signature.role}`}
-                      badge={signature.status}
-                      submitLabel="Sign contract"
-                      fields={[
-                        { name: 'signerName', label: 'Signer name', kind: 'text', required: true },
-                        { name: 'signerTitle', label: 'Signer title', kind: 'text' },
-                        { name: 'signatureKeyphrase', label: 'Signature keyphrase', kind: 'password', required: true, helpText: 'Enter the active signing keyphrase for this account. ProcureX sends it only to sign this contract action.' },
-                        { name: 'payload', label: 'Signature payload', kind: 'json', rows: 4 }
-                      ]}
-                      initialValues={{
-                        signerName: signature.signerName || '',
-                        signerTitle: '',
-                        payload: JSON.stringify({ signatureId: signature.id, role: signature.role }, null, 2)
-                      }}
-                      onSubmit={(payload) => awardsContractsApi.signContractSignature(contract.id, signature.id, {
-                        signerName: String(payload.signerName),
-                        signerTitle: String(payload.signerTitle ?? ''),
-                        signatureKeyphrase: String(payload.signatureKeyphrase),
-                        payload: payload.payload as Record<string, unknown>
-                      })}
-                      onComplete={refreshContract}
-                      key={signature.id}
+                  {isPreAwardContract ? (
+                    <LockedFlowStepPanel
+                      title="Signatures are locked"
+                      reason={{ message: 'Evaluation results, award confirmation, and supplier acceptance are required before signatures can be requested.' }}
                     />
-                  ))}
+                  ) : (
+                    <>
+                      <SimpleTable headers={['Role', 'Signer', 'Status', 'Signed at']}>
+                        {(contract.signatures ?? []).length === 0 ? (
+                          <tr><td colSpan={4}><div className="scope-empty">No signature requests have been created yet.</div></td></tr>
+                        ) : contract.signatures.map((signature) => (
+                          <tr key={signature.id}>
+                            <td>{signature.role}</td>
+                            <td>{signature.signerName || 'Pending signer'}</td>
+                            <td><StatusBadge value={signature.status} /></td>
+                            <td>{signature.signedAt ? new Date(signature.signedAt).toLocaleString() : 'Not signed'}</td>
+                          </tr>
+                        ))}
+                      </SimpleTable>
+                      {readonlySignatureCount ? (
+                        <div className="scope-empty">{readonlySignatureCount} signature record{readonlySignatureCount === 1 ? ' is' : 's are'} shown as read-only progress for the other party.</div>
+                      ) : null}
+                      {canRequestSignatures ? (
+                        <ActionFormPanel
+                          title="Signature request"
+                          badge="Signature"
+                          submitLabel="Request signatures"
+                          fields={[
+                            { name: 'roles', label: 'Required signature roles', kind: 'multi', required: true, options: signatureOptions() }
+                          ]}
+                          initialValues={{ roles: ['BUYER', 'SUPPLIER'] }}
+                          onSubmit={(payload) => awardsContractsApi.createSignatureRequests(contract.id, payload.roles as Array<'BUYER' | 'SUPPLIER'>)}
+                          onComplete={refreshContract}
+                          defaultSelected
+                        />
+                      ) : null}
+                      {signableSignatures.length === 0 ? (
+                        <div className="scope-empty">No pending signature is assigned to your side right now.</div>
+                      ) : null}
+                      {signableSignatures.map((signature) => (
+                        <ActionFormPanel
+                          title={`Sign ${signature.role}`}
+                          badge={signature.status}
+                          submitLabel="Sign contract"
+                          fields={[
+                            { name: 'signerName', label: 'Signer name', kind: 'text', required: true },
+                            { name: 'signerTitle', label: 'Signer title', kind: 'text' },
+                            { name: 'signatureKeyphrase', label: 'Signature keyphrase', kind: 'password', required: true, helpText: 'Enter the active signing keyphrase for this account. ProcureX sends it only to sign this contract action.' },
+                            { name: 'payload', label: 'Signature payload', kind: 'json', rows: 4 }
+                          ]}
+                          initialValues={{
+                            signerName: signature.signerName || '',
+                            signerTitle: '',
+                            payload: JSON.stringify({ signatureId: signature.id, role: signature.role }, null, 2)
+                          }}
+                          onSubmit={(payload) => awardsContractsApi.signContractSignature(contract.id, signature.id, {
+                            signerName: String(payload.signerName),
+                            signerTitle: String(payload.signerTitle ?? ''),
+                            signatureKeyphrase: String(payload.signatureKeyphrase),
+                            payload: payload.payload as Record<string, unknown>
+                          })}
+                          onComplete={refreshContract}
+                          key={signature.id}
+                        />
+                      ))}
+                    </>
+                  )}
                 </ExpandableAwardDetails>
 
                 <ExpandableAwardDetails title="Ready to start" summary={pendingSignatures.length ? 'Waiting for signatures' : 'Activation checks'} open={openSection === 'readiness'}>
-                  <SimpleTable headers={['Check', 'Status', 'Action']}>
-                    <tr><td><strong>Contract Management Plan</strong></td><td><StatusBadge value={contract.managementPlan ? 'Created' : 'Required'} /></td><td>Assign manager and confirm monitoring plan</td></tr>
-                    <tr><td><strong>Milestones</strong></td><td><StatusBadge value={contract.milestones.length > 0 ? 'Created' : 'Required'} /></td><td>Create delivery and payment milestones</td></tr>
-                    <tr><td><strong>Mobilization</strong></td><td><StatusBadge value={contract.mobilizationItems.length > 0 ? 'Ready' : 'Required'} /></td><td>Complete or waive required items</td></tr>
-                  </SimpleTable>
+                  {isPreAwardContract ? (
+                    <LockedFlowStepPanel
+                      title="Execution readiness is locked"
+                      reason={{ message: 'Execution readiness opens after evaluation results, supplier acceptance, approvals, and signatures are complete.' }}
+                    />
+                  ) : (
+                    <SimpleTable headers={['Check', 'Status', 'Action']}>
+                      <tr><td><strong>Contract Management Plan</strong></td><td><StatusBadge value={contract.managementPlan ? 'Created' : 'Required'} /></td><td>Assign manager and confirm monitoring plan</td></tr>
+                      <tr><td><strong>Milestones</strong></td><td><StatusBadge value={contract.milestones.length > 0 ? 'Created' : 'Required'} /></td><td>Create delivery and payment milestones</td></tr>
+                      <tr><td><strong>Mobilization</strong></td><td><StatusBadge value={contract.mobilizationItems.length > 0 ? 'Ready' : 'Required'} /></td><td>Complete or waive required items</td></tr>
+                    </SimpleTable>
+                  )}
                 </ExpandableAwardDetails>
 
                 <ExpandableAwardDetails title="Saved records" summary="Terms, approvals, signatures, and parties" open={openSection === 'registers'}>

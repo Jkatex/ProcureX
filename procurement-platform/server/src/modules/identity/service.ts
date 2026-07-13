@@ -40,6 +40,7 @@ import {
 } from './types.js';
 import {
   createEncryptedSigningCredential,
+  reencryptSigningCredential,
   signCanonicalPayloadHash,
   signatureStatusDto,
   validateRepeatedKeyphrase
@@ -49,6 +50,8 @@ const scrypt = promisify(scryptCallback);
 const phoneOtpPurpose = 'PHONE_OTP';
 const emailActivationPurpose = 'EMAIL_ACTIVATION';
 const passwordResetPurpose = 'PASSWORD_RESET';
+const keyphraseRecoveryEmailPurpose = 'KEYPHRASE_RECOVERY_EMAIL';
+const keyphraseRecoveryPhonePurpose = 'KEYPHRASE_RECOVERY_PHONE';
 const sessionDays = 7;
 const maxChallengeAttempts = 5;
 const phoneOtpMinutes = 10;
@@ -58,6 +61,7 @@ const resendCooldownSeconds = 30;
 const passwordResetRequestedMessage = 'If an account exists for this email, password reset instructions have been sent.';
 const passwordResetSentMessage = 'Password reset code has been sent to this email.';
 const passwordResetAccountNotFoundMessage = 'No account found for this email.';
+const keyphraseRecoveryRequestedMessage = 'If an eligible ProcureX account matches this email, keyphrase recovery instructions have been sent.';
 
 type RegistrationStartInput = {
   email: string;
@@ -300,6 +304,58 @@ function passwordResetActionUrl(challengeId: string, code: string) {
   url.searchParams.set('challengeId', challengeId);
   url.hash = `code=${encodeURIComponent(code)}`;
   return url.toString();
+}
+
+function keyphraseRecoveryActionUrl(recoveryId: string, code: string) {
+  const url = new URL('/recover-keyphrase', `${appPublicUrl()}/`);
+  url.searchParams.set('recoveryId', recoveryId);
+  url.hash = `emailCode=${encodeURIComponent(code)}`;
+  return url.toString();
+}
+
+function maskPhone(phone?: string | null) {
+  if (!phone) return null;
+  const tail = phone.replace(/\D/g, '').slice(-4);
+  return tail ? `***${tail}` : '***';
+}
+
+function phoneProviderChannel() {
+  const provider = (process.env.IDENTITY_PHONE_PROVIDER || process.env.IDENTITY_NOTIFICATION_PROVIDER || 'sms').toLowerCase();
+  if (provider.includes('whatsapp')) return 'whatsapp';
+  if (provider.includes('dev-console')) return 'dev-console';
+  return 'sms';
+}
+
+function recoveryDto(record: {
+  id: string;
+  status: string;
+  email: string;
+  phoneMasked: string | null;
+  emailVerifiedAt: Date | null;
+  phoneVerifiedAt: Date | null;
+  completedAt: Date | null;
+  oldKeyFingerprint: string | null;
+  newKeyFingerprint: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: { id: string; email: string; displayName: string } | null;
+  organization?: { id: string; name: string } | null;
+}) {
+  return {
+    id: record.id,
+    status: record.status,
+    email: record.email,
+    phoneMasked: record.phoneMasked,
+    emailVerifiedAt: record.emailVerifiedAt?.toISOString() ?? null,
+    phoneVerifiedAt: record.phoneVerifiedAt?.toISOString() ?? null,
+    completedAt: record.completedAt?.toISOString() ?? null,
+    oldKeyFingerprint: record.oldKeyFingerprint,
+    newKeyFingerprint: record.newKeyFingerprint,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+    user: record.user ? { id: record.user.id, email: record.user.email, displayName: record.user.displayName } : null,
+    organization: record.organization ? { id: record.organization.id, name: record.organization.name } : null
+  };
 }
 
 function toSessionUser(user: UserWithDefaultOrg): SessionUserDto {
@@ -891,7 +947,7 @@ export class ModuleService {
     email: string;
     userId?: string | null;
     entityRef?: string | null;
-    purpose: 'registration_start' | 'email_activation' | 'password_reset';
+    purpose: 'registration_start' | 'email_activation' | 'password_reset' | 'keyphrase_recovery';
     audit?: AuthAuditContext;
     unavailableMessage?: string;
   }) {
@@ -932,8 +988,9 @@ export class ModuleService {
     phone: string;
     userId?: string | null;
     entityRef?: string | null;
-    purpose: 'registration_start' | 'phone_otp_resend';
+    purpose: 'registration_start' | 'phone_otp_resend' | 'keyphrase_recovery';
     audit?: AuthAuditContext;
+    unavailableMessage?: string;
   }) {
     let phoneValidation: PhoneValidationResult;
     try {
@@ -951,7 +1008,7 @@ export class ModuleService {
         }
       });
       if (isPhoneValidationProviderFailure(error)) {
-        throw requestError('Could not verify this phone number. Please try again later.', 502);
+        throw requestError(input.unavailableMessage ?? 'Could not verify this phone number. Please try again later.', 502);
       }
       throw error;
     }
@@ -1923,6 +1980,343 @@ export class ModuleService {
       userId: user.id
     });
     return signatureStatusDto(null);
+  }
+
+  async keyphraseStatus(token?: string) {
+    const { user } = await this.requireSession(token);
+    const credential = await this.repository.findActiveSigningCredential(user.id);
+    const history = await this.repository.listKeyphraseRecoveriesForUser(user.id);
+    return {
+      credential: signatureStatusDto(credential),
+      recoveryHistory: history.map(recoveryDto)
+    };
+  }
+
+  async changeKeyphrase(
+    token: string | undefined,
+    input: { currentKeyphrase: string; password: string; newKeyphrase: string; confirmKeyphrase: string },
+    audit?: AuthAuditContext
+  ) {
+    const { user } = await this.requireSession(token);
+    const fullUser = await this.repository.findUserById(user.id);
+    if (!fullUser) throw requestError('Current user was not found.', 404);
+    if (!(await verifyPassword(input.password, fullUser.passwordHash))) throw requestError('Account password is incorrect.', 403);
+    validateRepeatedKeyphrase(input.newKeyphrase, input.confirmKeyphrase);
+    const credential = await this.repository.findActiveSigningCredential(user.id);
+    if (!credential) throw requestError('Create a digital signature keyphrase before changing it.', 409);
+    const encrypted = await reencryptSigningCredential(credential, input.currentKeyphrase, input.newKeyphrase);
+    const updated = await this.repository.updateSigningCredential(credential.id, {
+      encryptedPrivateKey: encrypted.encryptedPrivateKey,
+      kdfMetadata: inputJson(encrypted.kdfMetadata),
+      encryptionMetadata: inputJson(encrypted.encryptionMetadata),
+      providerMetadata: inputJson({
+        ...encrypted.providerMetadata,
+        changedAt: new Date().toISOString(),
+        previousCredentialId: credential.id
+      })
+    });
+    await this.repository.createKeyphraseRecovery({
+      userId: user.id,
+      organizationId: user.organizationId,
+      email: user.email,
+      phoneMasked: maskPhone(user.phone),
+      status: 'CHANGED',
+      requestMetadata: inputJson({
+        ...(audit?.ipAddress ? { ipHash: sha256(audit.ipAddress) } : {}),
+        ...(audit?.userAgent ? { userAgentHash: sha256(audit.userAgent) } : {})
+      }),
+      payload: inputJson({ mode: 'authenticated_change', keyFingerprint: updated.keyFingerprint })
+    });
+    await this.recordAuthEvent('identity.keyphrase.changed', {
+      ...audit,
+      userId: user.id,
+      ownerOrgId: user.organizationId,
+      entityRef: credential.id,
+      details: { keyFingerprint: updated.keyFingerprint }
+    });
+    return signatureStatusDto(updated);
+  }
+
+  async startKeyphraseRecovery(emailInput: string, audit?: AuthAuditContext) {
+    const email = normalizeEmail(emailInput);
+    const user = await this.repository.findUserByEmail(email);
+    if (!user) {
+      const placeholderRecovery = await this.repository.createKeyphraseRecovery({
+        email,
+        status: 'REQUESTED',
+        requestMetadata: inputJson({
+          ...(audit?.ipAddress ? { ipHash: sha256(audit.ipAddress) } : {}),
+          ...(audit?.userAgent ? { userAgentHash: sha256(audit.userAgent) } : {})
+        }),
+        payload: inputJson({ accountFound: false })
+      });
+      await this.recordAuthEvent('identity.keyphrase.recovery_requested', {
+        ...audit,
+        target: email,
+        entityRef: placeholderRecovery.id,
+        details: { accountFound: false }
+      });
+      return {
+        ok: true,
+        message: keyphraseRecoveryRequestedMessage,
+        recoveryId: placeholderRecovery.id,
+        expiresAt: new Date(Date.now() + passwordResetMinutes * 60 * 1000).toISOString(),
+        resendAvailableAt: challengeResendAvailableAt(placeholderRecovery.createdAt, resendCooldownSeconds)
+      };
+    }
+
+    const emailValidation = await this.validateAuthEmailDelivery({
+      email,
+      userId: user.id,
+      purpose: 'keyphrase_recovery',
+      audit,
+      unavailableMessage: 'Could not send keyphrase recovery email. Please try again later.'
+    });
+    await this.repository.replacePendingChallenges({ userId: user.id, purpose: keyphraseRecoveryEmailPurpose, target: email });
+    const code = randomCode();
+    const challenge = await this.repository.createChallenge({
+      userId: user.id,
+      purpose: keyphraseRecoveryEmailPurpose,
+      target: email,
+      codeHash: sha256(code),
+      expiresAt: new Date(Date.now() + passwordResetMinutes * 60 * 1000),
+      metadata: { delivery: { channel: 'email', status: 'pending' } }
+    });
+    const recovery = await this.repository.createKeyphraseRecovery({
+      userId: user.id,
+      organizationId: user.memberships[0]?.organization.id ?? null,
+      email,
+      phoneMasked: maskPhone(user.phone),
+      emailChallengeId: challenge.id,
+      status: 'EMAIL_SENT',
+      requestMetadata: inputJson({
+        ...(audit?.ipAddress ? { ipHash: sha256(audit.ipAddress) } : {}),
+        ...(audit?.userAgent ? { userAgentHash: sha256(audit.userAgent) } : {})
+      })
+    });
+
+    try {
+      const receipt = await this.notifications.sendKeyphraseRecovery({
+        to: email,
+        code,
+        expiresInMinutes: passwordResetMinutes,
+        actionUrl: keyphraseRecoveryActionUrl(recovery.id, code),
+        idempotencyKey: `identity-keyphrase-recovery/${challenge.id}`,
+        metadata: { recoveryId: recovery.id }
+      });
+      await this.repository.updateChallenge(challenge.id, {
+        metadata: inputJson({
+          ...metadataObject(challenge.metadata),
+          ...devChallengeMetadata(receipt, code),
+          delivery: {
+            channel: 'email',
+            status: 'sent',
+            ...deliveryMetadata(receipt),
+            emailValidation: emailValidationMetadata(emailValidation)
+          }
+        })
+      });
+      await this.recordAuthEvent('identity.keyphrase.recovery_email_sent', {
+        ...audit,
+        userId: user.id,
+        ownerOrgId: user.memberships[0]?.organization.id,
+        entityRef: recovery.id,
+        target: email,
+        details: { provider: receipt.provider, messageId: receipt.messageId }
+      });
+    } catch (error) {
+      await this.markChallengeDeliveryFailed(challenge.id, challenge.metadata, error);
+      await this.repository.updateKeyphraseRecovery(recovery.id, { status: 'DELIVERY_FAILED' });
+      throw requestError('Could not send keyphrase recovery email. Please try again later.', 502);
+    }
+
+    return {
+      ok: true,
+      message: keyphraseRecoveryRequestedMessage,
+      recoveryId: recovery.id,
+      expiresAt: challenge.expiresAt.toISOString(),
+      resendAvailableAt: challengeResendAvailableAt(challenge.createdAt, resendCooldownSeconds)
+    };
+  }
+
+  async verifyKeyphraseRecoveryEmail(recoveryId: string, code: string, audit?: AuthAuditContext) {
+    const recovery = await this.repository.findKeyphraseRecovery(recoveryId);
+    if (!recovery || !recovery.emailChallengeId) throw requestError('Keyphrase recovery request was not found.', 404);
+    if (!recovery.user) throw requestError('Keyphrase recovery request is not linked to a user.', 400);
+    const challenge = await this.repository.findChallenge(recovery.emailChallengeId);
+    if (!challenge || challenge.purpose !== keyphraseRecoveryEmailPurpose || challenge.userId !== recovery.userId) throw requestError('Keyphrase recovery email code was not found.', 404);
+    if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) throw requestError('Keyphrase recovery email code is no longer valid.', 410);
+    if (challenge.attempts >= maxChallengeAttempts) throw requestError('Too many recovery attempts. Please restart recovery.', 429);
+    if (challenge.codeHash !== sha256(code)) {
+      await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.keyphrase.recovery_email_failed_attempt', {
+        ...audit,
+        userId: recovery.userId,
+        entityRef: recovery.id,
+        severity: AuditSeverity.WARNING
+      });
+      throw requestError('Keyphrase recovery email code is incorrect.', 400);
+    }
+    await this.repository.consumeChallenge(challenge.id);
+    if (!recovery.user.phone) throw requestError('A verified phone number is required for keyphrase recovery.', 409);
+
+    const phone = normalizePhone(recovery.user.phone);
+    const phoneValidation = await this.validateAuthPhoneDelivery({
+      phone,
+      userId: recovery.user.id,
+      purpose: 'keyphrase_recovery',
+      audit,
+      unavailableMessage: 'Could not send keyphrase recovery phone code. Please try again later.'
+    });
+    await this.repository.replacePendingChallenges({ userId: recovery.user.id, purpose: keyphraseRecoveryPhonePurpose, target: phone });
+    const phoneCode = randomCode();
+    const phoneChallenge = await this.repository.createChallenge({
+      userId: recovery.user.id,
+      purpose: keyphraseRecoveryPhonePurpose,
+      target: phone,
+      codeHash: sha256(phoneCode),
+      expiresAt: new Date(Date.now() + phoneOtpMinutes * 60 * 1000),
+      metadata: { recoveryId, delivery: { channel: phoneProviderChannel(), status: 'pending' } }
+    });
+    const receipt = await this.notifications.sendPhoneOtp({ to: phone, code: phoneCode, expiresInMinutes: phoneOtpMinutes });
+    await this.repository.updateChallenge(phoneChallenge.id, {
+      metadata: inputJson({
+        ...metadataObject(phoneChallenge.metadata),
+        ...devChallengeMetadata(receipt, phoneCode),
+        delivery: {
+          channel: phoneProviderChannel(),
+          status: 'sent',
+          ...deliveryMetadata(receipt),
+          phoneValidation: phoneValidationMetadata(phoneValidation)
+        }
+      })
+    });
+    await this.repository.updateKeyphraseRecovery(recovery.id, {
+      status: 'PHONE_SENT',
+      emailVerifiedAt: new Date(),
+      phoneChallengeId: phoneChallenge.id,
+      phoneMasked: maskPhone(phone)
+    });
+    await this.recordAuthEvent('identity.keyphrase.recovery_email_verified', {
+      ...audit,
+      userId: recovery.user.id,
+      ownerOrgId: recovery.organizationId,
+      entityRef: recovery.id
+    });
+    return {
+      ok: true,
+      recoveryId,
+      phoneMasked: maskPhone(phone),
+      expiresAt: phoneChallenge.expiresAt.toISOString()
+    };
+  }
+
+  async verifyKeyphraseRecoveryPhone(recoveryId: string, code: string, audit?: AuthAuditContext) {
+    const recovery = await this.repository.findKeyphraseRecovery(recoveryId);
+    if (!recovery || !recovery.phoneChallengeId) throw requestError('Keyphrase recovery phone code was not found.', 404);
+    const challenge = await this.repository.findChallenge(recovery.phoneChallengeId);
+    if (!challenge || challenge.purpose !== keyphraseRecoveryPhonePurpose || challenge.userId !== recovery.userId) throw requestError('Keyphrase recovery phone code was not found.', 404);
+    if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) throw requestError('Keyphrase recovery phone code is no longer valid.', 410);
+    if (challenge.attempts >= maxChallengeAttempts) throw requestError('Too many recovery attempts. Please restart recovery.', 429);
+    if (challenge.codeHash !== sha256(code)) {
+      await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.keyphrase.recovery_phone_failed_attempt', {
+        ...audit,
+        userId: recovery.userId,
+        entityRef: recovery.id,
+        severity: AuditSeverity.WARNING
+      });
+      throw requestError('Keyphrase recovery phone code is incorrect.', 400);
+    }
+    await this.repository.consumeChallenge(challenge.id);
+    await this.repository.updateKeyphraseRecovery(recovery.id, { status: 'PHONE_VERIFIED', phoneVerifiedAt: new Date() });
+    await this.recordAuthEvent('identity.keyphrase.recovery_phone_verified', {
+      ...audit,
+      userId: recovery.userId,
+      ownerOrgId: recovery.organizationId,
+      entityRef: recovery.id
+    });
+    return { ok: true, recoveryId };
+  }
+
+  async completeKeyphraseRecovery(recoveryId: string, newKeyphrase: string, confirmKeyphrase: string, audit?: AuthAuditContext) {
+    validateRepeatedKeyphrase(newKeyphrase, confirmKeyphrase);
+    const recovery = await this.repository.findKeyphraseRecovery(recoveryId);
+    if (!recovery || !recovery.userId || !recovery.user) throw requestError('Keyphrase recovery request was not found.', 404);
+    if (recovery.status !== 'PHONE_VERIFIED' || !recovery.emailVerifiedAt || !recovery.phoneVerifiedAt) {
+      throw requestError('Complete email and phone verification before resetting the keyphrase.', 409);
+    }
+    const existing = await this.repository.findActiveSigningCredential(recovery.userId);
+    await this.repository.revokeActiveSigningCredential(recovery.userId);
+    const encrypted = await createEncryptedSigningCredential(newKeyphrase);
+    const credential = await this.repository.createSigningCredential({
+      userId: recovery.userId,
+      publicKeyPem: encrypted.publicKeyPem,
+      keyFingerprint: encrypted.keyFingerprint,
+      encryptedPrivateKey: encrypted.encryptedPrivateKey,
+      kdfMetadata: inputJson(encrypted.kdfMetadata),
+      encryptionMetadata: inputJson(encrypted.encryptionMetadata),
+      providerMetadata: inputJson({
+        ...encrypted.providerMetadata,
+        recoveryId,
+        rotatedFromCredentialId: existing?.id ?? null,
+        rotatedAt: new Date().toISOString()
+      })
+    });
+    await this.repository.updateKeyphraseRecovery(recovery.id, {
+      status: 'COMPLETED',
+      completedAt: new Date(),
+      oldKeyFingerprint: existing?.keyFingerprint ?? null,
+      newKeyFingerprint: credential.keyFingerprint,
+      payload: inputJson({ mode: 'forgotten_keyphrase_rotation', oldCredentialId: existing?.id ?? null, newCredentialId: credential.id })
+    });
+    await this.repository.revokeSessionsForUser(recovery.userId);
+    await this.recordAuthEvent('identity.keyphrase.recovery_completed', {
+      ...audit,
+      userId: recovery.userId,
+      ownerOrgId: recovery.organizationId,
+      entityRef: recovery.id,
+      details: {
+        oldKeyFingerprint: existing?.keyFingerprint ?? null,
+        newKeyFingerprint: credential.keyFingerprint
+      }
+    });
+    try {
+      const receipt = await this.notifications.sendKeyphraseRecoveryCompleted({
+        to: recovery.user.email,
+        idempotencyKey: `identity-keyphrase-recovery-completed/${recovery.id}`,
+        metadata: { recoveryId: recovery.id }
+      });
+      await this.recordAuthEvent('identity.keyphrase.recovery_completion_notice_sent', {
+        ...audit,
+        userId: recovery.userId,
+        ownerOrgId: recovery.organizationId,
+        entityRef: recovery.id,
+        details: { provider: receipt.provider, messageId: receipt.messageId }
+      });
+    } catch (error) {
+      await this.recordAuthEvent('identity.keyphrase.recovery_completion_notice_failed', {
+        ...audit,
+        userId: recovery.userId,
+        ownerOrgId: recovery.organizationId,
+        entityRef: recovery.id,
+        severity: AuditSeverity.WARNING,
+        details: { message: error instanceof Error ? error.message : 'Recovery completion notice failed.' }
+      });
+    }
+    return { ok: true, message: 'Signing keyphrase recovered. Please sign in again.' };
+  }
+
+  async keyphraseRecoveryHistory(token?: string) {
+    const { user } = await this.requireSession(token);
+    const history = await this.repository.listKeyphraseRecoveriesForUser(user.id);
+    return { recoveries: history.map(recoveryDto) };
+  }
+
+  async adminKeyphraseRecoveryHistory(token?: string) {
+    await this.requireAdmin(token);
+    const history = await this.repository.listKeyphraseRecoveriesForAdmin();
+    return { recoveries: history.map(recoveryDto) };
   }
 
   async saveVerificationDraft(token: string | undefined, input: VerificationPayloadInput, audit?: AuthAuditContext) {

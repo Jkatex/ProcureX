@@ -196,4 +196,5 @@ export type SaveEvaluationWorkspaceInput = {
   complete?: boolean;
   activeStageId?: string;
   selectedBidId?: string;
+  signatureKeyphrase?: string;
 };

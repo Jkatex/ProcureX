@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { store } from '@/app/store';
 import { assumeUser, signOut } from '@/features/auth/slice';
 import { communicationApi } from '@/features/communication/api';
+import { supportComposeRoute } from '@/features/communication/supportComposeRoute';
 import type { CommunicationListResponse, CommunicationMailboxMessage } from '@/features/communication/types';
 import { CommunicationCenterProcurexPage } from './CommunicationCenterProcurexPage';
 
@@ -260,6 +261,40 @@ describe('CommunicationCenterProcurexPage', () => {
         actionRequired: expect.anything()
       })
     );
+  });
+
+  it('opens support compose with an admin recipient and sends through communication API', async () => {
+    renderPage([supportComposeRoute()]);
+
+    expect(await screen.findByRole('heading', { name: 'Contact ProcureX admin support' })).toBeInTheDocument();
+    await waitFor(() => expect(listRecipients).toHaveBeenCalledWith(expect.objectContaining({ search: 'admin' })));
+    expect(await screen.findByRole('button', { name: /Remove Admin/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tender reference')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add files')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Subject')).toHaveValue('Support request');
+    expect(screen.getByLabelText('Message')).toHaveValue('Please describe the support issue you need admin help with.');
+
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'I need admin support with verification.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send Support Message' }));
+
+    await waitFor(() => expect(composeMessage).toHaveBeenCalledWith(expect.objectContaining({
+      senderOrgId: 'org-1',
+      recipientOrgId: 'platform',
+      category: 'Support',
+      subject: 'Support request',
+      body: 'I need admin support with verification.',
+      metadata: expect.objectContaining({ support: 'true' })
+    })));
+    expect(await screen.findByText('Support message sent')).toBeInTheDocument();
+  });
+
+  it('shows a support recipient fallback notice when admin lookup fails', async () => {
+    listRecipients.mockResolvedValueOnce([]);
+
+    renderPage([supportComposeRoute()]);
+
+    expect(await screen.findByText('Select "ProcureX Platform" or an admin recipient before sending.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove Admin/i })).not.toBeInTheDocument();
   });
 
   it('replies and archives through the communication API', async () => {

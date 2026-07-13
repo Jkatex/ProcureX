@@ -19,12 +19,19 @@ const nonEmptyText = z.string().trim().min(1).max(2000);
 const optionalNote = z.string().trim().max(2000).optional().default('');
 const jsonObjectSchema = z.record(z.string(), z.unknown()).optional().default({});
 const statusTextSchema = z.string().trim().min(1).max(80).regex(/^[A-Z][A-Z0-9_ -]*$/).optional();
+const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const moduleStatusQuerySchema = z.object({}).strict();
 
 export const idParamsSchema = z
   .object({
     id: uuidSchema
+  })
+  .strict();
+
+export const tenderParamsSchema = z
+  .object({
+    tenderId: uuidSchema
   })
   .strict();
 
@@ -63,6 +70,12 @@ export const invoiceParamsSchema = z
   })
   .strict();
 
+export const sampleParamsSchema = z
+  .object({
+    sampleId: uuidSchema
+  })
+  .strict();
+
 export const awardRecommendationQuerySchema = z
   .object({
     organizationId: optionalUuidSchema,
@@ -92,6 +105,7 @@ export const awardDecisionBodySchema = z
     reason: z.string().trim().max(4000).optional(),
     conditions: z.string().trim().max(4000).optional(),
     confirmationBy: z.string().trim().max(160).optional(),
+    signatureKeyphrase: signatureKeyphraseSchema,
     confirmations: z
       .object({
         evaluationReviewed: z.boolean().optional(),
@@ -107,9 +121,19 @@ export const awardNoticeResponseBodySchema = z
   .object({
     action: z.nativeEnum(AwardResponseAction),
     note: optionalNote,
-    payload: jsonObjectSchema
+    payload: jsonObjectSchema,
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if ((value.action === AwardResponseAction.ACCEPT || value.action === AwardResponseAction.DECLINE) && !value.signatureKeyphrase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['signatureKeyphrase'],
+        message: 'Digital signature keyphrase is required for final award response.'
+      });
+    }
+  });
 
 export const contractVersionBodySchema = z
   .object({
@@ -196,7 +220,8 @@ export const lifecycleItemPatchBodySchema = lifecycleBaseSchema
   .partial()
   .extend({
     required: z.boolean().optional(),
-    waived: z.boolean().optional()
+    waived: z.boolean().optional(),
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'At least one lifecycle field is required.');
@@ -248,10 +273,20 @@ export const terminationBodySchema = z
 export const terminationPatchBodySchema = terminationBodySchema
   .partial()
   .extend({
-    status: z.nativeEnum(ContractTerminationStatus).optional()
+    status: z.nativeEnum(ContractTerminationStatus).optional(),
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
   .strict()
-  .refine((value) => Object.keys(value).length > 0, 'At least one termination field is required.');
+  .refine((value) => Object.keys(value).length > 0, 'At least one termination field is required.')
+  .superRefine((value, ctx) => {
+    if ((value.status === ContractTerminationStatus.APPROVED || value.status === ContractTerminationStatus.TERMINATED) && !value.signatureKeyphrase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['signatureKeyphrase'],
+        message: 'Digital signature keyphrase is required for termination approval.'
+      });
+    }
+  });
 
 export const terminationNoticeBodySchema = z
   .object({
@@ -318,9 +353,19 @@ export const closeoutBodySchema = z
     warrantyStartDate: z.string().trim().date().optional(),
     warrantyEndDate: z.string().trim().date().optional(),
     lessonsLearned: z.string().trim().max(4000).optional().default(''),
-    payload: jsonObjectSchema
+    payload: jsonObjectSchema,
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if ((value.status === ContractLifecycleItemStatus.CLOSED || value.completionCertificate || value.finalAccountApproved) && !value.signatureKeyphrase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['signatureKeyphrase'],
+        message: 'Digital signature keyphrase is required for final closeout approvals.'
+      });
+    }
+  });
 
 export const supplierPerformanceBodySchema = z
   .object({
@@ -373,7 +418,8 @@ export const negotiationBodySchema = z
 export const awardSettlementBodySchema = z
   .object({
     note: optionalNote,
-    payload: jsonObjectSchema
+    payload: jsonObjectSchema,
+    signatureKeyphrase: signatureKeyphraseSchema
   })
   .strict();
 
@@ -607,7 +653,8 @@ export const paymentApprovalBodySchema = z
     amountApproved: z.coerce.number().finite().nonnegative().optional(),
     currency: z.string().trim().min(3).max(3).optional().default('TZS'),
     note: optionalNote,
-    payload: jsonObjectSchema
+    payload: jsonObjectSchema,
+    signatureKeyphrase: signatureKeyphraseSchema
   })
   .strict();
 
@@ -662,6 +709,203 @@ export const supplierRiskProfileBodySchema = z
     openViolations: z.coerce.number().int().min(0).optional().default(0),
     summary: z.string().trim().max(2000).optional().default(''),
     drivers: z.array(z.unknown()).optional().default([]),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const sampleReceiptBodySchema = z
+  .object({
+    receivedQuantity: z.coerce.number().finite().nonnegative().optional(),
+    conditionAtReceipt: z.string().trim().max(1000).optional().default(''),
+    packagingCondition: z.string().trim().max(1000).optional().default(''),
+    deliveryRepresentative: z.string().trim().max(220).optional().default(''),
+    receivingOfficerId: uuidSchema.optional(),
+    storageLocation: z.string().trim().max(220).optional().default(''),
+    missingComponents: z.string().trim().max(2000).optional().default(''),
+    visibleDamage: z.string().trim().max(2000).optional().default(''),
+    remarks: z.string().trim().max(4000).optional().default(''),
+    receivedAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const sampleVerificationBodySchema = z
+  .object({
+    result: z.string().trim().min(1).max(80),
+    quantityAccepted: z.boolean().optional(),
+    certificatesAttached: z.boolean().optional(),
+    packagingAccepted: z.boolean().optional(),
+    matchesBid: z.boolean().optional(),
+    completeUndamaged: z.boolean().optional(),
+    clarificationRequired: z.boolean().optional(),
+    note: optionalNote,
+    verifiedAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const sampleCustodyTransferBodySchema = z
+  .object({
+    fromCustodianId: uuidSchema.optional(),
+    toCustodianId: uuidSchema.optional(),
+    previousLocation: z.string().trim().max(220).optional().default(''),
+    newLocation: z.string().trim().max(220).optional().default(''),
+    transferPurpose: z.string().trim().min(1).max(500),
+    conditionBefore: z.string().trim().max(1000).optional().default(''),
+    conditionAfter: z.string().trim().max(1000).optional().default(''),
+    remarks: z.string().trim().max(4000).optional().default(''),
+    transferredAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const sampleEvaluationBodySchema = z
+  .object({
+    criterion: z.string().trim().min(1).max(220),
+    score: z.coerce.number().finite().nonnegative().optional(),
+    maximumScore: z.coerce.number().finite().positive().optional(),
+    passed: z.boolean().optional(),
+    decision: z.string().trim().max(80).optional().default('UNDER_EVALUATION'),
+    comments: z.string().trim().max(4000).optional().default(''),
+    evaluatedAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const sampleTestBodySchema = z
+  .object({
+    testName: z.string().trim().min(1).max(220),
+    testingInstitution: z.string().trim().max(220).optional().default(''),
+    testingOfficer: z.string().trim().max(220).optional().default(''),
+    testingMethod: z.string().trim().max(1000).optional().default(''),
+    testingStandard: z.string().trim().max(220).optional().default(''),
+    expectedResult: z.string().trim().max(2000).optional().default(''),
+    actualResult: z.string().trim().max(2000).optional().default(''),
+    result: z.string().trim().max(80).optional().default('PENDING'),
+    testCost: z.coerce.number().finite().nonnegative().optional(),
+    currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+    responsibleParty: z.string().trim().max(120).optional().default(''),
+    reportDocumentId: uuidSchema.optional(),
+    testedAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const sampleDispositionBodySchema = z
+  .object({
+    dispositionType: z.string().trim().min(1).max(80).optional().default('RETURN'),
+    contractId: uuidSchema.optional(),
+    referenceNo: z.string().trim().max(120).optional().default(''),
+    storageLocation: z.string().trim().max(220).optional().default(''),
+    note: optionalNote,
+    reason: z.string().trim().max(2000).optional().default(''),
+    supplierNotifiedAt: z.string().trim().datetime().optional(),
+    collectionDeadline: z.string().trim().datetime().optional(),
+    collectionRepresentative: z.string().trim().max(220).optional().default(''),
+    returnCondition: z.string().trim().max(1000).optional().default(''),
+    disposalMethod: z.string().trim().max(220).optional().default(''),
+    witnesses: z.string().trim().max(1000).optional().default(''),
+    acknowledgementDocumentId: uuidSchema.optional(),
+    status: z.string().trim().max(80).optional().default('OPEN'),
+    completedAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractReferenceSampleBodySchema = z
+  .object({
+    contractId: uuidSchema.optional(),
+    referenceNo: z.string().trim().max(120).optional().default(''),
+    storageLocation: z.string().trim().max(220).optional().default(''),
+    status: z.string().trim().max(80).optional().default('RETAINED'),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractCommencementBodySchema = z
+  .object({
+    noticeDate: z.string().trim().date().optional(),
+    startDate: z.string().trim().date().optional(),
+    effectiveDate: z.string().trim().date().optional(),
+    completionDate: z.string().trim().date().optional(),
+    deliveryLocation: z.string().trim().max(220).optional().default(''),
+    buyerContractManager: z.string().trim().max(220).optional().default(''),
+    supplierContractManager: z.string().trim().max(220).optional().default(''),
+    initialMeetingDate: z.string().trim().date().optional(),
+    approvedWorkPlan: z.string().trim().max(4000).optional().default(''),
+    approvedDeliverySchedule: z.string().trim().max(4000).optional().default(''),
+    status: z.string().trim().max(80).optional().default('DRAFT'),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const nonConformanceBodySchema = z
+  .object({
+    category: z.string().trim().min(1).max(120),
+    title: z.string().trim().min(1).max(220),
+    description: z.string().trim().max(4000).optional().default(''),
+    relatedRecordId: uuidSchema.optional(),
+    contractClause: z.string().trim().max(240).optional().default(''),
+    severity: z.string().trim().max(80).optional().default('MINOR'),
+    responsibleSupplierOfficer: z.string().trim().max(220).optional().default(''),
+    correctiveAction: z.string().trim().max(4000).optional().default(''),
+    correctiveActionDeadline: z.string().trim().date().optional(),
+    verificationResult: z.string().trim().max(1000).optional().default(''),
+    status: z.string().trim().max(80).optional().default('OPEN'),
+    identifiedAt: z.string().trim().datetime().optional(),
+    closedAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractSecurityBodySchema = z
+  .object({
+    securityType: z.string().trim().min(1).max(120),
+    issuingInstitution: z.string().trim().max(220).optional().default(''),
+    referenceNumber: z.string().trim().max(120).optional().default(''),
+    amount: z.coerce.number().finite().nonnegative().optional(),
+    currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+    issueDate: z.string().trim().date().optional(),
+    expiryDate: z.string().trim().date().optional(),
+    verificationStatus: z.string().trim().max(80).optional().default('PENDING'),
+    claimStatus: z.string().trim().max(80).optional().default('NONE'),
+    releasedAt: z.string().trim().datetime().optional(),
+    documentId: uuidSchema.optional(),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractPenaltyBodySchema = z
+  .object({
+    invoiceId: uuidSchema.optional(),
+    penaltyType: z.string().trim().min(1).max(120),
+    contractClause: z.string().trim().max(240).optional().default(''),
+    basis: z.string().trim().max(2000).optional().default(''),
+    amount: z.coerce.number().finite().nonnegative().optional(),
+    currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+    status: z.string().trim().max(80).optional().default('DRAFT'),
+    evidence: z.array(z.unknown()).optional().default([]),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractChangeRequestBodySchema = z
+  .object({
+    changeType: z.string().trim().min(1).max(120),
+    title: z.string().trim().min(1).max(220),
+    reason: z.string().trim().max(4000).optional().default(''),
+    technicalReview: z.string().trim().max(4000).optional().default(''),
+    financialReview: z.string().trim().max(4000).optional().default(''),
+    budgetCheck: z.string().trim().max(4000).optional().default(''),
+    legalReview: z.string().trim().max(4000).optional().default(''),
+    supplierResponse: z.string().trim().max(4000).optional().default(''),
+    amendmentVersionId: uuidSchema.optional(),
+    status: z.string().trim().max(80).optional().default('RAISED'),
+    approvedAt: z.string().trim().datetime().optional(),
+    signedAt: z.string().trim().datetime().optional(),
     payload: jsonObjectSchema
   })
   .strict();

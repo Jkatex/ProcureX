@@ -13,7 +13,8 @@ import {
 
 const queueIds = Object.keys(awardQueueLabels) as AwardQueueId[];
 const emptyQueues: AwardContractDashboard['queues'] = {
-  'my-urgent-actions': [],
+  'sample-procurement': [],
+  'contract-preparation': [],
   'awarding-in-progress': [],
   'awards-received': [],
   'contracts-in-progress': [],
@@ -22,7 +23,8 @@ const emptyQueues: AwardContractDashboard['queues'] = {
 };
 
 const queueNotes: Record<AwardQueueId, string> = {
-  'my-urgent-actions': 'This queue aggregates buyer and supplier work that needs attention across awards, contracts, invoices, variations, and closure.',
+  'sample-procurement': 'Buyer-side sample receipt, verification, custody, evaluation, lab testing, clarification, return, disposal, and reference sample records.',
+  'contract-preparation': 'Buyer-owned contract drafts prepared after tender publication, while evaluation and award decisions remain locked.',
   'awarding-in-progress': 'Buyer-side tenders moving from evaluation result, recommendation, approval, notices, and contract handoff.',
   'awards-received': 'Supplier-side awards awaiting notice review, response, clarification, acceptance, or contract formation.',
   'contracts-in-progress': 'Drafting, review, negotiation, approval, document completion, and signing actions.',
@@ -32,12 +34,13 @@ const queueNotes: Record<AwardQueueId, string> = {
 
 function getQueueFromSearch(search: string): AwardQueueId {
   const queue = new URLSearchParams(search).get('queue') as AwardQueueId | null;
-  return queue && queueIds.includes(queue) ? queue : 'my-urgent-actions';
+  return queue && queueIds.includes(queue) ? queue : 'sample-procurement';
 }
 
 function emptyQueueMessage(queue: AwardQueueId) {
   const messages: Record<AwardQueueId, string> = {
-    'my-urgent-actions': 'No urgent award or contract actions yet.',
+    'sample-procurement': 'No sample procurement actions are waiting yet.',
+    'contract-preparation': 'No pre-award contract drafts are being prepared yet.',
     'awarding-in-progress': 'No buyer-side awards are in progress yet.',
     'awards-received': 'No supplier awards have been received yet.',
     'contracts-in-progress': 'No contracts are in progress yet.',
@@ -67,6 +70,8 @@ function rowReference(row: LifecycleAction) {
 
 function rowButtonLabel(row: LifecycleAction, queue: AwardQueueId) {
   if (row.nextAction?.label) return row.nextAction.label;
+  if (queue === 'sample-procurement') return 'Manage samples';
+  if (queue === 'contract-preparation') return 'Prepare contract';
   if (queue === 'active-contracts') return 'Track';
   if (queue === 'closed-contracts') return 'View Closure';
   if (queue === 'awards-received') return 'Respond';
@@ -181,9 +186,8 @@ export function AwardingContractsProcurexPage() {
 
   const queues = dashboard?.queues ?? emptyQueues;
   const summary = dashboard?.summary ?? {
-    urgentActions: queues['my-urgent-actions'].length,
     awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
-    contractActions: queues['contracts-in-progress'].length + queues['active-contracts'].length
+    contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['active-contracts'].length
   };
 
   function jumpToQueue(queue: AwardQueueId) {
@@ -204,7 +208,7 @@ export function AwardingContractsProcurexPage() {
             title="Your awarding and contracts - in every role you play"
             copy="Your company can be a buyer on tenders you created and a supplier on tenders you won. Both roles are shown below with clear next actions."
             stats={[
-              { value: summary.urgentActions, label: 'Urgent actions' },
+              { value: queues['sample-procurement'].length, label: 'Sample actions' },
               { value: summary.awardQueues, label: 'Awards' },
               { value: summary.contractActions, label: 'Contract actions' }
             ]}

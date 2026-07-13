@@ -21,6 +21,10 @@ type EmailCodeInput = DeliveryInput & {
   actionUrl?: string;
 };
 
+type SecurityNoticeInput = DeliveryInput & {
+  to: string;
+};
+
 export type EmailSendInput = DeliveryInput & {
   to: string | string[];
   subject: string;
@@ -60,6 +64,8 @@ export type IdentityNotificationProvider = {
   sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt>;
   sendEmailActivation(input: EmailCodeInput): Promise<DeliveryReceipt>;
   sendPasswordReset(input: EmailCodeInput): Promise<DeliveryReceipt>;
+  sendKeyphraseRecovery(input: EmailCodeInput): Promise<DeliveryReceipt>;
+  sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput): Promise<DeliveryReceipt>;
   sendWhatsAppTemplate?(input: BeemWhatsAppTemplateInput): Promise<DeliveryReceipt>;
   sendWhatsAppSessionMessage?(input: BeemWhatsAppSessionInput): Promise<DeliveryReceipt>;
 };
@@ -176,6 +182,24 @@ function passwordResetEmailContent(input: EmailCodeInput) {
   };
 }
 
+function keyphraseRecoveryEmailContent(input: EmailCodeInput) {
+  const actionText = input.actionUrl ? `\n\nOpen this link to continue: ${input.actionUrl}` : '';
+  const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Recover your keyphrase</a></p>` : '';
+  return {
+    subject: 'Recover your ProcureX signing keyphrase',
+    text: `Your ProcureX signing keyphrase recovery code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
+    html: `<p>Your ProcureX signing keyphrase recovery code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>${actionHtml}`
+  };
+}
+
+function keyphraseRecoveryCompletedEmailContent() {
+  return {
+    subject: 'ProcureX signing keyphrase recovered',
+    text: 'Your ProcureX signing keyphrase recovery is complete. The old active signing credential was revoked, a new signing credential was created, and active sessions were ended. Sign in again to continue.',
+    html: '<p>Your ProcureX signing keyphrase recovery is complete.</p><p>The old active signing credential was revoked, a new signing credential was created, and active sessions were ended. Sign in again to continue.</p>'
+  };
+}
+
 export class ResendEmailProvider {
   private readonly client: Resend;
   private readonly from: string;
@@ -252,6 +276,24 @@ export class ResendEmailProvider {
       metadata: { category: 'identity_password_reset', ...(input.metadata ?? {}) }
     });
   }
+
+  sendKeyphraseRecovery(input: EmailCodeInput) {
+    return this.send({
+      to: input.to,
+      ...keyphraseRecoveryEmailContent(input),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_keyphrase_recovery', ...(input.metadata ?? {}) }
+    });
+  }
+
+  sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput) {
+    return this.send({
+      to: input.to,
+      ...keyphraseRecoveryCompletedEmailContent(),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_keyphrase_recovery_completed', ...(input.metadata ?? {}) }
+    });
+  }
 }
 
 export class SmtpEmailProvider {
@@ -319,6 +361,24 @@ export class SmtpEmailProvider {
       ...passwordResetEmailContent(input),
       idempotencyKey: input.idempotencyKey,
       metadata: { category: 'identity_password_reset', ...(input.metadata ?? {}) }
+    });
+  }
+
+  sendKeyphraseRecovery(input: EmailCodeInput) {
+    return this.send({
+      to: input.to,
+      ...keyphraseRecoveryEmailContent(input),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_keyphrase_recovery', ...(input.metadata ?? {}) }
+    });
+  }
+
+  sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput) {
+    return this.send({
+      to: input.to,
+      ...keyphraseRecoveryCompletedEmailContent(),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'identity_keyphrase_recovery_completed', ...(input.metadata ?? {}) }
     });
   }
 }
@@ -634,6 +694,16 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
     return this.email.sendPasswordReset(input);
   }
 
+  sendKeyphraseRecovery(input: EmailCodeInput) {
+    this.email ??= new ResendEmailProvider(this.config);
+    return this.email.sendKeyphraseRecovery(input);
+  }
+
+  sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput) {
+    this.email ??= new ResendEmailProvider(this.config);
+    return this.email.sendKeyphraseRecoveryCompleted(input);
+  }
+
   sendWhatsAppTemplate(input: BeemWhatsAppTemplateInput) {
     this.whatsApp ??= new BeemWhatsAppProvider(this.config);
     return this.whatsApp.sendTemplate(input);
@@ -690,6 +760,26 @@ export class RoutedIdentityNotifications implements IdentityNotificationProvider
     return this.production.sendPasswordReset(input);
   }
 
+  sendKeyphraseRecovery(input: EmailCodeInput) {
+    if (this.emailProvider === 'dev-console') return this.devConsole!.sendKeyphraseRecovery(input);
+    if (this.emailProvider === 'smtp') {
+      this.smtpEmail ??= new SmtpEmailProvider(this.config);
+      return this.smtpEmail.sendKeyphraseRecovery(input);
+    }
+    if (this.emailProvider !== 'resend') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
+    return this.production.sendKeyphraseRecovery(input);
+  }
+
+  sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput) {
+    if (this.emailProvider === 'dev-console') return this.devConsole!.sendKeyphraseRecoveryCompleted(input);
+    if (this.emailProvider === 'smtp') {
+      this.smtpEmail ??= new SmtpEmailProvider(this.config);
+      return this.smtpEmail.sendKeyphraseRecoveryCompleted(input);
+    }
+    if (this.emailProvider !== 'resend') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
+    return this.production.sendKeyphraseRecoveryCompleted(input);
+  }
+
   sendWhatsAppTemplate(input: BeemWhatsAppTemplateInput) {
     return this.production.sendWhatsAppTemplate(input);
   }
@@ -718,6 +808,16 @@ export class DevConsoleIdentityNotifications implements IdentityNotificationProv
 
   async sendPasswordReset(input: EmailCodeInput): Promise<DeliveryReceipt> {
     console.info(`[identity:dev-console] password reset for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)${input.actionUrl ? ` ${input.actionUrl}` : ''}`);
+    return { provider: 'dev-console' };
+  }
+
+  async sendKeyphraseRecovery(input: EmailCodeInput): Promise<DeliveryReceipt> {
+    console.info(`[identity:dev-console] keyphrase recovery for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)${input.actionUrl ? ` ${input.actionUrl}` : ''}`);
+    return { provider: 'dev-console' };
+  }
+
+  async sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput): Promise<DeliveryReceipt> {
+    console.info(`[identity:dev-console] keyphrase recovery completed for ${input.to}`);
     return { provider: 'dev-console' };
   }
 }

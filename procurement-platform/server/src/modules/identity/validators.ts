@@ -127,6 +127,47 @@ export const signatureKeyphraseOnlySchema = z
   })
   .strict();
 
+export const keyphraseChangeSchema = z
+  .object({
+    currentKeyphrase: signatureKeyphraseSchema,
+    password: z.string().min(1).max(128),
+    newKeyphrase: signatureKeyphraseSchema,
+    confirmKeyphrase: signatureKeyphraseSchema
+  })
+  .strict();
+
+export const keyphraseRecoveryStartSchema = z
+  .object({
+    email: z.string().email(),
+    turnstileToken: turnstileTokenSchema
+  })
+  .strict();
+
+export const keyphraseRecoveryEmailSchema = z
+  .object({
+    recoveryId: z.string().uuid(),
+    code: z.string().min(6).max(24),
+    turnstileToken: turnstileTokenSchema
+  })
+  .strict();
+
+export const keyphraseRecoveryPhoneSchema = z
+  .object({
+    recoveryId: z.string().uuid(),
+    code: z.string().regex(/^\d{6}$/),
+    turnstileToken: turnstileTokenSchema
+  })
+  .strict();
+
+export const keyphraseRecoveryCompleteSchema = z
+  .object({
+    recoveryId: z.string().uuid(),
+    newKeyphrase: signatureKeyphraseSchema,
+    confirmKeyphrase: signatureKeyphraseSchema,
+    turnstileToken: turnstileTokenSchema
+  })
+  .strict();
+
 export const profileUpdateSchema = z
   .object({
     profile: z.record(z.unknown()).default({}),

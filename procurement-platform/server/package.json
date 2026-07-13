@@ -23,7 +23,8 @@
     "db:seed:award-contract-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-award-contract-demo.ts",
     "db:cleanup:demo-admin": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/cleanup-demo-admin-only.ts",
     "db:seed:twice": "npm run db:seed && npm run db:seed",
-    "verify:rls": "node ../scripts/run-with-env.mjs server .env.example -- tsx src/verify-rls.ts"
+    "verify:rls": "node ../scripts/run-with-env.mjs server .env.example -- tsx src/verify-rls.ts",
+    "validate:help-centre": "tsx src/modules/help-centre/validate-help-centre.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

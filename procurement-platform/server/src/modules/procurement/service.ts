@@ -10,6 +10,8 @@ import { getProcurementMasterDataGroup, getProcurementMasterDataGroups } from '.
 import { ModuleRepository } from './repository.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { ModuleService as EvaluationService } from '../evaluation/service.js';
+import { prisma } from '../../db/prisma.js';
+import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import { isProductionRuntime } from '../../security/config.js';
 import {
   type CloseTenderResponseDto,
@@ -212,10 +214,19 @@ export class ModuleService {
     return this.repository.updateTenderAmendment(tenderId, amendmentId, input, { organizationId, userId: session.user.id });
   }
 
-  async publishTenderAmendment(tenderId: string, amendmentId: string, token: string | undefined): Promise<TenderAmendmentResponseDto | null> {
+  async publishTenderAmendment(
+    tenderId: string,
+    amendmentId: string,
+    token: string | undefined,
+    input: { signatureKeyphrase?: string }
+  ): Promise<TenderAmendmentResponseDto | null> {
     const session = await this.identity.requireSession(token);
     const organizationId = requireOrganization(session.user.organizationId);
-    return this.repository.publishTenderAmendment(tenderId, amendmentId, { organizationId, userId: session.user.id });
+    return this.repository.publishTenderAmendment(tenderId, amendmentId, {
+      organizationId,
+      userId: session.user.id,
+      signatureKeyphrase: input.signatureKeyphrase
+    });
   }
 
   async cancelTenderAmendment(tenderId: string, amendmentId: string, token: string | undefined): Promise<TenderAmendmentResponseDto | null> {
@@ -224,7 +235,7 @@ export class ModuleService {
     return this.repository.cancelTenderAmendment(tenderId, amendmentId, { organizationId, userId: session.user.id });
   }
 
-  async openEvaluation(tenderId: string, token: string | undefined): Promise<OpenEvaluationResponseDto> {
+  async openEvaluation(tenderId: string, token: string | undefined, input: { signatureKeyphrase?: string } = {}): Promise<OpenEvaluationResponseDto> {
     const session = await this.identity.requirePermission(token, 'evaluation.manage');
     const organizationId = requireOrganization(session.user.organizationId);
     const tender = await this.repository.getTenderForEvaluationOpen(tenderId);
@@ -234,6 +245,20 @@ export class ModuleService {
     if (!workspace.availability.isReady) {
       throw requestError(workspace.availability.reason ?? 'Tender is not ready for evaluation.', 409);
     }
+    if (!input.signatureKeyphrase) throw requestError('Digital signature keyphrase is required to open evaluation.', 400);
+    await signSensitiveAction(prisma, {
+      userId: session.user.id,
+      organizationId,
+      signatureKeyphrase: input.signatureKeyphrase,
+      moduleKey: 'evaluation',
+      actionKey: 'bid_opening.open',
+      entityType: 'tender',
+      entityRef: tenderId,
+      payload: {
+        tenderId,
+        availability: workspace.availability
+      }
+    });
     return {
       success: true,
       nav: `/evaluation?tenderId=${tenderId}`,
@@ -298,7 +323,7 @@ export class ModuleService {
     return tender ? { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) } : null;
   }
 
-  async publishTender(tenderId: string, token: string | undefined): Promise<PublishTenderResponseDto> {
+  async publishTender(tenderId: string, token: string | undefined, input: { signatureKeyphrase?: string } = {}): Promise<PublishTenderResponseDto> {
     const session = await this.identity.requirePermission(token, 'procurement.publish');
     const organizationId = requireOrganization(session.user.organizationId);
     const tender = await this.repository.getTenderForPublication(tenderId);
@@ -351,7 +376,10 @@ export class ModuleService {
       );
     }
 
-    const published = await this.repository.submitTenderForReview(tenderId, organizationId, { userId: session.user.id });
+    const published = await this.repository.submitTenderForReview(tenderId, organizationId, {
+      userId: session.user.id,
+      signatureKeyphrase: input.signatureKeyphrase
+    });
     if (!published) throw requestError('Tender was not found.', 404);
     return {
       ...published,
@@ -374,7 +402,7 @@ export class ModuleService {
     return this.repository.getTenderReview(tenderId);
   }
 
-  async passTenderReview(tenderId: string, token: string | undefined): Promise<TenderReviewDecisionResponseDto> {
+  async passTenderReview(tenderId: string, token: string | undefined, input: { signatureKeyphrase?: string } = {}): Promise<TenderReviewDecisionResponseDto> {
     const session = await this.identity.requireAdmin(token);
     const tender = await this.repository.getTenderForPublication(tenderId);
     if (!tender) throw requestError('Tender was not found.', 404);
@@ -430,7 +458,11 @@ export class ModuleService {
     }
 
     const adminOrgId = await this.repository.resolvePlatformOrganizationId(session.user.organizationId);
-    const result = await this.repository.passTenderReview(tenderId, { adminOrgId, adminUserId: session.user.id }, visibility);
+    const result = await this.repository.passTenderReview(
+      tenderId,
+      { adminOrgId, adminUserId: session.user.id, signatureKeyphrase: input.signatureKeyphrase },
+      visibility
+    );
     if (!result) throw requestError('Tender review item was not found.', 404);
     return result;
   }

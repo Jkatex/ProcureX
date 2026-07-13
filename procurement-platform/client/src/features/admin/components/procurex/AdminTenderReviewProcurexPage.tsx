@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { procurementApi } from '@/features/procurement/api';
 import type { TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
+import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AdminError, AdminHero, AdminPanel, AdminShell, badgeClass, displayLabel, formatDate } from './AdminShared';
 
@@ -164,6 +165,7 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [showPassSignature, setShowPassSignature] = useState(false);
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
@@ -182,12 +184,17 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
     void loadDetail();
   }, [loadDetail]);
 
-  async function passTender() {
+  async function passTender(signatureKeyphrase?: string) {
     if (!detail) return;
+    if (!signatureKeyphrase) {
+      setShowPassSignature(true);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const response = await procurementApi.passTenderReview(detail.id);
+      const response = await procurementApi.passTenderReview(detail.id, { signatureKeyphrase });
+      setShowPassSignature(false);
       navigate(`/admin/tender-review?reviewNotice=${encodeURIComponent(response.message)}`, { replace: true });
     } catch (caught) {
       setError(caught);
@@ -217,6 +224,14 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
 
   return (
     <AdminShell currentPath="/admin/tender-review" title="Tender Review">
+      <SignatureKeyphraseModal
+        open={showPassSignature}
+        title="Publish tender to marketplace"
+        actionLabel="Pass review"
+        isSubmitting={saving}
+        onCancel={() => setShowPassSignature(false)}
+        onConfirm={(signatureKeyphrase) => void passTender(signatureKeyphrase)}
+      />
       <AdminHero
         badge="Admin review"
         heading="Tender Review"

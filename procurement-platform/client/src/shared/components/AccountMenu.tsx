@@ -166,7 +166,7 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
           <ListItemText>{t('accountMenu.messages')}</ListItemText>
           {unreadCount ? <Typography variant="caption">{unreadCount}</Typography> : null}
         </MenuItem>
-        <MenuItem onClick={() => navigateFromMenu('/support', 'support.help.opened')}>
+        <MenuItem onClick={() => navigateFromMenu('/help', 'support.help.opened')}>
           <ListItemIcon>
             <HelpOutlineRoundedIcon fontSize="small" />
           </ListItemIcon>
@@ -175,11 +175,17 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1 }} onClick={(event) => event.stopPropagation()}>
           <LanguageRoundedIcon fontSize="small" />
           <FormControl size="small" fullWidth>
-            <Select value={language} onChange={changeLanguage} aria-label={t('language')} inputProps={{ 'data-testid': 'account-language-select' }}>
+            <Select
+              native
+              value={language}
+              onChange={changeLanguage}
+              aria-label={t('language')}
+              inputProps={{ 'data-testid': 'account-language-select' }}
+            >
               {supportedLanguages.map((item) => (
-                <MenuItem key={item} value={item}>
+                <option key={item} value={item}>
                   {t(item === 'sw' ? 'swahili' : 'english')}
-                </MenuItem>
+                </option>
               ))}
             </Select>
           </FormControl>

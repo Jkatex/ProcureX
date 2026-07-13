@@ -23,7 +23,7 @@ export const procurementApi = {
     const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
     return normalizeMarketplacePayload(response.data).tenders;
   },
-  async getMarketplace(): Promise<MarketplacePayload> {
+  async getMarketplace(_context?: unknown): Promise<MarketplacePayload> {
     const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
     return normalizeMarketplacePayload(response.data);
   },
@@ -51,8 +51,8 @@ export const procurementApi = {
     const response = await apiClient.patch<UpdateTenderResponse>(`/api/procurement/tenders/${tenderId}`, payload);
     return response.data;
   },
-  async publishTender(tenderId: string): Promise<PublishTenderResponse> {
-    const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, {});
+  async publishTender(tenderId: string, input: { signatureKeyphrase?: string } = {}): Promise<PublishTenderResponse> {
+    const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, input);
     return response.data;
   },
   async listTenderReviews(query: { search?: string; page?: number; pageSize?: number } = {}): Promise<TenderReviewListResponse> {
@@ -65,8 +65,8 @@ export const procurementApi = {
     const response = await apiClient.get<TenderReviewDetail>(`/api/procurement/admin/tender-review/${tenderId}`);
     return response.data;
   },
-  async passTenderReview(tenderId: string): Promise<TenderReviewDecisionResponse> {
-    const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/pass`, {});
+  async passTenderReview(tenderId: string, input: { signatureKeyphrase?: string } = {}): Promise<TenderReviewDecisionResponse> {
+    const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/pass`, input);
     return response.data;
   },
   async failTenderReview(tenderId: string, input: { messageId: string }): Promise<TenderReviewDecisionResponse> {

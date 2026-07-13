@@ -14,6 +14,7 @@ import { createModuleRouter as createIntegrationRouter, moduleDefinition as inte
 import { createModuleRouter as createDocumentsRouter, moduleDefinition as documentsDefinition } from './documents/index.js';
 import { createModuleRouter as createPublicRouter, moduleDefinition as publicDefinition } from './public/index.js';
 import { createModuleRouter as createSupportRouter, moduleDefinition as supportDefinition } from './support/index.js';
+import { createModuleRouter as createHelpCentreRouter, moduleDefinition as helpCentreDefinition } from './help-centre/index.js';
 import type { RegisteredModule } from './module-contract.js';
 
 export const registeredModules: RegisteredModule[] = [
@@ -32,5 +33,6 @@ export const registeredModules: RegisteredModule[] = [
   { ...intelligenceDefinition, basePath: '/api/intelligence', router: createIntelligenceRouter() },
   { ...integrationDefinition, basePath: '/api/integration', router: createIntegrationRouter() },
   { ...documentsDefinition, basePath: '/api/documents', router: createDocumentsRouter() },
-  { ...supportDefinition, basePath: '/api/support', router: createSupportRouter() }
+  { ...supportDefinition, basePath: '/api/support', router: createSupportRouter() },
+  { ...helpCentreDefinition, basePath: '/api/help-centre', router: createHelpCentreRouter() }
 ];

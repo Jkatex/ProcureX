@@ -5,6 +5,7 @@ import {
   createTenderBodySchema,
   designFormSchemaParamsSchema,
   designFormSchemasQuerySchema,
+  emptyActionBodySchema,
   failTenderReviewBodySchema,
   masterDataGroupParamsSchema,
   masterDataQuerySchema,
@@ -198,7 +199,7 @@ export class ModuleController {
       if (!params.success) return validationResponse(res, params.error);
       const body = publishTenderBodySchema.safeParse(req.body ?? {});
       if (!body.success) return validationResponse(res, body.error);
-      res.json(await this.service.passTenderReview(params.data.tenderId, bearerToken(req)));
+      res.json(await this.service.passTenderReview(params.data.tenderId, bearerToken(req), body.data));
     } catch (error) {
       if (isPublishValidationError(error)) {
         const candidate = error as { status?: number; errors: unknown[] };
@@ -343,7 +344,7 @@ export class ModuleController {
       if (!params.success) return validationResponse(res, params.error);
       const body = publishTenderBodySchema.safeParse(req.body ?? {});
       if (!body.success) return validationResponse(res, body.error);
-      const result = await this.service.publishTenderAmendment(params.data.tenderId, params.data.amendmentId, bearerToken(req));
+      const result = await this.service.publishTenderAmendment(params.data.tenderId, params.data.amendmentId, bearerToken(req), body.data);
       if (!result) throw requestError('Tender amendment was not found.', 404);
       res.json(result);
     } catch (error) {
@@ -355,7 +356,7 @@ export class ModuleController {
     try {
       const params = tenderAmendmentParamsSchema.safeParse(req.params);
       if (!params.success) return validationResponse(res, params.error);
-      const body = publishTenderBodySchema.safeParse(req.body ?? {});
+      const body = emptyActionBodySchema.safeParse(req.body ?? {});
       if (!body.success) return validationResponse(res, body.error);
       const result = await this.service.cancelTenderAmendment(params.data.tenderId, params.data.amendmentId, bearerToken(req));
       if (!result) throw requestError('Tender amendment was not found.', 404);
@@ -369,7 +370,9 @@ export class ModuleController {
     try {
       const params = tenderParamsSchema.safeParse(req.params);
       if (!params.success) return validationResponse(res, params.error);
-      res.json(await this.service.openEvaluation(params.data.tenderId, bearerToken(req)));
+      const body = publishTenderBodySchema.safeParse(req.body ?? {});
+      if (!body.success) return validationResponse(res, body.error);
+      res.json(await this.service.openEvaluation(params.data.tenderId, bearerToken(req), body.data));
     } catch (error) {
       next(error);
     }
@@ -409,7 +412,7 @@ export class ModuleController {
       if (!params.success) return validationResponse(res, params.error);
       const body = publishTenderBodySchema.safeParse(req.body ?? {});
       if (!body.success) return validationResponse(res, body.error);
-      res.json(await this.service.publishTender(params.data.tenderId, bearerToken(req)));
+      res.json(await this.service.publishTender(params.data.tenderId, bearerToken(req), body.data));
     } catch (error) {
       if (isPublishValidationError(error)) {
         const candidate = error as { status?: number; errors: unknown[] };

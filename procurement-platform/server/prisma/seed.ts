@@ -15,12 +15,14 @@ import {
 } from '@prisma/client';
 import { prisma } from '../src/db/prisma.js';
 import { withDbContext } from '../src/db/context.js';
+import { createEncryptedSigningCredential } from '../src/modules/identity/signing.js';
 import { seedAwardContractDemo } from './seed-award-contract-demo.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const clientPublicPagesPath = path.resolve(__dirname, '../../client/src/features/public/components/procurex');
 const scrypt = promisify(scryptCallback);
+const seededAdminKeyphrase = 'ProcureXAdmin';
 
 type AnyRecord = Record<string, any>;
 
@@ -47,6 +49,44 @@ function canonicalJsonSeed(value: unknown): string {
 
 function signatureHashSeed(value: string): string {
   return createHmac('sha256', process.env.SIGNATURE_HASH_SECRET || 'seed-demo-signature-secret').update(value).digest('hex');
+}
+
+async function ensureSeededSigningCredential(db: AnyRecord, input: { userId: string; organizationId?: string; email: string; keyphrase: string }) {
+  const existing = await db.signingCredential.findFirst({
+    where: { userId: input.userId, status: 'ACTIVE' },
+    select: { id: true }
+  });
+  if (existing) return;
+
+  const encrypted = await createEncryptedSigningCredential(input.keyphrase);
+  const credential = await db.signingCredential.create({
+    data: {
+      userId: input.userId,
+      publicKeyPem: encrypted.publicKeyPem,
+      keyFingerprint: encrypted.keyFingerprint,
+      encryptedPrivateKey: encrypted.encryptedPrivateKey,
+      kdfMetadata: encrypted.kdfMetadata,
+      encryptionMetadata: encrypted.encryptionMetadata,
+      providerMetadata: {
+        ...encrypted.providerMetadata,
+        provisionedBy: 'seed',
+        provisionedAt: new Date().toISOString()
+      }
+    }
+  });
+
+  await db.keyphraseRecovery.create({
+    data: {
+      userId: input.userId,
+      organizationId: input.organizationId,
+      email: input.email,
+      status: 'ADMIN_SEEDED',
+      completedAt: new Date(),
+      newKeyFingerprint: credential.keyFingerprint,
+      requestMetadata: { source: 'seed' },
+      payload: { mode: 'seeded_admin_keyphrase', credentialId: credential.id }
+    }
+  });
 }
 
 function extractClientPageHtml(fileName: string): string {
@@ -249,6 +289,13 @@ async function main() {
         isDefault: true,
         title: 'Platform compliance administrator'
       }
+    });
+
+    await ensureSeededSigningCredential(db, {
+      userId: adminUser.id,
+      organizationId: platformOrg.id,
+      email: adminUser.email,
+      keyphrase: seededAdminKeyphrase
     });
 
     await db.organizationMember.upsert({

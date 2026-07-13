@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
+import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import { categorySearchTerms, standardizeCategoryName } from './category-taxonomy.js';
 import { tenderLanguageScannerVersion } from './design-language-scanner.js';
 import type {
@@ -139,6 +140,11 @@ function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
   return error;
+}
+
+function requireSignatureKeyphrase(value?: string) {
+  if (!value) throw requestError('Digital signature keyphrase is required.', 400);
+  return value;
 }
 
 function auditEventDelegate(db: PrismaClient) {
@@ -456,28 +462,51 @@ export class ModuleRepository {
     return amendmentResponse('Tender amendment updated successfully', updated);
   }
 
-  async publishTenderAmendment(tenderId: string, amendmentId: string, context: { organizationId: string; userId: string }): Promise<TenderAmendmentResponseDto | null> {
-    const amendment = await this.db.tenderAmendment.findUnique({
-      where: { id: amendmentId },
-      include: { tender: { select: { id: true, buyerOrgId: true } } }
+  async publishTenderAmendment(
+    tenderId: string,
+    amendmentId: string,
+    context: { organizationId: string; userId: string; signatureKeyphrase?: string }
+  ): Promise<TenderAmendmentResponseDto | null> {
+    const published = await this.db.$transaction(async (tx) => {
+      const amendment = await tx.tenderAmendment.findUnique({
+        where: { id: amendmentId },
+        include: { tender: { select: { id: true, buyerOrgId: true } } }
+      });
+      if (!amendment || amendment.tenderId !== tenderId) return null;
+      if (amendment.buyerOrgId !== context.organizationId) throw requestError('Only the owner organization can publish this amendment.', 403);
+      if (amendment.status !== TenderAmendmentStatus.DRAFT) throw requestError('Only draft amendments can be published.', 409);
+      const result = await tx.tenderAmendment.update({
+        where: { id: amendmentId },
+        data: {
+          status: TenderAmendmentStatus.PUBLISHED,
+          publishedAt: new Date()
+        }
+      });
+      await signSensitiveAction(tx, {
+        userId: context.userId,
+        organizationId: context.organizationId,
+        signatureKeyphrase: requireSignatureKeyphrase(context.signatureKeyphrase),
+        moduleKey: 'procurement',
+        actionKey: 'tender_amendment.publish',
+        entityType: 'tender_amendment',
+        entityRef: result.id,
+        payload: {
+          tenderId,
+          amendmentId: result.id,
+          reference: result.reference,
+          status: result.status,
+          publishedAt: result.publishedAt?.toISOString() ?? null
+        }
+      });
+      await this.createTenderAuditEvent({
+        tender: amendment.tender,
+        context,
+        event: amendmentPublishedEvent,
+        payload: { amendmentId: result.id, reference: result.reference }
+      });
+      return result;
     });
-    if (!amendment || amendment.tenderId !== tenderId) return null;
-    if (amendment.buyerOrgId !== context.organizationId) throw requestError('Only the owner organization can publish this amendment.', 403);
-    if (amendment.status !== TenderAmendmentStatus.DRAFT) throw requestError('Only draft amendments can be published.', 409);
-    const published = await this.db.tenderAmendment.update({
-      where: { id: amendmentId },
-      data: {
-        status: TenderAmendmentStatus.PUBLISHED,
-        publishedAt: new Date()
-      }
-    });
-    await this.createTenderAuditEvent({
-      tender: amendment.tender,
-      context,
-      event: amendmentPublishedEvent,
-      payload: { amendmentId: published.id, reference: published.reference }
-    });
-    return amendmentResponse('Tender amendment published successfully', published);
+    return published ? amendmentResponse('Tender amendment published successfully', published) : null;
   }
 
   async cancelTenderAmendment(tenderId: string, amendmentId: string, context: { organizationId: string; userId: string }): Promise<TenderAmendmentResponseDto | null> {
@@ -737,7 +766,7 @@ export class ModuleRepository {
   async submitTenderForReview(
     tenderId: string,
     organizationId: string,
-    context: { userId: string }
+    context: { userId: string; signatureKeyphrase?: string }
   ): Promise<PublishTenderResponseDto | null> {
     const submittedAt = new Date();
     const updated = await this.db.$transaction(async (tx) => {
@@ -764,6 +793,21 @@ export class ModuleRepository {
             submittedAt,
             submittedByUserId: context.userId
           }) as Prisma.InputJsonObject
+        }
+      });
+      await signSensitiveAction(tx, {
+        userId: context.userId,
+        organizationId,
+        signatureKeyphrase: requireSignatureKeyphrase(context.signatureKeyphrase),
+        moduleKey: 'procurement',
+        actionKey: 'tender.publish_submit',
+        entityType: 'tender',
+        entityRef: tenderId,
+        payload: {
+          tenderId,
+          previousStatus: existing.status,
+          nextStatus: TenderStatus.REVIEW,
+          submittedAt: submittedAt.toISOString()
         }
       });
 
@@ -872,7 +916,7 @@ export class ModuleRepository {
 
   async passTenderReview(
     tenderId: string,
-    context: { adminOrgId: string; adminUserId: string },
+    context: { adminOrgId: string; adminUserId: string; signatureKeyphrase?: string },
     visibility: Visibility
   ): Promise<TenderReviewDecisionResponseDto | null> {
     const decidedAt = new Date();
@@ -906,6 +950,23 @@ export class ModuleRepository {
       const tender = await tx.tender.findUniqueOrThrow({
         where: { id: tenderId },
         include: tenderReviewDetailInclude()
+      });
+      await signSensitiveAction(tx, {
+        userId: context.adminUserId,
+        organizationId: context.adminOrgId,
+        signatureKeyphrase: requireSignatureKeyphrase(context.signatureKeyphrase),
+        moduleKey: 'procurement',
+        actionKey: 'tender.publish_approve',
+        entityType: 'tender',
+        entityRef: tender.id,
+        payload: {
+          tenderId: tender.id,
+          reference: tender.reference,
+          visibility,
+          publishedAt: decidedAt.toISOString(),
+          previousStatus: TenderStatus.REVIEW,
+          nextStatus: TenderStatus.OPEN
+        }
       });
       const messageId = await createTenderReviewPassMessage(tx, tender, context.adminOrgId, decidedAt);
       return { tender, messageId };
