@@ -1,7 +1,7 @@
 import { apiClient } from '@/shared/api/http';
 import { demoUsers } from '@/shared/data/fixtures';
 import { toTenderType } from '../createTenderConfig';
-import { isActiveMarketplaceTender } from '../marketplaceTenderVisibility';
+import { isActiveInvitedTender, isActiveMarketplaceTender } from '../marketplaceTenderVisibility';
 import type {
   CreateTenderDraft,
   CreateTenderPayload,
@@ -14,6 +14,7 @@ import type {
   TenderReviewDetail,
   TenderReviewListResponse,
   TenderDetail,
+  UpdateBuyerNoticeResponse,
   UpdateTenderPayload,
   UpdateTenderResponse
 } from '../types';
@@ -76,9 +77,14 @@ export const procurementApi = {
 };
 
 function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
+  const normalizedTenders = (payload.tenders ?? []).map(normalizeMarketplaceTenderRow);
+  const normalizedInvitedTenders = (payload.invitedTenders ?? normalizedTenders).map(normalizeMarketplaceTenderRow);
+  const normalizedRecommendedTenders = (payload.recommendedTenders ?? normalizedTenders).map(normalizeMarketplaceTenderRow);
   return {
     ...payload,
-    tenders: (payload.tenders ?? []).map(normalizeMarketplaceTenderRow).filter(isActiveMarketplaceTender),
+    tenders: normalizedTenders.filter(isActiveMarketplaceTender),
+    recommendedTenders: uniqueMarketplaceRows(normalizedRecommendedTenders.filter(isActiveRecommendedTender)),
+    invitedTenders: normalizedInvitedTenders.filter(isActiveInvitedTender),
     myTenders: (payload.myTenders ?? []).map((row) => ({
       ...row,
       tender: row.tender ? normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow) : undefined
@@ -88,6 +94,10 @@ function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePa
       tender: normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow)
     }))
   };
+}
+
+function isActiveRecommendedTender(tender: MarketplaceTenderRow) {
+  return isActiveMarketplaceTender(tender) || isActiveInvitedTender(tender);
 }
 
 function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
@@ -103,6 +113,7 @@ function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
     documents: tender.documents ?? [],
     bidSummary: tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
     submittedBidBusinesses: tender.submittedBidBusinesses ?? [],
+    clarificationInquiries: tender.clarificationInquiries ?? [],
     currentBid: tender.currentBid ?? null,
     activity: tender.activity
   };
@@ -161,8 +172,19 @@ export function mergeSessionMarketplaceData(
   return {
     ...payload,
     tenders: [...sessionTenderRows.filter(isActiveMarketplaceTender), ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
+    recommendedTenders: payload.recommendedTenders
+      ? [
+          ...sessionTenderRows.filter(isActiveMarketplaceTender),
+          ...payload.recommendedTenders.filter((row) => !existingTenderIds.has(row.id))
+        ]
+      : payload.recommendedTenders,
+    invitedTenders: payload.invitedTenders ?? [],
     myTenders: [...sessionMyTenderRows, ...payload.myTenders.filter((row) => !existingMyTenderIds.has(row.id))]
   };
+}
+
+function uniqueMarketplaceRows(rows: MarketplaceTenderRow[]) {
+  return [...new Map(rows.map((row) => [row.id || row.reference, row])).values()];
 }
 
 function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization: string): MarketplaceTenderRow {
@@ -193,4 +215,3 @@ function summarizeDraft(draft: CreateTenderDraft) {
   const firstRequirement = Object.values(draft.requirements).find(Boolean);
   return draft.description || firstRequirement || draft.deliverables[0] || `Published ${draft.procurementTypeId} tender created in the React workflow.`;
 }
-

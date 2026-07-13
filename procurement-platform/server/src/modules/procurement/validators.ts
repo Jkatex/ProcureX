@@ -312,6 +312,13 @@ export const updateTenderBodySchema = z
     };
   });
 
+export const buyerNoticeBodySchema = z
+  .object({
+    buyerNotice: z.string().trim().max(5000).optional().default('')
+  })
+  .strict();
+
+export const publishTenderBodySchema = z.object({}).strict();
 const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const publishTenderBodySchema = z

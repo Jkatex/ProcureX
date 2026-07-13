@@ -18,7 +18,6 @@ export function useMarketplaceData() {
     let isMounted = true;
 
     setStatus('loading');
-    Promise.resolve(procurementApi.getMarketplace(user))
     procurementApi
       .getMarketplace()
       .then((payload) => {

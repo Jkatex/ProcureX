@@ -2,9 +2,18 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { communicationApi } from '@/features/communication/api';
+import { downloadCommunicationAttachment, openCommunicationAttachment } from '@/features/communication/attachmentActions';
+import {
+  attachmentStatusLabel,
+  composeAttachmentsHaveError,
+  composeAttachmentsReady,
+  createComposeAttachment,
+  readComposeAttachmentContent,
+  toCommunicationAttachmentUpload
+} from '@/features/communication/composeAttachments';
+import type { ComposeAttachment } from '@/features/communication/composeAttachments';
 import type {
   CommunicationListResponse,
-  CommunicationAttachmentUpload,
   CommunicationMailboxMessage,
   CommunicationMailboxQuery,
   CommunicationRecipient,
@@ -25,14 +34,6 @@ type ComposeState = {
   tenderSearch: string;
   attachments: ComposeAttachment[];
   replyToMessageId: string;
-};
-
-type ComposeAttachment = {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  documentType: string;
 };
 
 const pageToRoute: Record<string, string> = {
@@ -68,8 +69,7 @@ const pageSize = 30;
 const folders: Array<{ key: MailboxFolder; label: string }> = [
   { key: 'inbox', label: 'Inbox' },
   { key: 'sent', label: 'Sent' },
-  { key: 'unread', label: 'Unread' },
-  { key: 'archived', label: 'Archived' }
+  { key: 'unread', label: 'Unread' }
 ];
 
 function initialComposeState(overrides: Partial<ComposeState> = {}): ComposeState {
@@ -120,7 +120,6 @@ export function CommunicationCenterProcurexPage() {
   const replyOpen = routeView === 'reply';
   const composeOpen = routeView === 'compose' || replyOpen;
   const messageView = routeView === 'message';
-  const supportCompose = composeOpen && !replyOpen && searchParams.get('support') === 'true';
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder, nextPage = 1, nextSelectedId = '', nextSearch = '') => {
@@ -426,20 +425,43 @@ export function CommunicationCenterProcurexPage() {
   function addAttachments(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
+    const attachments = files.map((file) => createComposeAttachment(file, documentTypeForFile(file)));
     setCompose((current) => ({
       ...current,
       attachments: [
         ...current.attachments,
-        ...files.map((file) => ({
-          id: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          documentType: documentTypeForFile(file)
-        }))
+        ...attachments
       ].slice(0, 20)
     }));
+    for (const attachment of attachments) loadComposeAttachment(attachment);
     event.target.value = '';
+  }
+
+  function loadComposeAttachment(attachment: ComposeAttachment) {
+    void readComposeAttachmentContent(attachment.file, (progress) => {
+      setCompose((current) => ({
+        ...current,
+        attachments: current.attachments.map((item) =>
+          item.id === attachment.id && item.status === 'loading' ? { ...item, progress } : item
+        )
+      }));
+    })
+      .then((contentBase64) => {
+        setCompose((current) => ({
+          ...current,
+          attachments: current.attachments.map((item) =>
+            item.id === attachment.id ? { ...item, status: 'ready', progress: 100, contentBase64, error: undefined } : item
+          )
+        }));
+      })
+      .catch(() => {
+        setCompose((current) => ({
+          ...current,
+          attachments: current.attachments.map((item) =>
+            item.id === attachment.id ? { ...item, status: 'error', progress: 0, error: 'File could not be loaded.' } : item
+          )
+        }));
+      });
   }
 
   function removeAttachment(attachmentId: string) {
@@ -457,11 +479,19 @@ export function CommunicationCenterProcurexPage() {
       setError('Choose at least one recipient and write a subject and message.');
       return;
     }
+    if (composeAttachmentsHaveError(compose.attachments)) {
+      setError('Remove any attachments that could not be loaded before sending.');
+      return;
+    }
+    if (!composeAttachmentsReady(compose.attachments)) {
+      setError('Wait for attachments to finish loading before sending.');
+      return;
+    }
 
     setSaving(true);
     setError('');
     try {
-      const attachmentUploads = compose.attachments.map(toAttachmentUpload);
+      const attachmentUploads = await Promise.all(compose.attachments.map(toCommunicationAttachmentUpload));
       const metadata = compose.replyToMessageId ? { replyMode: 'compose-page' } : metadataFromComposeParams(searchParams);
       const results = compose.replyToMessageId
         ? [
@@ -505,23 +535,6 @@ export function CommunicationCenterProcurexPage() {
       await loadMailbox('sent', 1, result.message.id, submittedSearch);
     } catch (caught) {
       setError(errorMessage(caught, 'Message could not be sent.'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function archiveSelectedMessage() {
-    if (!selected) return;
-    setSaving(true);
-    setError('');
-    try {
-      await communicationApi.archive(selected.id);
-      setSelectedId('');
-      setSelectedMessage(null);
-      goCommunicationHome(true);
-      await loadMailbox(folder, page, '', submittedSearch);
-    } catch (caught) {
-      setError(errorMessage(caught, 'Message could not be archived.'));
     } finally {
       setSaving(false);
     }
@@ -668,34 +681,32 @@ export function CommunicationCenterProcurexPage() {
                       <span>Message</span>
                       <textarea className="form-input" rows={6} value={compose.body} onChange={(event) => setCompose((current) => ({ ...current, body: event.target.value }))} placeholder="Write your message" required />
                     </label>
-                    {!supportCompose ? (
-                      <div className="span-2 communication-compose-attachments">
-                        <div>
-                          <span className="form-label">Attachments</span>
-                          <label className="btn btn-secondary communication-file-button">
-                            Add files
-                            <input type="file" multiple onChange={addAttachments} hidden />
-                          </label>
-                        </div>
-                        {compose.attachments.length ? (
-                          <div className="communication-attachment-list" aria-label="Selected attachments">
-                            {compose.attachments.map((attachment) => (
-                              <span className="communication-attachment-item" key={attachment.id}>
-                                <span>{attachment.name}</span>
-                                <em>{formatFileSize(attachment.size)}</em>
-                                <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
-                                  x
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
+                    <div className="span-2 communication-compose-attachments">
+                      <div>
+                        <span className="form-label">Attachments</span>
+                        <label className="btn btn-secondary communication-file-button">
+                          Add files
+                          <input type="file" multiple onChange={addAttachments} hidden />
+                        </label>
                       </div>
-                    ) : null}
+                      {compose.attachments.length ? (
+                        <div className="communication-attachment-list" aria-label="Selected attachments">
+                          {compose.attachments.map((attachment) => (
+                            <span className="communication-attachment-item" key={attachment.id}>
+                              <span>{attachment.name}</span>
+                              <em>{formatFileSize(attachment.size)}</em>
+                              <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
+                                x
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="inline-actions">
                     <button className="btn btn-primary" type="submit" disabled={saving}>
-                      {saving ? 'Sending...' : supportCompose ? 'Send Support Message' : replyOpen ? 'Send Reply' : 'Send Message'}
+                      {saving ? 'Sending...' : replyOpen ? 'Send Reply' : 'Send Message'}
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={closeCompose}>
                       Cancel
@@ -717,7 +728,6 @@ export function CommunicationCenterProcurexPage() {
                     fullScreen
                     onReply={() => selected ? openReply(selected) : undefined}
                     onAction={() => selected ? openMessageAction(selected) : undefined}
-                    onArchive={() => void archiveSelectedMessage()}
                     onClose={() => goCommunicationHome()}
                   />
                 )}
@@ -780,7 +790,7 @@ export function CommunicationCenterProcurexPage() {
                     <button className="btn btn-primary" type="button" onClick={openCompose}>New Message</button>
                   </form>
                   <div className="communication-tabs">
-                    {[folders[0], folders[1], folders[3], folders[2]].map((item) => (
+                    {folders.map((item) => (
                       <button className={folder === item.key ? 'active' : ''} type="button" key={item.key} onClick={() => setFolder(item.key)}>
                         {item.label}
                       </button>
@@ -853,7 +863,6 @@ function MessageDetail({
   fullScreen = false,
   onReply,
   onAction,
-  onArchive,
   onClose
 }: {
   message: CommunicationMailboxMessage | null;
@@ -861,7 +870,6 @@ function MessageDetail({
   fullScreen?: boolean;
   onReply: () => void;
   onAction: () => void;
-  onArchive: () => void;
   onClose: () => void;
 }) {
   if (!message) {
@@ -900,10 +908,17 @@ function MessageDetail({
         {message.attachments.length ? (
           <div className="communication-attachments">
             {message.attachments.map((attachment) => (
-              <span className="communication-attachment-item" key={attachment.id}>
-                <span>{attachment.name}</span>
-                <em>{attachment.documentType}</em>
-              </span>
+              <div className="communication-attachment-card" key={attachment.id}>
+                <span className="communication-attachment-name">{attachment.name}</span>
+                <span className="communication-attachment-actions">
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void openCommunicationAttachment(message.id, attachment)}>
+                    Open
+                  </button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void downloadCommunicationAttachment(message.id, attachment)}>
+                    Download
+                  </button>
+                </span>
+              </div>
             ))}
           </div>
         ) : null}
@@ -919,7 +934,6 @@ function MessageDetail({
           {showWorkflowAction ? (
             <button className="btn btn-secondary" type="button" disabled={saving} onClick={onAction}>{nextAction?.label}</button>
           ) : null}
-          <button className="btn btn-secondary" type="button" disabled={saving} onClick={onArchive}>Archive</button>
         </div>
       </section>
     </aside>
@@ -930,7 +944,6 @@ function folderCount(folder: MailboxFolder, counts: CommunicationListResponse['c
   if (folder === 'inbox') return counts.inbox;
   if (folder === 'sent') return counts.sent;
   if (folder === 'unread') return counts.unread;
-  if (folder === 'archived') return counts.archived;
   return counts.total;
 }
 
@@ -1010,15 +1023,6 @@ function metadataFromComposeParams(params: URLSearchParams): Record<string, unkn
     ...(support ? { support } : {}),
     ...(actionLabel ? { actionLabel } : {}),
     ...(actionRoute ? { actionRoute } : {})
-  };
-}
-
-function toAttachmentUpload(attachment: ComposeAttachment): CommunicationAttachmentUpload {
-  return {
-    name: attachment.name,
-    documentType: attachment.documentType,
-    mimeType: attachment.type || undefined,
-    size: attachment.size
   };
 }
 

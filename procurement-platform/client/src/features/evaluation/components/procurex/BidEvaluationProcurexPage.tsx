@@ -27,7 +27,7 @@ import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/Pl
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 
-type ScoreDraft = { score: string; comment: string };
+type ScoreDraft = { score: string; comment: string; decision?: string };
 type ScoreDraftMap = Record<string, ScoreDraft>;
 type DecisionDraft = { status: EvaluationDecisionStatus; comment: string };
 type DecisionDraftMap = Record<string, DecisionDraft>;
@@ -41,6 +41,7 @@ type TenderQueueRow = {
   procurementType: Exclude<ProcurementTypeFilter, 'all'>;
   closingDate: string | null;
   submittedBidCount: number;
+  bidCount: number;
   requirementCount: number;
   criteriaCount: number;
   ready: boolean;
@@ -48,6 +49,12 @@ type TenderQueueRow = {
   status: string;
   tenderStatus: string;
   bidOpeningStatus: string;
+  hasClosed: boolean;
+  openingStatus: string;
+  evaluationStatus: string;
+  canStartEvaluation: boolean;
+  canContinueEvaluation: boolean;
+  lockReason: string | null;
   stage: string | null;
   progress: number;
   updatedAt?: string;
@@ -293,6 +300,22 @@ export function BidEvaluationProcurexPage() {
   }
 
   async function saveWorkspace(complete = false, signatureKeyphrase?: string) {
+  useEffect(() => {
+    const refresh = () => {
+      void refreshLists().catch(() => {
+        setLoadError(t('evaluationApp.errors.load'));
+      });
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [search, statusFilter, t, typeFilter]);
+
+  async function saveWorkspace(complete = false) {
     if (!workspace?.tender || workspaceSaving) return;
     const validation = validateScoreDrafts(workspace, scoreDrafts);
     if (validation) {
@@ -315,7 +338,11 @@ export function BidEvaluationProcurexPage() {
           .flatMap(([key, draft]) => {
             const [bidId, criterionId] = key.split(':');
             if (!bidId || !criterionId || draft.score === '') return [];
-            return [{ bidId, criterionId, score: Number(draft.score), comment: draft.comment }];
+            const criterion = workspace.criteria.find((item) => item.id === criterionId);
+            const comment = criterion && workspace.tender?.procurementType === 'GOODS' && isAdministrativeCriterion(criterion)
+              ? goodsAdministrativeComment(draft)
+              : draft.comment;
+            return [{ bidId, criterionId, score: Number(draft.score), comment }];
           }),
         decisions: Object.entries(decisionDrafts).map(([bidId, draft]) => ({
           bidId,
@@ -538,7 +565,8 @@ function EvaluationTenderListView({
                 <div className="evaluation-progress-track"><span style={{ width: `${clampPercent(draft.progressPercentage)}%` }} /></div>
               </div>
               <div className="evaluation-tender-row-actions">
-                <button className="btn btn-primary" type="button" onClick={() => onOpenWorkspace(draft.tenderId)}>Continue Draft</button>
+                <button className="btn btn-secondary" type="button" onClick={() => onViewTender(draft.tenderId)}>View Tender</button>
+                <button className="btn btn-primary" type="button" onClick={() => onOpenWorkspace(draft.tenderId)}>Continue Evaluation</button>
               </div>
             </article>
           )) : <div className="scope-empty">No saved evaluation drafts yet. Save an evaluation draft and it will appear here for continuation.</div>}
@@ -823,6 +851,16 @@ function StagePanel({
   }
 
   if (activeStageId === 'administrative') {
+    if (workspace.tender?.procurementType === 'GOODS') {
+      return (
+        <GoodsAdministrativeReviewPanel
+          bid={selectedBid}
+          criteria={administrativeCriteria(workspace.criteria)}
+          onScoreChange={onScoreChange}
+        />
+      );
+    }
+
     return (
       <SupplierScoringPanel
         bid={selectedBid}
@@ -939,6 +977,88 @@ function SupplierScoringPanel({
                 <label className="wide">
                   Evaluator comment
                   <textarea className="form-input evaluation-p5-comment" value={score.comment} onChange={(event) => onScoreChange(bid.id, criterion.id, { comment: event.target.value })} />
+                </label>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function GoodsAdministrativeReviewPanel({
+  bid,
+  criteria,
+  onScoreChange
+}: {
+  bid: EditableEvaluationBid | null;
+  criteria: EvaluationWorkspaceCriterion[];
+  onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+}) {
+  if (!bid) return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected." />;
+  if (!criteria.length) return <EvaluationEmptyMessage icon={<RuleRoundedIcon fontSize="small" aria-hidden="true" />} message="No administrative eligibility checks are available for this goods tender." />;
+
+  return (
+    <section className="evaluation-section-workspace">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Administrative & Eligibility Evaluation</span>
+          <h2>{bid.supplierName}</h2>
+          <p>Pass/fail review of mandatory eligibility, regulatory, document, and declaration checks.</p>
+        </div>
+        <span className="badge badge-info">Buyer decision required</span>
+      </div>
+
+      <div className="goods-evaluation-card-list">
+        {criteria.map((criterion) => {
+          const saved = bid.scores.find((item) => item.criterionId === criterion.id) ?? { score: null, comment: '' };
+          const scoreDraft = bid.scoreDrafts?.[criterion.id];
+          const decision = scoreDraft?.decision ?? goodsAdministrativeDecision(saved.score, saved.comment);
+          const evidence = matchingGoodsEvidence(bid, criterion);
+
+          return (
+            <article className="goods-evaluation-card" key={criterion.id}>
+              <div>
+                <span className="section-kicker">{criterion.maxScore <= 1 ? 'Mandatory' : 'Optional'}</span>
+                <h3>{criterion.name}</h3>
+                <p>{criterion.category || 'Published tender requirement'}</p>
+              </div>
+
+              <aside className="goods-evidence-panel">
+                <strong>Supplier Evidence</strong>
+                {evidence.length ? evidence.map((document) => (
+                  <div className="evaluation-evidence-item" key={document.id}>
+                    <span>{document.documentType || 'Submitted document'}</span>
+                    <p>{document.name}</p>
+                    <div className="evaluation-document-actions">
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => openEvidenceMetadata(document)}>View</button>
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => downloadEvidenceMetadata(document)}>Download</button>
+                    </div>
+                  </div>
+                )) : (
+                  <p>No matching submitted evidence was found. The buyer must decide manually from the available bid package.</p>
+                )}
+              </aside>
+
+              <div className="evaluation-decision-panel">
+                <label>
+                  Buyer decision
+                  <select
+                    className="form-input"
+                    value={decision}
+                    onChange={(event) => onScoreChange(bid.id, criterion.id, { decision: event.target.value, score: goodsAdministrativeScore(event.target.value) })}
+                  >
+                    <option value="">Select decision</option>
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="Not Applicable">Not Applicable</option>
+                    <option value="Clarification Required">Clarification Required</option>
+                  </select>
+                </label>
+                <label>
+                  Remark
+                  <textarea className="form-input" rows={3} value={saved.comment} onChange={(event) => onScoreChange(bid.id, criterion.id, { comment: event.target.value })} />
                 </label>
               </div>
             </article>
@@ -1235,6 +1355,7 @@ function buildQueueRows(readyTenders: ReadyEvaluationTender[], records: Evaluati
       procurementType: record.procurementType,
       closingDate: record.closingDate,
       submittedBidCount: record.submittedBidCount,
+      bidCount: record.submittedBidCount,
       requirementCount: 0,
       criteriaCount: 0,
       ready: record.status !== 'COMPLETED' && record.submittedBidCount > 0,
@@ -1242,6 +1363,12 @@ function buildQueueRows(readyTenders: ReadyEvaluationTender[], records: Evaluati
       status: record.status,
       tenderStatus: 'EVALUATION',
       bidOpeningStatus: 'Opening Completed',
+      hasClosed: true,
+      openingStatus: 'COMPLETED',
+      evaluationStatus: record.status,
+      canStartEvaluation: false,
+      canContinueEvaluation: record.status === 'IN_PROGRESS' || record.status === 'RETURNED',
+      lockReason: null,
       stage: record.currentStage,
       progress: record.progressPercentage,
       updatedAt: record.updatedAt
@@ -1257,13 +1384,20 @@ function buildQueueRows(readyTenders: ReadyEvaluationTender[], records: Evaluati
       procurementType: ready.procurementType,
       closingDate: ready.closingDate,
       submittedBidCount: ready.submittedBidCount,
+      bidCount: ready.bidCount,
       requirementCount: ready.requirementCount,
       criteriaCount: ready.criteriaCount,
       ready: ready.ready,
-      readinessReason: ready.readinessReason,
-      status: existing?.status ?? ready.status,
+      readinessReason: ready.lockReason ?? ready.readinessReason,
+      status: existing?.status ?? ready.evaluationStatus,
       tenderStatus: ready.tenderStatus,
       bidOpeningStatus: ready.bidOpeningStatus,
+      hasClosed: ready.hasClosed,
+      openingStatus: ready.openingStatus,
+      evaluationStatus: existing?.evaluationStatus ?? ready.evaluationStatus,
+      canStartEvaluation: ready.canStartEvaluation,
+      canContinueEvaluation: existing?.canContinueEvaluation ?? ready.canContinueEvaluation,
+      lockReason: ready.lockReason,
       stage: existing?.stage ?? ready.currentStage ?? 'OPENING',
       progress: existing?.progress ?? ready.progressPercentage,
       updatedAt: existing?.updatedAt
@@ -1288,15 +1422,16 @@ function draftMatches(draft: EvaluationDraft, search: string, type: ProcurementT
 }
 
 function evaluationAvailabilityLabel(row: TenderQueueRow) {
-  if (row.status === 'COMPLETED') return 'Evaluation completed';
-  if (row.ready) return row.status === 'IN_PROGRESS' ? 'Evaluation in progress' : 'Evaluation open';
-  return row.readinessReason ?? 'Evaluation locked';
+  if (row.evaluationStatus === 'COMPLETED') return 'Evaluation completed';
+  if (row.canContinueEvaluation) return 'Evaluation in progress';
+  if (row.canStartEvaluation) return 'Evaluation open';
+  return row.lockReason ?? row.readinessReason ?? 'Evaluation locked';
 }
 
 function evaluationAction(row: TenderQueueRow) {
-  if (row.status === 'COMPLETED') return { label: 'View Results', disabled: false };
-  if (row.status === 'IN_PROGRESS') return { label: 'Continue Evaluation', disabled: false };
-  if (row.ready) return { label: 'Start Evaluation', disabled: false };
+  if (row.evaluationStatus === 'COMPLETED') return { label: 'View Results', disabled: false };
+  if (row.canContinueEvaluation) return { label: 'Continue Evaluation', disabled: false };
+  if (row.canStartEvaluation) return { label: 'Start Evaluation', disabled: false };
   return { label: 'Locked', disabled: true };
 }
 
@@ -1305,9 +1440,11 @@ function createScoreDrafts(workspace: EvaluationWorkspace): ScoreDraftMap {
   for (const bid of workspace.bids) {
     for (const criterion of workspace.criteria) {
       const existing = bid.scores.find((score) => score.criterionId === criterion.id);
+      const parsedComment = parseGoodsAdministrativeComment(existing?.comment ?? '');
       drafts[draftKey(bid.id, criterion.id)] = {
         score: existing?.score === null || existing?.score === undefined ? '' : String(existing.score),
-        comment: existing?.comment ?? ''
+        comment: parsedComment.remark,
+        ...(parsedComment.decision ? { decision: parsedComment.decision } : {})
       };
     }
   }
@@ -1328,7 +1465,9 @@ function createDecisionDrafts(workspace: EvaluationWorkspace): DecisionDraftMap 
 
 type EditableEvaluationBid = EvaluationWorkspaceBid & {
   commentSummary: string;
+  scoreDrafts?: Record<string, ScoreDraft>;
 };
+type EvaluationEvidenceDocument = EvaluationWorkspaceBid['documents'][number];
 
 function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap, decisionDrafts: DecisionDraftMap): EditableEvaluationBid[] {
   const financial = localFinancialScores(workspace.bids);
@@ -1336,10 +1475,11 @@ function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraft
     const scores = workspace.criteria.map((criterion) => {
       const draft = scoreDrafts[draftKey(bid.id, criterion.id)];
       const parsedScore = draft?.score === '' || draft?.score === undefined ? null : Number(draft.score);
+      const parsedComment = parseGoodsAdministrativeComment(draft?.comment ?? '');
       return {
         criterionId: criterion.id,
         score: Number.isFinite(parsedScore) ? parsedScore : null,
-        comment: draft?.comment ?? '',
+        comment: parsedComment.remark,
         evaluatorName: bid.scores.find((score) => score.criterionId === criterion.id)?.evaluatorName ?? null,
         evaluatedAt: bid.scores.find((score) => score.criterionId === criterion.id)?.evaluatedAt ?? null
       };
@@ -1350,6 +1490,7 @@ function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraft
     return {
       ...bid,
       scores,
+      scoreDrafts: Object.fromEntries(workspace.criteria.map((criterion) => [criterion.id, scoreDrafts[draftKey(bid.id, criterion.id)] ?? { score: '', comment: '' }])),
       technicalScore: technical,
       financialScore: financial.get(bid.id) ?? bid.financialScore,
       totalScore: technical,
@@ -1414,6 +1555,9 @@ function completionState(workspace: EvaluationWorkspace | null, bids: EditableEv
   const total = workspace.criteria.length * bids.length;
   const complete = bids.reduce(
     (sum, bid) => sum + workspace.criteria.filter((criterion) => {
+      if (workspace.tender?.procurementType === 'GOODS' && isAdministrativeCriterion(criterion)) {
+        return isGoodsAdministrativeDraftComplete(bid.scoreDrafts?.[criterion.id]);
+      }
       const score = bid.scores.find((item) => item.criterionId === criterion.id)?.score;
       return score !== null && score !== undefined && score <= criterion.maxScore;
     }).length,
@@ -1427,6 +1571,12 @@ function validateScoreDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreD
   for (const bid of workspace.bids) {
     for (const criterion of workspace.criteria) {
       const draft = scoreDrafts[draftKey(bid.id, criterion.id)];
+      if (workspace.tender?.procurementType === 'GOODS' && isAdministrativeCriterion(criterion)) {
+        if (!draft?.decision && draft?.score) return 'Select a buyer decision for every goods administrative check with a score.';
+        if (draft?.decision && isGoodsManualDecisionNegative(draft.decision) && !draft.comment.trim()) {
+          return 'Add a remark for failed or clarification-required administrative checks.';
+        }
+      }
       if (!draft || draft.score === '') continue;
       const score = Number(draft.score);
       if (!Number.isFinite(score) || score < 0) return 'Scores must be valid positive numbers.';
@@ -1463,6 +1613,90 @@ function financialCriteria(criteria: EvaluationWorkspaceCriterion[]) {
 
 function isAdministrativeCriterion(criterion: EvaluationWorkspaceCriterion) {
   return criterion.maxScore <= 1 || /administrative|eligibility|compliance/i.test(`${criterion.name} ${criterion.category}`);
+}
+
+function goodsAdministrativeDecision(score: number | null, comment = '') {
+  const parsed = parseGoodsAdministrativeComment(comment);
+  if (parsed.decision) return parsed.decision;
+  if (score === null || score === undefined) return '';
+  if (/not applicable/i.test(comment)) return 'Not Applicable';
+  if (/clarification/i.test(comment)) return 'Clarification Required';
+  return Number(score) > 0 ? 'Pass' : 'Fail';
+}
+
+function goodsAdministrativeComment(draft: ScoreDraft) {
+  const decision = draft.decision?.trim();
+  const remark = draft.comment.trim();
+  return decision ? `[Decision: ${decision}]${remark ? `\n${remark}` : ''}` : remark;
+}
+
+function parseGoodsAdministrativeComment(comment = '') {
+  const match = comment.match(/^\[Decision:\s*([^\]]+)\]\s*/i);
+  if (!match) return { decision: '', remark: comment };
+  return {
+    decision: match[1].trim(),
+    remark: comment.slice(match[0].length)
+  };
+}
+
+function goodsAdministrativeScore(decision: string) {
+  if (decision === 'Pass' || decision === 'Not Applicable') return '1';
+  if (decision === 'Fail' || decision === 'Clarification Required') return '0';
+  return '';
+}
+
+function isGoodsManualDecisionNegative(decision = '') {
+  return /fail|clarification|required|rejected|non-responsive|not qualified|non-compliant/i.test(decision);
+}
+
+function isGoodsAdministrativeDraftComplete(draft: ScoreDraft | undefined) {
+  if (!draft?.decision) return false;
+  if (isGoodsManualDecisionNegative(draft.decision) && !draft.comment.trim()) return false;
+  return true;
+}
+
+function matchingGoodsEvidence(bid: EditableEvaluationBid, criterion: EvaluationWorkspaceCriterion) {
+  const keywords = `${criterion.name} ${criterion.category}`
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 3);
+  const matches = bid.documents.filter((document) => {
+    const haystack = `${document.name} ${document.documentType}`.toLowerCase();
+    return keywords.some((word) => haystack.includes(word));
+  });
+  return matches.slice(0, 1);
+}
+
+function openEvidenceMetadata(document: EvaluationEvidenceDocument) {
+  const previewWindow = window.open('', '_blank', 'noopener');
+  if (!previewWindow) return;
+  previewWindow.document.open();
+  previewWindow.document.write(evidenceMetadataHtml(document));
+  previewWindow.document.close();
+}
+
+function downloadEvidenceMetadata(document: EvaluationEvidenceDocument) {
+  const blob = new Blob([evidenceMetadataHtml(document)], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = window.document.createElement('a');
+  link.href = url;
+  link.download = `${safeFilename(document.name || 'submitted-evidence')}.html`;
+  window.document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function evidenceMetadataHtml(document: EvaluationEvidenceDocument) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(document.name)}</title><style>body{margin:0;background:#f8fafc;color:#0f172a;font-family:Arial,sans-serif}main{max-width:760px;margin:32px auto;border:1px solid #cbd5e1;background:#fff;padding:28px}h1{margin:0 0 10px;font-size:24px}dl{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;margin-top:20px}dt{color:#64748b;font-weight:700}dd{margin:0;overflow-wrap:anywhere}</style></head><body><main><h1>${escapeHtml(document.name)}</h1><p>This preview contains the submitted document metadata available to the evaluation workspace.</p><dl><dt>Document type</dt><dd>${escapeHtml(document.documentType || '-')}</dd><dt>Review status</dt><dd>${escapeHtml(document.reviewStatus || '-')}</dd><dt>Document id</dt><dd>${escapeHtml(document.id)}</dd></dl></main></body></html>`;
+}
+
+function escapeHtml(value: string) {
+  return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character] ?? character);
+}
+
+function safeFilename(value: string) {
+  return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100) || 'submitted-evidence';
 }
 
 function isFinancialCriterion(criterion: EvaluationWorkspaceCriterion) {

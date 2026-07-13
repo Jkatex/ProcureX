@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -78,6 +78,30 @@ const buyerTender: TenderDetail = {
   ],
   bidSummary: { total: 2, draft: 1, submitted: 1, withdrawn: 0 },
   submittedBidBusinesses: [{ id: 'supplier-1', name: 'Prime Medical Supplies', submittedAt: '2099-08-01T09:00:00.000Z' }],
+  clarificationInquiries: [
+    {
+      id: 'clarification-1',
+      senderOrgId: 'supplier-1',
+      senderName: 'Prime Medical Supplies',
+      subject: 'Site access clarification',
+      body: 'Can bidders access the delivery site before final submission?',
+      status: 'UNREAD',
+      read: false,
+      createdAt: '2099-08-01T09:00:00.000Z',
+      updatedAt: '2099-08-01T09:00:00.000Z'
+    },
+    {
+      id: 'clarification-2',
+      senderOrgId: 'supplier-2',
+      senderName: 'Taifa Diagnostics',
+      subject: 'Delivery staging clarification',
+      body: 'Please confirm whether partial delivery will be accepted.',
+      status: 'READ',
+      read: true,
+      createdAt: '2099-08-02T09:00:00.000Z',
+      updatedAt: '2099-08-02T09:00:00.000Z'
+    }
+  ],
   currentBid: null,
   activity: { marketplaceViews: 12, documentDownloads: 4, clarifications: 0 }
 };
@@ -125,6 +149,25 @@ describe('TenderDetailsProcurexPage', () => {
   it('shows buyer tender activity controls without exposing bid details', async () => {
     const user = userEvent.setup();
     vi.spyOn(procurementApi, 'getTenderDetail').mockResolvedValue(buyerTender);
+    const updateBuyerNotice = vi.spyOn(procurementApi, 'updateBuyerNotice')
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'Buyer notice saved successfully',
+        data: {
+          id: 'tender-1',
+          buyerNotice: 'Please review the updated site access instruction.',
+          updatedAt: '2099-08-01T10:00:00.000Z'
+        }
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: 'Buyer notice saved successfully',
+        data: {
+          id: 'tender-1',
+          buyerNotice: '',
+          updatedAt: '2099-08-01T10:05:00.000Z'
+        }
+      });
 
     render(
       <MemoryRouter initialEntries={['/procurement/tender-details?tenderId=tender-1']}>
@@ -138,21 +181,36 @@ describe('TenderDetailsProcurexPage', () => {
     expect(screen.getByRole('tab', { name: 'Tender activity', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Bid summary' })).toBeInTheDocument();
     expect(screen.getByText('Submitted bids')).toBeInTheDocument();
-    expect(screen.getByText('Prime Medical Supplies')).toBeInTheDocument();
+    expect(screen.getByText('Draft bids')).toBeInTheDocument();
+    expect(screen.getByText('Days remaining until tender closes')).toBeInTheDocument();
+    expect(screen.getByText('Prime Medical Supplies')).toHaveClass('buyer-clarification-sender');
+    expect(screen.queryByText(/Submitted 2099/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Withdrawn bids')).not.toBeInTheDocument();
+    expect(screen.queryByText('Total bid records')).not.toBeInTheDocument();
+    expect(screen.queryByText('No submitted bids yet.')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Tender activity' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Clarification inquiries' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Buyer notice' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Make amendment' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Cancel tender' })).toBeInTheDocument();
     expect(screen.queryByText(/financial proposal|technical proposal|unit price/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open clarification messages' }).getAttribute('href')).toContain('/communication?');
+    expect(screen.queryByRole('link', { name: 'Open clarification messages' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Site access clarification/i }).getAttribute('href')).toContain('/communication?view=message&id=clarification-1');
+    expect(screen.getByRole('link', { name: /Delivery staging clarification/i }).getAttribute('href')).toContain('/communication?view=message&id=clarification-2');
     expect(screen.getByRole('button', { name: 'Make amendment' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Cancel tender' })).toBeDisabled();
 
     await user.type(screen.getByRole('textbox', { name: 'Buyer notice' }), 'Please review the updated site access instruction.');
     await user.click(screen.getByRole('button', { name: 'Save notice' }));
 
-    expect(screen.getByText('Buyer notice persistence is not connected for published tenders yet.')).toBeInTheDocument();
+    await waitFor(() => expect(updateBuyerNotice).toHaveBeenCalledWith('tender-1', 'Please review the updated site access instruction.'));
+    expect(await screen.findByText('Buyer notice saved for bidders.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove notice' }));
+
+    await waitFor(() => expect(updateBuyerNotice).toHaveBeenCalledWith('tender-1', ''));
+    expect(await screen.findByText('Buyer notice removed for bidders.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove notice' })).not.toBeInTheDocument();
   });
 
   it('downloads a consolidated tender pack PDF from the main buyer action', async () => {

@@ -57,6 +57,8 @@ import {
   type TenderLanguageScanInput,
   type TenderLanguageScanResponseDto,
   type UnsaveTenderResponseDto,
+  type UpdateBuyerNoticeInput,
+  type UpdateBuyerNoticeResponseDto,
   type UpdateTenderInput,
   type UpdateTenderResponseDto,
   type UpdateProcurementPlanInput
@@ -321,6 +323,12 @@ export class ModuleService {
       { organizationId, userId: session.user.id }
     );
     return tender ? { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) } : null;
+  }
+
+  async updateTenderBuyerNotice(tenderId: string, token: string | undefined, input: UpdateBuyerNoticeInput): Promise<UpdateBuyerNoticeResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.updateTenderBuyerNotice(tenderId, input, { organizationId, userId: session.user.id });
   }
 
   async publishTender(tenderId: string, token: string | undefined, input: { signatureKeyphrase?: string } = {}): Promise<PublishTenderResponseDto> {
@@ -643,6 +651,8 @@ const defaultMarketplaceQuery: MarketplaceQuery = {
 function emptyMarketplace(query: MarketplaceQuery): ProcurementMarketplacePayload {
   return {
     tenders: [],
+    recommendedTenders: [],
+    invitedTenders: [],
     myTenders: [],
     myBids: [],
     summary: {

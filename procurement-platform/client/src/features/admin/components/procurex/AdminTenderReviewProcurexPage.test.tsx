@@ -193,13 +193,20 @@ describe('AdminTenderReviewProcurexPage', () => {
     const rows = await screen.findAllByRole('button', { name: /PX-/i });
     expect(rows[0]).toHaveTextContent('PX-GDS-2026-001');
     expect(rows[1]).toHaveTextContent('PX-SRV-2026-002');
+    expect(screen.getByLabelText('2 tenders in review queue')).toHaveTextContent('2');
+    expect(screen.queryByText('2 awaiting review')).not.toBeInTheDocument();
     expect(screen.queryByText('Select a tender from the queue.')).not.toBeInTheDocument();
 
     await userEvent.click(rows[0]);
 
     await waitFor(() => expect(getTenderReview).toHaveBeenCalledWith(tenderId));
     expect((await screen.findAllByRole('heading', { name: 'Supply hospital oxygen' })).length).toBeGreaterThan(0);
-    expect(screen.getByText('Procurement of medical oxygen cylinders and associated regulators for regional facilities.')).toBeInTheDocument();
+    expect(screen.getAllByText('Procurement of medical oxygen cylinders and associated regulators for regional facilities.').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Customer Information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Purchase Information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender Documentation' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+    expect(screen.queryByText('Owner')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pass' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fail' })).toBeInTheDocument();
   });

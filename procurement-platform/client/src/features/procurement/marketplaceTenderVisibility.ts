@@ -13,6 +13,11 @@ export function isActiveMarketplaceTender(tender: TenderVisibility, now = Date.n
   return isPublicMarketplaceVisibility(tender.visibility) && (status === 'OPEN' || status === 'PUBLISHED') && hasActiveMarketplaceDeadline(tender, now);
 }
 
+export function isActiveInvitedTender(tender: TenderVisibility, now = Date.now()) {
+  const status = normalizeMarketplaceStatus(tender.status);
+  return normalizeMarketplaceStatus(tender.visibility) === 'INVITED' && (status === 'OPEN' || status === 'PUBLISHED') && hasActiveMarketplaceDeadline(tender, now);
+}
+
 function normalizeMarketplaceStatus(status: unknown) {
   return String(status ?? '')
     .trim()

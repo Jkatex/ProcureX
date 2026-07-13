@@ -14,14 +14,20 @@ export function PrototypeTabs({
 }: {
   tabs: PrototypeTab[];
   defaultTabId: string;
-  variant?: 'supplier' | 'buyer';
+  variant?: 'supplier' | 'buyer' | 'supplierTender';
 }) {
   const [activeTabId, setActiveTabId] = useState(defaultTabId);
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+  const tabsClassName =
+    variant === 'buyer'
+      ? 'supplier-detail-tabs buyer-detail-tabs'
+      : variant === 'supplierTender'
+        ? 'supplier-detail-tabs supplier-tender-tabs'
+        : 'supplier-detail-tabs';
 
   return (
     <section className="supplier-detail-tabbed-view">
-      <div className={variant === 'buyer' ? 'supplier-detail-tabs buyer-detail-tabs' : 'supplier-detail-tabs'} role="tablist">
+      <div className={tabsClassName} role="tablist">
         {tabs.map((tab) => (
           <button
             className={`supplier-detail-tab ${tab.id === activeTab.id ? 'active' : ''}`}

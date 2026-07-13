@@ -171,6 +171,7 @@ async function resetMarketplaceRecords(db: AnyDb) {
   });
   const bidIds = bids.map((item: { id: string }) => item.id);
 
+  await deleteIfIds(db, 'communicationItem', 'tenderId', tenderIds);
   await deleteIfIds(db, 'savedTender', 'tenderId', tenderIds);
   await deleteIfIds(db, 'bidReceipt', 'bidId', bidIds);
   await deleteIfIds(db, 'bidResponse', 'bidId', bidIds);
@@ -197,6 +198,9 @@ async function cleanupMarketplaceDemo() {
     const userIds = users.map((item: { id: string }) => item.id);
     const organizationIds = organizations.map((item: { id: string }) => item.id);
 
+    await deleteIfIds(db, 'communicationItem', 'ownerOrgId', organizationIds);
+    await deleteIfIds(db, 'communicationItem', 'senderOrgId', organizationIds);
+    await deleteIfIds(db, 'communicationItem', 'recipientOrgId', organizationIds);
     await deleteIfIds(db, 'savedTender', 'organizationId', organizationIds);
     await deleteIfIds(db, 'account', 'userId', userIds);
     await deleteIfIds(db, 'organizationMember', 'userId', userIds);

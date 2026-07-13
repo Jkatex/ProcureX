@@ -3,6 +3,7 @@ import { ModuleService } from './service.js';
 import {
   communicationQuerySchema,
   composeMessageBodySchema,
+  messageAttachmentParamsSchema,
   messageParamsSchema,
   moduleStatusQuerySchema,
   patchMessageBodySchema,
@@ -107,6 +108,25 @@ export class ModuleController {
     }
   };
 
+  attachment: RequestHandler = async (req, res, next) => {
+    try {
+      const params = messageAttachmentParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid attachment id.');
+      const file = await this.service.getAttachment(
+        bearerToken(req),
+        params.data.messageId,
+        params.data.attachmentId
+      );
+      if (!file) throw requestError('Communication attachment was not found.', 404);
+      res.type(file.mimeType);
+      res.setHeader('Content-Disposition', attachmentDisposition(params.data.disposition, file.name));
+      res.setHeader('Content-Length', String(file.content.byteLength));
+      res.send(file.content);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   archive: RequestHandler = async (req, res, next) => {
     try {
       const params = messageParamsSchema.safeParse(req.params);
@@ -138,5 +158,11 @@ export class ModuleController {
       next(error);
     }
   };
+}
+
+function attachmentDisposition(disposition: 'open' | 'download', fileName: string) {
+  const mode = disposition === 'download' ? 'attachment' : 'inline';
+  const safeName = fileName.replace(/[\\"]/g, '_');
+  return `${mode}; filename="${safeName}"`;
 }
 
