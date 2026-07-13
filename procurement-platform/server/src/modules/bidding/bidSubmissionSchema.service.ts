@@ -63,8 +63,6 @@ export function buildBidSubmissionSchema(tender: TenderSchemaInput): BidSubmissi
 
   const administrative = uniqueFields([
     field('administrative.eligible', 'administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', true, 'boolean', 'ADMINISTRATIVE', 'system'),
-    field('administrative.authorized', 'administrative.authorizedRepresentative', 'Confirm authorized representative', 'boolean', 'administrative', true, 'boolean', 'ADMINISTRATIVE', 'system'),
-    ...administrativeWorkflowConfirmations(workflow, fields),
     ...documents.filter((item) => item.section === 'administrative'),
     ...dynamicRequirements.filter((item) => item.section === 'administrative')
   ]);
@@ -82,7 +80,7 @@ export function buildBidSubmissionSchema(tender: TenderSchemaInput): BidSubmissi
     ...dynamicRequirements.filter((item) => item.section === 'financial'),
     ...criteriaFields(criteria).filter((item) => item.section === 'financial')
   ]);
-  const declarations = declarationFields(fields);
+  const declarations = declarationFields(fields, workflow);
 
   const steps = workflowSteps(workflow, { administrative, technical, financial, samples, declarations });
 
@@ -181,7 +179,9 @@ function reviewFields() {
 }
 
 function isWorksCapacityField(field: BidSubmissionSchemaFieldDto) {
-  return /capacity|experience|similar|project|personnel|expert|cv|qualification|equipment|plant|hse|safety|environment|financial capacity|bank|statement|credit/i.test(stepRouteText(field));
+  const text = stepRouteText(field);
+  if (/works\.(proposal|schedule|drawings|design|siteVisit)|worksProposalNarrative|worksSchedule|worksDrawingDesign|worksSiteVisit/i.test(text)) return false;
+  return /capacity|experience|similar|project|personnel|expert|cv|qualification|equipment|plant|hse|safety|environment|financial capacity|bank|statement|credit/i.test(text);
 }
 
 function stepRouteText(field: BidSubmissionSchemaFieldDto) {
@@ -233,6 +233,7 @@ function financialFields(workflow: WorkflowType, commercial: CommercialItem[], f
       'FINANCIAL',
       item.source,
       compact({
+        control: workflow === 'works' ? 'worksBoqCostBreakdown' : undefined,
         itemId: item.id,
         itemNo: item.itemNo,
         description: item.description,
@@ -247,6 +248,7 @@ function financialFields(workflow: WorkflowType, commercial: CommercialItem[], f
   if (workflow === 'consultancy' && !output.length) {
     output.push(field('financial.proposal', 'financial.proposal', 'Financial proposal', 'table', 'financial', true, 'pricing', 'FINANCIAL', 'system', { minRows: 1 }));
   }
+  if (workflow === 'works') output.push(...worksCommercialTermFields(fields));
   return output;
 }
 
@@ -463,27 +465,6 @@ function workflowResponseFields(fields: Record<string, unknown>, commercial: Com
   return [];
 }
 
-function administrativeWorkflowConfirmations(workflow: WorkflowType, fields: Record<string, unknown>) {
-  const output: BidSubmissionSchemaFieldDto[] = [];
-  if (workflow === 'works' && normalizeFlag(fields.similarCompletedProjectsRequired)) {
-    output.push(
-      field(
-        'administrative.similarProjects',
-        'administrative.similarProjects',
-        'Confirm similar project evidence',
-        'boolean',
-        'administrative',
-        true,
-        'acknowledgement',
-        'ADMINISTRATIVE',
-        'requirements.works.similarCompletedProjectsRequired',
-        { prompt: 'Confirm that similar completed project evidence is completed in the technical capacity response.' }
-      )
-    );
-  }
-  return output;
-}
-
 function goodsWorkflowFields(fields: Record<string, unknown>, commercial: CommercialItem[]) {
   const output: BidSubmissionSchemaFieldDto[] = [];
   const specificationRows = productSpecificationRows(fields.productSpecificationTemplate);
@@ -556,8 +537,44 @@ function worksWorkflowFields(fields: Record<string, unknown>) {
   collectWorkflowRows(fields.personnelRequirementRows, output, 'works.personnelRequirement', 'worksPersonnel', 'Personnel requirement response');
   collectWorkflowRows(fields.equipmentRequirementRows, output, 'works.equipmentRequirement', 'worksEquipment', 'Equipment availability response');
   collectWorkflowRows(fields.worksMilestoneRows, output, 'works.workProgram', 'worksWorkProgram', 'Work program and milestone response');
+  output.push(...worksTechnicalProposalFields(fields));
   collectWorkflowText(fields.mainConstructionActivities ?? fields.scopeSummary, output, 'works.methodStatement', 'Method statement and scope response', 'worksMethodStatement', true);
   return output;
+}
+
+function worksTechnicalProposalFields(fields: Record<string, unknown>) {
+  const scope = stringValue(fields.scopeSummary ?? fields.mainConstructionActivities);
+  const methodStatementRequired = [fields.methodStatementRequired, fields.requireMethodStatement, fields.methodStatement, fields.mainConstructionActivities].some(normalizeFlag);
+  const workProgramRequired = [fields.ganttChartRequired, fields.requireGanttChart, fields.workProgramRequired, fields.requireWorkProgram].some(normalizeFlag);
+  const siteVisitRequired = /mandatory|required/i.test(stringValue(fields.siteVisitRequirement));
+  return [
+    field('works.proposal.understanding', 'works.proposal.understanding', 'Project Understanding', 'textarea', 'technical', false, 'text', 'TECHNICAL', 'requirements.works.technicalProposal', { control: 'worksProposalNarrative', prompt: scope || 'Understanding of buyer scope, site conditions, drawings, constraints, and deliverables.' }),
+    field('works.proposal.methodology', 'works.proposal.methodology', 'Construction Methodology', 'textarea', 'technical', methodStatementRequired, 'text', 'TECHNICAL', 'requirements.works.technicalProposal', { control: 'worksProposalNarrative', prompt: 'Construction sequence, methods, supervision controls, testing, and handover approach.' }),
+    field('works.proposal.riskPlan', 'works.proposal.riskPlan', 'Risk Mitigation Plan', 'textarea', 'technical', false, 'text', 'TECHNICAL', 'requirements.works.technicalProposal', { control: 'worksProposalNarrative', prompt: 'Technical, schedule, safety, environmental, and commercial risk controls.' }),
+    field('works.proposal.qualityPlan', 'works.proposal.qualityPlan', 'Quality Assurance Approach', 'textarea', 'technical', false, 'text', 'TECHNICAL', 'requirements.works.technicalProposal', { control: 'worksProposalNarrative', prompt: 'Inspection test plans, material approvals, workmanship control, and QA/QC records.' }),
+    field('works.schedule.startDate', 'works.schedule.startDate', 'Proposed Start Date', 'date', 'technical', workProgramRequired, 'date', 'TECHNICAL', 'requirements.works.workProgram', { control: 'worksSchedule' }),
+    field('works.schedule.completionPeriod', 'works.schedule.completionPeriod', 'Proposed Completion Period', 'text', 'technical', workProgramRequired, 'text', 'TECHNICAL', 'requirements.works.workProgram', { control: 'worksSchedule', prompt: stringValue(fields.completionPeriod) || undefined }),
+    field('works.schedule.workPlan', 'works.schedule.workPlan', 'Proposed Work Plan', 'textarea', 'technical', workProgramRequired, 'text', 'TECHNICAL', 'requirements.works.workProgram', { control: 'worksSchedule', prompt: 'Describe the work breakdown, sequencing, mobilization, subcontractors, materials, site logistics, and how the uploaded work program will be executed.' }),
+    field('works.schedule.resources', 'works.schedule.resources', 'Resource Allocation Plan', 'textarea', 'technical', false, 'text', 'TECHNICAL', 'requirements.works.workProgram', { control: 'worksSchedule' }),
+    fileField('works.schedule.workProgramUpload', 'works.schedule.workProgramUpload', 'Upload work program', 'TECHNICAL', workProgramRequired, 'requirements.works.workProgram', { control: 'worksSchedule', prompt: 'Upload work program, milestone plan, Gantt chart, or schedule file.' }),
+    field('works.drawings.reviewedAcknowledgement', 'works.drawings.reviewedAcknowledgement', 'Drawing reviewed acknowledgement', 'boolean', 'technical', false, 'acknowledgement', 'TECHNICAL', 'requirements.works.drawingDesignRows', { control: 'worksDrawingDesign' }),
+    field('works.design.clarificationNeeded', 'works.design.clarificationNeeded', 'Design Clarification Needed', 'select', 'technical', false, 'text', 'TECHNICAL', 'requirements.works.drawingDesignRows', { control: 'worksDrawingDesign', options: ['Yes', 'No'] }),
+    field('works.design.alternativeProposed', 'works.design.alternativeProposed', 'Alternative Design Proposed?', 'select', 'technical', false, 'text', 'TECHNICAL', 'requirements.works.drawingDesignRows', { control: 'worksDrawingDesign', options: ['Yes', 'No'] }),
+    fileField('works.design.alternativeUpload', 'works.design.alternativeUpload', 'Upload proposed alternative designs', 'TECHNICAL', false, 'requirements.works.drawingDesignRows', { control: 'worksDrawingDesign' }),
+    field('works.design.alternative', 'works.design.alternative', 'Proposed Design Alternative', 'textarea', 'technical', false, 'text', 'TECHNICAL', 'requirements.works.drawingDesignRows', { control: 'worksDrawingDesign', prompt: 'Describe the proposed alternative design, affected drawings, technical rationale, compliance basis, assumptions, and any buyer approval required.' }),
+    field('works.siteVisit.notes', 'works.siteVisit.notes', 'Site Visit Notes', 'textarea', 'technical', siteVisitRequired, 'text', 'TECHNICAL', 'requirements.works.siteVisitRequirement', { control: 'worksSiteVisit', prompt: stringValue(fields.siteVisitRequirement) || undefined })
+  ];
+}
+
+function worksCommercialTermFields(fields: Record<string, unknown>) {
+  const bidSecurityRequired = [fields.bidSecurityRequired, fields.requireBidSecurity, fields.bidSecurity].some(normalizeFlag);
+  return [
+    field('works.commercial.bidValidity', 'works.commercial.bidValidity', 'Bid Validity Period (days)', 'number', 'financial', true, 'number', 'FINANCIAL', 'requirements.works.commercialTerms', { control: 'worksCommercialTerms', min: 1 }),
+    field('works.commercial.currency', 'works.commercial.currency', 'Currency', 'select', 'financial', true, 'text', 'FINANCIAL', 'requirements.works.commercialTerms', { control: 'worksCommercialTerms', options: ['TZS', 'USD', 'EUR', 'GBP'] }),
+    field('works.commercial.clarifications', 'works.commercial.clarifications', 'Commercial Clarifications', 'textarea', 'financial', false, 'text', 'FINANCIAL', 'requirements.works.commercialTerms', { control: 'worksCommercialTerms', prompt: 'Optional BOQ pricing assumptions only. Contract terms are handled after award.' }),
+    field('works.commercial.bidSecuritySubmitted', 'works.commercial.bidSecuritySubmitted', 'Bid security submitted, if required by this tender.', 'boolean', 'financial', bidSecurityRequired, 'boolean', 'FINANCIAL', 'requirements.works.commercialTerms', { control: 'worksCommercialTerms' }),
+    fileField('works.commercial.bidSecurityDocument', 'works.commercial.bidSecurityDocument', 'Bid security document', 'FINANCIAL', false, 'requirements.works.commercialTerms', { control: 'worksCommercialTerms' })
+  ];
 }
 
 function serviceWorkflowFields(fields: Record<string, unknown>) {
@@ -666,7 +683,8 @@ function criteriaFields(criteria: Record<string, unknown>[]) {
   });
 }
 
-function declarationFields(fields: Record<string, unknown>) {
+function declarationFields(fields: Record<string, unknown>, workflow: WorkflowType) {
+  if (workflow === 'works') return worksDeclarationFields();
   const configured = firstArray(fields.declarationRows, fields.declarations, fields.submissionDeclarations);
   const mapped = configured.filter(isRecord).map((row, index) =>
     field(`declaration.${row.id || index + 1}`, `declarations.${row.id || index + 1}`, payloadTitle(row, `Declaration ${index + 1}`), 'boolean', 'declarations', row.mandatory !== false && row.required !== false, 'declaration', 'COMBINED', 'declarations', validationHints(row))
@@ -678,6 +696,22 @@ function declarationFields(fields: Record<string, unknown>) {
         field('declaration.acceptTerms', 'declarations.acceptTerms', 'I accept the tender and contract terms', 'boolean', 'declarations', true, 'declaration', 'COMBINED', 'system'),
         field('declaration.noConflict', 'declarations.noConflict', 'I declare no conflict of interest', 'boolean', 'declarations', true, 'declaration', 'COMBINED', 'system')
       ];
+}
+
+function worksDeclarationFields() {
+  return [
+    field('works.declaration.signatoryName', 'works.declaration.signatoryName', 'Authorized Signatory Name', 'text', 'declarations', true, 'text', 'COMBINED', 'system', { control: 'worksDeclaration' }),
+    field('works.declaration.position', 'works.declaration.position', 'Position', 'text', 'declarations', true, 'text', 'COMBINED', 'system', { control: 'worksDeclaration' }),
+    field('works.declaration.companyStamp', 'works.declaration.companyStamp', 'Company stamp upload', 'file', 'declarations', false, 'attachment', 'COMBINED', 'system', {
+      control: 'worksDeclaration',
+      accept: '.pdf,.jpg,.jpeg,.png',
+      documentType: 'DECLARATION_COMPANY_STAMP'
+    }),
+    field('works.declaration.digitalSignature', 'works.declaration.digitalSignature', 'Digital Signature', 'text', 'declarations', true, 'text', 'COMBINED', 'system', { control: 'worksDeclaration', placeholder: 'Type authorized digital signature' }),
+    field('works.declaration.final', 'works.declaration.final', 'I confirm this works bid is complete, accurate, and authorized.', 'boolean', 'declarations', true, 'declaration', 'COMBINED', 'system', { control: 'worksDeclaration' }),
+    field('works.declaration.conflict', 'works.declaration.conflict', 'I declare no conflict of interest.', 'boolean', 'declarations', true, 'declaration', 'COMBINED', 'system', { control: 'worksDeclaration' }),
+    field('works.declaration.antiCorruption', 'works.declaration.antiCorruption', 'I accept anti-corruption declarations.', 'boolean', 'declarations', true, 'declaration', 'COMBINED', 'system', { control: 'worksDeclaration' })
+  ];
 }
 
 function collectRequirementValue(key: string, value: unknown, output: BidSubmissionSchemaFieldDto[], section: BidSubmissionSection, envelope: BidSchemaEnvelope, source: string) {
@@ -768,6 +802,8 @@ function requirementFields(requirements: Record<string, unknown>, workflow: Work
   const singular = workflow === 'services' ? 'service' : workflow;
   const alternateFields = objectPayload(objectPayload(requirements[singular]).fields);
   if (Object.keys(alternateFields).length) return alternateFields;
+  const legacyWorkflowFields = objectPayload(requirements[`${workflow}Requirements`]);
+  if (Object.keys(legacyWorkflowFields).length) return legacyWorkflowFields;
   return objectPayload(requirements.fields);
 }
 

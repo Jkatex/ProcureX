@@ -1003,6 +1003,45 @@
   pointer-events: auto;
 }
 
+.procurex-toast-host .procurex-notification-card.presentation-bidNotice {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  width: min(450px, calc(100vw - 36px));
+  padding: 20px 20px 18px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-left: 5px solid #f59e0b;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 20px 46px rgba(15, 23, 42, 0.16);
+}
+
+.procurex-toast-host .procurex-notification-card.presentation-bidNotice .procurex-notification-copy {
+  gap: 8px;
+}
+
+.procurex-toast-host .procurex-notification-card.presentation-bidNotice .procurex-notification-copy strong {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.procurex-toast-host .procurex-notification-card.presentation-bidNotice .procurex-notification-copy p {
+  color: #1e293b;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.procurex-toast-host .procurex-notification-card.presentation-bidNotice .procurex-notification-dismiss {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.procurex-toast-host .procurex-notification-card.presentation-bidNotice .procurex-notification-dismiss:hover {
+  background: #e2e8f0;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .procurex-toast-host .procurex-notification-card {
     animation: procurexToastIn 0.22s ease both;
@@ -1031,6 +1070,11 @@
 
   .procurex-notification-card {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .procurex-toast-host .procurex-notification-card.presentation-bidNotice {
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
   }
 
   .procurex-notification-dismiss {
