@@ -284,6 +284,29 @@
       page-break-inside: avoid;
     }
 
+    .technical-details {
+      margin: 24px 0;
+      padding: 16px 20px;
+      border: 1px solid var(--accent);
+      background: #fdfdfd;
+      border-radius: 4px;
+    }
+
+    .technical-details h4 {
+      margin-top: 0;
+      color: var(--accent-dark);
+      font-size: 11pt;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .technical-details pre {
+      background: var(--code);
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
     @media (max-width: 760px) {
       .page {
         margin: 0;
@@ -414,6 +437,7 @@
           <li><a href="#user-journeys">Deep User Journey Implementation</a></li>
           <li><a href="#testing">Testing And Validation</a></li>
           <li><a href="#conclusion">Conclusion And Recommendations</a></li>
+          <li><a href="#code-walkthrough">Code-Level Feature Walkthrough</a></li>
           <li><a href="#references">References And Figures Used</a></li>
         </ol>
       </nav>
@@ -732,6 +756,31 @@
         guard tests, page smoke tests, and Turnstile widget tests.
       </p>
 
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Auth State &amp; Flow</h4>
+        <p><strong>State Management (Redux Toolkit):</strong> Authentication state is centrally managed via the <code>authSlice</code>, exposing thunks like <code>signInWithCredentials</code> and <code>hydrateAuthSession</code>.</p>
+<pre><code>export const signInWithCredentials = createAsyncThunk&lt;AuthSessionResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }&gt;(
+  'auth/signInWithCredentials',
+  async (input, { rejectWithValue }) =&gt; {
+    try {
+      return await authApi.signIn(input);
+    } catch (error) {
+      return rejectWithValue(apiErrorMessage(error, 'Sign-in failed.'));
+    }
+  }
+);</code></pre>
+        <p><strong>Session Expiry Handling:</strong> The slice explicitly tracks session expiry and hydration, ensuring the user is cleanly logged out across the application when a token expires:</p>
+<pre><code>      .addCase(hydrateAuthSession.rejected, (state) =&gt; {
+        state.sessionExpired = Boolean(state.token);
+        state.status = 'idle';
+        state.user = null;
+        state.token = null;
+        state.expiresAt = null;
+        state.isAuthenticated = false;
+        clearStoredAuthToken();
+      })</code></pre>
+      </div>
+
       <h4>6.4.3 Identity Verification And Account Profile</h4>
       <p>
         Identity verification was implemented as the bridge between simple
@@ -795,6 +844,32 @@
         pages.
       </p>
 
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Procurement State &amp; Flow</h4>
+        <p><strong>State Management (Redux Toolkit):</strong> Procurement state manages active tenders and complex draft objects for the multi-step tender creation process:</p>
+<pre><code>type ProcurementState = {
+  tenders: ProcurementTender[];
+  selectedTenderId: string | null;
+  createTenderDrafts: CreateTenderDraft[];
+  publishedTenders: CreateTenderDraft[];
+  selectedDraftId: string | null;
+  lastSubmittedTenderId: string | null;
+};</code></pre>
+        <p><strong>Draft Handling:</strong> <code>procurementSlice</code> provides reducers specifically designed to support saving drafts, resuming, and submitting tenders:</p>
+<pre><code>    saveCreateTenderDraft(state, action: { payload: CreateTenderDraft }) {
+      const draft = { ...action.payload, status: action.payload.status === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT' } satisfies CreateTenderDraft;
+      const index = state.createTenderDrafts.findIndex((item) =&gt; item.id === draft.id);
+      if (index &gt;= 0) state.createTenderDrafts[index] = draft;
+      else state.createTenderDrafts.unshift(draft);
+      state.selectedDraftId = draft.id;
+    },
+    submitCreateTenderForEvaluation(state, action: { payload: CreateTenderDraft }) {
+      const submitted: CreateTenderDraft = { ...action.payload, status: 'SUBMITTED', submittedAt: action.payload.submittedAt ?? new Date().toISOString() };
+      state.lastSubmittedTenderId = submitted.id;
+      // ... update state array
+    }</code></pre>
+      </div>
+
       <h4>6.4.6 Supplier Marketplace And Supplier Tender Detail</h4>
       <p>
         Supplier marketplace and supplier tender detail screens were implemented
@@ -836,6 +911,30 @@
         and UI parity screenshots.
       </p>
 
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Bidding State &amp; Flow</h4>
+        <p><strong>Type Definitions (types.ts):</strong> The frontend uses strongly typed interfaces to handle complex bid envelopes and nested document states:</p>
+<pre><code>export type BidDraftPayload = {
+  workflowType?: BidWorkflowType;
+  administrative: Record&lt;string, unknown&gt;;
+  technical: Record&lt;string, unknown&gt;;
+  financial: Record&lt;string, unknown&gt;;
+  declarations: Record&lt;string, unknown&gt;;
+  responses: Array&lt;{ requirementKey: string; response: Record&lt;string, unknown&gt; }&gt;;
+  documents: BidDocumentInput[];
+  envelopes?: Record&lt;string, unknown&gt;;
+  // ... and other completeness flags
+};</code></pre>
+        <p><strong>Submission Flow:</strong> The wizard components progressively build the <code>BidDraftPayload</code> and execute the final submission, transforming UI steps into API structures:</p>
+<pre><code>export type BidSubmissionSchemaStepDto = {
+  id: BidSubmissionStepId;
+  label: string;
+  envelope: BidDocumentEnvelope;
+  required: boolean;
+  fields: BidSubmissionSchemaFieldDto[];
+};</code></pre>
+      </div>
+
       <h4>6.4.8 Bid Evaluation</h4>
       <p>
         Bid evaluation was implemented as the reviewer-facing transition from
@@ -856,6 +955,41 @@
         tests where evaluation output is consumed, and screenshot validation for
         the bid evaluation page.
       </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Evaluation State &amp; Flow</h4>
+        <p><strong>Type Definitions (types.ts):</strong> Evaluation uses a complex workspace structure consolidating bids, criteria, rankings, and audit history:</p>
+<pre><code>export type EvaluationWorkspace = {
+  tender: { id: string; reference: string; title: string; buyerName: string; /* ... */ } | null;
+  availability: { isReady: boolean; reason: string | null; };
+  summary: {
+    submittedBidCount: number;
+    evaluatedBidCount: number;
+    recommendedBidder: { bidId: string; supplierName: string; } | null;
+    activeStageId: string | null;
+    // ...
+  };
+  criteria: EvaluationWorkspaceCriterion[];
+  bids: EvaluationWorkspaceBid[];
+  rankings: EvaluationRankingRow[];
+  audit: { evaluatedBy: string | null; events: EvaluationAuditEvent[]; };
+};</code></pre>
+        <p><strong>Save Mechanism:</strong> Modifying the evaluation workspace requires structured updates to both numerical scores and qualitative decisions:</p>
+<pre><code>export type SaveEvaluationWorkspaceInput = {
+  scores: Array&lt;{
+    bidId: string;
+    criterionId: string;
+    score: number;
+    comment: string;
+  }&gt;;
+  decisions: Array&lt;{
+    bidId: string;
+    status: EvaluationDecisionStatus;
+    comment: string;
+  }&gt;;
+  complete?: boolean;
+};</code></pre>
+      </div>
 
       <h4>6.4.9 Award Recommendation, Award Response, And Contract Negotiation</h4>
       <p>
@@ -878,6 +1012,49 @@
         contract negotiation.
       </p>
 
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Award &amp; Contract Negotiation States</h4>
+        <p><strong>Type Definitions (types.ts):</strong> The frontend mirrors the backend lifecycle using explicit wizard steps and role contexts:</p>
+<pre><code>export type AwardContractStep =
+  | 'evaluation-result'
+  | 'award-decision'
+  | 'approval'
+  | 'award-notification'
+  | 'standstill-period'
+  | 'supplier-acceptance'
+  | 'pre-contract-documents'
+  | 'draft-contract'
+  | 'overview'
+  | 'buyer-review'
+  | 'supplier-review'
+  | 'negotiation'
+  | 'contract-owner-approval'
+  | 'signatures'
+  | 'execution';
+
+export type WorkflowAccess = {
+  viewerRole: ViewerRole;
+  canManageBuyerActions: boolean;
+  canSubmitSupplierActions: boolean;
+  canSignBuyer: boolean;
+  canSignSupplier: boolean;
+  readOnlyReason: string | null;
+};</code></pre>
+        <p><strong>Versioned Drafting:</strong> The interface handles negotiation via versioned contract payloads, where parties can suggest and agree on changes before signing:</p>
+<pre><code>export type ContractDetailDto = {
+  id: string;
+  reference: string;
+  status: string;
+  buyerName: string;
+  supplierName: string | null;
+  amount: number | null;
+  versions?: Array&lt;Record&lt;string, unknown&gt;&gt;;
+  clauses?: ContractLifecycleItemDto[];
+  negotiations?: ContractLifecycleItemDto[];
+  signatures: Array&lt;{ id: string; role: string; status: string; signerName: string; signedAt: string | null }&gt;;
+};</code></pre>
+      </div>
+
       <h4>6.4.10 Post-Award Tracking</h4>
       <p>
         Post-award tracking was implemented to represent contract execution
@@ -896,6 +1073,28 @@
         awards-contract flow tests, post-award component tests, role-access
         tests, and screenshot validation for post-award tracking.
       </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Post-Award Execution &amp; Tracking</h4>
+        <p><strong>Tab Layout:</strong> The post-award view groups tracking data into distinct tabs matching key execution facets:</p>
+<pre><code>export type PostAwardTabId = 
+  | 'milestones' 
+  | 'payments' 
+  | 'issues' 
+  | 'variations' 
+  | 'closure' 
+  | 'performance';</code></pre>
+        <p><strong>Tracking Details:</strong> The contract detail payload encompasses milestones, variations, payments, risks, and warranties, enabling complete visual compliance audits:</p>
+<pre><code>export type ContractDetailDto = {
+  // ... core metadata
+  milestones: Array&lt;ContractLifecycleItemDto &amp; { amount?: number | null; evidence?: ContractLifecycleItemDto[] }&gt;;
+  risks: Array&lt;ContractLifecycleItemDto &amp; { level?: string; score?: number; mitigationAction?: string }&gt;;
+  variations: Array&lt;ContractLifecycleItemDto &amp; { changeType?: string; costImpact?: number | null; timeImpactDays?: number | null }&gt;;
+  invoices?: Array&lt;Record&lt;string, unknown&gt;&gt;;
+  payments?: Array&lt;Record&lt;string, unknown&gt;&gt;;
+  closeout: Record&lt;string, unknown&gt; | null;
+};</code></pre>
+      </div>
 
       <h4>6.4.11 Communication Center</h4>
       <p>
@@ -1321,6 +1520,42 @@ POST /api/identity/admin/verifications/:id/decision</pre>
         component tests.
       </p>
 
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Identity Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The identity module relies on the <code>User</code> and <code>VerificationProfile</code> models within the <code>identity</code> schema.</p>
+<pre><code>model User {
+  id                 String             @id @default(uuid()) @db.Uuid
+  email              String             @unique
+  accountType        AccountType        @default(USER) @map("account_type")
+  verificationStatus VerificationStatus @default(NOT_STARTED) @map("verification_status")
+  sessions           Session[]
+  // ... relations to tenders, bids, contracts
+  @@schema("identity")
+}
+
+model VerificationProfile {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  organizationId String?            @map("organization_id") @db.Uuid
+  status         VerificationStatus @default(DRAFT)
+  // ... fields for registry and payload
+  @@schema("identity")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> API boundaries use Zod for strict payload verification before hitting the service layer. For example, the sign-in and registration schemas enforce human-verification via Turnstile:</p>
+<pre><code>export const startRegistrationSchema = z.object({
+  email: z.string().email(),
+  phone: z.string().min(7).max(32),
+  turnstileToken: turnstileTokenSchema,
+  location: tanzaniaLocationSchema.optional()
+});
+
+export const signInSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  turnstileToken: turnstileTokenSchema
+});</code></pre>
+      </div>
+
       <h4>7.5.4 Organization And Capability Model</h4>
       <p>
         The organization module represents the company context in which
@@ -1363,6 +1598,40 @@ POST /api/identity/admin/verifications/:id/decision</pre>
         tests, award-ready seed tests, and database validation.
       </p>
 
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Procurement Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The procurement module relies heavily on the <code>Tender</code> and <code>ProcurementPlan</code> models.</p>
+<pre><code>model Tender {
+  id                String            @id @default(uuid()) @db.Uuid
+  title             String
+  type              TenderType        @default(GOODS)
+  status            TenderStatus      @default(DRAFT)
+  procurementMethod ProcurementMethod @default(OPEN_TENDER) @map("procurement_method")
+  visibility        Visibility        @default(PRIVATE)
+  budget            Decimal?          @db.Decimal(19, 4)
+  currency          String            @default("TZS") @db.VarChar(8)
+  ownerId           String            @map("owner_id") @db.Uuid
+  ownerOrgId        String            @map("owner_org_id") @db.Uuid
+  // ... constraints and lifecycle dates
+  @@schema("procurement")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> Complex rules are enforced when creating tenders, such as normalizing categories and enforcing closing dates in the future:</p>
+<pre><code>const draftClosingDateSchema = z.string().trim().min(1)
+  .refine((value) => new Date(value).getTime() > Date.now(), {
+    message: 'Closing date must be in the future.'
+  });
+
+export const createTenderBodySchema = z.object({
+  title: z.string().trim().min(5).max(200),
+  type: tenderTypeInputSchema,
+  description: z.string().trim().min(20).max(5000),
+  budget: z.coerce.number().positive().max(999999999999999.99).optional(),
+  closingDate: draftClosingDateSchema.optional(),
+  categories: z.array(categoryInputSchema).max(20).optional().default([]),
+  // ... additional strict metadata fields
+}).strict();</code></pre>
+      </div>
+
       <h4>7.5.6 Bidding Module</h4>
       <p>
         The bidding module implements supplier responses to tenders. It models
@@ -1384,6 +1653,34 @@ POST /api/identity/admin/verifications/:id/decision</pre>
         workspace tests.
       </p>
 
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Bidding Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The bidding module manages the supplier's response via the <code>Bid</code> and <code>BidDocument</code> models.</p>
+<pre><code>model Bid {
+  id               String       @id @default(uuid()) @db.Uuid
+  tenderId         String       @map("tender_id") @db.Uuid
+  supplierOrgId    String       @map("supplier_org_id") @db.Uuid
+  submitterId      String       @map("submitter_id") @db.Uuid
+  status           BidStatus    @default(DRAFT)
+  totalAmount      Decimal?     @map("total_amount") @db.Decimal(19, 4)
+  currency         String?      @db.VarChar(8)
+  // ... nested responses, envelopes, and receipts
+  @@schema("bidding")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> The bidding schemas support highly structured, multi-envelope responses (Administrative, Technical, Financial) rather than simple file uploads:</p>
+<pre><code>export const bidDraftBodySchema = z.object({
+  workflowType: z.enum(['goods', 'works', 'services', 'consultancy', 'generic']).default('generic'),
+  administrative: z.record(z.unknown()).default({}),
+  technical: z.record(z.unknown()).default({}),
+  financial: z.record(z.unknown()).default({}),
+  responses: z.array(bidResponseSchema).max(300).default([]),
+  documents: z.array(bidDocumentSchema).max(100).default([]),
+  envelopes: z.record(z.unknown()).default({}),
+  totalAmount: z.coerce.number().min(0).max(999999999999999.99).optional(),
+  currency: z.string().trim().min(3).max(8).optional()
+}).strict();</code></pre>
+      </div>
+
       <h4>7.5.7 Evaluation Module</h4>
       <p>
         The evaluation module implements the formal review stage after bidding.
@@ -1403,6 +1700,36 @@ POST /api/identity/admin/verifications/:id/decision</pre>
         evaluation smoke coverage, and award-ready demo validation where
         evaluation output feeds recommendations.
       </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Evaluation Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The evaluation process is managed through the <code>EvaluationWorkspace</code>, <code>WorkflowAssignment</code>, and <code>EvaluationScore</code> models.</p>
+<pre><code>model EvaluationWorkspace {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenderId        String           @unique @map("tender_id") @db.Uuid
+  buyerOrgId      String           @map("buyer_org_id") @db.Uuid
+  status          EvaluationStatus @default(NOT_STARTED)
+  activeStage     EvaluationStage  @default(OPENING) @map("active_stage")
+  // ... criteria and assignments
+  @@schema("evaluation")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> The evaluation schema validates bulk scoring arrays and stage transition states to keep the frontend and backend in sync during complex reviews:</p>
+<pre><code>export const saveWorkspaceBodySchema = z.object({
+  scores: z.array(z.object({
+    bidId: uuidSchema,
+    criterionId: uuidSchema,
+    score: z.coerce.number().finite().min(0),
+    comment: z.string().trim().max(2000).optional().default('')
+  }).strict()).default([]),
+  decisions: z.array(z.object({
+    bidId: uuidSchema,
+    status: decisionStatusSchema,
+    comment: z.string().trim().max(2000).optional().default('')
+  }).strict()).default([]),
+  activeStageId: activeStageSchema.optional(),
+  complete: z.boolean().optional().default(false)
+}).strict();</code></pre>
+      </div>
 
       <h4>7.5.8 Award-Contract Lifecycle Module</h4>
       <p>
@@ -1427,6 +1754,38 @@ POST /api/identity/admin/verifications/:id/decision</pre>
         tests, seed-demo tests, award-ready seed tests, and client flow tests
         that exercise the corresponding UI.
       </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Award &amp; Contract Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The contract lifecycle is managed through the <code>Contract</code>, <code>ContractSignature</code>, and <code>ContractMilestone</code> models within the <code>contract</code> schema.</p>
+<pre><code>model Contract {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenderId         String?        @map("tender_id") @db.Uuid
+  buyerOrgId       String         @map("buyer_org_id") @db.Uuid
+  supplierOrgId    String         @map("supplier_org_id") @db.Uuid
+  status           ContractStatus @default(DRAFT)
+  type             ContractType   @default(LUMP_SUM)
+  totalValue       Decimal?       @map("total_value") @db.Decimal(19, 4)
+  currency         String         @default("TZS") @db.VarChar(8)
+  signedAt         DateTime?      @map("signed_at")
+  startDate        DateTime?      @map("start_date") @db.Date
+  endDate          DateTime?      @map("end_date") @db.Date
+  // ... clauses, milestones, invoices, and risks
+  @@schema("contract")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> Contract actions require extensive validation. For example, negotiating a clause or terminating a contract requires specific payloads to maintain an auditable trail:</p>
+<pre><code>export const terminationBodySchema = z.object({
+  terminationType: z.nativeEnum(ContractTerminationType),
+  reason: z.string().trim().min(1).max(4000),
+  contractClause: z.string().trim().max(240).default(''),
+  faultParty: z.string().trim().max(120).default(''),
+  noticeDate: z.string().trim().date().optional(),
+  cureDeadline: z.string().trim().date().optional(),
+  terminationEffectiveDate: z.string().trim().date().optional(),
+  supplierResponse: z.string().trim().max(4000).default(''),
+  finalDecision: z.string().trim().max(4000).default('')
+}).strict();</code></pre>
+      </div>
 
       <h4>7.5.9 Financial Module</h4>
       <p>
@@ -3288,15 +3647,417 @@ npm --workspace client run ui:parity:screenshots</pre>
       </p>
     </section>
 
+    <section id="code-walkthrough" class="section">
+      <h2>14. Code-Level Feature Walkthrough</h2>
+      <p>
+        This section explains how to read the ProcureX implementation at code
+        level. It does not reproduce every line of source code, because the
+        source files remain the authoritative implementation, but it describes
+        what each major directory and file group is doing, why the code exists,
+        how feature data moves from screen to server to database, and which
+        tokens, providers, services, and tests support the behavior.
+      </p>
+      <div class="summary-box">
+        <strong>Security note:</strong> Provider credentials and API keys must
+        never be copied into academic reports. Environment examples should use
+        placeholders only. If a tracked environment example contains real-looking
+        SMTP, Resend, Briq, Beem, or WhatsApp credentials, those values should be
+        rotated and replaced with non-secret placeholders.
+      </div>
+
+      <h3>14.1 Repository Reading Map</h3>
+      <p>
+        The implementation is easiest to understand by reading it as a set of
+        cooperating directories. <code>client/src/features</code> contains the
+        user-facing feature modules. <code>client/src/shared</code> contains
+        common API, formatting, type, and component utilities.
+        <code>server/src/modules</code> contains backend domain modules.
+        <code>server/src/security</code> contains access and anti-abuse
+        controls. <code>server/src/db</code> contains Prisma and RLS context
+        utilities. <code>server/prisma/schema.prisma</code> defines the data
+        model, while <code>server/prisma/migrations</code> stores schema
+        evolution.
+      </p>
+      <pre>client/src/app/                 Router, providers, route guards, app shell
+client/src/features/auth/       Sign-in, registration, session state, auth API calls
+client/src/features/identity/   Verification and account profile UI
+client/src/features/procurement Tender, marketplace, planning, tender detail UI
+client/src/features/bidding/    Supplier bid workspace UI and API helpers
+client/src/features/evaluation/ Evaluation pages and scoring workflow UI
+client/src/features/awardsContracts/ Award, contract, post-award workflow UI
+client/src/shared/api/          Axios client, bearer-token storage, API error helpers
+server/src/app.ts               Express bootstrap, security headers, CORS, health, error handling
+server/src/modules/*            Backend feature modules
+server/src/security/*           Turnstile, access policy, rate limiting, runtime security config
+server/src/db/*                 Prisma client and database context for RLS
+server/prisma/schema.prisma     PostgreSQL multi-schema data model</pre>
+
+      <h3>14.2 Authentication And Token Flow</h3>
+      <p>
+        Authentication uses several different token or code types, and each has
+        a different purpose. The frontend auth slice reads a stored bearer token
+        from <code>client/src/shared/api/authToken.ts</code>, keeps it in Redux
+        auth state, and clears it on sign-out or failed hydration. The token is
+        stored under the browser localStorage key
+        <code>procurex.authToken</code>. The shared Axios client in
+        <code>client/src/shared/api/http.ts</code> reads this value before each
+        request and sends it as <code>Authorization: Bearer &lt;token&gt;</code>.
+      </p>
+      <p>
+        On the backend, sign-in creates an opaque random session token using
+        Node crypto. The server returns the raw token to the client only once.
+        The database stores a SHA-256 hash of the token as
+        <code>tokenHash</code>, not the raw token. Later requests send the raw
+        bearer token, the server hashes it again, and the identity repository
+        searches for an active matching session. This design reduces damage if
+        the sessions table is exposed, because stored session records do not
+        directly contain reusable raw tokens.
+      </p>
+      <table>
+        <tr>
+          <th>Token Or Code</th>
+          <th>Where It Appears</th>
+          <th>Purpose</th>
+          <th>Why It Is Used</th>
+        </tr>
+        <tr>
+          <td>Bearer session token</td>
+          <td>Client localStorage, Axios authorization header, backend identity service.</td>
+          <td>Authenticates API requests after sign-in.</td>
+          <td>Allows stateless HTTP requests while the database keeps revocable session records.</td>
+        </tr>
+        <tr>
+          <td>Session token hash</td>
+          <td><code>identity.sessions.tokenHash</code>.</td>
+          <td>Stores a non-raw representation of the session token.</td>
+          <td>Prevents direct reuse of database session values as bearer tokens.</td>
+        </tr>
+        <tr>
+          <td>Turnstile token</td>
+          <td>Registration, sign-in, forgot-password, reset-code flows.</td>
+          <td>Proves a human/browser challenge was completed.</td>
+          <td>Reduces automated abuse of identity endpoints.</td>
+        </tr>
+        <tr>
+          <td>Phone OTP code</td>
+          <td>Registration start and phone verification challenges.</td>
+          <td>Confirms the user controls the submitted phone number.</td>
+          <td>Supports identity confidence and prevents unverified phone ownership.</td>
+        </tr>
+        <tr>
+          <td>Email activation code</td>
+          <td>Email activation challenge after phone verification.</td>
+          <td>Confirms the user controls the submitted email address.</td>
+          <td>Ensures future account recovery and notifications reach the right user.</td>
+        </tr>
+        <tr>
+          <td>Password reset code</td>
+          <td>Forgot-password and reset-password flows.</td>
+          <td>Allows password recovery after email challenge.</td>
+          <td>Avoids immediately revealing whether an account exists while still allowing recovery.</td>
+        </tr>
+        <tr>
+          <td>Digital-signature keyphrase</td>
+          <td>Identity verification submission and signing credential code.</td>
+          <td>Unlocks signing behavior for verification payloads.</td>
+          <td>Creates signed evidence for verification consent and submitted identity data.</td>
+        </tr>
+      </table>
+
+      <h3>14.3 Authentication Feature File-By-File</h3>
+      <p>
+        The authentication feature starts on the client. The auth API helper in
+        <code>client/src/features/auth/api/index.ts</code> defines the exact
+        HTTP calls for registration start, OTP verification, OTP resend, email
+        activation, activation resend, password setup, sign-in, forgot password,
+        reset-code resend, reset-code verification, password reset, session
+        lookup, access lookup, and sign-out. The auth slice in
+        <code>client/src/features/auth/slice.ts</code> wraps those calls in
+        Redux Toolkit async thunks, so UI components receive loading, success,
+        error, token, user, and session-expired state consistently.
+      </p>
+      <p>
+        The server receives those requests through
+        <code>server/src/modules/identity/routes.ts</code> and
+        <code>controller.ts</code>. The validators file checks request body
+        shape. The service file owns behavior: email normalization, phone
+        normalization, OTP generation, password hashing, session token creation,
+        challenge attempt limits, resend cooldowns, audit events, registry
+        lookup, screening, signing, and verification submission. The repository
+        file owns Prisma reads and writes. This is why authentication is not one
+        file: the feature is split so UI state, HTTP transport, validation,
+        business rules, and database persistence each have a clear home.
+      </p>
+      <pre>Sign-in reading path:
+SignInProcurexPage.tsx
+  -> auth slice signInWithCredentials()
+  -> authApi.signIn()
+  -> apiClient POST /api/identity/auth/sign-in
+  -> identity routes/controller
+  -> identity validators
+  -> identity service signIn()
+  -> password verification and Turnstile/audit behavior
+  -> repository createSession(tokenHash)
+  -> response { token, user, expiresAt, isFirstSignIn }
+  -> Redux stores token and user
+  -> Axios sends Authorization: Bearer token on later requests</pre>
+
+      <h3>14.4 Turnstile Anti-Abuse Flow</h3>
+      <p>
+        Turnstile is used to protect sensitive identity entry points from
+        automated abuse. The client sends a <code>turnstileToken</code> with
+        registration, sign-in, forgot-password, reset-code, and reset-password
+        actions. The server helper in <code>server/src/security/turnstile.ts</code>
+        verifies the token. In local development, the helper allows a
+        <code>local-dev-turnstile:</code> token prefix or Cloudflare's testing
+        secret. In production, it posts the secret and response token to the
+        Cloudflare Turnstile siteverify endpoint.
+      </p>
+      <p>
+        The purpose of this design is to keep anti-abuse logic outside page
+        components and outside identity business rules. Pages only collect the
+        token, the identity API transports it, and the security helper verifies
+        it. This makes the implementation easier to test and safer to maintain.
+      </p>
+
+      <h3>14.5 SMS, Email, And WhatsApp Provider Routing</h3>
+      <p>
+        Identity notifications are implemented through provider classes in
+        <code>server/src/modules/identity/notifications.ts</code>. The system
+        supports multiple providers so local development, production email, SMS,
+        and optional WhatsApp delivery can be selected by environment variables
+        without rewriting identity service logic.
+      </p>
+      <table>
+        <tr>
+          <th>Provider Class</th>
+          <th>External Service</th>
+          <th>Used For</th>
+          <th>Selection Variable</th>
+        </tr>
+        <tr>
+          <td><code>DevConsoleIdentityNotifications</code></td>
+          <td>Local console only</td>
+          <td>Development OTP, activation, and reset code logging.</td>
+          <td><code>IDENTITY_NOTIFICATION_PROVIDER</code>, <code>IDENTITY_EMAIL_PROVIDER</code>, <code>IDENTITY_PHONE_PROVIDER</code></td>
+        </tr>
+        <tr>
+          <td><code>SmtpEmailProvider</code></td>
+          <td>SMTP, configured for local Gmail-style testing</td>
+          <td>Email activation and password reset in non-production.</td>
+          <td><code>IDENTITY_EMAIL_PROVIDER=smtp</code></td>
+        </tr>
+        <tr>
+          <td><code>ResendEmailProvider</code></td>
+          <td>Resend</td>
+          <td>Production email activation and password reset.</td>
+          <td><code>IDENTITY_EMAIL_PROVIDER=resend</code> or default production email route</td>
+        </tr>
+        <tr>
+          <td><code>BeemSmsProvider</code></td>
+          <td>Beem Africa SMS API</td>
+          <td>Phone OTP delivery by SMS.</td>
+          <td><code>IDENTITY_PHONE_PROVIDER=sms</code> and <code>IDENTITY_SMS_PROVIDER=beem</code></td>
+        </tr>
+        <tr>
+          <td><code>BriqSmsProvider</code></td>
+          <td>Briq SMS API</td>
+          <td>Phone OTP delivery by SMS.</td>
+          <td><code>IDENTITY_PHONE_PROVIDER=sms</code> and <code>IDENTITY_SMS_PROVIDER=briq</code></td>
+        </tr>
+        <tr>
+          <td><code>MetaWhatsAppOtpProvider</code></td>
+          <td>Meta WhatsApp Cloud API</td>
+          <td>Local/test WhatsApp OTP delivery.</td>
+          <td><code>IDENTITY_PHONE_PROVIDER=whatsapp</code></td>
+        </tr>
+        <tr>
+          <td><code>BeemWhatsAppProvider</code></td>
+          <td>Beem WhatsApp template/session APIs</td>
+          <td>Template and session WhatsApp messages.</td>
+          <td>Called through production notification methods when configured.</td>
+        </tr>
+      </table>
+      <p>
+        The provider decision happens in <code>RoutedIdentityNotifications</code>.
+        First, it decides whether email should use dev-console, SMTP, or Resend.
+        Second, it decides whether phone delivery should use dev-console, SMS,
+        or WhatsApp. If phone delivery is SMS, <code>ProductionIdentityNotifications</code>
+        selects Beem or Briq through <code>IDENTITY_SMS_PROVIDER</code>. This
+        explains who the SMS API provider is: the code supports Beem Africa and
+        Briq, and the active provider is whichever value the runtime environment
+        selects.
+      </p>
+
+      <h3>14.6 Permissions, Capabilities, And Feature Gates</h3>
+      <p>
+        Permissions are computed in <code>server/src/security/accessPolicy.ts</code>.
+        The code takes account type, verification status, organization
+        capabilities, trust tier, risk level, and screening status, then returns
+        permissions and feature gates. Admin accounts receive platform-wide
+        permissions. Normal users receive procurement permissions through
+        organization capability and trust/risk context. The temporary
+        development switch currently permits core procurement permissions while
+        trust gates are being iterated.
+      </p>
+      <p>
+        This explains why buyer and supplier are not stored as account types.
+        They are organization capabilities. A user account can remain a normal
+        <code>USER</code>, while the organization determines whether tender
+        creation, bidding, evaluation, award management, contract management,
+        signing, or tracking is available. Frontend route guards consume the
+        session user and feature gates, while backend services call identity
+        methods such as <code>requireSession</code>,
+        <code>requirePermission</code>, or <code>requireAdmin</code>.
+      </p>
+
+      <h3>14.7 Feature-To-Code Navigation Matrix</h3>
+      <table>
+        <tr>
+          <th>Feature</th>
+          <th>Client Files/Directories</th>
+          <th>Server Files/Directories</th>
+          <th>Database Area</th>
+          <th>What To Read For Code Meaning</th>
+        </tr>
+        <tr>
+          <td>Authentication</td>
+          <td><code>client/src/features/auth</code>, <code>client/src/shared/api</code></td>
+          <td><code>server/src/modules/identity</code>, <code>server/src/security/turnstile.ts</code></td>
+          <td><code>identity.User</code>, <code>identity.Session</code>, <code>identity.IdentityChallenge</code></td>
+          <td>Read API helper methods first, then Redux thunks, then identity service methods for tokens, hashes, challenges, and sessions.</td>
+        </tr>
+        <tr>
+          <td>Identity verification</td>
+          <td><code>client/src/features/identity</code></td>
+          <td><code>identity/service.ts</code>, <code>registryProviders.ts</code>, <code>screeningProviders.ts</code>, <code>signing.ts</code></td>
+          <td><code>VerificationProfile</code>, <code>VerificationDocument</code>, <code>DigitalSignature</code>, <code>ScreeningCheck</code></td>
+          <td>Read registry lookup, profile update, submit verification, signature creation, screening, trust evaluation, and admin decision methods.</td>
+        </tr>
+        <tr>
+          <td>Procurement/tenders</td>
+          <td><code>client/src/features/procurement</code>, <code>client/src/features/tenderPlanning</code></td>
+          <td><code>server/src/modules/procurement</code></td>
+          <td><code>procurement.Tender</code>, requirements, milestones, documents, amendments, saved tenders.</td>
+          <td>Read procurement service methods for marketplace, create, update, publish, review, save, close, and tender document flows.</td>
+        </tr>
+        <tr>
+          <td>Bidding</td>
+          <td><code>client/src/features/bidding</code></td>
+          <td><code>server/src/modules/bidding</code></td>
+          <td><code>bidding.Bid</code>, versions, documents, responses, receipts, samples.</td>
+          <td>Read bidding validators and service methods to understand supplier response status, ownership, and submitted evidence.</td>
+        </tr>
+        <tr>
+          <td>Evaluation</td>
+          <td><code>client/src/features/evaluation</code></td>
+          <td><code>server/src/modules/evaluation</code></td>
+          <td><code>EvaluationWorkspace</code>, assignments, criteria, scores.</td>
+          <td>Read workspace and scoring flows to see how submitted bids become structured review evidence.</td>
+        </tr>
+        <tr>
+          <td>Awards/contracts</td>
+          <td><code>client/src/features/awardsContracts</code></td>
+          <td><code>server/src/modules/award-contract</code></td>
+          <td><code>contract.AwardRecommendation</code>, award groups, contracts, versions, milestones, risks, payments.</td>
+          <td>Read action forms, role access, service methods, and repository mapping to understand recommendation through post-award lifecycle.</td>
+        </tr>
+        <tr>
+          <td>Admin/compliance</td>
+          <td><code>client/src/features/admin</code></td>
+          <td><code>server/src/modules/compliance-admin</code>, identity admin routes</td>
+          <td><code>ComplianceCase</code>, <code>RiskSignal</code>, <code>AdminAction</code>, <code>AuditEvent</code></td>
+          <td>Read admin route guards, compliance service methods, verification decisions, and audit/admin action creation.</td>
+        </tr>
+        <tr>
+          <td>Documents</td>
+          <td>Feature-specific upload/use surfaces</td>
+          <td><code>server/src/modules/documents</code></td>
+          <td><code>documents.DocumentObject</code></td>
+          <td>Read bearer-token extraction, session requirement, object metadata persistence, and storage-driver configuration.</td>
+        </tr>
+        <tr>
+          <td>Communication, records, support</td>
+          <td><code>client/src/features/communication</code>, <code>records</code>, <code>support</code></td>
+          <td><code>server/src/modules/communication</code>, <code>records</code>, <code>support</code></td>
+          <td><code>CommunicationItem</code>, <code>RecordEntry</code>, <code>SupportTicket</code></td>
+          <td>Read service/repository files to see how collaboration, history, and support evidence are persisted.</td>
+        </tr>
+      </table>
+
+      <h3>14.8 How To Read A File Line By Line</h3>
+      <p>
+        For any feature file, read from imports to exported functions. Imports
+        show dependencies. Constants show policy values, such as expiry minutes,
+        retry limits, feature-gate defaults, provider names, or API paths. Type
+        declarations show the shape of data entering and leaving the file.
+        Helper functions usually normalize, validate, hash, format, or map data.
+        Exported functions, classes, and React components are the public
+        behavior of the file. Tests show what the authors considered important
+        enough to protect.
+      </p>
+      <pre>Code reading order:
+1. Directory name: which feature owns this file?
+2. Imports: what does this file depend on?
+3. Constants: what policy values does it encode?
+4. Types: what data shape does it accept and return?
+5. Helpers: what repeated behavior is hidden behind names?
+6. Main function/class/component: what business action happens?
+7. Repository/API calls: where does data go next?
+8. Errors: what can fail, and how is failure reported?
+9. Tests: what behavior is verified?</pre>
+
+      <h3>14.9 Example: Reading Authentication End To End</h3>
+      <p>
+        To understand authentication deeply, start in the sign-in page, then
+        move to <code>authApi.signIn()</code>, then the Redux thunk
+        <code>signInWithCredentials</code>, then the Axios client, then identity
+        routes, controller, validator, service, and repository. The key idea is
+        that the password is verified only on the server, the bearer token is
+        generated only on the server, the database stores the token hash, and
+        the browser stores only the raw token needed to call the API.
+      </p>
+      <p>
+        The same reading technique applies to every feature. Tender creation
+        starts in the create-tender UI, moves through procurement API helpers,
+        then server procurement routes, then validators, then service permission
+        checks, then repository writes to the procurement schema. Bidding starts
+        in supplier tender detail or bidding workspace, then moves through
+        bidding API helpers and bidding module services. Awarding starts in
+        evaluation or award recommendation screens, then moves through
+        award-contract action forms, role access, server validators, lifecycle
+        services, and contract schema records.
+      </p>
+
+      <h3>14.10 Testing As Code Explanation</h3>
+      <p>
+        Tests are part of the explanation of how features are used.
+        Authentication tests explain session creation, provider behavior, and
+        production restrictions. Procurement tests explain tender creation,
+        publish rules, saved tenders, document downloads, and permission checks.
+        Bidding tests explain supplier response behavior. Award-contract tests
+        explain lifecycle actions. Client tests explain which screens must
+        render, which route guards must block access, and which components must
+        respond to user actions. Seed tests explain how realistic datasets are
+        created for marketplace, evaluation, and awards.
+      </p>
+      <p>
+        Therefore, a complete academic reading of ProcureX should include tests
+        beside implementation files. The implementation file tells what the
+        system does. The test file tells what behavior the project currently
+        promises to preserve.
+      </p>
+    </section>
+
     <section id="references" class="section">
-      <h2>14. References And Figures Used</h2>
+      <h2>15. References And Figures Used</h2>
       <p>
         This report was prepared from the implementation guide, repository
         structure, UI parity assets, backend module structure, Prisma database
         foundation, and screenshot capture workflow in the ProcureX workspace.
       </p>
 
-      <h3>14.1 Repository References</h3>
+      <h3>15.1 Repository References</h3>
       <ul>
         <li><code>procurement-platform/docs/architecture.md</code> - system implementation guide.</li>
         <li><code>procurement-platform/docs/ui-parity/README.md</code> - UI parity workflow.</li>
@@ -3311,7 +4072,7 @@ npm --workspace client run ui:parity:screenshots</pre>
         <li><code>procurement-platform/server/prisma/schema.prisma</code> - database schema model.</li>
       </ul>
 
-      <h3>14.2 Figure Asset References</h3>
+      <h3>15.2 Figure Asset References</h3>
       <p>
         All screenshots are reference UI assets from:
       </p>
