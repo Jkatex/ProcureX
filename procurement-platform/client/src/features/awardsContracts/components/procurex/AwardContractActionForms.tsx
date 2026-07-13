@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import type { PickerOption } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
 import { actionDefinitionForTitle } from './AwardContractActionCatalogue';
-import { FlowChangeAlert, clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlow';
+import { clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlow';
+import { notifyAward } from './AwardContractSimpleShared';
 import { canUseWorkflowOwner, inferActionOwner, LockedWorkflowPanel, ownerLockedReason, useAwardContractAccess } from './AwardContractRoleAccess';
 
 export type FieldOption = {
@@ -428,6 +429,7 @@ export function ActionFormPanel({
     const next = buildAwardContractPayload(fields, values);
     if (next.errors.length > 0) {
       setMessage(next.errors[0]);
+      notifyAward('warning', 'Complete required fields', next.errors[0]);
       return;
     }
     setSaving(true);
@@ -435,11 +437,14 @@ export function ActionFormPanel({
     try {
       const result = await onSubmit(next.payload, values);
       setMessage(`${title} saved.`);
+      notifyAward('success', `${title} saved`, 'Your changes were saved to the award and contract record.');
       onComplete?.(result);
       clearAwardContractDirtyWork();
       setSelected(false);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : `${title} could not be saved.`);
+      const errorMessage = error instanceof Error ? error.message : `${title} could not be saved.`;
+      setMessage(errorMessage);
+      notifyAward('error', `${title} could not be saved`, errorMessage);
     } finally {
       setSaving(false);
     }
@@ -471,7 +476,6 @@ export function ActionFormPanel({
           </button>
         </div>
       </div>
-      {message ? <FlowChangeAlert message={message} /> : null}
       {selected ? (
         <form className="award-action-form award-action-form-inline" aria-labelledby={formTitleId} noValidate onSubmit={submit}>
           <div className="award-inline-form-heading">

@@ -1111,12 +1111,8 @@ function formatInputDate(value: string) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function errorMessage(error: unknown, fallback: string) {
-  if (typeof error === 'object' && error && 'response' in error) {
-    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
-    return response?.data?.error ?? response?.data?.message ?? fallback;
-  }
-  return error instanceof Error ? error.message : fallback;
+function errorMessage(_error: unknown, fallback: string) {
+  return fallback;
 }
 
 function recipientMatchesSearch(recipient: CommunicationRecipient, searchTerm: string) {

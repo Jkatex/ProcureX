@@ -18,10 +18,13 @@ export function useMarketplaceData() {
     let isMounted = true;
 
     setStatus('loading');
-    procurementApi
-      .getMarketplace(user)
+    Promise.resolve(procurementApi.getMarketplace(user))
       .then((payload) => {
         if (!isMounted) return;
+        if (!payload) {
+          setStatus('error');
+          return;
+        }
         setData(mergeSessionMarketplaceData(payload, createTenderDrafts, publishedTenders, user?.organization));
         setStatus('success');
       })
@@ -56,10 +59,13 @@ export function useTenderDetail(tenderId: string | null) {
 
     let isMounted = true;
     setStatus('loading');
-    procurementApi
-      .getTenderDetail(tenderId)
+    Promise.resolve(procurementApi.getTenderDetail(tenderId))
       .then((payload) => {
         if (!isMounted) return;
+        if (!payload) {
+          setStatus('error');
+          return;
+        }
         setData(payload);
         setStatus('success');
       })

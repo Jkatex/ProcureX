@@ -15,7 +15,7 @@ import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="location">{location.pathname}</span>;
+  return <span data-testid="location">{location.pathname}{location.search}</span>;
 }
 
 function renderMarketplace(route = '/procurement/marketplace') {
@@ -320,6 +320,7 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(within(tenderRow!).getByRole('link', { name: 'View Tender' })).toHaveAttribute('href', '/procurement/supplier-tender-detail?tenderId=public-open-tender');
     expect(within(tenderRow!).getByRole('link', { name: /^Bid$/i })).toHaveAttribute('href', '/bidding?tenderId=public-open-tender');
+    expect(within(tenderRow!).queryByRole('button', { name: /^Bid$/i })).not.toBeInTheDocument();
   });
 
   it('shows only public open marketplace tenders in All Tenders', async () => {
@@ -586,6 +587,72 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Saved' })).toBeInTheDocument();
     expect(procurementApi.saveTender).toHaveBeenCalledWith('tender-2');
+  });
+
+  it('opens the bidding workspace from a submitted My Bids row', async () => {
+    const user = userEvent.setup();
+    const tender = marketplaceTender({
+      id: 'submitted-tender',
+      reference: 'PX-SUB-001',
+      title: 'Submitted Tender'
+    });
+    const getTenderDetail = vi.spyOn(procurementApi, 'getTenderDetail').mockRejectedValue(new Error('Bid navigation should not fetch tender detail'));
+
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [],
+      myTenders: [],
+      myBids: [
+        {
+          id: 'my-bid-submitted',
+          title: tender.title,
+          section: 'submitted',
+          status: 'Submitted',
+          tender,
+          tenderReference: tender.reference,
+          lastActivity: '2026-06-09',
+          actionLabel: 'Open Bid',
+          nav: `/bidding?tenderId=${tender.id}`
+        }
+      ]
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/my-bids');
+
+    const openBidLink = await screen.findByRole('link', { name: 'Open Bid' });
+    expect(openBidLink).toHaveAttribute('href', '/bidding?tenderId=submitted-tender');
+
+    await user.click(openBidLink);
+
+    expect(getTenderDetail).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location')).toHaveTextContent('/bidding?tenderId=submitted-tender');
+  });
+
+  it('opens the bidding workspace from an active marketplace bid link', async () => {
+    const user = userEvent.setup();
+    const tender = marketplaceTender({
+      id: 'open-tender',
+      reference: 'PX-OPEN-001',
+      title: 'Open Tender',
+      hasDraftBid: true
+    });
+    const getTenderDetail = vi.spyOn(procurementApi, 'getTenderDetail').mockRejectedValue(new Error('Bid navigation should not fetch tender detail'));
+
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [tender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace();
+
+    const tenderRow = (await screen.findByText('Open Tender')).closest('article');
+    const continueBidLink = within(tenderRow!).getByRole('link', { name: 'Continue Bid' });
+    expect(continueBidLink).toHaveAttribute('href', '/bidding?tenderId=open-tender');
+
+    await user.click(continueBidLink);
+
+    expect(getTenderDetail).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location')).toHaveTextContent('/bidding?tenderId=open-tender');
   });
 });
 

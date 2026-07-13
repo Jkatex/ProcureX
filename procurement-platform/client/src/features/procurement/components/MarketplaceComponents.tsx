@@ -344,7 +344,12 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
   );
 }
 
-function TenderRowCard({ tender, isSaved, isSaving = false, onToggleSaved }: TenderRowCardProps) {
+function TenderRowCard({
+  tender,
+  isSaved,
+  isSaving = false,
+  onToggleSaved
+}: TenderRowCardProps) {
   const ownedByCurrentOrganization = Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser);
   const canBid = isBiddableVisibility(tender.visibility) && !ownedByCurrentOrganization && Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !tender.hasSubmittedBid));
   const daysRemaining = getDaysRemaining(tender.closingDate);

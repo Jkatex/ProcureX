@@ -91,7 +91,7 @@ export function SupplierTenderDetailProcurexPage() {
                 </div>
                 <div className="supplier-detail-action-row">
                   <button className="btn btn-secondary" type="button" disabled={tender.ownedByCurrentOrganization}>{tender.isSaved ? 'Saved' : 'Save Tender'}</button>
-                  <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask clarification</Link>
+                  <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask Buyer</Link>
                 </div>
               </div>
             </section>

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { store } from '@/app/store';
 import { procurexTheme } from '@/styles/mui-theme';
@@ -21,6 +21,18 @@ const procurementApiMock = vi.hoisted(() => ({
   unsaveTender: vi.fn()
 }));
 
+const html2PdfMock = vi.hoisted(() => {
+  const worker = {
+    set: vi.fn(),
+    from: vi.fn(),
+    outputPdf: vi.fn()
+  };
+  return {
+    factory: vi.fn(() => worker),
+    worker
+  };
+});
+
 vi.mock('../../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api')>();
   return {
@@ -31,6 +43,10 @@ vi.mock('../../api', async (importOriginal) => {
     }
   };
 });
+
+vi.mock('html2pdf.js', () => ({
+  default: html2PdfMock.factory
+}));
 
 function renderCreateTender(route = '/procurement/create-tender') {
   return render(
@@ -45,6 +61,8 @@ function renderCreateTender(route = '/procurement/create-tender') {
 }
 
 function renderWithRoutes() {
+  procurementApiMock.getMarketplace.mockResolvedValue(emptyMarketplaceResponse());
+
   return render(
     <Provider store={store}>
       <ThemeProvider theme={procurexTheme}>
@@ -71,13 +89,28 @@ async function fillBasicStep(user: ReturnType<typeof userEvent.setup>, title = '
 }
 
 async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, category = 'Medical equipment') {
-  await user.selectOptions(screen.getByLabelText('Category'), category);
+  await user.clear(screen.getByLabelText('Category'));
+  await user.type(screen.getByLabelText('Category'), category);
+  await user.click(await screen.findByRole('button', { name: category }));
+}
+
+function emptyMarketplaceResponse() {
+  return {
+    tenders: [],
+    myTenders: [],
+    myBids: [],
+    summary: {},
+    pagination: { page: 1, limit: 20, matching: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false }
+  };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   store.dispatch(resetCreateTenderDrafts());
   window.localStorage.clear();
+  html2PdfMock.worker.set.mockReturnValue(html2PdfMock.worker);
+  html2PdfMock.worker.from.mockReturnValue(html2PdfMock.worker);
+  html2PdfMock.worker.outputPdf.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
   procurementApiMock.createTender.mockResolvedValue({
     success: true,
     message: 'Tender draft saved successfully',
@@ -117,13 +150,52 @@ beforeEach(() => {
     },
     validation: { warnings: [], scannerIssues: [], standardizedCategories: ['Medical equipment'] }
   });
-  procurementApiMock.getMarketplace.mockResolvedValue({
-    tenders: [],
-    myTenders: [],
-    myBids: [],
-    summary: {},
-    pagination: { page: 1, limit: 20, matching: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false }
+  procurementApiMock.getMarketplace.mockResolvedValue(emptyMarketplaceResponse());
+});
+
+function pdfSourceText() {
+  const source = html2PdfMock.worker.from.mock.calls.at(-1)?.[0] as HTMLElement | undefined;
+  return source?.textContent ?? '';
+}
+
+function mockBrowserDownload() {
+  const downloads: string[] = [];
+  const blobs: Blob[] = [];
+  const click = vi.fn();
+  const originalCreateElement = document.createElement.bind(document);
+
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: vi.fn((blob: Blob) => {
+      blobs.push(blob);
+      return `blob:procurex-${blobs.length}`;
+    })
   });
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: vi.fn()
+  });
+
+  vi.spyOn(document, 'createElement').mockImplementation((tagName: string, options?: ElementCreationOptions) => {
+    const element = originalCreateElement(tagName, options);
+    if (tagName.toLowerCase() === 'a') {
+      Object.defineProperty(element, 'click', { configurable: true, value: click });
+      Object.defineProperty(element, 'download', {
+        configurable: true,
+        get: () => downloads.at(-1) ?? '',
+        set: (value: string) => {
+          downloads.push(value);
+        }
+      });
+    }
+    return element;
+  });
+
+  return { blobs, click, downloads };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('CreateTenderProcurexPage', () => {
@@ -798,32 +870,34 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Conformity to technical specifications')).toBeInTheDocument();
   }, 10000);
 
-  it('category selection auto-adds, prevents duplicates, includes Others last, and supports removing categories', async () => {
+  it('category selection searches, auto-adds, prevents duplicates, and supports removing categories', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
-    const categorySelect = screen.getByLabelText('Category') as HTMLSelectElement;
-    const options = within(categorySelect).getAllByRole('option').map((option) => option.textContent);
-    expect(options.at(-1)).toBe('Others');
+    const categorySearch = screen.getByLabelText('Category') as HTMLInputElement;
+    expect(categorySearch).toHaveAttribute('type', 'search');
     expect(screen.queryByRole('button', { name: 'Add Category' })).not.toBeInTheDocument();
 
-    await user.selectOptions(categorySelect, 'Medical equipment');
+    await user.type(categorySearch, 'Medical equipment');
+    await user.click(await screen.findByRole('button', { name: 'Medical equipment' }));
 
-    const categoryButton = screen.getByRole('button', { name: 'Medical equipment x' });
-    expect(categoryButton).toBeInTheDocument();
-    expect(categorySelect).toHaveValue('');
+    expect(screen.getByText('Medical equipment')).toBeInTheDocument();
+    expect(categorySearch).toHaveValue('');
 
-    await user.selectOptions(categorySelect, 'Medical equipment');
-    expect(screen.getAllByRole('button', { name: 'Medical equipment x' })).toHaveLength(1);
+    await user.type(categorySearch, 'Medical equipment');
+    expect(screen.queryByRole('button', { name: 'Medical equipment' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Medical equipment')).toHaveLength(1);
+    await user.clear(categorySearch);
 
-    await user.selectOptions(categorySelect, 'Others');
-    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
+    await user.type(categorySearch, 'Others');
+    await user.click(await screen.findByRole('button', { name: 'Others' }));
+    expect(screen.getByText('Others')).toBeInTheDocument();
 
-    await user.click(categoryButton);
+    await user.click(screen.getByRole('button', { name: 'Remove Medical equipment' }));
 
-    expect(screen.queryByRole('button', { name: 'Medical equipment x' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Others x' })).toBeInTheDocument();
+    expect(screen.queryByText('Medical equipment')).not.toBeInTheDocument();
+    expect(screen.getByText('Others')).toBeInTheDocument();
   });
 
   it('invited tender reveals invited supplier controls', async () => {
@@ -856,7 +930,8 @@ describe('CreateTenderProcurexPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Procurement Planning' })).toBeInTheDocument();
     expect(screen.getByText('Planning-autofill notice: selected plan values pre-filled this tender draft.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Healthcare infrastructure x' })).toBeInTheDocument();
+    expect(screen.getByText('Healthcare infrastructure')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove Healthcare infrastructure' })).toBeInTheDocument();
   });
 
   it('planning handoff pre-fills Basic Information and warns when edited', async () => {
@@ -1236,7 +1311,7 @@ describe('CreateTenderProcurexPage', () => {
       reference: 'PX-GDS-2026-001',
       status: 'DRAFT'
     });
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender draft was saved to the backend.')).toBe(true);
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender draft was saved.')).toBe(true);
   });
 
   it('second save patches the existing backend draft', async () => {
@@ -1339,6 +1414,7 @@ describe('CreateTenderProcurexPage', () => {
 
   it('submit requires confirmations, then saves and sends the tender to admin review', async () => {
     const user = userEvent.setup();
+    const download = mockBrowserDownload();
     renderWithRoutes();
 
     await fillBasicStep(user, 'Published React Tender');
@@ -1357,7 +1433,15 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Download Tender PDF' }));
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender PDF generator is not available in this frontend yet.')).toBe(true);
+    await waitFor(() => expect(html2PdfMock.worker.outputPdf).toHaveBeenCalledWith('blob'));
+    expect(html2PdfMock.worker.set).toHaveBeenCalledWith(expect.objectContaining({ filename: expect.stringMatching(/^PX-DRAFT-\d{4}-\d+-tender-pack\.pdf$/) }));
+    expect(pdfSourceText()).toContain('Published React Tender');
+    expect(pdfSourceText()).toContain('Dodoma');
+    expect(pdfSourceText()).toContain('Government budget');
+    expect(pdfSourceText()).toContain('250,000,000');
+    expect(download.downloads.at(-1)).toMatch(/^PX-DRAFT-\d{4}-\d+-tender-pack\.pdf$/);
+    expect(download.blobs.at(-1)?.type).toBe('application/pdf');
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender PDF generator is not available in this frontend yet.')).toBe(false);
 
     for (const checkbox of screen.getAllByRole('checkbox')) {
       await user.click(checkbox);
@@ -1370,7 +1454,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender was saved and sent to admin review.')).toBe(true);
   });
 
-  it('shows backend review validation errors', async () => {
+  it('keeps backend review validation errors out of user feedback', async () => {
     procurementApiMock.publishTender.mockRejectedValueOnce({
       response: {
         data: {
@@ -1390,11 +1474,13 @@ describe('CreateTenderProcurexPage', () => {
     }
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
 
-    expect(await screen.findByText('Tender requirements are required before publishing.')).toBeInTheDocument();
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
+    expect(await screen.findByText('Tender could not be submitted for review.')).toBeInTheDocument();
+    expect(screen.queryByText('Tender requirements are required before publishing.')).not.toBeInTheDocument();
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender could not be submitted for review.')).toBe(true);
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(false);
   });
 
-  it('blocks invited tender review submission until backend method persistence is available', async () => {
+  it('blocks invited tender review submission while that method is unavailable', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
@@ -1408,7 +1494,7 @@ describe('CreateTenderProcurexPage', () => {
     }
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
 
-    expect(await screen.findByText('Invited Tender review submission is not yet supported by the frontend. Select Open Tender before submitting.')).toBeInTheDocument();
+    expect(await screen.findByText('Invited Tender review submission is not available yet. Select Open Tender before submitting.')).toBeInTheDocument();
     expect(procurementApiMock.createTender).not.toHaveBeenCalled();
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });

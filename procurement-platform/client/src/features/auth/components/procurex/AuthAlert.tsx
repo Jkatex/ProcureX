@@ -61,7 +61,7 @@ function friendlyAuthError(context: AuthErrorContext, status?: number, message =
   if (status === 400) return badInputMessage(context, message);
   if (status && status >= 500) return { key: 'auth.alerts.serverUnavailable' };
 
-  return message ? { text: message } : fallbackMessage(context);
+  return fallbackMessage(context);
 }
 
 function deliveryFailureMessage(context: AuthErrorContext): Pick<AuthAlertMessage, 'key'> {
@@ -83,7 +83,7 @@ function conflictMessage(context: AuthErrorContext, message: string): Pick<AuthA
   if (normalized.includes('phone')) return { key: 'auth.alerts.conflict.phone' };
   if (normalized.includes('email')) return { key: 'auth.alerts.conflict.email' };
   if (context === 'password') return { key: 'auth.alerts.conflict.passwordGate' };
-  return message ? { text: message } : { key: 'auth.alerts.actionUnavailable' };
+  return { key: 'auth.alerts.actionUnavailable' };
 }
 
 function notFoundMessage(context: AuthErrorContext): Pick<AuthAlertMessage, 'key'> {
@@ -103,7 +103,7 @@ function badInputMessage(context: AuthErrorContext, message: string): Pick<AuthA
   }
   if (context === 'registration' && normalized.includes('phone')) return { key: 'auth.alerts.badInput.phone' };
   if (context === 'password' || context === 'reset-password') return { key: 'auth.alerts.badInput.password' };
-  return message ? { text: message } : fallbackMessage(context);
+  return fallbackMessage(context);
 }
 
 function fallbackMessage(context: AuthErrorContext): Pick<AuthAlertMessage, 'key'> {

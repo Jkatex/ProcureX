@@ -107,6 +107,9 @@ describe('SupplierTenderDetailProcurexPage', () => {
     expect(screen.queryByText('Additional responses')).not.toBeInTheDocument();
     expect(screen.queryByText('Time remaining')).not.toBeInTheDocument();
     expect(screen.queryByText('Jump to')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ask Buyer' })).toHaveAttribute('href', expect.stringContaining('/communication?view=compose&mode=clarification'));
+    expect(screen.getByText('Mandatory before bid')).toBeInTheDocument();
+    expect(screen.getByText('Additional responses')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Procurement details', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Clarification and buyer notice' })).toBeInTheDocument();
     expect(screen.getByText('Customer Information')).toBeInTheDocument();

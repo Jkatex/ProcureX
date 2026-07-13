@@ -193,7 +193,7 @@ export function BiddingWorkspaceProcurexPage() {
   }, [tenderId, steps.length]);
 
   useEffect(() => {
-    if (!bid?.id || !schemaStep(schema, 'samples')) {
+    if (!bid?.id || !schemaSampleStep(schema)) {
       setSamples([]);
       setSampleEdits({});
       return;
@@ -351,7 +351,7 @@ export function BiddingWorkspaceProcurexPage() {
     }
   }
 
-  async function addFiles(files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) {
+  async function addFiles(files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel = '') {
     if (!files?.length) return;
     const selectedFiles = Array.from(files);
     setUploadingKey(requirementKey);
@@ -363,7 +363,7 @@ export function BiddingWorkspaceProcurexPage() {
         files: selectedFiles,
         envelope,
         documentType,
-        metadata: { requirementKey }
+        metadata: { requirementKey, requirementLabel, source: 'bid-workspace' }
       });
       syncBidState(updated);
       setStatus(`${selectedFiles.length} evidence file${selectedFiles.length === 1 ? '' : 's'} uploaded and validated.`);
@@ -453,7 +453,7 @@ export function BiddingWorkspaceProcurexPage() {
   }
 
   function jumpToReview() {
-    const reviewIndex = steps.findIndex((step) => step.id === 'review');
+    const reviewIndex = steps.findIndex((step) => isReviewStep(step));
     setActiveStep(reviewIndex > -1 ? reviewIndex : Math.max(0, steps.length - 1));
   }
 
@@ -485,7 +485,7 @@ export function BiddingWorkspaceProcurexPage() {
     const step = steps[index];
     if (!step) return true;
     const currentSchemaStep = schemaStep(schema, step.id);
-    if (currentSchemaStep && !['review', 'receipt'].includes(currentSchemaStep.id)) {
+    if (currentSchemaStep && !isReviewStep(currentSchemaStep) && !isReceiptStep(currentSchemaStep)) {
       const missing = currentSchemaStep.fields.filter((field) => field.required && !schemaFieldComplete(field, schemaResponses, documents, samples));
       if (missing.length) {
         setStatus(`Complete required tender fields before continuing: ${missing.map((field) => field.label).join(', ')}.`);
@@ -493,7 +493,7 @@ export function BiddingWorkspaceProcurexPage() {
       }
       return true;
     }
-    if (step.id === 'eligibility' && !gate.complete) {
+    if (step.id === 'administrative' && !gate.complete) {
       setStatus(gate.message);
       return false;
     }
@@ -533,7 +533,7 @@ export function BiddingWorkspaceProcurexPage() {
               View Tender Details
             </Link>
             <Link className="btn btn-secondary" to="/communication">
-              Ask Clarification
+              Ask Buyer
             </Link>
             <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={saveDraft}>
               Save Draft
@@ -549,16 +549,6 @@ export function BiddingWorkspaceProcurexPage() {
             )}
           </div>
         </section>
-
-        <BidCommandBar
-          tender={tender}
-          requiredInputs={requiredSchemaFieldCount(loadedSchema)}
-          totalAmount={totalAmount}
-          documents={documents}
-          samples={samples}
-          validationIssues={validationIssues}
-          completeness={completeness}
-        />
 
         <section className="wizard-shell">
           <nav className="wizard-step-progress bid-step-progress" aria-label="Bid submission progress">
@@ -581,7 +571,7 @@ export function BiddingWorkspaceProcurexPage() {
 
           <main className="wizard-workspace">
             <div className="form-status">{status}</div>
-            <StepPanel kicker={currentStep.kicker} title={receiptVisible ? 'Submission Receipt' : currentStep.title} description={receiptVisible ? 'Bid hash and post-submission actions' : currentStep.description} badge={stepBadge(currentStep.id, validationIssues, documents, receipt, gate)} className={currentStep.id === 'eligibility' ? 'bid-mandatory-gate' : undefined}>
+            <StepPanel kicker={currentStep.kicker} title={receiptVisible ? 'Submission Receipt' : currentStep.title} description={receiptVisible ? 'Bid hash and post-submission actions' : currentStep.description} badge={stepBadge(currentStep.id, validationIssues, documents, receipt, gate)} className={currentStep.id === 'administrative' ? 'bid-mandatory-gate' : undefined}>
               {renderStep(currentStep.id)}
             </StepPanel>
             <div className="wizard-flow-controls" data-bid-flow-controls>
@@ -610,27 +600,36 @@ export function BiddingWorkspaceProcurexPage() {
 
     const currentSchemaStep = schemaStep(loadedSchema, stepId);
     if (currentSchemaStep) {
-      if (currentSchemaStep.id === 'review') {
+      if (isReviewStep(currentSchemaStep)) {
         return (
-          <ReviewPanel
-            tender={loadedTender}
-            schema={loadedSchema}
-            responses={schemaResponses}
-            documents={documents}
-            samples={samples}
-            issues={validationIssues}
-            totalAmount={totalAmount}
-            currency={loadedTender.currency}
-            completeness={completeness}
-            isSubmitted={isSubmitted || Boolean(receipt)}
-            onEditField={editReviewField}
-          />
+          <>
+            <ReviewPanel
+              tender={loadedTender}
+              schema={loadedSchema}
+              responses={schemaResponses}
+              documents={documents}
+              samples={samples}
+              issues={validationIssues}
+              totalAmount={totalAmount}
+              currency={loadedTender.currency}
+              completeness={completeness}
+              isSubmitted={isSubmitted || Boolean(receipt)}
+              onEditField={editReviewField}
+            />
+            {reviewStepSubmits(workflow, currentSchemaStep.id) ? (
+              <>
+                <WorkflowStepContext tender={loadedTender} workflow={workflow} step={currentSchemaStep} />
+                <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />
+                <SchemaSubmitPanel saving={saving} uploading={uploading} isSubmitted={isSubmitted} onSave={saveDraft} onSubmit={submitBid} />
+              </>
+            ) : null}
+          </>
         );
       }
-      if (currentSchemaStep.id === 'receipt') {
+      if (isReceiptStep(currentSchemaStep)) {
         return <div className="scope-empty">Submit the bid to generate a receipt.</div>;
       }
-      if (currentSchemaStep.id === 'samples') {
+      if (isSampleStep(currentSchemaStep)) {
         return (
           <div data-bid-review-source-id={currentSchemaStep.id}>
             <SampleTrackingSection
@@ -651,19 +650,42 @@ export function BiddingWorkspaceProcurexPage() {
               onSave={saveSampleRecord}
               onSubmit={markSampleSubmitted}
             />
+            <WorkflowStepContext tender={loadedTender} workflow={workflow} step={currentSchemaStep} />
             <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />
           </div>
         );
       }
-      if (currentSchemaStep.id === 'declarations') {
+      if (isDeclarationStep(currentSchemaStep)) {
         return (
           <div data-bid-review-source-id={currentSchemaStep.id}>
+            <WorkflowStepContext tender={loadedTender} workflow={workflow} step={currentSchemaStep} />
             <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />
             <SchemaSubmitPanel saving={saving} uploading={uploading} isSubmitted={isSubmitted} onSave={saveDraft} onSubmit={submitBid} />
           </div>
         );
       }
-      return <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />;
+      if (currentSchemaStep.id === 'administrative') {
+        return (
+          <AdministrativeGateSchemaPanel
+            tender={loadedTender}
+            gate={gate}
+            step={currentSchemaStep}
+            responses={schemaResponses}
+            documents={documents}
+            currency={loadedTender.currency}
+            disabled={saving || uploading || isSubmitted || Boolean(receipt)}
+            uploadingKey={uploadingKey}
+            onPatch={patchSchemaResponse}
+            onFiles={addFiles}
+          />
+        );
+      }
+      return (
+        <>
+          <WorkflowStepContext tender={loadedTender} workflow={workflow} step={currentSchemaStep} />
+          <SchemaStepFields step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />
+        </>
+      );
     }
 
     return <div className="scope-empty">No bid response fields were configured for this section.</div>;
@@ -787,6 +809,232 @@ function BidCommandMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function WorkflowStepContext({ tender, workflow, step }: { tender: TenderDetail; workflow: WorkflowType; step: BidSubmissionSchemaStepDto }) {
+  const context = workflowStepCopy(workflow, step.id);
+  const configuredCount = step.fields.filter((field) => field.source !== 'system').length;
+  if (isReviewStep(step) || isReceiptStep(step)) return null;
+  return (
+    <section className="bid-step-intro workflow-step-context">
+      <div>
+        <strong>{context.title}</strong>
+        <span>{context.description}</span>
+      </div>
+      <div className="inline-actions">
+        <span className="badge badge-info">{`${configuredCount} tender-driven item${configuredCount === 1 ? '' : 's'}`}</span>
+        <Link className="btn btn-secondary" to={`/communication?view=compose&mode=clarification&tenderId=${encodeURIComponent(tender.id)}&category=${encodeURIComponent(context.category)}&context=${encodeURIComponent(context.askContext)}`}>
+          Ask Buyer
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function workflowStepCopy(workflow: WorkflowType, stepId: string) {
+  if (stepId === 'administrative') {
+    return {
+      title: 'Administrative compliance gate',
+      description: 'Complete eligibility confirmations and required buyer documents before preparing the bid package.',
+      category: 'Administrative',
+      askContext: 'Question about eligibility, registration, license, or statutory evidence'
+    };
+  }
+  if (['financial', 'goodsFinancial', 'worksFinancial', 'servicesCommercial', 'consultancyFinancial'].includes(stepId)) {
+    return {
+      title: workflow === 'consultancy' ? 'Sealed financial proposal' : workflow === 'works' ? 'BOQ and cost breakdown' : 'Commercial and pricing response',
+      description: workflow === 'consultancy' ? 'Enter the financial proposal separately from the technical proposal for controlled evaluation.' : 'Price the commercial schedule configured in tender creation and attach financial evidence where required.',
+      category: 'Financial',
+      askContext: 'Question about pricing schedule, BOQ, currency, tax, or commercial terms'
+    };
+  }
+  if (stepId === 'samples' || stepId === 'goodsSamples') {
+    return {
+      title: 'Sample submission response',
+      description: 'Record sample preparation, dispatch, delivery details, and buyer-facing tracking information.',
+      category: 'Samples',
+      askContext: 'Question about sample submission, quantity, delivery, or return requirements'
+    };
+  }
+  if (['declarations', 'goodsDeclaration', 'worksDeclaration'].includes(stepId)) {
+    return {
+      title: 'Supplier declaration and contract terms',
+      description: 'Confirm accuracy, conflict-of-interest, anti-corruption, and tender term acceptance before sealing the bid.',
+      category: 'Declarations',
+      askContext: 'Question about declaration, contract terms, or submission confirmation'
+    };
+  }
+  if (workflow === 'goods') {
+    return {
+      title: 'Goods technical response',
+      description: 'Respond to product specifications, compliance, delivery, warranty, samples, and buyer-required evidence.',
+      category: 'Technical',
+      askContext: 'Question about goods product specifications or compliance'
+    };
+  }
+  if (workflow === 'works') {
+    if (stepId === 'worksCapacity') {
+      return {
+        title: 'Technical capacity and experience',
+        description: 'Provide projects, personnel, equipment, financial capacity, HSE, and buyer-required evidence before the work proposal.',
+        category: 'Technical Capacity',
+        askContext: 'Question about works capacity, personnel, equipment, HSE, or experience requirements'
+      };
+    }
+    if (stepId === 'worksTechnicalProposal') {
+      return {
+        title: 'Technical proposal and work program',
+        description: 'Explain methodology, work program, site visit, drawings, alternative design, and delivery approach.',
+        category: 'Technical Proposal',
+        askContext: 'Question about drawings, site visit, milestones, or methodology'
+      };
+    }
+    return {
+      title: 'Works technical capacity and proposal',
+      description: 'Respond to site visit, method statement, personnel, equipment, HSE, experience, drawings, and work program requirements.',
+      category: 'Technical',
+      askContext: 'Question about works methodology, personnel, equipment, HSE, or site visit requirements'
+    };
+  }
+  if (workflow === 'services') {
+    if (stepId === 'servicesMethodology') {
+      return {
+        title: 'Service understanding and methodology',
+        description: 'Describe service approach, work methods, quality controls, and how the buyer scope will be delivered.',
+        category: 'Methodology',
+        askContext: 'Question about service methodology or scope'
+      };
+    }
+    if (stepId === 'servicesDeliveryPlan') {
+      return {
+        title: 'Service schedule and delivery plan',
+        description: 'Respond to milestones, deliverables, locations, timeline, reporting points, and acceptance expectations.',
+        category: 'Delivery Plan',
+        askContext: 'Question about service delivery schedule or milestones'
+      };
+    }
+    if (stepId === 'servicesStaffing') {
+      return {
+        title: 'Staffing, capacity and continuity plan',
+        description: 'Provide staff, supervision, tools, backup capacity, continuity arrangements, and related evidence.',
+        category: 'Staffing',
+        askContext: 'Question about staffing, capacity, continuity, or tools'
+      };
+    }
+    if (stepId === 'servicesSla') {
+      return {
+        title: 'Performance, SLA, reporting and compliance',
+        description: 'Confirm service levels, reports, QA, risk controls, compliance evidence, and operational governance.',
+        category: 'SLA and Reporting',
+        askContext: 'Question about SLA, reporting, QA, compliance, or risk controls'
+      };
+    }
+    return {
+      title: 'Service methodology and delivery plan',
+      description: 'Respond to scope, staffing, workflow, SLA, reporting, risk, continuity, tools, and delivery milestones.',
+      category: 'Technical',
+      askContext: 'Question about service methodology, staffing, deliverables, or SLA requirements'
+    };
+  }
+  if (workflow === 'consultancy') {
+    if (stepId === 'consultancyTechnical') {
+      return {
+        title: 'Technical envelope',
+        description: 'Respond to TOR understanding, methodology, work plan, objectives, deliverables, responsibilities, and expert CV requirements.',
+        category: 'Technical Proposal',
+        askContext: 'Question about consultancy TOR, methodology, work plan, or expert qualifications'
+      };
+    }
+    if (stepId === 'consultancyReview') {
+      return {
+        title: 'Review and submit',
+        description: 'Review the technical and financial envelopes, accept declarations, and submit the sealed consultancy bid.',
+        category: 'Review',
+        askContext: 'Question about final bid submission or declarations'
+      };
+    }
+    return {
+      title: 'Consultancy technical proposal',
+      description: 'Respond to TOR understanding, methodology, key experts, deliverables, reporting, and firm experience.',
+      category: 'Technical',
+      askContext: 'Question about consultancy TOR, methodology, work plan, or expert qualifications'
+    };
+  }
+  return {
+    title: 'Tender response',
+    description: 'Complete buyer-configured response fields and attach requested evidence.',
+    category: 'Technical',
+    askContext: 'Question about bid response requirements'
+  };
+}
+
+function AdministrativeGateSchemaPanel({
+  tender,
+  gate,
+  step,
+  responses,
+  documents,
+  currency,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  tender: TenderDetail;
+  gate: GateStatus;
+  step: BidSubmissionSchemaStepDto;
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  currency: string;
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
+}) {
+  return (
+    <>
+      <section className="bid-step-intro workflow-step-context">
+        <div>
+          <strong>Upload the required license and eligibility evidence</strong>
+          <span>Complete the administrative gate first. Mandatory buyer documents and declarations must be ready before the technical and financial bid screens open.</span>
+        </div>
+        <div className="inline-actions">
+          <span className={`badge ${gate.complete ? 'badge-success' : 'badge-warning'}`}>{gate.complete ? 'Gate complete' : `${gate.remaining} mandatory pending`}</span>
+          <Link className="btn btn-secondary" to={`/communication?view=compose&mode=clarification&tenderId=${encodeURIComponent(tender.id)}&category=Administrative&context=eligibility`}>
+            Ask Buyer
+          </Link>
+        </div>
+      </section>
+      <div className="bid-schema-admin-gate">
+        <div className="bid-response-document-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Requirement</th>
+                <th>Category</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gate.items.map((item) => (
+                <tr key={item.id} className={item.complete ? '' : 'is-incomplete'}>
+                  <td>
+                    <strong>{item.label}</strong>
+                    <small>{item.mandatory ? 'Mandatory administrative gate item' : 'Optional administrative item'}</small>
+                  </td>
+                  <td>{item.category}</td>
+                  <td>
+                    <span className={`bid-requirement-marker ${item.complete ? 'required-complete' : 'required-incomplete'}`}>{item.complete ? 'Complete' : 'Missing'}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <SchemaStepFields step={step} responses={responses} documents={documents} currency={currency} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+    </>
+  );
+}
+
 function SchemaStepFields({
   step,
   responses,
@@ -804,15 +1052,16 @@ function SchemaStepFields({
   disabled: boolean;
   uploadingKey: string | null;
   onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
-  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) => Promise<void>;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
 }) {
   const fields = step.fields.filter((field) => {
-    if (field.section === 'review' || field.section === 'receipt') return false;
-    if (step.id === 'samples' && field.responseType === 'structured') return false;
+    if (field.section === 'receipt') return false;
+    if (field.section === 'review' && !isReviewStep(step)) return false;
+    if (isSampleStep(step) && field.responseType === 'structured') return false;
     return true;
   });
   if (!fields.length) return <div className="scope-empty">No bid response fields were configured for this section.</div>;
-  if (step.id === 'financial') {
+  if (fields.some(isSchemaBoqPricingField)) {
     const pricingFields = fields.filter(isSchemaBoqPricingField);
     const otherFields = fields.filter((field) => !isSchemaBoqPricingField(field));
     return (
@@ -912,7 +1161,7 @@ function SchemaFieldControl({
   disabled: boolean;
   uploadingKey: string | null;
   onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
-  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) => Promise<void>;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
 }) {
   const sourceId = field.id;
   const hint = String(field.validation.prompt ?? '');
@@ -932,6 +1181,10 @@ function SchemaFieldControl({
         {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : hint ? <span className="form-hint">{hint}</span> : null}
       </div>
     );
+  }
+
+  if (field.type === 'table' || field.responseType === 'structured') {
+    return <StructuredResponseControl field={field} value={value} disabled={disabled} onPatch={(nextValue) => onPatch(field, nextValue)} />;
   }
 
   if (field.responseType === 'money' || field.responseType === 'pricing') {
@@ -977,6 +1230,202 @@ function SchemaFieldControl({
   }
 
   return <Input label={field.label} value={String(value ?? '')} type={inputType} disabled={disabled} hint={hint} sourceId={sourceId} onChange={(nextValue) => onPatch(field, field.type === 'number' ? Number(nextValue) || 0 : nextValue)} />;
+}
+
+function StructuredResponseControl({
+  field,
+  value,
+  disabled,
+  onPatch
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: unknown;
+  disabled: boolean;
+  onPatch: (value: Record<string, unknown>) => void;
+}) {
+  const current = structuredValue(value);
+  const control = String(field.validation.control ?? '');
+  const title = structuredControlTitle(control, field.label);
+  const prompt = String(field.validation.prompt ?? field.validation.buyerRequirement ?? schemaRequirementText(field));
+  const rows = structuredControlRows(control, field);
+
+  function patch(key: string, nextValue: unknown) {
+    onPatch({ ...current, [key]: nextValue });
+  }
+
+  return (
+    <section className="premium-response-matrix" data-bid-review-source-id={field.id}>
+      <div className="premium-response-matrix-heading">
+        <div>
+          <span>{field.required ? 'Mandatory structured response' : 'Structured response'}</span>
+          <strong>{title}</strong>
+          <p>{prompt}</p>
+        </div>
+        <em>{field.envelope}</em>
+      </div>
+      <div className="data-table service-category-response-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Buyer requirement</th>
+              {rows.map((row) => (
+                <th key={row.key}>{row.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="premium-response-table-row">
+              <td>
+                <div className="premium-response-row-label">
+                  <span>{String(field.validation.rowIndex ?? '01').padStart(2, '0')}</span>
+                  <div>
+                    <strong>{field.label}</strong>
+                    <small>{prompt}</small>
+                  </div>
+                </div>
+              </td>
+              {rows.map((row) => (
+                <td className="premium-response-cell" key={row.key}>
+                  {row.kind === 'select' ? (
+                    <select className="form-input premium-response-input" aria-label={`${field.label} ${row.label}`} value={String(current[row.key] ?? '')} disabled={disabled} onChange={(event) => patch(row.key, event.target.value)}>
+                      <option value="">Select</option>
+                      {(row.options ?? []).map((option) => (
+                        <option value={option} key={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : row.kind === 'number' ? (
+                    <input className="form-input premium-response-input" aria-label={`${field.label} ${row.label}`} type="number" min="0" value={String(current[row.key] ?? '')} disabled={disabled} onChange={(event) => patch(row.key, Number(event.target.value) || 0)} />
+                  ) : (
+                    <textarea className="form-input premium-response-input" aria-label={`${field.label} ${row.label}`} rows={row.long ? 4 : 2} value={String(current[row.key] ?? '')} disabled={disabled} onChange={(event) => patch(row.key, event.target.value)} />
+                  )}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+type StructuredControlRow = {
+  key: string;
+  label: string;
+  kind?: 'text' | 'number' | 'select';
+  options?: string[];
+  long?: boolean;
+};
+
+function structuredControlRows(control: string, field: BidSubmissionSchemaFieldDto): StructuredControlRow[] {
+  if (control === 'goodsProductSpecification') {
+    return [
+      { key: 'complianceStatus', label: 'Compliance', kind: 'select', options: ['Compliant', 'Partially compliant', 'Not compliant'] },
+      { key: 'offeredSpecification', label: 'Supplier offered specification', long: true },
+      { key: 'evidenceReference', label: 'Evidence / attachment reference' },
+      { key: 'deviations', label: 'Deviations / comments', long: true }
+    ];
+  }
+  if (control === 'worksSimilarProject') {
+    return [
+      { key: 'projectName', label: 'Project / client' },
+      { key: 'contractValue', label: 'Value', kind: 'number' },
+      { key: 'completionDate', label: 'Completion / status' },
+      { key: 'referenceEvidence', label: 'Reference evidence' }
+    ];
+  }
+  if (control === 'worksPersonnel' || control === 'serviceStaffing' || control === 'consultancyKeyExpert') {
+    return [
+      { key: 'namedResource', label: control === 'consultancyKeyExpert' ? 'Proposed expert' : 'Named resource' },
+      { key: 'qualification', label: 'Qualification / certification' },
+      { key: 'experienceYears', label: 'Years experience', kind: 'number' },
+      { key: 'cvEvidence', label: 'CV / evidence reference' }
+    ];
+  }
+  if (control === 'worksEquipment' || control === 'serviceEquipment') {
+    return [
+      { key: 'resource', label: 'Equipment / tool' },
+      { key: 'availability', label: 'Availability', kind: 'select', options: ['Owned', 'Leased', 'Available on award', 'Not available'] },
+      { key: 'mobilization', label: 'Mobilization timing' },
+      { key: 'evidenceReference', label: 'Ownership / lease evidence' }
+    ];
+  }
+  if (control === 'worksWorkProgram' || control === 'serviceMilestone' || control === 'serviceDeliverable' || control === 'consultancyDeliverable' || control === 'consultancyReporting') {
+    return [
+      { key: 'approach', label: 'Supplier approach', long: true },
+      { key: 'schedule', label: 'Schedule / due date' },
+      { key: 'responsibleLead', label: 'Responsible lead' },
+      { key: 'evidenceReference', label: 'Evidence / output reference' }
+    ];
+  }
+  if (control === 'serviceRisk') {
+    return [
+      { key: 'riskLevel', label: 'Risk level', kind: 'select', options: ['Low', 'Medium', 'High', 'Critical'] },
+      { key: 'mitigation', label: 'Mitigation action', long: true },
+      { key: 'contingency', label: 'Contingency plan', long: true },
+      { key: 'owner', label: 'Owner' }
+    ];
+  }
+  if (control.startsWith('consultancy')) {
+    return [
+      { key: 'understanding', label: 'Understanding / response', long: true },
+      { key: 'methodology', label: 'Methodology / work plan', long: true },
+      { key: 'teamOrEvidence', label: 'Team / evidence' },
+      { key: 'assumptions', label: 'Assumptions / comments', long: true }
+    ];
+  }
+  return [
+    { key: 'response', label: 'Supplier response', long: true },
+    { key: 'evidenceReference', label: 'Evidence reference' },
+    { key: 'remarks', label: 'Remarks', long: true }
+  ];
+}
+
+function structuredControlTitle(control: string, fallback: string) {
+  const labels: Record<string, string> = {
+    goodsProductSpecification: 'Product specification compliance response',
+    goodsDeliveryPlan: 'Delivery and logistics response',
+    goodsWarranty: 'Warranty and after-sales response',
+    worksSiteVisit: 'Site visit response',
+    worksSimilarProject: 'Similar completed project evidence',
+    worksPersonnel: 'Key personnel response',
+    worksEquipment: 'Equipment and resource response',
+    worksWorkProgram: 'Work program response',
+    worksMethodStatement: 'Method statement response',
+    serviceMethodology: 'Service methodology response',
+    serviceStaffing: 'Staffing and supervision response',
+    serviceEquipment: 'Tools and equipment response',
+    serviceMilestone: 'Delivery milestone response',
+    serviceDeliverable: 'Service deliverable response',
+    serviceRisk: 'Risk and continuity response',
+    consultancyTorUnderstanding: 'TOR understanding response',
+    consultancyKeyExpert: 'Key expert response'
+  };
+  return labels[control] ?? fallback;
+}
+
+function structuredValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function hasMeaningfulStructuredResponse(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).some((item) => {
+    if (item === null || item === undefined) return false;
+    if (typeof item === 'number') return Number.isFinite(item) && item > 0;
+    if (typeof item === 'boolean') return item;
+    return String(item).trim().length > 0;
+  });
+}
+
+function structuredResponseSummary(value: unknown) {
+  const payload = structuredValue(value);
+  return Object.entries(payload)
+    .filter(([, item]) => item !== null && item !== undefined && String(item).trim())
+    .slice(0, 4)
+    .map(([key, item]) => `${humanize(key)}: ${String(item)}`)
+    .join(' / ');
 }
 
 function SchemaSubmitPanel({ saving, uploading, isSubmitted, onSave, onSubmit }: { saving: boolean; uploading: boolean; isSubmitted: boolean; onSave: () => void; onSubmit: () => void }) {
@@ -1041,7 +1490,7 @@ function UploadBox({
   requirementKey: string;
   disabled: boolean;
   isUploading: boolean;
-  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string) => Promise<void>;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
 }) {
   return (
     <label className="supplier-requirement-preview">
@@ -1054,7 +1503,7 @@ function UploadBox({
         disabled={disabled}
         onChange={(event) => {
           const input = event.currentTarget;
-          void onFiles(input.files, envelope, documentType, requirementKey).finally(() => {
+            void onFiles(input.files, envelope, documentType, requirementKey, title).finally(() => {
             input.value = '';
           });
         }}
@@ -1553,7 +2002,7 @@ function ReviewPanel({
 
 function reviewDocumentSections(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string): ReviewDocumentSection[] {
   return schema.steps
-    .filter((step) => !['review', 'receipt'].includes(step.id))
+    .filter((step) => !isReviewStep(step) && !isReceiptStep(step))
     .map((step) => ({
       id: step.id,
       title: schemaReviewSectionTitle(step),
@@ -1564,8 +2013,8 @@ function reviewDocumentSections(schema: BidSubmissionSchemaDto, responses: Schem
 
 function schemaSectionRows(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string, sectionId: string): ReviewDocumentRow[] {
   const step = schema.steps.find((item) => item.id === sectionId);
-  if (!step) return [];
-  return step.fields
+  const fields = step ? step.fields : actionableSchemaFields(schema).filter((field) => field.section === sectionId);
+  return fields
     .filter((field) => field.section !== 'review' && field.section !== 'receipt')
     .map((field) => schemaReviewRow(field, responses, documents, samples, currency));
 }
@@ -1585,6 +2034,11 @@ function schemaReviewRow(field: BidSubmissionSchemaFieldDto, responses: SchemaRe
     const quantity = Number(field.validation.quantity ?? 1) || 1;
     const total = Math.max(0, amount * quantity);
     return reviewRow(field.id, field.label, schemaFinancialHint(field), total > 0 ? `${formatMoney(amount, currency)} / total ${formatMoney(total, currency)}` : 'Missing price', field.required, total > 0, field.id);
+  }
+  if (field.type === 'table' || field.responseType === 'structured') {
+    const value = schemaFieldValue(field, responses);
+    const complete = schemaFieldComplete(field, responses, documents, samples);
+    return reviewRow(field.id, field.label, schemaRequirementText(field), structuredResponseSummary(value) || 'Missing structured response', field.required, complete, field.id);
   }
   const value = schemaFieldValue(field, responses);
   const complete = schemaFieldComplete(field, responses, documents, samples);
@@ -1795,6 +2249,30 @@ function schemaStep(schema: BidSubmissionSchemaDto | null, stepId: string) {
   return schema?.steps.find((step) => step.id === stepId);
 }
 
+function schemaSampleStep(schema: BidSubmissionSchemaDto | null) {
+  return schema?.steps.find((step) => isSampleStep(step));
+}
+
+function isSampleStep(step: BidSubmissionSchemaStepDto | { id: string; fields?: BidSubmissionSchemaFieldDto[] }) {
+  return step.id === 'samples' || step.id === 'goodsSamples' || Boolean(step.fields?.some((field) => field.section === 'samples'));
+}
+
+function isReviewStep(step: BidSubmissionSchemaStepDto | { id: string }) {
+  return ['review', 'goodsReview', 'worksReview', 'servicesReview', 'consultancyReview'].includes(step.id);
+}
+
+function isDeclarationStep(step: BidSubmissionSchemaStepDto | { id: string }) {
+  return ['declarations', 'goodsDeclaration', 'worksDeclaration'].includes(step.id);
+}
+
+function isReceiptStep(step: BidSubmissionSchemaStepDto | { id: string }) {
+  return step.id === 'receipt';
+}
+
+function reviewStepSubmits(workflow: WorkflowType, stepId: string) {
+  return workflow === 'services' || workflow === 'consultancy' || stepId === 'servicesReview' || stepId === 'consultancyReview';
+}
+
 function schemaStepDescription(step: BidSubmissionSchemaStepDto) {
   if (!step.fields.length) return 'No supplier response fields configured for this step.';
   return `${step.fields.length} tender-derived supplier response field${step.fields.length === 1 ? '' : 's'}.`;
@@ -1802,13 +2280,32 @@ function schemaStepDescription(step: BidSubmissionSchemaStepDto) {
 
 function schemaReviewSectionTitle(step: BidSubmissionSchemaStepDto) {
   const labels: Record<string, string> = {
-    administrative: 'Administrative and Eligibility',
+    administrative: 'Eligibility and Document Requirements',
     technical: 'Technical Response',
     financial: 'Financial Offer',
     samples: 'Sample Submission',
     declarations: 'Supplier Declarations',
     review: 'Review Submission',
-    receipt: 'Submission Receipt'
+    receipt: 'Submission Receipt',
+    goodsTechnical: 'Technical Response',
+    goodsFinancial: 'Quantity Schedule / Financial Offer',
+    goodsSamples: 'Sample Submission',
+    goodsReview: 'Review Submission',
+    goodsDeclaration: 'Supplier Declaration and Submit',
+    worksCapacity: 'Technical Capacity and Experience',
+    worksTechnicalProposal: 'Technical Proposal and Work Program',
+    worksFinancial: 'Financial Proposal / BOQ Pricing',
+    worksReview: 'Review Submission',
+    worksDeclaration: 'Declaration and Submission',
+    servicesMethodology: 'Service Understanding and Methodology',
+    servicesDeliveryPlan: 'Service Schedule and Delivery Plan',
+    servicesStaffing: 'Staffing, Capacity and Continuity Plan',
+    servicesSla: 'Performance, SLA, Reporting and Compliance',
+    servicesCommercial: 'Commercial Pricing and Cost Breakdown',
+    servicesReview: 'Review Submission',
+    consultancyTechnical: 'Technical Proposal',
+    consultancyFinancial: 'Financial Proposal',
+    consultancyReview: 'Review and Submit'
   };
   return labels[step.id] ?? step.label;
 }
@@ -1873,6 +2370,7 @@ function schemaFieldComplete(field: BidSubmissionSchemaFieldDto, responses: Sche
   const value = schemaFieldValue(field, responses);
   if (field.type === 'boolean' || field.responseType === 'boolean' || field.responseType === 'declaration' || field.responseType === 'acknowledgement') return value === true;
   if (field.responseType === 'money' || field.responseType === 'pricing') return Number(value) > 0;
+  if (field.type === 'table' || field.responseType === 'structured') return hasMeaningfulStructuredResponse(value);
   return String(value ?? '').trim().length > 0;
 }
 
@@ -1973,7 +2471,7 @@ function sectionReadiness(schema: BidSubmissionSchemaDto, responses: SchemaRespo
 }
 
 function schemaSampleRequirements(schema: BidSubmissionSchemaDto | null, tender?: TenderDetail | null): SampleRequirement[] {
-  const fields = schema?.steps.find((step) => step.id === 'samples')?.fields ?? [];
+  const fields = schemaSampleStep(schema)?.fields ?? [];
   if (!fields.length) return normalizeSampleRequirements(tender);
   return fields.map((field, index) => ({
     id: field.id,
@@ -2019,20 +2517,17 @@ function financialSourceId(workflow: WorkflowType) {
 function receiptStepIndex(steps: Step[], workflow: WorkflowType) {
   const receiptIndex = steps.findIndex((step) => step.id === 'receipt');
   if (receiptIndex > -1) return receiptIndex;
-  if (workflow === 'generic') {
-    return receiptIndex > -1 ? receiptIndex : Math.max(0, steps.length - 1);
-  }
-  const reviewIndex = steps.findIndex((step) => step.id === 'review');
-  const declarationIndex = steps.findIndex((step) => step.id === 'declaration');
-  if (workflow === 'services' || workflow === 'consultancy') return reviewIndex > -1 ? reviewIndex : Math.max(0, steps.length - 1);
-  return declarationIndex > -1 ? declarationIndex : Math.max(0, steps.length - 1);
+  const finalSubmitIndex = steps.findIndex((step) => isReceiptPanelStep(workflow, step.id));
+  return finalSubmitIndex > -1 ? finalSubmitIndex : Math.max(0, steps.length - 1);
 }
 
 function isReceiptPanelStep(workflow: WorkflowType, stepId: string) {
   if (stepId === 'receipt') return true;
-  if (workflow === 'generic') return stepId === 'receipt';
-  if (workflow === 'services' || workflow === 'consultancy') return stepId === 'review';
-  return stepId === 'declaration';
+  if (workflow === 'services') return stepId === 'servicesReview' || stepId === 'review';
+  if (workflow === 'consultancy') return stepId === 'consultancyReview' || stepId === 'review';
+  if (workflow === 'goods') return stepId === 'goodsDeclaration' || stepId === 'declarations';
+  if (workflow === 'works') return stepId === 'worksDeclaration' || stepId === 'declarations';
+  return stepId === 'declarations' || stepId === 'review';
 }
 
 function mergeTenderDefaults(current: BidFormState, tender: TenderDetail, workflow: WorkflowType): BidFormState {
@@ -2375,12 +2870,8 @@ function humanize(value: string) {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function errorMessage(error: unknown, fallback: string) {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const response = (error as { response?: { data?: { message?: string } } }).response;
-    if (response?.data?.message) return response.data.message;
-  }
-  return error instanceof Error ? error.message : fallback;
+function errorMessage(_error: unknown, fallback: string) {
+  return fallback;
 }
 
 function formatMoney(value: number, currency: string) {

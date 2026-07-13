@@ -29,13 +29,13 @@ describe('AuthAlert', () => {
     expect(authAlertFromError(apiError(502, 'Could not send verification SMS.'), 'registration')).toEqual({
       key: 'auth.alerts.delivery.smsUnavailable',
       tone: 'error',
-      reason: 'The server could not complete the request.',
+      reason: 'ProcureX could not complete this request.',
       actionLabel: undefined
     });
     expect(authAlertFromError(apiError(502, 'Could not send activation email.'), 'otp')).toEqual({
       key: 'auth.alerts.delivery.activationUnavailable',
       tone: 'error',
-      reason: 'The server could not complete the request.',
+      reason: 'ProcureX could not complete this request.',
       actionLabel: undefined
     });
     expect(authAlertFromError(apiError(400, 'OTP code is incorrect.'), 'otp')).toEqual({
@@ -66,6 +66,12 @@ describe('AuthAlert', () => {
       key: 'auth.alerts.securityFailed',
       tone: 'error',
       reason: 'Your account, permission, or security check does not allow this action right now.',
+      actionLabel: undefined
+    });
+    expect(authAlertFromError(apiError(418, 'Raw backend auth failure.'), 'registration')).toEqual({
+      key: 'auth.alerts.fallback.registration',
+      tone: 'error',
+      reason: 'ProcureX could not complete this action.',
       actionLabel: undefined
     });
   });

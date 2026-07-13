@@ -144,6 +144,30 @@ export class ModuleController {
     }
   };
 
+  evaluationReport: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award recommendation id.');
+      const report = await this.service.evaluationReport(params.data.id, await this.requireContext(req));
+      if (req.query.download === 'true') res.setHeader('Content-Disposition', `attachment; filename="${report.filename}"`);
+      res.type(report.contentType).send(report.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  saveAwardDecisionDraft: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award recommendation id.');
+      const body = awardDecisionBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award draft payload.');
+      res.json(await this.service.saveAwardDecisionDraft(params.data.id, body.data, await this.requirePermissionContext(req, 'award.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   approveRecommendation: RequestHandler = async (req, res, next) => {
     try {
       const params = idParamsSchema.safeParse(req.params);
