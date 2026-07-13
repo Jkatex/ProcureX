@@ -64,6 +64,7 @@ export function buildBidSubmissionSchema(tender: TenderSchemaInput): BidSubmissi
   const administrative = uniqueFields([
     field('administrative.eligible', 'administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', true, 'boolean', 'ADMINISTRATIVE', 'system'),
     field('administrative.authorized', 'administrative.authorizedRepresentative', 'Confirm authorized representative', 'boolean', 'administrative', true, 'boolean', 'ADMINISTRATIVE', 'system'),
+    ...administrativeWorkflowConfirmations(workflow, fields),
     ...documents.filter((item) => item.section === 'administrative'),
     ...dynamicRequirements.filter((item) => item.section === 'administrative')
   ]);
@@ -460,6 +461,27 @@ function workflowResponseFields(fields: Record<string, unknown>, commercial: Com
   if (workflow === 'services') return serviceWorkflowFields(fields);
   if (workflow === 'consultancy') return consultancyWorkflowFields(fields);
   return [];
+}
+
+function administrativeWorkflowConfirmations(workflow: WorkflowType, fields: Record<string, unknown>) {
+  const output: BidSubmissionSchemaFieldDto[] = [];
+  if (workflow === 'works' && normalizeFlag(fields.similarCompletedProjectsRequired)) {
+    output.push(
+      field(
+        'administrative.similarProjects',
+        'administrative.similarProjects',
+        'Confirm similar project evidence',
+        'boolean',
+        'administrative',
+        true,
+        'acknowledgement',
+        'ADMINISTRATIVE',
+        'requirements.works.similarCompletedProjectsRequired',
+        { prompt: 'Confirm that similar completed project evidence is completed in the technical capacity response.' }
+      )
+    );
+  }
+  return output;
 }
 
 function goodsWorkflowFields(fields: Record<string, unknown>, commercial: CommercialItem[]) {
