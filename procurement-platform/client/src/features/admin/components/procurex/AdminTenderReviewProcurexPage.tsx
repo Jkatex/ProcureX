@@ -3,7 +3,6 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SupplierProcurementDetails } from '@/features/procurement/components/procurex/SupplierTenderDetailProcurexPage';
 import { downloadTenderDocument, openTenderDocument } from '@/features/procurement/tenderDocumentActions';
 import { procurementApi } from '@/features/procurement/api';
-import type { TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import type { TenderDetailDocument, TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';

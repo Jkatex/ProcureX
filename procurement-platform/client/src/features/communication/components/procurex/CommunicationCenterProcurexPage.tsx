@@ -120,6 +120,9 @@ export function CommunicationCenterProcurexPage() {
   const replyOpen = routeView === 'reply';
   const composeOpen = routeView === 'compose' || replyOpen;
   const messageView = routeView === 'message';
+  const attachmentsReady = composeAttachmentsReady(compose.attachments);
+  const sendDisabled = saving || !attachmentsReady;
+  const supportCompose = composeOpen && !replyOpen && searchParams.get('support') === 'true';
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder, nextPage = 1, nextSelectedId = '', nextSearch = '') => {
@@ -693,8 +696,14 @@ export function CommunicationCenterProcurexPage() {
                         <div className="communication-attachment-list" aria-label="Selected attachments">
                           {compose.attachments.map((attachment) => (
                             <span className="communication-attachment-item" key={attachment.id}>
-                              <span>{attachment.name}</span>
-                              <em>{formatFileSize(attachment.size)}</em>
+                              <span className="communication-attachment-name">{attachment.name}</span>
+                              <span className="communication-attachment-size">{formatFileSize(attachment.size)}</span>
+                              <span className={`communication-attachment-status is-${attachment.status}`}>{attachmentStatusLabel(attachment)}</span>
+                              {attachment.status === 'loading' ? (
+                                <span className="communication-attachment-progress" aria-label={`${attachment.name} loading progress`}>
+                                  <span style={{ width: `${Math.max(4, attachment.progress)}%` }} />
+                                </span>
+                              ) : null}
                               <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
                                 x
                               </button>
@@ -703,10 +712,34 @@ export function CommunicationCenterProcurexPage() {
                         </div>
                       ) : null}
                     </div>
+                    {!supportCompose ? (
+                      <div className="span-2 communication-compose-attachments">
+                        <div>
+                          <span className="form-label">Attachments</span>
+                          <label className="btn btn-secondary communication-file-button">
+                            Add files
+                            <input type="file" multiple onChange={addAttachments} hidden />
+                          </label>
+                        </div>
+                        {compose.attachments.length ? (
+                          <div className="communication-attachment-list" aria-label="Selected attachments">
+                            {compose.attachments.map((attachment) => (
+                              <span className="communication-attachment-item" key={attachment.id}>
+                                <span>{attachment.name}</span>
+                                <em>{formatFileSize(attachment.size)}</em>
+                                <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
+                                  x
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="inline-actions">
-                    <button className="btn btn-primary" type="submit" disabled={saving}>
-                      {saving ? 'Sending...' : replyOpen ? 'Send Reply' : 'Send Message'}
+                    <button className="btn btn-primary" type="submit" disabled={sendDisabled}>
+                      {saving ? 'Sending...' : supportCompose ? 'Send Support Message' : replyOpen ? 'Send Reply' : 'Send Message'}
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={closeCompose}>
                       Cancel

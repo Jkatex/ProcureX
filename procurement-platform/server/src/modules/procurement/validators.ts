@@ -318,12 +318,11 @@ export const buyerNoticeBodySchema = z
   })
   .strict();
 
-export const publishTenderBodySchema = z.object({}).strict();
 const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const publishTenderBodySchema = z
   .object({
-    signatureKeyphrase: signatureKeyphraseSchema
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
   .strict();
 

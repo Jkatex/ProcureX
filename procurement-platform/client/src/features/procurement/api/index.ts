@@ -52,6 +52,10 @@ export const procurementApi = {
     const response = await apiClient.patch<UpdateTenderResponse>(`/api/procurement/tenders/${tenderId}`, payload);
     return response.data;
   },
+  async updateBuyerNotice(tenderId: string, buyerNotice: string): Promise<UpdateBuyerNoticeResponse> {
+    const response = await apiClient.patch<UpdateBuyerNoticeResponse>(`/api/procurement/tenders/${tenderId}/buyer-notice`, { buyerNotice });
+    return response.data;
+  },
   async publishTender(tenderId: string, input: { signatureKeyphrase?: string } = {}): Promise<PublishTenderResponse> {
     const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, input);
     return response.data;

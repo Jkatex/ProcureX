@@ -299,7 +299,6 @@ export function BidEvaluationProcurexPage() {
     setTotalRecords(recordData.totalRecords);
   }
 
-  async function saveWorkspace(complete = false, signatureKeyphrase?: string) {
   useEffect(() => {
     const refresh = () => {
       void refreshLists().catch(() => {
@@ -315,7 +314,7 @@ export function BidEvaluationProcurexPage() {
     };
   }, [search, statusFilter, t, typeFilter]);
 
-  async function saveWorkspace(complete = false) {
+  async function saveWorkspace(complete = false, signatureKeyphrase?: string) {
     if (!workspace?.tender || workspaceSaving) return;
     const validation = validateScoreDrafts(workspace, scoreDrafts);
     if (validation) {
