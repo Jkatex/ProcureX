@@ -1,38 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
-import type { ContractDetailDto, FlowStep } from '../../types';
+import type { ContractDetailDto } from '../../types';
+import { ActionFormPanel, lifecycleStatusOptions, option, signatureOptions } from './AwardContractActionForms';
+import { AwardContractAccessProvider, canUseWorkflowOwner, useAwardContractAccess } from './AwardContractRoleAccess';
+import { LockedFlowStepPanel } from './AwardContractFlow';
+import { AwardPlainRecordList, ExpandableAwardDetails, notifyAward } from './AwardContractSimpleShared';
 import {
-  ActionFormPanel,
-  lifecycleStatusOptions,
-  option,
-  signatureOptions
-} from './AwardContractActionForms';
-import { AwardContractAccessProvider } from './AwardContractRoleAccess';
-import { AwardContractFlowBar, LockedFlowStepPanel, flowStepFromSearch, searchWithFlowStep } from './AwardContractFlow';
-import {
-  ActionWorkspace,
   AwardHero,
-  AwardSidebar,
   formatMoney,
   ProcurexAwardFrame,
-  RecordRegister,
   RemoteStatePanel,
-  RegisterCard,
   SimpleTable,
-  StatusBadge,
-  TopSummary,
-  type WorkflowSection
+  StatusBadge
 } from './AwardsContractsProcurexShared';
 
 function getContractId(search: string) {
   return new URLSearchParams(search).get('contract') || '';
 }
 
-type ContractFormationGroupId = 'draft' | 'clauses' | 'negotiation' | 'approval' | 'signatures' | 'readiness' | 'registers';
-const contractFlowStepIds = ['draft', 'clauses', 'negotiation', 'approval', 'signatures', 'readiness', 'registers'] as const;
-type ContractFlowStepId = (typeof contractFlowStepIds)[number];
+function getOpenSection(search: string) {
+  return new URLSearchParams(search).get('step') || '';
+}
 
 function draftValue(value: unknown, fallback = 'Pending') {
   if (value === null || value === undefined || value === '') return fallback;
@@ -47,26 +37,49 @@ function draftValue(value: unknown, fallback = 'Pending') {
   return String(value);
 }
 
-function ClauseReviewGrid({ clauses }: { clauses: ContractDetailDto['clauses'] }) {
-  if (!clauses?.length) {
-    return <div className="scope-empty">Clauses generated from the award will appear here for buyer, supplier, and legal review.</div>;
-  }
+type ClauseItem = NonNullable<ContractDetailDto['clauses']>[number];
+type NegotiationItem = NonNullable<ContractDetailDto['negotiations']>[number];
+
+function textValue(value: unknown) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
+function clauseKey(clause: ClauseItem) {
+  return textValue(clause.payload?.clauseKey || clause.id || clause.title).trim();
+}
+
+function clauseCategory(clause: ClauseItem) {
+  return textValue(clause.payload?.category || 'general').trim() || 'general';
+}
+
+function dateValue(value: unknown) {
+  if (!value) return '';
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+}
+
+function AmendmentRecordList({ records = [], clauses = [] }: { records?: NegotiationItem[]; clauses?: ClauseItem[] }) {
+  if (!records.length) return <div className="scope-empty">No amendment requests are saved yet.</div>;
+  const clauseTitleById = new Map(clauses.map((clause) => [clause.id, clause.title]));
   return (
-    <div className="contract-clause-review-grid">
-      {clauses.map((clause) => {
-        const payload = clause.payload ?? {};
+    <div className="award-simple-record-list contract-amendment-list">
+      {records.map((record, index) => {
+        const payload = record.payload ?? {};
+        const linkedClauseId = textValue(payload.clauseId);
         return (
-          <article key={clause.id}>
-            <div className="contract-clause-card-head">
-              <h3>{clause.title}</h3>
-              <StatusBadge value={clause.status} />
+          <article className="award-simple-record contract-amendment-record" key={record.id || `amendment-${index}`}>
+            <div>
+              <strong>{record.title || `Amendment request ${index + 1}`}</strong>
+              <span>{record.note || textValue(payload.position) || 'No request text saved.'}</span>
+              <dl className="award-detail-list">
+                <div><dt>Clause</dt><dd>{clauseTitleById.get(linkedClauseId) || linkedClauseId || 'General contract request'}</dd></div>
+                <div><dt>Raised by</dt><dd>{record.type || textValue(payload.raisedByRole) || 'Shared'}</dd></div>
+                <div><dt>Counter offer</dt><dd>{textValue(payload.counterOffer) || 'Not set'}</dd></div>
+                <div><dt>Due date</dt><dd>{record.dueDate ? dateValue(record.dueDate) : 'Not set'}</dd></div>
+                <div><dt>Updated</dt><dd>{record.updatedAt ? dateValue(record.updatedAt) : dateValue(record.createdAt)}</dd></div>
+              </dl>
             </div>
-            <p>{clause.note || 'No clause body captured yet.'}</p>
-            <dl className="award-detail-list">
-              <div><dt>Buyer</dt><dd>{String(payload.buyerComment || 'No buyer comment')}</dd></div>
-              <div><dt>Supplier</dt><dd>{String(payload.supplierComment || 'No supplier comment')}</dd></div>
-              <div><dt>Legal</dt><dd>{String(payload.legalComment || 'No legal comment')}</dd></div>
-            </dl>
+            <StatusBadge value={record.status} />
           </article>
         );
       })}
@@ -74,14 +87,255 @@ function ClauseReviewGrid({ clauses }: { clauses: ContractDetailDto['clauses'] }
   );
 }
 
+function ClauseReviewGrid({
+  contractId,
+  clauses,
+  onRefresh
+}: {
+  contractId: string;
+  clauses: ContractDetailDto['clauses'];
+  onRefresh: (result: unknown) => void;
+}) {
+  if (!clauses?.length) {
+    return <div className="scope-empty">Clauses generated from the award will appear here for buyer, supplier, and legal review.</div>;
+  }
+  return (
+    <div className="contract-clause-review-grid">
+      {clauses.map((clause) => (
+        <ClauseReviewCard contractId={contractId} clause={clause} onRefresh={onRefresh} key={clause.id} />
+      ))}
+    </div>
+  );
+}
+
+function ClauseReviewCard({ contractId, clause, onRefresh }: { contractId: string; clause: ClauseItem; onRefresh: (result: unknown) => void }) {
+  const access = useAwardContractAccess();
+  const canEditClause = canUseWorkflowOwner(access, 'BUYER');
+  const canRequestAmendment = canUseWorkflowOwner(access, 'ANY');
+  const payload = clause.payload ?? {};
+  const [mode, setMode] = useState<'view' | 'edit' | 'amend'>('view');
+  const [saving, setSaving] = useState(false);
+  const [editValues, setEditValues] = useState(() => ({
+    title: clause.title,
+    body: clause.note || '',
+    status: clause.status || 'OPEN',
+    buyerComment: textValue(payload.buyerComment),
+    supplierComment: textValue(payload.supplierComment),
+    legalComment: textValue(payload.legalComment),
+    reason: ''
+  }));
+  const [amendValues, setAmendValues] = useState(() => ({
+    subject: `Amend ${clause.title}`,
+    position: '',
+    counterOffer: '',
+    dueDate: ''
+  }));
+
+  useEffect(() => {
+    setEditValues({
+      title: clause.title,
+      body: clause.note || '',
+      status: clause.status || 'OPEN',
+      buyerComment: textValue(clause.payload?.buyerComment),
+      supplierComment: textValue(clause.payload?.supplierComment),
+      legalComment: textValue(clause.payload?.legalComment),
+      reason: ''
+    });
+    setAmendValues({
+      subject: `Amend ${clause.title}`,
+      position: '',
+      counterOffer: '',
+      dueDate: ''
+    });
+    setMode('view');
+  }, [clause.id, clause.note, clause.payload, clause.status, clause.title]);
+
+  function setEdit(name: keyof typeof editValues, value: string) {
+    setEditValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function setAmend(name: keyof typeof amendValues, value: string) {
+    setAmendValues((current) => ({ ...current, [name]: value }));
+  }
+
+  async function saveClause(event: { preventDefault: () => void }, nextStatus?: string) {
+    event.preventDefault();
+    const title = editValues.title.trim();
+    if (!title) {
+      notifyAward('warning', 'Clause title required', 'Enter a clause title before saving.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await awardsContractsApi.upsertClause(contractId, {
+        clauseKey: clauseKey(clause),
+        title,
+        body: editValues.body.trim(),
+        category: clauseCategory(clause),
+        status: nextStatus ?? editValues.status,
+        buyerComment: editValues.buyerComment.trim(),
+        supplierComment: editValues.supplierComment.trim(),
+        legalComment: editValues.legalComment.trim(),
+        payload: {
+          ...payload,
+          clauseKey: clauseKey(clause),
+          category: clauseCategory(clause),
+          changeReason: editValues.reason.trim()
+        }
+      });
+      notifyAward('success', 'Clause saved', `${title} was updated.`);
+      onRefresh(result);
+      setMode('view');
+    } catch (error) {
+      notifyAward('error', 'Clause not saved', apiErrorMessage(error, 'The clause could not be saved.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function requestAmendment(event: FormEvent) {
+    event.preventDefault();
+    const subject = amendValues.subject.trim();
+    const position = amendValues.position.trim();
+    if (!subject || !position) {
+      notifyAward('warning', 'Amendment details required', 'Enter a subject and request text before sending the amendment request.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await awardsContractsApi.createNegotiation(contractId, {
+        clauseId: clause.id,
+        raisedByRole: access.viewerRole === 'SUPPLIER' ? 'Supplier' : access.viewerRole === 'BUYER' ? 'Buyer' : 'Shared',
+        subject,
+        position,
+        counterOffer: amendValues.counterOffer.trim(),
+        status: 'OPEN',
+        dueDate: amendValues.dueDate || undefined,
+        payload: {
+          clauseId: clause.id,
+          clauseKey: clauseKey(clause),
+          requestedFrom: 'contract-clause-card'
+        }
+      });
+      notifyAward('success', 'Amendment requested', 'The amendment request was saved to the contract.');
+      onRefresh(result);
+      setMode('view');
+    } catch (error) {
+      notifyAward('error', 'Amendment not sent', apiErrorMessage(error, 'The amendment request could not be saved.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <article className="contract-clause-action-card">
+      <div className="contract-clause-card-head">
+        <div>
+          <h3>{clause.title}</h3>
+          <em>{clauseCategory(clause)}</em>
+        </div>
+        <StatusBadge value={clause.status} />
+      </div>
+      <p>{clause.note || 'No clause body captured yet.'}</p>
+      <dl className="award-detail-list">
+        <div><dt>Buyer</dt><dd>{textValue(payload.buyerComment) || 'No buyer comment'}</dd></div>
+        <div><dt>Supplier</dt><dd>{textValue(payload.supplierComment) || 'No supplier comment'}</dd></div>
+        <div><dt>Legal</dt><dd>{textValue(payload.legalComment) || 'No legal comment'}</dd></div>
+      </dl>
+      <div className="inline-actions contract-clause-actions">
+        {canEditClause ? <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode(mode === 'edit' ? 'view' : 'edit')}>Edit clause</button> : null}
+        {canRequestAmendment ? <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode(mode === 'amend' ? 'view' : 'amend')}>Request amendment</button> : null}
+        {canEditClause ? <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={(event) => void saveClause(event, 'APPROVED')}>Approve</button> : null}
+        {canEditClause ? <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={(event) => void saveClause(event, 'REJECTED')}>Reject</button> : null}
+        {canEditClause ? <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={(event) => void saveClause(event, 'WAIVED')}>Waive</button> : null}
+      </div>
+
+      {mode === 'edit' ? (
+        <form className="award-action-form contract-clause-inline-form" onSubmit={(event) => void saveClause(event)}>
+          <div className="award-readonly-summary">
+            <article><span>Current clause</span><strong>{clause.title}</strong></article>
+            <article><span>Current status</span><strong>{clause.status}</strong></article>
+          </div>
+          <div className="award-form-grid">
+            <label className="award-form-field">
+              <span>Clause title *</span>
+              <input className="form-input" value={editValues.title} onChange={(event) => setEdit('title', event.target.value)} />
+            </label>
+            <label className="award-form-field">
+              <span>Status</span>
+              <select className="form-input" value={editValues.status} onChange={(event) => setEdit('status', event.target.value)}>
+                {lifecycleStatusOptions.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+              </select>
+            </label>
+            <label className="award-form-field award-form-field-wide">
+              <span>Clause text</span>
+              <textarea className="form-input" rows={5} value={editValues.body} onChange={(event) => setEdit('body', event.target.value)} />
+            </label>
+            <label className="award-form-field">
+              <span>Buyer comment</span>
+              <textarea className="form-input" rows={3} value={editValues.buyerComment} onChange={(event) => setEdit('buyerComment', event.target.value)} />
+            </label>
+            <label className="award-form-field">
+              <span>Supplier comment</span>
+              <textarea className="form-input" rows={3} value={editValues.supplierComment} onChange={(event) => setEdit('supplierComment', event.target.value)} />
+            </label>
+            <label className="award-form-field">
+              <span>Legal comment</span>
+              <textarea className="form-input" rows={3} value={editValues.legalComment} onChange={(event) => setEdit('legalComment', event.target.value)} />
+            </label>
+            <label className="award-form-field award-form-field-wide">
+              <span>Reason for change</span>
+              <input className="form-input" value={editValues.reason} placeholder="Why this clause is being changed" onChange={(event) => setEdit('reason', event.target.value)} />
+            </label>
+          </div>
+          <div className="inline-actions">
+            <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save clause'}</button>
+            <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setMode('view')}>Cancel</button>
+          </div>
+        </form>
+      ) : null}
+
+      {mode === 'amend' ? (
+        <form className="award-action-form contract-clause-inline-form" onSubmit={(event) => void requestAmendment(event)}>
+          <div className="award-readonly-summary">
+            <article><span>Clause to amend</span><strong>{clause.title}</strong></article>
+            <article><span>Current text</span><strong>{clause.note || 'No clause text saved'}</strong></article>
+          </div>
+          <div className="award-form-grid">
+            <label className="award-form-field">
+              <span>Request subject *</span>
+              <input className="form-input" value={amendValues.subject} onChange={(event) => setAmend('subject', event.target.value)} />
+            </label>
+            <label className="award-form-field">
+              <span>Due date</span>
+              <input className="form-input" type="date" value={amendValues.dueDate} onChange={(event) => setAmend('dueDate', event.target.value)} />
+            </label>
+            <label className="award-form-field award-form-field-wide">
+              <span>Request text *</span>
+              <textarea className="form-input" rows={4} value={amendValues.position} placeholder="Explain the change you are requesting." onChange={(event) => setAmend('position', event.target.value)} />
+            </label>
+            <label className="award-form-field award-form-field-wide">
+              <span>Suggested wording</span>
+              <textarea className="form-input" rows={3} value={amendValues.counterOffer} placeholder="Optional replacement wording or counter offer." onChange={(event) => setAmend('counterOffer', event.target.value)} />
+            </label>
+          </div>
+          <div className="inline-actions">
+            <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>{saving ? 'Sending...' : 'Send amendment request'}</button>
+            <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setMode('view')}>Cancel</button>
+          </div>
+        </form>
+      ) : null}
+    </article>
+  );
+}
+
 export function ContractNegotiationProcurexPage() {
   const location = useLocation();
-  const navigate = useNavigate();
   const contractId = useMemo(() => getContractId(location.search), [location.search]);
+  const openSection = useMemo(() => getOpenSection(location.search), [location.search]);
   const [contract, setContract] = useState<ContractDetailDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const activeGroup = useMemo(() => flowStepFromSearch(location.search, contractFlowStepIds, 'draft'), [location.search]);
 
   const loadContract = useCallback(async () => {
     if (!contractId) {
@@ -108,68 +362,19 @@ export function ContractNegotiationProcurexPage() {
 
   const draft = contract?.payload?.draft as Record<string, unknown> | undefined;
   const pendingSignatures = contract?.signatures?.filter((signature) => signature.status !== 'SIGNED') ?? [];
-  const activeFlowLock = useMemo(() => {
-    const noContract = { message: 'Select a contract before continuing the contract formation flow.', actionLabel: 'Back to Contract Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=contracts-in-progress' };
-    const signaturesPending = { message: 'Activation readiness is locked until required contract signatures are completed.', actionLabel: 'Go to Signatures', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
-    if (!contract) return noContract;
-    if (activeGroup === 'readiness' && pendingSignatures.length > 0) return signaturesPending;
-    return null;
-  }, [activeGroup, contract, contractId, pendingSignatures.length]);
 
   function refreshContract(result: unknown) {
     setContract(result as ContractDetailDto);
   }
 
-  function selectFlowStep(step: ContractFlowStepId) {
-    navigate({ pathname: '/awards-contracts/negotiation', search: searchWithFlowStep(location.search, step) });
-  }
-
-  function refreshContractAndAdvance(step: ContractFlowStepId) {
-    return (result: unknown) => {
-      refreshContract(result);
-      selectFlowStep(step);
-    };
-  }
-
-  const sections: Array<WorkflowSection<ContractFormationGroupId>> = [
-    { id: 'draft', label: 'Draft', description: 'Version and generated content.', count: contract ? 1 : 0 },
-    { id: 'clauses', label: 'Agreed Terms', description: 'Read-only award clauses.', count: contract?.clauses?.length ?? 0 },
-    { id: 'negotiation', label: 'Award History', description: 'Read-only settlement trail.', count: contract?.negotiations?.length ?? 0 },
-    { id: 'approval', label: 'Owner Approval', description: 'Single-user approval.', count: contract?.workflowApprovals?.length ?? 0 },
-    { id: 'signatures', label: 'Signatures', description: 'Request and sign.', count: contract?.signatures?.length ?? 0 },
-    { id: 'readiness', label: 'Readiness', description: 'Activation checks.', count: contract ? 3 : 0 },
-    { id: 'registers', label: 'Registers', description: 'All formation records.', count: (contract?.clauses?.length ?? 0) + (contract?.negotiations?.length ?? 0) + (contract?.signatures?.length ?? 0) }
-  ];
-  const flowSteps = useMemo<Array<FlowStep<ContractFlowStepId>>>(() => {
-    const noContract = { message: 'Select a contract before continuing the contract formation flow.', actionLabel: 'Back to Contract Queue', navigatePage: 'awarding-contracts', routeSearch: 'queue=contracts-in-progress' };
-    const signaturesPending = { message: 'Activation readiness is locked until required contract signatures are completed.', actionLabel: 'Go to Signatures', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
-    const registerCount = sections.find((section) => section.id === 'registers')?.count ?? 0;
-    return [
-      { id: 'draft', label: 'Contract Basis', description: 'Generated contract content', summary: 'Review the generated contract draft, parties, commercial terms, dates, and document context.', status: contract ? 'complete' : 'locked', statusLabel: contract ? 'Complete' : 'Locked', count: contract ? 1 : 0, countLabel: 'drafts', lockReason: noContract },
-      { id: 'clauses', label: 'Clauses', description: 'Read-only award terms', summary: 'Review clauses carried over from the settled award. Clause negotiation is managed in Awarding before contract formation.', status: contract ? 'available' : 'locked', statusLabel: (contract?.clauses?.length ?? 0) > 0 ? 'Carried over' : 'Ready', count: contract?.clauses?.length ?? 0, countLabel: 'clauses', lockReason: noContract },
-      { id: 'negotiation', label: 'Negotiation', description: 'Read-only settlement history', summary: 'Review historical negotiation points. New negotiation belongs in Awarding before contract formation.', status: contract ? 'available' : 'locked', statusLabel: (contract?.negotiations?.length ?? 0) > 0 ? 'Historical' : 'No open points', count: contract?.negotiations?.length ?? 0, countLabel: 'points', lockReason: noContract },
-      { id: 'approval', label: 'Documents', description: 'Owner approval', summary: 'Capture owner, legal, finance, or technical approval before signatures.', status: contract?.workflowApprovals?.length ? 'complete' : contract ? 'available' : 'locked', statusLabel: contract?.workflowApprovals?.length ? 'Complete' : 'Needs action', count: contract?.workflowApprovals?.length ?? 0, countLabel: 'approvals', lockReason: noContract },
-      { id: 'signatures', label: 'Signatures', description: 'Request and complete signing', summary: 'Request signatures and complete buyer or supplier signing without leaving the flow.', status: !contract ? 'locked' : pendingSignatures.length === 0 && contract.signatures.length > 0 ? 'complete' : 'available', statusLabel: pendingSignatures.length === 0 && (contract?.signatures.length ?? 0) > 0 ? 'Complete' : contract ? 'Needs action' : 'Locked', count: contract?.signatures?.length ?? 0, countLabel: 'signatures', lockReason: noContract },
-      { id: 'readiness', label: 'Effectiveness', description: 'Final checks before execution', summary: 'Confirm signatures and activation requirements before post-award execution begins.', status: !contract ? 'locked' : pendingSignatures.length > 0 ? 'locked' : 'available', statusLabel: !contract ? 'Locked' : pendingSignatures.length > 0 ? 'Locked' : 'Ready', count: contract ? 3 : 0, countLabel: 'readiness checks', lockReason: !contract ? noContract : signaturesPending },
-      { id: 'registers', label: 'Activity', description: 'Formation history', summary: 'Review all contract formation records and audit context in one place.', status: contract ? 'available' : 'locked', statusLabel: contract ? 'Ready' : 'Locked', count: registerCount, countLabel: 'records', lockReason: noContract }
-    ];
-  }, [contract, contractId, pendingSignatures.length, sections]);
-
   return (
     <ProcurexAwardFrame pageKey="contract-negotiation">
-      <div className="main-layout procurement-layout evaluation-app-layout contract-page" data-award-contract-workspace>
-        <AwardSidebar
-          title="Contracts in Progress"
-          subtitle={contract?.reference ?? contract?.title ?? (contractId ? 'Loading contract workspace' : 'Select a contract')}
-          activeQueue="contracts-in-progress"
-          extraItems={<li><a href="#" data-navigate="awarding-contracts" data-route-search="queue=contracts-in-progress">Back to Contract Queue</a></li>}
-        />
-
+      <div className="main-layout procurement-layout evaluation-app-layout contract-page award-simple-page" data-award-contract-workspace>
         <main className="main-content procurement-content evaluation-workspace contract-workspace">
           <AwardHero
             kicker="Contract preparation"
             title={contract?.title ?? 'No contract record selected'}
-            copy="Form the contract from settled award terms, complete owner approval, collect signatures, and confirm activation readiness."
+            copy="Prepare the contract from the accepted award, approve it, collect signatures, and confirm it is ready to start."
             stats={[
               { value: contract?.amount ?? 0, label: 'Contract value' },
               { value: contract?.status ?? 'None', label: 'Current status' },
@@ -177,24 +382,11 @@ export function ContractNegotiationProcurexPage() {
             ]}
           />
 
-          {contract ? (
-            <TopSummary
-              items={[
-                { label: 'Selected Contract', value: contract.reference },
-                { label: 'Buyer', value: contract.buyerName },
-                { label: 'Supplier', value: contract.supplierName ?? 'Supplier pending' },
-                { label: 'Contract Value', value: contract.amount === null ? 'Not priced' : formatMoney(contract.amount, contract.currency) },
-                { label: 'Tender', value: contract.tenderReference ?? 'Not linked' },
-                { label: 'Status', value: <StatusBadge value={contract.status} /> }
-              ]}
-            />
-          ) : null}
-
           {isLoading ? (
             <RemoteStatePanel
               kicker="Loading"
               title="Loading contract workspace"
-              message="ProcureX is fetching the selected contract, draft, negotiation records, approvals, and signatures."
+              message="ProcureX is fetching the selected contract, draft, approvals, and signatures."
               status="Loading"
             />
           ) : null}
@@ -213,81 +405,54 @@ export function ContractNegotiationProcurexPage() {
           {!isLoading && !loadError && !contract ? (
             <section className="procurement-panel evaluation-panel post-award-panel">
               <div className="panel-heading">
-                <div><span className="section-kicker">Contract workflow</span><h2>No contract is in progress.</h2></div>
+                <div><span className="section-kicker">Prepare contract</span><h2>No contract is in progress.</h2></div>
                 <StatusBadge value="No records" />
               </div>
-              <div className="scope-empty">When an award is accepted and a draft contract is generated, contract review and negotiation details will appear here.</div>
+              <div className="scope-empty">When an award is accepted and a draft contract is generated, contract work will appear here.</div>
               <div className="inline-actions">
-                <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=contracts-in-progress">Back to Contract Queue</button>
+                <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=contracts-in-progress">Back to contracts</button>
               </div>
               <LockedFlowStepPanel
-                title="Contract formation is locked"
-                reason={{ message: 'Select a contract from the contract queue to resume formation without restarting.' }}
+                title="Contract work is locked"
+                reason={{ message: 'Select a contract from the contracts list to resume preparation.' }}
               />
             </section>
-          ) : !isLoading && !loadError && contract ? (
+          ) : null}
+
+          {!isLoading && !loadError && contract ? (
             <AwardContractAccessProvider access={contract.access}>
-            <section className="procurement-panel evaluation-panel post-award-panel">
-              <div className="panel-heading">
-                <div>
-                  <span className="section-kicker">Contract formation workspace</span>
-                  <h2>Contract formation wizard</h2>
+              <section className="procurement-panel evaluation-panel post-award-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Prepare contract</span>
+                    <h2>Prepare contract</h2>
+                    <p>Start with the contract version. Use the sections below only when you need approvals, signatures, or supporting records.</p>
+                  </div>
+                  <StatusBadge value={contract.status} />
                 </div>
-                <StatusBadge value={sections.find((section) => section.id === activeGroup)?.label ?? 'Draft'} />
-              </div>
-              <AwardContractFlowBar steps={flowSteps} active={activeGroup} onSelect={selectFlowStep} label="Contract formation flow" />
 
-              {activeFlowLock ? (
-                <LockedFlowStepPanel title={`${flowSteps.find((step) => step.id === activeGroup)?.label ?? 'Workflow'} is locked`} reason={activeFlowLock} />
-              ) : null}
+                <div className="award-readonly-summary">
+                  <article><span>Buyer</span><strong>{contract.buyerName}</strong></article>
+                  <article><span>Supplier</span><strong>{contract.supplierName ?? 'Supplier pending'}</strong></article>
+                  <article><span>Reference</span><strong>{contract.reference}</strong></article>
+                  <article><span>Value</span><strong>{contract.amount === null ? 'Not priced' : formatMoney(contract.amount, contract.currency)}</strong></article>
+                  <article><span>Tender</span><strong>{contract.tenderReference ?? draftValue(draft?.tender)}</strong></article>
+                  <article><span>Pending signatures</span><strong>{pendingSignatures.length}</strong></article>
+                </div>
 
-              {!activeFlowLock && activeGroup === 'draft' ? (
-                <ActionWorkspace
-                  kicker="Draft contract"
-                  title="Generated from the winning award and tender record"
-                  badge={contract.status}
-                  context={
-                    <>
-                      <section className="contract-overview-grid">
-                        <article><span>Buyer</span><strong>{contract.buyerName}</strong></article>
-                        <article><span>Supplier</span><strong>{contract.supplierName ?? 'Supplier pending'}</strong></article>
-                        <article><span>Reference</span><strong>{contract.reference}</strong></article>
-                        <article><span>Currency</span><strong>{contract.currency}</strong></article>
-                      </section>
-                      <SimpleTable headers={['Draft area', 'Captured content', 'Status']} className="contract-draft-summary-table">
-                        <tr>
-                          <td><strong>Parties</strong></td>
-                          <td>{contract.buyerName} / {contract.supplierName ?? draftValue(draft?.parties)}</td>
-                          <td><StatusBadge value={contract.supplierName ? 'Generated' : 'Pending'} /></td>
-                        </tr>
-                        <tr>
-                          <td><strong>Tender</strong></td>
-                          <td>{contract.tenderReference ?? draftValue(draft?.tender)}</td>
-                          <td><StatusBadge value={contract.tenderReference || draft?.tender ? 'Generated' : 'Pending'} /></td>
-                        </tr>
-                        <tr>
-                          <td><strong>Commercial terms</strong></td>
-                          <td>{contract.amount === null ? draftValue(draft?.financials) : formatMoney(contract.amount, contract.currency)}</td>
-                          <td><StatusBadge value={contract.amount !== null || draft?.financials ? 'Generated' : 'Pending'} /></td>
-                        </tr>
-                        <tr>
-                          <td><strong>Clauses</strong></td>
-                          <td>{contract.clauses?.length ? `${contract.clauses.length} structured clauses ready for review` : draftValue(draft?.clauses)}</td>
-                          <td><StatusBadge value={contract.clauses?.length ? 'Generated' : 'Pending'} /></td>
-                        </tr>
-                        <tr>
-                          <td><strong>Documents</strong></td>
-                          <td>{contract.versions?.length ? `${contract.versions.length} contract version records` : 'No external contract version linked'}</td>
-                          <td><StatusBadge value={contract.versions?.length ? 'Recorded' : 'Optional'} /></td>
-                        </tr>
-                      </SimpleTable>
-                    </>
-                  }
-                >
+                <SimpleTable headers={['Draft area', 'Captured content', 'Status']} className="contract-draft-summary-table">
+                  <tr><td><strong>Parties</strong></td><td>{contract.buyerName} / {contract.supplierName ?? draftValue(draft?.parties)}</td><td><StatusBadge value={contract.supplierName ? 'Ready' : 'Pending'} /></td></tr>
+                  <tr><td><strong>Tender</strong></td><td>{contract.tenderReference ?? draftValue(draft?.tender)}</td><td><StatusBadge value={contract.tenderReference || draft?.tender ? 'Ready' : 'Pending'} /></td></tr>
+                  <tr><td><strong>Commercial terms</strong></td><td>{contract.amount === null ? draftValue(draft?.financials) : formatMoney(contract.amount, contract.currency)}</td><td><StatusBadge value={contract.amount !== null || draft?.financials ? 'Ready' : 'Pending'} /></td></tr>
+                  <tr><td><strong>Terms</strong></td><td>{contract.clauses?.length ? `${contract.clauses.length} terms ready for review` : draftValue(draft?.clauses)}</td><td><StatusBadge value={contract.clauses?.length ? 'Ready' : 'Pending'} /></td></tr>
+                  <tr><td><strong>Documents</strong></td><td>{contract.versions?.length ? `${contract.versions.length} contract version records` : 'No external version linked'}</td><td><StatusBadge value={contract.versions?.length ? 'Recorded' : 'Optional'} /></td></tr>
+                </SimpleTable>
+
+                <div className="award-simple-form-stack">
                   <ActionFormPanel
                     title="Contract version"
                     badge="Version"
-                    submitLabel="Create Version"
+                    submitLabel="Save version"
                     fields={[
                       { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid', placeholder: 'Optional external document reference', helpText: 'Use only when referencing a document stored outside this workflow.' },
                       { name: 'payload', label: 'Version payload', kind: 'json', required: true, rows: 7 }
@@ -302,44 +467,50 @@ export function ContractNegotiationProcurexPage() {
                       }, null, 2)
                     }}
                     onSubmit={(payload) => awardsContractsApi.saveDraft(contract.id, payload)}
-                    onComplete={refreshContractAndAdvance('clauses')}
+                    onComplete={refreshContract}
+                    defaultSelected
                   />
-                </ActionWorkspace>
-              ) : null}
+                </div>
+              </section>
 
-              {!activeFlowLock && activeGroup === 'clauses' ? (
-                <ActionWorkspace
-                  kicker="Agreed award terms"
-                  title="Clauses carried from award settlement"
-                  badge={`${contract.clauses?.length ?? 0} clauses`}
-                  context={<ClauseReviewGrid clauses={contract.clauses} />}
-                >
-                  <div className="scope-empty">Award clauses are agreed before notices and contract formation. Return to Awarding to change terms before a contract is formed.</div>
-                </ActionWorkspace>
-              ) : null}
+              <section className="award-simple-details-stack" aria-label="Contract supporting details">
+                <ExpandableAwardDetails title="Review terms" summary={`${contract.clauses?.length ?? 0} terms from the award`} open={openSection === 'clauses'}>
+                  <ClauseReviewGrid contractId={contract.id} clauses={contract.clauses} onRefresh={refreshContract} />
+                </ExpandableAwardDetails>
 
-              {!activeFlowLock && activeGroup === 'negotiation' ? (
-                <ActionWorkspace
-                  kicker="Award settlement history"
-                  title="Read-only negotiation history"
-                  badge={`${contract.negotiations?.length ?? 0} records`}
-                  context={<RecordRegister title="Award negotiation history" records={(contract.negotiations ?? []) as unknown as Array<Record<string, unknown>>} />}
-                >
-                  <div className="scope-empty">Negotiations are completed in Awarding before notices are issued. Contract formation keeps this history read-only.</div>
-                </ActionWorkspace>
-              ) : null}
+                <ExpandableAwardDetails title="Amendment requests" summary={`${contract.negotiations?.length ?? 0} saved request${contract.negotiations?.length === 1 ? '' : 's'}`} open={openSection === 'negotiation'}>
+                  <AmendmentRecordList records={contract.negotiations} clauses={contract.clauses} />
+                  <ActionFormPanel
+                    title="New amendment request"
+                    badge="Amendment"
+                    submitLabel="Save request"
+                    fields={[
+                      { name: 'clauseId', label: 'Related clause', kind: 'select', options: [option('', 'General contract request'), ...(contract.clauses ?? []).map((clause) => option(clause.id, clause.title))], helpText: 'Choose the clause if this request is about one specific term.' },
+                      { name: 'raisedByRole', label: 'Raised by', kind: 'select', required: true, options: [option('Buyer'), option('Supplier'), option('Shared')] },
+                      { name: 'subject', label: 'Request subject', kind: 'text', required: true },
+                      { name: 'position', label: 'Request text', kind: 'textarea', required: true, rows: 4 },
+                      { name: 'counterOffer', label: 'Suggested wording', kind: 'textarea', rows: 3 },
+                      { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                      { name: 'dueDate', label: 'Due date', kind: 'date' },
+                      { name: 'payload', label: 'Advanced payload', kind: 'json', advanced: true, rows: 4 }
+                    ]}
+                    initialValues={{
+                      raisedByRole: contract.access?.viewerRole === 'SUPPLIER' ? 'Supplier' : contract.access?.viewerRole === 'BUYER' ? 'Buyer' : 'Shared',
+                      status: 'OPEN',
+                      payload: JSON.stringify({ source: 'contract-amendment-request' }, null, 2)
+                    }}
+                    onSubmit={(payload) => awardsContractsApi.createNegotiation(contract.id, payload)}
+                    onComplete={refreshContract}
+                    defaultSelected={(contract.negotiations?.length ?? 0) === 0 && openSection === 'negotiation'}
+                  />
+                </ExpandableAwardDetails>
 
-              {!activeFlowLock && activeGroup === 'approval' ? (
-                <ActionWorkspace
-                  kicker="Owner approval"
-                  title="Single-user contract approval"
-                  badge={`${contract.workflowApprovals?.length ?? 0} records`}
-                  context={<RecordRegister title="Contract owner approvals" records={(contract.workflowApprovals ?? []) as unknown as Array<Record<string, unknown>>} />}
-                >
+                <ExpandableAwardDetails title="Approve contract" summary={`${contract.workflowApprovals?.length ?? 0} approval records`} open={openSection === 'approval'}>
+                  <AwardPlainRecordList records={(contract.workflowApprovals ?? []) as Array<Record<string, unknown>>} emptyMessage="No owner approvals are saved yet." />
                   <ActionFormPanel
                     title="Contract owner approval"
                     badge="Owner"
-                    submitLabel="Save Owner Approval"
+                    submitLabel="Save approval"
                     fields={[
                       { name: 'stepKey', label: 'Step key', kind: 'text', required: true, technical: true },
                       { name: 'role', label: 'Approver role', kind: 'select', required: true, options: [option('Contract Owner'), option('Legal'), option('Finance'), option('Technical')] },
@@ -354,59 +525,45 @@ export function ContractNegotiationProcurexPage() {
                       payload: JSON.stringify({ model: 'single-user', source: 'contract-negotiation-workspace' }, null, 2)
                     }}
                     onSubmit={(payload) => awardsContractsApi.upsertWorkflowApproval(contract.id, payload)}
-                    onComplete={refreshContractAndAdvance('signatures')}
+                    onComplete={refreshContract}
+                    defaultSelected
                   />
-                </ActionWorkspace>
-              ) : null}
+                </ExpandableAwardDetails>
 
-              {!activeFlowLock && activeGroup === 'signatures' ? (
-                <ActionWorkspace
-                  kicker="Signatures"
-                  title="Digital signing status"
-                  badge={`${contract.signatures?.length ?? 0} signature records`}
-                  context={
-                    <>
-                      <section className="contract-overview-grid">
-                        <article><span>Required parties</span><strong>Buyer and supplier</strong></article>
-                        <article><span>Pending signatures</span><strong>{pendingSignatures.length}</strong></article>
-                        <article><span>Signature method</span><strong>ProcureX keyphrase</strong></article>
-                        <article><span>Blocked reason</span><strong>{pendingSignatures.length ? 'Awaiting signer action' : 'None'}</strong></article>
-                      </section>
-                      <SimpleTable headers={['Role', 'Signer', 'Status', 'Signed at']}>
-                        {(contract.signatures ?? []).length === 0 ? (
-                          <tr><td colSpan={4}><div className="scope-empty">No signature requests have been created yet.</div></td></tr>
-                        ) : contract.signatures.map((signature) => (
-                          <tr key={signature.id}>
-                            <td>{signature.role}</td>
-                            <td>{signature.signerName || 'Pending signer'}</td>
-                            <td><StatusBadge value={signature.status} /></td>
-                            <td>{signature.signedAt ? new Date(signature.signedAt).toLocaleString() : 'Not signed'}</td>
-                          </tr>
-                        ))}
-                      </SimpleTable>
-                    </>
-                  }
-                >
+                <ExpandableAwardDetails title="Sign contract" summary={`${pendingSignatures.length} pending signature${pendingSignatures.length === 1 ? '' : 's'}`} open={openSection === 'signatures'}>
+                  <SimpleTable headers={['Role', 'Signer', 'Status', 'Signed at']}>
+                    {(contract.signatures ?? []).length === 0 ? (
+                      <tr><td colSpan={4}><div className="scope-empty">No signature requests have been created yet.</div></td></tr>
+                    ) : contract.signatures.map((signature) => (
+                      <tr key={signature.id}>
+                        <td>{signature.role}</td>
+                        <td>{signature.signerName || 'Pending signer'}</td>
+                        <td><StatusBadge value={signature.status} /></td>
+                        <td>{signature.signedAt ? new Date(signature.signedAt).toLocaleString() : 'Not signed'}</td>
+                      </tr>
+                    ))}
+                  </SimpleTable>
                   <ActionFormPanel
                     title="Signature request"
                     badge="Signature"
-                    submitLabel="Request Signatures"
+                    submitLabel="Request signatures"
                     fields={[
                       { name: 'roles', label: 'Required signature roles', kind: 'multi', required: true, options: signatureOptions() }
                     ]}
                     initialValues={{ roles: ['BUYER', 'SUPPLIER'] }}
                     onSubmit={(payload) => awardsContractsApi.createSignatureRequests(contract.id, payload.roles as Array<'BUYER' | 'SUPPLIER'>)}
-                    onComplete={refreshContractAndAdvance('readiness')}
+                    onComplete={refreshContract}
+                    defaultSelected
                   />
                   {(contract.signatures ?? []).map((signature) => (
                     <ActionFormPanel
                       title={`Sign ${signature.role}`}
                       badge={signature.status}
-                      submitLabel="Sign Contract"
+                      submitLabel="Sign contract"
                       fields={[
                         { name: 'signerName', label: 'Signer name', kind: 'text', required: true },
                         { name: 'signerTitle', label: 'Signer title', kind: 'text' },
-                        { name: 'signatureKeyphrase', label: 'Signature keyphrase', kind: 'text', required: true },
+                        { name: 'signatureKeyphrase', label: 'Signature keyphrase', kind: 'password', required: true, helpText: 'Enter the active signing keyphrase for this account. ProcureX sends it only to sign this contract action.' },
                         { name: 'payload', label: 'Signature payload', kind: 'json', rows: 4 }
                       ]}
                       initialValues={{
@@ -420,40 +577,29 @@ export function ContractNegotiationProcurexPage() {
                         signatureKeyphrase: String(payload.signatureKeyphrase),
                         payload: payload.payload as Record<string, unknown>
                       })}
-                      onComplete={refreshContractAndAdvance('readiness')}
+                      onComplete={refreshContract}
                       key={signature.id}
                     />
                   ))}
-                </ActionWorkspace>
-              ) : null}
+                </ExpandableAwardDetails>
 
-              {!activeFlowLock && activeGroup === 'readiness' ? (
-                <ActionWorkspace
-                  kicker="Contract readiness"
-                  title="Activation checks before implementation"
-                  badge={contract.managementPlan ? 'CMP ready' : 'CMP pending'}
-                  context={
-                    <SimpleTable headers={['Check', 'Status', 'Action']}>
-                      <tr><td><strong>Contract Management Plan</strong></td><td><StatusBadge value={contract.managementPlan ? 'Created' : 'Required'} /></td><td>Assign manager and confirm monitoring plan</td></tr>
-                      <tr><td><strong>Milestones</strong></td><td><StatusBadge value={contract.milestones.length > 0 ? 'Created' : 'Required'} /></td><td>Create delivery/payment milestones</td></tr>
-                      <tr><td><strong>Mobilization</strong></td><td><StatusBadge value={contract.mobilizationItems.length > 0 ? 'Checklist ready' : 'Required'} /></td><td>Complete or waive required items</td></tr>
-                    </SimpleTable>
-                  }
-                >
-                  <div className="scope-empty">Readiness is calculated from live contract records. Use Post-Award Tracking to complete CMP, milestones, and mobilization.</div>
-                </ActionWorkspace>
-              ) : null}
+                <ExpandableAwardDetails title="Ready to start" summary={pendingSignatures.length ? 'Waiting for signatures' : 'Activation checks'} open={openSection === 'readiness'}>
+                  <SimpleTable headers={['Check', 'Status', 'Action']}>
+                    <tr><td><strong>Contract Management Plan</strong></td><td><StatusBadge value={contract.managementPlan ? 'Created' : 'Required'} /></td><td>Assign manager and confirm monitoring plan</td></tr>
+                    <tr><td><strong>Milestones</strong></td><td><StatusBadge value={contract.milestones.length > 0 ? 'Created' : 'Required'} /></td><td>Create delivery and payment milestones</td></tr>
+                    <tr><td><strong>Mobilization</strong></td><td><StatusBadge value={contract.mobilizationItems.length > 0 ? 'Ready' : 'Required'} /></td><td>Complete or waive required items</td></tr>
+                  </SimpleTable>
+                </ExpandableAwardDetails>
 
-              {!activeFlowLock && activeGroup === 'registers' ? (
-                <div className="award-register-grid">
-                  <RegisterCard kicker="Agreed terms" title="Award clauses carried into contract" records={(contract.clauses ?? []) as unknown as Array<Record<string, unknown>>} />
-                  <RegisterCard kicker="Award history" title="Award negotiation history" records={(contract.negotiations ?? []) as unknown as Array<Record<string, unknown>>} />
-                  <RegisterCard kicker="Approvals" title="Owner approval history" records={(contract.workflowApprovals ?? []) as unknown as Array<Record<string, unknown>>} />
-                  <RegisterCard kicker="Signatures" title="Signature register" records={(contract.signatures ?? []) as unknown as Array<Record<string, unknown>>} />
-                  <RegisterCard kicker="Parties" title="Contract parties" records={(contract.parties ?? []) as Array<Record<string, unknown>>} />
-                </div>
-              ) : null}
-            </section>
+                <ExpandableAwardDetails title="Saved records" summary="Terms, approvals, signatures, and parties" open={openSection === 'registers'}>
+                  <div className="award-simple-record-grid">
+                    <div><h3>Agreed terms</h3><AwardPlainRecordList records={(contract.clauses ?? []) as Array<Record<string, unknown>>} /></div>
+                    <div><h3>Approvals</h3><AwardPlainRecordList records={(contract.workflowApprovals ?? []) as Array<Record<string, unknown>>} /></div>
+                    <div><h3>Signatures</h3><AwardPlainRecordList records={(contract.signatures ?? []) as Array<Record<string, unknown>>} /></div>
+                    <div><h3>Parties</h3><AwardPlainRecordList records={(contract.parties ?? []) as Array<Record<string, unknown>>} /></div>
+                  </div>
+                </ExpandableAwardDetails>
+              </section>
             </AwardContractAccessProvider>
           ) : null}
         </main>

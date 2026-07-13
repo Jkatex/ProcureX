@@ -9,6 +9,7 @@ import { apiErrorMessage, notificationFromApiError } from '@/shared/api/errors';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { TanzaniaLocationSelector } from '@/shared/components/TanzaniaLocationSelector';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import { riskLevelSummary, trustTierSummary } from '@/shared/trustRisk';
 import type { CreateNotificationInput, NotificationTone } from '@/shared/types/notifications';
 import { isValidTanzaniaLocation, type TanzaniaLocationSelection } from '@procurex/shared';
 
@@ -84,7 +85,8 @@ function friendlyIdentityMessage(error: unknown, fallback: string) {
   if (status === 409 && /duplicate|already uses/i.test(serverMessage)) {
     return 'This registry number is already linked to an approved ProcureX account. The verification will need admin review.';
   }
-  if (status === 409) return serverMessage || 'The registry record must be fetched and confirmed before submitting.';
+  if (status === 409 && /invalid keyphrase/i.test(serverMessage)) return 'The keyphrase does not match this digital signature.';
+  if (status === 409) return 'The registry record must be fetched and confirmed before submitting.';
   if (status === 502) return 'The registry service is not available right now. Please try again later.';
 
   return apiErrorMessage(error, fallback);
@@ -776,6 +778,11 @@ export function IdentityVerificationProcurexPage() {
                     <strong>Review reasons:</strong> {result.reviewReasons.join(' ')}
                   </div>
                 ) : null}
+                <div className="auth-note">
+                  <strong>Trust:</strong> {trustTierSummary(result?.user.trustTier ?? authUser?.trustTier, result?.user.trustRisk?.reasons ?? [])}
+                  <br />
+                  <strong>Risk:</strong> {riskLevelSummary(result?.user.riskLevel ?? authUser?.riskLevel, result?.user.screeningStatus ?? authUser?.screeningStatus)}
+                </div>
               </div>
 
               <div className="ekyc-step-actions split">

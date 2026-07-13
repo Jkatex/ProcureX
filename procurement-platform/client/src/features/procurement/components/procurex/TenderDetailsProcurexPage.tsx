@@ -4,24 +4,12 @@ import { downloadTenderDocument, openTenderDocument } from '../../tenderDocument
 import { useTenderDetail } from '../../hooks';
 import type { TenderDetail, TenderDetailDocument } from '../../types';
 import {
-  CommercialTable,
-  DetailBadges,
   DetailSummary,
-  DetailValue,
-  DocumentCards,
   PrototypeTabs,
-  RequirementCards,
-  TenderDocumentSection,
-  TimelineList,
-  daysRemaining,
   formatDate,
-  formatMoney,
-  formatStatus,
-  formatTenderType,
-  isPastTender,
-  tenderCategories,
   tenderStatusBadgeClass
 } from './TenderDetailPrototypeComponents';
+import { SupplierProcurementDetails, buyerNoticeText } from './SupplierTenderDetailProcurexPage';
 
 export function TenderDetailsProcurexPage() {
   const [params] = useSearchParams();
@@ -33,11 +21,6 @@ export function TenderDetailsProcurexPage() {
   if (isLoading) return <BuyerEmpty message="Loading buyer tender detail..." />;
   if (isError || !tender) return <BuyerEmpty title="Tender not found" message="Return to My Tenders and choose an available tender." />;
 
-  const remainingDays = daysRemaining(tender.closingDate);
-  const past = isPastTender(tender);
-  const interestedSuppliers = Math.max(tender.bidSummary?.total ?? 0, tender.hasDraftBid || tender.hasSubmittedBid ? 1 : 0);
-  const marketplaceViews = activityValue(tender.activity?.marketplaceViews, 180 + interestedSuppliers * 22);
-  const documentDownloads = activityValue(tender.activity?.documentDownloads, 45 + (tender.documents?.length ?? 0) * 11);
   const handleDownloadDocument = async (document?: TenderDetailDocument) => {
     if (isPreparingDownload) return;
     setIsPreparingDownload(true);
@@ -76,43 +59,48 @@ export function TenderDetailsProcurexPage() {
           <div className="journey-page buyer-tender-detail-page" data-buyer-tender-detail data-tender-id={tender.id}>
             <section className="journey-hero compact">
               <div>
-                <span className={`badge ${tenderStatusBadgeClass(tender)}`}>{past ? 'Archived tender' : 'Active tender'}</span>
+                <span className={`badge ${tenderStatusBadgeClass(tender)}`}>Active tender</span>
                 <h1>{tender.title}</h1>
-                <p>{tender.id} / {tender.organization}. Manage live tender interactions, amendments, supplier clarifications, and evaluation readiness.</p>
+                <p>{tender.organization}. View the supplier-facing tender information and manage tender activity.</p>
               </div>
               <div className="hero-action-stack">
                 <button className="btn btn-secondary" type="button" onClick={() => handleOpenDocument()}>Open Document</button>
                 <button className="btn btn-secondary" type="button" disabled={isPreparingDownload} onClick={() => void handleDownloadDocument()}>
                   {isPreparingDownload ? 'Preparing...' : 'Download Document'}
                 </button>
-                <button className="btn btn-secondary" type="button">Create Amendment</button>
-                <Link className="btn btn-primary" to="/evaluation">Open Evaluation</Link>
               </div>
             </section>
 
-            <section className="buyer-tender-status-list" aria-label="Tender activity summary">
-              <article className="buyer-tender-status-row">
-                <span>Marketplace views</span>
-                <strong>{marketplaceViews}</strong>
-              </article>
-              <article className="buyer-tender-status-row">
-                <span>Document downloads</span>
-                <strong>{documentDownloads}</strong>
-              </article>
-              <article className="buyer-tender-status-row">
-                <span>Time to close</span>
-                <strong>{past ? 'Closed' : `${remainingDays}d`}</strong>
-              </article>
-            </section>
-
-            <BuyerTabbedDetail
-              tender={tender}
-              remainingDays={remainingDays}
-              past={past}
-              onOpenDocument={handleOpenDocument}
-              onDownloadDocument={(document) => void handleDownloadDocument(document)}
+            <PrototypeTabs
+              variant="buyer"
+              defaultTabId="procurement-details"
+              tabs={[
+                {
+                  id: 'procurement-details',
+                  label: 'Procurement details',
+                  content: (
+                    <section className="buyer-tender-section" aria-label="Procurement details">
+                      <div className="panel-heading">
+                        <div>
+                          <span className="section-kicker">Supplier-facing view</span>
+                          <h2>Procurement details</h2>
+                        </div>
+                      </div>
+                      <SupplierProcurementDetails
+                        tender={tender}
+                        onOpenDocument={handleOpenDocument}
+                        onDownloadDocument={(document) => void handleDownloadDocument(document)}
+                      />
+                    </section>
+                  )
+                },
+                {
+                  id: 'tender-activity',
+                  label: 'Tender activity',
+                  content: <BuyerTenderActivity tender={tender} />
+                }
+              ]}
             />
-            <BuyerAmendmentPlaceholder />
           </div>
         </main>
       </div>
@@ -120,248 +108,117 @@ export function TenderDetailsProcurexPage() {
   );
 }
 
-function BuyerTabbedDetail({
-  tender,
-  remainingDays,
-  past,
-  onOpenDocument,
-  onDownloadDocument
-}: {
-  tender: TenderDetail;
-  remainingDays: number;
-  past: boolean;
-  onOpenDocument: (document: TenderDetailDocument) => void;
-  onDownloadDocument: (document: TenderDetailDocument) => void;
-}) {
-  return (
-    <PrototypeTabs
-      variant="buyer"
-      defaultTabId="procurement-details"
-      tabs={[
-        {
-          id: 'procurement-details',
-          label: 'Procurement details',
-          content: <BuyerTenderDocument tender={tender} onOpenDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
-        },
-        { id: 'questions-amendments', label: 'Questions and amendments', content: <BuyerQuestions tender={tender} /> },
-        { id: 'supplier-activity', label: 'Supplier activity', content: <BuyerSupplierActivity tender={tender} remainingDays={remainingDays} past={past} /> },
-        { id: 'evaluation-records', label: 'Evaluation and records', content: <BuyerEvaluationAndRecords tender={tender} past={past} /> }
-      ]}
-    />
-  );
-}
+function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
+  const summary = tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 };
+  const submittedBusinesses = tender.submittedBidBusinesses ?? [];
+  const clarificationCount = tender.activity?.clarifications ?? 0;
+  const [notice, setNotice] = useState(() => buyerNoticeText(tender));
+  const [noticeMessage, setNoticeMessage] = useState('');
 
-function BuyerSupplierActivity({ tender, remainingDays, past }: { tender: TenderDetail; remainingDays: number; past: boolean }) {
-  const submitted = tender.bidSummary?.submitted ?? 0;
-  const draft = tender.bidSummary?.draft ?? 0;
-  const supplierCount = tender.bidSummary?.total ?? submitted + draft;
-  const clarificationCount: number = 0;
-  const documentCount = tender.documents?.length ?? 0;
-  const marketplaceViews = activityValue(tender.activity?.marketplaceViews, 180 + supplierCount * 22);
-  const documentDownloads = activityValue(tender.activity?.documentDownloads, 45 + supplierCount * 11);
   return (
-    <section className="buyer-tender-detail-rows">
-      <article className="journey-panel">
-        <div className="panel-heading">
-          <div>
-            <span className="section-kicker">Marketplace activity</span>
-            <h2>Supplier engagement</h2>
-          </div>
-          <span className="badge badge-info">{supplierCount} supplier{supplierCount === 1 ? '' : 's'}</span>
+    <section className="buyer-tender-section buyer-tender-activity" aria-label="Tender activity">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Tender activity</span>
+          <h2>Tender activity</h2>
         </div>
-        <DetailSummary rows={[{ label: 'Marketplace views', value: marketplaceViews }, { label: 'Document downloads', value: documentDownloads }, { label: 'Time to close', value: past ? 'Closed' : `${remainingDays}d` }]} />
-        <div className="inbox-list">
-          <div className="inbox-item">
-            <div>
-              <strong>Marketplace engagement</strong>
-              <span>{supplierCount ? `${supplierCount} supplier${supplierCount === 1 ? '' : 's'} have shown aggregate activity.` : 'No supplier engagement recorded yet.'}</span>
-            </div>
-            <em>{marketplaceViews} views</em>
-          </div>
-          <div className="inbox-item">
-            <div>
-              <strong>Document interest</strong>
-              <span>Tender documents have been accessed through the marketplace.</span>
-            </div>
-            <em>{documentDownloads} downloads</em>
-          </div>
-          <div className="inbox-item">
-            <div>
-              <strong>Clarification activity</strong>
-              <span>Supplier questions are summarized without revealing individual supplier identities.</span>
-            </div>
-            <em>{clarificationCount} item{clarificationCount === 1 ? '' : 's'}</em>
-          </div>
-        </div>
-      </article>
-
-      <article className="journey-panel">
-        <div className="panel-heading">
-          <div>
-            <span className="section-kicker">Supplier questions</span>
-            <h2>Activity requiring buyer attention</h2>
-          </div>
-          <span className="badge badge-warning">{clarificationCount} item{clarificationCount === 1 ? '' : 's'}</span>
-        </div>
-        <DetailSummary rows={[{ label: 'Clarifications', value: clarificationCount }, { label: 'Documents', value: documentCount }]} />
-        <button className="btn btn-secondary" type="button">Create Amendment</button>
-      </article>
-    </section>
-  );
-}
-
-function BuyerQuestions({ tender }: { tender: TenderDetail }) {
-  return (
-    <div className="journey-grid two-col">
-      <article className="journey-panel control-panel">
-        <span className="section-kicker">Clarifications</span>
-        <h2>Supplier questions</h2>
-        <p>No open clarification questions are awaiting buyer response.</p>
-        <Link className="btn btn-secondary" to="/communication">Communication Center</Link>
-      </article>
-      <article className="journey-panel control-panel">
-        <span className="section-kicker">Amendments</span>
-        <h2>Addenda</h2>
-        <p>Create structured amendments when requirements, documents, dates, or pricing instructions change.</p>
-        <button className="btn btn-secondary" type="button">Create Amendment</button>
-      </article>
-      <article className="journey-panel control-panel">
-        <span className="section-kicker">Tender dates</span>
-        <h2>Deadline controls</h2>
-        <DetailSummary rows={[{ label: 'Published', value: formatDate(tender.publishedAt || '') }, { label: 'Closing', value: formatDate(tender.closingDate) }]} compact />
-      </article>
-    </div>
-  );
-}
-
-function BuyerEvaluationAndRecords({ tender, past }: { tender: TenderDetail; past: boolean }) {
-  const submitted = tender.bidSummary?.submitted ?? 0;
-  const draft = tender.bidSummary?.draft ?? 0;
-  const withdrawn = tender.bidSummary?.withdrawn ?? 0;
-  const readyForEvaluation = submitted > 0 && (past || /closed|evaluation|awarded/i.test(tender.status));
-  return (
-    <div className="buyer-tender-detail-rows">
-      <section className="journey-grid three-col">
-        <article className="journey-panel control-panel">
-          <span className="section-kicker">Evaluation readiness</span>
-          <h2>{readyForEvaluation ? 'Ready to evaluate' : 'Awaiting close'}</h2>
-          <div className="progress-stack">
-            <div>
-              <span>Submission coverage</span>
-              <strong>{submitted}</strong>
-            </div>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${Math.min(100, submitted * 25)}%` }} />
-            </div>
-            <p>{readyForEvaluation ? 'Evaluation can begin using the sealed submission summaries.' : 'Detailed bid contents remain sealed until the existing evaluation workflow opens them.'}</p>
-          </div>
-        </article>
+      </div>
+      <div className="journey-grid two-col buyer-activity-grid">
         <article className="journey-panel control-panel">
           <span className="section-kicker">Bid summary</span>
-          <h2>Sealed Bid Summary</h2>
-          <DetailSummary rows={[{ label: 'Total bid records', value: tender.bidSummary?.total ?? 0 }, { label: 'Submitted', value: submitted }, { label: 'Draft supplier bids', value: draft }, { label: 'Withdrawn', value: withdrawn }, { label: 'Disclosure', value: 'Sealed until evaluation' }]} compact />
+          <h3>Bid summary</h3>
+          <DetailSummary
+            rows={[
+              { label: 'Submitted bids', value: summary.submitted },
+              { label: 'Draft bids', value: summary.draft },
+              { label: 'Withdrawn bids', value: summary.withdrawn },
+              { label: 'Total bid records', value: summary.total }
+            ]}
+            compact
+          />
+          <div className="inbox-list">
+            {submittedBusinesses.length ? (
+              submittedBusinesses.map((business) => (
+                <div className="inbox-item" key={business.id}>
+                  <div>
+                    <strong>{business.name}</strong>
+                    <span>{business.submittedAt ? `Submitted ${formatDate(business.submittedAt)}` : 'Submitted bid recorded'}</span>
+                  </div>
+                  <em>Submitted</em>
+                </div>
+              ))
+            ) : (
+              <div className="scope-empty">No submitted bids yet.</div>
+            )}
+          </div>
         </article>
+
         <article className="journey-panel control-panel">
-          <span className="section-kicker">Evaluation workspace</span>
-          <h2>Open evaluation</h2>
-          <p>Use the evaluation workspace once the tender closes and submitted bids are ready for review.</p>
-          <Link className="btn btn-primary" to="/evaluation">Open Evaluation</Link>
+          <span className="section-kicker">Clarification inquiries</span>
+          <h3>Clarification inquiries</h3>
+          <p>
+            {clarificationCount
+              ? `${clarificationCount} clarification ${clarificationCount === 1 ? 'inquiry is' : 'inquiries are'} linked to this tender.`
+              : 'No clarification inquiries are linked to this tender yet.'}
+          </p>
+          <Link className="btn btn-secondary" to={buyerClarificationUrl(tender)}>
+            Open clarification messages
+          </Link>
         </article>
-      </section>
 
-      <section className="journey-panel control-panel">
-        <div className="panel-heading">
-          <div>
-            <span className="section-kicker">Audit Trail</span>
-            <h2>Lifecycle archive</h2>
-          </div>
-          <span className={`badge ${past ? 'badge-info' : 'badge-success'}`}>{past ? 'Archived' : 'Active'}</span>
-        </div>
-        <DetailSummary
-          rows={[
-            { label: 'Amendments', value: 0 },
-            { label: 'Clarifications', value: 0 },
-            { label: 'Tender reference', value: tender.reference },
-            { label: 'Published', value: formatDate(tender.publishedAt || '') },
-            { label: 'Closing', value: formatDate(tender.closingDate) },
-            { label: 'Current status', value: formatStatus(tender.status) }
-          ]}
-          compact
-        />
-        <Link className="btn btn-secondary" to="/records-history">Open Records and History</Link>
-      </section>
-    </div>
-  );
-}
+        <article className="journey-panel control-panel buyer-notice-panel">
+          <span className="section-kicker">Buyer notice</span>
+          <h3>Buyer notice</h3>
+          <p>Write a bidder-facing note that should be shown in the supplier tender view.</p>
+          <textarea
+            className="form-input"
+            aria-label="Buyer notice"
+            value={notice}
+            onChange={(event) => {
+              setNotice(event.target.value);
+              setNoticeMessage('');
+            }}
+            placeholder="Write an update for all bidders..."
+          />
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => setNoticeMessage('Buyer notice persistence is not connected for published tenders yet.')}
+          >
+            Save notice
+          </button>
+          {noticeMessage ? <span className="tender-detail-muted">{noticeMessage}</span> : null}
+        </article>
 
-function BuyerTenderDocument({
-  tender,
-  onOpenDocument,
-  onDownloadDocument
-}: {
-  tender: TenderDetail;
-  onOpenDocument: (document: TenderDetailDocument) => void;
-  onDownloadDocument: (document: TenderDetailDocument) => void;
-}) {
-  return (
-    <div className="supplier-detail-procurement-document">
-      <section className="tender-document-view supplier-procurement-full-document">
-        <header className="tender-document-cover">
-          <div>
-            <span className="section-kicker">Tender document</span>
-            <h2>{tender.title}</h2>
-            <p>{tender.description || 'Review the structured tender information and supplier-facing pack.'}</p>
-          </div>
-          <div className="tender-document-stamp">
-            <strong>{formatStatus(tender.status)}</strong>
-            <span>{formatTenderType(tender.type)}</span>
-          </div>
-        </header>
-        <TenderDocumentSection number="1" title="Customer Information" kicker="Procurement details">
-          <DetailSummary rows={[{ label: 'Procuring entity', value: tender.organization }, { label: 'Tender reference', value: tender.reference }, { label: 'Procurement method', value: tender.method || 'Open Tender' }, { label: 'Location', value: tender.location }]} />
-          <div className="tender-document-categories">
-            <span>Categories</span>
-            <DetailBadges items={tenderCategories(tender)} />
-          </div>
-        </TenderDocumentSection>
-        <TenderDocumentSection number="2" title="Purchase Information" kicker="Commercial scope">
-          <DetailSummary rows={[{ label: 'Budget estimate', value: formatMoney(tender.budget, tender.currency) }, { label: 'Closing date', value: formatDate(tender.closingDate) }, { label: 'Currency', value: tender.currency }]} />
-          <CommercialTable tender={tender} priceLabel="Estimate" />
-        </TenderDocumentSection>
-        <TenderDocumentSection number="3" title="Requirements" kicker="Buyer requirements">
-          <RequirementCards tender={tender} />
-        </TenderDocumentSection>
-        <TenderDocumentSection number="4" title="Documents" kicker="Tender pack" id="documents">
-          <DocumentCards tender={tender} onViewDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />
-        </TenderDocumentSection>
-        <TenderDocumentSection number="5" title="Timeline" kicker="Monitoring">
-          <TimelineList tender={tender} />
-          <DetailValue value={tender.milestones ?? []} />
-        </TenderDocumentSection>
-      </section>
-    </div>
-  );
-}
+        <article className="journey-panel control-panel">
+          <span className="section-kicker">Make amendment</span>
+          <h3>Make amendment</h3>
+          <p>Use an amendment when tender requirements, dates, documents, or pricing instructions need to change.</p>
+          <button className="btn btn-secondary" type="button" disabled>
+            Make amendment
+          </button>
+        </article>
 
-function BuyerAmendmentPlaceholder() {
-  return (
-    <section className="buyer-amendment-workspace" aria-label="Tender amendment workspace">
-      <div className="buyer-amendment-card">
-        <div className="panel-heading">
-          <div>
-            <span className="section-kicker">Tender amendment</span>
-            <h2>Create structured amendment</h2>
-          </div>
-          <button className="btn btn-secondary" type="button">Close</button>
-        </div>
-        <div className="scope-empty">Amendment persistence is not connected yet. Use this workspace once the amendment backend is available.</div>
+        <article className="journey-panel control-panel">
+          <span className="section-kicker">Cancel tender</span>
+          <h3>Cancel tender</h3>
+          <p>Cancel only when the procurement should be withdrawn from marketplace activity.</p>
+          <button className="btn btn-secondary" type="button" disabled>
+            Cancel tender
+          </button>
+        </article>
       </div>
     </section>
   );
 }
 
-function activityValue(value: number | undefined, fallback: number) {
-  return Number.isFinite(value) ? Number(value) : fallback;
+function buyerClarificationUrl(tender: TenderDetail) {
+  const params = new URLSearchParams({
+    tenderId: tender.id,
+    category: 'Clarification',
+    subject: `Clarification for ${tender.title}`
+  });
+  return `/communication?${params.toString()}`;
 }
 
 function BuyerEmpty({ message, title = 'Tender detail' }: { message: string; title?: string }) {

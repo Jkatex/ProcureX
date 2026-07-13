@@ -1,5 +1,5 @@
 import { apiClient } from '@/shared/api/http';
-import type { AwardContractDashboard, AwardRecommendationDetailDto, ContractDetailDto } from '../types';
+import type { AwardContractDashboard, AwardDecisionDraftInput, AwardRecommendationDetailDto, ContractDetailDto } from '../types';
 
 const emptyDashboard: AwardContractDashboard = {
   summary: {
@@ -35,6 +35,10 @@ export const awardsContractsApi = {
   },
   async upsertAwardApprovalRoute(recommendationId: string, payload: Record<string, unknown>) {
     const response = await apiClient.put(`/api/award-contract/recommendations/${recommendationId}/approval-route`, payload);
+    return response.data;
+  },
+  async saveAwardDecisionDraft(recommendationId: string, payload: AwardDecisionDraftInput) {
+    const response = await apiClient.patch<AwardRecommendationDetailDto>(`/api/award-contract/recommendations/${recommendationId}/draft`, payload);
     return response.data;
   },
   async upsertAwardApprovalStep(recommendationId: string, payload: Record<string, unknown>) {
@@ -77,8 +81,8 @@ export const awardsContractsApi = {
     const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/settle`, { note, payload });
     return response.data;
   },
-  async approveRecommendation(recommendationId: string, note = '') {
-    const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/approve`, { note });
+  async approveRecommendation(recommendationId: string, note = '', payload: Partial<AwardDecisionDraftInput> = {}) {
+    const response = await apiClient.post<AwardRecommendationDetailDto>(`/api/award-contract/recommendations/${recommendationId}/approve`, { ...payload, note });
     return response.data;
   },
   async returnRecommendation(recommendationId: string, note = '') {

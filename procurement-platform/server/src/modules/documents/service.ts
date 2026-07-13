@@ -1,5 +1,5 @@
 import { ModuleRepository } from './repository.js';
-import { moduleDefinition, type ModuleStatus } from './types.js';
+import { moduleDefinition, type DocumentRequestContext, type ModuleStatus } from './types.js';
 
 export class ModuleService {
   constructor(private readonly repository = new ModuleRepository()) {}
@@ -12,5 +12,8 @@ export class ModuleService {
       status: 'ready'
     };
   }
-}
 
+  content(id: string, context: DocumentRequestContext) {
+    return this.repository.content(id, context);
+  }
+}

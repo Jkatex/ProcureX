@@ -100,16 +100,22 @@ describe('SupplierTenderDetailProcurexPage', () => {
     expect(screen.getByRole('button', { name: 'Open Document' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download Document' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Tender' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ask clarification' })).toHaveAttribute('href', expect.stringContaining('/communication'));
+    expect(screen.getByRole('link', { name: 'Ask clarification' }).getAttribute('href')).toContain('/communication?');
+    expect(screen.queryByText('Mandatory before bid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Additional responses')).not.toBeInTheDocument();
+    expect(screen.queryByText('Time remaining')).not.toBeInTheDocument();
+    expect(screen.queryByText('Jump to')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ask Buyer' })).toHaveAttribute('href', expect.stringContaining('/communication?view=compose&mode=clarification'));
     expect(screen.getByText('Mandatory before bid')).toBeInTheDocument();
     expect(screen.getByText('Additional responses')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Procurement details', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Questions and requirements' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Complaints' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Monitoring and reporting' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Complaints' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Monitoring and reporting' })).not.toBeInTheDocument();
     expect(screen.getByText('Customer Information')).toBeInTheDocument();
     expect(screen.getByText('Purchase Information')).toBeInTheDocument();
     expect(screen.getByText('Tender Documentation')).toBeInTheDocument();
+    expect(screen.getByText('Buyer Notice')).toBeInTheDocument();
   });
 
   it('downloads a consolidated tender pack PDF from the main supplier action', async () => {

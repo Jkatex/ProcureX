@@ -284,6 +284,29 @@
       page-break-inside: avoid;
     }
 
+    .technical-details {
+      margin: 24px 0;
+      padding: 16px 20px;
+      border: 1px solid var(--accent);
+      background: #fdfdfd;
+      border-radius: 4px;
+    }
+
+    .technical-details h4 {
+      margin-top: 0;
+      color: var(--accent-dark);
+      font-size: 11pt;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .technical-details pre {
+      background: var(--code);
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
     @media (max-width: 760px) {
       .page {
         margin: 0;
@@ -392,7 +415,7 @@
         </tr>
         <tr>
           <td>Prepared on</td>
-          <td>June 6, 2026</td>
+          <td>July 12, 2026</td>
         </tr>
       </table>
     </section>
@@ -409,10 +432,12 @@
           <li><a href="#frontend">Frontend Implementation</a></li>
           <li><a href="#backend">Backend Implementation</a></li>
           <li><a href="#database-security">Database And Security</a></li>
+          <li><a href="#technical-quality">Implementation And Technical Quality</a></li>
           <li><a href="#workflows">Workflow Implementation</a></li>
           <li><a href="#user-journeys">Deep User Journey Implementation</a></li>
           <li><a href="#testing">Testing And Validation</a></li>
           <li><a href="#conclusion">Conclusion And Recommendations</a></li>
+          <li><a href="#code-walkthrough">Code-Level Feature Walkthrough</a></li>
           <li><a href="#references">References And Figures Used</a></li>
         </ol>
       </nav>
@@ -425,19 +450,30 @@
         lifecycle of public and private procurement operations. The system
         includes public marketplace discovery, account registration, company
         verification, tender planning, tender publication, supplier bidding, bid
-        evaluation, award recommendation, contract negotiation, post-award
-        tracking, communication, records management, and platform compliance
-        administration.
+        evaluation, award grouping, award recommendation, contract negotiation,
+        post-award tracking, communication, records management, support
+        operations, and platform compliance administration.
       </p>
       <p>
         The implementation uses a production monorepo named
         <code>procurement-platform</code>. The frontend is implemented with
         React, Vite, Material UI, Redux Toolkit, React Router, i18next, and
         supporting shared UI utilities. The backend is implemented with
-        TypeScript, Express, Prisma, modular API boundaries, and row-level
-        security foundations. The original <code>procurex-ui</code> prototype is
-        retained as the visual and workflow reference, while the production
-        React client owns the operational implementation.
+        TypeScript, Express, Helmet, Prisma, modular API boundaries, PostgreSQL
+        multi-schema modeling, and row-level security foundations. The original
+        <code>procurex-ui</code> prototype is retained as the visual and
+        workflow reference, while the production React client owns the
+        operational implementation.
+      </p>
+      <p>
+        Academically, the system demonstrates a layered information-system
+        architecture: presentation concerns are isolated in the React client,
+        process orchestration is concentrated in domain services, persistence is
+        represented through Prisma and PostgreSQL schemas, and governance is
+        supported through audit, records, compliance, and row-level access
+        controls. This report therefore evaluates not only what was implemented,
+        but also the architectural quality, data integrity model, validation
+        strategy, and future production-readiness path.
       </p>
       <div class="summary-box">
         <strong>Documentation note:</strong> This report is a documentation
@@ -662,20 +698,585 @@
         <img src="ui-parity/screenshots/desktop/reference/verification-status.png" alt="Verification status screen">
         <figcaption>Figure 13. Verification status screen showing the state of identity and company review.</figcaption>
       </figure>
+
+      <h3>6.4 Frontend Feature Implementation, Results, And Testing</h3>
+      <p>
+        This subsection navigates the production frontend feature by feature.
+        Each feature was developed by moving from prototype page intent to a
+        React implementation that can participate in routing, authentication,
+        API communication, shared styling, localization, and automated testing.
+        The frontend therefore acts as the user-facing orchestration layer: it
+        does not own the database, but it makes backend and database capabilities
+        visible through screens, forms, dashboards, navigation, workflow cards,
+        tables, alerts, and role-aware page access.
+      </p>
+
+      <h4>6.4.1 Public Pages And Guest Marketplace</h4>
+      <p>
+        The public pages were implemented to support users who have not yet
+        authenticated. The welcome, about, contact, privacy policy, terms and
+        conditions, and guest marketplace screens were converted from the static
+        reference interface into React components registered through the
+        ProcureX page registry. They are routed as public pages, which means the
+        user can reach them without a verified session and without inheriting
+        the authenticated workspace shell.
+      </p>
+      <p>
+        Technically, this feature uses React 19, Vite, React Router, Material UI
+        foundations, prototype-compatible CSS, shared page-shell components, and
+        static assets from the public folder. The data flow is intentionally
+        light: public pages render stable content, while marketplace entry
+        points can be connected to public API helpers when live opportunity data
+        is required. The result is a low-friction entry surface where suppliers,
+        buyers, and visitors can understand the platform before registration.
+        Validation is provided through public page component tests, route smoke
+        tests, and UI parity screenshots that compare the React target against
+        the original reference pages.
+      </p>
+
+      <h4>6.4.2 Authentication, Registration, Forgot Password, And Turnstile Protection</h4>
+      <p>
+        Authentication screens were implemented as dedicated feature components
+        under the auth feature. The registration page captures account details
+        and routes users into the identity journey. The sign-in page accepts
+        credentials and connects the user to session-aware routing. Forgot
+        password and reset-password experiences support account recovery.
+        Turnstile protection is implemented as a reusable component so human
+        verification can be attached to sensitive authentication actions without
+        scattering challenge logic throughout every form.
+      </p>
+      <p>
+        The main technologies are React, React Router, Axios API helpers,
+        Testing Library, Vitest, shared alert components, and the Turnstile
+        widget component. The component flow is form input to local validation
+        state, then API helper call, then success/error UI feedback, then route
+        transition according to the authentication outcome. The result is an
+        authentication surface that can be tested independently from the rest of
+        the workspace. Validation is covered by auth component tests, route
+        guard tests, page smoke tests, and Turnstile widget tests.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Auth State &amp; Flow</h4>
+        <p><strong>State Management (Redux Toolkit):</strong> Authentication state is centrally managed via the <code>authSlice</code>, exposing thunks like <code>signInWithCredentials</code> and <code>hydrateAuthSession</code>.</p>
+<pre><code>export const signInWithCredentials = createAsyncThunk&lt;AuthSessionResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }&gt;(
+  'auth/signInWithCredentials',
+  async (input, { rejectWithValue }) =&gt; {
+    try {
+      return await authApi.signIn(input);
+    } catch (error) {
+      return rejectWithValue(apiErrorMessage(error, 'Sign-in failed.'));
+    }
+  }
+);</code></pre>
+        <p><strong>Session Expiry Handling:</strong> The slice explicitly tracks session expiry and hydration, ensuring the user is cleanly logged out across the application when a token expires:</p>
+<pre><code>      .addCase(hydrateAuthSession.rejected, (state) =&gt; {
+        state.sessionExpired = Boolean(state.token);
+        state.status = 'idle';
+        state.user = null;
+        state.token = null;
+        state.expiresAt = null;
+        state.isAuthenticated = false;
+        clearStoredAuthToken();
+      })</code></pre>
+      </div>
+
+      <h4>6.4.3 Identity Verification And Account Profile</h4>
+      <p>
+        Identity verification was implemented as the bridge between simple
+        account creation and permission to use operational procurement modules.
+        The identity verification page captures organization and verification
+        information, while the verification-status page communicates whether the
+        user is still drafting, waiting for review, approved, rejected, or
+        otherwise blocked from full workspace access. The account profile page
+        provides a user-facing place for profile and account state.
+      </p>
+      <p>
+        Implementation uses React feature components, shared form controls,
+        shared domain types, Axios identity API helpers, and guarded routes.
+        The frontend does not make final verification decisions; it submits and
+        displays state owned by the backend identity module. The result is a
+        clearer separation between onboarding UI and compliance authority.
+        Testing includes identity verification component tests, account profile
+        tests, route guard tests, and screenshot evidence for identity-related
+        screens.
+      </p>
+
+      <h4>6.4.4 Workspace Dashboard And App Launcher</h4>
+      <p>
+        The workspace dashboard and app launcher were implemented as the main
+        verified-user operating surface. After authentication and verification,
+        users need a consistent way to locate procurement, bidding, evaluation,
+        awards, communication, records, and administrative modules. The
+        dashboard summarizes work, while the launcher presents the application
+        modules in a structured, navigable form.
+      </p>
+      <p>
+        This feature uses React, shared workspace chrome, feature fixtures,
+        Material UI layout primitives, Redux Toolkit where feature state is
+        required, and Recharts where summary metrics are visualized. The flow is
+        session state to protected route to workspace shell to dashboard or
+        launcher module navigation. The result is a single operational entry
+        point for verified users. Testing includes workspace dashboard tests,
+        route protection tests, page smoke tests, and UI parity screenshots for
+        the app launcher and workspace dashboard.
+      </p>
+
+      <h4>6.4.5 Procurement Planning And Tender Creation</h4>
+      <p>
+        Procurement planning and tender creation were implemented as buyer-side
+        React workflows. These screens represent the process of preparing a
+        procurement need, selecting tender metadata, entering requirements,
+        defining milestones, organizing commercial items, and preparing the
+        tender for publication. The UI is structured around controlled forms,
+        workflow sections, summary panels, and reusable tender-planning
+        components.
+      </p>
+      <p>
+        The implementation uses React, TypeScript, feature hooks, procurement
+        API helpers, shared formatting utilities, Material UI components, and
+        prototype-compatible styles. The component flow is buyer action to form
+        state, then validation and API helper behavior, then visual confirmation
+        or error display. The result is a buyer-facing implementation of the
+        procurement preparation stage. Testing includes procurement API helper
+        tests, tender planning component tests, create-tender tests, page smoke
+        tests, and screenshot parity for create tender and tender publication
+        pages.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Procurement State &amp; Flow</h4>
+        <p><strong>State Management (Redux Toolkit):</strong> Procurement state manages active tenders and complex draft objects for the multi-step tender creation process:</p>
+<pre><code>type ProcurementState = {
+  tenders: ProcurementTender[];
+  selectedTenderId: string | null;
+  createTenderDrafts: CreateTenderDraft[];
+  publishedTenders: CreateTenderDraft[];
+  selectedDraftId: string | null;
+  lastSubmittedTenderId: string | null;
+};</code></pre>
+        <p><strong>Draft Handling:</strong> <code>procurementSlice</code> provides reducers specifically designed to support saving drafts, resuming, and submitting tenders:</p>
+<pre><code>    saveCreateTenderDraft(state, action: { payload: CreateTenderDraft }) {
+      const draft = { ...action.payload, status: action.payload.status === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT' } satisfies CreateTenderDraft;
+      const index = state.createTenderDrafts.findIndex((item) =&gt; item.id === draft.id);
+      if (index &gt;= 0) state.createTenderDrafts[index] = draft;
+      else state.createTenderDrafts.unshift(draft);
+      state.selectedDraftId = draft.id;
+    },
+    submitCreateTenderForEvaluation(state, action: { payload: CreateTenderDraft }) {
+      const submitted: CreateTenderDraft = { ...action.payload, status: 'SUBMITTED', submittedAt: action.payload.submittedAt ?? new Date().toISOString() };
+      state.lastSubmittedTenderId = submitted.id;
+      // ... update state array
+    }</code></pre>
+      </div>
+
+      <h4>6.4.6 Supplier Marketplace And Supplier Tender Detail</h4>
+      <p>
+        Supplier marketplace and supplier tender detail screens were implemented
+        to support opportunity discovery from the supplier perspective. The
+        marketplace presents available tenders and opportunity summaries, while
+        supplier tender detail allows a supplier to inspect a specific tender
+        before saving it or preparing a bid. This feature separates public or
+        marketplace discovery from authenticated supplier participation.
+      </p>
+      <p>
+        The implementation uses React feature pages, procurement API helpers,
+        typed domain structures, shared status badges, shared formatting, and
+        responsive layout components. The data flow is route selection to
+        marketplace listing or tender-detail state, then user action such as
+        saving or opening the bidding workspace. The result is a supplier-facing
+        discovery path connected to the broader procurement lifecycle. Testing
+        includes supplier tender detail component tests, procurement API tests,
+        marketplace tests, page smoke tests, and screenshot validation for
+        supplier marketplace and supplier tender detail screens.
+      </p>
+
+      <h4>6.4.7 Bidding Workspace</h4>
+      <p>
+        The bidding workspace was implemented as the supplier's controlled area
+        for responding to tender opportunities. It presents the bid context,
+        response status, documents, requirements, receipts, and submission
+        progress. The UI is designed to keep supplier work organized so a
+        supplier can move from reviewing an opportunity to preparing a formal
+        response.
+      </p>
+      <p>
+        Technologies used include React, TypeScript, bidding feature API
+        helpers, feature hooks, shared domain types, Material UI, and Testing
+        Library. The frontend flow is supplier tender detail to bidding
+        workspace, then draft or response actions through bidding API helpers.
+        The result is a visible supplier workflow that maps to backend bid,
+        bid-version, document, response, and receipt concepts. Testing includes
+        bidding API tests, bidding workspace component tests, route smoke tests,
+        and UI parity screenshots.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Bidding State &amp; Flow</h4>
+        <p><strong>Type Definitions (types.ts):</strong> The frontend uses strongly typed interfaces to handle complex bid envelopes and nested document states:</p>
+<pre><code>export type BidDraftPayload = {
+  workflowType?: BidWorkflowType;
+  administrative: Record&lt;string, unknown&gt;;
+  technical: Record&lt;string, unknown&gt;;
+  financial: Record&lt;string, unknown&gt;;
+  declarations: Record&lt;string, unknown&gt;;
+  responses: Array&lt;{ requirementKey: string; response: Record&lt;string, unknown&gt; }&gt;;
+  documents: BidDocumentInput[];
+  envelopes?: Record&lt;string, unknown&gt;;
+  // ... and other completeness flags
+};</code></pre>
+        <p><strong>Submission Flow:</strong> The wizard components progressively build the <code>BidDraftPayload</code> and execute the final submission, transforming UI steps into API structures:</p>
+<pre><code>export type BidSubmissionSchemaStepDto = {
+  id: BidSubmissionStepId;
+  label: string;
+  envelope: BidDocumentEnvelope;
+  required: boolean;
+  fields: BidSubmissionSchemaFieldDto[];
+};</code></pre>
+      </div>
+
+      <h4>6.4.8 Bid Evaluation</h4>
+      <p>
+        Bid evaluation was implemented as the reviewer-facing transition from
+        submitted supplier bids to structured procurement decisions. The
+        evaluation screen organizes bids, criteria, scores, review context, and
+        decision support. It gives evaluators a user interface that aligns with
+        the backend evaluation workspace, criteria, score, and assignment data
+        model.
+      </p>
+      <p>
+        The feature uses React, evaluation feature modules, shared table and
+        status components, Recharts where visual summary evidence is needed,
+        and Testing Library for component validation. The flow is evaluation
+        route to workspace context, then review and scoring UI, then progression
+        toward award recommendation. The result is a structured evaluation
+        surface rather than an informal list of supplier responses. Testing
+        includes page smoke tests, evaluation-related client tests, awards flow
+        tests where evaluation output is consumed, and screenshot validation for
+        the bid evaluation page.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Evaluation State &amp; Flow</h4>
+        <p><strong>Type Definitions (types.ts):</strong> Evaluation uses a complex workspace structure consolidating bids, criteria, rankings, and audit history:</p>
+<pre><code>export type EvaluationWorkspace = {
+  tender: { id: string; reference: string; title: string; buyerName: string; /* ... */ } | null;
+  availability: { isReady: boolean; reason: string | null; };
+  summary: {
+    submittedBidCount: number;
+    evaluatedBidCount: number;
+    recommendedBidder: { bidId: string; supplierName: string; } | null;
+    activeStageId: string | null;
+    // ...
+  };
+  criteria: EvaluationWorkspaceCriterion[];
+  bids: EvaluationWorkspaceBid[];
+  rankings: EvaluationRankingRow[];
+  audit: { evaluatedBy: string | null; events: EvaluationAuditEvent[]; };
+};</code></pre>
+        <p><strong>Save Mechanism:</strong> Modifying the evaluation workspace requires structured updates to both numerical scores and qualitative decisions:</p>
+<pre><code>export type SaveEvaluationWorkspaceInput = {
+  scores: Array&lt;{
+    bidId: string;
+    criterionId: string;
+    score: number;
+    comment: string;
+  }&gt;;
+  decisions: Array&lt;{
+    bidId: string;
+    status: EvaluationDecisionStatus;
+    comment: string;
+  }&gt;;
+  complete?: boolean;
+};</code></pre>
+      </div>
+
+      <h4>6.4.9 Award Recommendation, Award Response, And Contract Negotiation</h4>
+      <p>
+        Award and contract screens were implemented as a connected set of
+        lifecycle pages. Award recommendation represents the formal proposal
+        after evaluation. Award response represents supplier-side acceptance or
+        response behavior. Contract negotiation presents the transition from
+        award decision to agreement terms and contract formation.
+      </p>
+      <p>
+        The implementation uses React, the awardsContracts feature, shared
+        award-contract components, domain-specific action forms, role-aware
+        access helpers, TypeScript types, feature fixtures, and API helpers.
+        The flow is evaluation output to recommendation, recommendation to
+        award response or approval review, then contract negotiation and version
+        context. The result is a production UI path for moving from procurement
+        decision to contractual commitment. Testing includes awards-contract
+        flow tests, action form tests, role-access tests, page component tests,
+        and screenshot validation for award recommendation, award response, and
+        contract negotiation.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Award &amp; Contract Negotiation States</h4>
+        <p><strong>Type Definitions (types.ts):</strong> The frontend mirrors the backend lifecycle using explicit wizard steps and role contexts:</p>
+<pre><code>export type AwardContractStep =
+  | 'evaluation-result'
+  | 'award-decision'
+  | 'approval'
+  | 'award-notification'
+  | 'standstill-period'
+  | 'supplier-acceptance'
+  | 'pre-contract-documents'
+  | 'draft-contract'
+  | 'overview'
+  | 'buyer-review'
+  | 'supplier-review'
+  | 'negotiation'
+  | 'contract-owner-approval'
+  | 'signatures'
+  | 'execution';
+
+export type WorkflowAccess = {
+  viewerRole: ViewerRole;
+  canManageBuyerActions: boolean;
+  canSubmitSupplierActions: boolean;
+  canSignBuyer: boolean;
+  canSignSupplier: boolean;
+  readOnlyReason: string | null;
+};</code></pre>
+        <p><strong>Versioned Drafting:</strong> The interface handles negotiation via versioned contract payloads, where parties can suggest and agree on changes before signing:</p>
+<pre><code>export type ContractDetailDto = {
+  id: string;
+  reference: string;
+  status: string;
+  buyerName: string;
+  supplierName: string | null;
+  amount: number | null;
+  versions?: Array&lt;Record&lt;string, unknown&gt;&gt;;
+  clauses?: ContractLifecycleItemDto[];
+  negotiations?: ContractLifecycleItemDto[];
+  signatures: Array&lt;{ id: string; role: string; status: string; signerName: string; signedAt: string | null }&gt;;
+};</code></pre>
+      </div>
+
+      <h4>6.4.10 Post-Award Tracking</h4>
+      <p>
+        Post-award tracking was implemented to represent contract execution
+        after award and negotiation. This page supports visibility into
+        delivery, milestones, purchase orders, invoices, risks, and operational
+        follow-up. It is important because procurement quality does not end at
+        supplier selection; the platform must also support execution and
+        accountability after the award.
+      </p>
+      <p>
+        The feature uses React, awardsContracts shared components, contract
+        lifecycle fixtures, TypeScript domain types, shared status presentation,
+        and Testing Library. The flow is contract context to execution status,
+        then milestone, invoice, payment, or delivery evidence display. The
+        result is a user-facing post-award control surface. Testing includes
+        awards-contract flow tests, post-award component tests, role-access
+        tests, and screenshot validation for post-award tracking.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Post-Award Execution &amp; Tracking</h4>
+        <p><strong>Tab Layout:</strong> The post-award view groups tracking data into distinct tabs matching key execution facets:</p>
+<pre><code>export type PostAwardTabId = 
+  | 'milestones' 
+  | 'payments' 
+  | 'issues' 
+  | 'variations' 
+  | 'closure' 
+  | 'performance';</code></pre>
+        <p><strong>Tracking Details:</strong> The contract detail payload encompasses milestones, variations, payments, risks, and warranties, enabling complete visual compliance audits:</p>
+<pre><code>export type ContractDetailDto = {
+  // ... core metadata
+  milestones: Array&lt;ContractLifecycleItemDto &amp; { amount?: number | null; evidence?: ContractLifecycleItemDto[] }&gt;;
+  risks: Array&lt;ContractLifecycleItemDto &amp; { level?: string; score?: number; mitigationAction?: string }&gt;;
+  variations: Array&lt;ContractLifecycleItemDto &amp; { changeType?: string; costImpact?: number | null; timeImpactDays?: number | null }&gt;;
+  invoices?: Array&lt;Record&lt;string, unknown&gt;&gt;;
+  payments?: Array&lt;Record&lt;string, unknown&gt;&gt;;
+  closeout: Record&lt;string, unknown&gt; | null;
+};</code></pre>
+      </div>
+
+      <h4>6.4.11 Communication Center</h4>
+      <p>
+        The communication center was implemented as a collaboration surface for
+        procurement-related messages, priorities, attachments, and workflow
+        updates. It centralizes communication so important procurement context
+        does not remain outside the system in disconnected email or informal
+        channels.
+      </p>
+      <p>
+        Technologies include React, communication feature components, shared
+        cards and status components, feature fixtures, TypeScript types, and API
+        helpers. The flow is user route to message list, then message selection
+        or update context, with backend communication records providing the
+        persistent model. The result is a structured communication interface
+        aligned with auditability goals. Testing includes communication center
+        component tests, page smoke tests, backend communication service tests,
+        and UI parity screenshots.
+      </p>
+
+      <h4>6.4.12 Records History</h4>
+      <p>
+        Records history was implemented to provide a visible traceability layer.
+        The page presents evidence of what happened in procurement workflows,
+        including actions, dates, statuses, references, and historical context.
+        This is especially important for procurement systems because later
+        reviewers must be able to understand the sequence of events behind a
+        decision.
+      </p>
+      <p>
+        The implementation uses React, records feature pages, shared timeline
+        and status components, formatting helpers, and route protection. The
+        flow is protected route to records view, then filtered or summarized
+        record entries from the records model. The result is a user-facing audit
+        surface that complements backend audit events and database record
+        entries. Testing includes page smoke tests, records-related validation,
+        and screenshot parity for records history.
+      </p>
+
+      <h4>6.4.13 Admin Dashboard, Users, Compliance, Analytics, Search, And Audit</h4>
+      <p>
+        Administrative screens were implemented as admin-only surfaces. The
+        dashboard gives platform oversight, users supports identity and
+        organization review, compliance handles cases and rules, analytics
+        presents operational measurement, search supports investigation, and
+        audit exposes event-level evidence. These screens are intentionally
+        separated from buyer and supplier workflows because administrators are
+        platform compliance users, not procurement participants.
+      </p>
+      <p>
+        The implementation uses React, React Router admin guards, admin feature
+        components, shared admin layout, Material UI components, charting where
+        metrics are shown, TypeScript fixtures, and API helpers. The flow is
+        admin session to admin route guard, then admin page selection, then
+        platform-level review or action. The result is a governance interface
+        for platform oversight. Testing includes admin dashboard tests, admin
+        users tests, admin communication tests, admin shared component tests,
+        admin tender review tests, route guard tests, and screenshot parity for
+        admin pages.
+      </p>
+
+      <h4>6.4.14 Support Pages And Notifications</h4>
+      <p>
+        Support pages and notifications were implemented to improve operational
+        usability. Support pages give users a channel for assistance, while
+        notification types and components provide a pattern for communicating
+        events, warnings, and workflow updates inside the application.
+      </p>
+      <p>
+        The feature uses React, support page components, shared notification
+        types, shared notification cards, feature API helpers, and Testing
+        Library. The flow is user action to support or notification surface,
+        then ticket or message representation through backend support and
+        notification models. The result is a more complete operational platform,
+        not only a procurement transaction interface. Testing includes support
+        page tests, notifications tests, shared component tests, and backend
+        support service tests.
+      </p>
+
+      <h4>6.4.15 Localization, Shared Components, Styling, And UI Parity</h4>
+      <p>
+        Localization, shared components, styling, and UI parity were implemented
+        as cross-cutting frontend foundations. i18next and react-i18next provide
+        English and Swahili translation resources. Shared components such as
+        top bars, tables, badges, timelines, empty states, loading pages, and
+        form controls reduce duplication. CSS tokens, global styles, the MUI
+        theme, and prototype-compatible styles preserve a consistent visual
+        language.
+      </p>
+      <p>
+        The UI parity workflow uses Playwright screenshot capture to compare
+        the reference prototype and production React target. The flow is route
+        mapping to reference capture, route mapping to React capture, then saved
+        desktop and mobile screenshots. The result is a visual validation method
+        that supports migration from prototype to production. Testing includes
+        shared component tests, language switcher tests, language/layout checks,
+        page smoke tests, and UI parity screenshot generation.
+      </p>
+
+      <p>
+        The main frontend result is a production-ready user interface structure
+        that keeps the visual language of the prototype but adds routing,
+        access control, localization, API boundaries, reusable components, and
+        repeatable tests. The result is not only a set of static screens; it is
+        an application shell capable of supporting real authenticated workflows.
+      </p>
     </section>
 
     <section id="backend" class="section">
       <h2>7. Backend Implementation</h2>
       <p>
-        The backend is a TypeScript Express application. It centralizes HTTP app
-        creation, module registration, JSON parsing, CORS configuration, health
-        reporting, 404 handling, and error handling.
+        The backend is a TypeScript Express application that provides the
+        controlled service boundary between the React client and the PostgreSQL
+        data layer. It centralizes HTTP app creation, security middleware,
+        module registration, JSON parsing, CORS configuration, health
+        reporting, 404 handling, and centralized error responses. This makes the
+        server a disciplined application-service layer rather than a collection
+        of disconnected route handlers.
+      </p>
+      <p>
+        The backend entrypoint is organized around <code>createApp()</code> in
+        <code>server/src/app.ts</code>. The application validates production
+        security configuration, sets proxy trust, applies Helmet security
+        headers, configures a content security policy, restricts CORS origins,
+        limits JSON bodies to 2 MB, exposes <code>/health</code>, mounts domain
+        routers from the module registry, and finally applies not-found and
+        error middleware. This sequence is important because cross-cutting
+        security and parsing behavior are established before any domain module
+        receives a request.
       </p>
 
-      <h3>7.1 Module Pattern</h3>
+      <h3>7.1 Express Bootstrap And HTTP Boundary</h3>
+      <p>
+        The bootstrap layer implements the outermost boundary of the system. Its
+        responsibility is not procurement logic, but safe and predictable HTTP
+        behavior. Helmet is configured with a content security policy that
+        limits script, image, style, font, frame, connection, base URI, and frame
+        ancestor sources. CORS is resolved from configured allowed origins, with
+        local origins available for development. Requests that do not match an
+        approved origin are rejected before they can reach module code.
+      </p>
+      <table>
+        <tr>
+          <th>Backend Concern</th>
+          <th>Implementation</th>
+          <th>Architectural Value</th>
+        </tr>
+        <tr>
+          <td>Security headers</td>
+          <td><code>helmet()</code> with explicit CSP directives.</td>
+          <td>Reduces browser-side attack surface and documents accepted resource origins.</td>
+        </tr>
+        <tr>
+          <td>CORS</td>
+          <td>Origin callback checks configured client origins and local development origins.</td>
+          <td>Prevents arbitrary browser origins from invoking protected APIs.</td>
+        </tr>
+        <tr>
+          <td>Request body size</td>
+          <td><code>express.json({ limit: '2mb' })</code>.</td>
+          <td>Limits accidental or hostile oversized JSON payloads.</td>
+        </tr>
+        <tr>
+          <td>Health reporting</td>
+          <td><code>GET /health</code> returns service status and registered modules.</td>
+          <td>Supports operational checks and automated assertions in tests.</td>
+        </tr>
+        <tr>
+          <td>Error shape</td>
+          <td>Centralized 404 and error middleware.</td>
+          <td>Keeps client-facing failure responses consistent across modules.</td>
+        </tr>
+      </table>
+
+      <h3>7.2 Module Pattern</h3>
       <p>
         Each module uses the same implementation pattern so behavior remains
-        consistent across procurement domains.
+        consistent across procurement domains. The pattern is academically
+        significant because it separates transport, validation, orchestration,
+        persistence, and type contracts. This lowers coupling and makes the
+        system easier to reason about during testing, review, and future
+        extension.
       </p>
       <table>
         <tr>
@@ -684,36 +1285,59 @@
         </tr>
         <tr>
           <td><code>routes.ts</code></td>
-          <td>Defines HTTP endpoints and maps them to controller handlers.</td>
+          <td>Defines HTTP endpoints and maps them to controller handlers. Route files should remain thin and should not contain business decisions.</td>
         </tr>
         <tr>
           <td><code>controller.ts</code></td>
-          <td>Handles request and response concerns.</td>
+          <td>Handles request and response concerns, including parameter extraction, status codes, and response formatting.</td>
         </tr>
         <tr>
           <td><code>service.ts</code></td>
-          <td>Owns business behavior and orchestration.</td>
+          <td>Owns business behavior, workflow orchestration, permission-sensitive decisions, and coordination between repositories or providers.</td>
         </tr>
         <tr>
           <td><code>repository.ts</code></td>
-          <td>Owns persistence and external data access.</td>
+          <td>Owns persistence and data access through Prisma or provider-specific integrations.</td>
         </tr>
         <tr>
           <td><code>validators.ts</code></td>
-          <td>Owns request validation.</td>
+          <td>Owns request validation, usually with Zod schemas, so invalid input is rejected before service behavior runs.</td>
         </tr>
         <tr>
           <td><code>types.ts</code></td>
-          <td>Owns module-local contracts and metadata.</td>
+          <td>Owns module-local contracts, DTOs, enums, and metadata used by the module implementation and tests.</td>
         </tr>
       </table>
+      <p>
+        A typical request therefore travels through a clear path:
+      </p>
+      <pre>HTTP request
+  -> Express middleware
+  -> module route
+  -> controller
+  -> validator
+  -> service
+  -> repository
+  -> Prisma/PostgreSQL
+  -> response or centralized error handler</pre>
+      <p>
+        This request lifecycle supports maintainability because a change in one
+        concern has an obvious home. For example, a new validation rule belongs
+        in <code>validators.ts</code>, a procurement workflow rule belongs in
+        <code>service.ts</code>, and a query optimization belongs in
+        <code>repository.ts</code>.
+      </p>
 
-      <h3>7.2 Registered API Modules</h3>
+      <h3>7.3 Registered API Modules</h3>
       <p>
         API modules are registered through the backend module index and mounted
-        under stable base paths.
+        under stable base paths. The registry in
+        <code>server/src/modules/index.ts</code> functions as a controlled map
+        of backend capabilities. It also allows <code>/health</code> to report
+        exactly which modules are active in the running server.
       </p>
-      <pre>/api/identity
+      <pre>/api/public
+/api/identity
 /api/organization
 /api/procurement
 /api/bidding
@@ -722,12 +1346,84 @@
 /api/financial
 /api/compliance-admin
 /api/communication
+/api/dashboard
 /api/records
 /api/intelligence
 /api/integration
-/api/documents</pre>
+/api/documents
+/api/support</pre>
+      <table>
+        <tr>
+          <th>Module</th>
+          <th>System Role</th>
+        </tr>
+        <tr>
+          <td><code>public</code></td>
+          <td>Publishes public content and unauthenticated platform information.</td>
+        </tr>
+        <tr>
+          <td><code>identity</code></td>
+          <td>Controls registration, authentication, session lookup, verification, profile changes, signatures, and admin verification decisions.</td>
+        </tr>
+        <tr>
+          <td><code>organization</code></td>
+          <td>Represents company membership, buyer/supplier capabilities, and organization-level operating context.</td>
+        </tr>
+        <tr>
+          <td><code>procurement</code></td>
+          <td>Owns tender creation, planning, amendments, publication, requirements, milestones, commercial items, and marketplace behavior.</td>
+        </tr>
+        <tr>
+          <td><code>bidding</code></td>
+          <td>Owns bid drafts, submitted bid versions, bid documents, responses, receipts, samples, and supplier/buyer visibility rules.</td>
+        </tr>
+        <tr>
+          <td><code>evaluation</code></td>
+          <td>Owns evaluation workspaces, assignments, criteria, stages, and scoring behavior.</td>
+        </tr>
+        <tr>
+          <td><code>award-contract</code></td>
+          <td>Owns award recommendations, award groups, winners, approvals, notices, contract formation, negotiation, lifecycle tracking, close-out, and supplier performance.</td>
+        </tr>
+        <tr>
+          <td><code>financial</code></td>
+          <td>Models purchase orders, invoices, payment schedules, commitments, approvals, and confirmations.</td>
+        </tr>
+        <tr>
+          <td><code>compliance-admin</code></td>
+          <td>Supports compliance cases, rules, risk signals, admin actions, review, enforcement, and platform oversight.</td>
+        </tr>
+        <tr>
+          <td><code>communication</code></td>
+          <td>Stores workflow communication, priorities, statuses, and attachments.</td>
+        </tr>
+        <tr>
+          <td><code>dashboard</code></td>
+          <td>Aggregates operational metrics and workspace summaries for the client experience.</td>
+        </tr>
+        <tr>
+          <td><code>records</code></td>
+          <td>Exposes auditable record entries and historical procurement evidence.</td>
+        </tr>
+        <tr>
+          <td><code>intelligence</code></td>
+          <td>Prepares market snapshots, price benchmarks, supplier match signals, and risk analysis boundaries.</td>
+        </tr>
+        <tr>
+          <td><code>integration</code></td>
+          <td>Represents external systems, registry records, synchronization runs, and integration events.</td>
+        </tr>
+        <tr>
+          <td><code>documents</code></td>
+          <td>Manages document-object metadata and upload-related persistence boundaries.</td>
+        </tr>
+        <tr>
+          <td><code>support</code></td>
+          <td>Provides support tickets and ticket comments for operational assistance.</td>
+        </tr>
+      </table>
 
-      <h3>7.3 Identity API Example</h3>
+      <h3>7.4 Identity API Example</h3>
       <p>
         Identity is the most complete route surface because it controls account
         creation, authentication, session lookup, verification, profile updates,
@@ -741,20 +1437,653 @@ POST /api/identity/auth/sign-in
 GET  /api/identity/session
 POST /api/identity/verification/submit
 POST /api/identity/admin/verifications/:id/decision</pre>
+      <p>
+        Identity is also the conceptual gate for the rest of the platform. It
+        defines whether a session is authenticated, whether an organization is
+        verified, and whether the account is a platform administrator. Buyer and
+        supplier behavior is deliberately not encoded as account type; it is
+        derived from organization capability and workflow context.
+      </p>
+
+      <h3>7.5 Backend Feature Implementation, Results, And Testing</h3>
+      <p>
+        This subsection navigates the backend feature by feature. Each backend
+        module is implemented as a domain boundary with a route file,
+        controller, service, repository, validators, and local types. The route
+        receives the HTTP request, the controller translates HTTP concerns, the
+        validator rejects invalid input, the service applies business behavior,
+        the repository performs persistence through Prisma, and the centralized
+        error handler returns consistent failures. This pattern gives every
+        feature a predictable technical shape.
+      </p>
+
+      <h4>7.5.1 Express App Bootstrap And Security Middleware</h4>
+      <p>
+        The backend application is created through the Express bootstrap in
+        <code>server/src/app.ts</code>. This layer implements cross-cutting
+        infrastructure before domain modules run. It validates production
+        security configuration, enables proxy trust, applies Helmet, configures
+        content security policy directives, restricts CORS origins, parses JSON
+        with a 2 MB limit, exposes <code>/health</code>, mounts registered
+        modules, and applies 404 and error middleware.
+      </p>
+      <p>
+        Technologies used include TypeScript, Express, Helmet, CORS middleware,
+        environment-driven security configuration, and Supertest/Vitest for
+        app-level assertions. The request flow is client request to middleware,
+        then route registry, then module router, then controller. The result is
+        a secure, consistent HTTP boundary. Tests validate app creation, health
+        responses, module registration visibility, and standardized request
+        behavior.
+      </p>
+
+      <h4>7.5.2 Public Content Module</h4>
+      <p>
+        The public module implements unauthenticated content boundaries for
+        pages such as about, privacy policy, and terms and conditions. Its
+        purpose is to serve stable platform information without requiring an
+        authenticated procurement session. Public content is separated from
+        operational modules so informational pages cannot accidentally inherit
+        buyer, supplier, or admin assumptions.
+      </p>
+      <p>
+        The module follows the same route-controller-service-repository pattern
+        as other modules. Express exposes the public base path, validators
+        protect supported keys or inputs, services decide which public content
+        is available, and repositories use Prisma content models where dynamic
+        content is needed. The result is a clean public API surface. Validation
+        is provided by public service tests, public client API tests, app health
+        registration checks, and page rendering tests on the client.
+      </p>
+
+      <h4>7.5.3 Identity, Authentication, Session, Verification, And Signing</h4>
+      <p>
+        The identity module is the platform's trust entry point. It implements
+        registration start, OTP verification, email activation, password setup,
+        sign-in, sign-out, session lookup, forgot-password, reset-password,
+        verification draft, registry lookup, verification submission, profile
+        updates, admin verification review, digital signatures, and signing
+        credentials. This module owns the distinction between normal users and
+        platform administrators.
+      </p>
+      <p>
+        Technologies used include TypeScript, Express, Prisma, Zod validators,
+        delivery-provider abstractions, Nodemailer-ready SMTP support, Resend
+        email delivery boundaries, SMS/WhatsApp provider boundaries, Turnstile
+        security configuration, password and token workflows, and Vitest tests.
+        The flow is request to identity route, validation of account or
+        verification payload, service-level orchestration, repository
+        persistence in identity and organization tables, then a controlled
+        response to the client. The result is a full onboarding and verification
+        API. Testing includes identity production-auth tests, delivery-provider
+        tests, signing tests, module-validator tests, app tests, and client auth
+        component tests.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Identity Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The identity module relies on the <code>User</code> and <code>VerificationProfile</code> models within the <code>identity</code> schema.</p>
+<pre><code>model User {
+  id                 String             @id @default(uuid()) @db.Uuid
+  email              String             @unique
+  accountType        AccountType        @default(USER) @map("account_type")
+  verificationStatus VerificationStatus @default(NOT_STARTED) @map("verification_status")
+  sessions           Session[]
+  // ... relations to tenders, bids, contracts
+  @@schema("identity")
+}
+
+model VerificationProfile {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  organizationId String?            @map("organization_id") @db.Uuid
+  status         VerificationStatus @default(DRAFT)
+  // ... fields for registry and payload
+  @@schema("identity")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> API boundaries use Zod for strict payload verification before hitting the service layer. For example, the sign-in and registration schemas enforce human-verification via Turnstile:</p>
+<pre><code>export const startRegistrationSchema = z.object({
+  email: z.string().email(),
+  phone: z.string().min(7).max(32),
+  turnstileToken: turnstileTokenSchema,
+  location: tanzaniaLocationSchema.optional()
+});
+
+export const signInSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  turnstileToken: turnstileTokenSchema
+});</code></pre>
+      </div>
+
+      <h4>7.5.4 Organization And Capability Model</h4>
+      <p>
+        The organization module represents the company context in which
+        procurement work happens. ProcureX intentionally avoids making buyer and
+        supplier permanent login roles. Instead, a user belongs to an
+        organization, and that organization can receive buyer and supplier
+        capabilities. This design allows one company to participate in multiple
+        procurement capacities without creating separate login identities.
+      </p>
+      <p>
+        Implementation uses Express module registration, Prisma organization
+        models, TypeScript types from shared contracts, service-level membership
+        logic, and organization-aware repository access. The result is an
+        organization model that supports realistic procurement participation,
+        access checks, profiles, trust tiers, and future permission overrides.
+        Validation is supported by module-validator tests, identity verification
+        tests that create or update organization state, RLS verification, and
+        client route guards that consume session capability information.
+      </p>
+
+      <h4>7.5.5 Procurement And Tender Module</h4>
+      <p>
+        The procurement module implements buyer-side tender work and
+        supplier-facing opportunity discovery. It owns tender creation,
+        procurement planning, tender listing, publication, marketplace
+        visibility, saved tenders, tender amendments, requirements, milestones,
+        documents, categories, and commercial items. This module forms the
+        operational center of the platform because bidding, evaluation, awards,
+        and contracts all depend on tenders.
+      </p>
+      <p>
+        Technologies used include TypeScript services, Express routers,
+        controllers, Zod validators, Prisma repositories, PostgreSQL constraints,
+        and seed scripts for marketplace and award-ready demo data. The request
+        flow is buyer or supplier request to procurement route, payload
+        validation, service decision about ownership or visibility, Prisma query
+        or mutation, and response to the client. The result is a backend
+        boundary for tender lifecycle behavior. Testing includes procurement
+        controller tests, service tests, repository tests, marketplace seed
+        tests, award-ready seed tests, and database validation.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Procurement Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The procurement module relies heavily on the <code>Tender</code> and <code>ProcurementPlan</code> models.</p>
+<pre><code>model Tender {
+  id                String            @id @default(uuid()) @db.Uuid
+  title             String
+  type              TenderType        @default(GOODS)
+  status            TenderStatus      @default(DRAFT)
+  procurementMethod ProcurementMethod @default(OPEN_TENDER) @map("procurement_method")
+  visibility        Visibility        @default(PRIVATE)
+  budget            Decimal?          @db.Decimal(19, 4)
+  currency          String            @default("TZS") @db.VarChar(8)
+  ownerId           String            @map("owner_id") @db.Uuid
+  ownerOrgId        String            @map("owner_org_id") @db.Uuid
+  // ... constraints and lifecycle dates
+  @@schema("procurement")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> Complex rules are enforced when creating tenders, such as normalizing categories and enforcing closing dates in the future:</p>
+<pre><code>const draftClosingDateSchema = z.string().trim().min(1)
+  .refine((value) => new Date(value).getTime() > Date.now(), {
+    message: 'Closing date must be in the future.'
+  });
+
+export const createTenderBodySchema = z.object({
+  title: z.string().trim().min(5).max(200),
+  type: tenderTypeInputSchema,
+  description: z.string().trim().min(20).max(5000),
+  budget: z.coerce.number().positive().max(999999999999999.99).optional(),
+  closingDate: draftClosingDateSchema.optional(),
+  categories: z.array(categoryInputSchema).max(20).optional().default([]),
+  // ... additional strict metadata fields
+}).strict();</code></pre>
+      </div>
+
+      <h4>7.5.6 Bidding Module</h4>
+      <p>
+        The bidding module implements supplier responses to tenders. It models
+        bid drafts, active bids, submitted bid versions, bid documents, bid
+        responses, receipts, administrative envelopes, bid samples, buyer
+        organization references, and supplier organization references. It is
+        designed so a bid is not just a file upload; it is a structured response
+        with ownership, status, versioning, evidence, and receipt information.
+      </p>
+      <p>
+        Technologies used include Express, TypeScript services, Zod validation,
+        Prisma bidding models, PostgreSQL uniqueness constraints, and Vitest
+        module tests. The data flow is supplier request to bidding route,
+        validation of bid context, service rule confirming tender and supplier
+        eligibility, repository persistence, and receipt or status response.
+        The result is a supplier response API aligned with the procurement
+        model. Testing includes bidding module tests, procurement/bidding API
+        tests, active-bid uniqueness migration validation, and client bidding
+        workspace tests.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Bidding Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The bidding module manages the supplier's response via the <code>Bid</code> and <code>BidDocument</code> models.</p>
+<pre><code>model Bid {
+  id               String       @id @default(uuid()) @db.Uuid
+  tenderId         String       @map("tender_id") @db.Uuid
+  supplierOrgId    String       @map("supplier_org_id") @db.Uuid
+  submitterId      String       @map("submitter_id") @db.Uuid
+  status           BidStatus    @default(DRAFT)
+  totalAmount      Decimal?     @map("total_amount") @db.Decimal(19, 4)
+  currency         String?      @db.VarChar(8)
+  // ... nested responses, envelopes, and receipts
+  @@schema("bidding")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> The bidding schemas support highly structured, multi-envelope responses (Administrative, Technical, Financial) rather than simple file uploads:</p>
+<pre><code>export const bidDraftBodySchema = z.object({
+  workflowType: z.enum(['goods', 'works', 'services', 'consultancy', 'generic']).default('generic'),
+  administrative: z.record(z.unknown()).default({}),
+  technical: z.record(z.unknown()).default({}),
+  financial: z.record(z.unknown()).default({}),
+  responses: z.array(bidResponseSchema).max(300).default([]),
+  documents: z.array(bidDocumentSchema).max(100).default([]),
+  envelopes: z.record(z.unknown()).default({}),
+  totalAmount: z.coerce.number().min(0).max(999999999999999.99).optional(),
+  currency: z.string().trim().min(3).max(8).optional()
+}).strict();</code></pre>
+      </div>
+
+      <h4>7.5.7 Evaluation Module</h4>
+      <p>
+        The evaluation module implements the formal review stage after bidding.
+        It owns evaluation workspaces, criteria, evaluator assignments, stages,
+        scoring, and workflow context. Its purpose is to turn submitted bids
+        into structured evidence that can support award recommendations rather
+        than informal decision making.
+      </p>
+      <p>
+        The module uses the route-controller-service-repository-validator
+        pattern, Prisma evaluation models, TypeScript contracts, and seed data
+        for evaluation-intake scenarios. Requests flow from evaluation routes to
+        validators, then services that check workspace and assignment context,
+        then repositories that read or write scores and related records. The
+        result is a backend structure for transparent bid scoring. Testing
+        includes evaluation intake seed tests, app/module validation, client bid
+        evaluation smoke coverage, and award-ready demo validation where
+        evaluation output feeds recommendations.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Evaluation Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The evaluation process is managed through the <code>EvaluationWorkspace</code>, <code>WorkflowAssignment</code>, and <code>EvaluationScore</code> models.</p>
+<pre><code>model EvaluationWorkspace {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenderId        String           @unique @map("tender_id") @db.Uuid
+  buyerOrgId      String           @map("buyer_org_id") @db.Uuid
+  status          EvaluationStatus @default(NOT_STARTED)
+  activeStage     EvaluationStage  @default(OPENING) @map("active_stage")
+  // ... criteria and assignments
+  @@schema("evaluation")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> The evaluation schema validates bulk scoring arrays and stage transition states to keep the frontend and backend in sync during complex reviews:</p>
+<pre><code>export const saveWorkspaceBodySchema = z.object({
+  scores: z.array(z.object({
+    bidId: uuidSchema,
+    criterionId: uuidSchema,
+    score: z.coerce.number().finite().min(0),
+    comment: z.string().trim().max(2000).optional().default('')
+  }).strict()).default([]),
+  decisions: z.array(z.object({
+    bidId: uuidSchema,
+    status: decisionStatusSchema,
+    comment: z.string().trim().max(2000).optional().default('')
+  }).strict()).default([]),
+  activeStageId: activeStageSchema.optional(),
+  complete: z.boolean().optional().default(false)
+}).strict();</code></pre>
+      </div>
+
+      <h4>7.5.8 Award-Contract Lifecycle Module</h4>
+      <p>
+        The award-contract module implements one of the deepest business areas
+        in ProcureX. It covers award recommendations, award groups, winners,
+        clauses, negotiations, bid packs, approval routes, approval steps,
+        tie-breakers, delivery feasibility checks, award notices, supplier
+        responses, standstill periods, contract formation, contract parties,
+        contract clauses, versions, signatures, milestones, evidence,
+        deliverables, inspections, risks, variations, disputes, terminations,
+        close-out, urgent actions, supplier performance, payments, warranties,
+        and required documents.
+      </p>
+      <p>
+        Technologies used include TypeScript domain services, Express routing,
+        Prisma contract models, Zod validators, PostgreSQL contract schema,
+        demo seed scripts, and client awards-contract flow tests. The request
+        flow is award or contract action to module route, validator, service
+        decision about lifecycle state, repository read/write, and audit-ready
+        response. The result is a backend lifecycle model from recommendation
+        through contract execution. Testing includes award-contract service
+        tests, seed-demo tests, award-ready seed tests, and client flow tests
+        that exercise the corresponding UI.
+      </p>
+
+      <div class="technical-details no-break">
+        <h4>Technical Deep Dive: Award &amp; Contract Models &amp; Validation</h4>
+        <p><strong>Database Model (schema.prisma):</strong> The contract lifecycle is managed through the <code>Contract</code>, <code>ContractSignature</code>, and <code>ContractMilestone</code> models within the <code>contract</code> schema.</p>
+<pre><code>model Contract {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenderId         String?        @map("tender_id") @db.Uuid
+  buyerOrgId       String         @map("buyer_org_id") @db.Uuid
+  supplierOrgId    String         @map("supplier_org_id") @db.Uuid
+  status           ContractStatus @default(DRAFT)
+  type             ContractType   @default(LUMP_SUM)
+  totalValue       Decimal?       @map("total_value") @db.Decimal(19, 4)
+  currency         String         @default("TZS") @db.VarChar(8)
+  signedAt         DateTime?      @map("signed_at")
+  startDate        DateTime?      @map("start_date") @db.Date
+  endDate          DateTime?      @map("end_date") @db.Date
+  // ... clauses, milestones, invoices, and risks
+  @@schema("contract")
+}</code></pre>
+        <p><strong>Zod Validation:</strong> Contract actions require extensive validation. For example, negotiating a clause or terminating a contract requires specific payloads to maintain an auditable trail:</p>
+<pre><code>export const terminationBodySchema = z.object({
+  terminationType: z.nativeEnum(ContractTerminationType),
+  reason: z.string().trim().min(1).max(4000),
+  contractClause: z.string().trim().max(240).default(''),
+  faultParty: z.string().trim().max(120).default(''),
+  noticeDate: z.string().trim().date().optional(),
+  cureDeadline: z.string().trim().date().optional(),
+  terminationEffectiveDate: z.string().trim().date().optional(),
+  supplierResponse: z.string().trim().max(4000).default(''),
+  finalDecision: z.string().trim().max(4000).default('')
+}).strict();</code></pre>
+      </div>
+
+      <h4>7.5.9 Financial Module</h4>
+      <p>
+        The financial module supports procurement execution after contract
+        formation. It represents purchase orders, invoices, budget commitments,
+        three-way match results, payment approvals, payment confirmations,
+        payment schedules, and contract payments. The module makes financial
+        follow-up part of the procurement lifecycle instead of leaving it
+        outside the system.
+      </p>
+      <p>
+        Implementation uses Express module registration, TypeScript service
+        patterns, Prisma financial models, PostgreSQL enum statuses, and
+        links to contract and organization records. The flow is contract or
+        finance request to validated route, service-level check of contract or
+        organization context, repository persistence, and response to the
+        client. The result is financial evidence connected to awards and
+        contracts. Validation is supported by Prisma schema validation, award
+        contract service tests where financial records support contract flows,
+        and seed data inspection.
+      </p>
+
+      <h4>7.5.10 Communication Module</h4>
+      <p>
+        The communication module implements structured messages and attachments
+        related to procurement work. Its purpose is to keep workflow
+        communication inside the platform where it can be connected to tenders,
+        bids, contracts, records, and audit evidence.
+      </p>
+      <p>
+        Technologies include Express, Prisma communication models, TypeScript
+        service and repository layers, Zod validators, and Vitest repository and
+        service tests. The flow is message request to route, validation of
+        communication kind, priority, status, owner context, and attachments,
+        then repository persistence. The result is a collaboration boundary that
+        supports traceable procurement communication. Testing includes
+        communication repository tests, service tests, client communication
+        center tests, and screenshot parity.
+      </p>
+
+      <h4>7.5.11 Records Module</h4>
+      <p>
+        The records module exposes auditable history and record entries. Its
+        purpose is to support users who need to reconstruct what happened in a
+        procurement process. The backend records boundary complements the
+        compliance audit model by giving operational users access to structured
+        historical evidence.
+      </p>
+      <p>
+        The implementation follows the module pattern and uses Prisma records
+        models, TypeScript service logic, validators, and organization-aware
+        access expectations. The flow is records request to route, validation of
+        filters or context, service selection of relevant records, repository
+        query, and response. The result is backend support for records-history
+        screens and audit review. Validation includes module-validator tests,
+        RLS verification for owner-aware records, and client records page smoke
+        or screenshot validation.
+      </p>
+
+      <h4>7.5.12 Dashboard Module</h4>
+      <p>
+        The dashboard module aggregates operational information for workspace
+        views. Instead of making the frontend assemble every metric from many
+        unrelated endpoints, dashboard services can provide summarized data
+        shaped for workspace display, administrator overview, or module
+        indicators.
+      </p>
+      <p>
+        Technologies include Express, TypeScript services, Prisma queries,
+        dashboard validators, and Vitest service tests. The flow is dashboard
+        route to validation, service aggregation, repository or fixture-backed
+        retrieval, and response to dashboard UI. The result is a clean backend
+        boundary for operational summaries. Testing includes dashboard service
+        tests, app module registration checks, client workspace dashboard tests,
+        and page smoke tests.
+      </p>
+
+      <h4>7.5.13 Compliance-Admin Module</h4>
+      <p>
+        The compliance-admin module implements platform oversight behavior. It
+        supports compliance cases, compliance rules, risk signals, supplier risk
+        profiles, risk forecasts, collusion alerts, reviews, violation cases,
+        enforcement records, appeals, and admin actions. This module is
+        separated from normal procurement modules because it represents
+        platform governance rather than buyer or supplier operations.
+      </p>
+      <p>
+        Implementation uses TypeScript services, Express module routing, Prisma
+        compliance models, Zod validators, PostgreSQL compliance schema, and
+        admin route protection on the client. The flow is admin-only request to
+        compliance route, validation, service-level decision, repository
+        persistence, and response. The result is a backend governance boundary.
+        Testing includes compliance-admin service tests, admin frontend tests,
+        module-validator tests, and RLS policy review for owner-aware compliance
+        data.
+      </p>
+
+      <h4>7.5.14 Documents Module</h4>
+      <p>
+        The documents module represents document-object metadata and prepares
+        the platform for file-related workflows. Procurement systems rely on
+        tender documents, bid attachments, verification documents, contract
+        evidence, inspection evidence, termination evidence, and support
+        attachments. The module separates document metadata from the business
+        modules that reference those documents.
+      </p>
+      <p>
+        Technologies include Express, TypeScript, Prisma document models, AWS
+        S3-ready dependencies, Busboy-ready upload dependencies, Zod validation,
+        and document repository boundaries. The flow is document request to
+        module route, validation of owner and object metadata, storage/provider
+        boundary where applicable, repository persistence, and response. The
+        result is a future-ready document architecture. Validation includes
+        Prisma validation, module validation, and business module tests where
+        documents participate in procurement, bidding, identity, or contract
+        workflows.
+      </p>
+
+      <h4>7.5.15 Intelligence Module</h4>
+      <p>
+        The intelligence module provides a boundary for market snapshots, price
+        benchmarks, supplier match signals, risk analysis, and future machine
+        learning or analytics work. It is intentionally separated from the core
+        Express procurement flows so scoring or prediction logic can evolve
+        without destabilizing transactional procurement behavior.
+      </p>
+      <p>
+        Technologies include TypeScript services, Express route registration,
+        Prisma intelligence models, Elasticsearch-ready dependencies,
+        Redis-ready dependencies, and the reserved <code>ml-service</code>
+        folder for future Python workloads. The flow is intelligence request to
+        module route, validation, service retrieval of benchmark or signal data,
+        repository query, and response. The result is an analytics-ready backend
+        boundary. Testing includes intelligence module tests, app registration
+        tests, and schema validation.
+      </p>
+
+      <h4>7.5.16 Integration Module</h4>
+      <p>
+        The integration module represents external systems, registry records,
+        synchronization runs, and integration events. It prepares ProcureX to
+        communicate with external registries, compliance data sources, document
+        providers, or enterprise systems without embedding those concerns inside
+        procurement or identity modules.
+      </p>
+      <p>
+        Implementation uses Express, TypeScript services, Prisma integration
+        models, validators, and repository boundaries. The flow is integration
+        request or sync event to route, validation, service orchestration,
+        repository persistence, and response or recorded event. The result is a
+        stable extension point for external-system connectivity. Testing
+        includes module-validator tests, Prisma validation, app registration
+        checks, and future sync-run tests as integrations become active.
+      </p>
+
+      <h4>7.5.17 Support Module</h4>
+      <p>
+        The support module implements operational assistance through support
+        tickets and comments. It gives users a structured way to ask for help,
+        report issues, or follow up on platform problems without mixing support
+        conversations with procurement records.
+      </p>
+      <p>
+        Technologies include Express, TypeScript, Prisma support models, Zod
+        validators, service tests, and client support page tests. The flow is
+        support request to route, validation of ticket priority or status,
+        service creation or update behavior, repository persistence, and
+        response to the client. The result is a support API boundary that can be
+        expanded into workflow notifications or administrative assistance.
+        Testing includes support service tests, client support page tests,
+        module-validator tests, and app registration checks.
+      </p>
+
+      <p>
+        The main backend result is a modular service layer that can be tested
+        independently from the UI. This improves technical quality because a
+        procurement rule, such as who may update a tender or who may submit a
+        bid, can be implemented and tested in the backend instead of being
+        trusted only to client-side screens.
+      </p>
     </section>
 
     <section id="database-security" class="section">
       <h2>8. Database And Security Implementation</h2>
       <p>
-        The database layer uses Prisma as the application model and migration
-        source. The schema models identity, organizations, verification,
-        tenders, bids, evaluation, award recommendations, approvals, contracts,
-        purchase orders, invoices, documents, audit events, compliance cases,
-        risk signals, communication items, records, market intelligence, and
-        integration records.
+        The database layer uses PostgreSQL and Prisma. Prisma is the application
+        model and migration source, while PostgreSQL provides the relational
+        storage engine, named schemas, constraints, indexes, and row-level
+        security. This combination gives the implementation a typed application
+        data model and a database-native access-control foundation.
+      </p>
+      <p>
+        The Prisma datasource declares multiple PostgreSQL schemas:
+        <code>identity</code>, <code>organization</code>,
+        <code>procurement</code>, <code>bidding</code>,
+        <code>evaluation</code>, <code>contract</code>,
+        <code>financial</code>, <code>compliance</code>,
+        <code>communication</code>, <code>documents</code>,
+        <code>records</code>, <code>intelligence</code>,
+        <code>integration</code>, <code>content</code>, and
+        <code>support</code>. This schema separation gives each domain a
+        database namespace that mirrors the backend module architecture.
       </p>
 
-      <h3>8.1 Core Data Rules</h3>
+      <h3>8.1 Multi-Schema Data Architecture</h3>
+      <p>
+        The multi-schema design is a form of logical database modularity. It
+        does not require separate physical databases, but it prevents the data
+        model from becoming a single undifferentiated table space. In practical
+        terms, identity tables can evolve separately from bidding tables, and
+        compliance records can be reviewed without mistaking them for operational
+        procurement entities.
+      </p>
+      <table>
+        <tr>
+          <th>Schema</th>
+          <th>Representative Models</th>
+          <th>Purpose</th>
+        </tr>
+        <tr>
+          <td><code>identity</code></td>
+          <td><code>User</code>, <code>Account</code>, <code>Session</code>, <code>VerificationProfile</code>, <code>DigitalSignature</code></td>
+          <td>Authentication, account identity, verification, signatures, and session state.</td>
+        </tr>
+        <tr>
+          <td><code>organization</code></td>
+          <td><code>Organization</code>, <code>OrganizationMember</code>, <code>OrganizationCapability</code>, <code>BuyerProfile</code>, <code>SupplierProfile</code></td>
+          <td>Company ownership, membership, capability, trust, and risk context.</td>
+        </tr>
+        <tr>
+          <td><code>procurement</code></td>
+          <td><code>Tender</code>, <code>ProcurementPlan</code>, <code>TenderRequirement</code>, <code>TenderAmendment</code>, <code>SavedTender</code></td>
+          <td>Planning, tender creation, publication, amendments, requirements, and marketplace visibility.</td>
+        </tr>
+        <tr>
+          <td><code>bidding</code></td>
+          <td><code>Bid</code>, <code>BidVersion</code>, <code>BidDocument</code>, <code>BidResponse</code>, <code>BidSample</code></td>
+          <td>Supplier responses, bid packaging, administrative envelopes, receipts, and samples.</td>
+        </tr>
+        <tr>
+          <td><code>evaluation</code></td>
+          <td><code>EvaluationWorkspace</code>, <code>WorkflowAssignment</code>, <code>EvaluationCriterion</code>, <code>EvaluationScore</code></td>
+          <td>Evaluation stages, evaluator access, scoring, and recommendation preparation.</td>
+        </tr>
+        <tr>
+          <td><code>contract</code></td>
+          <td><code>AwardRecommendation</code>, <code>AwardGroup</code>, <code>AwardWinner</code>, <code>Contract</code>, <code>ContractMilestone</code>, <code>SupplierPerformanceRecord</code></td>
+          <td>Award approval, award grouping, contract negotiation, performance, lifecycle management, and close-out.</td>
+        </tr>
+        <tr>
+          <td><code>financial</code></td>
+          <td><code>PurchaseOrder</code>, <code>Invoice</code>, <code>BudgetCommitment</code>, <code>PaymentApproval</code>, <code>PaymentConfirmation</code></td>
+          <td>Purchase orders, invoicing, budget controls, payment approval, and settlement evidence.</td>
+        </tr>
+        <tr>
+          <td><code>compliance</code></td>
+          <td><code>AuditEvent</code>, <code>ComplianceCase</code>, <code>ComplianceRule</code>, <code>RiskSignal</code>, <code>AdminAction</code></td>
+          <td>Governance, traceability, rules, risk monitoring, investigation, enforcement, and audit history.</td>
+        </tr>
+        <tr>
+          <td><code>communication</code>, <code>records</code>, <code>documents</code>, <code>support</code></td>
+          <td><code>CommunicationItem</code>, <code>RecordEntry</code>, <code>DocumentObject</code>, <code>SupportTicket</code></td>
+          <td>Collaboration, record preservation, document metadata, and user assistance.</td>
+        </tr>
+      </table>
+
+      <h3>8.2 Core Entity Relationships</h3>
+      <p>
+        ProcureX is modeled around organizations and workflow evidence. A
+        <code>User</code> owns an <code>Account</code> and participates in an
+        <code>Organization</code> through <code>OrganizationMember</code>. The
+        organization receives <code>OrganizationCapability</code> records such
+        as <code>BUYER</code> and <code>SUPPLIER</code>. A buyer organization
+        owns tenders through <code>buyerOrgId</code>, while submitted bids
+        contain both <code>buyerOrgId</code> and <code>supplierOrgId</code>.
+        This makes procurement access a relationship between organizations, not
+        a property of a single login role.
+      </p>
+      <pre>User -> Account -> Session
+User -> OrganizationMember -> Organization
+Organization -> OrganizationCapability -> BUYER | SUPPLIER
+Organization(BUYER) -> Tender -> TenderRequirement | TenderMilestone | TenderCommercialItem
+Organization(SUPPLIER) -> Bid -> BidVersion | BidDocument | BidResponse | BidReceipt
+Tender -> EvaluationWorkspace -> EvaluationCriterion | EvaluationScore
+EvaluationWorkspace -> AwardRecommendation -> AwardGroup -> AwardWinner
+AwardRecommendation -> Contract -> ContractVersion | ContractMilestone | ContractRisk
+Contract -> PurchaseOrder -> Invoice -> PaymentApproval | PaymentConfirmation
+Workflow activity -> CommunicationItem | RecordEntry | AuditEvent</pre>
+      <p>
+        This relationship model supports a realistic procurement environment.
+        One company may publish tenders in one context and submit bids in
+        another. Evaluators and approvers are represented through workflow
+        assignments and approval records rather than broad global roles. Records,
+        audit events, and compliance cases provide the historical layer needed
+        for accountability.
+      </p>
+
+      <h3>8.3 Core Data Rules</h3>
       <ul>
         <li>Accounts are only <code>USER</code> or <code>ADMIN</code>.</li>
         <li>A normal user belongs to a company through <code>OrganizationMember</code>.</li>
@@ -763,8 +2092,59 @@ POST /api/identity/admin/verifications/:id/decision</pre>
         <li>Bid ownership uses both <code>buyerOrgId</code> and <code>supplierOrgId</code>.</li>
         <li>Evaluation permissions use workflow assignments and RLS-aware access.</li>
       </ul>
+      <p>
+        These rules prevent a common procurement-system design flaw: treating
+        buyer, supplier, evaluator, and approver as permanent login categories.
+        ProcureX instead treats them as contextual capabilities and workflow
+        responsibilities. This provides a better foundation for organizations
+        that have multiple departments, multiple users, or dual buyer-supplier
+        participation.
+      </p>
 
-      <h3>8.2 Row-Level Security</h3>
+      <h3>8.4 Migration History</h3>
+      <p>
+        The database has evolved through incremental Prisma migrations rather
+        than a single monolithic schema drop. The migration sequence shows the
+        implementation moving from core initialization into identity,
+        production signature behavior, procurement planning, award and contract
+        workflows, compliance administration, bidding uniqueness, tender
+        amendments, administrative envelopes, bid samples, and award groups.
+      </p>
+      <pre>202605280001_init
+202606030002_identity_registration_verification
+202606060003_public_content_pages
+202606060004_identity_signature_production
+202606110001_p1_iam_access_trust
+202606110005_procurement_planning
+202606150001_award_contract_workflow
+202606150002_account_menu_support
+202606180001_signing_credentials
+202606180002_compliance_admin_rules
+202606190001_admin_datastore
+202606190002_admin_full_cycle
+202606200001_bidding_active_bid_unique
+202606240001_contract_lifecycle_mvp
+202606250001_missing_award_contract_compliance_workflows
+202606260001_award_contract_business_references
+202606280001_add_saved_tenders
+20260628154217_add_saved_tenders
+20260629122511_local_project_run
+202607020001_dual_user_capabilities
+202607060001_active_bid_uniqueness
+202607070001_tender_amendments
+20260707095539_add_tender_amendments
+202607090001_bidding_administrative_envelope
+20260709142321_add_bid_samples
+20260710120000_award_groups</pre>
+      <p>
+        The presence of duplicate or local-project migrations in the history
+        should be treated as an implementation-quality observation rather than a
+        functional failure. Before production release, migration naming,
+        consolidation policy, and deployment discipline should be reviewed so
+        production databases receive a clean, deterministic migration stream.
+      </p>
+
+      <h3>8.5 Row-Level Security</h3>
       <p>
         Row-level security protects procurement data by applying database access
         rules that respect current account and organization context. RLS SQL
@@ -776,25 +2156,535 @@ server/prisma/sql/rls/001_app_context.sql
 server/prisma/sql/rls/002_enable_rls.sql
 server/src/db/context.ts
 server/src/db/prisma.ts</pre>
+      <p>
+        The application sets database session variables inside a transaction
+        before running protected work. The variables are then read by PostgreSQL
+        helper functions such as <code>app.current_user_id()</code>,
+        <code>app.current_organization_id()</code>,
+        <code>app.current_account_type()</code>, and
+        <code>app.current_capabilities()</code>. Policy predicates then use
+        helper checks such as <code>app.is_admin()</code>,
+        <code>app.same_org(...)</code>, and
+        <code>app.has_capability(...)</code>.
+      </p>
+      <pre>withDbContext(context, work)
+  -> set_config('app.current_user_id', ...)
+  -> set_config('app.current_organization_id', ...)
+  -> set_config('app.current_account_type', ...)
+  -> set_config('app.current_capabilities', ...)
+  -> execute Prisma work inside the transaction</pre>
+      <p>
+        This design is stronger than client-side filtering alone. Even if an
+        application query is accidentally too broad, RLS policies can still
+        prevent rows from another organization from being returned or modified.
+        The implemented RLS policies cover identity self-access,
+        organization-owned rows, public marketplace tender visibility,
+        buyer-only tender writes, supplier-only bid writes, and evaluation score
+        access through buyer organization context.
+      </p>
 
-      <h3>8.3 Product Security Model</h3>
+      <h3>8.6 Product Security Model</h3>
       <p>
         The most important security decision is that buyer and supplier are not
         account types. They are organization capabilities. This makes it possible
         for the same company to buy, supply, or do both while still keeping
         platform administrators separate from procurement operators.
       </p>
+      <p>
+        This security model also clarifies administrative authority. An
+        <code>ADMIN</code> account is a platform compliance account, not a buyer
+        or supplier. Admin access is therefore treated as platform oversight,
+        while procurement actions are attached to organizations and workflow
+        records. This distinction helps preserve accountability because business
+        actions and oversight actions can be audited separately.
+      </p>
+
+      <h3>8.7 Database Feature Implementation, Results, And Testing</h3>
+      <p>
+        This subsection navigates the database feature by feature. Database
+        implementation was completed through Prisma schema models, PostgreSQL
+        named schemas, generated Prisma Client access, migration files, seed
+        scripts, and row-level security SQL. The design goal was to model each
+        procurement domain explicitly rather than storing business events in a
+        few generic tables. This gives the system stronger traceability,
+        clearer relationships, more meaningful constraints, and better access
+        control.
+      </p>
+
+      <h4>8.7.1 PostgreSQL Multi-Schema Design</h4>
+      <p>
+        The database uses PostgreSQL schemas to separate the system into
+        identity, organization, procurement, bidding, evaluation, contract,
+        financial, compliance, communication, documents, records, intelligence,
+        integration, content, and support domains. Prisma declares these schemas
+        in the datasource and maps models into the correct namespace using
+        <code>@@schema</code>. This design keeps the database modular without
+        requiring separate physical databases.
+      </p>
+      <p>
+        The result is an architecture where domain ownership is visible at the
+        persistence layer. Identity tables are not mixed with bidding tables,
+        compliance records are not mixed with tender items, and support tickets
+        do not sit beside contract milestones in an unstructured table. Testing
+        and validation are performed through <code>db:validate</code>,
+        <code>db:migrate</code>, generated Prisma Client checks, repository
+        tests, service tests, and seed scripts that exercise relationships
+        across schemas.
+      </p>
+
+      <h4>8.7.2 Identity Schema</h4>
+      <p>
+        The identity schema models users, accounts, preferences, policy
+        acceptances, sessions, MFA factors, identity challenges, verification
+        profiles, verification profile history, digital signatures, signing
+        credentials, verification documents, and screening checks. These models
+        exist because procurement access depends on knowing who the user is,
+        whether the account is active, whether the user's organization has been
+        verified, and whether signing or verification evidence exists.
+      </p>
+      <p>
+        The identity schema connects to organization data through verification
+        profiles and organization membership. It supports frontend registration,
+        sign-in, verification status, profile, and admin review features. The
+        result is a strong identity foundation for procurement workflows.
+        Testing evidence includes identity production-auth tests,
+        delivery-provider tests, signing tests, module validators, seed
+        execution, and RLS policies for users, accounts, sessions, and
+        verification profiles.
+      </p>
+
+      <h4>8.7.3 Organization Schema</h4>
+      <p>
+        The organization schema models organizations, members, capabilities,
+        organization profiles, buyer profiles, supplier profiles, trust tier
+        history, and permission overrides. It exists to represent companies and
+        institutional participation rather than treating procurement behavior as
+        a simple user role. A normal account can belong to an organization, and
+        that organization can act as buyer, supplier, or both.
+      </p>
+      <p>
+        This schema connects identity to procurement by giving tenders a
+        buyer organization and bids a supplier organization. It also supports
+        route guards, RLS context, profile review, trust/risk display, and
+        future permission expansion. Validation is supported by Prisma
+        validation, identity verification tests, seed data, RLS verification,
+        and module-validator checks.
+      </p>
+
+      <h4>8.7.4 Procurement Schema</h4>
+      <p>
+        The procurement schema models tenders, tender amendments, saved tenders,
+        procurement plans, plan lines, tender categories, tender documents,
+        tender requirements, tender milestones, and tender commercial items. It
+        exists to preserve the structure of procurement work: a tender is not
+        only a title and description, but a set of requirements, documents,
+        milestones, commercial expectations, publication status, and amendment
+        history.
+      </p>
+      <p>
+        Procurement models connect to organization through <code>buyerOrgId</code>
+        and connect to later bidding, evaluation, award, and contract records.
+        The result is a buyer-owned tender data model that can support
+        marketplace visibility and supplier review. Testing includes Prisma
+        validation, procurement repository tests, service tests, controller
+        tests, marketplace seed tests, award-ready seed tests, and migration
+        checks for tender amendments and saved tenders.
+      </p>
+
+      <h4>8.7.5 Bidding Schema</h4>
+      <p>
+        The bidding schema models bids, bid versions, bid documents, bid
+        responses, bid receipts, and bid samples. It exists to preserve supplier
+        response history and to avoid treating a bid as a single mutable file.
+        Bid versions allow the platform to retain response state over time,
+        while documents, responses, receipts, and samples preserve supporting
+        evidence.
+      </p>
+      <p>
+        Bidding connects tenders, buyer organizations, and supplier
+        organizations. The data model supports active-bid uniqueness, supplier
+        ownership, buyer visibility, administrative envelopes, and sample
+        tracking. The result is a structured response model that can feed
+        evaluation. Testing evidence includes bidding tests, procurement API
+        tests, active-bid uniqueness migration validation, marketplace demo
+        seed validation, and client bidding workspace tests.
+      </p>
+
+      <h4>8.7.6 Evaluation Schema</h4>
+      <p>
+        The evaluation schema models evaluation workspaces, workflow
+        assignments, evaluation criteria, and evaluation scores. It exists to
+        turn submitted bids into structured review evidence. Instead of storing
+        a final winner without explanation, the system can preserve who was
+        assigned, which criteria were used, what scores were recorded, and what
+        stage the evaluation reached.
+      </p>
+      <p>
+        Evaluation connects procurement and bidding records to award
+        recommendations. It supports evaluator journeys, bid evaluation screens,
+        and award-ready demo data. Validation is supported by Prisma schema
+        validation, evaluation intake seed tests, award-ready seed tests, RLS
+        evaluation score policies, and frontend evaluation smoke coverage.
+      </p>
+
+      <h4>8.7.7 Contract And Award Schema</h4>
+      <p>
+        The contract schema is the richest lifecycle area. It models award
+        recommendations, award groups, award winners, award clauses,
+        negotiations, bid packs, approval steps, approval routes, tie-breakers,
+        feasibility checks, notices, supplier responses, standstill periods,
+        notifications, contracts, contract parties, contract clauses,
+        negotiations, versions, signatures, milestones, milestone evidence,
+        deliverables, acceptances, management plans, mobilization items, KPIs,
+        inspections, risks, variations, issues, disputes, terminations,
+        termination evidence, settlement, replacement plans, close-out,
+        supplier performance, payment schedules, payments, goods inspections,
+        performance scores, warranties, required documents, workflow approvals,
+        and urgent actions.
+      </p>
+      <p>
+        This schema exists because contract management is not a single award
+        status. It is a long process that includes recommendation, approval,
+        notice, negotiation, execution, performance monitoring, payment,
+        dispute, termination, and close-out. It connects evaluation output to
+        financial and records data. Testing includes award-contract service
+        tests, seed-demo tests, award-ready demo tests, awards-contract client
+        flow tests, migration validation, and UI parity screenshots for award,
+        contract negotiation, and post-award tracking.
+      </p>
+
+      <h4>8.7.8 Financial Schema</h4>
+      <p>
+        The financial schema models purchase orders, invoices, budget
+        commitments, three-way match results, payment approvals, and payment
+        confirmations. It exists because procurement implementation must
+        support what happens after the contract is created: purchasing,
+        invoicing, approval, payment, and reconciliation evidence.
+      </p>
+      <p>
+        Financial records connect to buyer organizations, supplier
+        organizations, contracts, and invoices. The result is a database layer
+        capable of connecting contract performance to payment activity. Testing
+        evidence includes Prisma validation, award-contract service tests where
+        payments and invoices support lifecycle flows, seed data inspection, and
+        migration validation.
+      </p>
+
+      <h4>8.7.9 Compliance Schema</h4>
+      <p>
+        The compliance schema models audit events, compliance cases, compliance
+        rules, risk signals, supplier risk profiles, risk forecasts, collusion
+        alerts, compliance reviews, violation cases, evidence, enforcement
+        records, appeal records, and admin actions. It exists to preserve
+        governance, investigation, and oversight evidence.
+      </p>
+      <p>
+        Compliance data connects to organizations, users, procurement records,
+        and admin actions. The result is a platform-level governance model
+        separate from buyer and supplier workflow data. Testing includes
+        compliance-admin service tests, RLS verification for owner-aware
+        compliance tables, admin frontend tests, module-validator tests, and
+        Prisma validation.
+      </p>
+
+      <h4>8.7.10 Communication Schema</h4>
+      <p>
+        The communication schema models communication items and attachments. It
+        exists to keep procurement-related messages inside the system and to
+        connect messages with workflow context. Communication kind, priority,
+        and status values allow the platform to represent different message
+        types and urgency levels.
+      </p>
+      <p>
+        Communication records can support tender clarification, contract
+        negotiation, administrative follow-up, and support evidence. The result
+        is a structured collaboration model. Testing includes communication
+        repository tests, service tests, client communication center tests,
+        Prisma validation, and screenshot evidence.
+      </p>
+
+      <h4>8.7.11 Documents Schema</h4>
+      <p>
+        The documents schema models document objects. It exists to provide a
+        shared metadata layer for files used throughout identity verification,
+        tender documents, bid attachments, contract evidence, inspection
+        evidence, termination evidence, and support attachments. By separating
+        document metadata from domain tables, the system can reuse document
+        handling while preserving domain-specific references.
+      </p>
+      <p>
+        The documents schema connects to organization ownership and business
+        records through references. It is prepared for object storage through
+        AWS S3-ready dependencies and upload parsing through Busboy-ready
+        dependencies. Validation includes Prisma schema validation, module
+        registration checks, document-related business tests in other modules,
+        and RLS policies for document owner organization isolation.
+      </p>
+
+      <h4>8.7.12 Records Schema</h4>
+      <p>
+        The records schema models record entries. It exists to provide an
+        operational history layer for users and administrators. While audit
+        events capture system-level evidence, records can expose workflow
+        history in a form that supports user review, procurement follow-up, and
+        compliance reporting.
+      </p>
+      <p>
+        Record entries connect to procurement, bidding, award, contract,
+        communication, and organization contexts. The result is a database
+        foundation for the records-history page. Testing includes Prisma
+        validation, RLS verification, records module validation, page smoke
+        coverage, and screenshot parity.
+      </p>
+
+      <h4>8.7.13 Intelligence Schema</h4>
+      <p>
+        The intelligence schema models market snapshots, price benchmarks, and
+        supplier match signals. It exists to prepare the platform for analytics,
+        benchmarking, supplier recommendation, risk scoring, and future machine
+        learning outputs. The schema separates intelligence records from
+        transactional procurement records so analytical expansion does not
+        destabilize core workflows.
+      </p>
+      <p>
+        Intelligence records can connect to tenders, suppliers, categories, and
+        market data. The result is an analytics-ready data boundary. Testing
+        includes intelligence module tests, Prisma validation, module
+        registration checks, and future compatibility with the reserved
+        <code>ml-service</code> architecture.
+      </p>
+
+      <h4>8.7.14 Integration Schema</h4>
+      <p>
+        The integration schema models external systems, registry records,
+        integration sync runs, and integration events. It exists to support
+        controlled communication with external registries, government or
+        compliance services, document systems, and enterprise systems.
+      </p>
+      <p>
+        Integration records preserve sync history, source system information,
+        external identifiers, and events. The result is a database foundation
+        for auditable integrations rather than opaque external calls. Testing
+        includes Prisma validation, module-validator tests, app registration
+        checks, and future sync-run tests as external integrations become
+        active.
+      </p>
+
+      <h4>8.7.15 Content And Public-Page Schema</h4>
+      <p>
+        The content schema models public page versions and related public
+        content state. It exists so public-facing information such as terms,
+        privacy policy, and about-page content can be represented as managed
+        platform data rather than only static code. Public page keys and status
+        enums support draft, published, and archived lifecycle behavior.
+      </p>
+      <p>
+        The result is a content model that can support public page management
+        while keeping unauthenticated content separate from procurement data.
+        Testing includes public service tests, public client API tests, Prisma
+        validation, and page smoke tests for public screens.
+      </p>
+
+      <h4>8.7.16 Support Schema</h4>
+      <p>
+        The support schema models support tickets and support ticket comments.
+        It exists to give the platform an operational help channel. Support
+        priority and status enums allow the system to distinguish routine,
+        urgent, resolved, and ongoing assistance cases.
+      </p>
+      <p>
+        Support records connect users and organizations to assistance history.
+        The result is a data foundation for support pages and future admin
+        support workflows. Testing includes support service tests, client
+        support page tests, Prisma validation, module-validator tests, and app
+        registration checks.
+      </p>
+
+      <h4>8.7.17 RLS And Tenant Isolation</h4>
+      <p>
+        Row-level security was implemented through PostgreSQL helper functions
+        and policies. The application sets context variables inside
+        <code>withDbContext()</code>: <code>app.current_user_id</code>,
+        <code>app.current_organization_id</code>,
+        <code>app.current_account_type</code>, and
+        <code>app.current_capabilities</code>. SQL helper functions read those
+        values as <code>app.current_user_id()</code>,
+        <code>app.current_organization_id()</code>,
+        <code>app.current_account_type()</code>, and
+        <code>app.current_capabilities()</code>.
+      </p>
+      <p>
+        Policies then use checks such as <code>app.is_admin()</code>,
+        <code>app.same_org(...)</code>, and
+        <code>app.has_capability(...)</code>. This means access can be enforced
+        by the database, not only by frontend screens or service filters. The
+        result is tenant isolation for organization-owned rows and self-access
+        policies for identity records. Validation includes
+        <code>verify:rls</code>, database validation scripts, policy review,
+        and service tests that depend on correct organization context.
+      </p>
+
+      <h4>8.7.18 Migrations And Seed-Data Validation</h4>
+      <p>
+        Migrations were implemented as incremental Prisma migration directories.
+        They capture schema evolution from initialization through identity,
+        public content, signatures, IAM access, procurement planning, awards,
+        support, compliance rules, admin datastore, bidding uniqueness, saved
+        tenders, dual capabilities, tender amendments, administrative envelopes,
+        bid samples, and award groups.
+      </p>
+      <p>
+        Seed scripts were implemented to create repeatable development and demo
+        states. The base seed prepares core data, while optional seeds prepare
+        marketplace tenders, award-ready evaluation data, award-contract demo
+        workflows, and evaluation intake scenarios. <code>db:seed:twice</code>
+        validates idempotency by running the seed process more than once. The
+        result is a database that can be rebuilt, demonstrated, and tested
+        consistently. Validation includes <code>db:validate</code>,
+        <code>db:migrate</code>, <code>db:seed</code>,
+        <code>db:seed:twice</code>, seed-specific tests, repository tests, and
+        service tests.
+      </p>
+
+      <p>
+        The main database result is a normalized, auditable model of the
+        procurement lifecycle. Instead of only storing high-level tender and bid
+        records, the database stores the supporting evidence required for
+        verification, evaluation, award approval, contract execution, payment,
+        compliance, communication, and records review. This makes the database a
+        governance asset, not merely an application storage layer.
+      </p>
+    </section>
+
+    <section id="technical-quality" class="section">
+      <h2>9. Implementation And Technical Quality</h2>
+      <p>
+        Technical quality is evaluated by examining how the implementation
+        handles separation of concerns, maintainability, security, traceability,
+        scalability, and known limitations. ProcureX is not only a collection of
+        screens and tables; it is a procurement information system whose
+        correctness depends on process integrity, evidence preservation, and
+        controlled access.
+      </p>
+
+      <h3>9.1 Separation Of Concerns</h3>
+      <p>
+        The monorepo separates client, server, shared contracts, documentation,
+        scripts, and future machine-learning services. Inside the server,
+        modules separate HTTP routing from domain behavior and persistence.
+        Inside the database, PostgreSQL schemas separate identity,
+        organization, procurement, bidding, evaluation, contract, financial,
+        compliance, records, and support domains. This repeated separation at
+        repository, application, and database levels is a major architectural
+        strength because it reduces accidental coupling.
+      </p>
+
+      <h3>9.2 Maintainability</h3>
+      <p>
+        Maintainability is supported by predictable folders, typed TypeScript
+        implementation, Prisma models, Zod validation, shared contracts, and
+        focused tests. A developer who understands one module can usually
+        navigate another because the same structural pattern appears across the
+        backend. The frontend uses a comparable feature-oriented structure, so
+        procurement, bidding, evaluation, awards, communication, records, public
+        content, and admin surfaces can evolve without every change becoming an
+        application-wide refactor.
+      </p>
+      <p>
+        The main maintainability risk is breadth. The data model is already
+        extensive, especially in awards, contracts, lifecycle management,
+        compliance, and finance. As business logic becomes richer, the project
+        should keep service functions focused, expand repository tests, and
+        resist embedding cross-domain rules in UI components.
+      </p>
+
+      <h3>9.3 Security Posture</h3>
+      <p>
+        The current security posture includes browser security headers,
+        restricted CORS, bounded JSON parsing, route guards on the client,
+        identity/session APIs on the server, admin route separation, Prisma
+        database access, and PostgreSQL RLS foundations. The most important
+        security principle is organization-aware access: data visibility should
+        follow the current user, organization, account type, and capability
+        context.
+      </p>
+      <p>
+        Additional production hardening should focus on complete authentication
+        token policy, secure cookie or bearer-token handling, production email
+        and SMS provider configuration, stricter audit coverage for every
+        decision-changing action, file upload scanning, and repeatable RLS
+        verification in CI or deployment checks.
+      </p>
+
+      <h3>9.4 Traceability And Auditability</h3>
+      <p>
+        Procurement systems must explain why a decision was made, who made it,
+        what evidence was available, and which records support the result.
+        ProcureX addresses this through explicit models for audit events,
+        record entries, communication items, verification history, screening
+        checks, approval steps, award notices, contract versions, evidence,
+        disputes, termination records, payment approvals, and compliance cases.
+      </p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/reference/records-history.png" alt="Records history screen">
+        <figcaption>Technical quality evidence: records history illustrates the user-facing audit and traceability surface.</figcaption>
+      </figure>
+      <p>
+        The academic value of this design is that records are not treated as an
+        afterthought. They are modeled as part of the procurement lifecycle,
+        allowing operational activity to become reviewable evidence.
+      </p>
+
+      <h3>9.5 Scalability Readiness</h3>
+      <p>
+        ProcureX is prepared for moderate architectural scaling because the
+        frontend, backend, database model, and future intelligence service are
+        separated. The backend modules can be optimized independently, Prisma
+        repositories can be profiled per workflow, and the future
+        <code>ml-service</code> can host supplier matching, risk analysis, or
+        benchmark workloads without overloading the Express application with
+        machine-learning concerns.
+      </p>
+      <p>
+        Scalability work should remain evidence-driven. The next production
+        steps should include query profiling, index review for high-volume
+        tables, pagination enforcement, background job boundaries for heavy
+        document or notification work, and caching only where repeated reads
+        have been measured.
+      </p>
+
+      <h3>9.6 Limitations And Technical Debt</h3>
+      <p>
+        The implementation is strong as a foundation, but several limitations
+        remain. Some modules are more mature than others, and several backend
+        boundaries exist ahead of complete business behavior. Migration history
+        contains local or repeated naming that should be cleaned before
+        production release. RLS foundations exist, but sensitive workflows should
+        receive expanded policy coverage and automated verification. Finally,
+        screenshot parity validates visual alignment but does not replace
+        end-to-end workflow testing against live APIs.
+      </p>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-dashboard.png" alt="Admin dashboard screen">
+          <figcaption>Technical quality evidence: admin dashboard represents the platform oversight surface.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/admin-audit.png" alt="Admin audit screen">
+          <figcaption>Technical quality evidence: admin audit screen supports governance and event-level review.</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section id="workflows" class="section">
-      <h2>9. Module-By-Module Workflow Implementation</h2>
+      <h2>10. Module-By-Module Workflow Implementation</h2>
       <p>
         ProcureX is organized by workflow modules. Each workflow has a visible
         user interface and a backend/data model boundary that supports future
         production behavior.
       </p>
 
-      <h3>9.1 Procurement Lifecycle</h3>
+      <h3>10.1 Procurement Lifecycle</h3>
       <p>
         Procurement covers opportunity discovery, tender creation, tender
         publication, tender details, tender documents, supplier tender views,
@@ -831,7 +2721,7 @@ server/src/db/prisma.ts</pre>
         <figcaption>Figure 20. Supplier journey screen explaining the supplier procurement process.</figcaption>
       </figure>
 
-      <h3>9.2 Bidding And Evaluation</h3>
+      <h3>10.2 Bidding And Evaluation</h3>
       <p>
         Bidding supports supplier response preparation, bid versions, documents,
         responses, and receipts. Evaluation supports scoring workspaces,
@@ -849,7 +2739,7 @@ server/src/db/prisma.ts</pre>
         </figure>
       </div>
 
-      <h3>9.3 Awards And Contracts</h3>
+      <h3>10.3 Awards And Contracts</h3>
       <p>
         Awards and contracts convert evaluation outcomes into recommendations,
         approvals, contract versions, purchase orders, invoices, and post-award
@@ -874,7 +2764,7 @@ server/src/db/prisma.ts</pre>
         </figure>
       </div>
 
-      <h3>9.4 Communication And Records</h3>
+      <h3>10.4 Communication And Records</h3>
       <p>
         Communication and records support collaboration and traceability. They
         preserve procurement messages, attachments, record entries, and audit
@@ -891,7 +2781,7 @@ server/src/db/prisma.ts</pre>
         </figure>
       </div>
 
-      <h3>9.5 Administration And Compliance</h3>
+      <h3>10.5 Administration And Compliance</h3>
       <p>
         Administration supports platform oversight. Admin accounts handle
         verification, compliance review, user management, audit review, analytics,
@@ -927,7 +2817,7 @@ server/src/db/prisma.ts</pre>
     </section>
 
     <section id="user-journeys" class="section">
-      <h2>10. Deep User Journey Implementation</h2>
+      <h2>11. Deep User Journey Implementation</h2>
       <p>
         This section explains how users move through ProcureX from first contact
         to completed procurement activity. Each journey stage links a visible
@@ -937,7 +2827,7 @@ server/src/db/prisma.ts</pre>
         backend modules, Prisma data model, and RLS-aware access foundation.
       </p>
 
-      <h3>10.1 Public Discovery Journey</h3>
+      <h3>11.1 Public Discovery Journey</h3>
       <p>
         The public journey is the entry point for visitors who have not yet
         authenticated. Its purpose is to build confidence, explain the platform,
@@ -1031,7 +2921,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.2 Registration And Identity Journey</h3>
+      <h3>11.2 Registration And Identity Journey</h3>
       <p>
         The onboarding journey converts a public visitor into an authenticated
         platform user. It captures account intent, registration details,
@@ -1118,7 +3008,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.3 Workspace Entry Journey</h3>
+      <h3>11.3 Workspace Entry Journey</h3>
       <p>
         The workspace journey begins after authentication and verification. It
         gives the organization user a single place to choose modules and monitor
@@ -1157,7 +3047,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.4 Buyer Procurement Journey</h3>
+      <h3>11.4 Buyer Procurement Journey</h3>
       <p>
         The buyer journey moves from market awareness to tender creation,
         publication, detail review, and document management. Buyer behavior is
@@ -1244,7 +3134,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.5 Supplier Participation Journey</h3>
+      <h3>11.5 Supplier Participation Journey</h3>
       <p>
         The supplier journey moves from understanding the process to discovering
         opportunities, reviewing tender details, and preparing a bid response.
@@ -1314,7 +3204,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.6 Evaluator Journey</h3>
+      <h3>11.6 Evaluator Journey</h3>
       <p>
         Evaluation is the transition from supplier submission to structured
         procurement decision. Evaluators review bid responses, score criteria,
@@ -1337,7 +3227,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.7 Approver And Award Reviewer Journey</h3>
+      <h3>11.7 Approver And Award Reviewer Journey</h3>
       <p>
         The award reviewer journey converts evaluation output into formal
         recommendation, approval, and contract readiness.
@@ -1375,7 +3265,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.8 Contract Participant Journey</h3>
+      <h3>11.8 Contract Participant Journey</h3>
       <p>
         Contract participants work after award approval. Their focus is
         negotiation, version review, signature readiness, delivery tracking, and
@@ -1414,7 +3304,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.9 Communication And Records Journey</h3>
+      <h3>11.9 Communication And Records Journey</h3>
       <p>
         Communication and records support collaboration, transparency, and
         auditability across the full procurement lifecycle.
@@ -1452,7 +3342,7 @@ server/src/db/prisma.ts</pre>
         </table>
       </article>
 
-      <h3>10.10 Platform Administrator Journey</h3>
+      <h3>11.10 Platform Administrator Journey</h3>
       <p>
         Admin users operate the compliance and oversight surface. They are not
         buyer or supplier users. Their journey focuses on verification review,
@@ -1565,25 +3455,69 @@ server/src/db/prisma.ts</pre>
     </section>
 
     <section id="testing" class="section">
-      <h2>11. Testing And Validation</h2>
+      <h2>12. Testing And Validation</h2>
       <p>
-        The platform includes test coverage and validation scripts across server,
-        client, database, and UI parity concerns.
+        The platform includes test coverage and validation scripts across
+        server, client, database, seed data, and UI parity concerns. The testing
+        strategy is layered: unit tests validate isolated behavior, integration
+        tests validate module interactions, database commands validate schema
+        correctness, seed tests validate repeatable demo data, and screenshot
+        capture validates visual parity with the reference interface.
       </p>
 
-      <h3>11.1 Automated Testing</h3>
+      <h3>12.1 Automated Testing</h3>
       <p>
         The root test command runs server and client tests:
       </p>
       <pre>npm test</pre>
       <p>
-        Current coverage includes backend app tests, module validation tests,
-        identity development bypass tests, React route guard tests, page smoke
-        tests, shared component tests, ProcureX static page tests, language
-        layout checks, and awards and contracts flow tests.
+        Server tests cover the Express app, module registration, production
+        identity behavior, delivery-provider behavior, procurement controller
+        behavior, procurement repository and service behavior, bidding,
+        communication, compliance admin, dashboard, public content,
+        intelligence, support, award-contract service behavior, signing, and
+        seed-data behavior. These tests are valuable because they verify the
+        domain-service layer rather than relying only on UI smoke coverage.
       </p>
+      <p>
+        Client tests cover route guards, authentication routes, page smoke
+        rendering, admin screens, authentication components, identity
+        verification screens, procurement pages, bidding API helpers,
+        communication center, public content, support pages, tender planning,
+        workspace dashboard, shared static-page rendering, language switching,
+        notifications, and the awards-contract flow. Together these tests
+        confirm that protected, public, verified, and admin-only surfaces render
+        according to the expected client-side state.
+      </p>
+      <table>
+        <tr>
+          <th>Validation Layer</th>
+          <th>Representative Coverage</th>
+          <th>Evidence Provided</th>
+        </tr>
+        <tr>
+          <td>Server module tests</td>
+          <td>Identity, procurement, bidding, awards, communication, compliance, dashboard, intelligence, public, support.</td>
+          <td>Domain behavior, validation, repository behavior, provider boundaries, and error handling.</td>
+        </tr>
+        <tr>
+          <td>Client tests</td>
+          <td>Route guards, page smoke tests, feature components, API helpers, shared components, flow tests.</td>
+          <td>Rendering correctness, navigation protection, interaction behavior, and UI resilience.</td>
+        </tr>
+        <tr>
+          <td>Seed tests</td>
+          <td>Marketplace demo, award-ready demo, award-contract demo, evaluation intake demo.</td>
+          <td>Repeatable demo-state generation and realistic workflow fixtures.</td>
+        </tr>
+        <tr>
+          <td>Database checks</td>
+          <td>Prisma validation, migration, seed-twice, RLS verification.</td>
+          <td>Schema validity, migration execution, idempotency, and tenant isolation behavior.</td>
+        </tr>
+      </table>
 
-      <h3>11.2 Database Validation</h3>
+      <h3>12.2 Database Validation</h3>
       <p>
         Database validation and setup scripts support local development and RLS
         verification:
@@ -1592,8 +3526,24 @@ server/src/db/prisma.ts</pre>
 npm run db:migrate
 npm run db:seed:twice
 npm --workspace server run verify:rls</pre>
+      <p>
+        <code>db:validate</code> confirms that the Prisma schema is internally
+        valid. <code>db:migrate</code> applies development migrations.
+        <code>db:seed:twice</code> is especially important because it tests
+        whether seeding can be repeated without corrupting local data or
+        creating duplicate records. <code>verify:rls</code> validates the
+        security premise that users and organizations must not read or mutate
+        records outside their allowed context.
+      </p>
+      <p>
+        The project also includes optional demo seed scripts for marketplace
+        tenders, award-ready evaluation data, award-contract workflows, and
+        evaluation intake. These datasets support validation because reviewers
+        can inspect realistic buyer, supplier, evaluator, award, contract, and
+        compliance states without inventing data manually.
+      </p>
 
-      <h3>11.3 Screenshot Validation</h3>
+      <h3>12.3 Screenshot Validation</h3>
       <p>
         The UI parity capture script validates that the production React target
         can be compared against the reference prototype. Screenshots are captured
@@ -1601,10 +3551,42 @@ npm --workspace server run verify:rls</pre>
       </p>
       <pre>npm run dev:client
 npm --workspace client run ui:parity:screenshots</pre>
+      <p>
+        Screenshot validation is not a replacement for functional tests, but it
+        is a useful visual-regression technique for this project because the
+        production React client is intentionally derived from the static
+        ProcureX prototype. The capture workflow compares the reference
+        prototype and the React target across desktop and mobile viewports. This
+        provides evidence that migration work preserves the intended layout,
+        hierarchy, and user journey.
+      </p>
+      <div class="figure-grid">
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/create-tender.png" alt="Create tender validation screen">
+          <figcaption>Validation screenshot: buyer tender creation reference used for UI parity review.</figcaption>
+        </figure>
+        <figure>
+          <img src="ui-parity/screenshots/desktop/reference/bid-evaluation.png" alt="Bid evaluation validation screen">
+          <figcaption>Validation screenshot: evaluation workspace reference used for visual workflow comparison.</figcaption>
+        </figure>
+      </div>
+
+      <h3>12.4 Validation Limitations</h3>
+      <p>
+        The current validation strategy gives meaningful coverage, but it should
+        continue to mature. Screenshot validation proves visual similarity, not
+        database correctness. Unit tests prove isolated behavior, not the
+        complete user journey under production infrastructure. RLS verification
+        proves selected isolation policies, but new sensitive tables should be
+        added to the verification suite as they become operationally important.
+        A production-grade validation program should therefore add end-to-end
+        API-backed browser tests, migration deployment checks, file-upload
+        security tests, performance baselines, and audit-log completeness tests.
+      </p>
     </section>
 
     <section id="conclusion" class="section">
-      <h2>12. Conclusion And Recommendations</h2>
+      <h2>13. Conclusion And Recommendations</h2>
       <p>
         The ProcureX implementation establishes a strong foundation for a
         production procurement platform. It combines a visual reference workflow,
@@ -1614,7 +3596,7 @@ npm --workspace client run ui:parity:screenshots</pre>
         maintainable and secure application architecture.
       </p>
 
-      <h3>12.1 Conclusion</h3>
+      <h3>13.1 Conclusion</h3>
       <p>
         The implementation successfully models the major procurement lifecycle
         areas: public discovery, onboarding, verification, procurement planning,
@@ -1624,38 +3606,473 @@ npm --workspace client run ui:parity:screenshots</pre>
         supports realistic procurement operations where companies may act as
         buyers, suppliers, or both.
       </p>
+      <p>
+        From a system-design perspective, ProcureX demonstrates a coherent
+        layered architecture. The React client owns presentation and navigation,
+        the Express server owns API boundaries and domain orchestration, Prisma
+        owns the typed application data model, PostgreSQL owns relational
+        persistence and RLS enforcement, and documentation plus screenshot
+        assets preserve the design intent. This separation is academically
+        sound because each layer has a distinct responsibility and can be
+        evaluated independently.
+      </p>
+      <p>
+        The strongest implementation qualities are modularity, traceability, and
+        organization-aware access modeling. The most important remaining risks
+        are production hardening, uneven module maturity, broader RLS coverage,
+        migration hygiene, and the need for more end-to-end tests against live
+        API-backed workflows.
+      </p>
 
-      <h3>12.2 Recommendations</h3>
+      <h3>13.2 Recommendations</h3>
       <ol>
-        <li>Continue converting prototype-derived screens into richer production React workflows where backend APIs are ready.</li>
-        <li>Expand module tests as each domain moves from skeleton status to business behavior.</li>
-        <li>Keep UI parity screenshots updated during design or layout changes.</li>
-        <li>Strengthen RLS verification as more sensitive procurement records become active.</li>
-        <li>Introduce the future intelligence service only after stable integration contracts are defined.</li>
+        <li>Continue converting prototype-derived screens into richer production React workflows where backend APIs are ready, while keeping page behavior aligned with actual domain services.</li>
+        <li>Expand module tests as each domain moves from foundation status to full business behavior, especially for bidding, evaluation, awards, contract lifecycle, finance, and compliance workflows.</li>
+        <li>Keep UI parity screenshots updated during design or layout changes, but supplement them with API-backed end-to-end tests for critical buyer, supplier, evaluator, approver, and admin journeys.</li>
+        <li>Strengthen RLS verification as more sensitive procurement records become active, and require new sensitive tables to include access-policy tests before release.</li>
+        <li>Review migration history before production deployment so local or duplicate migration names do not become long-term operational debt.</li>
+        <li>Introduce the future intelligence service only after stable integration contracts are defined, including clear ownership for supplier matching, market benchmarking, and risk-scoring outputs.</li>
+        <li>Add operational monitoring for health checks, API errors, slow database queries, failed delivery-provider calls, audit-log creation, and support-ticket volume.</li>
+        <li>Document a production data-governance policy covering retention, audit review, evidence handling, file storage, administrative access, and incident response.</li>
       </ol>
+      <p>
+        Overall, ProcureX is a credible foundation for a production procurement
+        platform. It already contains the essential architectural pieces:
+        lifecycle workflow modules, organization-aware identity modeling,
+        PostgreSQL-backed persistence, security foundations, visual evidence,
+        and a growing test suite. The recommended next phase is not a broad
+        rewrite, but disciplined hardening: complete the highest-value workflow
+        services, prove access isolation, validate live end-to-end journeys, and
+        prepare migration and monitoring practices for production operation.
+      </p>
+    </section>
+
+    <section id="code-walkthrough" class="section">
+      <h2>14. Code-Level Feature Walkthrough</h2>
+      <p>
+        This section explains how to read the ProcureX implementation at code
+        level. It does not reproduce every line of source code, because the
+        source files remain the authoritative implementation, but it describes
+        what each major directory and file group is doing, why the code exists,
+        how feature data moves from screen to server to database, and which
+        tokens, providers, services, and tests support the behavior.
+      </p>
+      <div class="summary-box">
+        <strong>Security note:</strong> Provider credentials and API keys must
+        never be copied into academic reports. Environment examples should use
+        placeholders only. If a tracked environment example contains real-looking
+        SMTP, Resend, Briq, Beem, or WhatsApp credentials, those values should be
+        rotated and replaced with non-secret placeholders.
+      </div>
+
+      <h3>14.1 Repository Reading Map</h3>
+      <p>
+        The implementation is easiest to understand by reading it as a set of
+        cooperating directories. <code>client/src/features</code> contains the
+        user-facing feature modules. <code>client/src/shared</code> contains
+        common API, formatting, type, and component utilities.
+        <code>server/src/modules</code> contains backend domain modules.
+        <code>server/src/security</code> contains access and anti-abuse
+        controls. <code>server/src/db</code> contains Prisma and RLS context
+        utilities. <code>server/prisma/schema.prisma</code> defines the data
+        model, while <code>server/prisma/migrations</code> stores schema
+        evolution.
+      </p>
+      <pre>client/src/app/                 Router, providers, route guards, app shell
+client/src/features/auth/       Sign-in, registration, session state, auth API calls
+client/src/features/identity/   Verification and account profile UI
+client/src/features/procurement Tender, marketplace, planning, tender detail UI
+client/src/features/bidding/    Supplier bid workspace UI and API helpers
+client/src/features/evaluation/ Evaluation pages and scoring workflow UI
+client/src/features/awardsContracts/ Award, contract, post-award workflow UI
+client/src/shared/api/          Axios client, bearer-token storage, API error helpers
+server/src/app.ts               Express bootstrap, security headers, CORS, health, error handling
+server/src/modules/*            Backend feature modules
+server/src/security/*           Turnstile, access policy, rate limiting, runtime security config
+server/src/db/*                 Prisma client and database context for RLS
+server/prisma/schema.prisma     PostgreSQL multi-schema data model</pre>
+
+      <h3>14.2 Authentication And Token Flow</h3>
+      <p>
+        Authentication uses several different token or code types, and each has
+        a different purpose. The frontend auth slice reads a stored bearer token
+        from <code>client/src/shared/api/authToken.ts</code>, keeps it in Redux
+        auth state, and clears it on sign-out or failed hydration. The token is
+        stored under the browser localStorage key
+        <code>procurex.authToken</code>. The shared Axios client in
+        <code>client/src/shared/api/http.ts</code> reads this value before each
+        request and sends it as <code>Authorization: Bearer &lt;token&gt;</code>.
+      </p>
+      <p>
+        On the backend, sign-in creates an opaque random session token using
+        Node crypto. The server returns the raw token to the client only once.
+        The database stores a SHA-256 hash of the token as
+        <code>tokenHash</code>, not the raw token. Later requests send the raw
+        bearer token, the server hashes it again, and the identity repository
+        searches for an active matching session. This design reduces damage if
+        the sessions table is exposed, because stored session records do not
+        directly contain reusable raw tokens.
+      </p>
+      <table>
+        <tr>
+          <th>Token Or Code</th>
+          <th>Where It Appears</th>
+          <th>Purpose</th>
+          <th>Why It Is Used</th>
+        </tr>
+        <tr>
+          <td>Bearer session token</td>
+          <td>Client localStorage, Axios authorization header, backend identity service.</td>
+          <td>Authenticates API requests after sign-in.</td>
+          <td>Allows stateless HTTP requests while the database keeps revocable session records.</td>
+        </tr>
+        <tr>
+          <td>Session token hash</td>
+          <td><code>identity.sessions.tokenHash</code>.</td>
+          <td>Stores a non-raw representation of the session token.</td>
+          <td>Prevents direct reuse of database session values as bearer tokens.</td>
+        </tr>
+        <tr>
+          <td>Turnstile token</td>
+          <td>Registration, sign-in, forgot-password, reset-code flows.</td>
+          <td>Proves a human/browser challenge was completed.</td>
+          <td>Reduces automated abuse of identity endpoints.</td>
+        </tr>
+        <tr>
+          <td>Phone OTP code</td>
+          <td>Registration start and phone verification challenges.</td>
+          <td>Confirms the user controls the submitted phone number.</td>
+          <td>Supports identity confidence and prevents unverified phone ownership.</td>
+        </tr>
+        <tr>
+          <td>Email activation code</td>
+          <td>Email activation challenge after phone verification.</td>
+          <td>Confirms the user controls the submitted email address.</td>
+          <td>Ensures future account recovery and notifications reach the right user.</td>
+        </tr>
+        <tr>
+          <td>Password reset code</td>
+          <td>Forgot-password and reset-password flows.</td>
+          <td>Allows password recovery after email challenge.</td>
+          <td>Avoids immediately revealing whether an account exists while still allowing recovery.</td>
+        </tr>
+        <tr>
+          <td>Digital-signature keyphrase</td>
+          <td>Identity verification submission and signing credential code.</td>
+          <td>Unlocks signing behavior for verification payloads.</td>
+          <td>Creates signed evidence for verification consent and submitted identity data.</td>
+        </tr>
+      </table>
+
+      <h3>14.3 Authentication Feature File-By-File</h3>
+      <p>
+        The authentication feature starts on the client. The auth API helper in
+        <code>client/src/features/auth/api/index.ts</code> defines the exact
+        HTTP calls for registration start, OTP verification, OTP resend, email
+        activation, activation resend, password setup, sign-in, forgot password,
+        reset-code resend, reset-code verification, password reset, session
+        lookup, access lookup, and sign-out. The auth slice in
+        <code>client/src/features/auth/slice.ts</code> wraps those calls in
+        Redux Toolkit async thunks, so UI components receive loading, success,
+        error, token, user, and session-expired state consistently.
+      </p>
+      <p>
+        The server receives those requests through
+        <code>server/src/modules/identity/routes.ts</code> and
+        <code>controller.ts</code>. The validators file checks request body
+        shape. The service file owns behavior: email normalization, phone
+        normalization, OTP generation, password hashing, session token creation,
+        challenge attempt limits, resend cooldowns, audit events, registry
+        lookup, screening, signing, and verification submission. The repository
+        file owns Prisma reads and writes. This is why authentication is not one
+        file: the feature is split so UI state, HTTP transport, validation,
+        business rules, and database persistence each have a clear home.
+      </p>
+      <pre>Sign-in reading path:
+SignInProcurexPage.tsx
+  -> auth slice signInWithCredentials()
+  -> authApi.signIn()
+  -> apiClient POST /api/identity/auth/sign-in
+  -> identity routes/controller
+  -> identity validators
+  -> identity service signIn()
+  -> password verification and Turnstile/audit behavior
+  -> repository createSession(tokenHash)
+  -> response { token, user, expiresAt, isFirstSignIn }
+  -> Redux stores token and user
+  -> Axios sends Authorization: Bearer token on later requests</pre>
+
+      <h3>14.4 Turnstile Anti-Abuse Flow</h3>
+      <p>
+        Turnstile is used to protect sensitive identity entry points from
+        automated abuse. The client sends a <code>turnstileToken</code> with
+        registration, sign-in, forgot-password, reset-code, and reset-password
+        actions. The server helper in <code>server/src/security/turnstile.ts</code>
+        verifies the token. In local development, the helper allows a
+        <code>local-dev-turnstile:</code> token prefix or Cloudflare's testing
+        secret. In production, it posts the secret and response token to the
+        Cloudflare Turnstile siteverify endpoint.
+      </p>
+      <p>
+        The purpose of this design is to keep anti-abuse logic outside page
+        components and outside identity business rules. Pages only collect the
+        token, the identity API transports it, and the security helper verifies
+        it. This makes the implementation easier to test and safer to maintain.
+      </p>
+
+      <h3>14.5 SMS, Email, And WhatsApp Provider Routing</h3>
+      <p>
+        Identity notifications are implemented through provider classes in
+        <code>server/src/modules/identity/notifications.ts</code>. The system
+        supports multiple providers so local development, production email, SMS,
+        and optional WhatsApp delivery can be selected by environment variables
+        without rewriting identity service logic.
+      </p>
+      <table>
+        <tr>
+          <th>Provider Class</th>
+          <th>External Service</th>
+          <th>Used For</th>
+          <th>Selection Variable</th>
+        </tr>
+        <tr>
+          <td><code>DevConsoleIdentityNotifications</code></td>
+          <td>Local console only</td>
+          <td>Development OTP, activation, and reset code logging.</td>
+          <td><code>IDENTITY_NOTIFICATION_PROVIDER</code>, <code>IDENTITY_EMAIL_PROVIDER</code>, <code>IDENTITY_PHONE_PROVIDER</code></td>
+        </tr>
+        <tr>
+          <td><code>SmtpEmailProvider</code></td>
+          <td>SMTP, configured for local Gmail-style testing</td>
+          <td>Email activation and password reset in non-production.</td>
+          <td><code>IDENTITY_EMAIL_PROVIDER=smtp</code></td>
+        </tr>
+        <tr>
+          <td><code>ResendEmailProvider</code></td>
+          <td>Resend</td>
+          <td>Production email activation and password reset.</td>
+          <td><code>IDENTITY_EMAIL_PROVIDER=resend</code> or default production email route</td>
+        </tr>
+        <tr>
+          <td><code>BeemSmsProvider</code></td>
+          <td>Beem Africa SMS API</td>
+          <td>Phone OTP delivery by SMS.</td>
+          <td><code>IDENTITY_PHONE_PROVIDER=sms</code> and <code>IDENTITY_SMS_PROVIDER=beem</code></td>
+        </tr>
+        <tr>
+          <td><code>BriqSmsProvider</code></td>
+          <td>Briq SMS API</td>
+          <td>Phone OTP delivery by SMS.</td>
+          <td><code>IDENTITY_PHONE_PROVIDER=sms</code> and <code>IDENTITY_SMS_PROVIDER=briq</code></td>
+        </tr>
+        <tr>
+          <td><code>MetaWhatsAppOtpProvider</code></td>
+          <td>Meta WhatsApp Cloud API</td>
+          <td>Local/test WhatsApp OTP delivery.</td>
+          <td><code>IDENTITY_PHONE_PROVIDER=whatsapp</code></td>
+        </tr>
+        <tr>
+          <td><code>BeemWhatsAppProvider</code></td>
+          <td>Beem WhatsApp template/session APIs</td>
+          <td>Template and session WhatsApp messages.</td>
+          <td>Called through production notification methods when configured.</td>
+        </tr>
+      </table>
+      <p>
+        The provider decision happens in <code>RoutedIdentityNotifications</code>.
+        First, it decides whether email should use dev-console, SMTP, or Resend.
+        Second, it decides whether phone delivery should use dev-console, SMS,
+        or WhatsApp. If phone delivery is SMS, <code>ProductionIdentityNotifications</code>
+        selects Beem or Briq through <code>IDENTITY_SMS_PROVIDER</code>. This
+        explains who the SMS API provider is: the code supports Beem Africa and
+        Briq, and the active provider is whichever value the runtime environment
+        selects.
+      </p>
+
+      <h3>14.6 Permissions, Capabilities, And Feature Gates</h3>
+      <p>
+        Permissions are computed in <code>server/src/security/accessPolicy.ts</code>.
+        The code takes account type, verification status, organization
+        capabilities, trust tier, risk level, and screening status, then returns
+        permissions and feature gates. Admin accounts receive platform-wide
+        permissions. Normal users receive procurement permissions through
+        organization capability and trust/risk context. The temporary
+        development switch currently permits core procurement permissions while
+        trust gates are being iterated.
+      </p>
+      <p>
+        This explains why buyer and supplier are not stored as account types.
+        They are organization capabilities. A user account can remain a normal
+        <code>USER</code>, while the organization determines whether tender
+        creation, bidding, evaluation, award management, contract management,
+        signing, or tracking is available. Frontend route guards consume the
+        session user and feature gates, while backend services call identity
+        methods such as <code>requireSession</code>,
+        <code>requirePermission</code>, or <code>requireAdmin</code>.
+      </p>
+
+      <h3>14.7 Feature-To-Code Navigation Matrix</h3>
+      <table>
+        <tr>
+          <th>Feature</th>
+          <th>Client Files/Directories</th>
+          <th>Server Files/Directories</th>
+          <th>Database Area</th>
+          <th>What To Read For Code Meaning</th>
+        </tr>
+        <tr>
+          <td>Authentication</td>
+          <td><code>client/src/features/auth</code>, <code>client/src/shared/api</code></td>
+          <td><code>server/src/modules/identity</code>, <code>server/src/security/turnstile.ts</code></td>
+          <td><code>identity.User</code>, <code>identity.Session</code>, <code>identity.IdentityChallenge</code></td>
+          <td>Read API helper methods first, then Redux thunks, then identity service methods for tokens, hashes, challenges, and sessions.</td>
+        </tr>
+        <tr>
+          <td>Identity verification</td>
+          <td><code>client/src/features/identity</code></td>
+          <td><code>identity/service.ts</code>, <code>registryProviders.ts</code>, <code>screeningProviders.ts</code>, <code>signing.ts</code></td>
+          <td><code>VerificationProfile</code>, <code>VerificationDocument</code>, <code>DigitalSignature</code>, <code>ScreeningCheck</code></td>
+          <td>Read registry lookup, profile update, submit verification, signature creation, screening, trust evaluation, and admin decision methods.</td>
+        </tr>
+        <tr>
+          <td>Procurement/tenders</td>
+          <td><code>client/src/features/procurement</code>, <code>client/src/features/tenderPlanning</code></td>
+          <td><code>server/src/modules/procurement</code></td>
+          <td><code>procurement.Tender</code>, requirements, milestones, documents, amendments, saved tenders.</td>
+          <td>Read procurement service methods for marketplace, create, update, publish, review, save, close, and tender document flows.</td>
+        </tr>
+        <tr>
+          <td>Bidding</td>
+          <td><code>client/src/features/bidding</code></td>
+          <td><code>server/src/modules/bidding</code></td>
+          <td><code>bidding.Bid</code>, versions, documents, responses, receipts, samples.</td>
+          <td>Read bidding validators and service methods to understand supplier response status, ownership, and submitted evidence.</td>
+        </tr>
+        <tr>
+          <td>Evaluation</td>
+          <td><code>client/src/features/evaluation</code></td>
+          <td><code>server/src/modules/evaluation</code></td>
+          <td><code>EvaluationWorkspace</code>, assignments, criteria, scores.</td>
+          <td>Read workspace and scoring flows to see how submitted bids become structured review evidence.</td>
+        </tr>
+        <tr>
+          <td>Awards/contracts</td>
+          <td><code>client/src/features/awardsContracts</code></td>
+          <td><code>server/src/modules/award-contract</code></td>
+          <td><code>contract.AwardRecommendation</code>, award groups, contracts, versions, milestones, risks, payments.</td>
+          <td>Read action forms, role access, service methods, and repository mapping to understand recommendation through post-award lifecycle.</td>
+        </tr>
+        <tr>
+          <td>Admin/compliance</td>
+          <td><code>client/src/features/admin</code></td>
+          <td><code>server/src/modules/compliance-admin</code>, identity admin routes</td>
+          <td><code>ComplianceCase</code>, <code>RiskSignal</code>, <code>AdminAction</code>, <code>AuditEvent</code></td>
+          <td>Read admin route guards, compliance service methods, verification decisions, and audit/admin action creation.</td>
+        </tr>
+        <tr>
+          <td>Documents</td>
+          <td>Feature-specific upload/use surfaces</td>
+          <td><code>server/src/modules/documents</code></td>
+          <td><code>documents.DocumentObject</code></td>
+          <td>Read bearer-token extraction, session requirement, object metadata persistence, and storage-driver configuration.</td>
+        </tr>
+        <tr>
+          <td>Communication, records, support</td>
+          <td><code>client/src/features/communication</code>, <code>records</code>, <code>support</code></td>
+          <td><code>server/src/modules/communication</code>, <code>records</code>, <code>support</code></td>
+          <td><code>CommunicationItem</code>, <code>RecordEntry</code>, <code>SupportTicket</code></td>
+          <td>Read service/repository files to see how collaboration, history, and support evidence are persisted.</td>
+        </tr>
+      </table>
+
+      <h3>14.8 How To Read A File Line By Line</h3>
+      <p>
+        For any feature file, read from imports to exported functions. Imports
+        show dependencies. Constants show policy values, such as expiry minutes,
+        retry limits, feature-gate defaults, provider names, or API paths. Type
+        declarations show the shape of data entering and leaving the file.
+        Helper functions usually normalize, validate, hash, format, or map data.
+        Exported functions, classes, and React components are the public
+        behavior of the file. Tests show what the authors considered important
+        enough to protect.
+      </p>
+      <pre>Code reading order:
+1. Directory name: which feature owns this file?
+2. Imports: what does this file depend on?
+3. Constants: what policy values does it encode?
+4. Types: what data shape does it accept and return?
+5. Helpers: what repeated behavior is hidden behind names?
+6. Main function/class/component: what business action happens?
+7. Repository/API calls: where does data go next?
+8. Errors: what can fail, and how is failure reported?
+9. Tests: what behavior is verified?</pre>
+
+      <h3>14.9 Example: Reading Authentication End To End</h3>
+      <p>
+        To understand authentication deeply, start in the sign-in page, then
+        move to <code>authApi.signIn()</code>, then the Redux thunk
+        <code>signInWithCredentials</code>, then the Axios client, then identity
+        routes, controller, validator, service, and repository. The key idea is
+        that the password is verified only on the server, the bearer token is
+        generated only on the server, the database stores the token hash, and
+        the browser stores only the raw token needed to call the API.
+      </p>
+      <p>
+        The same reading technique applies to every feature. Tender creation
+        starts in the create-tender UI, moves through procurement API helpers,
+        then server procurement routes, then validators, then service permission
+        checks, then repository writes to the procurement schema. Bidding starts
+        in supplier tender detail or bidding workspace, then moves through
+        bidding API helpers and bidding module services. Awarding starts in
+        evaluation or award recommendation screens, then moves through
+        award-contract action forms, role access, server validators, lifecycle
+        services, and contract schema records.
+      </p>
+
+      <h3>14.10 Testing As Code Explanation</h3>
+      <p>
+        Tests are part of the explanation of how features are used.
+        Authentication tests explain session creation, provider behavior, and
+        production restrictions. Procurement tests explain tender creation,
+        publish rules, saved tenders, document downloads, and permission checks.
+        Bidding tests explain supplier response behavior. Award-contract tests
+        explain lifecycle actions. Client tests explain which screens must
+        render, which route guards must block access, and which components must
+        respond to user actions. Seed tests explain how realistic datasets are
+        created for marketplace, evaluation, and awards.
+      </p>
+      <p>
+        Therefore, a complete academic reading of ProcureX should include tests
+        beside implementation files. The implementation file tells what the
+        system does. The test file tells what behavior the project currently
+        promises to preserve.
+      </p>
     </section>
 
     <section id="references" class="section">
-      <h2>13. References And Figures Used</h2>
+      <h2>15. References And Figures Used</h2>
       <p>
         This report was prepared from the implementation guide, repository
         structure, UI parity assets, backend module structure, Prisma database
         foundation, and screenshot capture workflow in the ProcureX workspace.
       </p>
 
-      <h3>13.1 Repository References</h3>
+      <h3>15.1 Repository References</h3>
       <ul>
         <li><code>procurement-platform/docs/architecture.md</code> - system implementation guide.</li>
-        <li><code>procurement-platform/docs/database.md</code> - database foundation notes.</li>
         <li><code>procurement-platform/docs/ui-parity/README.md</code> - UI parity workflow.</li>
         <li><code>procurement-platform/docs/ui-parity/routes.json</code> - prototype and React route mapping.</li>
         <li><code>procurement-platform/scripts/capture-ui-parity.mjs</code> - screenshot capture script.</li>
+        <li><code>procurement-platform/server/src/app.ts</code> - Express bootstrap, security middleware, health endpoint, and error handling.</li>
         <li><code>procurement-platform/server/src/modules/index.ts</code> - backend module registration.</li>
+        <li><code>procurement-platform/server/src/db/context.ts</code> - database context variables used for row-level security.</li>
+        <li><code>procurement-platform/server/prisma/sql/rls/001_app_context.sql</code> - PostgreSQL app-context helper functions.</li>
+        <li><code>procurement-platform/server/prisma/sql/rls/002_enable_rls.sql</code> - row-level security policy setup.</li>
         <li><code>procurement-platform/client/src/app/router.tsx</code> - production client routing.</li>
         <li><code>procurement-platform/server/prisma/schema.prisma</code> - database schema model.</li>
       </ul>
 
-      <h3>13.2 Figure Asset References</h3>
+      <h3>15.2 Figure Asset References</h3>
       <p>
         All screenshots are reference UI assets from:
       </p>

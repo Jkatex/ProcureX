@@ -4,6 +4,7 @@ import { useNotifications } from '@/features/notifications/hooks';
 import { notificationFromApiError } from '@/shared/api/errors';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
+import { displayTrustRiskLabel, riskLevelSummary, trustTierSummary } from '@/shared/trustRisk';
 import type { CreateNotificationInput } from '@/shared/types/notifications';
 import type { SessionUser } from '@/shared/types/domain';
 import { AdminCommandDrawer, AdminHero, AdminShell, AdminUndoBanner, displayLabel, exportCsv, formatDate, printAdminPage, useAdminCommand } from './AdminShared';
@@ -604,6 +605,21 @@ export function AdminUsersProcurexPage() {
                       <dt>Risk level</dt>
                       <dd>{selected.riskLevel}</dd>
                     </dl>
+                    <div className="auth-note">
+                      <strong>Trust:</strong> {trustTierSummary(selected.trustTier, selected.user.trustRisk?.reasons ?? selected.reviewReasons)}
+                      <br />
+                      <strong>Risk:</strong> {riskLevelSummary(selected.riskLevel, selected.screeningStatus)}
+                    </div>
+                    {selected.user.trustRisk?.history?.length ? (
+                      <div className="admin-timeline compact">
+                        {selected.user.trustRisk.history.map((entry) => (
+                          <div key={`${entry.createdAt}:${entry.nextTier}`}>
+                            <strong>{displayTrustRiskLabel(entry.nextTier)} / {displayTrustRiskLabel(entry.riskLevel)}</strong>
+                            <span>{entry.score} points - {entry.reasons.join(' ') || 'No additional reasons recorded.'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {selected.reviewReasons.length ? (
                       <div className="admin-timeline compact">
                         {selected.reviewReasons.map((reason) => (
@@ -695,7 +711,18 @@ function AccountRegistrySidebar({ open, selectedPlatformUser, onClose }: { open:
           <dd>{selectedPlatformUser.documents.length ? selectedPlatformUser.documents.join(', ') : 'No documents recorded'}</dd>
           <dt>Permissions</dt>
           <dd>{selectedPlatformUser.permissions.length ? selectedPlatformUser.permissions.join(', ') : 'Default permissions'}</dd>
+          <dt>Trust tier</dt>
+          <dd>{displayTrustRiskLabel(selectedPlatformUser.trustTier)}</dd>
+          <dt>Risk level</dt>
+          <dd>{displayTrustRiskLabel(selectedPlatformUser.riskLevel)}</dd>
+          <dt>Screening</dt>
+          <dd>{displayTrustRiskLabel(selectedPlatformUser.screeningStatus)}</dd>
         </dl>
+        <div className="auth-note">
+          <strong>Trust:</strong> {trustTierSummary(selectedPlatformUser.trustTier, selectedPlatformUser.trustRisk?.reasons)}
+          <br />
+          <strong>Risk:</strong> {riskLevelSummary(selectedPlatformUser.riskLevel, selectedPlatformUser.screeningStatus)}
+        </div>
         <div className="admin-timeline compact">
           {selectedPlatformUser.timeline.map((item) => (
             <div key={`${item.label}:${item.at}`}>

@@ -16,6 +16,22 @@ export type SessionUser = {
   riskLevel?: RiskLevel;
   featureGates?: FeatureGateMap;
   screeningStatus?: ScreeningStatus;
+  trustRisk?: {
+    trustTier: TrustTier;
+    riskLevel: RiskLevel;
+    screeningStatus: ScreeningStatus;
+    score: number | null;
+    reasons: string[];
+    assessedAt: string | null;
+    history: Array<{
+      previousTier?: TrustTier | null;
+      nextTier: TrustTier;
+      riskLevel: RiskLevel;
+      score: number;
+      reasons: string[];
+      createdAt: string;
+    }>;
+  };
   preferences?: {
     preferredLanguage: 'en' | 'sw';
     timezone: string;
@@ -46,6 +62,7 @@ export type Tender = {
   hasDraftBid?: boolean;
   hasSubmittedBid?: boolean;
   isSaved?: boolean;
+  visibility?: 'PUBLIC_MARKETPLACE' | 'INVITED' | 'PRIVATE' | string;
   categories: string[];
 };
 

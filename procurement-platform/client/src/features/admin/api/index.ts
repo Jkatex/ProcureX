@@ -30,6 +30,7 @@ export type AdminUser = {
   trustTier: string;
   riskLevel: string;
   screeningStatus: string;
+  trustRisk?: SessionUser['trustRisk'];
   permissions: string[];
   documents: string[];
   timeline: Array<{ label: string; at: string; detail: string }>;

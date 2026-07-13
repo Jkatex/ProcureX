@@ -30,6 +30,7 @@
     "db:seed": "npm --workspace server run db:seed",
     "db:seed:evaluation-intake-demo": "npm --workspace server run db:seed:evaluation-intake-demo",
     "db:seed:marketplace-demo": "npm --workspace server run db:seed:marketplace-demo",
+    "db:seed:award-ready-demo": "npm --workspace server run db:seed:award-ready-demo",
     "db:seed:awards-demo": "npm --workspace server run db:seed:award-contract-demo",
     "db:cleanup:demo-admin": "npm --workspace server run db:cleanup:demo-admin",
     "db:seed:twice": "npm --workspace server run db:seed:twice"

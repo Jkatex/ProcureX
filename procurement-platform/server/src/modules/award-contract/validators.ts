@@ -85,6 +85,20 @@ export const contractQuerySchema = z
 
 export const awardDecisionBodySchema = z
   .object({
+    selectedSupplier: z.string().trim().max(240).optional(),
+    awardAmount: z.coerce.number().finite().nonnegative().optional(),
+    currency: z.string().trim().min(3).max(3).optional(),
+    awardDate: z.string().trim().date().optional(),
+    reason: z.string().trim().max(4000).optional(),
+    conditions: z.string().trim().max(4000).optional(),
+    confirmationBy: z.string().trim().max(160).optional(),
+    confirmations: z
+      .object({
+        evaluationReviewed: z.boolean().optional(),
+        documentsReviewed: z.boolean().optional(),
+        authorityConfirmed: z.boolean().optional()
+      })
+      .optional(),
     note: optionalNote
   })
   .strict();
@@ -643,7 +657,7 @@ export const supplierRiskProfileBodySchema = z
     supplierOrgId: uuidSchema.optional(),
     riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional().default('MEDIUM'),
     riskScore: z.coerce.number().int().min(0).max(100).optional().default(50),
-    trustTier: z.string().trim().min(1).max(80).optional().default('UNVERIFIED'),
+    trustTier: z.enum(['UNVERIFIED', 'VERIFIED', 'BRONZE', 'SILVER', 'GOLD']).optional().default('UNVERIFIED'),
     activeAlerts: z.coerce.number().int().min(0).optional().default(0),
     openViolations: z.coerce.number().int().min(0).optional().default(0),
     summary: z.string().trim().max(2000).optional().default(''),

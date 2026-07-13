@@ -6,7 +6,6 @@ import type { DashboardQuery } from './types.js';
 describe('dashboard module', () => {
   it('normalizes workspace dashboard query defaults', () => {
     expect(dashboardQuerySchema.parse({})).toEqual({
-      organizationId: '',
       deadlineWindowDays: 90,
       itemLimit: 8
     });

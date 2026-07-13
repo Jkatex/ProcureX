@@ -10,6 +10,8 @@ export function createModuleRouter() {
 
   router.get('/recommendations', controller.listRecommendations);
   router.get('/recommendations/:id', controller.recommendation);
+  router.get('/recommendations/:id/evaluation-report', controller.evaluationReport);
+  router.patch('/recommendations/:id/draft', controller.saveAwardDecisionDraft);
   router.post('/recommendations/:id/approve', controller.approveRecommendation);
   router.post('/recommendations/:id/return', controller.returnRecommendation);
   router.put('/recommendations/:id/approval-route', controller.upsertAwardApprovalRoute);

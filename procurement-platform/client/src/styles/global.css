@@ -919,6 +919,7 @@
   margin: 0;
   color: #536579;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .procurex-notification-copy p {

@@ -339,6 +339,8 @@ export type AwardRecommendationDetailDto = AwardRecommendationListItemDto & {
   awardGroupId: string | null;
   access: WorkflowAccessDto;
   reason: string;
+  payload: Record<string, unknown>;
+  sourceDocuments: AwardSourceDocumentDto[];
   awardGroup: AwardGroupDto;
   notice: AwardNoticeDto | null;
   contract: ContractDetailDto | null;
@@ -356,6 +358,19 @@ export type AwardRecommendationDetailDto = AwardRecommendationListItemDto & {
     decidedAt: string | null;
   }>;
   audit: AuditEventDto[];
+};
+
+export type AwardSourceDocumentDto = {
+  id: string;
+  sourceType: 'tender' | 'bid' | 'evaluation-report';
+  documentId: string | null;
+  label: string;
+  name: string;
+  status: string;
+  supplierName?: string | null;
+  bidId?: string | null;
+  openUrl: string;
+  downloadUrl: string;
 };
 
 export type ContractDetailDto = ContractListItemDto & {
@@ -418,9 +433,23 @@ export type ListContractsResponseDto = {
   totalPages: number;
 };
 
-export type AwardDecisionInput = {
+export type AwardDecisionDraftInput = {
+  selectedSupplier?: string;
+  awardAmount?: number;
+  currency?: string;
+  awardDate?: string;
+  reason?: string;
+  conditions?: string;
+  confirmationBy?: string;
+  confirmations?: {
+    evaluationReviewed?: boolean;
+    documentsReviewed?: boolean;
+    authorityConfirmed?: boolean;
+  };
   note: string;
 };
+
+export type AwardDecisionInput = AwardDecisionDraftInput;
 
 export type AwardNoticeResponseInput = {
   action: AwardResponseAction;

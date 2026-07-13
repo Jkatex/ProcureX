@@ -19,22 +19,23 @@ function apiStatus(error: unknown) {
 function rawApiMessage(error: unknown) {
   if (typeof error === 'string') return error;
   const axiosError = error as AxiosError<ApiErrorBody>;
-  return axiosError.response?.data?.message || axiosError.message || '';
+  return axiosError.response?.data?.message || axiosError.response?.data?.error || axiosError.message || '';
 }
 
 function isNetworkUnavailable(message: string) {
   return /network|timeout|failed to fetch|load failed|ECONN|ENOTFOUND|ERR_NETWORK|can't reach/i.test(message);
 }
 
-export function apiErrorMessage(error: unknown, fallback = 'Request failed.') {
-  return rawApiMessage(error) || fallback;
+export function apiErrorMessage(_error: unknown, fallback = 'Request failed.') {
+  return fallback;
 }
 
 export function notificationFromApiError(error: unknown, context: ApiErrorNotificationContext = {}): CreateNotificationInput {
   const status = apiStatus(error);
-  const message = apiErrorMessage(error, context.fallback ?? 'Request failed.');
-  const title = context.title ?? titleForStatus(status, message);
-  const mapped = errorGuidance(status, message);
+  const rawMessage = rawApiMessage(error);
+  const message = context.fallback ?? 'Request failed.';
+  const title = context.title ?? titleForStatus(status, rawMessage);
+  const mapped = errorGuidance(status, rawMessage);
 
   return {
     tone: mapped.tone,
@@ -70,7 +71,7 @@ function titleForStatus(status: number | undefined, message: string) {
   if (status === 401) return 'Session expired';
   if (status === 403) return 'Action blocked';
   if (status === 429) return 'Too many attempts';
-  if (status && status >= 500) return 'Server problem';
+  if (status && status >= 500) return 'Service problem';
   return 'Something went wrong';
 }
 
@@ -129,7 +130,7 @@ function errorGuidance(status: number | undefined, message: string): Pick<Create
   if (status && status >= 500) {
     return {
       tone: 'error',
-      reason: 'The server could not complete the request.'
+      reason: 'ProcureX could not complete this request.'
     };
   }
 

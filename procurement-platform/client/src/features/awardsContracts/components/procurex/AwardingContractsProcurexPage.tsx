@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
-import { awardQueueLabels, summaryCards } from '../../fixtures';
+import { awardQueueLabels } from '../../fixtures';
 import { awardsContractsApi } from '../../api';
 import type { AwardContractDashboard, AwardQueueId, LifecycleAction } from '../../types';
 import {
@@ -205,7 +205,7 @@ export function AwardingContractsProcurexPage() {
             copy="Your company can be a buyer on tenders you created and a supplier on tenders you won. Both roles are shown below with clear next actions."
             stats={[
               { value: summary.urgentActions, label: 'Urgent actions' },
-              { value: summary.awardQueues, label: 'Award queues' },
+              { value: summary.awardQueues, label: 'Awards' },
               { value: summary.contractActions, label: 'Contract actions' }
             ]}
           />
@@ -232,30 +232,6 @@ export function AwardingContractsProcurexPage() {
 
           {!isLoading && !loadError ? (
             <>
-              <section className="procurement-panel evaluation-panel award-role-context-panel">
-                <h2>Role context</h2>
-                <p>Buyer rows are tenders your organization created. Supplier rows are awards your organization won from another buyer.</p>
-              </section>
-
-              <section className="awarding-summary-grid">
-                {summaryCards.map((item) => (
-                  <button
-                    className="awarding-summary-card"
-                    type="button"
-                    data-awarding-tab-jump={item.queue}
-                    data-route-search={`queue=${item.queue}`}
-                    aria-label={`Go to ${awardQueueLabels[item.queue]} tab`}
-                    onClick={() => jumpToQueue(item.queue)}
-                    key={item.queue}
-                  >
-                    <span className="summary-trend" aria-hidden="true">{item.trend}</span>
-                    <strong>{queues[item.queue].length}</strong>
-                    <span>{item.label} <em className="summary-view">View</em></span>
-                    <em>{item.detail}</em>
-                  </button>
-                ))}
-              </section>
-
               <section className="procurement-panel evaluation-panel awarding-tabs-panel">
                 <div className="panel-heading">
                   <div>

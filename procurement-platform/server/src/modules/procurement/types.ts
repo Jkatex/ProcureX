@@ -371,6 +371,7 @@ export type MarketplaceTenderRow = {
   location: string;
   budget: number;
   status: string;
+  visibility: string;
   reference: string;
   publishedAt: string;
   closingDate: string;
@@ -680,6 +681,11 @@ export type TenderDetailDto = {
     submitted: number;
     withdrawn: number;
   };
+  submittedBidBusinesses: Array<{
+    id: string;
+    name: string;
+    submittedAt: string | null;
+  }>;
   currentBid: {
     id: string;
     reference: string;

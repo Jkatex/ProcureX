@@ -4,15 +4,21 @@ import { createEmptyTenderDraft } from '../createTenderConfig';
 import { mergeSessionMarketplaceData, procurementApi } from '.';
 import type { MarketplacePayload } from '../types';
 
-describe('procurementApi tender detail fallback', () => {
+describe('procurementApi runtime data access', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('does not return the first fixture when a requested tender id is missing', async () => {
+  it('does not return fixture tenders when tender detail cannot be loaded', async () => {
     vi.spyOn(apiClient, 'get').mockRejectedValue(new Error('offline'));
 
-    await expect(procurementApi.getTenderDetail('session-draft-178333411768')).rejects.toThrow('Tender not found');
+    await expect(procurementApi.getTenderDetail('session-draft-178333411768')).rejects.toThrow('offline');
+  });
+
+  it('does not return fixture marketplace data when marketplace cannot be loaded', async () => {
+    vi.spyOn(apiClient, 'get').mockRejectedValue(new Error('offline'));
+
+    await expect(procurementApi.getMarketplace()).rejects.toThrow('offline');
   });
 
   it('normalizes backend marketplace rows with singular category for the React UI', async () => {
@@ -118,5 +124,6 @@ describe('procurementApi tender detail fallback', () => {
     expect(result.tenders[0].id).toBe('11111111-1111-4111-8111-111111111111');
     expect(result.myTenders[0].nav).toBe('/procurement/tender-details?tenderId=11111111-1111-4111-8111-111111111111');
     expect(result.myTenders[0].nav).not.toContain('session-');
+    expect(result.myTenders[0].actionLabel).toBe('View tender');
   });
 });

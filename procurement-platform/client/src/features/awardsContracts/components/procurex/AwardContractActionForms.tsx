@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { editableTrustTierValues } from '@/shared/trustRisk';
 import type { PickerOption } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
 import { actionDefinitionForTitle } from './AwardContractActionCatalogue';
-import { FlowChangeAlert, clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlow';
+import { clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlow';
+import { notifyAward } from './AwardContractSimpleShared';
 import { canUseWorkflowOwner, inferActionOwner, LockedWorkflowPanel, ownerLockedReason, useAwardContractAccess } from './AwardContractRoleAccess';
 
 export type FieldOption = {
@@ -14,6 +16,7 @@ export type FieldOption = {
 
 export type AwardContractFieldKind =
   | 'text'
+  | 'password'
   | 'textarea'
   | 'select'
   | 'number'
@@ -103,6 +106,7 @@ export const terminationStatusOptions = [
   'CLOSED'
 ].map((value) => option(value));
 export const riskLevelOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => option(value));
+export const trustTierOptions = editableTrustTierValues.map((value) => option(value));
 
 export function option(value: string, label = displayLabel(value)): FieldOption {
   return { value, label };
@@ -402,7 +406,7 @@ export function ActionFormPanel({
   const counts = formCounts(fields);
   const fieldsBySection = useMemo(() => {
     const grouped = new Map<string, AwardContractFieldConfig[]>();
-    for (const field of fields.filter((entry) => !isTechnicalField(entry))) {
+    for (const field of fields.filter((entry) => !isTechnicalField(entry) || fieldSection(entry) === 'payload')) {
       const section = fieldSection(field);
       grouped.set(section, [...(grouped.get(section) ?? []), field]);
     }
@@ -428,6 +432,7 @@ export function ActionFormPanel({
     const next = buildAwardContractPayload(fields, values);
     if (next.errors.length > 0) {
       setMessage(next.errors[0]);
+      notifyAward('warning', 'Complete required fields', next.errors[0]);
       return;
     }
     setSaving(true);
@@ -435,11 +440,14 @@ export function ActionFormPanel({
     try {
       const result = await onSubmit(next.payload, values);
       setMessage(`${title} saved.`);
+      notifyAward('success', `${title} saved`, 'Your changes were saved to the award and contract record.');
       onComplete?.(result);
       clearAwardContractDirtyWork();
       setSelected(false);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : `${title} could not be saved.`);
+      const errorMessage = error instanceof Error ? error.message : `${title} could not be saved.`;
+      setMessage(errorMessage);
+      notifyAward('error', `${title} could not be saved`, errorMessage);
     } finally {
       setSaving(false);
     }
@@ -471,7 +479,6 @@ export function ActionFormPanel({
           </button>
         </div>
       </div>
-      {message ? <FlowChangeAlert message={message} /> : null}
       {selected ? (
         <form className="award-action-form award-action-form-inline" aria-labelledby={formTitleId} noValidate onSubmit={submit}>
           <div className="award-inline-form-heading">
@@ -659,7 +666,7 @@ function AwardContractField({
     );
   }
 
-  const type = field.kind === 'number' ? 'number' : field.kind === 'date' ? 'date' : field.kind === 'datetime' ? 'datetime-local' : 'text';
+  const type = field.kind === 'number' ? 'number' : field.kind === 'date' ? 'date' : field.kind === 'datetime' ? 'datetime-local' : field.kind === 'password' ? 'password' : 'text';
   return (
     <label className="award-form-field" htmlFor={id}>
       <span>{label}</span>

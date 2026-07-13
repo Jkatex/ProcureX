@@ -5,7 +5,7 @@ import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { NotificationCard } from '@/shared/components/NotificationCard';
-import { notificationFromApiError } from '@/shared/api/errors';
+import { apiErrorMessage, notificationFromApiError } from '@/shared/api/errors';
 import notificationsReducer, { enqueueNotification } from './slice';
 import { NotificationToastHost } from './NotificationToastHost';
 
@@ -39,7 +39,7 @@ describe('ProcureX notification cards', () => {
             tone: 'error',
             title: 'Action failed',
             message: 'Could not save profile.',
-            reason: 'The server could not complete the request.',
+            reason: 'ProcureX could not complete this request.',
             action: { label: 'Try again' },
             dismissible: true
           }}
@@ -50,7 +50,7 @@ describe('ProcureX notification cards', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Action failed');
     expect(screen.getByRole('alert').closest('.procurex-toast-host')).toBeNull();
-    expect(screen.getByText('The server could not complete the request.')).toBeInTheDocument();
+    expect(screen.getByText('ProcureX could not complete this request.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Dismiss notification' }));
@@ -119,11 +119,13 @@ describe('ProcureX notification cards', () => {
   it('maps common API errors to reasons without generic retry actions', () => {
     expect(notificationFromApiError({ response: { status: 429, data: { message: 'Please wait.' } } })).toMatchObject({
       tone: 'warning',
+      message: 'Request failed.',
       reason: 'This action was attempted too many times in a short period.',
       action: undefined
     });
     expect(notificationFromApiError({ response: { status: 401, data: { message: 'Session invalid.' } } })).toMatchObject({
       tone: 'warning',
+      message: 'Request failed.',
       reason: 'Your session is no longer valid for this request.',
       action: { label: 'Sign in again', to: '/sign-in' }
     });
@@ -131,6 +133,16 @@ describe('ProcureX notification cards', () => {
       tone: 'error',
       reason: 'ProcureX could not reach the service needed for this action.',
       action: undefined
+    });
+  });
+
+  it('keeps backend error text out of user-facing API messages', () => {
+    const error = { response: { status: 400, data: { message: 'Raw backend validation detail.' } } };
+
+    expect(apiErrorMessage(error, 'Could not save profile.')).toBe('Could not save profile.');
+    expect(notificationFromApiError(error, { fallback: 'Could not save profile.' })).toMatchObject({
+      message: 'Could not save profile.',
+      reason: 'Some submitted information is incomplete or invalid.'
     });
   });
 });

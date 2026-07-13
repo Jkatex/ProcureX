@@ -85,6 +85,7 @@ function tenderDetailInclude() {
         id: true,
         reference: true,
         supplierOrgId: true,
+        supplierOrg: { select: { id: true, name: true } },
         status: true,
         submittedAt: true,
         receipt: { select: { receiptHash: true } }
@@ -1584,6 +1585,7 @@ function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, context: Market
     location: tender.location || 'Tanzania',
     budget: decimalToNumber(tender.budget),
     status: frontendTenderStatus(tender.status),
+    visibility: tender.visibility,
     reference: tender.reference,
     publishedAt: tender.publishedAt?.toISOString() ?? '',
     closingDate: dateOnly(tender.closingDate),
@@ -1598,15 +1600,16 @@ function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, context: Market
 
 function toMyTenderRow(tender: MarketplaceTenderRecord, context: MarketplaceTenderRowContext = {}): MyTenderRow {
   const section = myTenderSection(tender.status);
+  const status = myTenderWorkspaceStatus(tender);
   return {
     id: tender.id,
     section,
     title: tender.title,
-    status: frontendTenderStatus(tender.status),
+    status,
     type: frontendTenderType(tender.type),
     lastActivity: tender.updatedAt.toISOString(),
-    nav: section === 'draft' ? '/procurement/create-tender' : `/procurement/tender-details?tenderId=${tender.id}`,
-    actionLabel: section === 'draft' ? 'Continue Draft' : section === 'completed' ? 'View Record' : 'View My Tender',
+    nav: myTenderWorkspaceRoute(tender, section, status),
+    actionLabel: myTenderWorkspaceActionLabel(section, status),
     tender: toMarketplaceTenderRow(tender, context)
   };
 }
@@ -1915,6 +1918,15 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     submitted: tender.bids.filter((bid) => isSubmittedBidStatus(bid.status)).length,
     withdrawn: tender.bids.filter((bid) => bid.status === BidStatus.WITHDRAWN).length
   };
+  const submittedBidBusinesses = ownedByCurrentOrganization
+    ? tender.bids
+        .filter((bid) => isSubmittedBidStatus(bid.status))
+        .map((bid) => ({
+          id: bid.supplierOrg.id,
+          name: bid.supplierOrg.name,
+          submittedAt: bid.submittedAt?.toISOString() ?? null
+        }))
+    : [];
 
   return {
     id: tender.id,
@@ -1973,6 +1985,7 @@ function toTenderDetailDto(tender: TenderDetailRecord, context: MarketplaceConte
     hasDraftBid,
     hasSubmittedBid,
     bidSummary: ownedByCurrentOrganization ? summary : { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+    submittedBidBusinesses,
     currentBid: currentBid
       ? {
           id: currentBid.id,
@@ -2142,6 +2155,25 @@ function frontendBidStatus(status: unknown) {
   return titleCaseLabel(value);
 }
 
+function myTenderWorkspaceStatus(tender: MarketplaceTenderRecord) {
+  const reviewStatus = normalizeLabel(adminReviewPayload(tender.metadata).status);
+  if (reviewStatus === 'FAILED') return 'Failed Review';
+  if (normalizeLabel(tender.status) === 'REVIEW') return 'Awaiting Review';
+  return frontendTenderStatus(tender.status);
+}
+
+function myTenderWorkspaceRoute(tender: MarketplaceTenderRecord, section: MyTenderRow['section'], status: string) {
+  if (isFailedReviewStatus(status) || section === 'draft') return amendTenderRoute(tender.id);
+  return viewTenderRoute(tender.id);
+}
+
+function myTenderWorkspaceActionLabel(section: MyTenderRow['section'], status: string) {
+  if (isFailedReviewStatus(status)) return 'Amend tender';
+  if (isAwaitingReviewStatus(status)) return 'Awaiting review';
+  if (section === 'draft') return 'Continue creating';
+  return 'View tender';
+}
+
 function frontendTenderType(type: unknown) {
   const value = normalizeLabel(type);
   if (value === 'GOODS') return 'Goods';
@@ -2149,6 +2181,15 @@ function frontendTenderType(type: unknown) {
   if (value === 'SERVICE' || value === 'SERVICES' || value === 'NON_CONSULTANCY' || value === 'NON_CONSULTANCY_SERVICES') return 'Non Consultancy';
   if (value === 'CONSULTANCY') return 'Consultancy';
   return titleCaseLabel(value);
+}
+
+function isFailedReviewStatus(status: string) {
+  return normalizeLabel(status) === 'FAILED_REVIEW' || normalizeLabel(status) === 'FAILED';
+}
+
+function isAwaitingReviewStatus(status: string) {
+  const value = normalizeLabel(status);
+  return value === 'AWAITING_REVIEW' || value === 'UNDER_REVIEW' || value === 'REVIEW_PENDING';
 }
 
 function myTenderSection(status: unknown): MyTenderRow['section'] {

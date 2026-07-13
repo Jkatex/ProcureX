@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppSelector } from '@/app/store';
-import { procurementApi } from './api';
+import { mergeSessionMarketplaceData, procurementApi } from './api';
 import type { MarketplacePayload, TenderDetail } from './types';
 
 export function useTenders() {
@@ -11,16 +11,23 @@ export function useMarketplaceData() {
   const [data, setData] = useState<MarketplacePayload | null>(null);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const user = useAppSelector((state) => state.auth.user);
+  const createTenderDrafts = useAppSelector((state) => state.procurement.createTenderDrafts);
+  const publishedTenders = useAppSelector((state) => state.procurement.publishedTenders);
 
   useEffect(() => {
     let isMounted = true;
 
     setStatus('loading');
+    Promise.resolve(procurementApi.getMarketplace(user))
     procurementApi
-      .getMarketplace(user)
+      .getMarketplace()
       .then((payload) => {
         if (!isMounted) return;
-        setData(payload);
+        if (!payload) {
+          setStatus('error');
+          return;
+        }
+        setData(mergeSessionMarketplaceData(payload, createTenderDrafts, publishedTenders, user?.organization));
         setStatus('success');
       })
       .catch(() => {
@@ -31,7 +38,7 @@ export function useMarketplaceData() {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [createTenderDrafts, publishedTenders, user]);
 
   return {
     data,
@@ -54,10 +61,13 @@ export function useTenderDetail(tenderId: string | null) {
 
     let isMounted = true;
     setStatus('loading');
-    procurementApi
-      .getTenderDetail(tenderId)
+    Promise.resolve(procurementApi.getTenderDetail(tenderId))
       .then((payload) => {
         if (!isMounted) return;
+        if (!payload) {
+          setStatus('error');
+          return;
+        }
         setData(payload);
         setStatus('success');
       })

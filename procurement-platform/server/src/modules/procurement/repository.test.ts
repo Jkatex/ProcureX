@@ -18,7 +18,7 @@ describe('procurement public welcome repository', () => {
 
     expect(db.tender.count).toHaveBeenCalledWith({
       where: expect.objectContaining({
-        status: TenderStatus.OPEN,
+        status: { in: [TenderStatus.OPEN] },
         visibility: Visibility.PUBLIC_MARKETPLACE,
         closingDate: { gt: expect.any(Date) }
       })
@@ -26,7 +26,7 @@ describe('procurement public welcome repository', () => {
     expect(db.tender.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          status: TenderStatus.OPEN,
+          status: { in: [TenderStatus.OPEN] },
           visibility: Visibility.PUBLIC_MARKETPLACE,
           closingDate: { gt: expect.any(Date) }
         }),
@@ -141,6 +141,7 @@ describe('procurement marketplace repository', () => {
         location: 'Dar es Salaam',
         budget: 250000000,
         status: 'Open',
+        visibility: Visibility.PUBLIC_MARKETPLACE,
         reference: 'PX-2026-001',
         publishedAt: '2026-07-01T08:00:00.000Z',
         closingDate: '2026-08-30',
@@ -172,7 +173,8 @@ describe('procurement marketplace repository', () => {
         'reference',
         'status',
         'title',
-        'type'
+        'type',
+        'visibility'
       ].sort()
     );
     expect(payload.myTenders).toMatchObject([
@@ -182,8 +184,8 @@ describe('procurement marketplace repository', () => {
         title: 'Draft road maintenance tender',
         status: 'Draft',
         type: 'Works',
-        nav: '/procurement/create-tender',
-        actionLabel: 'Continue Draft'
+        nav: '/procurement/create-tender?tenderId=tender-2',
+        actionLabel: 'Continue creating'
       }
     ]);
     expect(payload.myTenders[0].tender.createdByCurrentUser).toBe(true);
@@ -250,6 +252,73 @@ describe('procurement marketplace repository', () => {
         })
       })
     );
+  });
+
+  it('lists passed-review public open tenders for all users and in the creator workspace only for the owner organization', async () => {
+    const ownerOrgId = 'buyer-org-1';
+    const supplierOrgId = 'supplier-org-1';
+    const passedTender = tenderDetailRecord({
+      id: 'passed-public-tender',
+      reference: 'PX-PASS-2026-001',
+      buyerOrgId: ownerOrgId,
+      ownerUserId: 'owner-user-1',
+      title: 'Passed Public Tender',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      closingDate: new Date('2026-08-30T00:00:00.000Z'),
+      buyerOrg: { id: ownerOrgId, name: 'Buyer Authority' },
+      categories: [{ name: 'Goods' }]
+    });
+    const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
+    const db = {
+      tender: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([passedTender])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([passedTender])
+          .mockResolvedValueOnce([passedTender])
+      },
+      bid: {
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const supplierPayload = await repository.getMarketplaceData({ organizationId: supplierOrgId, userId: 'supplier-user-1' }, query);
+    const ownerPayload = await repository.getMarketplaceData({ organizationId: ownerOrgId, userId: 'owner-user-1' }, query);
+
+    expect(supplierPayload.tenders).toMatchObject([
+      {
+        id: 'passed-public-tender',
+        status: 'Open',
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        ownedByCurrentOrganization: false,
+        canBid: true
+      }
+    ]);
+    expect(supplierPayload.myTenders).toEqual([]);
+    expect(ownerPayload.tenders).toMatchObject([
+      {
+        id: 'passed-public-tender',
+        status: 'Open',
+        visibility: Visibility.PUBLIC_MARKETPLACE,
+        ownedByCurrentOrganization: true,
+        canBid: false
+      }
+    ]);
+    expect(ownerPayload.myTenders).toMatchObject([
+      {
+        id: 'passed-public-tender',
+        status: 'Open',
+        actionLabel: 'View tender',
+        nav: '/procurement/tender-details?tenderId=passed-public-tender'
+      }
+    ]);
   });
 
   it('scopes my tenders to the authenticated buyer organization', async () => {
@@ -1643,7 +1712,8 @@ describe('procurement tender write repository', () => {
         'reference',
         'status',
         'title',
-        'type'
+        'type',
+        'visibility'
       ].sort()
     );
   });
@@ -1720,6 +1790,7 @@ describe('procurement tender detail repository', () => {
         'requirementRows',
         'requirements',
         'status',
+        'submittedBidBusinesses',
         'title',
         'type',
         'visibility'

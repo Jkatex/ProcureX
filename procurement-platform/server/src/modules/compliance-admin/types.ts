@@ -275,6 +275,22 @@ export type AdminUserDto = {
   trustTier: string;
   riskLevel: string;
   screeningStatus: string;
+  trustRisk: {
+    trustTier: string;
+    riskLevel: string;
+    screeningStatus: string;
+    score: number | null;
+    reasons: string[];
+    assessedAt: string | null;
+    history: Array<{
+      previousTier?: string | null;
+      nextTier: string;
+      riskLevel: string;
+      score: number;
+      reasons: string[];
+      createdAt: string;
+    }>;
+  };
   permissions: string[];
   documents: string[];
   timeline: Array<{ label: string; at: string; detail: string }>;
