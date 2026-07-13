@@ -448,6 +448,25 @@ describe('procurement marketplace repository', () => {
       closingDate: new Date('2026-08-15T00:00:00.000Z'),
       categories: [{ name: 'Civil works' }]
     });
+    const requirementsMatchedCandidate = tenderDetailRecord({
+      id: 'requirements-matched-candidate',
+      reference: 'PX-REQ-001',
+      title: 'Specialist eligibility framework',
+      description: 'Advisory support for standards mapping.',
+      type: TenderType.CONSULTANCY,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      location: 'Mwanza',
+      closingDate: new Date('2026-08-18T00:00:00.000Z'),
+      categories: [{ name: 'Professional services' }],
+      requirements: {
+        certification: 'Medical device compliance certificate',
+        scope: 'Laboratory diagnostics support'
+      },
+      metadata: {
+        supplierClassification: 'Medical equipment supplier'
+      }
+    });
     const invitedCandidate = tenderDetailRecord({
       id: 'invited-cleaning-candidate',
       reference: 'PX-INV-001',
@@ -493,7 +512,7 @@ describe('procurement marketplace repository', () => {
         findMany: vi.fn(({ where }) => {
           if (where?.visibility === Visibility.INVITED) return Promise.resolve([invitedCandidate]);
           if (where?.buyerOrgId) return Promise.resolve([]);
-          return Promise.resolve([savedWorksCandidate, healthCandidate]);
+          return Promise.resolve([savedWorksCandidate, healthCandidate, requirementsMatchedCandidate]);
         })
       },
       bid: {
@@ -533,7 +552,8 @@ describe('procurement marketplace repository', () => {
     expect(recommendedIds).toEqual(expect.arrayContaining([
       'invited-cleaning-candidate',
       'health-candidate',
-      'saved-works-candidate'
+      'saved-works-candidate',
+      'requirements-matched-candidate'
     ]));
     expect(recommendedIds.indexOf('health-candidate')).toBeLessThan(recommendedIds.indexOf('saved-works-candidate'));
     expect(payload.recommendedTenders.find((tender) => tender.id === 'invited-cleaning-candidate')).toMatchObject({

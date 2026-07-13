@@ -90,8 +90,12 @@ function TenderReviewQueuePage() {
 
       <section className="admin-tender-review-queue-panel">
         <div className="admin-tender-review-queue-header">
-          <strong>Review queue</strong>
-          <span>{queue.total} awaiting review</span>
+          <strong>
+            <span className="admin-tender-review-count-badge" aria-label={`${queue.total} tenders in review queue`}>
+              {queue.total}
+            </span>
+            Review queue
+          </strong>
         </div>
         <form className="admin-tender-review-toolbar" onSubmit={submitSearch}>
           <input
@@ -270,9 +274,8 @@ function TenderReviewDetailView({
 
   return (
     <div className="admin-tender-review-detail">
-      <div className="admin-tender-review-summary">
+      <div className="admin-tender-review-summary admin-tender-review-detail-summary">
         <div><span>Buyer</span><strong>{tender.buyerName}</strong></div>
-        <div><span>Owner</span><strong>{tender.ownerName ?? 'Not assigned'}</strong></div>
         <div><span>Type</span><strong>{tender.type}</strong></div>
         <div><span>Budget</span><strong>{formatMoney(tender.budget, tender.currency)}</strong></div>
         <div><span>Location</span><strong>{tender.location || 'Tanzania'}</strong></div>

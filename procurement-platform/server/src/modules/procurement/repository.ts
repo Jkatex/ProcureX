@@ -1689,7 +1689,9 @@ function marketplaceTextValues(tender: MarketplaceTenderRecord) {
     tender.reference,
     tender.buyerOrg.name,
     tender.location,
-    ...marketplaceCategoryValues(tender)
+    ...marketplaceCategoryValues(tender),
+    ...tenderPayloadSignalValues(tender.requirements),
+    ...tenderPayloadSignalValues(tender.metadata)
   ];
 }
 
@@ -1869,8 +1871,34 @@ function tenderRecommendationTerms(tender: MarketplaceTenderRecord) {
     frontendTenderType(tender.type),
     marketplaceCategory(tender),
     ...marketplaceCategoryValues(tender),
-    ...marketplaceCategoryValues(tender).flatMap((category) => categorySearchTerms(category))
+    ...marketplaceCategoryValues(tender).flatMap((category) => categorySearchTerms(category)),
+    ...tenderPayloadSignalValues(tender.requirements),
+    ...tenderPayloadSignalValues(tender.metadata)
   ]);
+}
+
+function tenderPayloadSignalValues(value: unknown): unknown[] {
+  const values: unknown[] = [];
+  collectTenderPayloadValues(value, values);
+  return values;
+}
+
+function collectTenderPayloadValues(value: unknown, values: unknown[]) {
+  if (value === null || value === undefined) return;
+  if (typeof value === 'string' || typeof value === 'number') {
+    values.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectTenderPayloadValues(item, values);
+    return;
+  }
+  if (typeof value === 'object') {
+    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) {
+      values.push(childKey);
+      collectTenderPayloadValues(childValue, values);
+    }
+  }
 }
 
 function profilePayloadSignalValues(value: unknown): unknown[] {

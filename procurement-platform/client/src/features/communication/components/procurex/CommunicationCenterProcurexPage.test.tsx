@@ -200,9 +200,12 @@ describe('CommunicationCenterProcurexPage', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
 
+    vi.mocked(window.open).mockReturnValueOnce(null);
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'open'));
     expect(window.open).toHaveBeenCalledWith('blob:attachment', '_blank', 'noopener,noreferrer');
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Check that popups are allowed'));
 
     await userEvent.click(screen.getByRole('button', { name: 'Download' }));
     await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'download'));
@@ -249,6 +252,7 @@ describe('CommunicationCenterProcurexPage', () => {
     ]);
     expect(screen.getByText('report.pdf')).toBeInTheDocument();
     expect(screen.getByText('site-photo.png')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Ready')).toHaveLength(2));
     expect(await screen.findByRole('option', { name: 'PX-2026-001' })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
@@ -258,6 +262,7 @@ describe('CommunicationCenterProcurexPage', () => {
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification request' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the meeting location.' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send Message' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
 
     await waitFor(() => expect(composeMessage).toHaveBeenCalledTimes(2));

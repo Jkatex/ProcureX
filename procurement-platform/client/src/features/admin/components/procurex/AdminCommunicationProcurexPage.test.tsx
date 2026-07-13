@@ -278,6 +278,7 @@ describe('AdminCommunicationProcurexPage', () => {
     expect(screen.getByRole('button', { name: /Remove Tanzania Ports Authority/i })).toBeInTheDocument();
     await userEvent.upload(screen.getByLabelText('Add files'), new File(['report'], 'admin-report.pdf', { type: 'application/pdf' }));
     expect(screen.getByText('admin-report.pdf')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Ready')).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
     fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: '33333333-3333-4333-8333-333333333333' } });
@@ -286,6 +287,7 @@ describe('AdminCommunicationProcurexPage', () => {
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification follow-up' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the updated site visit time.' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send Message' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
 
     await waitFor(() => expect(composeMessage).toHaveBeenCalledTimes(2));

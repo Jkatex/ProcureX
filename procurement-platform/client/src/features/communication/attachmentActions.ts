@@ -7,7 +7,7 @@ export async function openCommunicationAttachment(messageId: string, attachment:
     const url = URL.createObjectURL(blob);
     const opened = window.open(url, '_blank', 'noopener,noreferrer');
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-    if (!opened) triggerAttachmentDownload(url, attachment.name);
+    if (!opened) window.alert(`Could not open ${attachment.name}. Check that popups are allowed for this site.`);
   } catch {
     window.alert(`Could not open ${attachment.name}.`);
   }

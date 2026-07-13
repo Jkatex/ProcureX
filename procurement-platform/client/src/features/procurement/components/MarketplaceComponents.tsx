@@ -295,8 +295,8 @@ export function MyTenderRowCard({ row }: { row: MyTenderRow }) {
         </p>
         <span>{tender?.description || 'Tender record owned by the current user.'}</span>
         <div className="market-row-meta">
-          <em>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</em>
-          <em>Updated {formatDate(row.lastActivity)}</em>
+          <span>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</span>
+          <span>Updated {formatDate(row.lastActivity)}</span>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -331,8 +331,8 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
         </p>
         <span>{row.section === 'submitted' ? 'Submitted bid package is sealed and recorded.' : 'Draft bid submission saved for completion.'}</span>
         <div className="market-row-meta">
-          <em>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</em>
-          <em>Updated {formatDate(row.lastActivity)}</em>
+          <span>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</span>
+          <span>Updated {formatDate(row.lastActivity)}</span>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -371,8 +371,8 @@ function TenderRowCard({
         </p>
         <span>{tender.description}</span>
         <div className="market-row-meta">
-          <em>{tender.location}</em>
-          <em>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</em>
+          <span>{tender.location}</span>
+          <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
         </div>
       </div>
       <div className="tender-row-actions">

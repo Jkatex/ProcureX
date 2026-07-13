@@ -3,9 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { communicationApi } from '@/features/communication/api';
 import { downloadCommunicationAttachment, openCommunicationAttachment } from '@/features/communication/attachmentActions';
+import {
+  attachmentStatusLabel,
+  composeAttachmentsHaveError,
+  composeAttachmentsReady,
+  createComposeAttachment,
+  readComposeAttachmentContent,
+  toCommunicationAttachmentUpload
+} from '@/features/communication/composeAttachments';
+import type { ComposeAttachment } from '@/features/communication/composeAttachments';
 import type {
   CommunicationListResponse,
-  CommunicationAttachmentUpload,
   CommunicationMailboxMessage,
   CommunicationMailboxQuery,
   CommunicationRecipient,
@@ -26,15 +34,6 @@ type ComposeState = {
   tenderSearch: string;
   attachments: ComposeAttachment[];
   replyToMessageId: string;
-};
-
-type ComposeAttachment = {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  documentType: string;
-  file: File;
 };
 
 const pageToRoute: Record<string, string> = {
@@ -118,6 +117,8 @@ export function CommunicationCenterProcurexPage() {
   const replyOpen = routeView === 'reply';
   const composeOpen = routeView === 'compose' || replyOpen;
   const messageView = routeView === 'message';
+  const attachmentsReady = composeAttachmentsReady(compose.attachments);
+  const sendDisabled = saving || !attachmentsReady;
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder, nextPage = 1, nextSelectedId = '', nextSearch = '') => {
@@ -396,21 +397,43 @@ export function CommunicationCenterProcurexPage() {
   function addAttachments(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
+    const attachments = files.map((file) => createComposeAttachment(file, documentTypeForFile(file)));
     setCompose((current) => ({
       ...current,
       attachments: [
         ...current.attachments,
-        ...files.map((file) => ({
-          id: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          documentType: documentTypeForFile(file),
-          file
-        }))
+        ...attachments
       ].slice(0, 20)
     }));
+    for (const attachment of attachments) loadComposeAttachment(attachment);
     event.target.value = '';
+  }
+
+  function loadComposeAttachment(attachment: ComposeAttachment) {
+    void readComposeAttachmentContent(attachment.file, (progress) => {
+      setCompose((current) => ({
+        ...current,
+        attachments: current.attachments.map((item) =>
+          item.id === attachment.id && item.status === 'loading' ? { ...item, progress } : item
+        )
+      }));
+    })
+      .then((contentBase64) => {
+        setCompose((current) => ({
+          ...current,
+          attachments: current.attachments.map((item) =>
+            item.id === attachment.id ? { ...item, status: 'ready', progress: 100, contentBase64, error: undefined } : item
+          )
+        }));
+      })
+      .catch(() => {
+        setCompose((current) => ({
+          ...current,
+          attachments: current.attachments.map((item) =>
+            item.id === attachment.id ? { ...item, status: 'error', progress: 0, error: 'File could not be loaded.' } : item
+          )
+        }));
+      });
   }
 
   function removeAttachment(attachmentId: string) {
@@ -428,11 +451,19 @@ export function CommunicationCenterProcurexPage() {
       setError('Choose at least one recipient and write a subject and message.');
       return;
     }
+    if (composeAttachmentsHaveError(compose.attachments)) {
+      setError('Remove any attachments that could not be loaded before sending.');
+      return;
+    }
+    if (!composeAttachmentsReady(compose.attachments)) {
+      setError('Wait for attachments to finish loading before sending.');
+      return;
+    }
 
     setSaving(true);
     setError('');
     try {
-      const attachmentUploads = await Promise.all(compose.attachments.map(toAttachmentUpload));
+      const attachmentUploads = await Promise.all(compose.attachments.map(toCommunicationAttachmentUpload));
       const metadata = compose.replyToMessageId ? { replyMode: 'compose-page' } : metadataFromComposeParams(searchParams);
       const results = compose.replyToMessageId
         ? [
@@ -606,8 +637,14 @@ export function CommunicationCenterProcurexPage() {
                         <div className="communication-attachment-list" aria-label="Selected attachments">
                           {compose.attachments.map((attachment) => (
                             <span className="communication-attachment-item" key={attachment.id}>
-                              <span>{attachment.name}</span>
-                              <em>{formatFileSize(attachment.size)}</em>
+                              <span className="communication-attachment-name">{attachment.name}</span>
+                              <span className="communication-attachment-size">{formatFileSize(attachment.size)}</span>
+                              <span className={`communication-attachment-status is-${attachment.status}`}>{attachmentStatusLabel(attachment)}</span>
+                              {attachment.status === 'loading' ? (
+                                <span className="communication-attachment-progress" aria-label={`${attachment.name} loading progress`}>
+                                  <span style={{ width: `${Math.max(4, attachment.progress)}%` }} />
+                                </span>
+                              ) : null}
                               <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
                                 x
                               </button>
@@ -618,7 +655,7 @@ export function CommunicationCenterProcurexPage() {
                     </div>
                   </div>
                   <div className="inline-actions">
-                    <button className="btn btn-primary" type="submit" disabled={saving}>
+                    <button className="btn btn-primary" type="submit" disabled={sendDisabled}>
                       {saving ? 'Sending...' : replyOpen ? 'Send Reply' : 'Send Message'}
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={() => goCommunicationHome()}>
@@ -933,28 +970,6 @@ function metadataFromComposeParams(params: URLSearchParams): Record<string, unkn
     ...(actionLabel ? { actionLabel } : {}),
     ...(actionRoute ? { actionRoute } : {})
   };
-}
-
-async function toAttachmentUpload(attachment: ComposeAttachment): Promise<CommunicationAttachmentUpload> {
-  return {
-    name: attachment.name,
-    documentType: attachment.documentType,
-    mimeType: attachment.type || undefined,
-    size: attachment.size,
-    contentBase64: await readFileAsBase64(attachment.file)
-  };
-}
-
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error ?? new Error('Attachment could not be read.'));
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      resolve(result.includes(',') ? result.slice(result.indexOf(',') + 1) : result);
-    };
-    reader.readAsDataURL(file);
-  });
 }
 
 function messageActionText(message: CommunicationMailboxMessage) {
