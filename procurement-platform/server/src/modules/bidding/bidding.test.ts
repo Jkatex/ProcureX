@@ -318,6 +318,7 @@ describe('bid submission schema builder', () => {
           works: {
             fields: {
               boqRows: [{ id: 'boq-1', itemDescription: 'Partition works', quantity: 1, unitOfMeasure: 'Lot' }],
+              similarCompletedProjectsRequired: true,
               personnelRequirementRows: [{ id: 'personnel-1', role: 'Site engineer', mandatory: true }],
               equipmentRequirementRows: [{ id: 'equipment-1', equipmentName: 'Concrete mixer', mandatory: true }],
               supportingDocumentRows: [{ id: 'doc-1', documentName: 'Contractor registration', mandatory: true }]
@@ -329,7 +330,7 @@ describe('bid submission schema builder', () => {
 
     expect(schema.tenderType).toBe('WORKS');
     expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'worksCapacity', 'worksTechnicalProposal', 'worksFinancial', 'worksReview', 'worksDeclaration']);
-    expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['Site engineer', 'Concrete mixer']));
+    expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['Similar completed project evidence', 'Site engineer', 'Concrete mixer']));
     expect(stepFields(schema, 'financial')).toEqual([
       expect.objectContaining({
         requirementKey: 'commercialItems.boq-1.unitRate',
@@ -337,7 +338,18 @@ describe('bid submission schema builder', () => {
         validation: expect.objectContaining({ itemId: 'boq-1', itemNo: '1', description: 'Partition works', quantity: 1, unit: 'Lot' })
       })
     ]);
-    expect(stepFields(schema, 'administrative')).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Contractor registration', type: 'file' })]));
+    expect(stepFields(schema, 'administrative')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Contractor registration', type: 'file' }),
+        expect.objectContaining({
+          requirementKey: 'administrative.similarProjects',
+          label: 'Confirm similar project evidence',
+          type: 'boolean',
+          responseType: 'acknowledgement',
+          required: true
+        })
+      ])
+    );
   });
 
   it('derives service BOQ rows when top-level commercial items are empty', () => {

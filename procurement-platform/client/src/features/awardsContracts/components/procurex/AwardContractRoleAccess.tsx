@@ -51,6 +51,7 @@ export function inferActionOwner(title: string, badge?: string): WorkflowActionO
   if (text.includes('required document')) return 'SUPPLIER';
   if (text.includes('sign contract')) return 'ANY';
   if (text.includes('negotiation')) return 'ANY';
+  if (text.includes('amendment')) return 'ANY';
   if (text.includes('variation')) return title.toLowerCase().includes('update') ? 'BUYER' : 'ANY';
   if (text.includes('issue')) return title.toLowerCase().includes('update') ? 'BUYER' : 'ANY';
   if (text.includes('dispute')) return title.toLowerCase().includes('update') ? 'BUYER' : 'ANY';

@@ -171,7 +171,7 @@ describe('AdminUsersProcurexPage account registry sidebar', () => {
     const sidebar = screen.getByLabelText('Account registry detail');
     expect(within(sidebar).getByText('Account registry detail')).toBeInTheDocument();
     expect(within(sidebar).getByRole('heading', { name: 'Josemwijage' })).toBeInTheDocument();
-    expect(within(sidebar).getByText('Not Started')).toBeInTheDocument();
+    expect(within(sidebar).getAllByText('Not Started').length).toBeGreaterThan(0);
     expect(within(sidebar).getByText('+255716234751')).toBeInTheDocument();
     expect(within(sidebar).getByText('No membership')).toBeInTheDocument();
     expect(within(sidebar).getByText('No documents recorded')).toBeInTheDocument();

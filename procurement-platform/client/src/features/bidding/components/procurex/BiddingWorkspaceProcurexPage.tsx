@@ -680,6 +680,22 @@ export function BiddingWorkspaceProcurexPage() {
           />
         );
       }
+      if (workflow === 'works' && currentSchemaStep.id === 'worksCapacity') {
+        return (
+          <>
+            <WorkflowStepContext tender={loadedTender} workflow={workflow} step={currentSchemaStep} />
+            <WorksCapacitySchemaPanel
+              step={currentSchemaStep}
+              responses={schemaResponses}
+              documents={documents}
+              disabled={saving || uploading || isSubmitted || Boolean(receipt)}
+              uploadingKey={uploadingKey}
+              onPatch={patchSchemaResponse}
+              onFiles={addFiles}
+            />
+          </>
+        );
+      }
       return (
         <>
           <WorkflowStepContext tender={loadedTender} workflow={workflow} step={currentSchemaStep} />
@@ -989,50 +1005,649 @@ function AdministrativeGateSchemaPanel({
   onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
   onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
 }) {
+  const groups = administrativeGateGroups(step);
+  const hasSubmissionSection = groups.submissionFields.length > 0;
+  const hasOtherSection = groups.otherDocumentFields.length > 0;
+  const declarationIndex = 2 + (hasSubmissionSection ? 1 : 0) + (hasOtherSection ? 1 : 0);
+
   return (
     <>
-      <section className="bid-step-intro workflow-step-context">
-        <div>
-          <strong>Upload the required license and eligibility evidence</strong>
-          <span>Complete the administrative gate first. Mandatory buyer documents and declarations must be ready before the technical and financial bid screens open.</span>
-        </div>
-        <div className="inline-actions">
-          <span className={`badge ${gate.complete ? 'badge-success' : 'badge-warning'}`}>{gate.complete ? 'Gate complete' : `${gate.remaining} mandatory pending`}</span>
-          <Link className="btn btn-secondary" to={`/communication?view=compose&mode=clarification&tenderId=${encodeURIComponent(tender.id)}&category=Administrative&context=eligibility`}>
+      <div className={`bid-gate-status ${gate.complete ? 'balanced' : ''}`}>{gate.message}</div>
+      <div className="bid-prequalification-note">
+        <strong>Eligibility and document requirements</strong>
+        <span>Upload administrative eligibility documents and complete required confirmations before moving forward. Technical uploads are completed in the technical response steps, and financial capacity uploads are completed in the financial offer.</span>
+      </div>
+      <AdministrativeLicenseEvidenceSection fields={groups.licenseFields} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+      {hasSubmissionSection ? (
+        <AdministrativeDocumentGroup
+          index={2}
+          kicker="Submission documents"
+          title="Bid submission documents"
+          description="Tender submission forms, signed bid documents, authorization letters, and buyer-required administrative submission files."
+          fields={groups.submissionFields}
+          responses={responses}
+          documents={documents}
+          disabled={disabled}
+          uploadingKey={uploadingKey}
+          onPatch={onPatch}
+          onFiles={onFiles}
+        />
+      ) : null}
+      {hasOtherSection ? (
+        <AdministrativeDocumentGroup
+          index={2 + (hasSubmissionSection ? 1 : 0)}
+          kicker="Other documents"
+          title="Other administrative supporting documents"
+          description="Additional administrative evidence that is not a license, certification, technical upload, or financial capacity document."
+          fields={groups.otherDocumentFields}
+          responses={responses}
+          documents={documents}
+          disabled={disabled}
+          uploadingKey={uploadingKey}
+          onPatch={onPatch}
+          onFiles={onFiles}
+        />
+      ) : null}
+      <AdministrativeDocumentGroup
+        index={declarationIndex}
+        kicker="Eligibility declarations/confirmations"
+        title="Administrative confirmations"
+        fields={groups.declarationFields}
+        responses={responses}
+        documents={documents}
+        disabled={disabled}
+        uploadingKey={uploadingKey}
+        onPatch={onPatch}
+        onFiles={onFiles}
+        emptyMessage="No additional confirmations are required."
+        action={
+          <Link className="btn btn-secondary btn-sm" to={`/communication?view=compose&mode=clarification&tenderId=${encodeURIComponent(tender.id)}&category=Administrative&context=eligibility`}>
             Ask Buyer
           </Link>
+        }
+      />
+    </>
+  );
+}
+
+function AdministrativeLicenseEvidenceSection({
+  fields,
+  documents,
+  disabled,
+  uploadingKey,
+  onFiles
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
+}) {
+  const mandatoryCount = fields.filter((field) => field.required).length;
+  const optionalCount = Math.max(fields.length - mandatoryCount, 0);
+  return (
+    <div className="bid-gate-group license-compliance-matrix">
+      <div className="bid-gate-group-heading">
+        <div>
+          <span className="section-kicker">1. Licenses and certifications</span>
+          <h3>{fields.length ? 'Regulatory license evidence' : 'License and certification documents'}</h3>
+          <p>Upload the required license evidence in the table below. Each row shows the license name first and the issuing board or authority below it.</p>
         </div>
-      </section>
-      <div className="bid-schema-admin-gate">
-        <div className="bid-response-document-table">
+        <span className={`badge ${mandatoryCount ? 'badge-warning' : 'badge-info'}`}>{`${mandatoryCount} mandatory / ${optionalCount} optional`}</span>
+      </div>
+      {fields.length ? (
+        <div className="data-table">
           <table>
             <thead>
               <tr>
-                <th>Requirement</th>
-                <th>Category</th>
+                <th>Permit / license</th>
                 <th>Status</th>
+                <th>Evidence</th>
               </tr>
             </thead>
             <tbody>
-              {gate.items.map((item) => (
-                <tr key={item.id} className={item.complete ? '' : 'is-incomplete'}>
+              {fields.map((field) => (
+                <tr key={field.id} data-bid-review-source-id={field.id}>
                   <td>
-                    <strong>{item.label}</strong>
-                    <small>{item.mandatory ? 'Mandatory administrative gate item' : 'Optional administrative item'}</small>
+                    <div className="license-permit-cell">
+                      <strong>{field.label}</strong>
+                      <small>
+                        <span>Issuing body</span>
+                        {administrativeFieldDetail(field)}
+                      </small>
+                    </div>
                   </td>
-                  <td>{item.category}</td>
                   <td>
-                    <span className={`bid-requirement-marker ${item.complete ? 'required-complete' : 'required-incomplete'}`}>{item.complete ? 'Complete' : 'Missing'}</span>
+                    <select className="form-input" defaultValue="" disabled={disabled} aria-label={`${field.label} status`}>
+                      <option value="">Select</option>
+                      <option value="Valid">Valid</option>
+                      <option value="Renewal in progress">Renewal in progress</option>
+                      <option value="Not applicable">Not applicable</option>
+                    </select>
+                  </td>
+                  <td>
+                    <AdministrativeUploadField field={field} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
-      <SchemaStepFields step={step} responses={responses} documents={documents} currency={currency} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
-    </>
+      ) : (
+        <div className="scope-empty">The buyer has not requested any license or certification documents for this tender.</div>
+      )}
+    </div>
   );
+}
+
+function AdministrativeDocumentGroup({
+  index,
+  kicker,
+  title,
+  description,
+  fields,
+  responses,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles,
+  emptyMessage = 'No documents were configured for this section.',
+  action
+}: {
+  index: number;
+  kicker: string;
+  title: string;
+  description?: string;
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
+  emptyMessage?: string;
+  action?: ReactNode;
+}) {
+  const mandatoryCount = fields.filter((field) => field.required).length;
+  const optionalCount = Math.max(fields.length - mandatoryCount, 0);
+  const badgeText = fields.length && optionalCount ? `${mandatoryCount} mandatory / ${optionalCount} optional` : fields.length ? `${mandatoryCount} mandatory` : '0 items';
+  return (
+    <div className="bid-gate-group">
+      <div className="bid-gate-group-heading">
+        <div>
+          <span className="section-kicker">{`${index}. ${kicker}`}</span>
+          <h3>{title}</h3>
+          {description ? <p>{description}</p> : null}
+        </div>
+        <div className="inline-actions">
+          <span className={`badge ${mandatoryCount ? 'badge-warning' : 'badge-info'}`}>{badgeText}</span>
+          {action}
+        </div>
+      </div>
+      {fields.length ? (
+        <div className="bid-requirement-list">
+          {fields.map((field) => {
+            const value = schemaFieldValue(field, responses);
+            return isAdministrativeConfirmationField(field) ? (
+              <AdministrativeConfirmationCard key={field.id} field={field} checked={value === true} disabled={disabled} onChange={(checked) => onPatch(field, checked)} />
+            ) : (
+              <SchemaFieldControl key={field.id} field={field} value={value} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+            );
+          })}
+        </div>
+      ) : (
+        <div className="scope-empty">{emptyMessage}</div>
+      )}
+    </div>
+  );
+}
+
+function AdministrativeConfirmationCard({
+  field,
+  checked,
+  disabled,
+  onChange
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <article className={`bid-requirement-card ${checked ? 'completed' : ''}`} data-bid-review-source-id={field.id}>
+      <div className="bid-response-card-heading">
+        <div>
+          <span className="section-kicker">{administrativeConfirmationCategory(field)}</span>
+          <h3>{field.label}</h3>
+          <p>{administrativeConfirmationDescription(field)}</p>
+        </div>
+        <em className={`badge ${field.required ? 'badge-warning' : 'badge-info'}`}>{field.required ? 'Mandatory' : 'Optional'}</em>
+      </div>
+      <label className="bid-response-check">
+        <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+        <span>I confirm and accept this requirement.</span>
+      </label>
+    </article>
+  );
+}
+
+function AdministrativeUploadField({
+  field,
+  documents,
+  disabled,
+  uploadingKey,
+  onFiles
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
+}) {
+  const uploaded = documentsForSchemaField(documents, field);
+  const hint = String(field.validation.prompt ?? '');
+  return (
+    <div>
+      <UploadBox
+        envelope={field.envelope}
+        title="Upload license evidence"
+        documentType={String(field.validation.documentType ?? field.responseType ?? 'BID_DOCUMENT')}
+        requirementKey={field.requirementKey}
+        disabled={disabled}
+        isUploading={uploadingKey === field.requirementKey}
+        onFiles={(files, envelope, documentType, requirementKey) => onFiles(files, envelope, documentType, requirementKey, field.label)}
+      />
+      {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : hint ? <span className="form-hint">{hint}</span> : null}
+    </div>
+  );
+}
+
+function administrativeGateGroups(step: BidSubmissionSchemaStepDto) {
+  const fields = step.fields.filter((field) => field.section === 'administrative');
+  const documentFields = fields.filter(isAdministrativeAttachmentField);
+  const licenseFields = documentFields.filter(isAdministrativeLicenseField);
+  const remainingDocumentFields = documentFields.filter((field) => !licenseFields.includes(field));
+  const submissionFields = remainingDocumentFields.filter(isAdministrativeSubmissionDocumentField);
+  const otherDocumentFields = remainingDocumentFields.filter((field) => !submissionFields.includes(field));
+  const declarationFields = fields.filter((field) => !isAdministrativeAttachmentField(field));
+
+  return {
+    licenseFields,
+    submissionFields,
+    otherDocumentFields,
+    declarationFields
+  };
+}
+
+function isAdministrativeAttachmentField(field: BidSubmissionSchemaFieldDto) {
+  return field.type === 'file' || field.responseType === 'attachment';
+}
+
+function isAdministrativeLicenseField(field: BidSubmissionSchemaFieldDto) {
+  const text = administrativeFieldSearchText(field);
+  return /license|certificate|registration|permit|regulatory|crb|osha|statutory|tax clearance|vat registration|manufacturer authorization|authorization/i.test(text);
+}
+
+function isAdministrativeSubmissionDocumentField(field: BidSubmissionSchemaFieldDto) {
+  const text = administrativeFieldSearchText(field);
+  return /submission|bid form|signed|signature|power of attorney|authority letter|authorization letter|administrative submission/i.test(text);
+}
+
+function administrativeFieldSearchText(field: BidSubmissionSchemaFieldDto) {
+  return [
+    field.label,
+    field.requirementKey,
+    field.source,
+    field.validation.documentType,
+    field.validation.prompt,
+    field.validation.description,
+    field.validation.requirementDescription
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function administrativeFieldDetail(field: BidSubmissionSchemaFieldDto) {
+  const prompt = String(field.validation.prompt ?? '').trim();
+  if (prompt) return prompt;
+  const source = String(field.source || field.requirementKey || field.envelope).replace(/\.\d+$/, '');
+  return humanize(source);
+}
+
+function isAdministrativeConfirmationField(field: BidSubmissionSchemaFieldDto) {
+  return field.section === 'administrative' && (field.type === 'boolean' || field.responseType === 'boolean' || field.responseType === 'declaration' || field.responseType === 'acknowledgement');
+}
+
+function administrativeConfirmationCategory(field: BidSubmissionSchemaFieldDto) {
+  const category = String(field.validation.category ?? field.validation.group ?? '').trim();
+  return category || 'Administrative compliance';
+}
+
+function administrativeConfirmationDescription(field: BidSubmissionSchemaFieldDto) {
+  const prompt = String(field.validation.prompt ?? field.validation.description ?? field.validation.requirementDescription ?? '').trim();
+  if (prompt) return prompt;
+  if (/authorized/i.test(field.label)) return 'Confirm the submitted bid is approved by an authorized representative of the supplier.';
+  if (/similar project/i.test(field.label)) return 'Confirm that similar completed project evidence is completed in the technical capacity response.';
+  if (/eligib/i.test(field.label)) return 'Confirm the supplier meets the eligibility requirements for this tender.';
+  return 'Supplier response required.';
+}
+
+function WorksCapacitySchemaPanel({
+  step,
+  responses,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  step: BidSubmissionSchemaStepDto;
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
+}) {
+  const groups = worksCapacityGroups(step);
+  const hasAnyGroupedSection = groups.similarProjects.length || groups.personnel.length || groups.equipment.length || groups.hse.length || groups.remaining.length;
+  if (!hasAnyGroupedSection) return <div className="scope-empty">No technical capacity fields were configured for this tender.</div>;
+  return (
+    <div className="works-capacity-workbook">
+      {groups.similarProjects.length ? <WorksSimilarProjectsSection fields={groups.similarProjects} responses={responses} disabled={disabled} onPatch={onPatch} /> : null}
+      {groups.personnel.length ? <WorksPersonnelSection fields={groups.personnel} responses={responses} disabled={disabled} onPatch={onPatch} /> : null}
+      {groups.equipment.length ? <WorksEquipmentSection fields={groups.equipment} responses={responses} disabled={disabled} onPatch={onPatch} /> : null}
+      {groups.hse.length ? <WorksCapacityFallbackSection title="Health, Safety and Environmental Response" description="Provide site-specific safety, environmental, incident, PPE, and waste management controls." fields={groups.hse} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
+      {groups.remaining.length ? <WorksCapacityFallbackSection title="Additional capacity responses" description="Complete the remaining buyer-configured technical capacity fields for this works tender." fields={groups.remaining} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
+    </div>
+  );
+}
+
+function WorksSimilarProjectsSection({
+  fields,
+  responses,
+  disabled,
+  onPatch
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  const required = fields.some((field) => field.required);
+  return (
+    <section className="works-response-section">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Similar completed projects</h3>
+          <p>Upload documents explaining previous similar projects, including any completion proof, references, and client details.</p>
+        </div>
+        <span className={`badge ${required ? 'badge-warning' : 'badge-info'}`}>{required ? 'Required' : 'Optional'}</span>
+      </div>
+      <div className="works-card-grid" data-works-similar-project-list>
+        {fields.map((field, index) => {
+          const value = structuredValue(schemaFieldValue(field, responses));
+          return (
+            <article className="works-capacity-card" data-bid-review-source-id={field.id} data-works-similar-project-card key={field.id}>
+              <div className="bid-dynamic-group-heading">
+                <span className="section-kicker">{`Similar project ${index + 1}`}</span>
+              </div>
+              <div className="form-grid two">
+                <WorksStructuredInput field={field} value={value} fieldKey="projectName" label="Project / client" disabled={disabled} onPatch={onPatch} />
+                <WorksStructuredInput field={field} value={value} fieldKey="contractValue" label="Value" type="number" disabled={disabled} onPatch={onPatch} />
+                <WorksStructuredInput field={field} value={value} fieldKey="completionDate" label="Completion / status" disabled={disabled} onPatch={onPatch} />
+                <WorksStructuredInput field={field} value={value} fieldKey="referenceEvidence" label="Evidence / attachment reference" disabled={disabled} onPatch={onPatch} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function WorksPersonnelSection({
+  fields,
+  responses,
+  disabled,
+  onPatch
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <section className="works-response-section">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Key personnel</h3>
+          <p>Add personnel positions and upload the matching CV for each person.</p>
+        </div>
+        <span className={`badge ${fields.some((field) => field.required) ? 'badge-warning' : 'badge-info'}`}>{`${fields.length} profile${fields.length === 1 ? '' : 's'}`}</span>
+      </div>
+      <div className="works-personnel-grid" data-works-personnel-list>
+        {fields.map((field, index) => {
+          const value = structuredValue(schemaFieldValue(field, responses));
+          return (
+            <article className="works-person-card" data-bid-review-source-id={field.id} data-works-personnel-card key={field.id}>
+              <div className="works-person-avatar">{worksAvatarLetter(field.label)}</div>
+              <div>
+                <div className="bid-dynamic-group-heading">
+                  <span className="section-kicker">{`Personnel ${index + 1}`}</span>
+                </div>
+                <div className="form-grid two">
+                  <WorksStructuredInput field={field} value={value} fieldKey="namedResource" label="Personnel Position" disabled={disabled} onPatch={onPatch} />
+                  <WorksStructuredInput field={field} value={value} fieldKey="qualification" label="Qualification / certification" disabled={disabled} onPatch={onPatch} />
+                  <WorksStructuredInput field={field} value={value} fieldKey="experienceYears" label="Years experience" type="number" disabled={disabled} onPatch={onPatch} />
+                  <WorksStructuredInput field={field} value={value} fieldKey="cvEvidence" label="CV / evidence reference" disabled={disabled} onPatch={onPatch} />
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function WorksEquipmentSection({
+  fields,
+  responses,
+  disabled,
+  onPatch
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <section className="works-response-section">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Equipment capacity</h3>
+          <p>Confirm ownership or access to plant, tools, transport, and specialized equipment.</p>
+        </div>
+        <span className="badge badge-warning">{`${fields.length} equipment item${fields.length === 1 ? '' : 's'}`}</span>
+      </div>
+      <div className="data-table works-equipment-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Equipment Name</th>
+              <th>Quantity Available</th>
+              <th>Ownership Status</th>
+              <th>Lease / Access Agreement</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fields.map((field, index) => {
+              const value = structuredValue(schemaFieldValue(field, responses));
+              return (
+                <tr className="works-equipment-row" data-bid-review-source-id={field.id} key={field.id}>
+                  <td className="works-equipment-name">
+                    <strong>{worksEquipmentName(field, index)}</strong>
+                    <small>{worksEquipmentDetail(field)}</small>
+                  </td>
+                  <td>
+                    <WorksStructuredInput field={field} value={value} fieldKey="quantityAvailable" label={`Quantity available for ${worksEquipmentName(field, index)}`} type="number" labelHidden disabled={disabled} onPatch={onPatch} />
+                  </td>
+                  <td>
+                    <WorksStructuredSelect field={field} value={value} fieldKey="ownershipStatus" label={`Ownership status for ${worksEquipmentName(field, index)}`} options={['Owned', 'Leased', 'Hire agreement', 'Subcontractor provided']} disabled={disabled} onPatch={onPatch} />
+                  </td>
+                  <td>
+                    <WorksStructuredInput field={field} value={value} fieldKey="leaseAgreement" label="Lease / access agreement" labelHidden disabled={disabled} onPatch={onPatch} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function WorksCapacityFallbackSection({
+  title,
+  description,
+  fields,
+  responses,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  title: string;
+  description: string;
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: (files: FileList | null, envelope: Envelope, documentType: string, requirementKey: string, requirementLabel?: string) => Promise<void>;
+}) {
+  const required = fields.some((field) => field.required);
+  return (
+    <section className="works-response-section">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+        <span className={`badge ${required ? 'badge-warning' : 'badge-info'}`}>{required ? 'Response required' : 'Optional response'}</span>
+      </div>
+      <div className="form-grid two">
+        {fields.map((field) => (
+          <SchemaFieldControl key={field.id} field={field} value={schemaFieldValue(field, responses)} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WorksStructuredInput({
+  field,
+  value,
+  fieldKey,
+  label,
+  type = 'text',
+  labelHidden = false,
+  disabled,
+  onPatch
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: Record<string, unknown>;
+  fieldKey: string;
+  label: string;
+  type?: 'text' | 'number';
+  labelHidden?: boolean;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <div className="form-group">
+      {labelHidden ? null : <label className="form-label">{label}</label>}
+      <input className="form-input" type={type} min={type === 'number' ? 0 : undefined} aria-label={label} value={String(value[fieldKey] ?? '')} disabled={disabled} onChange={(event) => worksPatchStructuredField(field, value, fieldKey, type === 'number' ? Number(event.target.value) || 0 : event.target.value, onPatch)} />
+    </div>
+  );
+}
+
+function WorksStructuredSelect({
+  field,
+  value,
+  fieldKey,
+  label,
+  options,
+  disabled,
+  onPatch
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: Record<string, unknown>;
+  fieldKey: string;
+  label: string;
+  options: string[];
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <div className="form-group">
+      <select className="form-input" aria-label={label} value={String(value[fieldKey] ?? '')} disabled={disabled} onChange={(event) => worksPatchStructuredField(field, value, fieldKey, event.target.value, onPatch)}>
+        <option value="">Select</option>
+        {options.map((option) => (
+          <option value={option} key={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function worksCapacityGroups(step: BidSubmissionSchemaStepDto) {
+  const fields = step.fields.filter((field) => field.section !== 'receipt' && field.section !== 'review');
+  const similarProjects = fields.filter((field) => worksFieldControl(field) === 'worksSimilarProject');
+  const personnel = fields.filter((field) => worksFieldControl(field) === 'worksPersonnel');
+  const equipment = fields.filter((field) => worksFieldControl(field) === 'worksEquipment');
+  const grouped = new Set([...similarProjects, ...personnel, ...equipment]);
+  const hse = fields.filter((field) => !grouped.has(field) && isWorksHseField(field));
+  hse.forEach((field) => grouped.add(field));
+  const remaining = fields.filter((field) => !grouped.has(field));
+  return { similarProjects, personnel, equipment, hse, remaining };
+}
+
+function worksFieldControl(field: BidSubmissionSchemaFieldDto) {
+  return String(field.validation.control ?? '');
+}
+
+function isWorksHseField(field: BidSubmissionSchemaFieldDto) {
+  return /hse|health|safety|environment|environmental|osha|ppe|incident|waste/i.test(worksFieldSearchText(field));
+}
+
+function worksFieldSearchText(field: BidSubmissionSchemaFieldDto) {
+  return [field.id, field.label, field.requirementKey, field.source, field.validation.control, field.validation.prompt, field.validation.description, field.validation.requirementDescription].filter(Boolean).join(' ');
+}
+
+function worksPatchStructuredField(field: BidSubmissionSchemaFieldDto, value: Record<string, unknown>, key: string, nextValue: unknown, onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void) {
+  onPatch(field, { ...value, [key]: nextValue });
+}
+
+function worksAvatarLetter(label: string) {
+  return String(label || 'P').trim().slice(0, 1).toUpperCase() || 'P';
+}
+
+function worksEquipmentName(field: BidSubmissionSchemaFieldDto, index: number) {
+  return String(field.validation.equipmentName ?? field.validation.resource ?? field.validation.itemName ?? field.label ?? `Equipment ${index + 1}`);
+}
+
+function worksEquipmentDetail(field: BidSubmissionSchemaFieldDto) {
+  const quantity = field.validation.quantity ?? field.validation.requiredQuantity ?? field.validation.qty ?? '1';
+  const ownership = field.validation.ownershipRequirement ?? field.validation.ownership ?? field.validation.prompt ?? 'Evidence required';
+  return `Requested: ${String(quantity)} / ${String(ownership)}`;
 }
 
 function SchemaStepFields({

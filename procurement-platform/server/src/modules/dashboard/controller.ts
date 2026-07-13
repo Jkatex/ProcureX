@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import { ModuleService } from './service.js';
+import { ModuleService as IdentityService } from '../identity/service.js';
 import { dashboardQuerySchema, moduleStatusQuerySchema } from './validators.js';
 
 function requestError(message: string, status = 400) {
@@ -9,7 +10,7 @@ function requestError(message: string, status = 400) {
 }
 
 export class ModuleController {
-  constructor(private readonly service = new ModuleService()) {}
+  constructor(private readonly service = new ModuleService(), private readonly identityService = new IdentityService()) {}
 
   status: RequestHandler = async (req, res, next) => {
     try {
@@ -24,7 +25,17 @@ export class ModuleController {
     try {
       const query = dashboardQuerySchema.safeParse(req.query);
       if (!query.success) throw requestError('Invalid dashboard query parameters.');
-      res.json(await this.service.workspaceDashboard(query.data));
+      const header = req.header('authorization') ?? '';
+      const [scheme, token] = header.split(/\s+/);
+      const session = await this.identityService.requireSession(scheme?.toLowerCase() === 'bearer' ? token : undefined);
+      const requestedOrganizationId = query.data.organizationId;
+      if (requestedOrganizationId && requestedOrganizationId !== session.user.organizationId && session.user.accountType !== 'ADMIN') {
+        throw requestError('You can only view dashboard data for your organization.', 403);
+      }
+      res.json(await this.service.workspaceDashboard({
+        ...query.data,
+        organizationId: requestedOrganizationId || session.user.organizationId || ''
+      }));
     } catch (error) {
       next(error);
     }

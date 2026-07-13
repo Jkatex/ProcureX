@@ -657,7 +657,7 @@ export const supplierRiskProfileBodySchema = z
     supplierOrgId: uuidSchema.optional(),
     riskLevel: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional().default('MEDIUM'),
     riskScore: z.coerce.number().int().min(0).max(100).optional().default(50),
-    trustTier: z.string().trim().min(1).max(80).optional().default('UNVERIFIED'),
+    trustTier: z.enum(['UNVERIFIED', 'VERIFIED', 'BRONZE', 'SILVER', 'GOLD']).optional().default('UNVERIFIED'),
     activeAlerts: z.coerce.number().int().min(0).optional().default(0),
     openViolations: z.coerce.number().int().min(0).optional().default(0),
     summary: z.string().trim().max(2000).optional().default(''),

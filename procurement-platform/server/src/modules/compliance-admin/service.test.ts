@@ -1,6 +1,7 @@
 import { AccountType, AdminActionType, AuditSeverity, ComplianceCaseStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModuleService } from './service.js';
+import { supplierRiskProfileBodySchema } from './validators.js';
 
 vi.mock('../../db/context.js', () => ({
   withDbContext: vi.fn((_context, work) => work({}))
@@ -144,6 +145,31 @@ describe('compliance admin service', () => {
       })
     );
     expect(result.generatedAt).toEqual(expect.any(String));
+  });
+
+  it('validates supplier risk profile trust tier choices', () => {
+    expect(
+      supplierRiskProfileBodySchema.parse({
+        supplierOrgId: '44444444-4444-4444-8444-444444444444',
+        riskLevel: 'LOW',
+        trustTier: 'GOLD',
+        riskScore: 12,
+        summary: 'Reviewed by compliance.',
+        payload: {}
+      })
+    ).toMatchObject({
+      supplierOrgId: '44444444-4444-4444-8444-444444444444',
+      riskLevel: 'LOW',
+      trustTier: 'GOLD'
+    });
+
+    expect(() =>
+      supplierRiskProfileBodySchema.parse({
+        supplierOrgId: '44444444-4444-4444-8444-444444444444',
+        trustTier: 'PLATINUM',
+        payload: {}
+      })
+    ).toThrow();
   });
 
   it('returns paged empty admin search and audit contracts', async () => {

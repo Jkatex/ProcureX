@@ -20,6 +20,7 @@ const publishedTenderStatuses = [
 ] as const;
 
 const lockableTenderStatuses = [TenderStatus.PUBLISHED, TenderStatus.OPEN] as const;
+const evaluationOpenTenderStatuses = [TenderStatus.CLOSED, TenderStatus.EVALUATION] as const;
 
 const draftEvaluationStatuses = [EvaluationStatus.IN_PROGRESS, EvaluationStatus.RETURNED] as const;
 const decisionStatuses: EvaluationDecisionStatus[] = ['PENDING', 'PASSED', 'FAILED', 'NEEDS_CLARIFICATION', 'RECOMMENDED'];
@@ -133,26 +134,33 @@ function readyTenderWhere(now: Date, context?: EvaluationRequestContext): Prisma
   return {
     ...buyerScope(context),
     status: { in: [...publishedTenderStatuses] },
-    closingDate: { lte: now },
+    OR: [
+      { closingDate: { lte: now } },
+      { status: { in: [...evaluationOpenTenderStatuses] } }
+    ],
     bids: {
       some: {
         status: BidStatus.SUBMITTED
       }
     },
-    OR: [
+    AND: [
       {
-        evaluation: {
-          is: null
-        }
-      },
-      {
-        evaluation: {
-          is: {
-            status: {
-              not: EvaluationStatus.COMPLETED
+        OR: [
+          {
+            evaluation: {
+              is: null
+            }
+          },
+          {
+            evaluation: {
+              is: {
+                status: {
+                  not: EvaluationStatus.COMPLETED
+                }
+              }
             }
           }
-        }
+        ]
       }
     ]
   };
@@ -363,7 +371,7 @@ function availability(tender: EvaluationWorkspaceTenderRecord, now = new Date())
   if (!publishedTenderStatuses.includes(tender.status as (typeof publishedTenderStatuses)[number])) {
     return { isReady: false, reason: 'Tender is not published yet.' };
   }
-  if (!tender.closingDate || tender.closingDate > now) {
+  if (!evaluationOpenTenderStatuses.includes(tender.status as (typeof evaluationOpenTenderStatuses)[number]) && (!tender.closingDate || tender.closingDate > now)) {
     return { isReady: false, reason: 'Tender is locked until the closing date passes.' };
   }
   if (tender.bids.length === 0) {
@@ -383,6 +391,8 @@ export class ModuleRepository {
   }
 
   async getDashboardData(now = new Date(), context?: EvaluationRequestContext) {
+    await this.closeElapsedTenders(now, context);
+
     return Promise.all([
       this.db.tender.count({
         where: {
@@ -481,6 +491,8 @@ export class ModuleRepository {
   }
 
   async listReadyTenders(context?: EvaluationRequestContext) {
+    await this.closeElapsedTenders(new Date(), context);
+
     return this.db.tender.findMany({
       where: publishedTenderWhere(context),
       orderBy: [{ closingDate: 'asc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
@@ -530,6 +542,8 @@ export class ModuleRepository {
   }
 
   async getWorkspaceByTenderId(tenderId: string, context?: EvaluationRequestContext) {
+    await this.closeElapsedTenders(new Date(), context);
+
     const tender = await this.findWorkspaceTender(tenderId, context, this.db);
     const auditEvents = tender?.evaluation
       ? await this.db.auditEvent.findMany({
@@ -557,6 +571,8 @@ export class ModuleRepository {
 
   async saveWorkspace(tenderId: string, input: SaveEvaluationWorkspaceInput, context?: EvaluationRequestContext) {
     await this.db.$transaction(async (tx) => {
+      await this.closeElapsedTenders(new Date(), context, tx);
+
       const tender = await this.findWorkspaceTender(tenderId, context, tx);
       if (!tender) throw requestError('Tender was not found.', 404);
 
@@ -750,6 +766,19 @@ export class ModuleRepository {
           }
         }
       });
+    });
+  }
+
+  private async closeElapsedTenders(now: Date, context?: EvaluationRequestContext, db: DbClient = this.db) {
+    await db.tender.updateMany({
+      where: {
+        ...buyerScope(context),
+        status: { in: [...lockableTenderStatuses] },
+        closingDate: { lte: now }
+      },
+      data: {
+        status: TenderStatus.CLOSED
+      }
     });
   }
 

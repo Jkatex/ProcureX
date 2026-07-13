@@ -31,10 +31,11 @@ describeDb('evaluation intake demo seed', () => {
       orderBy: { reference: 'asc' }
     });
 
-    expect(tenders).toHaveLength(3);
+    expect(tenders).toHaveLength(4);
 
     for (const tender of tenders) {
-      expect(tender.status).toBe(TenderStatus.CLOSED);
+      const expectedStatus = tender.reference === 'PX-GDS-2026-004' ? TenderStatus.PUBLISHED : TenderStatus.CLOSED;
+      expect(tender.status).toBe(expectedStatus);
       expect(tender.metadata).toMatchObject({ isDemo: true, bidOpeningStatus: 'COMPLETED', evaluationStatus: 'PENDING' });
       expect(tender.evaluation?.status).toBe(EvaluationStatus.NOT_STARTED);
       expect(tender.evaluation?.criteria).toHaveLength(5);
@@ -97,6 +98,6 @@ describeDb('evaluation intake demo seed', () => {
 
 describe('evaluation intake demo seed metadata', () => {
   it('uses deterministic tender references', () => {
-    expect(EVALUATION_INTAKE_TENDER_REFS).toEqual(['PX-WRK-2026-001', 'PX-GDS-2026-002', 'PX-SRV-2026-003']);
+    expect(EVALUATION_INTAKE_TENDER_REFS).toEqual(['PX-WRK-2026-001', 'PX-GDS-2026-002', 'PX-SRV-2026-003', 'PX-GDS-2026-004']);
   });
 });
