@@ -44,6 +44,10 @@ const userAdminInclude = {
       organization: {
         include: {
           supplierProfile: true,
+          trustTierHistory: {
+            orderBy: { createdAt: 'desc' },
+            take: 5
+          },
           capabilities: { where: { enabled: true } }
         }
       }
@@ -1268,9 +1272,10 @@ export class ModuleRepository {
     return { total, items };
   }
 
-  upsertSupplierRiskProfile(input: Record<string, unknown>, actorUserId: string, db: AdminDb = this.db) {
+  async upsertSupplierRiskProfile(input: Record<string, unknown>, actorUserId: string, db: AdminDb = this.db) {
     const supplierOrgId = input.supplierOrgId as string;
-    return db.supplierRiskProfile.upsert({
+    const existing = await db.supplierRiskProfile.findUnique({ where: { supplierOrgId } });
+    const profile = await db.supplierRiskProfile.upsert({
       where: { supplierOrgId },
       update: {
         riskLevel: input.riskLevel as any,
@@ -1298,6 +1303,7 @@ export class ModuleRepository {
         payload: (input.payload ?? {}) as Prisma.InputJsonObject
       }
     });
+    return { profile, previous: existing };
   }
 
   createAuditEvent(input: {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { adminApi, type ComplianceCase, type ComplianceRule, type PageDto, type WorkflowRecord } from '@/features/admin/api';
-import { ActionFormPanel, option, recordPickerOptions, riskLevelOptions } from '@/features/awardsContracts/components/procurex/AwardContractActionForms';
+import { ActionFormPanel, option, recordPickerOptions, riskLevelOptions, trustTierOptions } from '@/features/awardsContracts/components/procurex/AwardContractActionForms';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AdminCommandDrawer, AdminError, AdminHero, AdminPanel, AdminShell, EmptyRow, Pager, badgeClass, displayLabel, formatDate, useAdminCommand } from './AdminShared';
 
@@ -20,6 +20,33 @@ function workflowOptions(items: WorkflowRecord[], emptyLabel: string) {
 }
 
 function WorkflowRegister({ title, items }: { title: string; items: WorkflowRecord[] }) {
+  if (/supplier risk/i.test(title)) {
+    return (
+      <div className="data-table evaluation-table-scroll admin-data-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Supplier profile</th>
+              <th>Risk</th>
+              <th>Trust</th>
+              <th>Reviewed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                <td><strong>{recordText(item, 'summary', 'Supplier risk profile')}</strong><em>Score {recordText(item, 'riskScore', '50')} / Alerts {recordText(item, 'activeAlerts', '0')} / Violations {recordText(item, 'openViolations', '0')}</em></td>
+                <td><span className={badgeClass(recordText(item, 'riskLevel', 'MEDIUM'))}>{displayLabel(recordText(item, 'riskLevel', 'MEDIUM'))}</span></td>
+                <td><span className={badgeClass(recordText(item, 'trustTier', 'UNVERIFIED'))}>{displayLabel(recordText(item, 'trustTier', 'UNVERIFIED'))}</span></td>
+                <td>{item.updatedAt ? formatDate(item.updatedAt) : item.createdAt ? formatDate(item.createdAt) : '-'}</td>
+              </tr>
+            ))}
+            {items.length === 0 ? <EmptyRow colSpan={4} label="No supplier risk profiles found." /> : null}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   return (
     <div className="data-table evaluation-table-scroll admin-data-table">
       <table>
@@ -388,14 +415,14 @@ export function AdminComplianceProcurexPage() {
                 { name: 'supplierOrgId', label: 'Supplier organization ID', kind: 'uuid', required: true },
                 { name: 'riskLevel', label: 'Risk level', kind: 'select', options: riskLevelOptions },
                 { name: 'riskScore', label: 'Risk score', kind: 'number', min: 0, max: 100 },
-                { name: 'trustTier', label: 'Trust tier', kind: 'text' },
+                { name: 'trustTier', label: 'Trust tier', kind: 'select', options: trustTierOptions },
                 { name: 'activeAlerts', label: 'Active alerts', kind: 'number', min: 0 },
                 { name: 'openViolations', label: 'Open violations', kind: 'number', min: 0 },
-                { name: 'summary', label: 'Summary', kind: 'textarea' },
-                { name: 'drivers', label: 'Drivers JSON array', kind: 'json', rows: 4 },
-                { name: 'payload', label: 'Profile payload', kind: 'json', rows: 4 }
+                { name: 'summary', label: 'Reason for change', kind: 'textarea', required: true },
+                { name: 'drivers', label: 'Risk drivers', kind: 'textarea', rows: 4, transform: 'driverArray', helpText: 'Enter one driver per line.' },
+                { name: 'payload', label: 'Advanced payload', kind: 'json', rows: 4, advanced: true }
               ]}
-              initialValues={{ riskLevel: 'MEDIUM', riskScore: '50', trustTier: 'UNVERIFIED', activeAlerts: '0', openViolations: '0', drivers: '[]', payload: '{}' }}
+              initialValues={{ riskLevel: 'MEDIUM', riskScore: '50', trustTier: 'UNVERIFIED', activeAlerts: '0', openViolations: '0', summary: 'Risk profile reviewed by compliance admin.', drivers: '', payload: '{}' }}
               onSubmit={(payload) => adminApi.upsertSupplierRiskProfile(payload)}
               onComplete={() => void load(1, 1)}
             />

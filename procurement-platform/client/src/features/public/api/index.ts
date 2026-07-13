@@ -1,9 +1,12 @@
-import { mockApi } from '@/shared/api/mockApi';
 import { apiClient } from '@/shared/api/http';
+import type { MarketplacePayload } from '@/features/procurement/types';
 import type { CurrentLegalVersions, PublicContentPageKey, PublicPageVersion, WelcomeLandingData } from '../types';
 
 export const publicApi = {
-  listOpenTenders: mockApi.getTenders,
+  async listOpenTenders() {
+    const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
+    return response.data.tenders ?? [];
+  },
   async getWelcomeLanding(): Promise<WelcomeLandingData> {
     const response = await apiClient.get<WelcomeLandingData>('/api/procurement/public/welcome');
     return response.data;

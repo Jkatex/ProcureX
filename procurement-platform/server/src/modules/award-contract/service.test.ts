@@ -19,6 +19,7 @@ import {
   paymentScheduleBodySchema,
   requiredDocumentBodySchema,
   riskBodySchema,
+  supplierRiskProfileBodySchema,
   terminationBodySchema,
   warrantyBodySchema,
   workflowApprovalBodySchema
@@ -130,6 +131,96 @@ function makeLifecycleNumberRepository() {
   return { repository, goodsInspectionUpserts, acceptanceCreates };
 }
 
+function makeAwardNoticeRepository(status: RecommendationStatus) {
+  const calls: string[] = [];
+  const recommendation = {
+    id: 'recommendation-1',
+    status,
+    reason: 'Best evaluated bidder.',
+    supplierOrgId: '55555555-5555-4555-8555-555555555555',
+    bidId: '66666666-6666-4666-8666-666666666666',
+    notice: null,
+    contracts: [],
+    workspace: {
+      buyerOrgId: organizationId,
+      tenderId: '77777777-7777-4777-8777-777777777777',
+      tender: {
+        id: '77777777-7777-4777-8777-777777777777',
+        reference: 'PX-T-1',
+        title: 'Medical supplies'
+      }
+    }
+  };
+  const tx = {
+    awardRecommendation: {
+      findUnique: async () => recommendation,
+      update: async (input: any) => {
+        calls.push('awardRecommendation.update');
+        return input;
+      }
+    },
+    awardClause: {
+      count: async () => {
+        calls.push('awardClause.count');
+        throw new Error('Clause blocker should not run when sending notices.');
+      }
+    },
+    awardNegotiation: {
+      count: async () => {
+        calls.push('awardNegotiation.count');
+        throw new Error('Negotiation blocker should not run when sending notices.');
+      }
+    },
+    awardWinner: {
+      findMany: async () => [{
+        id: 'winner-1',
+        recommendationId: recommendation.id,
+        payload: {}
+      }],
+      update: async (input: any) => {
+        calls.push('awardWinner.update');
+        return input;
+      }
+    },
+    awardNotice: {
+      upsert: async (input: any) => {
+        calls.push('awardNotice.upsert');
+        return { id: 'notice-1', ...input.create };
+      }
+    },
+    bid: {
+      update: async (input: any) => {
+        calls.push('bid.update');
+        return input;
+      }
+    },
+    tender: {
+      update: async (input: any) => {
+        calls.push('tender.update');
+        return input;
+      }
+    },
+    awardGroup: {
+      update: async (input: any) => {
+        calls.push('awardGroup.update');
+        return input;
+      }
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).findOrCreateAwardGroup = async () => ({ id: 'award-group-1', payload: {} });
+  (repository as any).generateAwardBidPackRecord = async () => {
+    calls.push('generateAwardBidPackRecord');
+  };
+  (repository as any).audit = async () => {
+    calls.push('audit');
+  };
+  (repository as any).getRecommendation = async () => ({ id: recommendation.id, status });
+  return { service: new ModuleService(repository), calls };
+}
+
 describe('award-contract module', () => {
   it('normalizes award recommendation query defaults', () => {
     expect(awardRecommendationQuerySchema.parse({})).toEqual({
@@ -181,8 +272,23 @@ describe('award-contract module', () => {
       note: 'All signatures received.'
     });
 
+    expect(
+      supplierRiskProfileBodySchema.parse({
+        riskLevel: 'LOW',
+        trustTier: 'GOLD',
+        riskScore: 18,
+        summary: 'Supplier risk reviewed.',
+        payload: {}
+      })
+    ).toMatchObject({
+      riskLevel: 'LOW',
+      trustTier: 'GOLD',
+      riskScore: 18
+    });
+
     expect(() => awardNoticeResponseBodySchema.parse({ action: 'MAYBE' })).toThrow();
     expect(() => contractMilestonePatchBodySchema.parse({})).toThrow();
+    expect(() => supplierRiskProfileBodySchema.parse({ trustTier: 'PLATINUM', payload: {} })).toThrow();
   });
 
   it('exposes award and contract permissions through access policy', () => {
@@ -218,6 +324,29 @@ describe('award-contract module', () => {
       key: 'award-contract',
       status: 'ready'
     });
+  });
+
+  it('requires award confirmation before sending award notices', async () => {
+    const { service } = makeAwardNoticeRepository(RecommendationStatus.RECOMMENDED);
+
+    await expect(
+      service.settleAwardGroup('recommendation-1', { note: 'Send notices', payload: {} }, contractContext)
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Confirm the award before sending notices.'
+    });
+  });
+
+  it('sends award notices without running contract clause or negotiation blockers', async () => {
+    const { service, calls } = makeAwardNoticeRepository(RecommendationStatus.APPROVED);
+
+    await expect(
+      service.settleAwardGroup('recommendation-1', { note: 'Send notices', payload: {} }, contractContext)
+    ).resolves.toMatchObject({ id: 'recommendation-1', status: RecommendationStatus.APPROVED });
+
+    expect(calls).toEqual(expect.arrayContaining(['awardNotice.upsert', 'awardWinner.update', 'awardGroup.update']));
+    expect(calls).not.toContain('awardClause.count');
+    expect(calls).not.toContain('awardNegotiation.count');
   });
 
   it('requires a signing keyphrase credential for pending contract signatures', async () => {

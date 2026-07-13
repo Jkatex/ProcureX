@@ -1830,22 +1830,10 @@ export class ModuleRepository {
       const recommendation = await tx.awardRecommendation.findUnique({ where: { id }, include: recommendationInclude });
       if (!recommendation) throw requestError('Award recommendation was not found.', 404);
       assertBuyerAccess(recommendation, context);
-      const group = await this.findOrCreateAwardGroup(tx, recommendation);
-      const unresolvedClauseCount = await tx.awardClause.count({
-        where: {
-          awardGroupId: group.id,
-          status: { in: [ContractLifecycleItemStatus.OPEN, ContractLifecycleItemStatus.IN_PROGRESS, ContractLifecycleItemStatus.REJECTED] }
-        }
-      });
-      const unresolvedNegotiationCount = await tx.awardNegotiation.count({
-        where: {
-          awardGroupId: group.id,
-          status: { in: [ContractLifecycleItemStatus.OPEN, ContractLifecycleItemStatus.IN_PROGRESS, ContractLifecycleItemStatus.REJECTED] }
-        }
-      });
-      if (unresolvedClauseCount > 0 || unresolvedNegotiationCount > 0) {
-        throw requestError('Award cannot be settled until open clauses and negotiation points are approved, completed, or waived.', 409);
+      if (recommendation.status !== RecommendationStatus.APPROVED) {
+        throw requestError('Confirm the award before sending notices.', 409);
       }
+      const group = await this.findOrCreateAwardGroup(tx, recommendation);
 
       await this.generateAwardBidPackRecord(tx, group.id, context, input.note || 'Generated during award settlement');
       const winners = await tx.awardWinner.findMany({ where: { awardGroupId: group.id } });
@@ -2601,7 +2589,8 @@ export class ModuleRepository {
       const contract = await this.requireContract(tx, contractId, context, true);
       const supplierOrgId = input.supplierOrgId ?? contract.supplierOrgId;
       if (!supplierOrgId) throw requestError('Supplier organization is required for risk profile.', 409);
-      await tx.supplierRiskProfile.upsert({
+      const previous = await tx.supplierRiskProfile.findUnique({ where: { supplierOrgId } });
+      const profile = await tx.supplierRiskProfile.upsert({
         where: { supplierOrgId },
         update: {
           riskLevel: input.riskLevel as any,
@@ -2629,7 +2618,26 @@ export class ModuleRepository {
           payload: input.payload as Prisma.InputJsonObject
         }
       });
-      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.supplier_risk_profile.upserted', 'contract', contractId, { supplierOrgId, riskScore: input.riskScore });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.supplier_risk_profile.upserted', 'contract', contractId, {
+        supplierOrgId,
+        previous: previous ? {
+          riskLevel: previous.riskLevel,
+          riskScore: previous.riskScore,
+          trustTier: previous.trustTier,
+          activeAlerts: previous.activeAlerts,
+          openViolations: previous.openViolations,
+          summary: previous.summary
+        } : null,
+        next: {
+          riskLevel: profile.riskLevel,
+          riskScore: profile.riskScore,
+          trustTier: profile.trustTier,
+          activeAlerts: profile.activeAlerts,
+          openViolations: profile.openViolations,
+          summary: profile.summary
+        },
+        reason: input.summary || ''
+      });
     });
     return this.getContract(contractId, context);
   }

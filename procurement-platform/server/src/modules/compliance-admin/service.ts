@@ -60,6 +60,10 @@ function jsonObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function jsonArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function workflowDto<T extends Record<string, unknown>>(record: T) {
   return Object.fromEntries(
     Object.entries(record).map(([key, value]) => {
@@ -758,7 +762,8 @@ export class ModuleService {
   async upsertSupplierRiskProfile(token: string | undefined, input: Record<string, unknown>) {
     const admin = await this.requireAdmin(token);
     return this.asAdmin(admin, async (tx) => {
-      const item = await this.repository.upsertSupplierRiskProfile(input, admin.user.id, tx);
+      const result = await this.repository.upsertSupplierRiskProfile(input, admin.user.id, tx);
+      const item = result.profile;
       await this.repository.createAuditEvent({
         actorUserId: admin.user.id,
         ownerOrgId: typeof input.supplierOrgId === 'string' ? input.supplierOrgId : null,
@@ -766,7 +771,26 @@ export class ModuleService {
         entityType: 'supplier_risk_profile',
         entityRef: item.id,
         severity: AuditSeverity.INFO,
-        payload: jsonObject(input.payload) as Prisma.InputJsonObject
+        payload: {
+          previous: result.previous ? {
+            riskLevel: result.previous.riskLevel,
+            riskScore: result.previous.riskScore,
+            trustTier: result.previous.trustTier,
+            activeAlerts: result.previous.activeAlerts,
+            openViolations: result.previous.openViolations,
+            summary: result.previous.summary
+          } : null,
+          next: {
+            riskLevel: item.riskLevel,
+            riskScore: item.riskScore,
+            trustTier: item.trustTier,
+            activeAlerts: item.activeAlerts,
+            openViolations: item.openViolations,
+            summary: item.summary
+          },
+          reason: typeof input.summary === 'string' ? input.summary : '',
+          payload: jsonObject(input.payload)
+        } as Prisma.InputJsonObject
       }, tx);
       return workflowDto(item as unknown as Record<string, unknown>);
     });
@@ -1252,6 +1276,17 @@ function userDto(user: AdminUserRow): AdminUserDto {
   const latestScreening = user.screeningChecks[0];
   const verificationProfile = user.verificationProfiles[0];
   const documents = verificationProfile?.documents.map((item) => `${item.document.documentType}: ${item.document.name}`) ?? [];
+  const history = (organization?.trustTierHistory ?? []).map((entry) => ({
+    previousTier: entry.previousTier,
+    nextTier: entry.nextTier,
+    riskLevel: entry.riskLevel,
+    score: entry.score,
+    reasons: jsonArray(entry.reasons).map(String),
+    createdAt: entry.createdAt.toISOString()
+  }));
+  const trustTier = organization?.supplierProfile?.trustTier ?? 'UNVERIFIED';
+  const riskLevel = organization?.supplierProfile?.riskLevel ?? 'MEDIUM';
+  const screeningStatus = latestScreening?.status ?? 'NOT_RUN';
   const verificationTimeline =
     verificationProfile?.history.map((item) => ({
       label: item.event,
@@ -1274,9 +1309,18 @@ function userDto(user: AdminUserRow): AdminUserDto {
           capabilities: organization.capabilities.map((item) => item.capability)
         }
       : null,
-    trustTier: organization?.supplierProfile?.trustTier ?? 'UNVERIFIED',
-    riskLevel: organization?.supplierProfile?.riskLevel ?? 'MEDIUM',
-    screeningStatus: latestScreening?.status ?? 'NOT_RUN',
+    trustTier,
+    riskLevel,
+    screeningStatus,
+    trustRisk: {
+      trustTier,
+      riskLevel,
+      screeningStatus,
+      score: history[0]?.score ?? null,
+      reasons: history[0]?.reasons ?? (trustTier === 'UNVERIFIED' ? ['Not assessed yet. Complete identity verification to receive a trust tier.'] : []),
+      assessedAt: history[0]?.createdAt ?? null,
+      history
+    },
     permissions: user.permissionOverrides.map((item) => `${item.effect} ${item.permission}`),
     documents,
     timeline: [

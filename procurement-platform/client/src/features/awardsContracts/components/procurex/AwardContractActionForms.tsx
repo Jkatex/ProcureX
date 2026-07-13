@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { editableTrustTierValues } from '@/shared/trustRisk';
 import type { PickerOption } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
 import { actionDefinitionForTitle } from './AwardContractActionCatalogue';
@@ -15,6 +16,7 @@ export type FieldOption = {
 
 export type AwardContractFieldKind =
   | 'text'
+  | 'password'
   | 'textarea'
   | 'select'
   | 'number'
@@ -104,6 +106,7 @@ export const terminationStatusOptions = [
   'CLOSED'
 ].map((value) => option(value));
 export const riskLevelOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => option(value));
+export const trustTierOptions = editableTrustTierValues.map((value) => option(value));
 
 export function option(value: string, label = displayLabel(value)): FieldOption {
   return { value, label };
@@ -403,7 +406,7 @@ export function ActionFormPanel({
   const counts = formCounts(fields);
   const fieldsBySection = useMemo(() => {
     const grouped = new Map<string, AwardContractFieldConfig[]>();
-    for (const field of fields.filter((entry) => !isTechnicalField(entry))) {
+    for (const field of fields.filter((entry) => !isTechnicalField(entry) || fieldSection(entry) === 'payload')) {
       const section = fieldSection(field);
       grouped.set(section, [...(grouped.get(section) ?? []), field]);
     }
@@ -663,7 +666,7 @@ function AwardContractField({
     );
   }
 
-  const type = field.kind === 'number' ? 'number' : field.kind === 'date' ? 'date' : field.kind === 'datetime' ? 'datetime-local' : 'text';
+  const type = field.kind === 'number' ? 'number' : field.kind === 'date' ? 'date' : field.kind === 'datetime' ? 'datetime-local' : field.kind === 'password' ? 'password' : 'text';
   return (
     <label className="award-form-field" htmlFor={id}>
       <span>{label}</span>
