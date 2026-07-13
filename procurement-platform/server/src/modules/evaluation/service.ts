@@ -98,10 +98,11 @@ export class ModuleService {
   async ready(context?: EvaluationRequestContext): Promise<ReadyEvaluationResponseDto> {
     try {
       const tenders = await this.repository.listReadyTenders(context);
+      const now = new Date();
 
       return {
         tenders: tenders.map((tender) => {
-          const readiness = tenderReadiness(tender);
+          const eligibility = tenderEvaluationEligibility(tender, now);
           const bidOpeningStatus = bidOpeningStatusLabel(tender);
           return {
             tenderId: tender.id,
@@ -111,15 +112,22 @@ export class ModuleService {
             procurementType: tender.type,
             closingDate: tender.closingDate?.toISOString() ?? '',
             submittedBidCount: tender.bids.length,
+            bidCount: tender.bids.length,
             requirementCount: tender.requirementRows.length || countRequirementItems(tender.requirements),
             criteriaCount: tender.evaluation?.criteria.length ?? countEvaluationCriteria(tender.metadata),
-            ready: readiness.ready,
-            status: readiness.status,
+            ready: eligibility.canStartEvaluation || eligibility.canContinueEvaluation,
+            status: eligibility.evaluationStatus,
             tenderStatus: tender.status,
             bidOpeningStatus,
+            hasClosed: eligibility.hasClosed,
+            openingStatus: eligibility.openingStatus,
+            evaluationStatus: eligibility.evaluationStatus,
+            canStartEvaluation: eligibility.canStartEvaluation,
+            canContinueEvaluation: eligibility.canContinueEvaluation,
+            lockReason: eligibility.lockReason,
             currentStage: readString(tender.evaluation?.payload, 'activeStageId') ?? tender.evaluation?.currentStage ?? null,
             progressPercentage: tender.evaluation?.progress ?? 0,
-            readinessReason: readiness.reason
+            readinessReason: eligibility.lockReason
           };
         })
       };
@@ -319,11 +327,11 @@ function toWorkspaceDto(tender: EvaluationWorkspaceTenderRecord | null, auditEve
   };
 }
 
-function workspaceAvailability(tender: EvaluationWorkspaceTenderRecord) {
+function workspaceAvailability(tender: EvaluationWorkspaceTenderRecord, now = new Date()) {
   if (!['PUBLISHED', 'OPEN', 'CLOSED', 'EVALUATION'].includes(tender.status)) {
     return { isReady: false, reason: 'Tender is not published yet.' };
   }
-  if (!tender.closingDate || tender.closingDate > new Date()) {
+  if (!tenderHasClosed(tender, now)) {
     return { isReady: false, reason: 'Tender is locked until the closing date passes.' };
   }
   if (tender.bids.length === 0) {
@@ -335,7 +343,7 @@ function workspaceAvailability(tender: EvaluationWorkspaceTenderRecord) {
   return { isReady: true, reason: null };
 }
 
-function tenderReadiness(tender: {
+function tenderEvaluationEligibility(tender: {
   status: string;
   closingDate: Date | null;
   bids: Array<unknown>;
@@ -343,48 +351,80 @@ function tenderReadiness(tender: {
   evaluation: {
     status: string;
   } | null;
-}) {
+}, now = new Date()) {
   const openingStatus = bidOpeningStatusValue(tender);
+  const hasClosed = tenderHasClosed(tender, now);
+  const evaluationStatus = tender.evaluation?.status ?? 'NOT_STARTED';
+  const bidCount = tender.bids.length;
+
   if (tender.evaluation?.status === 'COMPLETED') {
     return {
-      ready: false,
-      status: 'COMPLETED',
-      reason: 'Evaluation is already completed'
+      hasClosed,
+      bidCount,
+      openingStatus,
+      evaluationStatus: 'COMPLETED',
+      canStartEvaluation: false,
+      canContinueEvaluation: false,
+      lockReason: null
     };
   }
   if (tender.evaluation?.status === 'IN_PROGRESS' || tender.evaluation?.status === 'RETURNED') {
     return {
-      ready: true,
-      status: tender.evaluation.status,
-      reason: null
+      hasClosed,
+      bidCount,
+      openingStatus,
+      evaluationStatus: tender.evaluation.status,
+      canStartEvaluation: false,
+      canContinueEvaluation: true,
+      lockReason: null
     };
   }
-  if (!tender.closingDate || tender.closingDate > new Date()) {
+  if (!hasClosed) {
     return {
-      ready: false,
-      status: tender.evaluation?.status ?? 'LOCKED',
-      reason: 'Evaluation opens after tender closing'
+      hasClosed,
+      bidCount,
+      openingStatus,
+      evaluationStatus: 'LOCKED',
+      canStartEvaluation: false,
+      canContinueEvaluation: false,
+      lockReason: 'Tender has not closed yet'
+    };
+  }
+  if (bidCount === 0) {
+    return {
+      hasClosed,
+      bidCount,
+      openingStatus,
+      evaluationStatus: 'LOCKED',
+      canStartEvaluation: false,
+      canContinueEvaluation: false,
+      lockReason: 'No bids available for evaluation'
     };
   }
   if (!openingComplete(openingStatus)) {
     return {
-      ready: false,
-      status: tender.evaluation?.status ?? 'LOCKED',
-      reason: 'Bid opening is incomplete'
-    };
-  }
-  if (tender.bids.length === 0) {
-    return {
-      ready: false,
-      status: tender.evaluation?.status ?? 'LOCKED',
-      reason: 'No submitted bids available for evaluation yet'
+      hasClosed,
+      bidCount,
+      openingStatus,
+      evaluationStatus: 'LOCKED',
+      canStartEvaluation: false,
+      canContinueEvaluation: false,
+      lockReason: 'Complete bid opening first'
     };
   }
   return {
-    ready: true,
-    status: tender.evaluation?.status ?? 'NOT_STARTED',
-    reason: null
+    hasClosed,
+    bidCount,
+    openingStatus,
+    evaluationStatus,
+    canStartEvaluation: true,
+    canContinueEvaluation: false,
+    lockReason: null
   };
+}
+
+function tenderHasClosed(tender: { status: string; closingDate: Date | null }, now = new Date()) {
+  return tender.status === 'CLOSED' || tender.status === 'EVALUATION' || Boolean(tender.closingDate && tender.closingDate <= now);
 }
 
 function bidOpeningStatusValue(tender: { status: string; bids: Array<unknown>; metadata?: Prisma.JsonValue; evaluation?: { status: string } | null }) {

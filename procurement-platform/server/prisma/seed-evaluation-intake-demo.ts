@@ -25,7 +25,7 @@ type DemoTender = (typeof DEMO_TENDERS)[number];
 type DemoBid = DemoTender['bids'][number];
 
 export const EVALUATION_INTAKE_DEMO_DATASET = 'evaluation-intake-demo';
-export const EVALUATION_INTAKE_TENDER_REFS = ['PX-WRK-2026-001', 'PX-GDS-2026-002', 'PX-SRV-2026-003'] as const;
+export const EVALUATION_INTAKE_TENDER_REFS = ['PX-WRK-2026-001', 'PX-GDS-2026-002', 'PX-SRV-2026-003', 'PX-GDS-2026-004'] as const;
 
 const DEMO_TENDERS = [
   {
@@ -34,6 +34,7 @@ const DEMO_TENDERS = [
     category: 'Works',
     procurementMethod: 'National Competitive Tendering',
     buyer: 'Mwanza District Council',
+    status: TenderStatus.CLOSED,
     closingDate: '2026-06-25',
     openingDate: '2026-06-26',
     currency: 'TZS',
@@ -57,6 +58,7 @@ const DEMO_TENDERS = [
     category: 'Goods',
     procurementMethod: 'Request for Quotations',
     buyer: 'Arusha Technical Institute',
+    status: TenderStatus.CLOSED,
     closingDate: '2026-06-28',
     openingDate: '2026-06-29',
     currency: 'TZS',
@@ -80,6 +82,7 @@ const DEMO_TENDERS = [
     category: 'Services',
     procurementMethod: 'Competitive Selection',
     buyer: 'Dodoma Regional Hospital',
+    status: TenderStatus.CLOSED,
     closingDate: '2026-07-01',
     openingDate: '2026-07-02',
     currency: 'TZS',
@@ -95,6 +98,30 @@ const DEMO_TENDERS = [
       { name: 'Staff Qualification', stage: EvaluationStage.TECHNICAL, weight: 20, maxScore: 100 },
       { name: 'Service Methodology', stage: EvaluationStage.TECHNICAL, weight: 25, maxScore: 100 },
       { name: 'Financial Proposal', stage: EvaluationStage.FINANCIAL, weight: 30, maxScore: 100 }
+    ]
+  },
+  {
+    tenderNo: 'PX-GDS-2026-004',
+    title: 'Supply of School Science Laboratory Equipment',
+    category: 'Goods',
+    procurementMethod: 'National Competitive Tendering',
+    buyer: 'Kilimanjaro Regional Education Office',
+    status: TenderStatus.PUBLISHED,
+    closingDate: '2026-06-14',
+    openingDate: '2026-06-15',
+    currency: 'TZS',
+    estimatedBudget: 215000000,
+    bids: [
+      { supplier: 'Alpha Lab Supplies Ltd', bidAmount: 198500000 },
+      { supplier: 'East Africa Science Stores', bidAmount: 203000000 },
+      { supplier: 'Mlimani Educational Supplies', bidAmount: 191750000 }
+    ],
+    criteria: [
+      { name: 'Administrative Compliance', stage: EvaluationStage.PRELIMINARY, weight: null, maxScore: 1, criterionType: 'PASS_FAIL' },
+      { name: 'Technical Specification Compliance', stage: EvaluationStage.TECHNICAL, weight: 40, maxScore: 100 },
+      { name: 'Warranty and After-Sales Support', stage: EvaluationStage.TECHNICAL, weight: 20, maxScore: 100 },
+      { name: 'Delivery Period', stage: EvaluationStage.TECHNICAL, weight: 15, maxScore: 100 },
+      { name: 'Financial Proposal', stage: EvaluationStage.FINANCIAL, weight: 25, maxScore: 100 }
     ]
   }
 ] as const;
@@ -281,7 +308,7 @@ async function upsertTender(db: AnyDb, item: DemoTender, buyerOrg: any, buyerUse
     title: item.title,
     description: `${item.procurementMethod} for ${item.buyer}.`,
     type: tenderType(item.category),
-    status: TenderStatus.CLOSED,
+    status: item.status,
     method: procurementMethod(item.procurementMethod),
     visibility: Visibility.PUBLIC_MARKETPLACE,
     budget: item.estimatedBudget,
