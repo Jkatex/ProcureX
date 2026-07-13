@@ -373,6 +373,63 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.getByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
   });
 
+  it('renders the administrative gate with procurex-ui grouped eligibility sections', async () => {
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+            field('administrative.authorized', 'Confirm authorized representative', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'authorized'),
+            field('administrative.similarProjects', 'Confirm similar project evidence', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'administrative.similarProjects', {
+              prompt: 'Confirm that similar completed project evidence is completed in the technical capacity response.'
+            }),
+            field('administrative.shippingLicense', 'Shipping Agency License', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', true, 'regulatoryLicenseRequirementRows.shipping', {
+              documentType: 'ADMIN_LICENSE',
+              prompt: 'Tanzania Shipping Agencies Corporation'
+            }),
+            field('administrative.signedBidForm', 'Signed bid submission form', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', true, 'submissionDocuments.signedBidForm', {
+              documentType: 'ADMIN_SUBMISSION_FORM'
+            }),
+            field('administrative.eligibilityEvidence', 'Eligibility and administrative evidence', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', false, 'eligibility', {
+              documentType: 'ADMINISTRATIVE_EVIDENCE'
+            })
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    expect(screen.getByText('1. Licenses and certifications')).toBeInTheDocument();
+    expect(screen.getByText('Regulatory license evidence')).toBeInTheDocument();
+    expect(screen.getByText('Shipping Agency License')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Permit / license' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Status' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Evidence' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Shipping Agency License status')).toBeInTheDocument();
+    expect(screen.getByText('Bid submission documents')).toBeInTheDocument();
+    expect(screen.getByText('Signed bid submission form')).toBeInTheDocument();
+    expect(screen.getByText('Other administrative supporting documents')).toBeInTheDocument();
+    expect(screen.getByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    expect(screen.getByText('4. Eligibility declarations/confirmations')).toBeInTheDocument();
+    expect(screen.getByText('Administrative confirmations')).toBeInTheDocument();
+    expect(screen.getAllByText('Administrative compliance').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText('Confirm eligibility to participate')).toBeInTheDocument();
+    expect(screen.getByText('Confirm authorized representative')).toBeInTheDocument();
+    expect(screen.getByText('Confirm similar project evidence')).toBeInTheDocument();
+    expect(screen.getByText('Confirm that similar completed project evidence is completed in the technical capacity response.')).toBeInTheDocument();
+    expect(screen.getAllByText('I confirm and accept this requirement.').length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll('.bid-gate-group').length).toBeGreaterThanOrEqual(4);
+    expect(container.querySelectorAll('.bid-requirement-card').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('uses the hero Review Submission action as a jump to the review step', async () => {
     render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
@@ -504,6 +561,110 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
               evidenceReference: 'brochure.pdf'
             })
           }
+        })
+      ])
+    );
+  });
+
+  it('renders works technical capacity with the procurex-ui workbook layout and saves structured responses', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({ type: 'WORKS', title: 'Solar mini-grid civil works', category: 'Works' }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        tenderType: 'WORKS',
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+            field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+            field('administrative.authorized', 'Confirm authorized representative', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'authorized'),
+            field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed')
+          ]),
+          step('worksCapacity', 'Technical Capacity and Experience', 'TECHNICAL', [
+            field('works.similarProjects', 'Similar completed project evidence', 'table', 'technical', 'structured', 'TECHNICAL', true, 'works.similarProjects', {
+              control: 'worksSimilarProject',
+              prompt: 'Upload documents explaining previous similar projects.'
+            }),
+            field('works.keyPersonnel', 'Key personnel CV and qualification response', 'table', 'technical', 'structured', 'TECHNICAL', true, 'works.keyPersonnel', {
+              control: 'worksPersonnel'
+            }),
+            field('works.equipment.excavator', 'Excavator', 'table', 'technical', 'structured', 'TECHNICAL', true, 'works.equipment.excavator', {
+              control: 'worksEquipment',
+              equipmentName: 'Excavator',
+              quantity: 2,
+              ownershipRequirement: 'Owned or leased'
+            }),
+            field('works.hsePolicy', 'HSE policy response', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.hsePolicy'),
+            field('works.capacityNarrative', 'Capacity narrative', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.capacityNarrative')
+          ]),
+          step('worksTechnicalProposal', 'Technical Proposal and Work Program', 'TECHNICAL', [field('technical.methodStatement', 'Method statement response', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.methodStatement')]),
+          step('worksFinancial', 'Financial Proposal / BOQ Pricing', 'FINANCIAL', [
+            field('financial.unitRate', 'Unit rate for Civil works', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'unitRate', {
+              itemId: 'line-1',
+              itemNo: '1',
+              description: 'Civil works',
+              quantity: 1,
+              unit: 'Lot',
+              min: 0
+            })
+          ]),
+          step('worksReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')]),
+          step('worksDeclaration', 'Declaration and Submission', 'COMBINED', [field('declarations.confirmAccuracy', 'I confirm the bid is accurate and complete', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'confirmAccuracy')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('heading', { name: 'Technical Capacity and Experience' })).toBeInTheDocument();
+    expect(screen.getByText('Similar completed projects')).toBeInTheDocument();
+    expect(screen.getByText('Key personnel')).toBeInTheDocument();
+    expect(screen.getByText('Equipment capacity')).toBeInTheDocument();
+    expect(screen.getByText('Health, Safety and Environmental Response')).toBeInTheDocument();
+    expect(screen.getByText('Additional capacity responses')).toBeInTheDocument();
+    expect(container.querySelector('.works-capacity-workbook')).toBeInTheDocument();
+    expect(container.querySelector('.works-capacity-card')).toBeInTheDocument();
+    expect(container.querySelector('.works-person-card')).toBeInTheDocument();
+    expect(container.querySelector('.works-person-avatar')).toBeInTheDocument();
+    expect(container.querySelector('.works-equipment-table')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Project / client'), { target: { value: 'Rural distribution network' } });
+    fireEvent.change(screen.getByLabelText('Personnel Position'), { target: { value: 'Site engineer' } });
+    fireEvent.change(screen.getByLabelText('Quantity available for Excavator'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('Ownership status for Excavator'), { target: { value: 'Owned' } });
+    fireEvent.change(screen.getByLabelText('HSE policy response'), { target: { value: 'HSE plan available with safety officer assigned.' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
+
+    await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
+    expect(vi.mocked(biddingApi.saveTenderDraft).mock.calls[0][1].responses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          requirementKey: 'works.similarProjects',
+          response: { value: expect.objectContaining({ projectName: 'Rural distribution network' }) }
+        }),
+        expect.objectContaining({
+          requirementKey: 'works.keyPersonnel',
+          response: { value: expect.objectContaining({ namedResource: 'Site engineer' }) }
+        }),
+        expect.objectContaining({
+          requirementKey: 'works.equipment.excavator',
+          response: { value: expect.objectContaining({ quantityAvailable: 3, ownershipStatus: 'Owned' }) }
+        }),
+        expect.objectContaining({
+          requirementKey: 'works.hsePolicy',
+          response: { value: 'HSE plan available with safety officer assigned.' }
         })
       ])
     );
@@ -682,7 +843,11 @@ function completeGate() {
 function checkCard(label: string) {
   const checkbox = screen
     .getAllByText(label)
-    .map((element) => element.closest('label')?.querySelector('input[type="checkbox"]') as HTMLInputElement | null)
+    .map((element) => {
+      const compactCard = element.closest('label')?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+      if (compactCard) return compactCard;
+      return element.closest('article')?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+    })
     .find(Boolean);
   if (!checkbox) throw new Error(`Checkbox not found for ${label}`);
   if (!checkbox.checked) fireEvent.click(checkbox);
