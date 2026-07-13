@@ -15055,6 +15055,21 @@ ul.closure-checklist {
     min-width: 0;
 }
 
+.procurement-tender-list.market-list .market-row .tender-row-title strong {
+    font-size: 17px;
+    line-height: 1.3;
+}
+
+.procurement-tender-list.market-list .market-row p {
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.procurement-tender-list.market-list .market-row>div:first-child>span:not(.badge) {
+    font-size: 13px;
+    line-height: 1.45;
+}
+
 .procurement-tender-list.market-list .market-row .tender-row-actions {
     align-content: center;
     align-items: center;

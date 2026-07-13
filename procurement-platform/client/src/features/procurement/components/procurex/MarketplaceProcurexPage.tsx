@@ -69,9 +69,9 @@ export function MarketplaceProcurexPage() {
   }, [activeMarketplaceTenders, deadlineNow, filters]);
 
   const activeRecommendedTenders = useMemo(() => {
-    const rows = data?.recommendedTenders ?? activeMarketplaceTenders;
+    const rows = data?.recommendedTenders ?? [];
     return rows.filter((tender) => isActiveMarketplaceTender(tender, deadlineNow) || isActiveInvitedTender(tender, deadlineNow));
-  }, [activeMarketplaceTenders, data?.recommendedTenders, deadlineNow]);
+  }, [data?.recommendedTenders, deadlineNow]);
 
   const recommendedTenders = useMemo(() => {
     return filterRecommendedTenders(activeRecommendedTenders, recommendedQuery, deadlineNow);
@@ -185,6 +185,7 @@ export function MarketplaceProcurexPage() {
                         onToggleSaved={toggleSaved}
                         title="Recommended tenders"
                         kicker="Recommended"
+                        empty="No relevant recommended tenders right now."
                       />
                     </section>
                   ) : null}
@@ -306,7 +307,7 @@ function filterRecommendedTenders(tenders: MarketplaceTenderRow[], query: string
     return !normalizedQuery || searchableTenderText(tender).includes(normalizedQuery);
   });
 
-  return sortTendersByDeadline(filtered);
+  return uniqueTenderRows(filtered);
 }
 
 function filterInvitedTenders(tenders: MarketplaceTenderRow[], query: string, now = Date.now()) {

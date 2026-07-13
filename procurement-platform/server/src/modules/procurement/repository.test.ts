@@ -572,6 +572,49 @@ describe('procurement marketplace repository', () => {
     }));
   });
 
+  it('does not recommend every open tender when the supplier has no matching signals', async () => {
+    const supplierOrgId = 'supplier-org-empty-signals';
+    const unmatchedTender = tenderDetailRecord({
+      id: 'unmatched-public-tender',
+      reference: 'PX-UNMATCHED-001',
+      title: 'Generic furniture supply',
+      description: 'Supply office desks and chairs.',
+      type: TenderType.GOODS,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      closingDate: new Date('2026-08-30T00:00:00.000Z'),
+      categories: [{ name: 'Furniture' }]
+    });
+    const db = {
+      organization: {
+        findUnique: vi.fn().mockResolvedValue({ name: 'New Supplier Ltd' })
+      },
+      tender: {
+        findMany: vi.fn(({ where }) => {
+          if (where?.visibility === Visibility.INVITED) return Promise.resolve([]);
+          if (where?.buyerOrgId) return Promise.resolve([]);
+          return Promise.resolve([unmatchedTender]);
+        })
+      },
+      bid: {
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      verificationProfile: {
+        findFirst: vi.fn().mockResolvedValue(null)
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+    const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
+
+    const payload = await repository.getMarketplaceData({ organizationId: supplierOrgId, userId: 'supplier-user-empty' }, query);
+
+    expect(payload.tenders).toMatchObject([{ id: 'unmatched-public-tender' }]);
+    expect(payload.recommendedTenders).toEqual([]);
+  });
+
   it('sorts and paginates marketplace tenders while summarizing the full filtered result set', async () => {
     const baseTender = tenderDetailRecord({
       id: 'tender-1',

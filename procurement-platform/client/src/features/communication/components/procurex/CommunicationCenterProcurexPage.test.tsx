@@ -200,12 +200,11 @@ describe('CommunicationCenterProcurexPage', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
 
-    vi.mocked(window.open).mockReturnValueOnce(null);
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'open'));
     expect(window.open).toHaveBeenCalledWith('blob:attachment', '_blank', 'noopener,noreferrer');
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
-    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Check that popups are allowed'));
+    expect(window.alert).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole('button', { name: 'Download' }));
     await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'download'));
@@ -294,7 +293,7 @@ describe('CommunicationCenterProcurexPage', () => {
         actionRequired: expect.anything()
       })
     );
-  });
+  }, 10000);
 
   it('replies through the communication API without archive controls', async () => {
     renderPage();

@@ -1781,24 +1781,25 @@ function recommendedMarketplaceTenderRows({
   addProfileRecommendationSignal(verificationProfile, weightedTerms, locationWeights);
 
   const scored = [...candidateMap.values()]
-    .map((tender) => ({
-      tender,
-      score: marketplaceRecommendationScore(tender, {
+    .map((tender) => {
+      const recommendationContext = {
         weightedTerms,
         typeWeights,
         locationWeights,
         invitedTenderIds,
         savedTenderIds,
         bidState: bidStates.get(tender.id)
-      })
-    }))
-    .filter((entry) => entry.score > 0 || invitedTenderIds.has(entry.tender.id) || savedTenderIds.has(entry.tender.id));
+      };
+      const matchScore = marketplaceRecommendationMatchScore(tender, recommendationContext);
+      return {
+        tender,
+        matchScore,
+        score: matchScore + (recommendationContext.typeWeights.get(tender.type) ?? 0) * 2
+      };
+    })
+    .filter((entry) => entry.matchScore > 0);
 
-  const ranked = scored.length
-    ? scored.sort((left, right) => right.score - left.score || deadlineTime(left.tender) - deadlineTime(right.tender) || newestTime(right.tender) - newestTime(left.tender))
-    : [...candidateMap.values()]
-        .map((tender) => ({ tender, score: 0 }))
-        .sort((left, right) => deadlineTime(left.tender) - deadlineTime(right.tender) || newestTime(right.tender) - newestTime(left.tender));
+  const ranked = scored.sort((left, right) => right.score - left.score || deadlineTime(left.tender) - deadlineTime(right.tender) || newestTime(right.tender) - newestTime(left.tender));
 
   return ranked.slice(0, 24).map(({ tender }) =>
     toMarketplaceTenderRow(tender, {
@@ -1838,7 +1839,7 @@ function addProfileRecommendationSignal(
   for (const term of recommendationTerms(profileLocationSignalValues(profile.payload))) addWeightedTerm(locationWeights, term, 7);
 }
 
-function marketplaceRecommendationScore(
+function marketplaceRecommendationMatchScore(
   tender: MarketplaceTenderRecord,
   context: {
     weightedTerms: Map<string, number>;
@@ -1854,7 +1855,6 @@ function marketplaceRecommendationScore(
   if (context.savedTenderIds.has(tender.id)) score += 45;
   if (context.bidState?.hasDraftBid) score += 28;
   if (context.bidState?.hasSubmittedBid) score += 12;
-  score += (context.typeWeights.get(tender.type) ?? 0) * 2;
 
   for (const term of tenderRecommendationTerms(tender)) score += context.weightedTerms.get(term) ?? 0;
   for (const term of recommendationTerms([tender.location])) score += context.locationWeights.get(term) ?? 0;
@@ -1868,7 +1868,6 @@ function tenderRecommendationTerms(tender: MarketplaceTenderRecord) {
     tender.reference,
     tender.buyerOrg.name,
     tender.location,
-    frontendTenderType(tender.type),
     marketplaceCategory(tender),
     ...marketplaceCategoryValues(tender),
     ...marketplaceCategoryValues(tender).flatMap((category) => categorySearchTerms(category)),
@@ -1909,7 +1908,7 @@ function profilePayloadSignalValues(value: unknown): unknown[] {
 
 function profileLocationSignalValues(value: unknown): unknown[] {
   const values: unknown[] = [];
-  collectProfilePayloadValues(value, values, (key) => /region|district|location|country|city|ward|address/i.test(key));
+  collectProfilePayloadValues(value, values, (key) => /region|district|location|city|ward|address/i.test(key));
   return values;
 }
 
@@ -1965,7 +1964,13 @@ const recommendationStopWords = new Set([
   'company',
   'limited',
   'ltd',
-  'llc'
+  'llc',
+  'goods',
+  'works',
+  'service',
+  'services',
+  'consultancy',
+  'tanzania'
 ]);
 
 function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, context: MarketplaceTenderRowContext = {}): MarketplaceTenderRow {

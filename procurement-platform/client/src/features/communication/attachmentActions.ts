@@ -5,9 +5,8 @@ export async function openCommunicationAttachment(messageId: string, attachment:
   try {
     const blob = await communicationApi.getAttachment(messageId, attachment.id, 'open');
     const url = URL.createObjectURL(blob);
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    window.open(url, '_blank', 'noopener,noreferrer');
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-    if (!opened) window.alert(`Could not open ${attachment.name}. Check that popups are allowed for this site.`);
   } catch {
     window.alert(`Could not open ${attachment.name}.`);
   }

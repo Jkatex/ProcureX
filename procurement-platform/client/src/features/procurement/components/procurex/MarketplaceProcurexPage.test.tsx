@@ -99,7 +99,7 @@ describe('MarketplaceProcurexPage', () => {
       myBids: []
     } satisfies MarketplacePayload);
 
-    renderMarketplace();
+    renderMarketplace('/procurement/marketplace?view=all-tenders');
 
     expect(await screen.findByText('Active Marketplace Tender')).toBeInTheDocument();
     expect(screen.queryByText('Expired Marketplace Tender')).not.toBeInTheDocument();
@@ -302,6 +302,29 @@ describe('MarketplaceProcurexPage', () => {
     expect(screen.queryByText('Recommended Invited Tender')).not.toBeInTheDocument();
   });
 
+  it('does not fall back to all published tenders when the backend has no recommendations', async () => {
+    const user = userEvent.setup();
+    const publicTender = marketplaceTender({
+      id: 'not-recommended-public',
+      reference: 'PX-NOT-REC',
+      title: 'Published But Not Recommended Tender'
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [publicTender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace');
+
+    expect(await screen.findByText('No relevant recommended tenders right now.')).toBeInTheDocument();
+    expect(screen.queryByText('Published But Not Recommended Tender')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'All Tenders' }));
+
+    expect(await screen.findByText('Published But Not Recommended Tender')).toBeInTheDocument();
+  });
+
   it('uses buyer-safe actions for owned tenders', async () => {
     renderMarketplace();
 
@@ -421,7 +444,7 @@ describe('MarketplaceProcurexPage', () => {
       myTenders: [],
       myBids: []
     } satisfies MarketplacePayload);
-    renderMarketplace();
+    renderMarketplace('/procurement/marketplace?view=all-tenders');
 
     await screen.findByText('Save Only Tender');
     const tenderRow = screen.getByText('Save Only Tender').closest('article');
@@ -682,6 +705,7 @@ describe('MarketplaceProcurexPage', () => {
 
     vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
       tenders: [tender],
+      recommendedTenders: [tender],
       myTenders: [],
       myBids: []
     } satisfies MarketplacePayload);
@@ -725,18 +749,21 @@ function marketplaceTender(overrides: Partial<MarketplaceTenderRow> = {}): Marke
 }
 
 function defaultMarketplacePayload(): MarketplacePayload {
+  const tenders = fixtureTenders.map((tender): MarketplaceTenderRow => ({
+    ...tender,
+    ownerOrganization: tender.organization,
+    ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
+    canBid: !tender.createdByCurrentUser && !tender.hasSubmittedBid,
+    hasDraftBid: Boolean(tender.hasDraftBid),
+    hasSubmittedBid: Boolean(tender.hasSubmittedBid),
+    isSaved: Boolean(tender.isSaved),
+    visibility: tender.visibility ?? 'PUBLIC_MARKETPLACE',
+    categories: tender.categories.length ? tender.categories : [tender.type]
+  }));
+
   return {
-    tenders: fixtureTenders.map((tender): MarketplaceTenderRow => ({
-      ...tender,
-      ownerOrganization: tender.organization,
-      ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
-      canBid: !tender.createdByCurrentUser && !tender.hasSubmittedBid,
-      hasDraftBid: Boolean(tender.hasDraftBid),
-      hasSubmittedBid: Boolean(tender.hasSubmittedBid),
-      isSaved: Boolean(tender.isSaved),
-      visibility: tender.visibility ?? 'PUBLIC_MARKETPLACE',
-      categories: tender.categories.length ? tender.categories : [tender.type]
-    })),
+    tenders,
+    recommendedTenders: tenders,
     myTenders: [],
     myBids: []
   };
