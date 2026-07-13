@@ -78,8 +78,9 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     completeGate();
     const technicalStep = screen.getAllByRole('button', { name: /Technical Response/i })[0];
     fireEvent.click(technicalStep);
+    expect(screen.getByText('Product brochures, catalogues, and specification evidence')).toBeInTheDocument();
     const uploadInput = screen
-      .getByText('Product brochures, catalogues, and specification evidence')
+      .getByText('Upload evidence')
       .closest('label')
       ?.querySelector('input[type="file"]') as HTMLInputElement | null;
     expect(uploadInput).not.toBeNull();
@@ -94,7 +95,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
       files: [file],
       documentType: 'TECHNICAL_PRODUCT_BROCHURES',
       envelope: 'TECHNICAL',
-      metadata: { requirementKey: 'goods-technical', requirementLabel: 'Product brochures, catalogues, and specification evidence', source: 'bid-workspace' }
+      metadata: { requirementKey: 'goods-technical', requirementLabel: 'Upload evidence', source: 'bid-workspace', fieldId: 'technical.productEvidence' }
     });
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
@@ -572,7 +573,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     ]);
   });
 
-  it('renders ProcureX structured product specification matrices and saves structured responses', async () => {
+  it('renders ProcureX goods technical response cards and saves structured responses', async () => {
     vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
       bidSchema({
         steps: [
@@ -586,7 +587,12 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
               control: 'goodsProductSpecification',
               rowIndex: 1,
-              prompt: 'Processor: Core i7 / RAM: 16GB / Storage: 512GB SSD'
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              buyerSpecification: 'Processor: Core i7 / RAM: 16GB / Storage: 512GB SSD',
+              quantity: 1,
+              unit: 'Each',
+              prompt: '0934e352-111f-443f-8877-63477037937e 1 Laptop 1 Each false'
             })
           ]),
           step('financial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
@@ -609,7 +615,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
 
-    render(
+    const { container } = render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
         <BiddingWorkspaceProcurexPage />
       </MemoryRouter>
@@ -619,10 +625,19 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    expect(screen.getByText('Product specification compliance response')).toBeInTheDocument();
+    expect(screen.getByText('Tenderer template')).toBeInTheDocument();
+    expect(screen.getByText('Download CSV response template')).toBeInTheDocument();
+    expect(screen.getByText('Need clarification about product specifications?')).toBeInTheDocument();
+    expect(container.querySelector('.goods-compliance-card')).toBeInTheDocument();
+    expect(container.querySelector('.premium-response-matrix')).not.toBeInTheDocument();
+    expect(screen.getByText('Item 1')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Laptop' })).toBeInTheDocument();
+    expect(screen.getByText('Processor: Core i7 / RAM: 16GB / Storage: 512GB SSD')).toBeInTheDocument();
+    expect(screen.queryByText(/0934e352-111f-443f-8877-63477037937e/i)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Compliant' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Supplier offered specification'), { target: { value: 'Core i7, 16GB RAM, 512GB SSD' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Evidence / attachment reference'), { target: { value: 'brochure.pdf' } });
+    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Deviations / comments'), { target: { value: 'No deviations.' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
 
     await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
@@ -634,12 +649,123 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             value: expect.objectContaining({
               complianceStatus: 'Compliant',
               offeredSpecification: 'Core i7, 16GB RAM, 512GB SSD',
-              evidenceReference: 'brochure.pdf'
+              evidenceReference: 'brochure.pdf',
+              deviations: 'No deviations.'
             })
           }
         })
       ])
     );
+  });
+
+  it('imports goods technical response CSV rows by requirement key', async () => {
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+            field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+            field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed')
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [
+            field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
+              control: 'goodsProductSpecification',
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              buyerSpecification: 'Core i7 laptop',
+              quantity: 1,
+              unit: 'Each'
+            })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Confirm eligibility to participate')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    const csv = [
+      'requirementKey,fieldId,itemNo,requestedProduct,buyerSpecification,complianceStatus,offeredSpecification,evidenceReference,deviations',
+      'goods.productSpecification.line-1,technical.productSpec.line1,1,Laptop,Core i7 laptop,Compliant,"Core i7, 16GB RAM",catalogue.pdf,None'
+    ].join('\n');
+    const importInput = screen.getByLabelText('Import goods technical response CSV') as HTMLInputElement;
+    fireEvent.change(importInput, { target: { files: [new File([csv], 'goods-response.csv', { type: 'text/csv' })] } });
+
+    await waitFor(() => expect(screen.getByLabelText('Product specification response - Laptop Supplier offered specification')).toHaveValue('Core i7, 16GB RAM'));
+    expect(screen.getByLabelText('Product specification response - Laptop Compliance')).toHaveValue('Compliant');
+    expect(screen.getByLabelText('Product specification response - Laptop Evidence / attachment reference')).toHaveValue('catalogue.pdf');
+    expect(screen.getByLabelText('Product specification response - Laptop Deviations / comments')).toHaveValue('None');
+  });
+
+  it('uploads goods technical evidence through existing document metadata', async () => {
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+            field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+            field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed')
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [
+            field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
+              control: 'goodsProductSpecification',
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              buyerSpecification: 'Core i7 laptop'
+            }),
+            field('technical.productBrochure', 'Product brochures, catalogues, and specification evidence', 'file', 'technical', 'attachment', 'TECHNICAL', true, 'goods-technical', {
+              documentType: 'TECHNICAL_PRODUCT_BROCHURES',
+              prompt: 'Upload OEM catalogue evidence.'
+            })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Confirm eligibility to participate')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText('Technical requirement uploads')).toBeInTheDocument();
+    const uploadInput = screen
+      .getByText('Upload mandatory evidence')
+      .closest('label')
+      ?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(uploadInput).not.toBeNull();
+    const file = new File(['brochure'], 'brochure.pdf', { type: 'application/pdf' });
+    fireEvent.change(uploadInput!, { target: { files: [file] } });
+
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
+    expect(biddingApi.uploadDocuments).toHaveBeenCalledWith('bid-1', {
+      files: [file],
+      documentType: 'TECHNICAL_PRODUCT_BROCHURES',
+      envelope: 'TECHNICAL',
+      metadata: {
+        requirementKey: 'goods-technical',
+        requirementLabel: 'Upload mandatory evidence',
+        source: 'bid-workspace',
+        fieldId: 'technical.productBrochure'
+      }
+    });
   });
 
   it('renders works technical capacity with the procurex-ui workbook layout and saves structured responses', async () => {
@@ -764,22 +890,23 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(worksCapacityBidSchema());
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
-    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, payload) =>
-      bidDto({
+    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, payload) => {
+      const metadata = payload.metadata ?? {};
+      return bidDto({
         documents: [
           {
-            id: `bid-doc-${String(payload.metadata.requirementKey)}`,
-            documentId: `doc-${String(payload.metadata.requirementKey)}`,
+            id: `bid-doc-${String(metadata.requirementKey)}`,
+            documentId: `doc-${String(metadata.requirementKey)}`,
             name: payload.files[0]?.name ?? 'evidence.pdf',
             documentType: payload.documentType,
             envelope: payload.envelope,
             reviewStatus: 'UPLOADED',
             checksum: 'c'.repeat(64),
-            metadata: payload.metadata
+            metadata
           }
         ]
-      })
-    );
+      });
+    });
 
     render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
@@ -1000,8 +1127,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
     vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(bidDto());
-    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, payload) =>
-      bidDto({
+    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, payload) => {
+      const metadata = payload.metadata ?? {};
+      return bidDto({
         documents: [
           {
             id: 'bid-doc-company-stamp',
@@ -1011,11 +1139,11 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             envelope: payload.envelope,
             reviewStatus: 'UPLOADED',
             checksum: 'd'.repeat(64),
-            metadata: payload.metadata
+            metadata
           }
         ]
-      })
-    );
+      });
+    });
 
     render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>

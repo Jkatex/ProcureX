@@ -9661,6 +9661,12 @@ ul.closure-checklist {
     border-style: dashed;
 }
 
+.bid-prequalification-note > div,
+.bid-gate-deferred-note > div {
+    display: grid;
+    gap: 4px;
+}
+
 .bid-prequalification-note strong,
 .bid-gate-deferred-note strong {
     color: var(--text-primary);
