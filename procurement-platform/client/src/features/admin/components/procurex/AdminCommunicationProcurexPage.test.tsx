@@ -55,6 +55,7 @@ const getMessage = vi.mocked(communicationApi.getMessage);
 const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
+const getAttachment = vi.mocked(communicationApi.getAttachment);
 const listRecipients = vi.mocked(communicationApi.listRecipients);
 const listTenderLinks = vi.mocked(communicationApi.listTenderLinks);
 const failTenderReview = vi.mocked(procurementApi.failTenderReview);
@@ -94,7 +95,17 @@ const message: CommunicationMailboxMessage = {
       createdAt: now
     }
   ],
-  attachments: [],
+  attachments: [
+    {
+      id: 'attachment-1',
+      documentId: 'document-1',
+      name: 'admin-agenda.pdf',
+      documentType: 'PDF',
+      objectKey: 'documents/admin-agenda.pdf',
+      checksum: null,
+      createdAt: now
+    }
+  ],
   metadata: {},
   createdAt: now,
   updatedAt: now
@@ -170,6 +181,21 @@ describe('AdminCommunicationProcurexPage', () => {
     markRead.mockResolvedValue({ ...message, read: true, status: 'READ' as const });
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
+    getAttachment.mockResolvedValue(new Blob(['agenda'], { type: 'application/pdf' }));
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:attachment')
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn()
+    });
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: vi.fn(() => ({}))
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
     failTenderReview.mockResolvedValue({
       success: true,
       message: 'Tender review failed. The tender has been returned to draft for amendments.',
@@ -212,6 +238,21 @@ describe('AdminCommunicationProcurexPage', () => {
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.getByText('Next action')).toBeInTheDocument();
     expect(screen.getByText('Please confirm whether the site visit is still available on Friday.')).toBeInTheDocument();
+  });
+
+  it('opens and downloads attachments from the admin message page', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
+
+    expect(screen.getByText('admin-agenda.pdf')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'open'));
+    expect(window.open).toHaveBeenCalledWith('blob:attachment', '_blank', 'noopener,noreferrer');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'download'));
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
   });
 
   it('opens compose as a full page and sends an admin message', async () => {

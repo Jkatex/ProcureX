@@ -27,6 +27,7 @@ const getMessage = vi.mocked(communicationApi.getMessage);
 const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
+const getAttachment = vi.mocked(communicationApi.getAttachment);
 const listRecipients = vi.mocked(communicationApi.listRecipients);
 const listTenderLinks = vi.mocked(communicationApi.listTenderLinks);
 
@@ -147,6 +148,21 @@ describe('CommunicationCenterProcurexPage', () => {
     markRead.mockResolvedValue(readMessage);
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
+    getAttachment.mockResolvedValue(new Blob(['agenda'], { type: 'application/pdf' }));
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:attachment')
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn()
+    });
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: vi.fn(() => ({}))
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
     listRecipients.mockResolvedValue([
       { id: 'platform', name: 'Admin', kind: 'PLATFORM', country: 'TZ', capabilities: [] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
@@ -178,6 +194,19 @@ describe('CommunicationCenterProcurexPage', () => {
     expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.getByText('agenda.pdf')).toBeInTheDocument();
     expect(screen.queryByText('PDF')).not.toBeInTheDocument();
+  });
+
+  it('opens and downloads message attachments for the mailbox owner', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'open'));
+    expect(window.open).toHaveBeenCalledWith('blob:attachment', '_blank', 'noopener,noreferrer');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'download'));
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
   });
 
   it('reloads mailbox data for search and folder changes', async () => {

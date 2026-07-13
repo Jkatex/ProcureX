@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { store } from '@/app/store';
 import { assumeUser, signOut } from '@/features/auth/slice';
-import { demoUsers } from '@/shared/data/fixtures';
+import { demoUsers, tenders as fixtureTenders } from '@/shared/data/fixtures';
 import { procurexTheme } from '@/styles/mui-theme';
 import { procurementApi } from '../../api';
 import type { MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../../types';
@@ -36,6 +36,7 @@ describe('MarketplaceProcurexPage', () => {
     vi.restoreAllMocks();
     store.dispatch(signOut());
     store.dispatch(assumeUser(demoUsers.user));
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValue(defaultMarketplacePayload());
     vi.spyOn(procurementApi, 'saveTender').mockResolvedValue({ success: true, message: 'Tender saved successfully' });
     vi.spyOn(procurementApi, 'unsaveTender').mockResolvedValue({ success: true, message: 'Tender removed from saved tenders' });
   });
@@ -257,6 +258,48 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(screen.queryByText('Invited Cleaning Tender')).not.toBeInTheDocument();
     expect(screen.getByText('Tenders you are invited to, will appear here')).toBeInTheDocument();
+  });
+
+  it('renders backend recommended tenders including invited matches', async () => {
+    const user = userEvent.setup();
+    const recommendedPublic = marketplaceTender({
+      id: 'recommended-public',
+      reference: 'PX-REC-001',
+      title: 'Recommended Medical Equipment Tender',
+      categories: ['Medical Equipment']
+    });
+    const invitedTender = marketplaceTender({
+      id: 'recommended-invited',
+      reference: 'PX-INV-REC',
+      title: 'Recommended Invited Tender',
+      visibility: 'INVITED',
+      organization: 'Invitation Buyer',
+      categories: ['Cleaning Services']
+    });
+    const publicButNotRecommended = marketplaceTender({
+      id: 'other-public',
+      reference: 'PX-OTHER-001',
+      title: 'Other Public Tender'
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [publicButNotRecommended, recommendedPublic],
+      recommendedTenders: [invitedTender, recommendedPublic],
+      invitedTenders: [invitedTender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace');
+
+    expect(await screen.findByText('Recommended Invited Tender')).toBeInTheDocument();
+    expect(screen.getByText('Recommended Medical Equipment Tender')).toBeInTheDocument();
+    expect(screen.queryByText('Other Public Tender')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'All Tenders' }));
+
+    expect(await screen.findByText('Other Public Tender')).toBeInTheDocument();
+    expect(screen.getByText('Recommended Medical Equipment Tender')).toBeInTheDocument();
+    expect(screen.queryByText('Recommended Invited Tender')).not.toBeInTheDocument();
   });
 
   it('uses buyer-safe actions for owned tenders', async () => {
@@ -678,6 +721,24 @@ function marketplaceTender(overrides: Partial<MarketplaceTenderRow> = {}): Marke
     visibility: 'PUBLIC_MARKETPLACE',
     categories: ['Goods'],
     ...overrides
+  };
+}
+
+function defaultMarketplacePayload(): MarketplacePayload {
+  return {
+    tenders: fixtureTenders.map((tender): MarketplaceTenderRow => ({
+      ...tender,
+      ownerOrganization: tender.organization,
+      ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
+      canBid: !tender.createdByCurrentUser && !tender.hasSubmittedBid,
+      hasDraftBid: Boolean(tender.hasDraftBid),
+      hasSubmittedBid: Boolean(tender.hasSubmittedBid),
+      isSaved: Boolean(tender.isSaved),
+      visibility: tender.visibility ?? 'PUBLIC_MARKETPLACE',
+      categories: tender.categories.length ? tender.categories : [tender.type]
+    })),
+    myTenders: [],
+    myBids: []
   };
 }
 

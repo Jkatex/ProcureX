@@ -468,6 +468,7 @@ export type MyBidRow = {
 
 export type MarketplacePayload = {
   tenders: MarketplaceTenderRow[];
+  recommendedTenders?: MarketplaceTenderRow[];
   invitedTenders?: MarketplaceTenderRow[];
   myTenders: MyTenderRow[];
   myBids: MyBidRow[];

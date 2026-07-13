@@ -21658,6 +21658,11 @@ body:not([data-page="iam-verification"]) .communication-shell {
     text-align: center;
 }
 
+.admin-tender-review-detail {
+    display: grid;
+    gap: 20px;
+}
+
 .admin-tender-review-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -21702,6 +21707,44 @@ body:not([data-page="iam-verification"]) .communication-shell {
     margin: 0;
     color: var(--text-secondary);
     line-height: 1.65;
+}
+
+.admin-tender-review-document-shell {
+    padding: 8px 0 0;
+}
+
+.admin-tender-review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    padding: 8px 0 24px;
+}
+
+.admin-tender-review-actions .btn {
+    min-width: 132px;
+}
+
+.admin-tender-review-pass {
+    background: #15803d;
+    border-color: #15803d;
+    color: #ffffff;
+}
+
+.admin-tender-review-pass:hover:not(:disabled) {
+    background: #166534;
+    border-color: #166534;
+}
+
+.admin-tender-review-fail {
+    background: #b91c1c;
+    border-color: #b91c1c;
+    color: #ffffff;
+}
+
+.admin-tender-review-fail:hover:not(:disabled) {
+    background: #991b1b;
+    border-color: #991b1b;
 }
 
 @media (max-width: 1180px) {

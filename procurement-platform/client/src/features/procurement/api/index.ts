@@ -83,9 +83,11 @@ export const procurementApi = {
 function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
   const normalizedTenders = (payload.tenders ?? []).map(normalizeMarketplaceTenderRow);
   const normalizedInvitedTenders = (payload.invitedTenders ?? normalizedTenders).map(normalizeMarketplaceTenderRow);
+  const normalizedRecommendedTenders = (payload.recommendedTenders ?? normalizedTenders).map(normalizeMarketplaceTenderRow);
   return {
     ...payload,
     tenders: normalizedTenders.filter(isActiveMarketplaceTender),
+    recommendedTenders: uniqueMarketplaceRows(normalizedRecommendedTenders.filter(isActiveRecommendedTender)),
     invitedTenders: normalizedInvitedTenders.filter(isActiveInvitedTender),
     myTenders: (payload.myTenders ?? []).map((row) => ({
       ...row,
@@ -96,6 +98,10 @@ function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePa
       tender: normalizeMarketplaceTenderRow(row.tender as MarketplaceTenderRow)
     }))
   };
+}
+
+function isActiveRecommendedTender(tender: MarketplaceTenderRow) {
+  return isActiveMarketplaceTender(tender) || isActiveInvitedTender(tender);
 }
 
 function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
@@ -170,9 +176,19 @@ export function mergeSessionMarketplaceData(
   return {
     ...payload,
     tenders: [...sessionTenderRows.filter(isActiveMarketplaceTender), ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
+    recommendedTenders: payload.recommendedTenders
+      ? [
+          ...sessionTenderRows.filter(isActiveMarketplaceTender),
+          ...payload.recommendedTenders.filter((row) => !existingTenderIds.has(row.id))
+        ]
+      : payload.recommendedTenders,
     invitedTenders: payload.invitedTenders ?? [],
     myTenders: [...sessionMyTenderRows, ...payload.myTenders.filter((row) => !existingMyTenderIds.has(row.id))]
   };
+}
+
+function uniqueMarketplaceRows(rows: MarketplaceTenderRow[]) {
+  return [...new Map(rows.map((row) => [row.id || row.reference, row])).values()];
 }
 
 function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization: string): MarketplaceTenderRow {

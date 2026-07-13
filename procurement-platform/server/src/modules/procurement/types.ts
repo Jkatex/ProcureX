@@ -643,6 +643,7 @@ export type MarketplacePaginationDto = {
 
 export type ProcurementMarketplacePayload = {
   tenders: MarketplaceTenderRow[];
+  recommendedTenders: MarketplaceTenderRow[];
   invitedTenders: MarketplaceTenderRow[];
   myTenders: MyTenderRow[];
   myBids: MyBidRow[];

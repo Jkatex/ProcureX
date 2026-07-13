@@ -134,6 +134,14 @@ type TenderReviewQueueRecord = Prisma.TenderGetPayload<{ include: typeof tenderR
 type TenderReviewDetailRecord = Prisma.TenderGetPayload<{ include: ReturnType<typeof tenderReviewDetailInclude> }>;
 type TenderClarificationInquiryRecord = Prisma.CommunicationItemGetPayload<{ include: typeof tenderClarificationInquiryInclude }>;
 type MarketplaceBidRecord = Prisma.BidGetPayload<{ include: { tender: { include: typeof marketplaceTenderInclude }; receipt: { select: { receiptHash: true } } } }>;
+type MarketplaceSavedTenderRecord = { tenderId: string; tender?: MarketplaceTenderRecord | null };
+type MarketplaceVerificationProfileRecord = {
+  payload: unknown;
+  registrySource?: string | null;
+  registryNumber?: string | null;
+  status?: VerificationStatus;
+  documents?: Array<{ document?: { name?: string | null; documentType?: string | null } | null }>;
+};
 type MarketplaceContext = { organizationId?: string; userId?: string; organizationName?: string };
 type MarketplaceBidState = { hasDraftBid: boolean; hasSubmittedBid: boolean };
 type TenderActivity = { marketplaceViews: number; documentDownloads: number; clarifications: number };
@@ -155,6 +163,14 @@ function auditEventDelegate(db: PrismaClient) {
       create?: (args: Prisma.AuditEventCreateArgs) => Promise<unknown>;
     };
   }).auditEvent;
+}
+
+function marketplaceVerificationProfileDelegate(db: PrismaClient) {
+  return (db as unknown as {
+    verificationProfile?: {
+      findFirst?: (args: Prisma.VerificationProfileFindFirstArgs) => Promise<MarketplaceVerificationProfileRecord | null>;
+    };
+  }).verificationProfile;
 }
 
 export class ModuleRepository {
@@ -224,7 +240,8 @@ export class ModuleRepository {
   async getMarketplaceData(context: MarketplaceContext, query: MarketplaceQuery): Promise<ProcurementMarketplacePayload> {
     const marketplaceContext = await this.marketplaceContextWithOrganizationName(context);
     const publicWhere = marketplaceWhere(query);
-    const [matchingTenders, invitedTenderRecords, myTenderRecords, myBidRecords, savedTenderRecords] = await Promise.all([
+    const verificationProfileDelegate = marketplaceVerificationProfileDelegate(this.db);
+    const [matchingTenders, invitedTenderRecords, myTenderRecords, myBidRecords, savedTenderRecords, verificationProfile] = await Promise.all([
       this.db.tender.findMany({
         where: publicWhere,
         include: marketplaceTenderInclude,
@@ -286,7 +303,20 @@ export class ModuleRepository {
             where: { organizationId: marketplaceContext.organizationId },
             select: { tenderId: true }
           })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      marketplaceContext.organizationId && verificationProfileDelegate?.findFirst
+        ? verificationProfileDelegate.findFirst({
+            where: { organizationId: marketplaceContext.organizationId },
+            include: {
+              documents: {
+                include: {
+                  document: { select: { name: true, documentType: true } }
+                }
+              }
+            },
+            orderBy: { updatedAt: 'desc' }
+          })
+        : Promise.resolve(null)
     ]);
 
     const filteredTenders = filterMarketplaceTenders(matchingTenders, query);
@@ -311,6 +341,16 @@ export class ModuleRepository {
           bidState: bidStates.get(tender.id)
         })
       );
+    const recommendedTenders = recommendedMarketplaceTenderRows({
+      publicTenders: sortedTenders,
+      invitedTenders: invitedTenderRecords.filter((tender) => isInvitedTenderForContext(tender, marketplaceContext)),
+      myBidRecords,
+      savedTenderRecords,
+      verificationProfile,
+      context: marketplaceContext,
+      savedTenderIds,
+      bidStates
+    });
     const myTenders = myTenderRecords.map((tender) => toMyTenderRow(tender, { ...marketplaceContext, savedTenderIds }));
     const myBids = myBidRecords.map((bid) =>
       toMyBidRow(bid, {
@@ -322,6 +362,7 @@ export class ModuleRepository {
 
     return {
       tenders: rows,
+      recommendedTenders,
       invitedTenders,
       myTenders,
       myBids,
@@ -1690,6 +1731,214 @@ function sortMarketplaceTenders(tenders: MarketplaceTenderRecord[], sort: Market
     return deadlineTime(left) - deadlineTime(right) || newestTime(right) - newestTime(left);
   });
 }
+
+function recommendedMarketplaceTenderRows({
+  publicTenders,
+  invitedTenders,
+  myBidRecords,
+  savedTenderRecords,
+  verificationProfile,
+  context,
+  savedTenderIds,
+  bidStates
+}: {
+  publicTenders: MarketplaceTenderRecord[];
+  invitedTenders: MarketplaceTenderRecord[];
+  myBidRecords: MarketplaceBidRecord[];
+  savedTenderRecords: MarketplaceSavedTenderRecord[];
+  verificationProfile: MarketplaceVerificationProfileRecord | null;
+  context: MarketplaceContext;
+  savedTenderIds: Set<string>;
+  bidStates: Map<string, MarketplaceBidState>;
+}) {
+  const candidateMap = new Map<string, MarketplaceTenderRecord>();
+  for (const tender of [...publicTenders, ...invitedTenders]) {
+    if (!context.organizationId || tender.buyerOrgId !== context.organizationId) candidateMap.set(tender.id, tender);
+  }
+
+  const invitedTenderIds = new Set(invitedTenders.map((tender) => tender.id));
+  const weightedTerms = new Map<string, number>();
+  const typeWeights = new Map<TenderType, number>();
+  const locationWeights = new Map<string, number>();
+
+  for (const bid of myBidRecords) {
+    const weight = bid.status === BidStatus.AWARDED ? 14 : bid.status === BidStatus.DRAFT ? 5 : 8;
+    addTenderRecommendationSignal(bid.tender, weight, weightedTerms, typeWeights, locationWeights);
+    if (bid.status === BidStatus.AWARDED) addTenderRecommendationSignal(bid.tender, 8, weightedTerms, typeWeights, locationWeights);
+  }
+
+  for (const savedTender of savedTenderRecords) {
+    const tender = savedTender.tender ?? candidateMap.get(savedTender.tenderId);
+    if (tender) addTenderRecommendationSignal(tender, 7, weightedTerms, typeWeights, locationWeights);
+  }
+
+  for (const invitedTender of invitedTenders) {
+    addTenderRecommendationSignal(invitedTender, 9, weightedTerms, typeWeights, locationWeights);
+  }
+
+  addProfileRecommendationSignal(verificationProfile, weightedTerms, locationWeights);
+
+  const scored = [...candidateMap.values()]
+    .map((tender) => ({
+      tender,
+      score: marketplaceRecommendationScore(tender, {
+        weightedTerms,
+        typeWeights,
+        locationWeights,
+        invitedTenderIds,
+        savedTenderIds,
+        bidState: bidStates.get(tender.id)
+      })
+    }))
+    .filter((entry) => entry.score > 0 || invitedTenderIds.has(entry.tender.id) || savedTenderIds.has(entry.tender.id));
+
+  const ranked = scored.length
+    ? scored.sort((left, right) => right.score - left.score || deadlineTime(left.tender) - deadlineTime(right.tender) || newestTime(right.tender) - newestTime(left.tender))
+    : [...candidateMap.values()]
+        .map((tender) => ({ tender, score: 0 }))
+        .sort((left, right) => deadlineTime(left.tender) - deadlineTime(right.tender) || newestTime(right.tender) - newestTime(left.tender));
+
+  return ranked.slice(0, 24).map(({ tender }) =>
+    toMarketplaceTenderRow(tender, {
+      ...context,
+      savedTenderIds,
+      bidState: bidStates.get(tender.id)
+    })
+  );
+}
+
+function addTenderRecommendationSignal(
+  tender: MarketplaceTenderRecord,
+  weight: number,
+  weightedTerms: Map<string, number>,
+  typeWeights: Map<TenderType, number>,
+  locationWeights: Map<string, number>
+) {
+  for (const term of tenderRecommendationTerms(tender)) addWeightedTerm(weightedTerms, term, weight);
+  typeWeights.set(tender.type, (typeWeights.get(tender.type) ?? 0) + weight);
+  for (const term of recommendationTerms([tender.location])) addWeightedTerm(locationWeights, term, weight);
+}
+
+function addProfileRecommendationSignal(
+  profile: MarketplaceVerificationProfileRecord | null,
+  weightedTerms: Map<string, number>,
+  locationWeights: Map<string, number>
+) {
+  if (!profile) return;
+  const values = [
+    profile.registrySource,
+    profile.registryNumber,
+    profile.status,
+    ...(profile.documents?.flatMap((item) => [item.document?.name, item.document?.documentType]) ?? []),
+    ...profilePayloadSignalValues(profile.payload)
+  ];
+  for (const term of recommendationTerms(values)) addWeightedTerm(weightedTerms, term, 5);
+  for (const term of recommendationTerms(profileLocationSignalValues(profile.payload))) addWeightedTerm(locationWeights, term, 7);
+}
+
+function marketplaceRecommendationScore(
+  tender: MarketplaceTenderRecord,
+  context: {
+    weightedTerms: Map<string, number>;
+    typeWeights: Map<TenderType, number>;
+    locationWeights: Map<string, number>;
+    invitedTenderIds: Set<string>;
+    savedTenderIds: Set<string>;
+    bidState?: MarketplaceBidState;
+  }
+) {
+  let score = 0;
+  if (context.invitedTenderIds.has(tender.id)) score += 100;
+  if (context.savedTenderIds.has(tender.id)) score += 45;
+  if (context.bidState?.hasDraftBid) score += 28;
+  if (context.bidState?.hasSubmittedBid) score += 12;
+  score += (context.typeWeights.get(tender.type) ?? 0) * 2;
+
+  for (const term of tenderRecommendationTerms(tender)) score += context.weightedTerms.get(term) ?? 0;
+  for (const term of recommendationTerms([tender.location])) score += context.locationWeights.get(term) ?? 0;
+  return score;
+}
+
+function tenderRecommendationTerms(tender: MarketplaceTenderRecord) {
+  return recommendationTerms([
+    tender.title,
+    tender.description,
+    tender.reference,
+    tender.buyerOrg.name,
+    tender.location,
+    frontendTenderType(tender.type),
+    marketplaceCategory(tender),
+    ...marketplaceCategoryValues(tender),
+    ...marketplaceCategoryValues(tender).flatMap((category) => categorySearchTerms(category))
+  ]);
+}
+
+function profilePayloadSignalValues(value: unknown): unknown[] {
+  const values: unknown[] = [];
+  collectProfilePayloadValues(value, values);
+  return values;
+}
+
+function profileLocationSignalValues(value: unknown): unknown[] {
+  const values: unknown[] = [];
+  collectProfilePayloadValues(value, values, (key) => /region|district|location|country|city|ward|address/i.test(key));
+  return values;
+}
+
+function collectProfilePayloadValues(value: unknown, values: unknown[], keyFilter?: (key: string) => boolean, key = '') {
+  if (value === null || value === undefined) return;
+  if (typeof value === 'string' || typeof value === 'number') {
+    if (!keyFilter || keyFilter(key)) values.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectProfilePayloadValues(item, values, keyFilter, key);
+    return;
+  }
+  if (typeof value === 'object') {
+    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) {
+      const isRelevantKey = /categor|classif|sector|industry|business|certif|compliance|license|document|region|district|location|country|city|ward|address/i.test(childKey);
+      if (!keyFilter && isRelevantKey) values.push(childKey);
+      collectProfilePayloadValues(childValue, values, keyFilter, childKey);
+    }
+  }
+}
+
+function recommendationTerms(values: unknown[]) {
+  const terms = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeSearchText(value);
+    if (!normalized) continue;
+    if (normalized.length >= 3 && !recommendationStopWords.has(normalized)) terms.add(normalized);
+    for (const part of normalized.split(' ')) {
+      if (part.length >= 3 && !recommendationStopWords.has(part)) terms.add(part);
+    }
+  }
+  return [...terms];
+}
+
+function addWeightedTerm(weights: Map<string, number>, term: string, weight: number) {
+  weights.set(term, (weights.get(term) ?? 0) + weight);
+}
+
+const recommendationStopWords = new Set([
+  'and',
+  'for',
+  'the',
+  'with',
+  'from',
+  'this',
+  'that',
+  'tender',
+  'procurement',
+  'public',
+  'private',
+  'marketplace',
+  'company',
+  'limited',
+  'ltd',
+  'llc'
+]);
 
 function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, context: MarketplaceTenderRowContext = {}): MarketplaceTenderRow {
   const category = marketplaceCategory(tender);

@@ -619,6 +619,7 @@ const defaultMarketplaceQuery: MarketplaceQuery = {
 function emptyMarketplace(query: MarketplaceQuery): ProcurementMarketplacePayload {
   return {
     tenders: [],
+    recommendedTenders: [],
     invitedTenders: [],
     myTenders: [],
     myBids: [],

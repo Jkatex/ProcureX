@@ -490,6 +490,7 @@ describe('procurement planning service', () => {
 
     await expect(service.marketplace(undefined, query)).resolves.toEqual({
       tenders: [],
+      recommendedTenders: [],
       invitedTenders: [],
       myTenders: [],
       myBids: [],

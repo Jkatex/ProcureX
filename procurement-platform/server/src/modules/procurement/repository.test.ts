@@ -425,6 +425,133 @@ describe('procurement marketplace repository', () => {
     expect(payload.invitedTenders).toHaveLength(1);
   });
 
+  it('builds recommended tenders from bid awards, profile signals, saved tenders, and invited tenders', async () => {
+    const supplierOrgId = 'supplier-org-1';
+    const supplierName = 'Supplier Works Ltd';
+    const healthCandidate = tenderDetailRecord({
+      id: 'health-candidate',
+      reference: 'PX-HLT-001',
+      title: 'Supply diagnostic laboratory analyzers',
+      type: TenderType.GOODS,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      closingDate: new Date('2026-08-30T00:00:00.000Z'),
+      categories: [{ name: 'Medical equipment' }]
+    });
+    const savedWorksCandidate = tenderDetailRecord({
+      id: 'saved-works-candidate',
+      reference: 'PX-WKS-001',
+      title: 'Road drainage rehabilitation',
+      type: TenderType.WORKS,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      closingDate: new Date('2026-08-15T00:00:00.000Z'),
+      categories: [{ name: 'Civil works' }]
+    });
+    const invitedCandidate = tenderDetailRecord({
+      id: 'invited-cleaning-candidate',
+      reference: 'PX-INV-001',
+      title: 'Invited hospital cleaning services',
+      type: TenderType.SERVICE,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.INVITED,
+      closingDate: new Date('2026-08-20T00:00:00.000Z'),
+      metadata: { invitedSuppliers: [supplierName] },
+      categories: [{ name: 'Cleaning services' }]
+    });
+    const awardedHistoryTender = tenderDetailRecord({
+      id: 'awarded-history-tender',
+      reference: 'PX-HLT-HIST',
+      title: 'Awarded medical equipment package',
+      type: TenderType.GOODS,
+      status: TenderStatus.CLOSED,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      categories: [{ name: 'Medical equipment' }]
+    });
+    const awardedBid = {
+      id: 'awarded-bid-1',
+      tenderId: awardedHistoryTender.id,
+      buyerOrgId: 'buyer-org-1',
+      supplierOrgId,
+      submittedByUserId: 'supplier-user-1',
+      reference: 'BID-AWARD-001',
+      status: BidStatus.AWARDED,
+      submittedAt: new Date('2026-06-10T08:00:00.000Z'),
+      totalAmount: 200000000,
+      currency: 'TZS',
+      payload: {},
+      createdAt: new Date('2026-06-09T08:00:00.000Z'),
+      updatedAt: new Date('2026-06-12T08:00:00.000Z'),
+      tender: awardedHistoryTender,
+      receipt: { receiptHash: 'hash-awarded' }
+    };
+    const db = {
+      organization: {
+        findUnique: vi.fn().mockResolvedValue({ name: supplierName })
+      },
+      tender: {
+        findMany: vi.fn(({ where }) => {
+          if (where?.visibility === Visibility.INVITED) return Promise.resolve([invitedCandidate]);
+          if (where?.buyerOrgId) return Promise.resolve([]);
+          return Promise.resolve([savedWorksCandidate, healthCandidate]);
+        })
+      },
+      bid: {
+        findMany: vi.fn().mockResolvedValue([awardedBid])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([{ tenderId: savedWorksCandidate.id }])
+      },
+      verificationProfile: {
+        findFirst: vi.fn().mockResolvedValue({
+          status: VerificationStatus.APPROVED,
+          registrySource: 'BRELA',
+          registryNumber: 'REG-001',
+          payload: {
+            classification: ['Medical equipment supplier'],
+            categories: ['Laboratory diagnostics'],
+            region: 'Dar es Salaam'
+          },
+          documents: [
+            {
+              document: {
+                name: 'Medical device compliance certificate',
+                documentType: 'CERTIFICATE'
+              }
+            }
+          ]
+        })
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+    const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
+
+    const payload = await repository.getMarketplaceData({ organizationId: supplierOrgId, userId: 'supplier-user-1' }, query);
+
+    expect(payload.invitedTenders).toMatchObject([{ id: 'invited-cleaning-candidate' }]);
+    const recommendedIds = payload.recommendedTenders.map((tender) => tender.id);
+    expect(recommendedIds).toEqual(expect.arrayContaining([
+      'invited-cleaning-candidate',
+      'health-candidate',
+      'saved-works-candidate'
+    ]));
+    expect(recommendedIds.indexOf('health-candidate')).toBeLessThan(recommendedIds.indexOf('saved-works-candidate'));
+    expect(payload.recommendedTenders.find((tender) => tender.id === 'invited-cleaning-candidate')).toMatchObject({
+      visibility: Visibility.INVITED,
+      canBid: true
+    });
+    expect(payload.recommendedTenders.find((tender) => tender.id === 'health-candidate')).toMatchObject({
+      category: 'Medical Equipment',
+      type: 'Goods'
+    });
+    expect(payload.recommendedTenders.find((tender) => tender.id === 'saved-works-candidate')).toMatchObject({
+      isSaved: true
+    });
+    expect(db.verificationProfile.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { organizationId: supplierOrgId }
+    }));
+  });
+
   it('sorts and paginates marketplace tenders while summarizing the full filtered result set', async () => {
     const baseTender = tenderDetailRecord({
       id: 'tender-1',

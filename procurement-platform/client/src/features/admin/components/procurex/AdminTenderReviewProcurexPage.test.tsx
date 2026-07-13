@@ -199,7 +199,11 @@ describe('AdminTenderReviewProcurexPage', () => {
 
     await waitFor(() => expect(getTenderReview).toHaveBeenCalledWith(tenderId));
     expect((await screen.findAllByRole('heading', { name: 'Supply hospital oxygen' })).length).toBeGreaterThan(0);
-    expect(screen.getByText('Procurement of medical oxygen cylinders and associated regulators for regional facilities.')).toBeInTheDocument();
+    expect(screen.getAllByText('Procurement of medical oxygen cylinders and associated regulators for regional facilities.').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Customer Information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Purchase Information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender Documentation' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pass' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fail' })).toBeInTheDocument();
   });

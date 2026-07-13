@@ -42,6 +42,24 @@ describe('procurementApi runtime data access', () => {
             isSaved: true
           }
         ],
+        recommendedTenders: [
+          {
+            id: 'invited-tender-1',
+            reference: 'PX-INV-001',
+            title: 'Invited diagnostic maintenance',
+            organization: 'Medical Stores Department',
+            ownerOrganization: 'Medical Stores Department',
+            type: 'Service',
+            category: 'Maintenance',
+            status: 'Open',
+            visibility: 'INVITED',
+            budget: 100000000,
+            closingDate: '2026-08-25',
+            location: 'Dar es Salaam',
+            description: 'Invited maintenance package',
+            createdByCurrentUser: false
+          }
+        ],
         myTenders: [],
         myBids: [],
         summary: {},
@@ -56,6 +74,11 @@ describe('procurementApi runtime data access', () => {
       categories: ['Medical Equipment'],
       currency: 'TZS',
       isSaved: true
+    });
+    expect(result.recommendedTenders?.[0]).toMatchObject({
+      id: 'invited-tender-1',
+      visibility: 'INVITED',
+      categories: ['Maintenance']
     });
   });
 

@@ -2,8 +2,8 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
 import { communicationApi } from '@/features/communication/api';
+import { downloadCommunicationAttachment, openCommunicationAttachment } from '@/features/communication/attachmentActions';
 import type {
-  CommunicationAttachment,
   CommunicationListResponse,
   CommunicationAttachmentUpload,
   CommunicationMailboxMessage,
@@ -943,38 +943,6 @@ async function toAttachmentUpload(attachment: ComposeAttachment): Promise<Commun
     size: attachment.size,
     contentBase64: await readFileAsBase64(attachment.file)
   };
-}
-
-async function openCommunicationAttachment(messageId: string, attachment: CommunicationAttachment) {
-  try {
-    const blob = await communicationApi.getAttachment(messageId, attachment.id, 'open');
-    const url = URL.createObjectURL(blob);
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-    if (!opened) downloadBlob(url, attachment.name);
-  } catch {
-    window.alert(`Could not open ${attachment.name}.`);
-  }
-}
-
-async function downloadCommunicationAttachment(messageId: string, attachment: CommunicationAttachment) {
-  try {
-    const blob = await communicationApi.getAttachment(messageId, attachment.id, 'download');
-    const url = URL.createObjectURL(blob);
-    downloadBlob(url, attachment.name);
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-  } catch {
-    window.alert(`Could not download ${attachment.name}.`);
-  }
-}
-
-function downloadBlob(url: string, fileName: string) {
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName || 'attachment';
-  document.body.append(link);
-  link.click();
-  link.remove();
 }
 
 function readFileAsBase64(file: File): Promise<string> {

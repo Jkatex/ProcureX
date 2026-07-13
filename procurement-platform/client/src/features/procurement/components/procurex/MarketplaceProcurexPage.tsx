@@ -68,9 +68,14 @@ export function MarketplaceProcurexPage() {
     return filterTenders(activeMarketplaceTenders, filters, deadlineNow);
   }, [activeMarketplaceTenders, deadlineNow, filters]);
 
+  const activeRecommendedTenders = useMemo(() => {
+    const rows = data?.recommendedTenders ?? activeMarketplaceTenders;
+    return rows.filter((tender) => isActiveMarketplaceTender(tender, deadlineNow) || isActiveInvitedTender(tender, deadlineNow));
+  }, [activeMarketplaceTenders, data?.recommendedTenders, deadlineNow]);
+
   const recommendedTenders = useMemo(() => {
-    return filterRecommendedTenders(activeMarketplaceTenders, recommendedQuery, deadlineNow);
-  }, [activeMarketplaceTenders, deadlineNow, recommendedQuery]);
+    return filterRecommendedTenders(activeRecommendedTenders, recommendedQuery, deadlineNow);
+  }, [activeRecommendedTenders, deadlineNow, recommendedQuery]);
 
   const invitedTenders = useMemo(() => {
     const rows = data?.invitedTenders ?? (data?.tenders ?? []).filter((tender) => isActiveInvitedTender(tender, deadlineNow));
@@ -96,9 +101,13 @@ export function MarketplaceProcurexPage() {
   }
 
   useEffect(() => {
-    const savedIds = new Set((data?.tenders ?? []).filter((tender) => tender.isSaved).map((tender) => tender.id));
+    const savedIds = new Set(
+      [...(data?.tenders ?? []), ...(data?.recommendedTenders ?? []), ...(data?.invitedTenders ?? [])]
+        .filter((tender) => tender.isSaved)
+        .map((tender) => tender.id)
+    );
     setSavedTenderIds(savedIds);
-  }, [data?.tenders]);
+  }, [data?.invitedTenders, data?.recommendedTenders, data?.tenders]);
 
   useEffect(() => {
     const now = Date.now();
@@ -293,7 +302,7 @@ function filterTenders(tenders: MarketplaceTenderRow[], filters: MarketplaceFilt
 function filterRecommendedTenders(tenders: MarketplaceTenderRow[], query: string, now = Date.now()) {
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = tenders.filter((tender) => {
-    if (!isActiveMarketplaceTender(tender, now)) return false;
+    if (!isActiveMarketplaceTender(tender, now) && !isActiveInvitedTender(tender, now)) return false;
     return !normalizedQuery || searchableTenderText(tender).includes(normalizedQuery);
   });
 
