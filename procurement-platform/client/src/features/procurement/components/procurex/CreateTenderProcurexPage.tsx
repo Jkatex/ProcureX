@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { useNotifications } from '@/features/notifications/hooks';
+import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
@@ -331,6 +332,7 @@ export function CreateTenderProcurexPage() {
   const [validationMessage, setValidationMessage] = useState('');
   const [isPersisting, setIsPersisting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showSubmitSignature, setShowSubmitSignature] = useState(false);
   const [loadedTenderId, setLoadedTenderId] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
@@ -600,7 +602,7 @@ export function CreateTenderProcurexPage() {
     }
   }
 
-  async function submitTender() {
+  async function submitTender(signatureKeyphrase?: string) {
     if (!confirmationsComplete) {
       setValidationMessage('Please review and tick each publication confirmation before submitting.');
       notifyWarning('Tender cannot be submitted yet', 'Complete all publication confirmations before submitting.', {
@@ -626,11 +628,16 @@ export function CreateTenderProcurexPage() {
       return;
     }
     if (isPersisting) return;
+    if (!signatureKeyphrase) {
+      setShowSubmitSignature(true);
+      return;
+    }
 
     setIsPersisting(true);
     try {
       const { saved } = await persistTenderDraft();
-      const reviewResponse = await procurementApi.publishTender(saved.id);
+      const reviewResponse = await procurementApi.publishTender(saved.id, { signatureKeyphrase });
+      setShowSubmitSignature(false);
       const now = new Date().toISOString();
       const submitted: CreateTenderDraft = {
         ...saved,
@@ -677,6 +684,14 @@ export function CreateTenderProcurexPage() {
   return (
     <ProcurexWorkspaceChrome title="Procurement">
       <div className="procurement-app-page tender-wizard-page" data-create-tender-root>
+        <SignatureKeyphraseModal
+          open={showSubmitSignature}
+          title="Submit tender for review"
+          actionLabel="Submit tender"
+          isSubmitting={isPersisting}
+          onCancel={() => setShowSubmitSignature(false)}
+          onConfirm={(signatureKeyphrase) => void submitTender(signatureKeyphrase)}
+        />
         <section className="journey-hero compact">
           <div>
             <span className="badge badge-info">Procurement design</span>

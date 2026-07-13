@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import type { MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../types';
 
-export type MarketplaceTabId = 'recommended' | 'all-tenders' | 'my-workspace';
+export type MarketplaceTabId = 'recommended' | 'all-tenders' | 'invited-tenders' | 'my-workspace';
 
 type MarketplaceFiltersValue = {
   query: string;
@@ -74,6 +74,7 @@ export function MarketplaceTabs({ activeTab, onTabChange }: MarketplaceTabsProps
   const tabs: Array<{ id: MarketplaceTabId; label: string }> = [
     { id: 'recommended', label: 'Recommended' },
     { id: 'all-tenders', label: 'All Tenders' },
+    { id: 'invited-tenders', label: 'Invited Tenders' },
     { id: 'my-workspace', label: 'My Workspace' }
   ];
 
@@ -294,8 +295,8 @@ export function MyTenderRowCard({ row }: { row: MyTenderRow }) {
         </p>
         <span>{tender?.description || 'Tender record owned by the current user.'}</span>
         <div className="market-row-meta">
-          <em>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</em>
-          <em>Updated {formatDate(row.lastActivity)}</em>
+          <span>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</span>
+          <span>Updated {formatDate(row.lastActivity)}</span>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -330,8 +331,8 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
         </p>
         <span>{row.section === 'submitted' ? 'Submitted bid package is sealed and recorded.' : 'Draft bid submission saved for completion.'}</span>
         <div className="market-row-meta">
-          <em>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</em>
-          <em>Updated {formatDate(row.lastActivity)}</em>
+          <span>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</span>
+          <span>Updated {formatDate(row.lastActivity)}</span>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -350,8 +351,7 @@ function TenderRowCard({
   onToggleSaved
 }: TenderRowCardProps) {
   const ownedByCurrentOrganization = Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser);
-  const isPublicMarketplace = isPublicMarketplaceVisibility(tender.visibility);
-  const canBid = isPublicMarketplace && !ownedByCurrentOrganization && Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !tender.hasSubmittedBid));
+  const canBid = isBiddableVisibility(tender.visibility) && !ownedByCurrentOrganization && Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !tender.hasSubmittedBid));
   const daysRemaining = getDaysRemaining(tender.closingDate);
   const detailUrl = ownedByCurrentOrganization ? `/procurement/tender-details?tenderId=${tender.id}` : `/procurement/supplier-tender-detail?tenderId=${tender.id}`;
   const bidUrl = `/bidding?tenderId=${tender.id}`;
@@ -371,8 +371,8 @@ function TenderRowCard({
         </p>
         <span>{tender.description}</span>
         <div className="market-row-meta">
-          <em>{tender.location}</em>
-          <em>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</em>
+          <span>{tender.location}</span>
+          <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -498,13 +498,14 @@ function isOpenStatus(value: string) {
   return /^(open|published)$/i.test(value.trim());
 }
 
-function isPublicMarketplaceVisibility(value: unknown) {
-  return String(value ?? '')
+function isBiddableVisibility(value: unknown) {
+  const normalized = String(value ?? '')
     .trim()
     .replace(/([a-z])([A-Z])/g, '$1_$2')
     .replace(/[\s-]+/g, '_')
     .replace(/_+/g, '_')
-    .toUpperCase() === 'PUBLIC_MARKETPLACE';
+    .toUpperCase();
+  return normalized === 'PUBLIC_MARKETPLACE' || normalized === 'INVITED';
 }
 
 function getDaysRemaining(closingDate: string) {

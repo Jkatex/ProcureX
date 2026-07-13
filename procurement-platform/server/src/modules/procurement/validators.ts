@@ -312,7 +312,21 @@ export const updateTenderBodySchema = z
     };
   });
 
-export const publishTenderBodySchema = z.object({}).strict();
+export const buyerNoticeBodySchema = z
+  .object({
+    buyerNotice: z.string().trim().max(5000).optional().default('')
+  })
+  .strict();
+
+const signatureKeyphraseSchema = z.string().min(6).max(128);
+
+export const publishTenderBodySchema = z
+  .object({
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
+  })
+  .strict();
+
+export const emptyActionBodySchema = z.object({}).strict();
 
 export const tenderReviewQuerySchema = z
   .object({

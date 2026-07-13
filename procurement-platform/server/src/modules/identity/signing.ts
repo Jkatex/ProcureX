@@ -77,12 +77,7 @@ async function deriveEncryptionKey(keyphrase: string, salt: Buffer, params: KdfP
   });
 }
 
-export async function createEncryptedSigningCredential(keyphrase: string): Promise<SigningCredentialCreateInput> {
-  validateKeyphrase(keyphrase);
-
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  const publicKeyPem = publicKey.export({ format: 'pem', type: 'spki' }).toString();
-  const privateKeyPem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+async function encryptPrivateKeyPem(privateKeyPem: string, keyphrase: string, publicKeyPem: string): Promise<SigningCredentialCreateInput> {
   const salt = randomBytes(16);
   const iv = randomBytes(12);
   const key = await deriveEncryptionKey(keyphrase, salt);
@@ -117,7 +112,16 @@ export async function createEncryptedSigningCredential(keyphrase: string): Promi
   };
 }
 
-async function decryptPrivateKeyPem(credential: StoredSigningCredential, keyphrase: string) {
+export async function createEncryptedSigningCredential(keyphrase: string): Promise<SigningCredentialCreateInput> {
+  validateKeyphrase(keyphrase);
+
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const publicKeyPem = publicKey.export({ format: 'pem', type: 'spki' }).toString();
+  const privateKeyPem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+  return encryptPrivateKeyPem(privateKeyPem, keyphrase, publicKeyPem);
+}
+
+export async function decryptPrivateKeyPem(credential: StoredSigningCredential, keyphrase: string) {
   if (credential.status !== 'ACTIVE') {
     throw new SigningCredentialRequiredError('Digital signature keyphrase must be active before signing.');
   }
@@ -145,6 +149,12 @@ async function decryptPrivateKeyPem(credential: StoredSigningCredential, keyphra
   } catch {
     throw keyphraseError('Invalid keyphrase.');
   }
+}
+
+export async function reencryptSigningCredential(credential: StoredSigningCredential, currentKeyphrase: string, newKeyphrase: string): Promise<SigningCredentialCreateInput> {
+  validateKeyphrase(newKeyphrase);
+  const privateKeyPem = await decryptPrivateKeyPem(credential, currentKeyphrase);
+  return encryptPrivateKeyPem(privateKeyPem, newKeyphrase, credential.publicKeyPem);
 }
 
 export async function signCanonicalPayloadHash(credential: StoredSigningCredential, keyphrase: string, canonicalPayloadHash: string) {

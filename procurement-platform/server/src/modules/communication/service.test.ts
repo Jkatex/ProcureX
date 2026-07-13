@@ -149,6 +149,7 @@ describe('communication module', () => {
     };
     const service = new ModuleService({
       health: async () => ({ ready: true }),
+      ensureDraftBidDeadlineReminders: async () => 0,
       listMessages: async () => {
         throw new Error("Can't reach database server");
       }
@@ -174,7 +175,7 @@ describe('communication module', () => {
 
   it('scopes non-admin mailbox queries to the session organization', async () => {
     const listMessages = vi.fn().mockResolvedValue(emptyMailbox());
-    const service = new ModuleService({ listMessages } as any, userIdentity as any);
+    const service = new ModuleService({ ensureDraftBidDeadlineReminders: vi.fn().mockResolvedValue(0), listMessages } as any, userIdentity as any);
 
     await service.listMessages('session-token', {
       organizationId: recipientOrgId,
@@ -196,7 +197,7 @@ describe('communication module', () => {
 
   it('keeps admin mailbox queries filterable', async () => {
     const listMessages = vi.fn().mockResolvedValue(emptyMailbox());
-    const service = new ModuleService({ listMessages } as any, adminIdentity as any);
+    const service = new ModuleService({ ensureDraftBidDeadlineReminders: vi.fn().mockResolvedValue(0), listMessages } as any, adminIdentity as any);
 
     await service.listMessages('admin-token', {
       organizationId: recipientOrgId,
@@ -218,7 +219,7 @@ describe('communication module', () => {
 
   it('defaults admin mailbox queries to the admin organization when no filter is selected', async () => {
     const listMessages = vi.fn().mockResolvedValue(emptyMailbox());
-    const service = new ModuleService({ listMessages } as any, adminIdentity as any);
+    const service = new ModuleService({ ensureDraftBidDeadlineReminders: vi.fn().mockResolvedValue(0), listMessages } as any, adminIdentity as any);
 
     await service.listMessages('admin-token', {
       organizationId: '',

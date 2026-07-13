@@ -1,14 +1,14 @@
 import { apiClient } from '@/shared/api/http';
-import type { AwardContractDashboard, AwardDecisionDraftInput, AwardRecommendationDetailDto, ContractDetailDto } from '../types';
+import type { AwardContractDashboard, AwardContractSampleDashboard, AwardContractSampleDto, AwardDecisionDraftInput, AwardRecommendationDetailDto, ContractDetailDto } from '../types';
 
 const emptyDashboard: AwardContractDashboard = {
   summary: {
-    urgentActions: 0,
     awardQueues: 0,
     contractActions: 0
   },
   queues: {
-    'my-urgent-actions': [],
+    'sample-procurement': [],
+    'contract-preparation': [],
     'awarding-in-progress': [],
     'awards-received': [],
     'contracts-in-progress': [],
@@ -31,6 +31,60 @@ export const awardsContractsApi = {
   async recommendation(recommendationId: string) {
     if (import.meta.env.MODE === 'test') throw new Error(`No test recommendation fixture for ${recommendationId}.`);
     const response = await apiClient.get<AwardRecommendationDetailDto>(`/api/award-contract/recommendations/${recommendationId}`);
+    return response.data;
+  },
+  async prepareTenderContract(tenderId: string) {
+    const response = await apiClient.post<ContractDetailDto>(`/api/award-contract/tenders/${tenderId}/contract-draft`, {});
+    return response.data;
+  },
+  async samples() {
+    if (import.meta.env.MODE === 'test') {
+      return {
+        summary: {},
+        queues: {}
+      } satisfies AwardContractSampleDashboard;
+    }
+    const response = await apiClient.get<AwardContractSampleDashboard>('/api/award-contract/samples');
+    return response.data;
+  },
+  async sample(sampleId: string) {
+    const response = await apiClient.get<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}`);
+    return response.data;
+  },
+  async receiveSample(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/receive`, payload);
+    return response.data;
+  },
+  async verifySample(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/verify`, payload);
+    return response.data;
+  },
+  async transferSampleCustody(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/custody-transfer`, payload);
+    return response.data;
+  },
+  async evaluateSample(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/evaluations`, payload);
+    return response.data;
+  },
+  async createSampleTest(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/tests`, payload);
+    return response.data;
+  },
+  async requestSampleClarification(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/clarifications`, payload);
+    return response.data;
+  },
+  async returnSample(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/return`, payload);
+    return response.data;
+  },
+  async retainSample(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/retain`, payload);
+    return response.data;
+  },
+  async disposeSample(sampleId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post<AwardContractSampleDto>(`/api/award-contract/samples/${sampleId}/dispose`, payload);
     return response.data;
   },
   async upsertAwardApprovalRoute(recommendationId: string, payload: Record<string, unknown>) {
@@ -77,20 +131,20 @@ export const awardsContractsApi = {
     const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/bid-pack`);
     return response.data;
   },
-  async settleAwardGroup(recommendationId: string, note = '', payload: Record<string, unknown> = {}) {
-    const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/settle`, { note, payload });
+  async settleAwardGroup(recommendationId: string, note = '', payload: Record<string, unknown> = {}, signatureKeyphrase = '') {
+    const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/settle`, { note, payload, signatureKeyphrase });
     return response.data;
   },
-  async approveRecommendation(recommendationId: string, note = '', payload: Partial<AwardDecisionDraftInput> = {}) {
-    const response = await apiClient.post<AwardRecommendationDetailDto>(`/api/award-contract/recommendations/${recommendationId}/approve`, { ...payload, note });
+  async approveRecommendation(recommendationId: string, note = '', payload: Partial<AwardDecisionDraftInput> = {}, signatureKeyphrase = '') {
+    const response = await apiClient.post<AwardRecommendationDetailDto>(`/api/award-contract/recommendations/${recommendationId}/approve`, { ...payload, note, signatureKeyphrase });
     return response.data;
   },
   async returnRecommendation(recommendationId: string, note = '') {
     const response = await apiClient.post(`/api/award-contract/recommendations/${recommendationId}/return`, { note });
     return response.data;
   },
-  async respondToNotice(noticeId: string, action: 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE', note = '', payload: Record<string, unknown> = {}) {
-    const response = await apiClient.post(`/api/award-contract/notices/${noticeId}/respond`, { action, note, payload });
+  async respondToNotice(noticeId: string, action: 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE', note = '', payload: Record<string, unknown> = {}, signatureKeyphrase = '') {
+    const response = await apiClient.post(`/api/award-contract/notices/${noticeId}/respond`, { action, note, payload, ...(signatureKeyphrase ? { signatureKeyphrase } : {}) });
     return response.data;
   },
   async saveDraft(contractId: string, payload: Record<string, unknown>) {
@@ -107,6 +161,26 @@ export const awardsContractsApi = {
   },
   async upsertManagementPlan(contractId: string, payload: Record<string, unknown>) {
     const response = await apiClient.put(`/api/award-contract/contracts/${contractId}/management-plan`, payload);
+    return response.data;
+  },
+  async upsertCommencement(contractId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.put(`/api/award-contract/contracts/${contractId}/commencement`, payload);
+    return response.data;
+  },
+  async createNonConformance(contractId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/non-conformances`, payload);
+    return response.data;
+  },
+  async createContractSecurity(contractId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/securities`, payload);
+    return response.data;
+  },
+  async createContractPenalty(contractId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/penalties`, payload);
+    return response.data;
+  },
+  async createContractChangeRequest(contractId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/change-requests`, payload);
     return response.data;
   },
   async updateMobilizationItem(contractId: string, itemId: string, payload: Record<string, unknown>) {

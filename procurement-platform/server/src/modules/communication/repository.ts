@@ -1,17 +1,20 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   AuditSeverity,
+  BidStatus,
   CommunicationKind,
   CommunicationPriority,
   CommunicationStatus,
   OrganizationCapabilityName,
   OrganizationKind,
+  TenderStatus,
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import type {
   CommunicationAttachmentDto,
+  CommunicationAttachmentFileDto,
   CommunicationCountsDto,
   CommunicationListDto,
   CommunicationMessageDto,
@@ -89,6 +92,32 @@ export class ModuleRepository {
     });
 
     return message ? toDto(message) : null;
+  }
+
+  async getAttachment(messageId: string, attachmentId: string): Promise<CommunicationAttachmentFileDto | null> {
+    const attachment = await this.db.communicationAttachment.findFirst({
+      where: { id: attachmentId, communicationItemId: messageId },
+      include: {
+        document: {
+          select: {
+            name: true,
+            documentType: true,
+            metadata: true
+          }
+        }
+      }
+    });
+    if (!attachment) return null;
+
+    const metadata = payloadObject(attachment.document.metadata);
+    const content = base64Buffer(stringPayload(metadata.contentBase64));
+    if (!content) return null;
+
+    return {
+      name: attachment.document.name,
+      mimeType: documentMimeType(attachment.document.documentType, metadata),
+      content
+    };
   }
 
   async createMessage(input: ComposeMessageInput): Promise<ComposeMessageResultDto> {
@@ -329,6 +358,87 @@ export class ModuleRepository {
     });
   }
 
+  async ensureDraftBidDeadlineReminders(organizationId: string, now = new Date()): Promise<number> {
+    if (!organizationId) return 0;
+    const windowEnd = new Date(now);
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 7);
+
+    const drafts = await this.db.bid.findMany({
+      where: {
+        supplierOrgId: organizationId,
+        status: BidStatus.DRAFT,
+        tender: {
+          status: { in: [TenderStatus.PUBLISHED, TenderStatus.OPEN] },
+          closingDate: {
+            gte: now,
+            lte: windowEnd
+          }
+        }
+      },
+      include: {
+        tender: {
+          select: {
+            id: true,
+            reference: true,
+            title: true,
+            closingDate: true
+          }
+        }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 50
+    });
+    if (!drafts.length) return 0;
+
+    const platformOrg = await this.db.organization.upsert({
+      where: { name: 'ProcureX Platform' },
+      update: { kind: OrganizationKind.PLATFORM },
+      create: { name: 'ProcureX Platform', kind: OrganizationKind.PLATFORM, country: 'TZ' },
+      select: { id: true }
+    });
+
+    let created = 0;
+    for (const draft of drafts) {
+      const subject = `Complete draft bid before closing: ${draft.tender.reference}`;
+      const existing = await this.db.communicationItem.findFirst({
+        where: {
+          ownerOrgId: organizationId,
+          tenderId: draft.tenderId,
+          category: 'Bid deadline reminder',
+          subject
+        },
+        select: { id: true }
+      });
+      if (existing) continue;
+
+      await this.createMessage({
+        senderOrgId: platformOrg.id,
+        recipientOrgId: organizationId,
+        tenderId: draft.tenderId,
+        kind: CommunicationKind.ALERT,
+        category: 'Bid deadline reminder',
+        subject,
+        body: `You have a draft bid for ${draft.tender.title} (${draft.tender.reference}). The tender closes this week on ${formatReminderDeadline(draft.tender.closingDate)}. Complete and submit your bid before the deadline closes.`,
+        priority: CommunicationPriority.HIGH,
+        visibility: 'Private platform reminder',
+        actionRequired: true,
+        attachments: [],
+        attachmentUploads: [],
+        metadata: {
+          source: 'draft-bid-deadline-reminder',
+          bidId: draft.id,
+          tenderId: draft.tenderId,
+          reminderWindowDays: 7,
+          actionLabel: 'Complete bid',
+          actionRoute: `/bidding?tenderId=${draft.tenderId}`
+        }
+      });
+      created += 1;
+    }
+
+    return created;
+  }
+
   private async recordCommunicationAudit(ownerOrgId: string | null, messageId: string, event: string, payload: Prisma.InputJsonObject = {}) {
     await this.db.auditEvent.create({
       data: {
@@ -485,23 +595,25 @@ async function ensureAttachmentDocuments(db: DbClient, input: ComposeMessageInpu
   if (!attachmentUploads.length) return linkedDocumentIds;
 
   const created = await Promise.all(
-    attachmentUploads.map((attachment) =>
-      db.documentObject.create({
+    attachmentUploads.map((attachment) => {
+      const content = base64Buffer(attachment.contentBase64);
+      return db.documentObject.create({
         data: {
           ownerOrgId: input.ownerOrgId ?? input.senderOrgId,
           name: attachment.name,
           objectKey: `communication/${randomUUID()}/${safeObjectName(attachment.name)}`,
           documentType: attachment.documentType ?? documentTypeForAttachment(attachment),
-          checksum: null,
+          checksum: content ? createHash('sha256').update(content).digest('hex') : null,
           metadata: {
             source: 'communication-message',
             mimeType: attachment.mimeType ?? null,
-            size: attachment.size ?? null
+            size: attachment.size ?? content?.byteLength ?? null,
+            contentBase64: attachment.contentBase64 ?? null
           } as Prisma.InputJsonObject
         },
         select: { id: true }
-      })
-    )
+      });
+    })
   );
 
   return [...linkedDocumentIds, ...created.map((document) => document.id)];
@@ -698,6 +810,31 @@ function documentTypeForAttachment(attachment: { name: string; mimeType?: string
   if (mimeType) return mimeType;
   const extension = attachment.name.includes('.') ? attachment.name.split('.').pop()?.trim() : '';
   return extension ? extension.toUpperCase() : 'Attachment';
+}
+
+function formatReminderDeadline(value: Date | null) {
+  if (!value) return 'the published closing date';
+  return value.toISOString().slice(0, 10);
+}
+
+function documentMimeType(documentType: string, metadata: PayloadObject) {
+  const metadataMimeType = stringPayload(metadata.mimeType);
+  if (metadataMimeType?.includes('/')) return metadataMimeType;
+  if (documentType.includes('/')) return documentType;
+  return 'application/octet-stream';
+}
+
+function base64Buffer(value: string | undefined | null) {
+  const normalized = normalizeBase64(value);
+  if (!normalized) return null;
+  return Buffer.from(normalized, 'base64');
+}
+
+function normalizeBase64(value: string | undefined | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const commaIndex = trimmed.indexOf(',');
+  return commaIndex >= 0 ? trimmed.slice(commaIndex + 1) : trimmed;
 }
 
 function deriveStatus(input: PatchMessageInput, current: CommunicationStatus) {

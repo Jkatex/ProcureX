@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
+import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { awardsContractsApi } from '../../api';
 import type { AwardRecommendationDetailDto, LifecycleAction } from '../../types';
 import { ActionFormPanel, lifecycleStatusOptions, option } from './AwardContractActionForms';
@@ -50,6 +51,7 @@ export function AwardResponseProcurexPage() {
   const [awardDetail, setAwardDetail] = useState<AwardRecommendationDetailDto | null>(null);
   const [detailError, setDetailError] = useState('');
   const [responseMessages, setResponseMessages] = useState<Record<string, string>>({});
+  const [pendingResponseSignature, setPendingResponseSignature] = useState<{ award: LifecycleAction; payload: Record<string, unknown> } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -162,14 +164,19 @@ export function AwardResponseProcurexPage() {
     await loadAwardDetail(awardId);
   }
 
-  async function recordResponse(award: LifecycleAction, payload: Record<string, unknown>) {
+  async function recordResponse(award: LifecycleAction, payload: Record<string, unknown>, signatureKeyphrase?: string) {
     if (!award.noticeId) {
       setResponseMessages((current) => ({ ...current, [award.id]: 'Award notice is not available yet.' }));
       notifyAward('warning', 'Award notice unavailable', 'The selected award does not have an issued notice yet.');
       return;
     }
     const responseAction = String(payload.action) as 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE';
-    await awardsContractsApi.respondToNotice(award.noticeId, responseAction, String(payload.note ?? ''), payload.payload as Record<string, unknown>);
+    if ((responseAction === 'ACCEPT' || responseAction === 'DECLINE') && !signatureKeyphrase) {
+      setPendingResponseSignature({ award, payload });
+      return;
+    }
+    await awardsContractsApi.respondToNotice(award.noticeId, responseAction, String(payload.note ?? ''), payload.payload as Record<string, unknown>, signatureKeyphrase);
+    setPendingResponseSignature(null);
     setResponseMessages((current) => ({ ...current, [award.id]: `Supplier response submitted: ${responseAction}` }));
     notifyAward('success', 'Supplier response sent', `Response submitted: ${responseAction}.`);
     await refreshAwards(recommendationIdForAward(award));
@@ -177,6 +184,15 @@ export function AwardResponseProcurexPage() {
 
   return (
     <ProcurexAwardFrame pageKey="award-response">
+      <SignatureKeyphraseModal
+        open={pendingResponseSignature !== null}
+        title="Submit final award response"
+        actionLabel="Submit response"
+        onCancel={() => setPendingResponseSignature(null)}
+        onConfirm={(signatureKeyphrase) => {
+          if (pendingResponseSignature) void recordResponse(pendingResponseSignature.award, pendingResponseSignature.payload, signatureKeyphrase);
+        }}
+      />
       <div className="main-layout procurement-layout evaluation-app-layout award-response-page award-simple-page" data-award-contract-workspace data-award-current-step="supplier-acceptance">
         <main className="main-content procurement-content evaluation-workspace award-response-workspace">
           <AwardHero
@@ -222,7 +238,7 @@ export function AwardResponseProcurexPage() {
           ) : null}
 
           {!isLoading && !loadError && !activeAward ? (
-            <AwardContractAccessProvider access={access}>
+            <AwardContractAccessProvider access={{ ...access, hideLockedActions: true }}>
               <section className="procurement-panel evaluation-panel">
                 <div className="panel-heading">
                   <div><span className="section-kicker">Respond to award</span><h2>No award selected</h2></div>
@@ -237,7 +253,7 @@ export function AwardResponseProcurexPage() {
           ) : null}
 
           {!isLoading && !loadError && activeAward ? (
-            <AwardContractAccessProvider access={access}>
+            <AwardContractAccessProvider access={{ ...access, hideLockedActions: true }}>
               <section className="procurement-panel evaluation-panel">
                 <div className="panel-heading">
                   <div>

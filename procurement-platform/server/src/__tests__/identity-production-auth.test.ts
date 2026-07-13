@@ -457,6 +457,8 @@ class FakeIdentityNotifications {
   phoneOtps: Array<{ to: string; code: string }> = [];
   activations: Array<{ to: string; code: string; actionUrl?: string }> = [];
   resets: Array<{ to: string; code: string; actionUrl?: string }> = [];
+  keyphraseRecoveries: Array<{ to: string; code: string; actionUrl?: string }> = [];
+  keyphraseRecoveryCompletions: Array<{ to: string }> = [];
   failNext = false;
 
   private maybeFail() {
@@ -482,6 +484,18 @@ class FakeIdentityNotifications {
     this.resets.push(input);
     return Promise.resolve({ provider: 'fake-email', messageId: `reset-${this.resets.length}` });
   }
+
+  sendKeyphraseRecovery(input: { to: string; code: string; actionUrl?: string }) {
+    this.maybeFail();
+    this.keyphraseRecoveries.push(input);
+    return Promise.resolve({ provider: 'fake-email', messageId: `keyphrase-${this.keyphraseRecoveries.length}` });
+  }
+
+  sendKeyphraseRecoveryCompleted(input: { to: string }) {
+    this.maybeFail();
+    this.keyphraseRecoveryCompletions.push(input);
+    return Promise.resolve({ provider: 'fake-email', messageId: `keyphrase-complete-${this.keyphraseRecoveryCompletions.length}` });
+  }
 }
 
 class FakeDevConsoleIdentityNotifications extends FakeIdentityNotifications {
@@ -493,6 +507,16 @@ class FakeDevConsoleIdentityNotifications extends FakeIdentityNotifications {
   sendEmailActivation(input: { to: string; code: string; actionUrl?: string }) {
     this.activations.push(input);
     return Promise.resolve({ provider: 'dev-console', messageId: `dev-activation-${this.activations.length}` });
+  }
+
+  sendKeyphraseRecovery(input: { to: string; code: string; actionUrl?: string }) {
+    this.keyphraseRecoveries.push(input);
+    return Promise.resolve({ provider: 'dev-console', messageId: `dev-keyphrase-${this.keyphraseRecoveries.length}` });
+  }
+
+  sendKeyphraseRecoveryCompleted(input: { to: string }) {
+    this.keyphraseRecoveryCompletions.push(input);
+    return Promise.resolve({ provider: 'dev-console', messageId: `dev-keyphrase-complete-${this.keyphraseRecoveryCompletions.length}` });
   }
 }
 

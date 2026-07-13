@@ -12,6 +12,7 @@ type GuardProps = {
   requiredGate?: FeatureGateName;
   minimumTrustTier?: TrustTier;
   adminRedirectTo?: string;
+  allowSupportComposeForUnverified?: boolean;
 };
 
 const trustRank: Record<TrustTier, number> = {
@@ -28,9 +29,19 @@ function LoadingGate() {
   return <ProcurexLoadingPage title={t('loading.restoringSession')} message={t('loading.checkingSession')} />;
 }
 
-export function ProtectedRoute({ children, requireVerified = false, requiredPermission, requiredGate, minimumTrustTier, adminRedirectTo }: GuardProps) {
+export function ProtectedRoute({
+  children,
+  requireVerified = false,
+  requiredPermission,
+  requiredGate,
+  minimumTrustTier,
+  adminRedirectTo,
+  allowSupportComposeForUnverified = false
+}: GuardProps) {
   const location = useLocation();
   const { isAuthenticated, sessionExpired, status, token, user } = useAppSelector((state) => state.auth);
+  const params = new URLSearchParams(location.search);
+  const supportComposeAllowed = allowSupportComposeForUnverified && params.get('support') === 'true' && params.get('view') === 'compose';
 
   if (status === 'loading' && token && !user) {
     return <LoadingGate />;
@@ -48,7 +59,7 @@ export function ProtectedRoute({ children, requireVerified = false, requiredPerm
     return <Navigate to={adminRedirectTo} replace state={{ from: location }} />;
   }
 
-  if (requireVerified && user?.accountType !== 'ADMIN' && user?.verificationStatus !== 'APPROVED') {
+  if (requireVerified && !supportComposeAllowed && user?.accountType !== 'ADMIN' && user?.verificationStatus !== 'APPROVED') {
     return <Navigate to="/identity/verification" replace state={{ from: location }} />;
   }
 

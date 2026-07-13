@@ -253,6 +253,25 @@ describe('procurement controller validation responses', () => {
     expect(service.updateTender).not.toHaveBeenCalled();
   });
 
+  it('returns structured validation errors for invalid buyer notice payloads', async () => {
+    const service = { updateTenderBuyerNotice: vi.fn() };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.updateTenderBuyerNotice(
+      mockRequest({
+        params: { tenderId: validTenderId },
+        body: { buyerNotice: 'x'.repeat(5001) }
+      }) as any,
+      res as any,
+      next
+    );
+
+    expectValidationResponse(res, next);
+    expect(service.updateTenderBuyerNotice).not.toHaveBeenCalled();
+  });
+
   it('returns structured validation errors for non-empty publish bodies', async () => {
     const service = { publishTender: vi.fn() };
     const controller = new ModuleController(service as any);

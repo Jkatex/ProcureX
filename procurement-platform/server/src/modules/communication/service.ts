@@ -1,6 +1,7 @@
 import { ModuleRepository } from './repository.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import {
+  type CommunicationAttachmentFileDto,
   moduleDefinition,
   type CommunicationListDto,
   type CommunicationMessageDto,
@@ -44,6 +45,7 @@ export class ModuleService {
     const context = await this.accessContext(token);
     const scopedQuery = this.scopeQuery(context, query);
     try {
+      await this.repository.ensureDraftBidDeadlineReminders(scopedQuery.organizationId);
       return await this.repository.listMessages(scopedQuery);
     } catch (error) {
       if (isDatabaseUnavailable(error)) return emptyList(scopedQuery);
@@ -80,6 +82,13 @@ export class ModuleService {
     const original = await this.visibleMessage(context, messageId);
     if (!original) return null;
     return this.repository.markRead(messageId);
+  }
+
+  async getAttachment(token: string | undefined, messageId: string, attachmentId: string): Promise<CommunicationAttachmentFileDto | null> {
+    const context = await this.accessContext(token);
+    const original = await this.visibleMessage(context, messageId);
+    if (!original) return null;
+    return this.repository.getAttachment(messageId, attachmentId);
   }
 
   async archive(token: string | undefined, messageId: string): Promise<CommunicationMessageDto | null> {

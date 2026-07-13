@@ -1,4 +1,4 @@
-import { AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, RecommendationStatus } from '@prisma/client';
+import { AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, RecommendationStatus, TenderStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { computeAccessContext } from '../../security/accessPolicy.js';
 import { createEncryptedSigningCredential } from '../identity/signing.js';
@@ -221,6 +221,83 @@ function makeAwardNoticeRepository(status: RecommendationStatus) {
   return { service: new ModuleService(repository), calls };
 }
 
+function makePreAwardDraftRepository(options: {
+  tenderStatus?: TenderStatus;
+  buyerOrgId?: string;
+  existingContract?: { id: string } | null;
+} = {}) {
+  const contractCreates: any[] = [];
+  const auditCreates: any[] = [];
+  const tender = {
+    id: '77777777-7777-4777-8777-777777777777',
+    reference: 'PX-T-1',
+    title: 'Medical supplies',
+    type: 'GOODS',
+    status: options.tenderStatus ?? TenderStatus.PUBLISHED,
+    buyerOrgId: options.buyerOrgId ?? organizationId,
+    budget: 1000,
+    currency: 'TZS',
+    contractType: 'SUPPLY'
+  };
+  const tx = {
+    tender: {
+      findUnique: async () => tender
+    },
+    contract: {
+      findFirst: async () => options.existingContract ?? null,
+      create: async (input: any) => {
+        contractCreates.push(input);
+        return { id: '44444444-4444-4444-8444-444444444444', ...input.data };
+      }
+    },
+    auditEvent: {
+      create: async (input: any) => {
+        auditCreates.push(input);
+        return input;
+      }
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).getContract = async (id: string) => ({
+    id,
+    tenderId: tender.id,
+    buyerOrgId: tender.buyerOrgId,
+    awardId: null,
+    supplierOrgId: null,
+    status: ContractStatus.DRAFT
+  });
+  return { repository, contractCreates, auditCreates };
+}
+
+function makePreAwardGuardRepository() {
+  const contract = {
+    id: '44444444-4444-4444-8444-444444444444',
+    buyerOrgId: organizationId,
+    supplierOrgId: null,
+    awardId: null,
+    status: ContractStatus.DRAFT
+  };
+  const tx = {
+    contract: {
+      findUnique: async () => contract,
+      update: async (input: any) => input
+    },
+    contractSignature: {
+      upsert: async (input: any) => input
+    },
+    auditEvent: {
+      create: async (input: any) => input
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).getContract = async () => contract;
+  return repository;
+}
+
 describe('award-contract module', () => {
   it('normalizes award recommendation query defaults', () => {
     expect(awardRecommendationQuerySchema.parse({})).toEqual({
@@ -326,6 +403,68 @@ describe('award-contract module', () => {
     });
   });
 
+  it('keeps sample procurement dashboard actions limited to required samples', async () => {
+    const repository = new ModuleRepository({
+      awardRecommendation: {
+        findMany: async () => []
+      },
+      contract: {
+        findMany: async () => []
+      }
+    } as any);
+    (repository as any).listSamples = async () => ({
+      summary: {
+        'awaiting-submission': 1,
+        'not-required': 1
+      },
+      queues: {
+        'awaiting-submission': [{
+          id: 'required-sample-1',
+          sampleRequired: true,
+          sampleRequirementStatus: 'MISSING_REQUIRED',
+          awardingStatus: 'awaiting-submission',
+          buyerOrgId: organizationId,
+          supplierName: 'Supplier One',
+          tenderId: 'tender-1',
+          contractId: null,
+          sampleReference: '',
+          trackingNumber: '',
+          sampleName: 'Laptop sample',
+          tenderTitle: 'Laptop tender',
+          deliveryDeadline: null
+        }],
+        'not-required': [{
+          id: 'not-required-sample-1',
+          sampleRequired: false,
+          sampleRequirementStatus: 'NOT_REQUIRED',
+          awardingStatus: 'not-required',
+          buyerOrgId: organizationId,
+          supplierName: 'Supplier Two',
+          tenderId: 'tender-2',
+          contractId: null,
+          sampleReference: '',
+          trackingNumber: '',
+          sampleName: 'No sample needed',
+          tenderTitle: 'Stationery tender',
+          deliveryDeadline: null
+        }]
+      }
+    });
+
+    await expect(new ModuleService(repository).dashboard(contractContext)).resolves.toMatchObject({
+      summary: { contractActions: 1 },
+      queues: {
+        'sample-procurement': [
+          expect.objectContaining({
+            id: 'sample-required-sample-1',
+            title: 'Laptop sample',
+            requiredAction: 'Manage sample procurement'
+          })
+        ]
+      }
+    });
+  });
+
   it('requires award confirmation before sending award notices', async () => {
     const { service } = makeAwardNoticeRepository(RecommendationStatus.RECOMMENDED);
 
@@ -347,6 +486,68 @@ describe('award-contract module', () => {
     expect(calls).toEqual(expect.arrayContaining(['awardNotice.upsert', 'awardWinner.update', 'awardGroup.update']));
     expect(calls).not.toContain('awardClause.count');
     expect(calls).not.toContain('awardNegotiation.count');
+  });
+
+  it('creates a buyer-owned pre-award contract draft from a published tender', async () => {
+    const { repository, contractCreates, auditCreates } = makePreAwardDraftRepository();
+
+    await expect(
+      repository.prepareTenderContractDraft('77777777-7777-4777-8777-777777777777', contractContext)
+    ).resolves.toMatchObject({
+      tenderId: '77777777-7777-4777-8777-777777777777',
+      awardId: null,
+      supplierOrgId: null,
+      status: ContractStatus.DRAFT
+    });
+
+    expect(contractCreates[0].data).toMatchObject({
+      tenderId: '77777777-7777-4777-8777-777777777777',
+      buyerOrgId: organizationId,
+      status: ContractStatus.DRAFT,
+      amount: null,
+      currency: 'TZS'
+    });
+    expect(contractCreates[0].data).not.toHaveProperty('awardId');
+    expect(contractCreates[0].data).not.toHaveProperty('supplierOrgId');
+    expect(contractCreates[0].data.clauses.createMany.data.length).toBeGreaterThan(0);
+    expect(contractCreates[0].data.requiredDocuments.createMany.data.length).toBeGreaterThan(0);
+    expect(auditCreates[0].data.event).toBe('contract.pre_award_draft.created');
+  });
+
+  it('returns an existing pre-award contract draft for the same buyer and tender', async () => {
+    const { repository, contractCreates } = makePreAwardDraftRepository({
+      existingContract: { id: '99999999-9999-4999-8999-999999999999' }
+    });
+
+    await expect(
+      repository.prepareTenderContractDraft('77777777-7777-4777-8777-777777777777', contractContext)
+    ).resolves.toMatchObject({ id: '99999999-9999-4999-8999-999999999999' });
+
+    expect(contractCreates).toHaveLength(0);
+  });
+
+  it('blocks pre-award draft creation for non-owner organizations and plain draft tenders', async () => {
+    const nonOwner = makePreAwardDraftRepository({ buyerOrgId: '99999999-9999-4999-8999-999999999999' }).repository;
+    await expect(
+      nonOwner.prepareTenderContractDraft('77777777-7777-4777-8777-777777777777', contractContext)
+    ).rejects.toMatchObject({ status: 403 });
+
+    const draftTender = makePreAwardDraftRepository({ tenderStatus: TenderStatus.DRAFT }).repository;
+    await expect(
+      draftTender.prepareTenderContractDraft('77777777-7777-4777-8777-777777777777', contractContext)
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('blocks signatures and signature-pending status before award and supplier are linked', async () => {
+    const repository = makePreAwardGuardRepository();
+
+    await expect(
+      repository.createSignatureRequests('44444444-4444-4444-8444-444444444444', { roles: [ContractPartyRole.BUYER] }, contractContext)
+    ).rejects.toMatchObject({ status: 409 });
+
+    await expect(
+      repository.updateContractStatus('44444444-4444-4444-8444-444444444444', { status: ContractStatus.SIGNATURE_PENDING, note: 'Ready for signatures' }, contractContext)
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it('requires a signing keyphrase credential for pending contract signatures', async () => {

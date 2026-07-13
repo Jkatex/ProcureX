@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
+import { supportComposeRoute } from '@/features/communication/supportComposeRoute';
 import { ProtectedRoute } from './routeGuards';
 import { routes } from './router';
 
@@ -17,5 +18,7 @@ describe('auth routes', () => {
 
     expect(publicHelpRoute).toBeDefined();
     expect(signedInSupportRoute?.element.type).toBe(ProtectedRoute);
+    expect(signedInSupportRoute?.element.props.children.type).toBe(Navigate);
+    expect(signedInSupportRoute?.element.props.children.props).toMatchObject({ to: supportComposeRoute(), replace: true });
   });
 });

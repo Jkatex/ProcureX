@@ -1,7 +1,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { SupplierProcurementDetails } from '@/features/procurement/components/procurex/SupplierTenderDetailProcurexPage';
+import { downloadTenderDocument, openTenderDocument } from '@/features/procurement/tenderDocumentActions';
 import { procurementApi } from '@/features/procurement/api';
-import type { TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
+import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
+import type { TenderDetailDocument, TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AdminError, AdminHero, AdminPanel, AdminShell, badgeClass, displayLabel, formatDate } from './AdminShared';
 
@@ -88,8 +91,12 @@ function TenderReviewQueuePage() {
 
       <section className="admin-tender-review-queue-panel">
         <div className="admin-tender-review-queue-header">
-          <strong>Review queue</strong>
-          <span>{queue.total} awaiting review</span>
+          <strong>
+            <span className="admin-tender-review-count-badge" aria-label={`${queue.total} tenders in review queue`}>
+              {queue.total}
+            </span>
+            Review queue
+          </strong>
         </div>
         <form className="admin-tender-review-toolbar" onSubmit={submitSearch}>
           <input
@@ -164,6 +171,7 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [showPassSignature, setShowPassSignature] = useState(false);
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
@@ -182,12 +190,17 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
     void loadDetail();
   }, [loadDetail]);
 
-  async function passTender() {
+  async function passTender(signatureKeyphrase?: string) {
     if (!detail) return;
+    if (!signatureKeyphrase) {
+      setShowPassSignature(true);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const response = await procurementApi.passTenderReview(detail.id);
+      const response = await procurementApi.passTenderReview(detail.id, { signatureKeyphrase });
+      setShowPassSignature(false);
       navigate(`/admin/tender-review?reviewNotice=${encodeURIComponent(response.message)}`, { replace: true });
     } catch (caught) {
       setError(caught);
@@ -217,6 +230,14 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
 
   return (
     <AdminShell currentPath="/admin/tender-review" title="Tender Review">
+      <SignatureKeyphraseModal
+        open={showPassSignature}
+        title="Publish tender to marketplace"
+        actionLabel="Pass review"
+        isSubmitting={saving}
+        onCancel={() => setShowPassSignature(false)}
+        onConfirm={(signatureKeyphrase) => void passTender(signatureKeyphrase)}
+      />
       <AdminHero
         badge="Admin review"
         heading="Tender Review"
@@ -258,11 +279,18 @@ function TenderReviewDetailView({
   onPass: () => void;
   onFail: () => void;
 }) {
+  function handleOpenDocument(document: TenderDetailDocument) {
+    void openTenderDocument(tender, document, 'documents').catch(() => window.alert(`Could not open ${document.name}.`));
+  }
+
+  function handleDownloadDocument(document: TenderDetailDocument) {
+    void downloadTenderDocument(tender, document).catch(() => window.alert(`Could not download ${document.name}.`));
+  }
+
   return (
-    <AdminPanel title={tender.title} kicker={tender.reference} badge={tender.status}>
-      <div className="admin-tender-review-summary">
+    <div className="admin-tender-review-detail">
+      <div className="admin-tender-review-summary admin-tender-review-detail-summary">
         <div><span>Buyer</span><strong>{tender.buyerName}</strong></div>
-        <div><span>Owner</span><strong>{tender.ownerName ?? 'Not assigned'}</strong></div>
         <div><span>Type</span><strong>{tender.type}</strong></div>
         <div><span>Budget</span><strong>{formatMoney(tender.budget, tender.currency)}</strong></div>
         <div><span>Location</span><strong>{tender.location || 'Tanzania'}</strong></div>
@@ -271,48 +299,29 @@ function TenderReviewDetailView({
         <div><span>Attempts</span><strong>{tender.reviewAttempts}</strong></div>
       </div>
 
-      <section className="admin-tender-review-message-body">
-        <span className="section-kicker">Description</span>
-        <p>{tender.description || 'No description captured.'}</p>
-      </section>
+      <div className="admin-tender-review-document-shell supplier-tender-detail-page">
+        <SupplierProcurementDetails tender={tender} onOpenDocument={handleOpenDocument} onDownloadDocument={handleDownloadDocument} />
+      </div>
 
-      <section className="admin-tender-review-context-panel">
-        <div className="admin-tender-review-summary">
-          <div><span>Method</span><strong>{displayLabel(tender.method ?? '')}</strong></div>
-          <div><span>Visibility</span><strong>{displayLabel(tender.visibility ?? '')}</strong></div>
-          <div><span>Categories</span><strong>{(tender.categories ?? []).join(', ') || tender.category || 'Not categorized'}</strong></div>
-          <div><span>Documents</span><strong>{tender.documents?.length ?? 0}</strong></div>
-          <div><span>Requirements</span><strong>{tender.requirementRows?.length ?? 0}</strong></div>
-          <div><span>Commercial items</span><strong>{tender.commercialItems?.length ?? 0}</strong></div>
-        </div>
-      </section>
-
-      <section className="admin-tender-review-context-panel">
-        <span className="section-kicker">Requirements snapshot</span>
-        <pre className="admin-json-preview">{JSON.stringify(tender.requirements ?? {}, null, 2)}</pre>
-      </section>
-
-      <div className="inline-actions">
+      <div className="admin-tender-review-actions" aria-label="Tender review decision actions">
         <button
-          className="btn"
+          className="btn admin-tender-review-pass"
           type="button"
           disabled={saving}
-          style={{ background: '#15803d', borderColor: '#15803d', color: '#ffffff' }}
           onClick={onPass}
         >
           {saving ? 'Passing...' : 'Pass'}
         </button>
         <button
-          className="btn"
+          className="btn admin-tender-review-fail"
           type="button"
           disabled={saving}
-          style={{ background: '#b91c1c', borderColor: '#b91c1c', color: '#ffffff' }}
           onClick={onFail}
         >
           Fail
         </button>
       </div>
-    </AdminPanel>
+    </div>
   );
 }
 

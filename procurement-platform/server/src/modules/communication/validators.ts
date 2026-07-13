@@ -15,6 +15,14 @@ export const messageParamsSchema = z
   })
   .strict();
 
+export const messageAttachmentParamsSchema = z
+  .object({
+    messageId: uuidSchema,
+    attachmentId: uuidSchema,
+    disposition: z.enum(['open', 'download'])
+  })
+  .strict();
+
 export const communicationQuerySchema = z
   .object({
     organizationId: optionalUuidSchema,
@@ -43,7 +51,8 @@ const attachmentUploadSchema = z
     name: z.string().trim().min(1).max(255),
     documentType: z.string().trim().min(1).max(80).optional(),
     mimeType: z.string().trim().max(120).optional(),
-    size: z.coerce.number().int().min(0).max(100 * 1024 * 1024).optional()
+    size: z.coerce.number().int().min(0).max(100 * 1024 * 1024).optional(),
+    contentBase64: z.string().max(140 * 1024 * 1024).optional()
   })
   .strict();
 

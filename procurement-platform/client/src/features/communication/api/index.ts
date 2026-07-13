@@ -47,8 +47,11 @@ export const communicationApi = {
     return response.data;
   },
 
-  async archive(messageId: string) {
-    const response = await apiClient.post<CommunicationMailboxMessage>(`/api/communication/messages/${messageId}/archive`);
+  async getAttachment(messageId: string, attachmentId: string, disposition: 'open' | 'download' = 'open') {
+    const response = await apiClient.get<Blob>(
+      `/api/communication/messages/${messageId}/attachments/${attachmentId}/${disposition}`,
+      { responseType: 'blob' }
+    );
     return response.data;
   },
 

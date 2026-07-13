@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
@@ -120,6 +121,7 @@ export function BiddingWorkspaceProcurexPage() {
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaResponses, setSchemaResponses] = useState<SchemaResponseState>({});
   const [reviewEditTarget, setReviewEditTarget] = useState<string | null>(null);
+  const [pendingSignatureAction, setPendingSignatureAction] = useState<'submit' | 'withdraw' | null>(null);
 
   const workflow = useMemo(() => workflowFromTender(tender), [tender]);
   const sampleRequirements = useMemo(() => schemaSampleRequirements(schema, tender), [schema, tender]);
@@ -341,10 +343,14 @@ export function BiddingWorkspaceProcurexPage() {
     }
   }
 
-  async function submitBid() {
+  async function submitBid(signatureKeyphrase?: string) {
     if (validationIssues.length) {
       showBidNotice('warning', 'Notice', `Complete required sections before submitting: ${validationIssues.join(', ')}.`);
       setActiveStep(Math.max(0, steps.length - 2));
+      return;
+    }
+    if (!signatureKeyphrase) {
+      setPendingSignatureAction('submit');
       return;
     }
     setSaving(true);
@@ -353,8 +359,9 @@ export function BiddingWorkspaceProcurexPage() {
       const payload = draftPayload();
       const saved = bid ? await biddingApi.updateBid(bid.id, payload) : tenderId ? await biddingApi.saveTenderDraft(tenderId, payload) : null;
       if (!saved) throw new Error('Tender id is missing.');
-      const submitted = await biddingApi.submitBid(saved.id);
+      const submitted = await biddingApi.submitBid(saved.id, { signatureKeyphrase });
       syncBidState(submitted.bid);
+      setPendingSignatureAction(null);
       setReceipt(submitted);
       setActiveStep(receiptStepIndex(steps, workflow));
       showBidNotice('success', 'Notice', workflow === 'consultancy' ? 'Technical and financial envelopes sealed. Receipt generated.' : 'Bid package sealed. Receipt generated.');
@@ -365,13 +372,18 @@ export function BiddingWorkspaceProcurexPage() {
     }
   }
 
-  async function withdrawBid() {
+  async function withdrawBid(signatureKeyphrase?: string) {
     if (!bid) return;
+    if (!signatureKeyphrase) {
+      setPendingSignatureAction('withdraw');
+      return;
+    }
     setSaving(true);
     showBidNotice('info', 'Notice', 'Withdrawing submitted bid...');
     try {
-      const withdrawn = await biddingApi.withdrawBid(bid.id);
+      const withdrawn = await biddingApi.withdrawBid(bid.id, { signatureKeyphrase });
       syncBidState(withdrawn);
+      setPendingSignatureAction(null);
       showBidNotice('success', 'Notice', 'Bid withdrawn. A new active bid package can be prepared before closing.');
       setActiveStep(0);
     } catch (error) {
@@ -577,6 +589,17 @@ export function BiddingWorkspaceProcurexPage() {
 
   return (
     <div className="procurement-app-page">
+      <SignatureKeyphraseModal
+        open={pendingSignatureAction !== null}
+        title={pendingSignatureAction === 'withdraw' ? 'Withdraw submitted bid' : 'Submit sealed bid'}
+        actionLabel={pendingSignatureAction === 'withdraw' ? 'Withdraw bid' : 'Submit bid'}
+        isSubmitting={saving}
+        onCancel={() => setPendingSignatureAction(null)}
+        onConfirm={(signatureKeyphrase) => {
+          if (pendingSignatureAction === 'withdraw') void withdrawBid(signatureKeyphrase);
+          else void submitBid(signatureKeyphrase);
+        }}
+      />
       <main className="procurement-market-shell">
         <div className="journey-page tender-wizard-page bid-flow-page" data-bid-total={totalAmount} data-bid-workflow={workflow}>
         <section className="journey-hero compact">
@@ -596,7 +619,7 @@ export function BiddingWorkspaceProcurexPage() {
               Save Draft
             </button>
             {isSubmitted ? (
-              <button className="btn btn-secondary" type="button" disabled={saving || uploading} onClick={withdrawBid}>
+              <button className="btn btn-secondary" type="button" disabled={saving || uploading} onClick={() => void withdrawBid()}>
                 Withdraw
               </button>
             ) : (

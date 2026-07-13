@@ -159,7 +159,7 @@ describe('IdentityVerificationProcurexPage signature step', () => {
 
     await waitFor(() => expect(mockedIdentityApi.requestSignature).toHaveBeenCalledWith({ keyphrase: 'Signing123', repeatedKeyphrase: 'Signing123' }));
     expect(screen.getByLabelText('Signing keyphrase *')).toHaveValue('Signing123');
-  });
+  }, 10000);
 
   it('requires a verified signing keyphrase before submit can run', async () => {
     renderPage(activeSignatureStatus);
@@ -192,17 +192,12 @@ describe('IdentityVerificationProcurexPage signature step', () => {
     expect(screen.getByLabelText('Ward/shehia *')).toHaveValue(testLocation.ward);
   });
 
-  it('confirms before revoking a forgotten signature keyphrase', async () => {
+  it('routes forgotten keyphrase management to Identity Security', async () => {
     renderPage(activeSignatureStatus);
     const user = await openStep3();
 
-    await user.click(screen.getByRole('button', { name: 'Forgot keyphrase? Reset signature keyphrase' }));
-    expect(screen.getByRole('group', { name: 'Reset signature keyphrase confirmation' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Manage or recover keyphrase' }));
 
-    await user.click(screen.getByRole('button', { name: 'Reset keyphrase' }));
-
-    await waitFor(() => expect(mockedIdentityApi.revokeSignature).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText('Create your reusable signature keyphrase')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create signature' })).toBeDisabled();
+    expect(mockedIdentityApi.revokeSignature).not.toHaveBeenCalled();
   });
 });

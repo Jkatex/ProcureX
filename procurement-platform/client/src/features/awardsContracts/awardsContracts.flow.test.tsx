@@ -6,7 +6,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { store } from '@/app/store';
 import '@/i18n';
 import { awardsContractsApi } from './api';
-import type { ContractDetailDto, LifecycleAction } from './types';
+import type { AwardContractDashboard, AwardContractSampleDashboard, AwardContractSampleDto, ContractDetailDto, LifecycleAction } from './types';
 import { AwardingContractsProcurexPage } from './components/procurex/AwardingContractsProcurexPage';
 import { AwardRecommendationProcurexPage } from './components/procurex/AwardRecommendationProcurexPage';
 import { AwardResponseProcurexPage } from './components/procurex/AwardResponseProcurexPage';
@@ -14,6 +14,7 @@ import { ActionFormPanel } from './components/procurex/AwardContractActionForms'
 import { AwardContractAccessProvider } from './components/procurex/AwardContractRoleAccess';
 import { ContractNegotiationProcurexPage } from './components/procurex/ContractNegotiationProcurexPage';
 import { PostAwardTrackingProcurexPage } from './components/procurex/PostAwardTrackingProcurexPage';
+import { SampleProcurementProcurexPage } from './components/procurex/SampleProcurementProcurexPage';
 
 function LocationProbe() {
   const location = useLocation();
@@ -68,10 +69,33 @@ function lifecycleAction(overrides: Partial<LifecycleAction> & Pick<LifecycleAct
   };
 }
 
+function dashboard(overrides: Partial<AwardContractDashboard['queues']> = {}, summary: Partial<AwardContractDashboard['summary']> = {}): AwardContractDashboard {
+  const queues: AwardContractDashboard['queues'] = {
+    'sample-procurement': [],
+    'contract-preparation': [],
+    'awarding-in-progress': [],
+    'awards-received': [],
+    'contracts-in-progress': [],
+    'active-contracts': [],
+    'closed-contracts': [],
+    ...overrides
+  };
+  return {
+    summary: {
+      awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
+      contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['active-contracts'].length,
+      ...summary
+    },
+    queues
+  };
+}
+
 function contractDetail(overrides: Partial<ContractDetailDto> = {}): ContractDetailDto {
   return {
     id: 'contract-1',
     reference: 'PX-C-1',
+    awardId: 'award-1',
+    supplierOrgId: 'supplier-org-1',
     title: 'Road maintenance contract',
     status: 'ACTIVE',
     buyerName: 'Buyer Org',
@@ -118,6 +142,62 @@ function contractDetail(overrides: Partial<ContractDetailDto> = {}): ContractDet
   };
 }
 
+function sampleRecord(overrides: Partial<AwardContractSampleDto> = {}): AwardContractSampleDto {
+  return {
+    id: 'sample-1',
+    bidSampleId: 'bid-sample-1',
+    viewerRole: 'BUYER',
+    sampleRequired: true,
+    sampleRequirementStatus: 'SUBMITTED',
+    actionable: true,
+    tenderId: 'tender-1',
+    tenderReference: 'TDR-001',
+    tenderTitle: 'Clinic equipment tender',
+    bidId: 'bid-1',
+    supplierOrgId: 'supplier-org-1',
+    supplierName: 'Moshi Clinical Supplies',
+    buyerOrgId: 'buyer-org-1',
+    sampleName: 'Hospital bed sample',
+    relatedItem: 'Hospital bed',
+    quantity: 1,
+    deliveryLocation: 'PMU office',
+    deliveryDeadline: null,
+    trackingStatus: 'SUBMITTED',
+    awardingStatus: 'awaiting-receipt',
+    sampleReference: 'SMP-001',
+    courier: '',
+    trackingNumber: '',
+    submittedAt: '2026-07-01T08:00:00.000Z',
+    receivedAt: null,
+    inspectedAt: null,
+    receipt: null,
+    latestVerification: null,
+    evaluations: [],
+    tests: [],
+    custodyLogs: [],
+    dispositions: [],
+    referenceSamples: [],
+    contractId: null,
+    payload: {},
+    createdAt: '2026-07-01T08:00:00.000Z',
+    updatedAt: '2026-07-01T08:00:00.000Z',
+    ...overrides
+  };
+}
+
+function sampleDashboard(samples: AwardContractSampleDto[]): AwardContractSampleDashboard {
+  return {
+    summary: samples.reduce<Record<string, number>>((summary, sample) => {
+      summary[sample.awardingStatus] = (summary[sample.awardingStatus] ?? 0) + 1;
+      return summary;
+    }, {}),
+    queues: samples.reduce<Record<string, AwardContractSampleDto[]>>((queues, sample) => {
+      queues[sample.awardingStatus] = [...(queues[sample.awardingStatus] ?? []), sample];
+      return queues;
+    }, {})
+  };
+}
+
 describe('awards and contracts empty lifecycle flow', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -151,19 +231,19 @@ describe('awards and contracts empty lifecycle flow', () => {
   it('renders dashboard summary counts as zero', async () => {
     renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
 
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'My Urgent Actions' })).toBeInTheDocument());
-    expect(screen.getByText('Urgent actions')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Sample Procurement' })).toBeInTheDocument());
+    expect(screen.getByText('Sample actions')).toBeInTheDocument();
     expect(screen.getByText('Awards')).toBeInTheDocument();
     expect(screen.getByText('Contract actions')).toBeInTheDocument();
     expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(3);
   });
 
-  it('shows an empty urgent actions queue', async () => {
-    const { container } = renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts?queue=my-urgent-actions');
+  it('shows an empty sample procurement queue by default', async () => {
+    const { container } = renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts');
 
-    await waitFor(() => expect(container.querySelector<HTMLElement>('[data-tab="my-urgent-actions"].tab-content--visible')).toBeInTheDocument());
-    const panel = container.querySelector<HTMLElement>('[data-tab="my-urgent-actions"].tab-content--visible');
-    expect(within(panel!).getByText(/No urgent award or contract actions yet/i)).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector<HTMLElement>('[data-tab="sample-procurement"].tab-content--visible')).toBeInTheDocument());
+    const panel = container.querySelector<HTMLElement>('[data-tab="sample-procurement"].tab-content--visible');
+    expect(within(panel!).getByText(/No sample procurement actions are waiting yet/i)).toBeInTheDocument();
   });
 
   it('shows a retryable dashboard load error instead of an empty queue', async () => {
@@ -171,9 +251,10 @@ describe('awards and contracts empty lifecycle flow', () => {
     const dashboard = vi.spyOn(awardsContractsApi, 'dashboard')
       .mockRejectedValueOnce(new Error('API offline'))
       .mockResolvedValueOnce({
-        summary: { urgentActions: 0, awardQueues: 0, contractActions: 0 },
+        summary: { awardQueues: 0, contractActions: 0 },
         queues: {
-          'my-urgent-actions': [],
+          'sample-procurement': [],
+          'contract-preparation': [],
           'awarding-in-progress': [],
           'awards-received': [],
           'contracts-in-progress': [],
@@ -186,10 +267,10 @@ describe('awards and contracts empty lifecycle flow', () => {
 
     await waitFor(() => expect(screen.getByText('Awarding and contracts could not be loaded')).toBeInTheDocument());
     expect(screen.getByText('Awarding and contract records could not be loaded.')).toBeInTheDocument();
-    expect(screen.queryByText('No urgent award or contract actions yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No sample procurement actions are waiting yet.')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Retry loading' }));
-    await waitFor(() => expect(screen.getByText(/No urgent award or contract actions yet/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/No sample procurement actions are waiting yet/i)).toBeInTheDocument());
     expect(dashboard).toHaveBeenCalledTimes(2);
   });
 
@@ -208,6 +289,66 @@ describe('awards and contracts empty lifecycle flow', () => {
     renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award');
     expect(screen.getByText('No post-award records are available yet.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to Active Contracts' })).toHaveAttribute('data-route-search', 'queue=active-contracts');
+  });
+
+  it('shows Sample required for opened missing required sample records', async () => {
+    vi.spyOn(awardsContractsApi, 'samples').mockResolvedValue(sampleDashboard([
+      sampleRecord({
+        id: 'missing-sample-1',
+        bidSampleId: null,
+        sampleName: 'Required catalogue sample',
+        sampleRequired: true,
+        sampleRequirementStatus: 'MISSING_REQUIRED',
+        trackingStatus: 'REQUIRED',
+        sampleReference: '',
+        submittedAt: null
+      })
+    ]));
+
+    renderFlow(<SampleProcurementProcurexPage />, '/awards-contracts/samples');
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Required catalogue sample' })).toBeInTheDocument());
+    expect(screen.getByText('Sample requirement').nextSibling).toHaveTextContent('Sample required');
+    expect(screen.getByText('This tender or bid requires a sample, but no submitted sample is available yet.')).toBeInTheDocument();
+  });
+
+  it('shows Sample required for opened submitted sample records', async () => {
+    vi.spyOn(awardsContractsApi, 'samples').mockResolvedValue(sampleDashboard([
+      sampleRecord({
+        id: 'submitted-sample-1',
+        sampleName: 'Submitted laptop sample',
+        sampleRequired: true,
+        sampleRequirementStatus: 'SUBMITTED'
+      })
+    ]));
+
+    renderFlow(<SampleProcurementProcurexPage />, '/awards-contracts/samples');
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Submitted laptop sample' })).toBeInTheDocument());
+    expect(screen.getByText('Sample requirement').nextSibling).toHaveTextContent('Sample required');
+    expect(screen.getByText('This tender or bid requires a sample and a sample record is available.')).toBeInTheDocument();
+  });
+
+  it('shows Sample not required for opened not-required sample records', async () => {
+    vi.spyOn(awardsContractsApi, 'samples').mockResolvedValue(sampleDashboard([
+      sampleRecord({
+        id: 'not-required-sample-1',
+        bidSampleId: null,
+        sampleName: 'No sample requirement',
+        sampleRequired: false,
+        sampleRequirementStatus: 'NOT_REQUIRED',
+        trackingStatus: 'NOT_REQUIRED',
+        awardingStatus: 'not-required',
+        sampleReference: '',
+        submittedAt: null
+      })
+    ]));
+
+    renderFlow(<SampleProcurementProcurexPage />, '/awards-contracts/samples');
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'No sample requirement' })).toBeInTheDocument());
+    expect(screen.getByText('Sample requirement').nextSibling).toHaveTextContent('Sample not required');
+    expect(screen.getByText('This tender or bid does not require sample procurement.')).toBeInTheDocument();
   });
 
   it('renders the award decision form first and keeps supporting details collapsed', async () => {
@@ -232,9 +373,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       nextRoute: '/awards-contracts/recommendation?recommendation=rec-1'
     };
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      summary: { awardQueues: 1, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [awardAction],
         'awards-received': [],
         'contracts-in-progress': [],
@@ -308,9 +450,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       nextRoute: '/awards-contracts/recommendation?recommendation=rec-unconfirmed'
     });
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      summary: { awardQueues: 1, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [awardAction],
         'awards-received': [],
         'contracts-in-progress': [],
@@ -359,9 +502,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       reason: 'Best evaluated responsive bidder.'
     };
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      summary: { awardQueues: 1, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [awardAction],
         'awards-received': [],
         'contracts-in-progress': [],
@@ -384,7 +528,7 @@ describe('awards and contracts empty lifecycle flow', () => {
       await waitFor(() => expect(settleAwardGroup).toHaveBeenCalledTimes(1));
       expect(notifications.notifications.at(-1)).toMatchObject({
         title: 'Notices not sent',
-        message: 'Notices could not be sent. Please try again.'
+        message: 'Notices could not be sent.'
       });
       expect(notifications.notifications.at(-1)?.message).not.toMatch(/open clauses|negotiation points/i);
 
@@ -410,9 +554,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       nextRoute: '/awards-contracts/recommendation?recommendation=rec-contract'
     });
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      summary: { awardQueues: 1, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [awardAction],
         'awards-received': [],
         'contracts-in-progress': [],
@@ -477,9 +622,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       }
     };
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      summary: { awardQueues: 1, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [awardAction],
         'awards-received': [],
         'contracts-in-progress': [],
@@ -501,11 +647,41 @@ describe('awards and contracts empty lifecycle flow', () => {
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/awards-contracts/recommendation?recommendation=rec-card-1&step=award-decision'));
   });
 
+  it('renders pre-award contract preparation queue and opens the clause workspace', async () => {
+    const user = userEvent.setup();
+    const preparationAction = lifecycleAction({
+      id: 'contract-prep-1',
+      sourceType: 'CONTRACT_ACTIVE',
+      tenderId: 'tender-prep-1',
+      awardId: null,
+      contractId: 'contract-prep-1',
+      title: 'Clinic equipment contract preparation',
+      otherParty: 'Supplier selected after evaluation',
+      currentStage: 'Contract preparation',
+      requiredAction: 'Prepare contract',
+      status: 'DRAFT',
+      nextRoute: '/awards-contracts/negotiation?contract=contract-prep-1&step=clauses'
+    });
+    vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue(dashboard({
+      'contract-preparation': [preparationAction]
+    }));
+
+    renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts?queue=contract-preparation');
+
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Contract Preparation' })).toHaveClass('active'));
+    expect(screen.getByText('Clinic equipment contract preparation')).toBeInTheDocument();
+    expect(screen.getByText('Contract preparation')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Prepare contract' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/awards-contracts/negotiation?contract=contract-prep-1&step=clauses'));
+  });
+
   it('keeps dashboard records unfiltered in the prototype queue table', async () => {
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 2, contractActions: 0 },
+      summary: { awardQueues: 2, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [
           {
             id: 'award-card-1',
@@ -564,9 +740,10 @@ describe('awards and contracts empty lifecycle flow', () => {
   it('keeps supplier award and contract queues visible through prototype tabs', async () => {
     const user = userEvent.setup();
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 2, contractActions: 6 },
+      summary: { awardQueues: 2, contractActions: 6 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [],
         'awards-received': [
           lifecycleAction({ id: 'supplier-award-1', roleContext: 'SUPPLIER', sourceType: 'AWARD_RECEIVED', title: 'Zanzibar clinic award', otherParty: 'Zanzibar Health Board', awardId: 'rec-zanzibar-1', noticeId: 'notice-zanzibar-1', requiredAction: 'Respond to notice' }),
@@ -608,12 +785,13 @@ describe('awards and contracts empty lifecycle flow', () => {
 
   it('does not render removed role and risk filter controls on the dashboard', async () => {
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 2, awardQueues: 0, contractActions: 0 },
+      summary: { awardQueues: 0, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [
-          lifecycleAction({ id: 'buyer-urgent-1', roleContext: 'BUYER', title: 'Buyer urgent award approval', otherParty: 'Buyer party', riskLevel: 'High' }),
-          lifecycleAction({ id: 'supplier-urgent-1', roleContext: 'SUPPLIER', sourceType: 'AWARD_RECEIVED', title: 'Supplier urgent award response', otherParty: 'Supplier party', riskLevel: 'Low' })
+        'sample-procurement': [
+          lifecycleAction({ id: 'sample-action-1', roleContext: 'BUYER', sourceType: 'SAMPLE_ACTION', title: 'Buyer sample receipt', otherParty: 'Supplier party', riskLevel: 'High' }),
+          lifecycleAction({ id: 'sample-action-2', roleContext: 'BUYER', sourceType: 'SAMPLE_ACTION', title: 'Buyer sample evaluation', otherParty: 'Supplier party', riskLevel: 'Low' })
         ],
+        'contract-preparation': [],
         'awarding-in-progress': [],
         'awards-received': [],
         'contracts-in-progress': [],
@@ -622,10 +800,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       }
     });
 
-    renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts?queue=my-urgent-actions');
+    renderFlow(<AwardingContractsProcurexPage />, '/awards-contracts?queue=sample-procurement');
 
-    await waitFor(() => expect(screen.getByText('Buyer urgent award approval')).toBeInTheDocument());
-    expect(screen.getByText('Supplier urgent award response')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Buyer sample receipt')).toBeInTheDocument());
+    expect(screen.getByText('Buyer sample evaluation')).toBeInTheDocument();
     expect(screen.queryByText('Buyer work')).not.toBeInTheDocument();
     expect(screen.queryByText('Supplier work')).not.toBeInTheDocument();
     expect(screen.queryByText('Due this week')).not.toBeInTheDocument();
@@ -650,9 +828,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       amount: 25000000
     });
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      summary: { awardQueues: 1, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [],
         'awards-received': [awardAction],
         'contracts-in-progress': [],
@@ -706,9 +885,10 @@ describe('awards and contracts empty lifecycle flow', () => {
       status: 'RECOMMENDED'
     });
     vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue({
-      summary: { urgentActions: 0, awardQueues: 1, contractActions: 0 },
+      summary: { awardQueues: 1, contractActions: 0 },
       queues: {
-        'my-urgent-actions': [],
+        'sample-procurement': [],
+        'contract-preparation': [],
         'awarding-in-progress': [awardAction],
         'awards-received': [],
         'contracts-in-progress': [],
@@ -763,6 +943,8 @@ describe('awards and contracts empty lifecycle flow', () => {
       contract: {
         id: 'contract-picker-1',
         reference: 'PX-C-PICKER',
+        awardId: 'rec-picker-1',
+        supplierOrgId: 'supplier-org-1',
         title: 'Clinic equipment contract',
         status: 'NEGOTIATION',
         buyerName: 'Buyer Org',
@@ -811,6 +993,8 @@ describe('awards and contracts empty lifecycle flow', () => {
     const contract = {
       id: 'contract-1',
       reference: 'PX-C-1',
+      awardId: 'award-1',
+      supplierOrgId: 'supplier-org-1',
       title: 'Road maintenance contract',
       status: 'NEGOTIATION',
       buyerName: 'Buyer Org',
@@ -969,6 +1153,55 @@ describe('awards and contracts empty lifecycle flow', () => {
         status: 'OPEN'
       }))
     );
+  });
+
+  it('keeps supplier, signatures, and execution readiness locked for pre-award contract drafts', async () => {
+    const contract = contractDetail({
+      tenderId: 'tender-prep-1',
+      awardId: null,
+      supplierOrgId: null,
+      status: 'DRAFT',
+      supplierName: null,
+      clauses: [
+        {
+          id: 'clause-1',
+          type: 'clause',
+          title: 'Payment terms',
+          status: 'OPEN',
+          dueDate: null,
+          note: 'Draft payment terms.',
+          payload: { clauseKey: 'payment_terms' },
+          createdAt: new Date().toISOString(),
+          updatedAt: null
+        }
+      ],
+      requiredDocuments: [
+        {
+          id: 'document-1',
+          type: 'document',
+          title: 'Performance security',
+          status: 'REQUIRED',
+          dueDate: null,
+          note: 'Required after award.',
+          payload: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: null
+        }
+      ]
+    });
+    vi.spyOn(awardsContractsApi, 'contract').mockResolvedValue(contract);
+
+    renderFlow(<ContractNegotiationProcurexPage />, '/awards-contracts/negotiation?contract=contract-1&step=clauses');
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Prepare contract before award' })).toBeInTheDocument());
+    expect(screen.getByText('Locked until award')).toBeInTheDocument();
+    expect(screen.getAllByText('Payment terms').length).toBeGreaterThan(0);
+    expect(screen.getByText('Required documents')).toBeInTheDocument();
+    expect(screen.getByText('Performance security')).toBeInTheDocument();
+    expect(screen.getByText('Signatures are locked')).toBeInTheDocument();
+    expect(screen.getByText('Execution readiness is locked')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request signatures' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Activate contract' })).not.toBeInTheDocument();
   });
 
   it('filters post-award contract management actions by focused group', async () => {

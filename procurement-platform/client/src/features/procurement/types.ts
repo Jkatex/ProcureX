@@ -468,6 +468,8 @@ export type MyBidRow = {
 
 export type MarketplacePayload = {
   tenders: MarketplaceTenderRow[];
+  recommendedTenders?: MarketplaceTenderRow[];
+  invitedTenders?: MarketplaceTenderRow[];
   myTenders: MyTenderRow[];
   myBids: MyBidRow[];
 };
@@ -518,6 +520,16 @@ export type UpdateTenderResponse = {
     updatedAt: string;
   };
   validation?: TenderDraftValidation;
+};
+
+export type UpdateBuyerNoticeResponse = {
+  success: true;
+  message: 'Buyer notice saved successfully';
+  data: {
+    id: string;
+    buyerNotice: string;
+    updatedAt: string;
+  };
 };
 
 export type PublishTenderResponse = {
@@ -588,6 +600,17 @@ export type TenderDetail = MarketplaceTenderRow & {
     id: string;
     name: string;
     submittedAt: string | null;
+  }>;
+  clarificationInquiries?: Array<{
+    id: string;
+    senderOrgId: string | null;
+    senderName: string | null;
+    subject: string;
+    body: string;
+    status: string;
+    read: boolean;
+    createdAt: string;
+    updatedAt: string;
   }>;
   currentBid?: {
     id: string;

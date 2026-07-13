@@ -147,6 +147,62 @@ describe('route guards', () => {
     expect(screen.getByText('User communication')).toBeInTheDocument();
   });
 
+  it('allows unverified signed-in users into restricted support compose only', () => {
+    store.dispatch(assumeUser({
+      ...demoUsers.user,
+      verificationStatus: 'NOT_STARTED',
+      trustTier: 'UNVERIFIED'
+    }));
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/communication?support=true&view=compose']}>
+          <Routes>
+            <Route path="/identity/verification" element={<div>Identity verification</div>} />
+            <Route
+              path="/communication"
+              element={
+                <ProtectedRoute requireVerified allowSupportComposeForUnverified>
+                  <div>Support compose</div>
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByText('Support compose')).toBeInTheDocument();
+  });
+
+  it('keeps normal communication blocked for unverified signed-in users', () => {
+    store.dispatch(assumeUser({
+      ...demoUsers.user,
+      verificationStatus: 'NOT_STARTED',
+      trustTier: 'UNVERIFIED'
+    }));
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/communication']}>
+          <Routes>
+            <Route path="/identity/verification" element={<div>Identity verification</div>} />
+            <Route
+              path="/communication"
+              element={
+                <ProtectedRoute requireVerified allowSupportComposeForUnverified>
+                  <div>User communication</div>
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByText('Identity verification')).toBeInTheDocument();
+  });
+
   it('allows signed-in low-trust users through temporary auth-only procurement core routes', () => {
     store.dispatch(assumeUser({
       ...demoUsers.user,

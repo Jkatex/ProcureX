@@ -9,6 +9,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { evaluationApi } from '@/features/evaluation/api';
+import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import type {
   EvaluationDashboard,
   EvaluationDecisionStatus,
@@ -84,6 +85,7 @@ export function BidEvaluationProcurexPage() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
+  const [showCompletionSignature, setShowCompletionSignature] = useState(false);
 
   useBodyPageMetadata('bid-evaluation');
 
@@ -312,13 +314,17 @@ export function BidEvaluationProcurexPage() {
     };
   }, [search, statusFilter, t, typeFilter]);
 
-  async function saveWorkspace(complete = false) {
+  async function saveWorkspace(complete = false, signatureKeyphrase?: string) {
     if (!workspace?.tender || workspaceSaving) return;
     const validation = validateScoreDrafts(workspace, scoreDrafts);
     if (validation) {
       setWorkspaceError(validation);
       const firstInvalid = firstMissingScoreStage(workspace, scoreDrafts);
       setActiveStageId(firstInvalid);
+      return;
+    }
+    if (complete && !signatureKeyphrase) {
+      setShowCompletionSignature(true);
       return;
     }
 
@@ -344,8 +350,10 @@ export function BidEvaluationProcurexPage() {
         })),
         activeStageId: normalizedStageId,
         selectedBidId: selectedBidId || undefined,
-        complete
+        complete,
+        ...(complete && signatureKeyphrase ? { signatureKeyphrase } : {})
       });
+      setShowCompletionSignature(false);
       setWorkspace(saved);
       setScoreDrafts(createScoreDrafts(saved));
       setDecisionDrafts(createDecisionDrafts(saved));
@@ -362,6 +370,14 @@ export function BidEvaluationProcurexPage() {
 
   return (
     <>
+      <SignatureKeyphraseModal
+        open={showCompletionSignature}
+        title="Complete evaluation"
+        actionLabel="Complete evaluation"
+        isSubmitting={workspaceSaving}
+        onCancel={() => setShowCompletionSignature(false)}
+        onConfirm={(signatureKeyphrase) => void saveWorkspace(true, signatureKeyphrase)}
+      />
       <PlanningTopBar title="Evaluation" onNavigate={navigateToPage} />
       <div className="main-layout procurement-layout evaluation-app-layout">
         <aside className="sidebar evaluation-sidebar">

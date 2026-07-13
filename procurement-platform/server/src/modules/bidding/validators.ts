@@ -4,6 +4,7 @@ export const moduleStatusQuerySchema = z.object({}).passthrough();
 
 const uuidSchema = z.string().trim().uuid();
 const metadataSchema = z.record(z.unknown()).optional().default({});
+const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const tenderBidParamsSchema = z
   .object({
@@ -107,5 +108,11 @@ export const patchBidSampleBodySchema = z
     inspectedAt: z.string().datetime().optional(),
     inspectionNotes: z.string().trim().max(2000).optional(),
     metadata: metadataSchema
+  })
+  .strict();
+
+export const bidSignatureBodySchema = z
+  .object({
+    signatureKeyphrase: signatureKeyphraseSchema
   })
   .strict();

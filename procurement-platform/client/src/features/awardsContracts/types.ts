@@ -1,5 +1,6 @@
 export type AwardQueueId =
-  | 'my-urgent-actions'
+  | 'sample-procurement'
+  | 'contract-preparation'
   | 'awarding-in-progress'
   | 'awards-received'
   | 'contracts-in-progress'
@@ -69,6 +70,7 @@ export type WorkflowAccess = {
   canSignBuyer: boolean;
   canSignSupplier: boolean;
   readOnlyReason: string | null;
+  hideLockedActions?: boolean;
 };
 
 export type PickerOption = {
@@ -100,7 +102,7 @@ export type ActionDrawerState = {
 export type LifecycleAction = {
   id: string;
   roleContext: LifecycleRoleContext;
-  sourceType: 'TENDER_CREATED' | 'AWARD_RECEIVED' | 'CONTRACT_ACTIVE';
+  sourceType: 'TENDER_CREATED' | 'AWARD_RECEIVED' | 'CONTRACT_ACTIVE' | 'SAMPLE_ACTION';
   tenderId: string | null;
   awardId: string | null;
   noticeId: string | null;
@@ -131,7 +133,6 @@ export type LifecycleAction = {
 
 export type AwardContractDashboard = {
   summary: {
-    urgentActions: number;
     awardQueues: number;
     contractActions: number;
   };
@@ -287,7 +288,7 @@ export type ContractDetailDto = {
   versions?: Array<Record<string, unknown>>;
   clauses?: ContractLifecycleItemDto[];
   negotiations?: ContractLifecycleItemDto[];
-  signatures: Array<{ id: string; role: string; status: string; signerName: string; signedAt: string | null }>;
+  signatures: Array<{ id: string; role: string; status: string; signerOrgId?: string | null; signerName: string; signedAt: string | null }>;
   milestones: Array<ContractLifecycleItemDto & { amount?: number | null; evidence?: ContractLifecycleItemDto[] }>;
   managementPlan: null | {
     id: string;
@@ -311,6 +312,12 @@ export type ContractDetailDto = {
   threeWayMatches?: Array<Record<string, unknown>>;
   paymentApprovals?: Array<Record<string, unknown>>;
   paymentConfirmations?: Array<Record<string, unknown>>;
+  commencements?: Array<Record<string, unknown>>;
+  nonConformances?: Array<Record<string, unknown>>;
+  securities?: Array<Record<string, unknown>>;
+  penalties?: Array<Record<string, unknown>>;
+  changeRequests?: Array<Record<string, unknown>>;
+  referenceSamples?: Array<Record<string, unknown>>;
   risks: Array<ContractLifecycleItemDto & { level?: string; score?: number; mitigationAction?: string }>;
   riskForecasts?: Array<Record<string, unknown>>;
   variations: Array<ContractLifecycleItemDto & { changeType?: string; costImpact?: number | null; timeImpactDays?: number | null }>;
@@ -327,6 +334,51 @@ export type ContractDetailDto = {
   performanceScores?: Array<Record<string, unknown>>;
   supplierRiskProfile?: Record<string, unknown> | null;
   audit: Array<{ event: string; actorUserId: string | null; createdAt: string }>;
+};
+
+export type AwardContractSampleDto = {
+  id: string;
+  bidSampleId: string | null;
+  viewerRole?: ViewerRole;
+  sampleRequired?: boolean;
+  sampleRequirementStatus?: 'SUBMITTED' | 'MISSING_REQUIRED' | 'NOT_REQUIRED';
+  actionable?: boolean;
+  tenderId: string;
+  tenderReference: string | null;
+  tenderTitle: string;
+  bidId: string;
+  supplierOrgId: string;
+  supplierName: string;
+  buyerOrgId: string;
+  sampleName: string;
+  relatedItem: string;
+  quantity: number | null;
+  deliveryLocation: string;
+  deliveryDeadline: string | null;
+  trackingStatus: string;
+  awardingStatus: string;
+  sampleReference: string;
+  courier: string;
+  trackingNumber: string;
+  submittedAt: string | null;
+  receivedAt: string | null;
+  inspectedAt: string | null;
+  receipt: Record<string, unknown> | null;
+  latestVerification: Record<string, unknown> | null;
+  evaluations: Array<Record<string, unknown>>;
+  tests: Array<Record<string, unknown>>;
+  custodyLogs: Array<Record<string, unknown>>;
+  dispositions: Array<Record<string, unknown>>;
+  referenceSamples: Array<Record<string, unknown>>;
+  contractId: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AwardContractSampleDashboard = {
+  summary: Record<string, number>;
+  queues: Record<string, AwardContractSampleDto[]>;
 };
 
 export type AwardContractActionPayload = Record<string, unknown>;

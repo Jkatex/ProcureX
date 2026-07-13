@@ -414,6 +414,7 @@ export function ActionFormPanel({
   }, [fields]);
 
   if (!allowed) {
+    if (access.hideLockedActions) return null;
     return <LockedWorkflowPanel title={title} owner={owner} reason={ownerLockedReason(access, owner)} />;
   }
 
@@ -443,12 +444,26 @@ export function ActionFormPanel({
       notifyAward('success', `${title} saved`, 'Your changes were saved to the award and contract record.');
       onComplete?.(result);
       clearAwardContractDirtyWork();
+      setValues((current) => {
+        const cleared = { ...current };
+        for (const field of fields) {
+          if (field.kind === 'password') cleared[field.name] = '';
+        }
+        return cleared;
+      });
       setSelected(false);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : `${title} could not be saved.`;
       setMessage(errorMessage);
       notifyAward('error', `${title} could not be saved`, errorMessage);
     } finally {
+      setValues((current) => {
+        const cleared = { ...current };
+        for (const field of fields) {
+          if (field.kind === 'password') cleared[field.name] = '';
+        }
+        return cleared;
+      });
       setSaving(false);
     }
   }

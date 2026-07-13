@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
+import { supportComposeRoute } from '@/features/communication/supportComposeRoute';
+import { helpCentreApi } from '@/features/helpCentre/api';
 import { useNotifications } from '@/features/notifications/hooks';
 import { supportApi, type SupportTicketPriority } from '@/features/support/api';
 import { apiClient } from '@/shared/api/http';
 import { NotificationCard } from '@/shared/components/NotificationCard';
+import type { HelpFaq, HelpFaqCategory, HelpMessageResponse, HelpRelatedQuestion } from '@procurex/shared';
 import '@/i18n';
 
 type HealthResponse = {
@@ -13,13 +16,6 @@ type HealthResponse = {
   service?: string;
   modules?: Array<{ key: string; basePath: string }>;
 };
-
-const faqItems = [
-  { questionKey: 'support.help.faq.items.verification.question', answerKey: 'support.help.faq.items.verification.answer' },
-  { questionKey: 'support.help.faq.items.dualRole.question', answerKey: 'support.help.faq.items.dualRole.answer' },
-  { questionKey: 'support.help.faq.items.bidTiming.question', answerKey: 'support.help.faq.items.bidTiming.answer' },
-  { questionKey: 'support.help.faq.items.records.question', answerKey: 'support.help.faq.items.records.answer' }
-];
 
 const supportDeskCategories = [
   { value: 'General', labelKey: 'support.categories.general' },
@@ -69,138 +65,398 @@ const supportQuickLinks = [
   { labelKey: 'support.quickLinks.systemStatus', route: '/status' }
 ];
 
-function SupportShell({ children }: { children: ReactNode }) {
+function SupportShell({ children, signedIn = false }: { children: ReactNode; signedIn?: boolean }) {
   const { t } = useTranslation();
 
   return (
-    <div className="launch-support-page">
+    <div className={`launch-support-page${signedIn ? ' signed-in-help-shell' : ''}`}>
       <header className="launch-support-nav">
-        <Link className="brand welcome-brand-v2" to="/" aria-label={t('welcomeLanding.brandHome')}>
+        <Link className="brand welcome-brand-v2" to={signedIn ? '/dashboard' : '/'} aria-label={t('welcomeLanding.brandHome')}>
           <span className="platform-logo">
             <img className="platform-logo-image" src="/assets/logo.svg" alt="ProcureX" />
           </span>
           <span className="brand-text">ProcureX</span>
         </Link>
-        <nav aria-label={t('support.nav.ariaLabel')}>
-          <Link to="/guest-marketplace">{t('support.nav.openTenders')}</Link>
-          <Link to="/help">{t('accountMenu.help')}</Link>
-          <Link to="/status">{t('support.nav.status')}</Link>
-          <Link className="btn btn-primary" to="/sign-in">
-            {t('actions.signIn')}
-          </Link>
-        </nav>
+        {signedIn ? null : (
+          <nav aria-label={t('support.nav.ariaLabel')}>
+            <Link to="/guest-marketplace">{t('support.nav.openTenders')}</Link>
+            <Link to="/help">{t('accountMenu.help')}</Link>
+            <Link to="/status">{t('support.nav.status')}</Link>
+            <Link className="btn btn-primary" to="/sign-in">
+              {t('actions.signIn')}
+            </Link>
+          </nav>
+        )}
       </header>
       <main id="main-content">{children}</main>
     </div>
   );
 }
 
+type HelpChatMessage =
+  | {
+      id: string;
+      type: 'user';
+      text: string;
+    }
+  | {
+      id: string;
+      type: 'assistant';
+      answer: HelpMessageResponse;
+    };
+
+function HelpAnswerCard({
+  answer,
+  onAsk,
+  onAction
+}: {
+  answer: HelpMessageResponse;
+  onAsk: (question: HelpRelatedQuestion) => void;
+  onAction: (path?: string) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <article className={`help-centre-message assistant${answer.matched ? '' : ' fallback'}`}>
+      <div className="help-centre-answer-heading">
+        <div>
+          {answer.category ? <span>{`${answer.category} / ${answer.subcategory}`}</span> : <span>{t('helpCentre.assistantName')}</span>}
+          {answer.title ? <h3>{answer.title}</h3> : null}
+        </div>
+        {typeof answer.confidence === 'number' ? <strong>{t('helpCentre.confidence', { count: answer.confidence })}</strong> : null}
+      </div>
+      <p>{answer.summary}</p>
+      {answer.steps.length > 0 ? (
+        <div className="help-centre-answer-section">
+          <strong>{t('helpCentre.sections.steps')}</strong>
+          <ol>
+            {answer.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+      {answer.notes?.length ? (
+        <div className="help-centre-answer-section note">
+          <strong>{t('helpCentre.sections.notes')}</strong>
+          <ul>
+            {answer.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {answer.warnings?.length ? (
+        <div className="help-centre-answer-section warning">
+          <strong>{t('helpCentre.sections.warnings')}</strong>
+          <ul>
+            {answer.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {answer.relatedQuestions?.length ? (
+        <div className="help-centre-related">
+          <strong>{t('helpCentre.sections.related')}</strong>
+          <div>
+            {answer.relatedQuestions.map((question) => (
+              <button key={question.faqId} type="button" onClick={() => onAsk(question)}>
+                {question.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {answer.action ? (
+        <button className="btn btn-primary btn-sm" type="button" onClick={() => onAction(answer.action?.path)}>
+          {answer.action.label}
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
 export function HelpCenterProcurexPage() {
   const { t } = useTranslation();
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
-  const { notifyError, notifySuccess } = useNotifications();
-  const [subject, setSubject] = useState('');
-  const [category, setCategory] = useState('General');
-  const [priority, setPriority] = useState<SupportTicketPriority>('NORMAL');
-  const [description, setDescription] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const user = useAppSelector((state) => state.auth.user);
+  const navigate = useNavigate();
+  const conversationEndRef = useRef<HTMLDivElement | null>(null);
+  const [categories, setCategories] = useState<HelpFaqCategory[]>([]);
+  const [popularFaqs, setPopularFaqs] = useState<HelpFaq[]>([]);
+  const [categoryFaqs, setCategoryFaqs] = useState<HelpFaq[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [messages, setMessages] = useState<HelpChatMessage[]>([
+    {
+      id: 'welcome',
+      type: 'assistant',
+      answer: {
+        success: true,
+        matched: true,
+        summary: t('helpCentre.welcomeMessage'),
+        steps: [t('helpCentre.welcomeStepSearch'), t('helpCentre.welcomeStepCategory'), t('helpCentre.welcomeStepSupport')],
+        notes: [t('helpCentre.disclaimer')],
+        warnings: []
+      }
+    }
+  ]);
+  const [question, setQuestion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [error, setError] = useState('');
+  const [helpPanelOpen, setHelpPanelOpen] = useState(false);
 
-  async function submitTicket(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([helpCentreApi.categories(), helpCentreApi.popular()])
+      .then(([nextCategories, popular]) => {
+        if (!mounted) return;
+        setCategories(nextCategories);
+        setPopularFaqs(popular.faqs);
+        setSelectedCategory(nextCategories[0]?.id ?? '');
+      })
+      .catch(() => {
+        if (mounted) setError(t('helpCentre.errors.load'));
+      })
+      .finally(() => {
+        if (mounted) setLoadingInitial(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
+
+  useEffect(() => {
+    if (!selectedCategory) return;
+    let mounted = true;
+    helpCentreApi
+      .category(selectedCategory)
+      .then((result) => {
+        if (mounted) setCategoryFaqs(result.faqs);
+      })
+      .catch(() => {
+        if (mounted) setCategoryFaqs([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView?.({ block: 'end', behavior: 'smooth' });
+  }, [messages, loading]);
+
+  async function submitQuestion(nextQuestion = question) {
+    const trimmed = nextQuestion.trim();
+    if (!trimmed || loading || trimmed.length > 500) return;
+
+    const userMessage: HelpChatMessage = {
+      id: `user-${Date.now()}`,
+      type: 'user',
+      text: trimmed
+    };
+
+    setMessages((current) => [...current, userMessage]);
+    setQuestion('');
+    setError('');
+    setLoading(true);
+
     try {
-      const ticket = await supportApi.createTicket({ subject, category, priority, description });
-      setSubject('');
-      setCategory('General');
-      setPriority('NORMAL');
-      setDescription('');
-      notifySuccess(t('support.ticket.createdTitle'), t('support.ticket.createdMessage', { id: ticket.id.slice(0, 8) }));
+      const answer = await helpCentreApi.message({
+        message: trimmed,
+        category: selectedCategory,
+        currentPath: '/help'
+      });
+      setMessages((current) => [...current, { id: `assistant-${Date.now()}`, type: 'assistant', answer }]);
     } catch {
-      notifyError(t('support.ticket.failedTitle'), t('support.ticket.failedMessage'));
+      setError(t('helpCentre.errors.message'));
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-error-${Date.now()}`,
+          type: 'assistant',
+          answer: {
+            success: true,
+            matched: false,
+            summary: t('helpCentre.errors.message'),
+            steps: [t('helpCentre.fallback.tryAgain'), t('helpCentre.fallback.selectCategory'), t('helpCentre.fallback.contactSupport')],
+            action: { label: t('helpCentre.support.contactSupport'), path: isAuthenticated ? supportComposeRoute() : '/contact' }
+          }
+        }
+      ]);
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   }
 
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void submitQuestion();
+    }
+  }
+
+  function askFaq(faq: Pick<HelpFaq, 'title'> | HelpRelatedQuestion) {
+    void submitQuestion(faq.title);
+  }
+
+  function followAction(path?: string) {
+    if (!path) return;
+    navigate(path === '/support' && isAuthenticated ? supportComposeRoute() : path);
+  }
+
+  const selectedCategoryRecord = categories.find((item) => item.id === selectedCategory);
+  const remainingCharacters = 500 - question.length;
+  const layoutClassName = `help-centre-layout${helpPanelOpen ? ' panel-open' : ' panel-closed'}`;
+
   return (
-    <SupportShell>
-      <section className="launch-support-hero">
-        <span className="eyebrow">{t('support.help.eyebrow')}</span>
-        <h1>{t('support.help.title')}</h1>
-        <p>{t('support.help.body')}</p>
-      </section>
+    <SupportShell signedIn={isAuthenticated}>
+      <section className={`help-centre-page${isAuthenticated ? ' signed-in' : ''}`} aria-labelledby="help-centre-title">
+        {error ? <NotificationCard notification={{ tone: 'error', title: t('helpCentre.errors.title'), message: error, dismissible: false }} /> : null}
 
-      <section className="launch-support-grid" aria-label={t('support.help.optionsAria')}>
-        <article>
-          <strong>{t('support.help.options.identity.title')}</strong>
-          <p>{t('support.help.options.identity.body')}</p>
-          <Link to="/identity/verification">{t('support.help.options.identity.link')}</Link>
-        </article>
-        <article>
-          <strong>{t('support.help.options.tender.title')}</strong>
-          <p>{t('support.help.options.tender.body')}</p>
-          <Link to="/guest-marketplace">{t('support.help.options.tender.link')}</Link>
-        </article>
-        <article>
-          <strong>{t('support.help.options.channels.title')}</strong>
-          <p>{t('support.help.options.channels.body')}</p>
-          <Link to="/contact">{t('support.help.options.channels.link')}</Link>
-        </article>
-      </section>
+        <div className={layoutClassName}>
+          {helpPanelOpen ? (
+            <aside className="help-centre-panel" aria-label={t('helpCentre.panelLabel')}>
+              <div className="help-centre-panel-top">
+                <strong>{t('helpCentre.panelLabel')}</strong>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => setHelpPanelOpen(false)}>
+                  {t('helpCentre.closePanel')}
+                </button>
+              </div>
+              <section className="help-centre-sidebar" aria-label={t('helpCentre.categories')}>
+                <div className="help-centre-panel-heading">
+                  <span>{t('helpCentre.categories')}</span>
+                  <strong>{categories.length}</strong>
+                </div>
+                {loadingInitial ? <p>{t('helpCentre.loading')}</p> : null}
+                <div className="help-centre-category-list">
+                  {categories.map((categoryItem) => (
+                    <button
+                      key={categoryItem.id}
+                      type="button"
+                      className={categoryItem.id === selectedCategory ? 'active' : ''}
+                      onClick={() => setSelectedCategory(categoryItem.id)}
+                    >
+                      <strong>{categoryItem.title}</strong>
+                      <span>{categoryItem.subcategories.slice(0, 2).join(' / ')}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
 
-      {isAuthenticated ? (
-        <section className="launch-support-faq" aria-labelledby="support-ticket-title">
-          <div className="section-header welcome-centered-v2">
-            <span className="section-label">{t('support.ticket.create')}</span>
-            <h2 id="support-ticket-title">{t('support.ticket.accountSpecificTitle')}</h2>
-          </div>
-          <form className="launch-contact-form" onSubmit={submitTicket}>
-            <label>
-              {t('support.ticket.subject')}
-              <input value={subject} onChange={(event) => setSubject(event.target.value)} required minLength={3} maxLength={180} />
-            </label>
-            <label>
-              {t('support.ticket.category')}
-              <select value={category} onChange={(event) => setCategory(event.target.value)}>
-                <option value="General">{t('support.categories.general')}</option>
-                <option value="Identity">{t('support.categories.identity')}</option>
-                <option value="Procurement">{t('support.categories.procurement')}</option>
-                <option value="Technical">{t('support.categories.technical')}</option>
-                <option value="Compliance">{t('support.categories.compliance')}</option>
-              </select>
-            </label>
-            <label>
-              {t('support.ticket.priority')}
-              <select value={priority} onChange={(event) => setPriority(event.target.value as SupportTicketPriority)}>
-                <option value="LOW">{t('support.priorities.LOW')}</option>
-                <option value="NORMAL">{t('support.priorities.NORMAL')}</option>
-                <option value="HIGH">{t('support.priorities.HIGH')}</option>
-                <option value="URGENT">{t('support.priorities.URGENT')}</option>
-              </select>
-            </label>
-            <label>
-              {t('support.ticket.description')}
-              <textarea value={description} onChange={(event) => setDescription(event.target.value)} required minLength={10} maxLength={5000} rows={5} />
-            </label>
-            <button className="btn btn-primary" type="submit" disabled={submitting}>
-              {submitting ? t('support.ticket.creating') : t('support.ticket.create')}
-            </button>
-          </form>
-        </section>
-      ) : null}
+              <section>
+                <div className="help-centre-panel-heading">
+                  <span>{t('helpCentre.popular')}</span>
+                  <strong>{popularFaqs.length}</strong>
+                </div>
+                <div className="help-centre-question-list">
+                  {popularFaqs.slice(0, 8).map((faq) => (
+                    <button key={faq.id} type="button" onClick={() => askFaq(faq)}>
+                      {faq.title}
+                    </button>
+                  ))}
+                </div>
+              </section>
 
-      <section className="launch-support-faq" aria-labelledby="support-faq-title">
-        <div className="section-header welcome-centered-v2">
-          <span className="section-label">{t('support.help.faq.label')}</span>
-          <h2 id="support-faq-title">{t('support.help.faq.title')}</h2>
-        </div>
-        <div className="launch-faq-list">
-          {faqItems.map((item) => (
-            <details key={item.questionKey}>
-              <summary>{t(item.questionKey)}</summary>
-              <p>{t(item.answerKey)}</p>
-            </details>
-          ))}
+              <section>
+                <div className="help-centre-panel-heading">
+                  <span>{t('helpCentre.frequentlyViewed')}</span>
+                  <strong>{categoryFaqs.length}</strong>
+                </div>
+                <div className="help-centre-question-list">
+                  {categoryFaqs.slice(0, 8).map((faq) => (
+                    <button key={faq.id} type="button" onClick={() => askFaq(faq)}>
+                      {faq.title}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="help-centre-support">
+                <strong>{t('helpCentre.support.title')}</strong>
+                <p>{t('helpCentre.support.body')}</p>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate(isAuthenticated ? supportComposeRoute() : '/contact')}>
+                  {t('helpCentre.support.communication')}
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate(isAuthenticated ? supportComposeRoute() : '/contact')}>
+                  {t('helpCentre.support.contactSupport')}
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate('/privacy')}>
+                  {t('helpCentre.support.privacy')}
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => navigate('/terms')}>
+                  {t('helpCentre.support.terms')}
+                </button>
+              </section>
+
+              <p className="help-centre-disclaimer">{t('helpCentre.disclaimer')}</p>
+            </aside>
+          ) : null}
+
+          <section className="help-centre-chat" aria-label={t('helpCentre.chatAria')}>
+            <div className="help-centre-chat-header">
+              <div className="help-centre-chat-title">
+                <span>{t('helpCentre.eyebrow')}</span>
+                <h1 id="help-centre-title">{t('helpCentre.assistantTitle')}</h1>
+                <p>{t('helpCentre.intro')}</p>
+                <div className="help-centre-context">
+                  <span>{user?.organization || t('accountMenu.procurexAccount')}</span>
+                  <strong>{user?.capabilities?.length ? user.capabilities.join(' + ') : t('helpCentre.publicContext')}</strong>
+                  <em>{selectedCategoryRecord?.title ?? t('helpCentre.allCategories')}</em>
+                </div>
+              </div>
+              <div className="help-centre-chat-actions">
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => setHelpPanelOpen((current) => !current)}>
+                  {helpPanelOpen ? t('helpCentre.hidePanel') : t('helpCentre.openPanel')}
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMessages([])}>
+                  {t('helpCentre.clear')}
+                </button>
+              </div>
+            </div>
+            <div className="help-centre-messages" aria-live="polite">
+              {messages.length === 0 ? (
+                <div className="help-centre-empty">
+                  <strong>{t('helpCentre.emptyTitle')}</strong>
+                  <p>{t('helpCentre.emptyBody')}</p>
+                </div>
+              ) : null}
+              {messages.map((message) =>
+                message.type === 'user' ? (
+                  <div className="help-centre-message user" key={message.id}>
+                    <p>{message.text}</p>
+                  </div>
+                ) : (
+                  <HelpAnswerCard key={message.id} answer={message.answer} onAsk={askFaq} onAction={followAction} />
+                )
+              )}
+              {loading ? <div className="help-centre-message assistant loading">{t('helpCentre.loadingAnswer')}</div> : null}
+              <div ref={conversationEndRef} />
+            </div>
+            <div className="help-centre-search help-centre-chat-composer" role="search">
+              <label htmlFor="help-centre-question">{t('helpCentre.searchLabel')}</label>
+              <div className="help-centre-search-row">
+                <textarea
+                  id="help-centre-question"
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value.slice(0, 500))}
+                  onKeyDown={handleKeyDown}
+                  placeholder={t('helpCentre.searchPlaceholder')}
+                  rows={2}
+                  maxLength={500}
+                  aria-describedby="help-centre-count"
+                />
+                <button className="btn btn-primary" type="button" onClick={() => void submitQuestion()} disabled={!question.trim() || loading}>
+                  {loading ? t('helpCentre.asking') : t('helpCentre.ask')}
+                </button>
+              </div>
+              <div className="help-centre-search-meta">
+                <span id="help-centre-count">{t('helpCentre.charactersRemaining', { count: remainingCharacters })}</span>
+                <span>{t('helpCentre.enterHint')}</span>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     </SupportShell>
@@ -227,7 +483,7 @@ export function SignedInHelpDeskProcurexPage() {
       else delete document.body.dataset.page;
       delete document.body.dataset.procurexReactPage;
     };
-  }, []);
+  }, [t]);
 
   async function submitTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -249,7 +505,7 @@ export function SignedInHelpDeskProcurexPage() {
   function selectCategory(nextCategory: string) {
     setCategory(nextCategory);
     const form = document.getElementById('support-desk-ticket-form');
-    form?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    form?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
   }
 
   return (

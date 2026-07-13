@@ -122,7 +122,6 @@ export function IdentityVerificationProcurexPage() {
   const [repeatKeyphrase, setRepeatKeyphrase] = useState('');
   const [signatureKeyphrase, setSignatureKeyphrase] = useState('');
   const [signatureVerificationState, setSignatureVerificationState] = useState<SignatureVerificationState>('idle');
-  const [showSignatureResetConfirm, setShowSignatureResetConfirm] = useState(false);
   const [result, setResult] = useState<VerificationSubmitResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<CreateNotificationInput | null>(null);
@@ -190,7 +189,6 @@ export function IdentityVerificationProcurexPage() {
       setSignatureStatus(status);
       setSignatureKeyphrase(requestKeyphrase);
       setSignatureVerificationState('idle');
-      setShowSignatureResetConfirm(false);
       setRequestKeyphrase('');
       setRepeatKeyphrase('');
       setMessage(identityNotification('info', 'Digital signature ready', 'Your keyphrase-backed digital signature is active.', 'Verify the pre-filled keyphrase below, then confirm consent and submit.'));
@@ -218,27 +216,6 @@ export function IdentityVerificationProcurexPage() {
     } catch (error) {
       setSignatureVerificationState('invalid');
       setMessage(notificationFromApiError(error, { title: 'Keyphrase not verified', fallback: friendlyIdentityMessage(error, 'The keyphrase does not match this digital signature.') }));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function resetSignatureKeyphrase() {
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const status = await identityApi.revokeSignature();
-      setSignatureStatus(status);
-      setSignatureKeyphrase('');
-      setSignatureVerificationState('idle');
-      setSignatureConsent(false);
-      setShowSignatureResetConfirm(false);
-      setRequestKeyphrase('');
-      setRepeatKeyphrase('');
-      setMessage(identityNotification('info', 'Signature keyphrase reset', 'The previous signing credential was revoked. Create a new signature keyphrase to continue.', 'The old keyphrase can no longer sign verification documents.'));
-    } catch (error) {
-      setMessage(notificationFromApiError(error, { title: 'Signature keyphrase not reset', fallback: 'Could not reset the signature keyphrase.' }));
     } finally {
       setLoading(false);
     }
@@ -619,26 +596,9 @@ export function IdentityVerificationProcurexPage() {
                       <span className="signature-status-pill ready">Active</span>
                     </div>
                     {signatureStatus.keyFingerprint ? <span className="signature-fingerprint">{signatureStatus.keyFingerprint}</span> : null}
-                    <button className="signature-reset-link" type="button" onClick={() => setShowSignatureResetConfirm(true)}>
-                      Forgot keyphrase? Reset signature keyphrase
+                    <button className="signature-reset-link" type="button" onClick={() => navigate('/identity/security/keyphrase')}>
+                      Manage or recover keyphrase
                     </button>
-
-                    {showSignatureResetConfirm ? (
-                      <div className="signature-reset-panel" role="group" aria-label="Reset signature keyphrase confirmation">
-                        <div>
-                          <strong>Reset this signature keyphrase?</strong>
-                          <p>The current signing credential will be revoked. You will need to create a new keyphrase before submitting verification.</p>
-                        </div>
-                        <div className="signature-reset-actions">
-                          <button type="button" className="btn btn-secondary" disabled={loading} onClick={() => setShowSignatureResetConfirm(false)}>
-                            Keep current
-                          </button>
-                          <button type="button" className="btn btn-primary" disabled={loading} onClick={() => void resetSignatureKeyphrase()}>
-                            {loading ? 'Resetting...' : 'Reset keyphrase'}
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
                 )}
 
