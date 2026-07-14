@@ -68,8 +68,7 @@ export type LifecycleQueueId =
   | 'awarding-in-progress'
   | 'awards-received'
   | 'contracts-in-progress'
-  | 'active-contracts'
-  | 'closed-contracts';
+  | 'contract-signing';
 
 export type LifecycleActionDto = {
   id: string;
@@ -527,6 +526,12 @@ export type ContractVersionInput = {
   payload: Record<string, unknown>;
 };
 
+export type ContractNegotiationDecisionInput = {
+  status: ContractLifecycleItemStatus;
+  reason: string;
+  payload: Record<string, unknown>;
+};
+
 export type ContractSignatureRequestInput = {
   roles: ContractPartyRole[];
 };
@@ -735,6 +740,7 @@ export type NegotiationInput = {
   winnerId?: string;
   clauseId?: string;
   raisedByRole: string;
+  requestType?: 'CLARIFICATION' | 'AMENDMENT';
   subject: string;
   position?: string;
   counterOffer?: string;

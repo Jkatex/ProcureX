@@ -1,7 +1,7 @@
 import type { ContractStatus } from '@prisma/client';
 import { ModuleService as AwardContractService } from '../award-contract/service.js';
 import { moduleDefinition, type ModuleStatus, type PostAwardActionDto, type PostAwardContractRowDto, type PostAwardRecordDto, type PostAwardRequestContext, type PostAwardStageDto, type PostAwardWorkspaceDto } from './types.js';
-import type { AwardContractDashboardDto, ContractDetailDto } from '../award-contract/types.js';
+import type { ContractDetailDto, ContractListItemDto } from '../award-contract/types.js';
 
 function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
@@ -19,22 +19,31 @@ export class ModuleService {
   }
 
   async contracts(context: PostAwardRequestContext): Promise<PostAwardContractRowDto[]> {
-    const dashboard = await this.awardContracts.dashboard(context);
-    return dashboardContracts(dashboard).map((row) => ({
-      id: row.contractId ?? row.id,
-      reference: row.reference ?? row.contractId ?? row.id,
-      title: row.title,
-      status: row.status,
-      buyerName: row.roleContext === 'BUYER' ? 'Your organization' : row.otherParty,
-      supplierName: row.roleContext === 'SUPPLIER' ? 'Your organization' : row.otherParty,
-      viewerRole: row.roleContext,
-      amount: row.amount,
-      currency: row.currency,
-      stage: row.currentStage,
-      nextAction: row.requiredAction,
-      dueDate: row.dueDate,
-      riskLevel: row.riskLevel
-    }));
+    const pageSize = 100;
+    const firstPage = await this.awardContracts.listContracts({ organizationId: context.organizationId ?? '', status: 'all', search: '', page: 1, pageSize }, context);
+    const contracts = [...firstPage.contracts];
+    for (let page = 2; page <= Number(firstPage.totalPages ?? 1); page += 1) {
+      const nextPage = await this.awardContracts.listContracts({ organizationId: context.organizationId ?? '', status: 'all', search: '', page, pageSize }, context);
+      contracts.push(...nextPage.contracts);
+    }
+    return contracts.filter((row) => activeStatuses.has(String(row.status))).map((row) => {
+      const viewerRole = contractViewerRole(row, context);
+      return {
+        id: row.id,
+        reference: row.reference,
+        title: row.title,
+        status: row.status,
+        buyerName: viewerRole === 'BUYER' ? 'Your organization' : row.buyerName,
+        supplierName: viewerRole === 'SUPPLIER' ? 'Your organization' : row.supplierName,
+        viewerRole,
+        amount: row.amount,
+        currency: row.currency,
+        stage: stageLabel(row.status),
+        nextAction: row.status === 'COMPLETED' || row.status === 'WARRANTY_DEFECTS' ? 'Prepare close-out' : 'Monitor execution',
+        dueDate: null,
+        riskLevel: 'Low'
+      };
+    });
   }
 
   async workspace(contractId: string, context: PostAwardRequestContext): Promise<PostAwardWorkspaceDto> {
@@ -119,8 +128,11 @@ function requireContractResult(contract: ContractDetailDto | null): ContractDeta
   return contract;
 }
 
-function dashboardContracts(dashboard: AwardContractDashboardDto) {
-  return [...(dashboard.queues['active-contracts'] ?? []), ...(dashboard.queues['closed-contracts'] ?? [])].filter((row) => row.contractId);
+function contractViewerRole(contract: ContractListItemDto, context: PostAwardRequestContext): PostAwardContractRowDto['viewerRole'] {
+  if (context.isAdmin) return 'ADMIN';
+  if (context.organizationId && contract.buyerOrgId === context.organizationId) return 'BUYER';
+  if (context.organizationId && contract.supplierOrgId === context.organizationId) return 'SUPPLIER';
+  return 'NONE';
 }
 
 function workspaceDto(contract: ContractDetailDto): PostAwardWorkspaceDto {

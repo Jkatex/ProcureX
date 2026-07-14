@@ -72,6 +72,7 @@ import type {
   VariationInput,
   ContractSignatureRequestInput,
   ContractSignatureSignInput,
+  ContractNegotiationDecisionInput,
   ContractStatusPatchInput,
   ContractVersionInput,
   AwardContractDashboardDto,
@@ -1169,28 +1170,30 @@ function firstDueDate(records: Array<{ dueDate?: Date | null }>) {
 }
 
 function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER') {
+  const payload = objectPayload(record.payload);
+  const redraftRequired = Boolean(payload.redraftRequired);
   if (isPreAwardContract(record)) {
     return {
       stage: 'Contract preparation',
       requiredAction: roleContext === 'BUYER' ? 'Prepare contract' : 'Await buyer contract preparation',
       dueDate: daysFromNow(5),
       riskLevel: roleContext === 'BUYER' ? 'Medium' as const : 'Low' as const,
-      nextRoute: `/awards-contracts/negotiation?contract=${record.id}&step=clauses`
+      nextRoute: `/awards-contracts/drafting?contract=${record.id}`
     };
   }
   if (record.status === ContractStatus.DRAFT) {
     return {
-      stage: 'Draft contract',
-      requiredAction: roleContext === 'BUYER' ? 'Generate or update contract draft' : 'Await buyer draft',
+      stage: redraftRequired ? 'Redraft contract' : 'Contract drafting',
+      requiredAction: roleContext === 'BUYER' ? (redraftRequired ? 'Revise contract draft' : 'Generate contract draft') : 'Await buyer draft',
       dueDate: daysFromNow(3),
       riskLevel: roleContext === 'BUYER' ? 'Medium' as const : 'Low' as const,
-      nextRoute: `/awards-contracts/negotiation?contract=${record.id}&tab=overview`
+      nextRoute: `/awards-contracts/drafting?contract=${record.id}`
     };
   }
   if (record.status === ContractStatus.NEGOTIATION) {
     return {
       stage: 'Negotiation',
-      requiredAction: roleContext === 'BUYER' ? 'Complete contract owner approval' : 'Review contract terms',
+      requiredAction: roleContext === 'BUYER' ? 'Review supplier contract requests' : 'Review contract draft',
       dueDate: daysFromNow(2),
       riskLevel: 'Medium' as const,
       nextRoute: `/awards-contracts/negotiation?contract=${record.id}&tab=negotiation`
@@ -1203,7 +1206,7 @@ function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER
       requiredAction: pendingSignature?.signerOrgId ? 'Sign contract' : 'Collect signatures',
       dueDate: daysFromNow(1),
       riskLevel: 'High' as const,
-      nextRoute: `/awards-contracts/negotiation?contract=${record.id}&tab=signatures`
+      nextRoute: `/awards-contracts/signing?contract=${record.id}`
     };
   }
   if (record.status === ContractStatus.SIGNED || record.status === ContractStatus.MOBILIZATION) {
@@ -1618,8 +1621,7 @@ export class ModuleRepository {
       'awarding-in-progress': [],
       'awards-received': [],
       'contracts-in-progress': [],
-      'active-contracts': [],
-      'closed-contracts': []
+      'contract-signing': []
     };
 
     for (const recommendation of recommendations) {
@@ -1685,16 +1687,12 @@ export class ModuleRepository {
           nextRoute: action.nextRoute
         })
       };
-      const inProgressStatuses: ContractStatus[] = [ContractStatus.DRAFT, ContractStatus.NEGOTIATION, ContractStatus.SIGNATURE_PENDING, ContractStatus.SIGNED];
-      const closedStatuses: ContractStatus[] = [ContractStatus.COMPLETED, ContractStatus.WARRANTY_DEFECTS, ContractStatus.TERMINATED, ContractStatus.CLOSED];
-      if (isPreAwardContract(contract) && roleContext === 'BUYER') {
+      if ((isPreAwardContract(contract) || contract.status === ContractStatus.DRAFT) && roleContext === 'BUYER') {
         queues['contract-preparation'].push(dto);
-      } else if (inProgressStatuses.includes(contract.status)) {
+      } else if (contract.status === ContractStatus.SIGNATURE_PENDING) {
+        queues['contract-signing'].push(dto);
+      } else if (contract.status === ContractStatus.NEGOTIATION) {
         queues['contracts-in-progress'].push(dto);
-      } else if (closedStatuses.includes(contract.status)) {
-        queues['closed-contracts'].push(dto);
-      } else {
-        queues['active-contracts'].push(dto);
       }
     }
 
@@ -1734,7 +1732,7 @@ export class ModuleRepository {
     return {
       summary: {
         awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
-        contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['active-contracts'].filter((item) => item.requiredAction !== 'Monitor contract').length
+        contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['contract-signing'].length
       },
       queues
     };
@@ -3381,10 +3379,42 @@ export class ModuleRepository {
           payload: input.payload as Prisma.InputJsonObject
         }
       });
-      if (contract.status === ContractStatus.DRAFT) {
-        await tx.contract.update({ where: { id: contract.id }, data: { status: ContractStatus.NEGOTIATION } });
-      }
       await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.version.created', 'contract', contract.id, { versionNo });
+    });
+    return this.getContract(id, context);
+  }
+
+  async sendContractForNegotiation(id: string, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await tx.contract.findUnique({
+        where: { id },
+        include: {
+          versions: { orderBy: { versionNo: 'desc' }, take: 1 },
+          awardNotice: true
+        }
+      });
+      if (!contract) throw requestError('Contract was not found.', 404);
+      assertContractVisible(contract, context);
+      assertContractManager(contract, context);
+      if (!contract.awardId || !contract.supplierOrgId) throw requestError('Send to negotiation after award notice acceptance and supplier linking.', 409);
+      if (contract.awardNotice?.status !== AwardNoticeStatus.ACCEPTED) throw requestError('Supplier must accept the award notice before contract negotiation starts.', 409);
+      if (contract.versions.length === 0) throw requestError('Generate or save a contract draft version before sending to negotiation.', 409);
+
+      await tx.contract.update({
+        where: { id: contract.id },
+        data: {
+          status: ContractStatus.NEGOTIATION,
+          payload: {
+            ...objectPayload(contract.payload),
+            redraftRequired: false,
+            sentForNegotiationAt: new Date().toISOString(),
+            sentVersionNo: contract.versions[0]?.versionNo ?? null
+          } as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.sent_for_negotiation', 'contract', contract.id, {
+        versionNo: contract.versions[0]?.versionNo ?? null
+      });
     });
     return this.getContract(id, context);
   }
@@ -4519,9 +4549,28 @@ export class ModuleRepository {
     return this.getContract(contractId, context);
   }
 
+  async deleteClause(contractId: string, clauseId: string, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      const clause = await tx.contractClause.findFirst({ where: { id: clauseId, contractId } });
+      if (!clause) throw requestError('Contract clause was not found.', 404);
+      await tx.contractClause.delete({ where: { id: clause.id } });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.clause.deleted', 'contract', contractId, { clauseId, clauseKey: clause.clauseKey });
+    });
+    return this.getContract(contractId, context);
+  }
+
   async createNegotiation(contractId: string, input: NegotiationInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
-      const contract = await this.requireContract(tx, contractId, context);
+      const contract = await tx.contract.findUnique({ where: { id: contractId }, include: { versions: { orderBy: { versionNo: 'desc' }, take: 1 } } });
+      if (!contract) throw requestError('Contract was not found.', 404);
+      assertContractVisible(contract, context);
+      if (contract.status !== ContractStatus.NEGOTIATION) throw requestError('Contract negotiation starts after the buyer sends a draft for negotiation.', 409);
+      if (!context.isAdmin && context.organizationId !== contract.supplierOrgId && context.organizationId !== contract.buyerOrgId) {
+        throw requestError('You do not have access to this contract negotiation.', 403);
+      }
+      const payload = objectPayload(input.payload);
+      const requestType = input.requestType ?? (String(payload.requestType ?? '').toUpperCase() === 'CLARIFICATION' ? 'CLARIFICATION' : 'AMENDMENT');
       await tx.contractNegotiation.create({
         data: {
           contractId,
@@ -4533,11 +4582,63 @@ export class ModuleRepository {
           counterOffer: input.counterOffer || null,
           status: input.status ?? ContractLifecycleItemStatus.OPEN,
           dueDate: toDate(input.dueDate),
-          payload: input.payload as Prisma.InputJsonObject
+          payload: {
+            ...payload,
+            requestType,
+            linkedVersionNo: contract.versions[0]?.versionNo ?? null,
+            decisionReason: null,
+            redraftRequired: false
+          } as Prisma.InputJsonObject
         }
       });
-      if (contract.status === ContractStatus.DRAFT) await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.NEGOTIATION } });
       await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.negotiation.created', 'contract', contractId, { subject: input.subject });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async updateNegotiation(contractId: string, negotiationId: string, input: ContractNegotiationDecisionInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const negotiation = await tx.contractNegotiation.findUnique({ where: { id: negotiationId }, include: { contract: true } });
+      if (!negotiation || negotiation.contractId !== contractId) throw requestError('Contract negotiation request was not found.', 404);
+      assertContractVisible(negotiation.contract, context);
+      assertContractManager(negotiation.contract, context);
+      const payload = objectPayload(negotiation.payload);
+      const requestType = String(payload.requestType ?? '').toUpperCase();
+      const acceptedAmendment = input.status === ContractLifecycleItemStatus.APPROVED && requestType === 'AMENDMENT';
+      await tx.contractNegotiation.update({
+        where: { id: negotiation.id },
+        data: {
+          status: input.status,
+          payload: {
+            ...payload,
+            ...input.payload,
+            decisionReason: input.reason,
+            decidedByOrgId: context.organizationId ?? null,
+            decidedAt: new Date().toISOString(),
+            redraftRequired: acceptedAmendment
+          } as Prisma.InputJsonObject
+        }
+      });
+      if (acceptedAmendment) {
+        await tx.contract.update({
+          where: { id: contractId },
+          data: {
+            status: ContractStatus.DRAFT,
+            payload: {
+              ...objectPayload(negotiation.contract.payload),
+              redraftRequired: true,
+              redraftReason: input.reason,
+              redraftNegotiationId: negotiation.id,
+              redraftRequestedAt: new Date().toISOString()
+            } as Prisma.InputJsonObject
+          }
+        });
+      }
+      await this.audit(tx, negotiation.contract.buyerOrgId, context.userId, 'contract.negotiation.updated', 'contract', contractId, {
+        negotiationId,
+        status: input.status,
+        redraftRequired: acceptedAmendment
+      });
     });
     return this.getContract(contractId, context);
   }
@@ -4567,7 +4668,10 @@ export class ModuleRepository {
 
   async createAcceptance(contractId: string, input: AcceptanceInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
-      const contract = await this.requireContract(tx, contractId, context, true);
+      const acceptancePayload = objectPayload(input.payload);
+      const isSupplierFinalDraftAcceptance = acceptancePayload.acceptanceType === 'NEGOTIATED_DRAFT' && String(acceptancePayload.role ?? '').toUpperCase() === 'SUPPLIER';
+      const contract = await this.requireContract(tx, contractId, context, !isSupplierFinalDraftAcceptance);
+      if (isSupplierFinalDraftAcceptance) assertContractSupplier(contract, context);
       const certificateNo = input.certificateNo || acceptanceCertificateReference();
       await tx.contractAcceptance.create({
         data: {

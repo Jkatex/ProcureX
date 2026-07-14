@@ -1,8 +1,6 @@
 import type {
-  ActiveContract,
   AwardQueueId,
   AwardWorkflowStep,
-  ClosedContract,
   ContractAction,
   ContractTab,
   PostAwardTab,
@@ -13,12 +11,11 @@ import type {
 
 export const awardQueueLabels: Record<AwardQueueId, string> = {
   'sample-procurement': 'Samples',
-  'contract-preparation': 'Draft Contracts',
+  'contract-preparation': 'Contract Drafting',
   'awarding-in-progress': 'Award Decisions',
   'awards-received': 'Awards Received',
   'contracts-in-progress': 'Contract Negotiation',
-  'active-contracts': 'Active Contracts',
-  'closed-contracts': 'Closed / Archived'
+  'contract-signing': 'Contract Signing'
 };
 
 export const pendingAwards: PendingAward[] = [
@@ -28,12 +25,6 @@ export const supplierAwards: SupplierAward[] = [
 ];
 
 export const contractActions: ContractAction[] = [
-];
-
-export const activeContracts: ActiveContract[] = [
-];
-
-export const closedContracts: ClosedContract[] = [
 ];
 
 export const summaryCards: SummaryCard[] = [
@@ -73,18 +64,11 @@ export const summaryCards: SummaryCard[] = [
     trend: 'Due'
   },
   {
-    queue: 'active-contracts',
-    label: 'Active Contracts',
-    value: activeContracts.length,
-    detail: 'Signed contracts under delivery and payment tracking',
-    trend: 'Live'
-  },
-  {
-    queue: 'closed-contracts',
-    label: 'Closed Contracts',
-    value: closedContracts.length,
-    detail: 'Completed, terminated, or archived contract records',
-    trend: 'Done'
+    queue: 'contract-signing',
+    label: 'Contract Signing',
+    value: 0,
+    detail: 'Contracts pending buyer or supplier digital signature',
+    trend: 'Sign'
   }
 ];
 

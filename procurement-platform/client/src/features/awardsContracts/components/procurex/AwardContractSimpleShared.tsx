@@ -165,12 +165,14 @@ export function AwardDecisionForm({
   recommendation,
   saving,
   onSave,
-  onConfirm
+  onConfirm,
+  confirmLabel = 'Confirm award'
 }: {
   recommendation: AwardRecommendationDetailDto | null;
   saving?: boolean;
   onSave: (payload: AwardDecisionDraftInput) => Promise<void>;
   onConfirm: (payload: AwardDecisionDraftInput) => Promise<void>;
+  confirmLabel?: string;
 }) {
   const [values, setValues] = useState<AwardDecisionValues>(() => draftFromRecommendation(recommendation));
   const [submitted, setSubmitted] = useState(false);
@@ -223,7 +225,7 @@ export function AwardDecisionForm({
       <div className="panel-heading">
         <div>
           <span className="section-kicker">Award Decision</span>
-          <h2>Confirm award for {values.selectedSupplier || 'recommended supplier'}</h2>
+          <h2>Approve award for {values.selectedSupplier || 'recommended supplier'}</h2>
           <p>Fill the award details the buyer will rely on before notices and contract preparation.</p>
         </div>
         <StatusBadge value={recommendation?.status ?? 'Draft'} />
@@ -293,7 +295,7 @@ export function AwardDecisionForm({
 
         <div className="award-simple-actions">
           <button className="btn btn-secondary" type="button" disabled={saving} onClick={() => void onSave(payload())}>{saving ? 'Saving...' : 'Save'}</button>
-          <button className="btn btn-primary" type="button" disabled={saving} onClick={() => void confirm()}>Confirm award</button>
+          <button className="btn btn-primary" type="button" disabled={saving} onClick={() => void confirm()}>{confirmLabel}</button>
         </div>
       </form>
     </section>

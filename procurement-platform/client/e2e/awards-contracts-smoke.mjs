@@ -278,11 +278,8 @@ async function run() {
     await captureVisualSmoke(buyerPage, 'buyer contract negotiation', ['Contract preparation', 'Contract formation workspace']);
     summaries.push('buyer opened contract negotiation');
 
-    await openFirstQueueRecord(buyerPage, 'active-contracts', 'buyer active contract queue', '/post-award');
-    await assertHealthyPage(buyerPage, 'buyer post-award tracking', ['Contract workspace', 'Action queue']);
-    await captureVisualSmoke(buyerPage, 'buyer post-award tracking', ['Contract workspace', 'Action queue']);
-    summaries.push('buyer opened post-award tracking');
     await openDirectPostAwardChooser(buyerPage);
+    await captureVisualSmoke(buyerPage, 'buyer post-award tracking', ['Contract workspace', 'Action queue']);
     summaries.push('buyer opened post-award direct chooser');
     await assertBuyerGuards();
     await buyerContext.close();
@@ -303,8 +300,7 @@ async function run() {
     await assertHealthyPage(supplierPage, 'supplier contract negotiation', ['Contract preparation']);
     summaries.push('supplier opened contract negotiation');
 
-    await openFirstQueueRecord(supplierPage, 'active-contracts', 'supplier active contract queue', '/post-award');
-    await assertHealthyPage(supplierPage, 'supplier post-award tracking', ['Contract workspace', 'Action queue']);
+    await openDirectPostAwardChooser(supplierPage);
     await uploadPostAwardMilestoneEvidence(supplierPage);
     summaries.push('supplier uploaded post-award milestone evidence');
     summaries.push('supplier opened post-award tracking');

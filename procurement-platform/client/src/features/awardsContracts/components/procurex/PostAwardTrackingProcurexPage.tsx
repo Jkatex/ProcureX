@@ -123,10 +123,10 @@ function fileToBase64(file: File) {
 }
 
 function contractChooserRows(dashboard: AwardContractDashboard | null) {
-  return [
-    ...(dashboard?.queues['active-contracts'] ?? []),
-    ...(dashboard?.queues['closed-contracts'] ?? [])
-  ].filter((row) => row.contractId);
+  const postAwardStatuses = new Set(['SIGNED', 'MOBILIZATION', 'ACTIVE', 'AT_RISK', 'COMPLETED', 'WARRANTY_DEFECTS', 'TERMINATION_REVIEW', 'TERMINATED', 'CLOSED']);
+  return Object.values(dashboard?.queues ?? {})
+    .flat()
+    .filter((row) => row.contractId && postAwardStatuses.has(String(row.status)));
 }
 
 function recommendedPostAwardActions(contract: ContractDetailDto, sections: Array<WorkflowSection<PostAwardSectionId>>) {
@@ -357,8 +357,8 @@ export function PostAwardTrackingProcurexPage() {
   ];
   const formationLocked = Boolean(contract && ['DRAFT', 'NEGOTIATION', 'SIGNATURE_PENDING'].includes(contract.status));
   const activeFlowLock = useMemo(() => {
-    const noContract = { message: 'Select an active or closed contract before continuing post-award tracking.', actionLabel: 'Back to Active Contracts', navigatePage: 'awarding-contracts', routeSearch: 'queue=active-contracts' };
-    const notReady = { message: 'Finish negotiation, final draft acceptance, outcome notices, and signing before recording delivery, finance, risk, changes, or close-out work.', actionLabel: 'Open contract negotiation', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
+    const noContract = { message: 'Select a signed or active contract before continuing post-award tracking.', actionLabel: 'Back to Post Award', navigatePage: 'post-award-tracking', routeSearch: '' };
+    const notReady = { message: 'Finish negotiation, final draft acceptance, outcome notices, and signing before recording delivery, finance, risk, changes, or close-out work.', actionLabel: 'Open contract signing', navigatePage: 'contract-signing', routeSearch: `contract=${contractId}` };
     if (!contract) return noContract;
     if (formationLocked && !['cmp', 'registers'].includes(activeGroup)) return notReady;
     return null;
@@ -410,7 +410,7 @@ export function PostAwardTrackingProcurexPage() {
               error={dashboardError}
               onRetry={() => void loadDashboard()}
               onOpen={openContractTracking}
-              onBack={() => navigate('/awards-contracts?queue=active-contracts')}
+              onBack={() => navigate('/post-award')}
             />
           ) : !isLoading && !loadError && contract ? (
             <AwardContractAccessProvider access={contract.access ? { ...contract.access, hideLockedActions: true } : undefined}>

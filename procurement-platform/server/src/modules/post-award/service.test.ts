@@ -55,44 +55,45 @@ function contract(overrides: Record<string, unknown> = {}) {
 
 function serviceWithAwardContract(overrides: Record<string, unknown>) {
   return new ModuleService({
-    dashboard: vi.fn().mockResolvedValue({
-      queues: {
-        'active-contracts': [
-          {
-            id: 'row-1',
-            contractId: 'contract-1',
-            reference: 'PX-C-001',
-            title: 'Clinic delivery contract',
-            status: 'ACTIVE',
-            roleContext: 'SUPPLIER',
-            otherParty: 'Arusha City Council',
-            amount: 1200000,
-            currency: 'TZS',
-            currentStage: 'Active',
-            requiredAction: 'Submit evidence',
-            dueDate: '2026-07-30T00:00:00.000Z',
-            riskLevel: 'Low'
-          }
-        ],
-        'closed-contracts': [
-          {
-            id: 'row-2',
-            contractId: 'contract-2',
-            reference: 'PX-C-002',
-            title: 'Completed supply contract',
-            status: 'CLOSED',
-            roleContext: 'BUYER',
-            otherParty: 'Dodoma Supplier',
-            amount: 700000,
-            currency: 'TZS',
-            currentStage: 'Closed',
-            requiredAction: 'Review history',
-            dueDate: null,
-            riskLevel: 'Low'
-          }
-        ],
-        'contracts-in-progress': [{ id: 'draft-contract', contractId: 'draft-contract', title: 'Not post award' }]
-      }
+    listContracts: vi.fn().mockResolvedValue({
+      contracts: [
+        {
+          id: 'contract-1',
+          reference: 'PX-C-001',
+          title: 'Clinic delivery contract',
+          status: 'ACTIVE',
+          buyerOrgId: 'buyer-org',
+          buyerName: 'Arusha City Council',
+          supplierOrgId: 'supplier-org',
+          supplierName: 'Moshi Medical Supplies',
+          amount: 1200000,
+          currency: 'TZS'
+        },
+        {
+          id: 'contract-2',
+          reference: 'PX-C-002',
+          title: 'Completed supply contract',
+          status: 'CLOSED',
+          buyerOrgId: 'supplier-org',
+          buyerName: 'Buyer org',
+          supplierOrgId: 'dodoma-supplier',
+          supplierName: 'Dodoma Supplier',
+          amount: 700000,
+          currency: 'TZS'
+        },
+        {
+          id: 'draft-contract',
+          reference: 'PX-C-003',
+          title: 'Not post award',
+          status: 'DRAFT',
+          buyerOrgId: 'buyer-org',
+          buyerName: 'Buyer org',
+          supplierOrgId: 'supplier-org',
+          supplierName: 'Moshi Medical Supplies',
+          amount: null,
+          currency: 'TZS'
+        }
+      ]
     }),
     contract: vi.fn().mockResolvedValue(contract()),
     createDeliverable: vi.fn().mockResolvedValue(contract({ deliverables: [{ id: 'deliverable-1', title: 'Batch one', status: 'SUBMITTED' }] })),
@@ -113,7 +114,7 @@ describe('post-award ModuleService', () => {
       viewerRole: 'SUPPLIER',
       buyerName: 'Arusha City Council',
       supplierName: 'Your organization',
-      nextAction: 'Submit evidence'
+      nextAction: 'Monitor execution'
     });
     expect(rows[1]).toMatchObject({
       id: 'contract-2',

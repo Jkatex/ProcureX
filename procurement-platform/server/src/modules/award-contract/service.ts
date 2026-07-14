@@ -67,6 +67,7 @@ import {
   type ThreeWayMatchInput,
   type ContractSignatureRequestInput,
   type ContractSignatureSignInput,
+  type ContractNegotiationDecisionInput,
   type ContractStatusPatchInput,
   type ContractVersionInput,
   type ModuleStatus
@@ -264,6 +265,12 @@ export class ModuleService {
     return contract;
   }
 
+  async sendContractForNegotiation(id: string, context: AwardContractRequestContext) {
+    const contract = await this.repository.sendContractForNegotiation(id, context);
+    if (!contract) throw requestError('Contract was not found after sending for negotiation.', 404);
+    return contract;
+  }
+
   async createSignatureRequests(id: string, input: ContractSignatureRequestInput, context: AwardContractRequestContext) {
     const contract = await this.repository.createSignatureRequests(id, input, context);
     if (!contract) throw requestError('Contract was not found after signature request.', 404);
@@ -440,8 +447,16 @@ export class ModuleService {
     return this.repository.upsertClause(contractId, input, context);
   }
 
+  deleteClause(contractId: string, clauseId: string, context: AwardContractRequestContext) {
+    return this.repository.deleteClause(contractId, clauseId, context);
+  }
+
   createNegotiation(contractId: string, input: NegotiationInput, context: AwardContractRequestContext) {
     return this.repository.createNegotiation(contractId, input, context);
+  }
+
+  updateNegotiation(contractId: string, negotiationId: string, input: ContractNegotiationDecisionInput, context: AwardContractRequestContext) {
+    return this.repository.updateNegotiation(contractId, negotiationId, input, context);
   }
 
   createDeliverable(contractId: string, input: DeliverableInput, context: AwardContractRequestContext) {

@@ -159,7 +159,7 @@ function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
     setContractMessage('');
     try {
       const contract = await awardsContractsApi.prepareTenderContract(tender.id);
-      navigate(`/awards-contracts/negotiation?contract=${contract.id}&step=clauses`);
+      navigate(`/awards-contracts/drafting?contract=${contract.id}&step=draft`);
     } catch (error) {
       setContractMessage(apiErrorMessage(error, 'Contract preparation could not be opened.'));
     } finally {

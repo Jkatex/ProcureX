@@ -20,6 +20,7 @@
     "db:seed:evaluation-intake-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-evaluation-intake-demo.ts",
     "db:seed:marketplace-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-marketplace-demo.ts",
     "db:seed:award-ready-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-award-ready-demo.ts",
+    "db:seed:demo-evaluation-award": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-demo-evaluation-award.ts",
     "db:seed:award-contract-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-award-contract-demo.ts cleanup",
     "db:cleanup:award-contract-demo": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/seed-award-contract-demo.ts cleanup",
     "db:cleanup:demo-admin": "node ../scripts/run-with-env.mjs server .env.example -- tsx prisma/cleanup-demo-admin-only.ts",

@@ -229,24 +229,21 @@ function renderAwardingContracts() {
     const pendingAwarding = buildAwardingContractsBuyerRows(lifecycle);
     const awardedToUs = buildAwardingContractsSupplierRows(lifecycle);
     const pendingActions = lifecycle.pendingActions || [];
-    const activeContracts = lifecycle.activeContracts || [];
-    const closedContracts = lifecycle.closedContracts || [];
+    const signingActions = pendingActions.filter(row => /sign|signature/i.test(`${row.requiredAction || ''} ${row.status || ''}`));
     const urgentRows = buildAwardingContractsUrgentRows(lifecycle, pendingAwarding, awardedToUs);
     const summaryCards = [
         { label: 'My Urgent Actions', value: urgentRows.length, detail: 'All buyer and supplier actions needing attention', tab: 'my-urgent-actions', trend: '!' },
         { label: 'Awarding in Progress', value: pendingAwarding.length, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress', trend: 'Up' },
         { label: 'Awards Received', value: awardedToUs.length, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received', trend: 'Next' },
         { label: 'Contract Negotiation', value: pendingActions.length, detail: 'Draft review, negotiation, final acceptance, and outcome notice actions', tab: 'contracts-in-progress', trend: 'Due' },
-        { label: 'Active Contracts', value: activeContracts.length, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts', trend: 'Live' },
-        { label: 'Closed Contracts', value: closedContracts.length, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts', trend: 'Done' }
+        { label: 'Contract Signing', value: signingActions.length, detail: 'Contracts pending buyer or supplier digital signature', tab: 'contract-signing', trend: 'Sign' }
     ];
     const summary = [
         { label: 'My Urgent Actions', value: urgentRows.length, detail: 'All buyer and supplier actions needing attention', tab: 'my-urgent-actions', trend: '!' },
         { label: 'Awarding in Progress', value: pendingAwarding.length, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress', trend: '↗' },
         { label: 'Awards Received', value: awardedToUs.length, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received', trend: '→' },
         { label: 'Contract Negotiation', value: pendingActions.length, detail: 'Draft review, negotiation, final acceptance, and outcome notice actions', tab: 'contracts-in-progress', trend: '↘' },
-        { label: 'Active Contracts', value: activeContracts.length, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts', trend: '→' },
-        { label: 'Closed Contracts', value: closedContracts.length, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts', trend: '→' }
+        { label: 'Contract Signing', value: signingActions.length, detail: 'Contracts pending buyer or supplier digital signature', tab: 'contract-signing', trend: 'Sign' }
     ];
 
     return `
@@ -261,8 +258,7 @@ function renderAwardingContracts() {
                     ${renderAwardingQueueNavItem('Awarding in Progress', 'awarding-in-progress')}
                     ${renderAwardingQueueNavItem('Awards Received', 'awards-received')}
                     ${renderAwardingQueueNavItem('Contract Negotiation', 'contracts-in-progress')}
-                    ${renderAwardingQueueNavItem('Active Contracts', 'active-contracts')}
-                    ${renderAwardingQueueNavItem('Closed Contracts', 'closed-contracts')}
+                    ${renderAwardingQueueNavItem('Contract Signing', 'contract-signing')}
                     <li><a href="#" data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
                     <li><a href="#" data-navigate="sign-in">Logout</a></li>
                 </ul>
@@ -305,8 +301,7 @@ function renderAwardingContracts() {
                         <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="awarding-in-progress">Awarding in Progress</button>
                         <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="awards-received">Awards Received</button>
                         <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="contracts-in-progress">Contract Negotiation</button>
-                        <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="active-contracts">Active Contracts</button>
-                        <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="closed-contracts">Closed Contracts</button>
+                        <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="contract-signing">Contract Signing</button>
                     </div>
 
                     <div class="awarding-tab-content">
@@ -388,37 +383,17 @@ function renderAwardingContracts() {
                                 `)
                             )}
                         </div>
-
-                        <div class="tab-content tab-content--hidden" data-tab="active-contracts">
+                        <div class="tab-content tab-content--hidden" data-tab="contract-signing">
                             ${renderAwardingContractsTable(
-                                ['Contract', 'Your Role', 'Other Party', 'Progress', 'Next Milestone', 'Payment Status', 'Action'],
-                                activeContracts.map(row => `
+                                ['Contract', 'Your Role', 'Other Party', 'Current Status', 'Required Action', 'Due Date'],
+                                signingActions.map(row => `
                                     <tr>
-                                        <td><strong>${escapeAwardingContractsHtml(row.title)}</strong></td>
+                                        <td><strong>${escapeAwardingContractsHtml(row.contract)}</strong></td>
                                         <td>${renderAwardingContractsBadge(row.role)}</td>
                                         <td>${escapeAwardingContractsHtml(row.otherParty)}</td>
-                                        <td><div class="awarding-mini-progress"><span style="width: ${Number(row.progress || 0)}%"></span></div><small>${escapeAwardingContractsHtml(row.progress)}% ${escapeAwardingContractsHtml(row.status)}</small></td>
-                                        <td>${escapeAwardingContractsHtml(row.nextMilestone)}</td>
-                                        <td>${renderAwardingContractsBadge(row.paymentStatus)}</td>
-                                        <td>${renderAwardingContractsAction('Track', row.nav, '', getPostAwardSearch('active', 'milestones'))}</td>
-                                    </tr>
-                                `)
-                            )}
-                        </div>
-
-                        <div class="tab-content tab-content--hidden" data-tab="closed-contracts">
-                            ${renderAwardingContractsTable(
-                                ['Contract', 'Your Role', 'Other Party', 'Final Value', 'Completion Date', 'Performance', 'Status', 'Action'],
-                                closedContracts.map((row, index) => `
-                                    <tr>
-                                        <td><strong>${escapeAwardingContractsHtml(row.title)}</strong></td>
-                                        <td>${renderAwardingContractsBadge(row.role)}</td>
-                                        <td>${escapeAwardingContractsHtml(row.otherParty)}</td>
-                                        <td>${formatAwardingContractsMoney(row.finalValue, row.currency)}</td>
-                                        <td>${escapeAwardingContractsHtml(row.completionDate)}</td>
-                                        <td>${escapeAwardingContractsHtml(row.performanceRating)}</td>
                                         <td>${renderAwardingContractsBadge(row.status)}</td>
-                                        <td>${renderAwardingContractsAction('View Closure', 'post-award-tracking', '', getPostAwardSearch('closed', 'closure', `closed-contract-${index + 1}`))}</td>
+                                        <td>${renderAwardingContractsAction(row.requiredAction || 'Open signing', 'contract-signing', '', '')}</td>
+                                        <td>${escapeAwardingContractsHtml(row.dueDate)}</td>
                                     </tr>
                                 `)
                             )}

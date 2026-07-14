@@ -37,6 +37,7 @@ import {
   contractSignatureRequestBodySchema,
   contractSignatureSignBodySchema,
   contractStatusPatchBodySchema,
+  contractNegotiationDecisionBodySchema,
   contractVersionBodySchema,
   idParamsSchema,
   lifecycleItemBodySchema,
@@ -564,6 +565,16 @@ export class ModuleController {
     }
   };
 
+  sendContractForNegotiation: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      res.json(await this.service.sendContractForNegotiation(params.data.id, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   createSignatureRequests: RequestHandler = async (req, res, next) => {
     try {
       const params = idParamsSchema.safeParse(req.params);
@@ -1056,6 +1067,16 @@ export class ModuleController {
     }
   };
 
+  deleteClause: RequestHandler = async (req, res, next) => {
+    try {
+      const params = lifecycleItemParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract clause id.');
+      res.json(await this.service.deleteClause(params.data.id, params.data.itemId, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   createNegotiation: RequestHandler = async (req, res, next) => {
     try {
       const params = idParamsSchema.safeParse(req.params);
@@ -1063,6 +1084,18 @@ export class ModuleController {
       const body = negotiationBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid negotiation payload.');
       res.status(201).json(await this.service.createNegotiation(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.track')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateNegotiation: RequestHandler = async (req, res, next) => {
+    try {
+      const params = lifecycleItemParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract negotiation id.');
+      const body = contractNegotiationDecisionBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid negotiation decision payload.');
+      res.json(await this.service.updateNegotiation(params.data.id, params.data.itemId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
     } catch (error) {
       next(error);
     }

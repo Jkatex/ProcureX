@@ -4,8 +4,7 @@ export type AwardQueueId =
   | 'awarding-in-progress'
   | 'awards-received'
   | 'contracts-in-progress'
-  | 'active-contracts'
-  | 'closed-contracts';
+  | 'contract-signing';
 
 export type AwardContractRole = 'Buyer' | 'Supplier';
 
@@ -302,10 +301,10 @@ export type ContractDetailDto = {
   currency: string;
   payload: Record<string, unknown>;
   parties?: Array<Record<string, unknown>>;
-  versions?: Array<Record<string, unknown>>;
+  versions?: Array<{ id: string; versionNo: number; documentId: string | null; documentName?: string | null; payload: Record<string, unknown>; createdAt: string }>;
   clauses?: ContractLifecycleItemDto[];
   negotiations?: ContractLifecycleItemDto[];
-  signatures: Array<{ id: string; role: string; status: string; signerOrgId?: string | null; signerName: string; signedAt: string | null }>;
+  signatures: Array<{ id: string; role: string; status: string; signerOrgId?: string | null; signerName: string; signerTitle?: string | null; signedAt: string | null; declinedAt?: string | null }>;
   milestones: Array<ContractLifecycleItemDto & { amount?: number | null; evidence?: ContractLifecycleItemDto[] }>;
   managementPlan: null | {
     id: string;

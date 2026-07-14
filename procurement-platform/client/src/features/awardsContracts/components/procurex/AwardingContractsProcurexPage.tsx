@@ -16,10 +16,9 @@ const smartQueueOrder: AwardQueueId[] = [
   'awarding-in-progress',
   'awards-received',
   'contracts-in-progress',
-  'active-contracts',
+  'contract-signing',
   'contract-preparation',
-  'sample-procurement',
-  'closed-contracts'
+  'sample-procurement'
 ];
 const emptyQueues: AwardContractDashboard['queues'] = {
   'sample-procurement': [],
@@ -27,23 +26,21 @@ const emptyQueues: AwardContractDashboard['queues'] = {
   'awarding-in-progress': [],
   'awards-received': [],
   'contracts-in-progress': [],
-  'active-contracts': [],
-  'closed-contracts': []
+  'contract-signing': []
 };
 
 const queueNotes: Record<AwardQueueId, string> = {
   'sample-procurement': 'Manage required samples, including receipt, verification, custody, testing, return, disposal, and reference sample records.',
-  'contract-preparation': 'Prepare draft contract clauses and documents before award decisions are ready.',
+  'contract-preparation': 'Draft the contract from a standard template, selected clauses, custom wording, and generated document versions.',
   'awarding-in-progress': 'Review evaluation results, confirm award decisions, send notices, and hand work into contract setup.',
   'awards-received': 'Respond to awards your supplier organization has received, including acceptance, clarification, or decline.',
   'contracts-in-progress': 'Negotiate draft contracts, resolve amendment requests, confirm final acceptance, and prepare outcome notices.',
-  'active-contracts': 'Track delivery, inspections, payments, risks, changes, warranties, and close-out work.',
-  'closed-contracts': 'Review completed, terminated, or archived contract records and performance history.'
+  'contract-signing': 'Complete buyer and supplier digital signatures, then open or download the official contract document.'
 };
 
 function explicitQueueFromSearch(search: string): AwardQueueId | null {
-  const queue = new URLSearchParams(search).get('queue') as AwardQueueId | null;
-  return queue && queueIds.includes(queue) ? queue : null;
+  const queue = new URLSearchParams(search).get('queue');
+  return queue && queueIds.includes(queue as AwardQueueId) ? (queue as AwardQueueId) : null;
 }
 
 function smartDefaultQueue(queues: AwardContractDashboard['queues']): AwardQueueId {
@@ -53,12 +50,11 @@ function smartDefaultQueue(queues: AwardContractDashboard['queues']): AwardQueue
 function emptyQueueMessage(queue: AwardQueueId) {
   const messages: Record<AwardQueueId, string> = {
     'sample-procurement': 'No sample actions are waiting yet.',
-    'contract-preparation': 'No draft contracts are being prepared yet.',
+    'contract-preparation': 'No contracts are waiting for drafting yet.',
     'awarding-in-progress': 'No award decisions need action yet. After evaluation is complete, award recommendations and notice steps will appear here.',
     'awards-received': 'No supplier awards have been received yet.',
     'contracts-in-progress': 'No contracts need negotiation or final acceptance yet.',
-    'active-contracts': 'No active contracts are available yet.',
-    'closed-contracts': 'No closed or archived contracts are available yet.'
+    'contract-signing': 'No contracts are pending signature yet.'
   };
   return messages[queue];
 }
@@ -70,7 +66,9 @@ function routeWithDefaultStep(row: LifecycleAction) {
   if (!params.has('step')) {
     if (path.includes('/recommendation')) params.set('step', 'award-decision');
     else if (path.includes('/award-response')) params.set('step', 'response');
+    else if (path.includes('/drafting')) params.set('step', 'draft');
     else if (path.includes('/negotiation')) params.set('step', 'draft');
+    else if (path.includes('/signing')) params.set('step', 'signatures');
     else if (path.includes('/post-award')) params.set('step', 'cmp');
   }
   const search = params.toString();
@@ -85,10 +83,9 @@ function rowButtonLabel(row: LifecycleAction, queue: AwardQueueId) {
   if (row.nextAction?.label) return row.nextAction.label;
   if (queue === 'awarding-in-progress') return 'Review award';
   if (queue === 'sample-procurement') return 'Manage samples';
-  if (queue === 'contract-preparation') return 'Prepare contract';
+  if (queue === 'contract-preparation') return 'Open drafting';
   if (queue === 'contracts-in-progress') return 'Negotiate contract';
-  if (queue === 'active-contracts') return 'Track delivery';
-  if (queue === 'closed-contracts') return 'View closure';
+  if (queue === 'contract-signing') return 'Open signing';
   if (queue === 'awards-received') return 'Respond to award';
   return row.requiredAction || 'Open';
 }
@@ -290,7 +287,7 @@ export function AwardingContractsProcurexPage() {
   const nextActions = useMemo(() => nextActionRows(queues), [queues]);
   const summary = dashboard?.summary ?? {
     awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
-    contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['active-contracts'].length
+    contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['contract-signing'].length
   };
 
   function jumpToQueue(queue: AwardQueueId) {

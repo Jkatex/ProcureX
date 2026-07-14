@@ -168,6 +168,14 @@ export const contractVersionBodySchema = z
   })
   .strict();
 
+export const contractNegotiationDecisionBodySchema = z
+  .object({
+    status: z.nativeEnum(ContractLifecycleItemStatus),
+    reason: nonEmptyText.max(4000),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
 export const contractSignatureRequestBodySchema = z
   .object({
     roles: z.array(z.nativeEnum(ContractPartyRole)).min(1).max(2).optional().default([ContractPartyRole.BUYER, ContractPartyRole.SUPPLIER])
@@ -432,6 +440,7 @@ export const negotiationBodySchema = z
     winnerId: uuidSchema.optional(),
     clauseId: uuidSchema.optional(),
     raisedByRole: z.string().trim().min(1).max(80),
+    requestType: z.enum(['CLARIFICATION', 'AMENDMENT']).optional(),
     subject: nonEmptyText.max(220),
     position: z.string().trim().max(4000).optional().default(''),
     counterOffer: z.string().trim().max(4000).optional().default(''),

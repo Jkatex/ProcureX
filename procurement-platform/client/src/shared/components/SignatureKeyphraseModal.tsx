@@ -1,3 +1,4 @@
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useEffect, useState, type FormEvent } from 'react';
 
 type SignatureKeyphraseModalProps = {
@@ -35,20 +36,19 @@ export function SignatureKeyphraseModal({
   }
 
   return (
-    <div className="product-spec-modal" role="dialog" aria-modal="true" aria-labelledby="signature-keyphrase-modal-title">
-      <form className="product-spec-modal-card" onSubmit={submit}>
-        <div className="product-spec-modal-heading">
+    <div className="product-spec-modal signature-keyphrase-modal" role="dialog" aria-modal="true" aria-labelledby="signature-keyphrase-modal-title">
+      <form className="product-spec-modal-card signature-keyphrase-modal-card" onSubmit={submit}>
+        <div className="product-spec-modal-heading signature-keyphrase-modal-heading">
           <div>
-            <span>Digital signature</span>
+            <span className="signature-keyphrase-modal-label">Digital signature</span>
             <h4 id="signature-keyphrase-modal-title">{title}</h4>
             <p>This keyphrase unlocks your private signing key for this action only. Set up or reset it from Identity Verification if you do not have an active signing credential.</p>
           </div>
-          <button className="btn btn-ghost" type="button" onClick={onCancel} disabled={isSubmitting}>
-            Close
+          <button className="signature-keyphrase-modal-close" type="button" onClick={onCancel} disabled={isSubmitting} aria-label="Close signature prompt" title="Close">
+            <CloseRoundedIcon fontSize="small" aria-hidden="true" />
           </button>
         </div>
-        <label className="form-field">
-          <span>Signature keyphrase</span>
+        <div className="form-field signature-keyphrase-field">
           <input
             autoFocus
             type="password"
@@ -56,8 +56,10 @@ export function SignatureKeyphraseModal({
             onChange={(event) => setSignatureKeyphrase(event.target.value)}
             minLength={6}
             autoComplete="current-password"
+            aria-label="Signature keyphrase"
+            placeholder="Enter signature keyphrase"
           />
-        </label>
+        </div>
         {error ? <p className="form-error">{error}</p> : null}
         <div className="product-spec-modal-actions">
           <button className="btn btn-secondary" type="button" onClick={onCancel} disabled={isSubmitting}>

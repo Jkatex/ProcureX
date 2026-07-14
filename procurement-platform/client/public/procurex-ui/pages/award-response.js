@@ -155,8 +155,7 @@ function renderAwardResponse() {
                     ${renderAwardResponseQueueNavLink('Awarding in Progress', 'awarding-in-progress')}
                     ${renderAwardResponseQueueNavLink('Awards Received', 'awards-received', true)}
                     ${renderAwardResponseQueueNavLink('Contract Negotiation', 'contracts-in-progress')}
-                    ${renderAwardResponseQueueNavLink('Active Contracts', 'active-contracts')}
-                    ${renderAwardResponseQueueNavLink('Closed Contracts', 'closed-contracts')}
+                    ${renderAwardResponseQueueNavLink('Contract Signing', 'contract-signing')}
                     <li><a href="#" data-award-guard-navigate data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="sign-in">Logout</a></li>
                 </ul>
