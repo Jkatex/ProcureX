@@ -90,12 +90,33 @@ export type EvaluationWorkspace = {
   tender: {
     id: string;
     reference: string;
+    referenceNumber: string;
     title: string;
     buyerName: string;
     procurementType: Exclude<ProcurementTypeFilter, 'all'>;
+    procurementCategory: string;
+    procurementMethod: string;
+    evaluationMethod: string;
     status: string;
     closingDate: string | null;
     currency: string;
+    requirements: unknown;
+    metadata: unknown;
+    requirementRows: Array<{
+      id: string;
+      section: string;
+      payload: unknown;
+    }>;
+    commercialItems: Array<{
+      id: string;
+      itemNo: string | null;
+      description: string;
+      quantity: number | null;
+      unit: string | null;
+      rate: number | null;
+      total: number | null;
+      payload: unknown;
+    }>;
   } | null;
   availability: {
     isReady: boolean;
@@ -115,14 +136,53 @@ export type EvaluationWorkspace = {
     activeStageId: string | null;
     selectedBidId: string | null;
   };
+  evaluationConfiguration: EvaluationConfiguration | null;
   criteria: EvaluationWorkspaceCriterion[];
   bids: EvaluationWorkspaceBid[];
   rankings: EvaluationRankingRow[];
+  sectionDraft: Record<string, unknown>;
   audit: {
     evaluatedBy: string | null;
     lastUpdatedBy: string | null;
     events: EvaluationAuditEvent[];
   };
+};
+
+export type EvaluationConfigurationItem = {
+  id: string;
+  stageId: string;
+  title: string;
+  description: string;
+  source: string;
+  category: string;
+  mandatory: boolean;
+  weight: number | null;
+  maxScore: number | null;
+  evidenceRequired: string[];
+  payload: unknown;
+};
+
+export type EvaluationConfigurationSection = {
+  id: string;
+  label: string;
+  emptyMessage: string;
+  items: EvaluationConfigurationItem[];
+};
+
+export type EvaluationConfiguration = {
+  procurementCategory: string;
+  procurementMethod: string;
+  evaluationMethod: string;
+  minimumPassMark: number | null;
+  technicalWeight: number | null;
+  financialWeight: number | null;
+  requirements: unknown;
+  requiredDocuments: EvaluationConfigurationItem[];
+  technicalSpecifications: EvaluationConfigurationItem[];
+  evaluationCriteria: EvaluationConfigurationItem[];
+  qualificationRequirements: EvaluationConfigurationItem[];
+  stages: Array<{ id: string; label: string }>;
+  sections: EvaluationConfigurationSection[];
 };
 
 export type EvaluationWorkspaceCriterion = {
@@ -148,6 +208,8 @@ export type EvaluationWorkspaceBid = {
   supplierName: string;
   status: string;
   submittedAt: string | null;
+  receiptRef: string | null;
+  receiptHash: string | null;
   documents: Array<{
     id: string;
     name: string;
@@ -203,4 +265,6 @@ export type SaveEvaluationWorkspaceInput = {
   complete?: boolean;
   activeStageId?: string;
   selectedBidId?: string;
+  sectionDraft?: Record<string, unknown>;
+  signatureKeyphrase?: string;
 };

@@ -24,12 +24,25 @@ function notificationId() {
   return `notification-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function isDuplicateBidNotice(left: UserNotification, right: UserNotification) {
+  return (
+    left.presentation === 'bidNotice' &&
+    right.presentation === 'bidNotice' &&
+    left.tone === right.tone &&
+    left.title === right.title &&
+    left.message === right.message
+  );
+}
+
 const notificationsSlice = createSlice({
   name: 'notifications',
   initialState,
   reducers: {
     enqueueNotification: {
       reducer(state, action: PayloadAction<UserNotification>) {
+        if (action.payload.presentation === 'bidNotice') {
+          state.items = state.items.filter((item) => !isDuplicateBidNotice(item, action.payload));
+        }
         state.items.unshift(action.payload);
         state.items = state.items.slice(0, 6);
       },

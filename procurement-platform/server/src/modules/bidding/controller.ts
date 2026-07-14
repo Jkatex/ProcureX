@@ -6,6 +6,7 @@ import {
   bidDraftBodySchema,
   bidParamsSchema,
   bidSampleParamsSchema,
+  bidSignatureBodySchema,
   createBidSampleBodySchema,
   moduleStatusQuerySchema,
   patchBidSampleBodySchema,
@@ -162,7 +163,9 @@ export class ModuleController {
     try {
       const params = bidParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid bid id.');
-      res.status(201).json(await this.service.submit(bearerToken(req), params.data.bidId));
+      const body = bidSignatureBodySchema.safeParse(req.body ?? {});
+      if (!body.success) throw requestError('Digital signature keyphrase is required.');
+      res.status(201).json(await this.service.submit(bearerToken(req), params.data.bidId, body.data));
     } catch (error) {
       next(error);
     }
@@ -172,7 +175,9 @@ export class ModuleController {
     try {
       const params = bidParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid bid id.');
-      res.json(await this.service.withdraw(bearerToken(req), params.data.bidId));
+      const body = bidSignatureBodySchema.safeParse(req.body ?? {});
+      if (!body.success) throw requestError('Digital signature keyphrase is required.');
+      res.json(await this.service.withdraw(bearerToken(req), params.data.bidId, body.data));
     } catch (error) {
       next(error);
     }

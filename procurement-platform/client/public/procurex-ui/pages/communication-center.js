@@ -411,6 +411,7 @@ function filterCommunicationItems(items, state) {
         if (state.tab === 'Sent' && item.folder !== 'sent') return false;
         if (state.tab === 'Drafts') return false;
         if (state.tab === 'Archived' && item.folder !== 'archived' && item.status !== 'Archived') return false;
+        if (state.tab === 'Trash' && item.status !== 'Deleted') return false;
         if (state.tab === 'Unread' && item.read) return false;
         if (state.tab === 'Inbox' && (item.folder === 'sent' || item.folder === 'archived' || item.status === 'Deleted')) return false;
         if (state.category !== 'All categories' && item.category !== state.category) return false;
@@ -508,7 +509,8 @@ function renderCommunicationSidebar(state, counts) {
         ['Inbox', counts.inbox],
         ['Sent', counts.sent],
         ['Drafts', counts.drafts],
-        ['Archived', counts.archived]
+        ['Archived', counts.archived],
+        ['Trash', counts.trash]
     ];
     return `
         <aside class="communication-folders">
@@ -815,7 +817,7 @@ function renderCommunicationCompose(state) {
             </div>
             <div class="inline-actions">
                 <label class="btn btn-secondary communication-file-button">
-                    Add files
+                    Attach File
                     <input type="file" data-communication-attachment multiple hidden>
                 </label>
                 <span class="communication-attachment-preview" data-communication-attachment-preview>${(draft.attachments || []).map(item => escapeCommunicationHtml(item.name)).join(', ')}</span>
@@ -843,7 +845,8 @@ function renderCommunicationCenterInner(root) {
         alerts: allItems.filter(item => item.kind === 'alert').length,
         sent: allItems.filter(item => item.folder === 'sent').length,
         drafts: 0,
-        archived: allItems.filter(item => item.folder === 'archived' || item.status === 'Archived').length
+        archived: allItems.filter(item => item.folder === 'archived' || item.status === 'Archived').length,
+        trash: allItems.filter(item => item.status === 'Deleted').length
     };
     const filtered = filterCommunicationItems(allItems, state);
     const selected = state.selectedId ? allItems.find(item => item.id === state.selectedId) || null : null;

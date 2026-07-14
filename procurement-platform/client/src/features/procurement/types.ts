@@ -491,6 +491,17 @@ export type CreateTenderPayload = {
   closingDate?: string;
   requirements: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  requirementRows?: Array<{ id: string; section: string; payload: Record<string, unknown> }>;
+  commercialItems?: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: number | null;
+    unit: string | null;
+    rate: number | null;
+    total: number | null;
+    payload?: Record<string, unknown>;
+  }>;
 };
 
 export type UpdateTenderPayload = Partial<CreateTenderPayload>;

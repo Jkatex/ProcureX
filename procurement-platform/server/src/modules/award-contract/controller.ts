@@ -6,6 +6,8 @@ import {
   awardApprovalRouteBodySchema,
   awardApprovalStepBodySchema,
   awardNotificationBodySchema,
+  awardNoticeCancelBodySchema,
+  awardNoticeReissueBodySchema,
   awardNoticeResponseBodySchema,
   awardSettlementBodySchema,
   awardTieBreakerBodySchema,
@@ -13,8 +15,13 @@ import {
   budgetCommitmentBodySchema,
   closeoutBodySchema,
   clauseBodySchema,
+  contractChangeRequestBodySchema,
+  contractCommencementBodySchema,
+  contractDocumentUploadBodySchema,
   contractPaymentBodySchema,
   contractManagementPlanBodySchema,
+  contractPenaltyBodySchema,
+  contractSecurityBodySchema,
   awardRecommendationQuerySchema,
   deliverableBodySchema,
   deliveryFeasibilityBodySchema,
@@ -46,10 +53,19 @@ import {
   requiredDocumentBodySchema,
   riskBodySchema,
   riskForecastBodySchema,
+  nonConformanceBodySchema,
+  sampleCustodyTransferBodySchema,
+  sampleDispositionBodySchema,
+  sampleEvaluationBodySchema,
+  sampleParamsSchema,
+  sampleReceiptBodySchema,
+  sampleTestBodySchema,
+  sampleVerificationBodySchema,
   signatureParamsSchema,
   standstillPeriodBodySchema,
   supplierPerformanceBodySchema,
   supplierRiskProfileBodySchema,
+  tenderParamsSchema,
   terminationBodySchema,
   terminationEvidenceBodySchema,
   terminationNoticeBodySchema,
@@ -119,6 +135,132 @@ export class ModuleController {
     try {
       moduleStatusQuerySchema.parse(req.query);
       res.json(await this.service.dashboard(await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  listSamples: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.listSamples(await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  sample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      res.json(await this.service.sample(params.data.sampleId, await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  receiveSample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleReceiptBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample receipt payload.');
+      res.status(201).json(await this.service.receiveSample(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifySample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleVerificationBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample verification payload.');
+      res.status(201).json(await this.service.verifySample(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  transferSampleCustody: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleCustodyTransferBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample custody payload.');
+      res.status(201).json(await this.service.transferSampleCustody(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  evaluateSample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleEvaluationBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample evaluation payload.');
+      res.status(201).json(await this.service.evaluateSample(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createSampleTest: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleTestBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample test payload.');
+      res.status(201).json(await this.service.createSampleTest(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  requestSampleClarification: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleVerificationBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample clarification payload.');
+      res.status(201).json(await this.service.requestSampleClarification(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  returnSample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleDispositionBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample return payload.');
+      res.status(201).json(await this.service.returnSample(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  retainSample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleDispositionBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample retention payload.');
+      res.status(201).json(await this.service.retainSample(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  disposeSample: RequestHandler = async (req, res, next) => {
+    try {
+      const params = sampleParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid sample id.');
+      const body = sampleDispositionBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid sample disposal payload.');
+      res.status(201).json(await this.service.disposeSample(params.data.sampleId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
     } catch (error) {
       next(error);
     }
@@ -334,6 +476,30 @@ export class ModuleController {
     }
   };
 
+  cancelAwardNotice: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award notice id.');
+      const body = awardNoticeCancelBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award notice cancellation payload.');
+      res.json(await this.service.cancelAwardNotice(params.data.id, body.data, await this.requirePermissionContext(req, 'award.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reissueAwardNotice: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award notice id.');
+      const body = awardNoticeReissueBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award notice reissue payload.');
+      res.json(await this.service.reissueAwardNotice(params.data.id, body.data, await this.requirePermissionContext(req, 'award.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   listContracts: RequestHandler = async (req, res, next) => {
     try {
       const query = contractQuerySchema.safeParse(req.query);
@@ -344,11 +510,43 @@ export class ModuleController {
     }
   };
 
+  prepareTenderContractDraft: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid tender id.');
+      res.status(201).json(await this.service.prepareTenderContractDraft(params.data.tenderId, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   contract: RequestHandler = async (req, res, next) => {
     try {
       const params = idParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid contract id.');
       res.json(await this.service.contract(params.data.id, await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  contractDocuments: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      res.json(await this.service.contractDocuments(params.data.id, await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  uploadContractDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      const body = contractDocumentUploadBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid contract document upload payload.');
+      res.status(201).json(await this.service.uploadContractDocument(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.track')));
     } catch (error) {
       next(error);
     }
@@ -445,6 +643,66 @@ export class ModuleController {
       const body = contractManagementPlanBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid contract management plan payload.');
       res.json(await this.service.upsertManagementPlan(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  upsertCommencement: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      const body = contractCommencementBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid commencement payload.');
+      res.json(await this.service.upsertCommencement(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createNonConformance: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      const body = nonConformanceBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid non-conformance payload.');
+      res.status(201).json(await this.service.createNonConformance(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createContractSecurity: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      const body = contractSecurityBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid contract security payload.');
+      res.status(201).json(await this.service.createContractSecurity(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createContractPenalty: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      const body = contractPenaltyBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid contract penalty payload.');
+      res.status(201).json(await this.service.createContractPenalty(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createContractChangeRequest: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      const body = contractChangeRequestBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid contract change request payload.');
+      res.status(201).json(await this.service.createContractChangeRequest(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
     } catch (error) {
       next(error);
     }
@@ -876,7 +1134,7 @@ export class ModuleController {
       if (!params.success) throw requestError('Invalid contract id.');
       const body = requiredDocumentBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid required document payload.');
-      res.json(await this.service.upsertRequiredDocument(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.track')));
+      res.json(await this.service.upsertRequiredDocument(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.manage')));
     } catch (error) {
       next(error);
     }

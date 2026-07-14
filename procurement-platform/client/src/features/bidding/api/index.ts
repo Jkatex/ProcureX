@@ -38,6 +38,10 @@ export const biddingApi = {
     });
     return response.data;
   },
+  async deleteDocument(bidId: string, documentId: string) {
+    const response = await apiClient.delete<{ bid: BidDto }>(`/api/bidding/${bidId}/documents/${documentId}`);
+    return response.data.bid;
+  },
   async listSamples(bidId: string) {
     const response = await apiClient.get<BidSampleDto[]>(`/api/bidding/${bidId}/samples`);
     return response.data;
@@ -50,12 +54,12 @@ export const biddingApi = {
     const response = await apiClient.patch<BidSampleDto>(`/api/bidding/${bidId}/samples/${sampleId}`, input);
     return response.data;
   },
-  async submitBid(bidId: string) {
-    const response = await apiClient.post<BidReceiptDto>(`/api/bidding/${bidId}/submit`);
+  async submitBid(bidId: string, input: { signatureKeyphrase?: string } = {}) {
+    const response = await apiClient.post<BidReceiptDto>(`/api/bidding/${bidId}/submit`, input);
     return response.data;
   },
-  async withdrawBid(bidId: string) {
-    const response = await apiClient.post<BidDto>(`/api/bidding/${bidId}/withdraw`);
+  async withdrawBid(bidId: string, input: { signatureKeyphrase?: string } = {}) {
+    const response = await apiClient.post<BidDto>(`/api/bidding/${bidId}/withdraw`, input);
     return response.data;
   },
   async getBid(bidId: string) {

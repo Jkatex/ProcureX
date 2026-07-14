@@ -3,6 +3,7 @@ import {
   AuditSeverity,
   AwardNoticeStatus,
   AwardResponseAction,
+  BidSampleStatus,
   BidStatus,
   ContractLifecycleItemStatus,
   ContractMilestoneStatus,
@@ -18,8 +19,10 @@ import {
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
+import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
+import { buildBidSubmissionSchema } from '../bidding/bidSubmissionSchema.service.js';
 import { signCanonicalPayloadHash } from '../identity/signing.js';
 import type {
   AwardContractRequestContext,
@@ -30,6 +33,8 @@ import type {
   AwardApprovalRouteInput,
   AwardApprovalStepInput,
   AwardNotificationInput,
+  AwardNoticeCancelInput,
+  AwardNoticeReissueInput,
   AwardNoticeResponseInput,
   AwardRecommendationDetailDto,
   AwardRecommendationListItemDto,
@@ -38,6 +43,8 @@ import type {
   AwardTieBreakerInput,
   BudgetCommitmentInput,
   ContractDetailDto,
+  AwardContractDocumentDto,
+  AwardContractDocumentUploadInput,
   ContractCloseoutInput,
   ContractListItemDto,
   ContractManagementPlanInput,
@@ -68,9 +75,17 @@ import type {
   ContractStatusPatchInput,
   ContractVersionInput,
   AwardContractDashboardDto,
+  AwardContractSampleDashboardDto,
+  AwardContractSampleDto,
   AcceptanceInput,
   ClauseInput,
+  ContractChangeRequestInput,
+  ContractCommencementInput,
+  ContractNonConformanceInput,
   ContractPaymentInput,
+  ContractPenaltyInput,
+  ContractReferenceSampleInput,
+  ContractSecurityInput,
   DeliverableInput,
   LifecycleActionDto,
   ListAwardRecommendationsResponseDto,
@@ -82,6 +97,12 @@ import type {
   PerformanceScoreInput,
   RequiredDocumentInput,
   RiskForecastInput,
+  SampleCustodyTransferInput,
+  SampleDispositionInput,
+  SampleEvaluationInput,
+  SampleReceiptInput,
+  SampleTestInput,
+  SampleVerificationInput,
   WarrantyInput,
   WorkflowApprovalInput,
   StandstillPeriodInput,
@@ -280,6 +301,17 @@ type RecommendationRecord = Prisma.AwardRecommendationGetPayload<{ include: type
 type ContractRecord = Prisma.ContractGetPayload<{ include: typeof contractInclude }>;
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
+const documentSelect = {
+  id: true,
+  name: true,
+  documentType: true,
+  createdAt: true,
+  ownerOrgId: true,
+  metadata: true
+} satisfies Prisma.DocumentObjectSelect;
+
+type ContractDocumentRecord = Prisma.DocumentObjectGetPayload<{ select: typeof documentSelect }>;
+
 function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
@@ -294,6 +326,16 @@ function effectiveOrgId(context: AwardContractRequestContext, requestedOrgId?: s
 function requireOrg(context: AwardContractRequestContext) {
   if (!context.organizationId && !context.isAdmin) throw requestError('Organization context is required.', 403);
   return context.organizationId ?? '';
+}
+
+function requireUserId(context: AwardContractRequestContext) {
+  if (!context.userId) throw requestError('User context is required for signed action.', 403);
+  return context.userId;
+}
+
+function requireSignatureKeyphrase(value?: string) {
+  if (!value) throw requestError('Digital signature keyphrase is required.', 400);
+  return value;
 }
 
 function recommendationScope(context: AwardContractRequestContext, requestedOrgId?: string): Prisma.AwardRecommendationWhereInput {
@@ -313,6 +355,16 @@ function contractScope(context: AwardContractRequestContext, requestedOrgId?: st
   if (!organizationId) return {};
   return {
     OR: [{ buyerOrgId: organizationId }, { supplierOrgId: organizationId }]
+  };
+}
+
+function documentVisibilityWhere(context: AwardContractRequestContext): Prisma.DocumentObjectWhereInput {
+  if (context.isAdmin) return {};
+  return {
+    OR: [
+      { ownerOrgId: null },
+      { ownerOrgId: context.organizationId ?? '' }
+    ]
   };
 }
 
@@ -348,6 +400,55 @@ function assertContractSupplier(record: { supplierOrgId: string | null }, contex
   if (context.isAdmin) return;
   if (!context.organizationId || !record.supplierOrgId || record.supplierOrgId !== context.organizationId) {
     throw requestError('Supplier contract access is required.', 403);
+  }
+}
+
+function isPreAwardContract(record: { awardId?: string | null; supplierOrgId?: string | null }) {
+  return !record.awardId && !record.supplierOrgId;
+}
+
+function assertAwardLinkedContract(record: { awardId?: string | null; supplierOrgId?: string | null }) {
+  if (!record.awardId || !record.supplierOrgId) {
+    throw requestError('Evaluation results and an accepted award are required before this contract can be signed or activated.', 409);
+  }
+}
+
+function finalDraftAcceptanceRole(item: { payload: unknown; status: ContractLifecycleItemStatus }) {
+  if (item.status !== ContractLifecycleItemStatus.APPROVED && item.status !== ContractLifecycleItemStatus.CLOSED) return '';
+  const payload = objectPayload(item.payload);
+  if (payload.acceptanceType !== 'NEGOTIATED_DRAFT') return '';
+  return typeof payload.role === 'string' ? payload.role.toUpperCase() : '';
+}
+
+function openNegotiationItems(record: { negotiations: Array<{ status: ContractLifecycleItemStatus }> }) {
+  const resolvedStatuses = new Set<ContractLifecycleItemStatus>([
+    ContractLifecycleItemStatus.APPROVED,
+    ContractLifecycleItemStatus.REJECTED,
+    ContractLifecycleItemStatus.WAIVED,
+    ContractLifecycleItemStatus.CLOSED
+  ]);
+  return record.negotiations.filter((item) => !resolvedStatuses.has(item.status));
+}
+
+function assertFinalDraftReadyForSignatures(record: {
+  negotiations: Array<{ status: ContractLifecycleItemStatus }>;
+  acceptances: Array<{ payload: unknown; status: ContractLifecycleItemStatus }>;
+  approvalSteps?: Array<{ stepKey: string; status: ContractLifecycleItemStatus }>;
+}) {
+  const unresolved = openNegotiationItems(record);
+  if (unresolved.length > 0) {
+    throw requestError('Resolve all amendment and clarification requests before requesting signatures.', 409);
+  }
+  const acceptedRoles = new Set(record.acceptances.map(finalDraftAcceptanceRole).filter(Boolean));
+  if (!acceptedRoles.has('BUYER') || !acceptedRoles.has('SUPPLIER')) {
+    throw requestError('Buyer and supplier must both accept the negotiated draft before signatures can be requested.', 409);
+  }
+  const outcomeNoticeConfirmed = (record.approvalSteps ?? []).some((step) =>
+    step.stepKey === 'outcome-communications' &&
+    (step.status === ContractLifecycleItemStatus.APPROVED || step.status === ContractLifecycleItemStatus.CLOSED)
+  );
+  if (!outcomeNoticeConfirmed) {
+    throw requestError('Confirm winner and non-winning supplier outcome communications before requesting signatures.', 409);
   }
 }
 
@@ -406,6 +507,235 @@ function workflowRecordDto(record: Record<string, unknown>) {
       return [key, value];
     })
   );
+}
+
+const sampleQueueIds = [
+  'awaiting-submission',
+  'awaiting-receipt',
+  'received',
+  'awaiting-verification',
+  'under-evaluation',
+  'clarification-required',
+  'passed',
+  'failed',
+  'awaiting-return',
+  'retained-reference-samples',
+  'overdue-sample-actions',
+  'not-required'
+] as const;
+
+function sampleReference() {
+  return `SMP-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+function normalizedStatus(value: unknown) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+function sampleAwardingStatus(input: {
+  trackingStatus: unknown;
+  deliveryDeadline?: Date | null;
+  receipt: Record<string, unknown> | null;
+  latestVerification: Record<string, unknown> | null;
+  latestEvaluation: Record<string, unknown> | null;
+  latestDisposition: Record<string, unknown> | null;
+  referenceSamples: Array<Record<string, unknown>>;
+}) {
+  const now = new Date();
+  const dispositionType = normalizedStatus(input.latestDisposition?.dispositionType);
+  const dispositionStatus = normalizedStatus(input.latestDisposition?.status);
+  const verificationResult = normalizedStatus(input.latestVerification?.result);
+  const evaluationDecision = normalizedStatus(input.latestEvaluation?.decision);
+  const trackingStatus = normalizedStatus(input.trackingStatus);
+  const isOverdue = Boolean(
+    input.deliveryDeadline &&
+    input.deliveryDeadline.getTime() < now.getTime() &&
+    !input.receipt &&
+    !['ACCEPTED', 'REJECTED', 'RECEIVED', 'INSPECTED'].includes(trackingStatus)
+  );
+
+  if (isOverdue) return 'overdue-sample-actions';
+  if (input.referenceSamples.length > 0) return 'retained-reference-samples';
+  if (dispositionType === 'RETURN' && !['COMPLETED', 'CLOSED'].includes(dispositionStatus)) return 'awaiting-return';
+  if (['FAILED', 'FAIL', 'REJECTED'].includes(evaluationDecision)) return 'failed';
+  if (['PASSED', 'PASS', 'ACCEPTED'].includes(evaluationDecision)) return 'passed';
+  if (input.latestVerification?.clarificationRequired || ['CLARIFICATION_REQUIRED', 'CLARIFICATION'].includes(verificationResult)) return 'clarification-required';
+  if (input.latestVerification || input.latestEvaluation) return 'under-evaluation';
+  if (input.receipt || ['RECEIVED', 'INSPECTED'].includes(trackingStatus)) return 'awaiting-verification';
+  if (['SUBMITTED', 'ACCEPTED', 'REJECTED'].includes(trackingStatus)) return 'awaiting-receipt';
+  return 'awaiting-submission';
+}
+
+function sampleDto(
+  sample: Record<string, unknown> & {
+    tender?: { id: string; reference?: string | null; title?: string | null; buyerOrgId?: string | null };
+    supplierOrg?: { id: string; name?: string | null };
+  },
+  related: {
+    receipt: Record<string, unknown> | null;
+    verifications: Array<Record<string, unknown>>;
+    evaluations: Array<Record<string, unknown>>;
+    tests: Array<Record<string, unknown>>;
+    custodyLogs: Array<Record<string, unknown>>;
+    dispositions: Array<Record<string, unknown>>;
+    referenceSamples: Array<Record<string, unknown>>;
+    contractId: string | null;
+  },
+  context: AwardContractRequestContext
+): AwardContractSampleDto {
+  const receipt = related.receipt ? workflowRecordDto(related.receipt) : null;
+  const verifications = related.verifications.map(workflowRecordDto);
+  const evaluations = related.evaluations.map(workflowRecordDto);
+  const dispositions = related.dispositions.map(workflowRecordDto);
+  const referenceSamples = related.referenceSamples.map(workflowRecordDto);
+  const awardingStatus = sampleAwardingStatus({
+    trackingStatus: sample.trackingStatus,
+    deliveryDeadline: sample.deliveryDeadline as Date | null | undefined,
+    receipt,
+    latestVerification: verifications[0] ?? null,
+    latestEvaluation: evaluations[0] ?? null,
+    latestDisposition: dispositions[0] ?? null,
+    referenceSamples
+  });
+  const buyerOrgId = String(sample.tender?.buyerOrgId ?? '');
+  const supplierOrgId = String(sample.supplierOrgId);
+  const viewerRole = context.isAdmin ? 'ADMIN' : context.organizationId === buyerOrgId ? 'BUYER' : context.organizationId === supplierOrgId ? 'SUPPLIER' : 'NONE';
+  return {
+    id: String(sample.id),
+    bidSampleId: String(sample.id),
+    viewerRole,
+    sampleRequired: true,
+    sampleRequirementStatus: 'SUBMITTED',
+    actionable: true,
+    tenderId: String(sample.tenderId),
+    tenderReference: sample.tender?.reference ?? null,
+    tenderTitle: sample.tender?.title ?? 'Tender sample',
+    bidId: String(sample.bidId),
+    supplierOrgId,
+    supplierName: sample.supplierOrg?.name ?? 'Supplier',
+    buyerOrgId,
+    sampleName: String(sample.sampleName ?? 'Sample'),
+    relatedItem: String(sample.relatedItem ?? ''),
+    quantity: decimalToNumber(sample.quantity),
+    deliveryLocation: String(sample.deliveryLocation ?? ''),
+    deliveryDeadline: isoDate(sample.deliveryDeadline as Date | null | undefined),
+    trackingStatus: String(sample.trackingStatus ?? ''),
+    awardingStatus,
+    sampleReference: String(receipt?.sampleReference ?? ''),
+    courier: String(sample.courier ?? ''),
+    trackingNumber: String(sample.trackingNumber ?? ''),
+    submittedAt: isoDate(sample.submittedAt as Date | null | undefined),
+    receivedAt: isoDate(sample.receivedAt as Date | null | undefined) ?? (receipt?.receivedAt ? String(receipt.receivedAt) : null),
+    inspectedAt: isoDate(sample.inspectedAt as Date | null | undefined),
+    receipt,
+    latestVerification: verifications[0] ?? null,
+    evaluations,
+    tests: related.tests.map(workflowRecordDto),
+    custodyLogs: related.custodyLogs.map(workflowRecordDto),
+    dispositions,
+    referenceSamples,
+    contractId: related.contractId,
+    payload: objectPayload(sample.metadata),
+    createdAt: isoDate(sample.createdAt as Date | null | undefined) ?? '',
+    updatedAt: isoDate(sample.updatedAt as Date | null | undefined) ?? ''
+  };
+}
+
+function sampleViewerRole(buyerOrgId: string, supplierOrgId: string, context: AwardContractRequestContext): AwardContractSampleDto['viewerRole'] {
+  if (context.isAdmin) return 'ADMIN';
+  if (context.organizationId === buyerOrgId) return 'BUYER';
+  if (context.organizationId === supplierOrgId) return 'SUPPLIER';
+  return 'NONE';
+}
+
+function tenderSampleFields(tender: {
+  id: string;
+  reference: string;
+  title: string;
+  type: unknown;
+  requirements: unknown;
+  metadata: unknown;
+  requirementRows?: Array<{ id: string; section: string; payload: unknown }>;
+  commercialItems?: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: unknown;
+    unit: string | null;
+    rate: unknown;
+    total: unknown;
+    payload: unknown;
+  }>;
+  documents?: Array<{ label: string | null; document?: { id: string; name: string; documentType: string } | null }>;
+}) {
+  const schemaTender = {
+    ...tender,
+    documents: tender.documents?.map((item) => item.document ? { label: item.label, document: item.document } : { label: item.label })
+  };
+  return buildBidSubmissionSchema(schemaTender).steps.flatMap((step) => step.fields).filter((field) => field.section === 'samples');
+}
+
+function sampleRequirementDto(
+  bid: {
+    id: string;
+    tenderId: string;
+    buyerOrgId: string;
+    supplierOrgId: string;
+    submittedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    tender: { id: string; reference: string; title: string; buyerOrgId: string };
+    supplierOrg: { id: string; name: string };
+  },
+  requirement: { id: string; label: string; required: boolean; payload?: Record<string, unknown> },
+  context: AwardContractRequestContext
+): AwardContractSampleDto {
+  const status = requirement.required ? 'MISSING_REQUIRED' : 'NOT_REQUIRED';
+  const payload = objectPayload(requirement.payload);
+  return {
+    id: `${status === 'MISSING_REQUIRED' ? 'sample-required' : 'sample-not-required'}-${bid.id}-${requirement.id}`,
+    bidSampleId: null,
+    viewerRole: sampleViewerRole(bid.buyerOrgId, bid.supplierOrgId, context),
+    sampleRequired: requirement.required,
+    sampleRequirementStatus: status,
+    actionable: false,
+    tenderId: bid.tenderId,
+    tenderReference: bid.tender.reference,
+    tenderTitle: bid.tender.title,
+    bidId: bid.id,
+    supplierOrgId: bid.supplierOrgId,
+    supplierName: bid.supplierOrg.name,
+    buyerOrgId: bid.buyerOrgId,
+    sampleName: requirement.required ? requirement.label : 'Sample not required',
+    relatedItem: String(payload.relatedItem ?? ''),
+    quantity: decimalToNumber(payload.quantity),
+    deliveryLocation: String(payload.deliveryLocation ?? ''),
+    deliveryDeadline: null,
+    trackingStatus: requirement.required ? 'REQUIRED' : 'NOT_REQUIRED',
+    awardingStatus: requirement.required ? 'awaiting-submission' : 'not-required',
+    sampleReference: '',
+    courier: '',
+    trackingNumber: '',
+    submittedAt: isoDate(bid.submittedAt),
+    receivedAt: null,
+    inspectedAt: null,
+    receipt: null,
+    latestVerification: null,
+    evaluations: [],
+    tests: [],
+    custodyLogs: [],
+    dispositions: [],
+    referenceSamples: [],
+    contractId: null,
+    payload: {
+      source: 'bid-submission-schema',
+      requirementKey: requirement.id,
+      required: requirement.required,
+      ...payload
+    },
+    createdAt: bid.createdAt.toISOString(),
+    updatedAt: bid.updatedAt.toISOString()
+  };
 }
 
 function commitmentNo() {
@@ -476,12 +806,27 @@ function safeFilename(value: string) {
   return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-').replace(/^-+|-+$/g, '') || 'document';
 }
 
+function safeObjectName(value: string) {
+  return safeFilename(value).slice(0, 180) || 'document';
+}
+
 function sourceDocumentDto(input: Omit<AwardSourceDocumentDto, 'openUrl' | 'downloadUrl'>): AwardSourceDocumentDto {
   const baseUrl = input.documentId ? `/api/documents/${input.documentId}/content` : '';
   return {
     ...input,
     openUrl: baseUrl,
     downloadUrl: baseUrl ? `${baseUrl}?download=true` : ''
+  };
+}
+
+function contractDocumentDto(document: ContractDocumentRecord, sourceLabel: string): AwardContractDocumentDto {
+  return {
+    id: document.id,
+    name: document.name,
+    documentType: document.documentType,
+    createdAt: document.createdAt.toISOString(),
+    contentUrl: `/api/documents/${document.id}/content`,
+    sourceLabel
   };
 }
 
@@ -824,6 +1169,15 @@ function firstDueDate(records: Array<{ dueDate?: Date | null }>) {
 }
 
 function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER') {
+  if (isPreAwardContract(record)) {
+    return {
+      stage: 'Contract preparation',
+      requiredAction: roleContext === 'BUYER' ? 'Prepare contract' : 'Await buyer contract preparation',
+      dueDate: daysFromNow(5),
+      riskLevel: roleContext === 'BUYER' ? 'Medium' as const : 'Low' as const,
+      nextRoute: `/awards-contracts/negotiation?contract=${record.id}&step=clauses`
+    };
+  }
   if (record.status === ContractStatus.DRAFT) {
     return {
       stage: 'Draft contract',
@@ -896,10 +1250,6 @@ function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER
     riskLevel: urgencyFromDate(dueDate),
     nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=milestones`
   };
-}
-
-function isUrgent(item: LifecycleActionDto) {
-  return item.riskLevel === 'Critical' || item.riskLevel === 'High' || /approve|sign|respond|termination|risk|overdue|inspect|payment/i.test(item.requiredAction);
 }
 
 function defaultMobilizationItems(procurementType: string) {
@@ -1156,6 +1506,12 @@ function contractDetailDto(
     threeWayMatches: [],
     paymentApprovals: [],
     paymentConfirmations: [],
+    commencements: [],
+    nonConformances: [],
+    securities: [],
+    penalties: [],
+    changeRequests: [],
+    referenceSamples: [],
     risks: record.risks.map(riskDto),
     riskForecasts: [],
     variations: record.variations.map(variationDto),
@@ -1257,7 +1613,8 @@ export class ModuleRepository {
     ]);
 
     const queues: Record<LifecycleQueueId, LifecycleActionDto[]> = {
-      'my-urgent-actions': [],
+      'sample-procurement': [],
+      'contract-preparation': [],
       'awarding-in-progress': [],
       'awards-received': [],
       'contracts-in-progress': [],
@@ -1297,7 +1654,6 @@ export class ModuleRepository {
       };
       if (roleContext === 'BUYER') queues['awarding-in-progress'].push(dto);
       else queues['awards-received'].push(dto);
-      if (isUrgent(dto)) queues['my-urgent-actions'].push(dto);
     }
 
     for (const contract of contracts) {
@@ -1331,26 +1687,554 @@ export class ModuleRepository {
       };
       const inProgressStatuses: ContractStatus[] = [ContractStatus.DRAFT, ContractStatus.NEGOTIATION, ContractStatus.SIGNATURE_PENDING, ContractStatus.SIGNED];
       const closedStatuses: ContractStatus[] = [ContractStatus.COMPLETED, ContractStatus.WARRANTY_DEFECTS, ContractStatus.TERMINATED, ContractStatus.CLOSED];
-      if (inProgressStatuses.includes(contract.status)) {
+      if (isPreAwardContract(contract) && roleContext === 'BUYER') {
+        queues['contract-preparation'].push(dto);
+      } else if (inProgressStatuses.includes(contract.status)) {
         queues['contracts-in-progress'].push(dto);
       } else if (closedStatuses.includes(contract.status)) {
         queues['closed-contracts'].push(dto);
       } else {
         queues['active-contracts'].push(dto);
       }
-      if (isUrgent(dto)) queues['my-urgent-actions'].push(dto);
     }
 
-    await this.syncUrgentActions(organizationId, queues['my-urgent-actions']);
+    const sampleDashboard = await this.listSamples(context);
+    for (const sample of Object.values(sampleDashboard.queues).flat()) {
+      if (sample.sampleRequirementStatus === 'NOT_REQUIRED' || sample.sampleRequired === false || sample.awardingStatus === 'not-required') continue;
+      if (sample.awardingStatus === 'passed' || sample.awardingStatus === 'failed') continue;
+      const dto: LifecycleActionDto = {
+        id: `sample-${sample.id}`,
+        roleContext: sample.buyerOrgId === organizationId ? 'BUYER' : 'SUPPLIER',
+        sourceType: 'SAMPLE_ACTION',
+        tenderId: sample.tenderId,
+        awardId: null,
+        noticeId: null,
+        contractId: sample.contractId,
+        reference: sample.sampleReference || sample.trackingNumber || sample.id,
+        noticeReference: null,
+        title: sample.sampleName,
+        otherParty: sample.buyerOrgId === organizationId ? sample.supplierName : sample.tenderTitle,
+        currentStage: sample.awardingStatus.replace(/-/g, ' '),
+        requiredAction: sample.buyerOrgId === organizationId ? 'Manage sample procurement' : 'View sample status',
+        dueDate: sample.deliveryDeadline,
+        riskLevel: sample.awardingStatus === 'overdue-sample-actions' ? 'High' : 'Medium',
+        status: sample.awardingStatus,
+        amount: null,
+        currency: 'TZS',
+        nextRoute: '/awards-contracts/samples',
+        nextAction: nextAction({
+          roleContext: sample.buyerOrgId === organizationId ? 'BUYER' : 'SUPPLIER',
+          requiredAction: 'Manage sample procurement',
+          nextRoute: '/awards-contracts/samples'
+        })
+      };
+      queues['sample-procurement'].push(dto);
+    }
 
     return {
       summary: {
-        urgentActions: queues['my-urgent-actions'].length,
         awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
-        contractActions: queues['contracts-in-progress'].length + queues['active-contracts'].filter((item) => item.requiredAction !== 'Monitor contract').length
+        contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['active-contracts'].filter((item) => item.requiredAction !== 'Monitor contract').length
       },
       queues
     };
+  }
+
+  async listSamples(context: AwardContractRequestContext): Promise<AwardContractSampleDashboardDto> {
+    const organizationId = requireOrg(context);
+    const where: Prisma.BidSampleWhereInput = context.isAdmin
+      ? {}
+      : {
+          OR: [
+            { supplierOrgId: organizationId },
+            { tender: { buyerOrgId: organizationId } }
+          ]
+        };
+    const samples = await this.db.bidSample.findMany({
+      where,
+      include: {
+        tender: { select: { id: true, reference: true, title: true, buyerOrgId: true } },
+        supplierOrg: { select: { id: true, name: true } }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200
+    });
+    const detailed = await Promise.all(samples.map((sample) => this.sampleDetailForRecord(this.db, sample, context)));
+    const sampleBidIds = new Set(samples.map((sample) => sample.bidId));
+    const bidWhere: Prisma.BidWhereInput = context.isAdmin
+      ? { status: { in: [BidStatus.SUBMITTED, BidStatus.OPENED, BidStatus.UNDER_EVALUATION, BidStatus.DISQUALIFIED, BidStatus.AWARDED, BidStatus.LOST] } }
+      : {
+          status: { in: [BidStatus.SUBMITTED, BidStatus.OPENED, BidStatus.UNDER_EVALUATION, BidStatus.DISQUALIFIED, BidStatus.AWARDED, BidStatus.LOST] },
+          OR: [
+            { supplierOrgId: organizationId },
+            { buyerOrgId: organizationId }
+          ]
+        };
+    const bids = await this.db.bid.findMany({
+      where: bidWhere,
+      include: {
+        tender: {
+          select: {
+            id: true,
+            reference: true,
+            title: true,
+            type: true,
+            requirements: true,
+            metadata: true,
+            buyerOrgId: true,
+            requirementRows: { select: { id: true, section: true, payload: true } },
+            commercialItems: {
+              select: {
+                id: true,
+                itemNo: true,
+                description: true,
+                quantity: true,
+                unit: true,
+                rate: true,
+                total: true,
+                payload: true
+              }
+            },
+            documents: {
+              select: {
+                label: true,
+                document: { select: { id: true, name: true, documentType: true } }
+              }
+            }
+          }
+        },
+        supplierOrg: { select: { id: true, name: true } },
+        samples: { select: { id: true } }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200
+    });
+    const requirementRows = bids
+      .filter((bid) => !sampleBidIds.has(bid.id) && bid.samples.length === 0)
+      .flatMap((bid) => {
+        const requirements = tenderSampleFields(bid.tender);
+        if (requirements.length === 0) {
+          return [sampleRequirementDto(bid, { id: 'not-required', label: 'Sample not required', required: false, payload: {} }, context)];
+        }
+        return requirements.map((requirement) =>
+          sampleRequirementDto(bid, {
+            id: requirement.requirementKey || requirement.id,
+            label: requirement.label,
+            required: requirement.required,
+            payload: objectPayload((requirement as unknown as { payload?: unknown }).payload)
+          }, context)
+        );
+      });
+    const queues = Object.fromEntries(sampleQueueIds.map((id) => [id, [] as AwardContractSampleDto[]]));
+    for (const sample of [...detailed, ...requirementRows]) {
+      const queue = queues[sample.awardingStatus] ?? queues['awaiting-submission'];
+      queue.push(sample);
+    }
+    return {
+      summary: Object.fromEntries(Object.entries(queues).map(([key, value]) => [key, value.length])),
+      queues
+    };
+  }
+
+  async getSample(sampleId: string, context: AwardContractRequestContext) {
+    return this.sampleDetail(sampleId, context);
+  }
+
+  async receiveSample(sampleId: string, input: SampleReceiptInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const sample = await this.requireSample(tx, sampleId, context, true);
+      const receivedAt = toDateTime(input.receivedAt) ?? new Date();
+      await tx.sampleReceipt.upsert({
+        where: { bidSampleId: sample.id },
+        update: {
+          receivedQuantity: input.receivedQuantity,
+          conditionAtReceipt: input.conditionAtReceipt || null,
+          packagingCondition: input.packagingCondition || null,
+          deliveryRepresentative: input.deliveryRepresentative || null,
+          receivingOfficerId: input.receivingOfficerId || null,
+          storageLocation: input.storageLocation || null,
+          missingComponents: input.missingComponents || null,
+          visibleDamage: input.visibleDamage || null,
+          remarks: input.remarks || null,
+          receivedAt,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          sampleReference: sampleReference(),
+          receivedQuantity: input.receivedQuantity,
+          conditionAtReceipt: input.conditionAtReceipt || null,
+          packagingCondition: input.packagingCondition || null,
+          deliveryRepresentative: input.deliveryRepresentative || null,
+          receivingOfficerId: input.receivingOfficerId || null,
+          storageLocation: input.storageLocation || null,
+          missingComponents: input.missingComponents || null,
+          visibleDamage: input.visibleDamage || null,
+          remarks: input.remarks || null,
+          receivedAt,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.bidSample.update({ where: { id: sample.id }, data: { trackingStatus: BidSampleStatus.RECEIVED, receivedAt } });
+      await this.audit(tx, sample.tender.buyerOrgId, context.userId, 'sample.received', 'bid_sample', sample.id, { sampleName: sample.sampleName });
+    });
+    return this.sampleDetail(sampleId, context);
+  }
+
+  async verifySample(sampleId: string, input: SampleVerificationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const sample = await this.requireSampleWithReceipt(tx, sampleId, context);
+      const verifiedAt = toDateTime(input.verifiedAt) ?? new Date();
+      await tx.sampleVerification.create({
+        data: {
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          result: input.result,
+          quantityAccepted: input.quantityAccepted ?? false,
+          certificatesAttached: input.certificatesAttached ?? false,
+          packagingAccepted: input.packagingAccepted ?? false,
+          matchesBid: input.matchesBid ?? false,
+          completeUndamaged: input.completeUndamaged ?? false,
+          clarificationRequired: input.clarificationRequired ?? false,
+          note: input.note || null,
+          verifiedByUserId: context.userId ?? null,
+          verifiedAt,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.bidSample.update({ where: { id: sample.id }, data: { inspectedAt: verifiedAt } });
+      await this.audit(tx, sample.tender.buyerOrgId, context.userId, 'sample.verified', 'bid_sample', sample.id, { result: input.result });
+    });
+    return this.sampleDetail(sampleId, context);
+  }
+
+  async transferSampleCustody(sampleId: string, input: SampleCustodyTransferInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const sample = await this.requireSampleWithReceipt(tx, sampleId, context);
+      await tx.sampleCustodyLog.create({
+        data: {
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          fromCustodianId: input.fromCustodianId || null,
+          toCustodianId: input.toCustodianId || null,
+          previousLocation: input.previousLocation || null,
+          newLocation: input.newLocation || null,
+          transferPurpose: input.transferPurpose,
+          conditionBefore: input.conditionBefore || null,
+          conditionAfter: input.conditionAfter || null,
+          authorizedById: context.userId ?? null,
+          remarks: input.remarks || null,
+          transferredAt: toDateTime(input.transferredAt) ?? new Date(),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, sample.tender.buyerOrgId, context.userId, 'sample.custody_transferred', 'bid_sample', sample.id, { transferPurpose: input.transferPurpose });
+    });
+    return this.sampleDetail(sampleId, context);
+  }
+
+  async evaluateSample(sampleId: string, input: SampleEvaluationInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const sample = await this.requireSampleWithReceipt(tx, sampleId, context);
+      const decision = input.decision || (input.passed === true ? 'PASSED' : input.passed === false ? 'FAILED' : 'UNDER_EVALUATION');
+      await tx.sampleEvaluation.create({
+        data: {
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          criterion: input.criterion,
+          score: input.score,
+          maximumScore: input.maximumScore,
+          passed: input.passed ?? normalizedStatus(decision) === 'PASSED',
+          decision,
+          comments: input.comments || null,
+          evaluatorUserId: context.userId ?? null,
+          evaluatedAt: toDateTime(input.evaluatedAt) ?? new Date(),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      if (['PASSED', 'ACCEPTED'].includes(normalizedStatus(decision))) await tx.bidSample.update({ where: { id: sample.id }, data: { trackingStatus: BidSampleStatus.ACCEPTED } });
+      if (['FAILED', 'REJECTED'].includes(normalizedStatus(decision))) await tx.bidSample.update({ where: { id: sample.id }, data: { trackingStatus: BidSampleStatus.REJECTED } });
+      await this.audit(tx, sample.tender.buyerOrgId, context.userId, 'sample.evaluated', 'bid_sample', sample.id, { criterion: input.criterion, decision });
+    });
+    return this.sampleDetail(sampleId, context);
+  }
+
+  async createSampleTest(sampleId: string, input: SampleTestInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const sample = await this.requireSampleWithReceipt(tx, sampleId, context);
+      if (input.reportDocumentId) await this.assertDocumentVisible(tx, input.reportDocumentId, context);
+      await tx.sampleTest.create({
+        data: {
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          testName: input.testName,
+          testingInstitution: input.testingInstitution || null,
+          testingOfficer: input.testingOfficer || null,
+          testingMethod: input.testingMethod || null,
+          testingStandard: input.testingStandard || null,
+          expectedResult: input.expectedResult || null,
+          actualResult: input.actualResult || null,
+          result: input.result || 'PENDING',
+          testCost: input.testCost,
+          currency: input.currency,
+          responsibleParty: input.responsibleParty || null,
+          reportDocumentId: input.reportDocumentId || null,
+          testedAt: toDateTime(input.testedAt) ?? new Date(),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, sample.tender.buyerOrgId, context.userId, 'sample.test_created', 'bid_sample', sample.id, { testName: input.testName });
+    });
+    return this.sampleDetail(sampleId, context);
+  }
+
+  async requestSampleClarification(sampleId: string, input: SampleVerificationInput, context: AwardContractRequestContext) {
+    return this.verifySample(sampleId, { ...input, result: input.result || 'CLARIFICATION_REQUIRED', clarificationRequired: true }, context);
+  }
+
+  async disposeSample(sampleId: string, input: SampleDispositionInput, context: AwardContractRequestContext) {
+    return this.createSampleDisposition(sampleId, { ...input, dispositionType: input.dispositionType || 'DISPOSE' }, context);
+  }
+
+  async returnSample(sampleId: string, input: SampleDispositionInput, context: AwardContractRequestContext) {
+    return this.createSampleDisposition(sampleId, { ...input, dispositionType: input.dispositionType || 'RETURN' }, context);
+  }
+
+  async retainSample(sampleId: string, input: SampleDispositionInput & ContractReferenceSampleInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const sample = await this.requireSampleWithReceipt(tx, sampleId, context);
+      const contract = input.contractId
+        ? await tx.contract.findUnique({ where: { id: input.contractId } })
+        : await tx.contract.findFirst({
+            where: { tenderId: sample.tenderId, supplierOrgId: sample.supplierOrgId, awardId: { not: null } },
+            orderBy: { updatedAt: 'desc' }
+          });
+      if (!contract) throw requestError('An awarded contract is required before retaining a reference sample.', 409);
+      assertContractVisible(contract, context);
+      assertContractManager(contract, context);
+      if (contract.tenderId !== sample.tenderId || contract.supplierOrgId !== sample.supplierOrgId) {
+        throw requestError('Reference sample must match the contract tender and supplier.', 409);
+      }
+      const completedAt = toDateTime(input.completedAt) ?? new Date();
+      await tx.sampleDisposition.create({
+        data: {
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          dispositionType: 'RETAIN',
+          reason: input.reason || null,
+          authorizedByUserId: context.userId ?? null,
+          supplierNotifiedAt: toDateTime(input.supplierNotifiedAt),
+          collectionDeadline: toDateTime(input.collectionDeadline),
+          collectionRepresentative: input.collectionRepresentative || null,
+          returnCondition: input.returnCondition || null,
+          disposalMethod: input.disposalMethod || null,
+          witnesses: input.witnesses || null,
+          acknowledgementDocumentId: input.acknowledgementDocumentId || null,
+          status: input.status || 'COMPLETED',
+          completedAt,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await tx.contractReferenceSample.upsert({
+        where: { contractId_bidSampleId: { contractId: contract.id, bidSampleId: sample.id } },
+        update: {
+          referenceNo: input.referenceNo || sample.sampleName,
+          storageLocation: input.storageLocation || null,
+          status: input.status || 'RETAINED',
+          note: input.note || input.reason || null,
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId: contract.id,
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          referenceNo: input.referenceNo || sample.sampleName,
+          sampleName: sample.sampleName,
+          storageLocation: input.storageLocation || null,
+          status: input.status || 'RETAINED',
+          note: input.note || input.reason || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, sample.tender.buyerOrgId, context.userId, 'sample.retained_reference', 'bid_sample', sample.id, { contractId: contract.id });
+    });
+    return this.sampleDetail(sampleId, context);
+  }
+
+  async upsertCommencement(contractId: string, input: ContractCommencementInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await tx.contract.findUnique({ where: { id: contractId }, include: { mobilizationItems: true } });
+      if (!contract) throw requestError('Contract was not found.', 404);
+      assertContractVisible(contract, context);
+      assertContractManager(contract, context);
+      assertAwardLinkedContract(contract);
+      const commencementReadyStatuses: ContractStatus[] = [ContractStatus.SIGNED, ContractStatus.MOBILIZATION, ContractStatus.ACTIVE];
+      if (!commencementReadyStatuses.includes(contract.status)) throw requestError('Contract must be signed before commencement can be recorded.', 409);
+      const completedMobilizationStatuses: ContractLifecycleItemStatus[] = [ContractLifecycleItemStatus.APPROVED, ContractLifecycleItemStatus.WAIVED, ContractLifecycleItemStatus.CLOSED];
+      const blockingMobilization = contract.mobilizationItems.filter((item) => item.required && !completedMobilizationStatuses.includes(item.status));
+      if (blockingMobilization.length > 0) throw requestError('Required mobilization checklist items must be approved or waived before commencement.', 409);
+      await tx.contractCommencement.upsert({
+        where: { contractId },
+        update: {
+          noticeDate: toDate(input.noticeDate) ?? null,
+          startDate: toDate(input.startDate) ?? null,
+          effectiveDate: toDate(input.effectiveDate) ?? null,
+          completionDate: toDate(input.completionDate) ?? null,
+          deliveryLocation: input.deliveryLocation || null,
+          buyerContractManager: input.buyerContractManager || null,
+          supplierContractManager: input.supplierContractManager || null,
+          initialMeetingDate: toDate(input.initialMeetingDate) ?? null,
+          approvedWorkPlan: input.approvedWorkPlan || null,
+          approvedDeliverySchedule: input.approvedDeliverySchedule || null,
+          status: input.status || 'DRAFT',
+          payload: input.payload as Prisma.InputJsonObject
+        },
+        create: {
+          contractId,
+          noticeDate: toDate(input.noticeDate) ?? null,
+          startDate: toDate(input.startDate) ?? null,
+          effectiveDate: toDate(input.effectiveDate) ?? null,
+          completionDate: toDate(input.completionDate) ?? null,
+          deliveryLocation: input.deliveryLocation || null,
+          buyerContractManager: input.buyerContractManager || null,
+          supplierContractManager: input.supplierContractManager || null,
+          initialMeetingDate: toDate(input.initialMeetingDate) ?? null,
+          approvedWorkPlan: input.approvedWorkPlan || null,
+          approvedDeliverySchedule: input.approvedDeliverySchedule || null,
+          status: input.status || 'DRAFT',
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.commencement.upserted', 'contract', contractId, { status: input.status });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createNonConformance(contractId: string, input: ContractNonConformanceInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractNonConformance.create({
+        data: {
+          contractId,
+          category: input.category,
+          title: input.title,
+          description: input.description || null,
+          relatedRecordId: input.relatedRecordId || null,
+          contractClause: input.contractClause || null,
+          severity: input.severity || 'MINOR',
+          responsibleSupplierOfficer: input.responsibleSupplierOfficer || null,
+          correctiveAction: input.correctiveAction || null,
+          correctiveActionDeadline: toDate(input.correctiveActionDeadline) ?? null,
+          verificationResult: input.verificationResult || null,
+          status: input.status || 'OPEN',
+          identifiedAt: toDateTime(input.identifiedAt) ?? new Date(),
+          closedAt: toDateTime(input.closedAt) ?? null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.non_conformance.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createContractSecurity(contractId: string, input: ContractSecurityInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      if (input.documentId) await this.assertDocumentVisible(tx, input.documentId, context);
+      await tx.contractSecurity.create({
+        data: {
+          contractId,
+          securityType: input.securityType,
+          issuingInstitution: input.issuingInstitution || null,
+          referenceNumber: input.referenceNumber || null,
+          amount: input.amount,
+          currency: input.currency,
+          issueDate: toDate(input.issueDate) ?? null,
+          expiryDate: toDate(input.expiryDate) ?? null,
+          verificationStatus: input.verificationStatus || 'PENDING',
+          claimStatus: input.claimStatus || 'NONE',
+          releasedAt: toDateTime(input.releasedAt) ?? null,
+          documentId: input.documentId || null,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.security.created', 'contract', contractId, { securityType: input.securityType });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createContractPenalty(contractId: string, input: ContractPenaltyInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractPenalty.create({
+        data: {
+          contractId,
+          invoiceId: input.invoiceId || null,
+          penaltyType: input.penaltyType,
+          contractClause: input.contractClause || null,
+          basis: input.basis || null,
+          amount: input.amount,
+          currency: input.currency,
+          status: input.status || 'DRAFT',
+          approvedByUserId: normalizedStatus(input.status) === 'APPROVED' ? context.userId ?? null : null,
+          evidence: (input.evidence ?? []) as Prisma.InputJsonArray,
+          note: input.note || null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.penalty.created', 'contract', contractId, { penaltyType: input.penaltyType });
+    });
+    return this.getContract(contractId, context);
+  }
+
+  async createContractChangeRequest(contractId: string, input: ContractChangeRequestInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const contract = await this.requireContract(tx, contractId, context, true);
+      await tx.contractChangeRequest.create({
+        data: {
+          contractId,
+          changeType: input.changeType,
+          title: input.title,
+          reason: input.reason || null,
+          raisedByOrgId: context.organizationId ?? null,
+          technicalReview: input.technicalReview || null,
+          financialReview: input.financialReview || null,
+          budgetCheck: input.budgetCheck || null,
+          legalReview: input.legalReview || null,
+          supplierResponse: input.supplierResponse || null,
+          amendmentVersionId: input.amendmentVersionId || null,
+          status: input.status || 'RAISED',
+          approvedAt: toDateTime(input.approvedAt) ?? null,
+          signedAt: toDateTime(input.signedAt) ?? null,
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.change_request.created', 'contract', contractId, { title: input.title });
+    });
+    return this.getContract(contractId, context);
   }
 
   async listRecommendations(query: AwardRecommendationQuery, context: AwardContractRequestContext): Promise<ListAwardRecommendationsResponseDto> {
@@ -1476,6 +2360,24 @@ export class ModuleRepository {
         }
       });
       await this.findOrCreateAwardGroup(tx, recommendation);
+      await signSensitiveAction(tx, {
+        userId: requireUserId(context),
+        organizationId: context.organizationId ?? recommendation.workspace.buyerOrgId,
+        signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+        moduleKey: 'award-contract',
+        actionKey: 'award_recommendation.approve',
+        entityType: 'award_recommendation',
+        entityRef: recommendation.id,
+        payload: {
+          recommendationId: recommendation.id,
+          tenderId: recommendation.workspace.tenderId,
+          bidId: recommendation.bidId,
+          supplierOrgId: recommendation.supplierOrgId,
+          amount: input.awardAmount ?? recommendation.amount,
+          currency: input.currency ?? recommendation.currency,
+          note: input.note
+        }
+      });
       await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.single_user_approval.approved', 'award_recommendation', recommendation.id, {
         note: input.note,
         actorUserId: context.userId ?? null,
@@ -1903,6 +2805,22 @@ export class ModuleRepository {
           } as Prisma.InputJsonObject
         }
       });
+      await signSensitiveAction(tx, {
+        userId: requireUserId(context),
+        organizationId: context.organizationId ?? recommendation.workspace.buyerOrgId,
+        signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+        moduleKey: 'award-contract',
+        actionKey: 'award_group.settle',
+        entityType: 'award_group',
+        entityRef: group.id,
+        payload: {
+          recommendationId: recommendation.id,
+          awardGroupId: group.id,
+          tenderId: recommendation.workspace.tenderId,
+          winnerCount: winners.length,
+          note: input.note
+        }
+      });
       await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.group.settled', 'award_group', group.id, { note: input.note });
     });
     return this.getRecommendation(id, context);
@@ -1967,6 +2885,26 @@ export class ModuleRepository {
         });
       }
 
+      if (input.action === AwardResponseAction.ACCEPT || input.action === AwardResponseAction.DECLINE) {
+        await signSensitiveAction(tx, {
+          userId: requireUserId(context),
+          organizationId: context.organizationId ?? notice.supplierOrgId,
+          signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+          moduleKey: 'award-contract',
+          actionKey: `award_notice.${input.action.toLowerCase()}`,
+          entityType: 'award_notice',
+          entityRef: notice.id,
+          payload: {
+            noticeId: notice.id,
+            recommendationId: notice.recommendationId,
+            supplierOrgId: notice.supplierOrgId,
+            buyerOrgId: notice.buyerOrgId,
+            action: input.action,
+            contractId
+          }
+        });
+      }
+
       await this.audit(tx, notice.supplierOrgId, context.userId, `award.notice.${input.action.toLowerCase()}`, 'award_notice', notice.id, {
         note: input.note,
         contractId
@@ -1974,6 +2912,185 @@ export class ModuleRepository {
     });
 
     return this.getRecommendationByNotice(id, context);
+  }
+
+  async cancelAwardNotice(id: string, input: AwardNoticeCancelInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const notice = await tx.awardNotice.findUnique({
+        where: { id },
+        include: {
+          recommendation: {
+            include: recommendationInclude
+          }
+        }
+      });
+      if (!notice) throw requestError('Award notice was not found.', 404);
+      assertBuyerAccess(notice.recommendation, context);
+      if (notice.status === AwardNoticeStatus.ACCEPTED) {
+        throw requestError('Cancel the supplier handoff from contract negotiation when the award notice has already been accepted.', 409);
+      }
+      const now = new Date().toISOString();
+      const currentPayload = objectPayload(notice.payload);
+      const cancellationHistory = Array.isArray(currentPayload.cancellationHistory) ? currentPayload.cancellationHistory : [];
+      await tx.awardNotice.update({
+        where: { id },
+        data: {
+          status: AwardNoticeStatus.CANCELLED,
+          buyerNote: input.reason,
+          payload: {
+            ...currentPayload,
+            cancellationReason: input.reason,
+            cancellationPayload: input.payload,
+            cancellationHistory: [
+              ...cancellationHistory,
+              {
+                reason: input.reason,
+                payload: input.payload,
+                cancelledAt: now,
+                actorUserId: context.userId ?? null,
+                actorOrgId: context.organizationId ?? null
+              }
+            ]
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardWinner.updateMany({
+        where: { noticeId: notice.id },
+        data: {
+          status: AwardNoticeStatus.CANCELLED,
+          payload: {
+            cancellationReason: input.reason,
+            cancelledAt: now
+          } as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, notice.buyerOrgId, context.userId, 'award.notice.cancelled', 'award_notice', notice.id, {
+        reason: input.reason,
+        supplierOrgId: notice.supplierOrgId,
+        recommendationId: notice.recommendationId
+      });
+    });
+
+    return this.getRecommendationByNotice(id, context);
+  }
+
+  async reissueAwardNotice(id: string, input: AwardNoticeReissueInput, context: AwardContractRequestContext) {
+    let nextRecommendationId = '';
+    await this.db.$transaction(async (tx) => {
+      const currentNotice = await tx.awardNotice.findUnique({
+        where: { id },
+        include: {
+          recommendation: {
+            include: recommendationInclude
+          }
+        }
+      });
+      if (!currentNotice) throw requestError('Award notice was not found.', 404);
+      assertBuyerAccess(currentNotice.recommendation, context);
+      if (!currentNotice.recommendation.awardGroupId) throw requestError('Award ranking is not available for this notice.', 409);
+
+      const winners = await tx.awardWinner.findMany({
+        where: { awardGroupId: currentNotice.recommendation.awardGroupId },
+        orderBy: { createdAt: 'asc' }
+      });
+      const candidate = winners.find((winner) => {
+        if (!winner.recommendationId || winner.recommendationId === currentNotice.recommendationId) return false;
+        if (input.supplierOrgId && winner.supplierOrgId !== input.supplierOrgId) return false;
+        if (input.bidId && winner.bidId !== input.bidId) return false;
+        if (!input.supplierOrgId && !input.bidId && (winner.status === 'CONTRACT_FORMED' || winner.status === AwardNoticeStatus.ACCEPTED)) return false;
+        return true;
+      });
+      if (!candidate?.recommendationId || !candidate.supplierOrgId || !candidate.bidId) {
+        throw requestError('No alternate ranked supplier is available for a new award notice.', 409);
+      }
+
+      const recommendation = await tx.awardRecommendation.findUnique({
+        where: { id: candidate.recommendationId },
+        include: recommendationInclude
+      });
+      if (!recommendation?.supplierOrgId || !recommendation.bidId) throw requestError('Selected ranked supplier is not ready for notice.', 409);
+      nextRecommendationId = recommendation.id;
+
+      const now = new Date().toISOString();
+      await tx.awardNotice.update({
+        where: { id: currentNotice.id },
+        data: {
+          status: AwardNoticeStatus.CANCELLED,
+          buyerNote: currentNotice.buyerNote ?? input.reason,
+          payload: {
+            ...objectPayload(currentNotice.payload),
+            reissuedToRecommendationId: recommendation.id,
+            reissueReason: input.reason,
+            reissuedAt: now
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardWinner.updateMany({
+        where: { noticeId: currentNotice.id },
+        data: { status: AwardNoticeStatus.CANCELLED }
+      });
+
+      const notice = await tx.awardNotice.upsert({
+        where: { recommendationId: recommendation.id },
+        update: {
+          status: AwardNoticeStatus.PENDING_RESPONSE,
+          buyerNote: input.reason,
+          issuedByUserId: context.userId ?? null,
+          respondedByUserId: null,
+          respondedAt: null,
+          payload: {
+            ...objectPayload(recommendation.notice?.payload),
+            awardGroupId: currentNotice.recommendation.awardGroupId,
+            reissuePayload: input.payload,
+            reissueReason: input.reason,
+            previousNoticeId: currentNotice.id
+          } as Prisma.InputJsonObject
+        },
+        create: {
+          reference: awardNoticeReference(),
+          recommendationId: recommendation.id,
+          buyerOrgId: recommendation.workspace.buyerOrgId,
+          supplierOrgId: recommendation.supplierOrgId,
+          buyerNote: input.reason,
+          issuedByUserId: context.userId ?? null,
+          payload: {
+            tenderId: recommendation.workspace.tenderId,
+            bidId: recommendation.bidId,
+            awardGroupId: currentNotice.recommendation.awardGroupId,
+            reissuePayload: input.payload,
+            reissueReason: input.reason,
+            previousNoticeId: currentNotice.id
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardWinner.update({
+        where: { id: candidate.id },
+        data: {
+          status: AwardNoticeStatus.PENDING_RESPONSE,
+          noticeId: notice.id,
+          payload: {
+            ...objectPayload(candidate.payload),
+            reissuedAt: now,
+            reissueReason: input.reason
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardRecommendation.update({
+        where: { id: recommendation.id },
+        data: {
+          status: RecommendationStatus.APPROVED,
+          reason: input.reason || recommendation.reason
+        }
+      });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.notice.reissued', 'award_notice', notice.id, {
+        reason: input.reason,
+        previousNoticeId: currentNotice.id,
+        recommendationId: recommendation.id,
+        supplierOrgId: recommendation.supplierOrgId
+      });
+    });
+
+    return this.getRecommendation(nextRecommendationId, context);
   }
 
   async listContracts(query: ContractQuery, context: AwardContractRequestContext): Promise<ListContractsResponseDto> {
@@ -1997,13 +3114,138 @@ export class ModuleRepository {
     };
   }
 
+  async prepareTenderContractDraft(tenderId: string, context: AwardContractRequestContext) {
+    let contractId = '';
+    await this.db.$transaction(async (tx) => {
+      const tender = await tx.tender.findUnique({
+        where: { id: tenderId },
+        select: {
+          id: true,
+          reference: true,
+          title: true,
+          type: true,
+          status: true,
+          buyerOrgId: true,
+          budget: true,
+          currency: true,
+          contractType: true
+        }
+      });
+      if (!tender) throw requestError('Tender was not found.', 404);
+      if (!context.isAdmin && tender.buyerOrgId !== context.organizationId) throw requestError('Only the tender buyer can prepare the contract.', 403);
+      const allowedStatuses: TenderStatus[] = [TenderStatus.PUBLISHED, TenderStatus.OPEN, TenderStatus.EVALUATION];
+      if (!allowedStatuses.includes(tender.status)) {
+        throw requestError('Contract preparation is available after the tender has been published or opened.', 409);
+      }
+
+      const existing = await tx.contract.findFirst({
+        where: {
+          tenderId,
+          buyerOrgId: tender.buyerOrgId,
+          awardId: null,
+          supplierOrgId: null
+        },
+        orderBy: { createdAt: 'asc' }
+      });
+      if (existing) {
+        contractId = existing.id;
+        return;
+      }
+
+      const clauses = defaultContractClauses().map((clause) => ({
+        ...clause,
+        payload: {
+          ...objectPayload(clause.payload),
+          source: 'pre_award_contract_preparation'
+        } as Prisma.InputJsonObject
+      }));
+      const contract = await tx.contract.create({
+        data: {
+          reference: contractReference(),
+          tenderId: tender.id,
+          buyerOrgId: tender.buyerOrgId,
+          title: `Contract preparation for ${tender.title}`,
+          status: ContractStatus.DRAFT,
+          amount: null,
+          currency: tender.currency,
+          payload: {
+            source: 'pre_award_contract_preparation',
+            draft: {
+              tender: {
+                id: tender.id,
+                reference: tender.reference,
+                title: tender.title,
+                procurementType: tender.type,
+                contractType: tender.contractType
+              },
+              financials: {
+                budget: decimalToNumber(tender.budget),
+                currency: tender.currency
+              },
+              awardLocked: true,
+              supplierLocked: true
+            }
+          } as Prisma.InputJsonObject,
+          versions: {
+            create: {
+              versionNo: 1,
+              payload: {
+                source: 'pre_award_contract_preparation',
+                generatedAt: new Date().toISOString(),
+                tenderId: tender.id,
+                tenderReference: tender.reference,
+                clauseKeys: clauses.map((clause) => clause.clauseKey)
+              } as Prisma.InputJsonObject
+            }
+          },
+          parties: {
+            create: {
+              role: ContractPartyRole.BUYER,
+              organizationId: tender.buyerOrgId,
+              displayName: 'Buyer organization',
+              payload: {}
+            }
+          },
+          clauses: { createMany: { data: clauses } },
+          requiredDocuments: {
+            createMany: {
+              data: defaultRequiredDocuments(String(tender.type)).map((document) => ({
+                ...document,
+                payload: { source: 'pre_award_contract_preparation' }
+              }))
+            }
+          },
+          approvalSteps: { createMany: { data: defaultWorkflowApprovals() } }
+        }
+      });
+      contractId = contract.id;
+      await this.audit(tx, tender.buyerOrgId, context.userId, 'contract.pre_award_draft.created', 'contract', contract.id, { tenderId: tender.id });
+    });
+    return contractId ? this.getContract(contractId, context) : null;
+  }
+
   async getContract(id: string, context: AwardContractRequestContext): Promise<ContractDetailDto | null> {
     const record = await this.db.contract.findFirst({
       where: andWhere([{ id }, contractScope(context)]),
       include: contractInclude
     });
     if (!record) return null;
-    const [audit, goodsInspections, threeWayMatches, paymentApprovals, paymentConfirmations, riskForecasts, performanceScores, supplierRiskProfile] = await Promise.all([
+    const [
+      audit,
+      goodsInspections,
+      threeWayMatches,
+      paymentApprovals,
+      paymentConfirmations,
+      commencements,
+      nonConformances,
+      securities,
+      penalties,
+      changeRequests,
+      referenceSamples,
+      riskForecasts,
+      performanceScores,
+      supplierRiskProfile
+    ] = await Promise.all([
       this.db.auditEvent.findMany({
         where: { entityType: 'contract', entityRef: record.id },
         orderBy: { createdAt: 'desc' },
@@ -2013,6 +3255,12 @@ export class ModuleRepository {
       this.db.threeWayMatchResult.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
       this.db.paymentApproval.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
       this.db.paymentConfirmation.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.contractCommencement.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.contractNonConformance.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.contractSecurity.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.contractPenalty.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.contractChangeRequest.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
+      this.db.contractReferenceSample.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
       this.db.riskForecast.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
       this.db.performanceScore.findMany({ where: { contractId: record.id }, orderBy: { createdAt: 'desc' } }),
       record.supplierOrgId ? this.db.supplierRiskProfile.findUnique({ where: { supplierOrgId: record.supplierOrgId } }) : Promise.resolve(null)
@@ -2023,10 +3271,98 @@ export class ModuleRepository {
       threeWayMatches: threeWayMatches.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
       paymentApprovals: paymentApprovals.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
       paymentConfirmations: paymentConfirmations.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      commencements: commencements.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      nonConformances: nonConformances.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      securities: securities.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      penalties: penalties.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      changeRequests: changeRequests.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
+      referenceSamples: referenceSamples.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
       riskForecasts: riskForecasts.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
       performanceScores: performanceScores.map((item) => workflowRecordDto(item as unknown as Record<string, unknown>)),
       supplierRiskProfile: supplierRiskProfile ? workflowRecordDto(supplierRiskProfile as unknown as Record<string, unknown>) : null
     };
+  }
+
+  async contractDocuments(contractId: string, context: AwardContractRequestContext): Promise<AwardContractDocumentDto[]> {
+    const contract = await this.requireContract(this.db, contractId, context);
+    const sourceLabels = new Map<string, string>();
+    const [
+      versions,
+      milestoneEvidence,
+      paymentConfirmations,
+      terminationEvidence,
+      securities,
+      requiredDocuments,
+      uploadedDocuments
+    ] = await Promise.all([
+      this.db.contractVersion.findMany({ where: { contractId, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.contractMilestoneEvidence.findMany({ where: { milestone: { contractId } }, select: { documentId: true } }),
+      this.db.paymentConfirmation.findMany({ where: { contractId, evidenceDocumentId: { not: null } }, select: { evidenceDocumentId: true } }),
+      this.db.terminationEvidence.findMany({ where: { termination: { contractId }, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.contractSecurity.findMany({ where: { contractId, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.contractRequiredDocument.findMany({ where: { contractId, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.documentObject.findMany({
+        where: {
+          AND: [
+            { metadata: { path: ['sourceModule'], equals: 'award-contract' } },
+            { metadata: { path: ['contractId'], equals: contractId } },
+            documentVisibilityWhere(context)
+          ]
+        },
+        orderBy: { createdAt: 'desc' },
+        select: documentSelect
+      })
+    ]);
+
+    for (const row of versions) if (row.documentId) sourceLabels.set(row.documentId, 'Contract version');
+    for (const row of milestoneEvidence) sourceLabels.set(row.documentId, 'Milestone evidence');
+    for (const row of paymentConfirmations) if (row.evidenceDocumentId) sourceLabels.set(row.evidenceDocumentId, 'Payment confirmation');
+    for (const row of terminationEvidence) if (row.documentId) sourceLabels.set(row.documentId, 'Termination evidence');
+    for (const row of securities) if (row.documentId) sourceLabels.set(row.documentId, 'Security or guarantee');
+    for (const row of requiredDocuments) if (row.documentId) sourceLabels.set(row.documentId, 'Required document');
+    for (const row of uploadedDocuments) sourceLabels.set(row.id, sourceLabels.get(row.id) ?? 'Uploaded evidence');
+
+    const documentIds = Array.from(sourceLabels.keys());
+    const linkedDocuments = documentIds.length
+      ? await this.db.documentObject.findMany({
+          where: { id: { in: documentIds } },
+          orderBy: { createdAt: 'desc' },
+          select: documentSelect
+        })
+      : [];
+    const byId = new Map([...uploadedDocuments, ...linkedDocuments].map((document) => [document.id, document]));
+
+    return Array.from(byId.values())
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .map((document) => contractDocumentDto(document, sourceLabels.get(document.id) ?? contract.reference));
+  }
+
+  async uploadContractDocument(contractId: string, input: AwardContractDocumentUploadInput, context: AwardContractRequestContext): Promise<AwardContractDocumentDto> {
+    const contract = await this.requireContract(this.db, contractId, context);
+    const content = input.contentBase64 ? Buffer.from(input.contentBase64, 'base64') : null;
+    const document = await this.db.documentObject.create({
+      data: {
+        ownerOrgId: context.organizationId ?? contract.buyerOrgId,
+        uploadedByUserId: context.userId ?? null,
+        name: input.name,
+        objectKey: `award-contract/${contract.id}/${randomUUID()}/${safeObjectName(input.name)}`,
+        documentType: input.documentType ?? input.mimeType ?? 'POST_AWARD_EVIDENCE',
+        checksum: content ? createHash('sha256').update(content).digest('hex') : null,
+        metadata: {
+          sourceModule: 'award-contract',
+          sourceEntityType: 'contract',
+          sourceEntityId: contract.id,
+          contractId: contract.id,
+          contractReference: contract.reference,
+          mimeType: input.mimeType ?? null,
+          size: input.size ?? content?.byteLength ?? null,
+          contentBase64: input.contentBase64 ?? null
+        } as Prisma.InputJsonObject
+      },
+      select: documentSelect
+    });
+    await this.audit(this.db, contract.buyerOrgId, context.userId, 'contract.document.uploaded', 'contract', contract.id, { documentId: document.id });
+    return contractDocumentDto(document, 'Uploaded evidence');
   }
 
   async createContractVersion(id: string, input: ContractVersionInput, context: AwardContractRequestContext) {
@@ -2055,10 +3391,19 @@ export class ModuleRepository {
 
   async createSignatureRequests(id: string, input: ContractSignatureRequestInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
-      const contract = await tx.contract.findUnique({ where: { id } });
+      const contract = await tx.contract.findUnique({
+        where: { id },
+        include: {
+          negotiations: true,
+          acceptances: true,
+          approvalSteps: true
+        }
+      });
       if (!contract) throw requestError('Contract was not found.', 404);
       assertContractVisible(contract, context);
       assertContractManager(contract, context);
+      assertAwardLinkedContract(contract);
+      assertFinalDraftReadyForSignatures(contract);
 
       for (const role of input.roles) {
         const signerOrgId = role === ContractPartyRole.BUYER ? contract.buyerOrgId : contract.supplierOrgId;
@@ -2099,6 +3444,17 @@ export class ModuleRepository {
       assertContractVisible(signature.contract, context);
       if (!context.isAdmin && signature.signerOrgId !== context.organizationId) throw requestError('Signature is assigned to another organization.', 403);
       if (signature.status === SignatureStatus.SIGNED) return;
+      if (signature.status !== SignatureStatus.PENDING) throw requestError('Only pending signature requests can be signed.', 409);
+      if (signature.role === ContractPartyRole.SUPPLIER) {
+        const buyerSigned = await tx.contractSignature.count({
+          where: {
+            contractId,
+            role: ContractPartyRole.BUYER,
+            status: SignatureStatus.SIGNED
+          }
+        });
+        if (buyerSigned === 0) throw requestError('Buyer signature must be completed before supplier signature.', 409);
+      }
       if (!context.userId) throw requestError('Authenticated signer is required.', 403);
 
       const signingCredential = await tx.signingCredential.findFirst({
@@ -2241,7 +3597,23 @@ export class ModuleRepository {
       assertContractVisible(contract, context);
       assertContractManager(contract, context);
       this.assertStatusTransition(contract.status, input.status);
-      if (input.status === ContractStatus.ACTIVE) this.assertActivationReady(contract);
+      const awardLinkedStatuses: ContractStatus[] = [ContractStatus.SIGNATURE_PENDING, ContractStatus.SIGNED, ContractStatus.MOBILIZATION, ContractStatus.ACTIVE];
+      if (awardLinkedStatuses.includes(input.status)) {
+        assertAwardLinkedContract(contract);
+      }
+      if (input.status === ContractStatus.SIGNATURE_PENDING) {
+        assertFinalDraftReadyForSignatures(contract);
+      }
+      if (input.status === ContractStatus.ACTIVE) {
+        this.assertActivationReady(contract);
+        const blockingSecurityCount = await tx.contractSecurity.count({
+          where: {
+            contractId: contract.id,
+            verificationStatus: { notIn: ['APPROVED', 'VERIFIED', 'RELEASED', 'WAIVED'] }
+          }
+        });
+        if (blockingSecurityCount > 0) throw requestError('Required securities and guarantees must be approved before activation.', 409);
+      }
       await tx.contract.update({ where: { id: contract.id }, data: { status: input.status } });
       if (input.status === ContractStatus.TERMINATION_REVIEW) {
         await tx.invoice.updateMany({
@@ -2469,6 +3841,11 @@ export class ModuleRepository {
   async createPaymentApproval(contractId: string, input: PaymentApprovalInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
       const contract = await this.requireContract(tx, contractId, context, true);
+      if (input.invoiceId) {
+        const match = await tx.threeWayMatchResult.findUnique({ where: { invoiceId: input.invoiceId } });
+        const matched = Boolean(match?.poMatched && match.receiptMatched && match.invoiceMatched && match.status === InvoiceStatus.MATCHED);
+        if (!matched) throw requestError('Resolve three-way matching exceptions before approving payment.', 409);
+      }
       const status = input.status ?? InvoiceStatus.REVIEW;
       await tx.paymentApproval.create({
         data: {
@@ -2489,6 +3866,24 @@ export class ModuleRepository {
       if (input.invoiceId && invoiceDecisionStatuses.includes(status)) {
         await tx.invoice.update({ where: { id: input.invoiceId }, data: { status } });
       }
+      await signSensitiveAction(tx, {
+        userId: requireUserId(context),
+        organizationId: context.organizationId ?? contract.buyerOrgId,
+        signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+        moduleKey: 'award-contract',
+        actionKey: 'payment.approve',
+        entityType: 'contract',
+        entityRef: contractId,
+        payload: {
+          contractId,
+          invoiceId: input.invoiceId ?? null,
+          paymentId: input.paymentId ?? null,
+          status,
+          amountApproved: input.amountApproved ?? null,
+          currency: input.currency,
+          stepKey: input.stepKey
+        }
+      });
       await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.payment_approval.created', 'contract', contractId, { stepKey: input.stepKey, status });
     });
     return this.getContract(contractId, context);
@@ -2738,6 +4133,24 @@ export class ModuleRepository {
             } as Prisma.InputJsonObject
           }
         });
+        await signSensitiveAction(tx, {
+          userId: requireUserId(context),
+          organizationId: context.organizationId ?? variation.contract.buyerOrgId,
+          signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+          moduleKey: 'award-contract',
+          actionKey: 'variation.approve',
+          entityType: 'contract_variation',
+          entityRef: variation.id,
+          payload: {
+            contractId,
+            variationId: variation.id,
+            title: variation.title,
+            costImpact,
+            timeImpactDays: variation.timeImpactDays,
+            versionNo,
+            decision: input.note ?? variation.decision ?? ''
+          }
+        });
       }
       await this.audit(tx, variation.contract.buyerOrgId, context.userId, 'contract.variation.updated', 'contract', contractId, { itemId, status: input.status });
     });
@@ -2851,6 +4264,24 @@ export class ModuleRepository {
       });
       if (input.status === ContractTerminationStatus.TERMINATED) {
         await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.TERMINATED } });
+      }
+      if (input.status === ContractTerminationStatus.APPROVED || input.status === ContractTerminationStatus.TERMINATED) {
+        await signSensitiveAction(tx, {
+          userId: requireUserId(context),
+          organizationId: context.organizationId ?? termination.contract.buyerOrgId,
+          signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+          moduleKey: 'award-contract',
+          actionKey: input.status === ContractTerminationStatus.TERMINATED ? 'termination.finalize' : 'termination.approve',
+          entityType: 'contract_termination',
+          entityRef: termination.id,
+          payload: {
+            contractId,
+            terminationId: termination.id,
+            previousStatus: termination.status,
+            nextStatus: input.status,
+            finalDecision: input.finalDecision ?? termination.finalDecision ?? null
+          }
+        });
       }
       await this.audit(tx, termination.contract.buyerOrgId, context.userId, 'contract.termination.updated', 'contract', contractId, { terminationId, status: input.status });
     });
@@ -2992,6 +4423,23 @@ export class ModuleRepository {
         }
       });
       if (input.status === ContractLifecycleItemStatus.CLOSED) await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.CLOSED } });
+      if (input.status === ContractLifecycleItemStatus.CLOSED || input.completionCertificate || input.finalAccountApproved) {
+        await signSensitiveAction(tx, {
+          userId: requireUserId(context),
+          organizationId: context.organizationId ?? contract.buyerOrgId,
+          signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+          moduleKey: 'award-contract',
+          actionKey: input.status === ContractLifecycleItemStatus.CLOSED ? 'closeout.complete' : 'closeout.certificate_approve',
+          entityType: 'contract',
+          entityRef: contractId,
+          payload: {
+            contractId,
+            status: input.status ?? null,
+            completionCertificate: input.completionCertificate ?? null,
+            finalAccountApproved: input.finalAccountApproved ?? null
+          }
+        });
+      }
       await this.audit(tx, contract.buyerOrgId, context.userId, 'contract.closeout.upserted', 'contract', contractId, { status: input.status });
     });
     return this.getContract(contractId, context);
@@ -3292,6 +4740,95 @@ export class ModuleRepository {
     assertContractVisible(contract, context);
     if (managerOnly) assertContractManager(contract, context);
     return contract;
+  }
+
+  private async requireSample(tx: DbClient, sampleId: string, context: AwardContractRequestContext, buyerOnly = false) {
+    const sample = await tx.bidSample.findUnique({
+      where: { id: sampleId },
+      include: {
+        tender: { select: { id: true, reference: true, title: true, buyerOrgId: true } },
+        supplierOrg: { select: { id: true, name: true } }
+      }
+    });
+    if (!sample) throw requestError('Sample was not found.', 404);
+    const canView = context.isAdmin || sample.tender.buyerOrgId === context.organizationId || sample.supplierOrgId === context.organizationId;
+    if (!canView) throw requestError('Sample was not found.', 404);
+    if (buyerOnly && !context.isAdmin && sample.tender.buyerOrgId !== context.organizationId) {
+      throw requestError('Buyer sample management access is required.', 403);
+    }
+    return sample;
+  }
+
+  private async requireSampleWithReceipt(tx: DbClient, sampleId: string, context: AwardContractRequestContext) {
+    const sample = await this.requireSample(tx, sampleId, context, true);
+    const receipt = await tx.sampleReceipt.findUnique({ where: { bidSampleId: sample.id } });
+    if (!receipt) throw requestError('Sample must be received before this action can be recorded.', 409);
+    return sample;
+  }
+
+  private async sampleDetail(sampleId: string, context: AwardContractRequestContext) {
+    const sample = await this.requireSample(this.db, sampleId, context);
+    return this.sampleDetailForRecord(this.db, sample, context);
+  }
+
+  private async sampleDetailForRecord(tx: DbClient, sample: Awaited<ReturnType<ModuleRepository['requireSample']>>, context: AwardContractRequestContext) {
+    const [receipt, verifications, evaluations, tests, custodyLogs, dispositions, referenceSamples, contract] = await Promise.all([
+      tx.sampleReceipt.findUnique({ where: { bidSampleId: sample.id } }),
+      tx.sampleVerification.findMany({ where: { bidSampleId: sample.id }, orderBy: { createdAt: 'desc' } }),
+      tx.sampleEvaluation.findMany({ where: { bidSampleId: sample.id }, orderBy: { createdAt: 'desc' } }),
+      tx.sampleTest.findMany({ where: { bidSampleId: sample.id }, orderBy: { createdAt: 'desc' } }),
+      tx.sampleCustodyLog.findMany({ where: { bidSampleId: sample.id }, orderBy: { createdAt: 'desc' } }),
+      tx.sampleDisposition.findMany({ where: { bidSampleId: sample.id }, orderBy: { createdAt: 'desc' } }),
+      tx.contractReferenceSample.findMany({ where: { bidSampleId: sample.id }, orderBy: { createdAt: 'desc' } }),
+      tx.contract.findFirst({
+        where: { tenderId: sample.tenderId, supplierOrgId: sample.supplierOrgId },
+        select: { id: true },
+        orderBy: { updatedAt: 'desc' }
+      })
+    ]);
+    return sampleDto(sample, {
+      receipt: receipt as unknown as Record<string, unknown> | null,
+      verifications: verifications as unknown as Array<Record<string, unknown>>,
+      evaluations: evaluations as unknown as Array<Record<string, unknown>>,
+      tests: tests as unknown as Array<Record<string, unknown>>,
+      custodyLogs: custodyLogs as unknown as Array<Record<string, unknown>>,
+      dispositions: dispositions as unknown as Array<Record<string, unknown>>,
+      referenceSamples: referenceSamples as unknown as Array<Record<string, unknown>>,
+      contractId: contract?.id ?? null
+    }, context);
+  }
+
+  private async createSampleDisposition(sampleId: string, input: SampleDispositionInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const sample = await this.requireSampleWithReceipt(tx, sampleId, context);
+      await tx.sampleDisposition.create({
+        data: {
+          bidSampleId: sample.id,
+          tenderId: sample.tenderId,
+          bidId: sample.bidId,
+          buyerOrgId: sample.tender.buyerOrgId,
+          supplierOrgId: sample.supplierOrgId,
+          dispositionType: input.dispositionType,
+          reason: input.reason || null,
+          authorizedByUserId: context.userId ?? null,
+          supplierNotifiedAt: toDateTime(input.supplierNotifiedAt),
+          collectionDeadline: toDateTime(input.collectionDeadline),
+          collectionRepresentative: input.collectionRepresentative || null,
+          returnCondition: input.returnCondition || null,
+          disposalMethod: input.disposalMethod || null,
+          witnesses: input.witnesses || null,
+          acknowledgementDocumentId: input.acknowledgementDocumentId || null,
+          status: input.status || 'OPEN',
+          completedAt: toDateTime(input.completedAt),
+          payload: input.payload as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, sample.tender.buyerOrgId, context.userId, 'sample.disposition.created', 'bid_sample', sample.id, {
+        dispositionType: input.dispositionType,
+        status: input.status
+      });
+    });
+    return this.sampleDetail(sampleId, context);
   }
 
   private async requireTermination(tx: DbClient, contractId: string, terminationId: string, context: AwardContractRequestContext) {
@@ -3975,7 +5512,7 @@ export class ModuleRepository {
           orderBy: [{ category: 'asc' }, { clauseKey: 'asc' }]
         })
       : [];
-    const contractClauses = agreedAwardClauses.length
+    const contractClauseSeeds = agreedAwardClauses.length
       ? agreedAwardClauses.map((clause) => ({
           clauseKey: clause.clauseKey,
           title: clause.title,
@@ -3993,6 +5530,231 @@ export class ModuleRepository {
           } as Prisma.InputJsonObject
         }))
       : defaultContractClauses();
+    const contractClauses = contractClauseSeeds.map((clause) => ({
+      clauseKey: clause.clauseKey,
+      title: clause.title,
+      body: 'body' in clause ? clause.body : null,
+      category: clause.category,
+      status: clause.status,
+      buyerComment: 'buyerComment' in clause ? clause.buyerComment : null,
+      supplierComment: 'supplierComment' in clause ? clause.supplierComment : null,
+      legalComment: 'legalComment' in clause ? clause.legalComment : null,
+      payload: objectPayload(clause.payload) as Prisma.InputJsonObject
+    }));
+    const preparedContract = await tx.contract.findFirst({
+      where: {
+        tenderId: notice.recommendation.workspace.tenderId,
+        buyerOrgId: notice.buyerOrgId,
+        awardId: null,
+        supplierOrgId: null
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+    if (preparedContract) {
+      const currentPayload = objectPayload(preparedContract.payload);
+      const currentDraft = objectPayload(currentPayload.draft);
+      await tx.contract.update({
+        where: { id: preparedContract.id },
+        data: {
+          awardId: notice.recommendationId,
+          supplierOrgId: notice.supplierOrgId,
+          title: preparedContract.title.startsWith('Contract preparation for ') ? `Contract for ${notice.recommendation.workspace.tender.title}` : preparedContract.title,
+          amount: notice.recommendation.amount,
+          currency: notice.recommendation.currency,
+          payload: {
+            ...currentPayload,
+            source: currentPayload.source ?? 'pre_award_contract_preparation',
+            noticeId: notice.id,
+            bidId: notice.recommendation.bidId,
+            awardLinkedAt: new Date().toISOString(),
+            draft: {
+              ...currentDraft,
+              parties: {
+                ...objectPayload(currentDraft.parties),
+                buyerOrgId: notice.buyerOrgId,
+                supplierOrgId: notice.supplierOrgId
+              },
+              tender: {
+                ...objectPayload(currentDraft.tender),
+                id: notice.recommendation.workspace.tenderId,
+                reference: notice.recommendation.workspace.tender.reference,
+                title: notice.recommendation.workspace.tender.title,
+                procurementType: notice.recommendation.workspace.tender.type,
+                contractType: notice.recommendation.workspace.tender.contractType
+              },
+              financials: {
+                ...objectPayload(currentDraft.financials),
+                contractPrice: decimalToNumber(notice.recommendation.amount),
+                currency: notice.recommendation.currency,
+                budget: decimalToNumber(notice.recommendation.workspace.tender.budget)
+              },
+              awardLocked: false,
+              supplierLocked: false
+            }
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.contractParty.upsert({
+        where: { contractId_role: { contractId: preparedContract.id, role: ContractPartyRole.BUYER } },
+        update: {
+          organizationId: notice.buyerOrgId,
+          displayName: 'Buyer organization'
+        },
+        create: {
+          contractId: preparedContract.id,
+          role: ContractPartyRole.BUYER,
+          organizationId: notice.buyerOrgId,
+          displayName: 'Buyer organization',
+          payload: {}
+        }
+      });
+      await tx.contractParty.upsert({
+        where: { contractId_role: { contractId: preparedContract.id, role: ContractPartyRole.SUPPLIER } },
+        update: {
+          organizationId: notice.supplierOrgId,
+          displayName: 'Supplier organization'
+        },
+        create: {
+          contractId: preparedContract.id,
+          role: ContractPartyRole.SUPPLIER,
+          organizationId: notice.supplierOrgId,
+          displayName: 'Supplier organization',
+          payload: {}
+        }
+      });
+      for (const clause of contractClauses) {
+        await tx.contractClause.upsert({
+          where: { contractId_clauseKey: { contractId: preparedContract.id, clauseKey: clause.clauseKey } },
+          update: {
+            title: clause.title,
+            body: clause.body ?? undefined,
+            category: clause.category,
+            status: clause.status,
+            buyerComment: clause.buyerComment ?? undefined,
+            supplierComment: clause.supplierComment ?? undefined,
+            legalComment: clause.legalComment ?? undefined,
+            payload: {
+              ...objectPayload(clause.payload),
+              mergedFromAwardAt: new Date().toISOString()
+            } as Prisma.InputJsonObject
+          },
+          create: {
+            contractId: preparedContract.id,
+            ...clause
+          }
+        });
+      }
+      const latestVersion = await tx.contractVersion.findFirst({ where: { contractId: preparedContract.id }, orderBy: { versionNo: 'desc' } });
+      await tx.contractVersion.create({
+        data: {
+          contractId: preparedContract.id,
+          versionNo: (latestVersion?.versionNo ?? 0) + 1,
+          payload: {
+            source: 'award_acceptance',
+            generatedAt: new Date().toISOString(),
+            tenderReference: notice.recommendation.workspace.tender.reference,
+            awardId: notice.recommendationId,
+            awardGroupId: notice.recommendation.awardGroupId,
+            reusedPreAwardDraft: true,
+            clauseKeys: contractClauses.map((clause) => clause.clauseKey)
+          } as Prisma.InputJsonObject
+        }
+      });
+      const hasPaymentSchedule = await tx.contractPaymentSchedule.count({ where: { contractId: preparedContract.id } });
+      if (hasPaymentSchedule === 0) {
+        await tx.contractPaymentSchedule.create({
+          data: {
+            contractId: preparedContract.id,
+            title: 'Initial contract payment schedule',
+            amount: notice.recommendation.amount,
+            currency: notice.recommendation.currency,
+            payload: {
+              source: 'award_acceptance',
+              instruction: 'Refine into milestone-based payments during contract review.'
+            } as Prisma.InputJsonObject
+          }
+        });
+      }
+      const hasPurchaseOrder = await tx.purchaseOrder.count({ where: { contractId: preparedContract.id } });
+      if (hasPurchaseOrder === 0) {
+        await tx.purchaseOrder.create({
+          data: {
+            contractId: preparedContract.id,
+            reference: purchaseOrderReference(),
+            buyerOrgId: notice.buyerOrgId,
+            amount: notice.recommendation.amount ?? 0,
+            currency: notice.recommendation.currency,
+            payload: {
+              source: 'award_acceptance',
+              noticeId: notice.id,
+              awardId: notice.recommendationId,
+              tenderReference: notice.recommendation.workspace.tender.reference
+            } as Prisma.InputJsonObject
+          }
+        });
+      }
+      for (const document of defaultRequiredDocuments(String(notice.recommendation.workspace.tender.type))) {
+        await tx.contractRequiredDocument.upsert({
+          where: { contractId_documentType: { contractId: preparedContract.id, documentType: document.documentType } },
+          update: {},
+          create: {
+            contractId: preparedContract.id,
+            ...document
+          }
+        });
+      }
+      for (const approval of defaultWorkflowApprovals()) {
+        await tx.contractWorkflowApproval.upsert({
+          where: { contractId_stepKey: { contractId: preparedContract.id, stepKey: approval.stepKey } },
+          update: {},
+          create: {
+            contractId: preparedContract.id,
+            ...approval
+          }
+        });
+      }
+      await tx.contractManagementPlan.upsert({
+        where: { contractId: preparedContract.id },
+        update: {},
+        create: {
+          contractId: preparedContract.id,
+          objectives: `Deliver ${notice.recommendation.workspace.tender.title} according to the approved tender scope, winning bid, agreed time, quality, and cost.`,
+          monitoringPlan: 'Track milestones, KPIs, risks, inspections, payments, variations, disputes, and close-out actions in ProcureX.',
+          reportingPlan: 'The contract owner reviews progress and exceptions regularly in ProcureX and records any needed specialist input as supporting evidence.',
+          communicationPlan: 'All formal notices, evidence, comments, and decisions are recorded in ProcureX.',
+          payload: {}
+        }
+      });
+      const hasMobilization = await tx.contractMobilizationItem.count({ where: { contractId: preparedContract.id } });
+      if (hasMobilization === 0) {
+        await tx.contractMobilizationItem.createMany({
+          data: defaultMobilizationItems(String(notice.recommendation.workspace.tender.type)).map((item) => ({
+            contractId: preparedContract.id,
+            ...item
+          }))
+        });
+      }
+      const hasKpis = await tx.contractKpi.count({ where: { contractId: preparedContract.id } });
+      if (hasKpis === 0) {
+        await tx.contractKpi.createMany({
+          data: defaultKpis().map((item) => ({
+            contractId: preparedContract.id,
+            ...item
+          }))
+        });
+      }
+      if (notice.recommendation.awardGroupId) {
+        await tx.awardWinner.updateMany({
+          where: { awardGroupId: notice.recommendation.awardGroupId, recommendationId: notice.recommendationId },
+          data: { contractId: preparedContract.id, status: 'CONTRACT_FORMED' }
+        });
+        await tx.awardGroup.update({
+          where: { id: notice.recommendation.awardGroupId },
+          data: { status: 'CONTRACT_FORMED' }
+        });
+      }
+      return preparedContract;
+    }
     const contract = await tx.contract.create({
       data: {
         reference: contractReference(),
@@ -4180,63 +5942,6 @@ export class ModuleRepository {
     if (blockingMobilization.length > 0) {
       throw requestError('Required mobilization checklist items must be approved or waived before activation.', 409);
     }
-  }
-
-  private async syncUrgentActions(ownerOrgId: string, actions: LifecycleActionDto[]) {
-    const keys = actions.map((item) => item.nextAction.key ? `${item.id}:${item.nextAction.key}` : item.id);
-    await Promise.all(actions.map((item) => {
-      const actionKey = item.nextAction.key ? `${item.id}:${item.nextAction.key}` : item.id;
-      return this.db.urgentAction.upsert({
-        where: {
-          ownerOrgId_actionKey: {
-            ownerOrgId,
-            actionKey
-          }
-        },
-        update: {
-          title: item.title,
-          requiredAction: item.requiredAction,
-          riskLevel: item.riskLevel,
-          dueDate: item.dueDate ? new Date(item.dueDate) : null,
-          status: 'OPEN',
-          nextRoute: item.nextAction.url,
-          contractId: item.contractId,
-          awardId: item.awardId,
-          noticeId: item.noticeId,
-          payload: {
-            currentStage: item.currentStage,
-            roleContext: item.roleContext,
-            nextAction: item.nextAction
-          } as Prisma.InputJsonObject
-        },
-        create: {
-          ownerOrgId,
-          actionKey,
-          title: item.title,
-          requiredAction: item.requiredAction,
-          riskLevel: item.riskLevel,
-          dueDate: item.dueDate ? new Date(item.dueDate) : null,
-          status: 'OPEN',
-          nextRoute: item.nextAction.url,
-          contractId: item.contractId,
-          awardId: item.awardId,
-          noticeId: item.noticeId,
-          payload: {
-            currentStage: item.currentStage,
-            roleContext: item.roleContext,
-            nextAction: item.nextAction
-          } as Prisma.InputJsonObject
-        }
-      });
-    }));
-    await this.db.urgentAction.updateMany({
-      where: {
-        ownerOrgId,
-        status: 'OPEN',
-        ...(keys.length > 0 ? { actionKey: { notIn: keys } } : {})
-      },
-      data: { status: 'RESOLVED' }
-    });
   }
 
   private async audit(tx: DbClient, ownerOrgId: string | null, actorUserId: string | undefined, event: string, entityType: string, entityRef: string, payload: Record<string, unknown>) {

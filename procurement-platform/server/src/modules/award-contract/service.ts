@@ -6,15 +6,24 @@ import {
   type AwardApprovalRouteInput,
   type AwardApprovalStepInput,
   type AwardNotificationInput,
+  type AwardNoticeCancelInput,
+  type AwardNoticeReissueInput,
   type AwardNoticeResponseInput,
   type AwardSettlementInput,
   type AwardTieBreakerInput,
   type AcceptanceInput,
   type BudgetCommitmentInput,
   type ClauseInput,
+  type ContractChangeRequestInput,
   type ContractCloseoutInput,
+  type AwardContractDocumentUploadInput,
+  type ContractCommencementInput,
   type ContractManagementPlanInput,
+  type ContractNonConformanceInput,
   type ContractPaymentInput,
+  type ContractPenaltyInput,
+  type ContractReferenceSampleInput,
+  type ContractSecurityInput,
   type AwardRecommendationQuery,
   type DeliverableInput,
   type DeliveryFeasibilityInput,
@@ -37,6 +46,12 @@ import {
   type RequiredDocumentInput,
   type RiskInput,
   type RiskForecastInput,
+  type SampleCustodyTransferInput,
+  type SampleDispositionInput,
+  type SampleEvaluationInput,
+  type SampleReceiptInput,
+  type SampleTestInput,
+  type SampleVerificationInput,
   type StandstillPeriodInput,
   type SupplierPerformanceInput,
   type SupplierRiskProfileInput,
@@ -77,6 +92,52 @@ export class ModuleService {
 
   dashboard(context: AwardContractRequestContext) {
     return this.repository.dashboard(context);
+  }
+
+  listSamples(context: AwardContractRequestContext) {
+    return this.repository.listSamples(context);
+  }
+
+  async sample(sampleId: string, context: AwardContractRequestContext) {
+    const sample = await this.repository.getSample(sampleId, context);
+    if (!sample) throw requestError('Sample was not found.', 404);
+    return sample;
+  }
+
+  receiveSample(sampleId: string, input: SampleReceiptInput, context: AwardContractRequestContext) {
+    return this.repository.receiveSample(sampleId, input, context);
+  }
+
+  verifySample(sampleId: string, input: SampleVerificationInput, context: AwardContractRequestContext) {
+    return this.repository.verifySample(sampleId, input, context);
+  }
+
+  transferSampleCustody(sampleId: string, input: SampleCustodyTransferInput, context: AwardContractRequestContext) {
+    return this.repository.transferSampleCustody(sampleId, input, context);
+  }
+
+  evaluateSample(sampleId: string, input: SampleEvaluationInput, context: AwardContractRequestContext) {
+    return this.repository.evaluateSample(sampleId, input, context);
+  }
+
+  createSampleTest(sampleId: string, input: SampleTestInput, context: AwardContractRequestContext) {
+    return this.repository.createSampleTest(sampleId, input, context);
+  }
+
+  requestSampleClarification(sampleId: string, input: SampleVerificationInput, context: AwardContractRequestContext) {
+    return this.repository.requestSampleClarification(sampleId, input, context);
+  }
+
+  returnSample(sampleId: string, input: SampleDispositionInput, context: AwardContractRequestContext) {
+    return this.repository.returnSample(sampleId, input, context);
+  }
+
+  retainSample(sampleId: string, input: SampleDispositionInput & ContractReferenceSampleInput, context: AwardContractRequestContext) {
+    return this.repository.retainSample(sampleId, input, context);
+  }
+
+  disposeSample(sampleId: string, input: SampleDispositionInput, context: AwardContractRequestContext) {
+    return this.repository.disposeSample(sampleId, input, context);
   }
 
   listRecommendations(query: AwardRecommendationQuery, context: AwardContractRequestContext) {
@@ -161,14 +222,40 @@ export class ModuleService {
     return recommendation;
   }
 
+  async cancelAwardNotice(id: string, input: AwardNoticeCancelInput, context: AwardContractRequestContext) {
+    const recommendation = await this.repository.cancelAwardNotice(id, input, context);
+    if (!recommendation) throw requestError('Award notice was not found after cancellation.', 404);
+    return recommendation;
+  }
+
+  async reissueAwardNotice(id: string, input: AwardNoticeReissueInput, context: AwardContractRequestContext) {
+    const recommendation = await this.repository.reissueAwardNotice(id, input, context);
+    if (!recommendation) throw requestError('Award notice was not found after reissue.', 404);
+    return recommendation;
+  }
+
   listContracts(query: ContractQuery, context: AwardContractRequestContext) {
     return this.repository.listContracts(query, context);
+  }
+
+  async prepareTenderContractDraft(tenderId: string, context: AwardContractRequestContext) {
+    const contract = await this.repository.prepareTenderContractDraft(tenderId, context);
+    if (!contract) throw requestError('Contract was not found after draft preparation.', 404);
+    return contract;
   }
 
   async contract(id: string, context: AwardContractRequestContext) {
     const contract = await this.repository.getContract(id, context);
     if (!contract) throw requestError('Contract was not found.', 404);
     return contract;
+  }
+
+  contractDocuments(id: string, context: AwardContractRequestContext) {
+    return this.repository.contractDocuments(id, context);
+  }
+
+  uploadContractDocument(id: string, input: AwardContractDocumentUploadInput, context: AwardContractRequestContext) {
+    return this.repository.uploadContractDocument(id, input, context);
   }
 
   async createContractVersion(id: string, input: ContractVersionInput, context: AwardContractRequestContext) {
@@ -215,6 +302,26 @@ export class ModuleService {
 
   upsertManagementPlan(contractId: string, input: ContractManagementPlanInput, context: AwardContractRequestContext) {
     return this.repository.upsertManagementPlan(contractId, input, context);
+  }
+
+  upsertCommencement(contractId: string, input: ContractCommencementInput, context: AwardContractRequestContext) {
+    return this.repository.upsertCommencement(contractId, input, context);
+  }
+
+  createNonConformance(contractId: string, input: ContractNonConformanceInput, context: AwardContractRequestContext) {
+    return this.repository.createNonConformance(contractId, input, context);
+  }
+
+  createContractSecurity(contractId: string, input: ContractSecurityInput, context: AwardContractRequestContext) {
+    return this.repository.createContractSecurity(contractId, input, context);
+  }
+
+  createContractPenalty(contractId: string, input: ContractPenaltyInput, context: AwardContractRequestContext) {
+    return this.repository.createContractPenalty(contractId, input, context);
+  }
+
+  createContractChangeRequest(contractId: string, input: ContractChangeRequestInput, context: AwardContractRequestContext) {
+    return this.repository.createContractChangeRequest(contractId, input, context);
   }
 
   updateMobilizationItem(contractId: string, itemId: string, input: LifecycleItemPatchInput, context: AwardContractRequestContext) {

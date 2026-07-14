@@ -63,7 +63,8 @@ export type WorkflowAccessDto = {
 export type LifecycleUrgency = 'Critical' | 'High' | 'Medium' | 'Low';
 
 export type LifecycleQueueId =
-  | 'my-urgent-actions'
+  | 'sample-procurement'
+  | 'contract-preparation'
   | 'awarding-in-progress'
   | 'awards-received'
   | 'contracts-in-progress'
@@ -73,7 +74,7 @@ export type LifecycleQueueId =
 export type LifecycleActionDto = {
   id: string;
   roleContext: LifecycleRoleContext;
-  sourceType: 'TENDER_CREATED' | 'AWARD_RECEIVED' | 'CONTRACT_ACTIVE';
+  sourceType: 'TENDER_CREATED' | 'AWARD_RECEIVED' | 'CONTRACT_ACTIVE' | 'SAMPLE_ACTION';
   tenderId: string | null;
   awardId: string | null;
   noticeId: string | null;
@@ -104,7 +105,6 @@ export type LifecycleActionDto = {
 
 export type AwardContractDashboardDto = {
   summary: {
-    urgentActions: number;
     awardQueues: number;
     contractActions: number;
   };
@@ -398,6 +398,12 @@ export type ContractDetailDto = ContractListItemDto & {
   threeWayMatches: Array<Record<string, unknown>>;
   paymentApprovals: Array<Record<string, unknown>>;
   paymentConfirmations: Array<Record<string, unknown>>;
+  commencements: Array<Record<string, unknown>>;
+  nonConformances: Array<Record<string, unknown>>;
+  securities: Array<Record<string, unknown>>;
+  penalties: Array<Record<string, unknown>>;
+  changeRequests: Array<Record<string, unknown>>;
+  referenceSamples: Array<Record<string, unknown>>;
   risks: ContractRiskDto[];
   riskForecasts: Array<Record<string, unknown>>;
   variations: ContractVariationDto[];
@@ -415,6 +421,51 @@ export type ContractDetailDto = ContractListItemDto & {
   supplierRiskProfile: Record<string, unknown> | null;
   audit: AuditEventDto[];
   createdAt: string;
+};
+
+export type AwardContractSampleDto = {
+  id: string;
+  bidSampleId: string | null;
+  viewerRole: ViewerRole;
+  sampleRequired: boolean;
+  sampleRequirementStatus: 'SUBMITTED' | 'MISSING_REQUIRED' | 'NOT_REQUIRED';
+  actionable: boolean;
+  tenderId: string;
+  tenderReference: string | null;
+  tenderTitle: string;
+  bidId: string;
+  supplierOrgId: string;
+  supplierName: string;
+  buyerOrgId: string;
+  sampleName: string;
+  relatedItem: string;
+  quantity: number | null;
+  deliveryLocation: string;
+  deliveryDeadline: string | null;
+  trackingStatus: string;
+  awardingStatus: string;
+  sampleReference: string;
+  courier: string;
+  trackingNumber: string;
+  submittedAt: string | null;
+  receivedAt: string | null;
+  inspectedAt: string | null;
+  receipt: Record<string, unknown> | null;
+  latestVerification: Record<string, unknown> | null;
+  evaluations: Array<Record<string, unknown>>;
+  tests: Array<Record<string, unknown>>;
+  custodyLogs: Array<Record<string, unknown>>;
+  dispositions: Array<Record<string, unknown>>;
+  referenceSamples: Array<Record<string, unknown>>;
+  contractId: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AwardContractSampleDashboardDto = {
+  summary: Record<string, number>;
+  queues: Record<string, AwardContractSampleDto[]>;
 };
 
 export type ListAwardRecommendationsResponseDto = {
@@ -447,6 +498,7 @@ export type AwardDecisionDraftInput = {
     authorityConfirmed?: boolean;
   };
   note: string;
+  signatureKeyphrase?: string;
 };
 
 export type AwardDecisionInput = AwardDecisionDraftInput;
@@ -454,6 +506,19 @@ export type AwardDecisionInput = AwardDecisionDraftInput;
 export type AwardNoticeResponseInput = {
   action: AwardResponseAction;
   note: string;
+  payload: Record<string, unknown>;
+  signatureKeyphrase?: string;
+};
+
+export type AwardNoticeCancelInput = {
+  reason: string;
+  payload: Record<string, unknown>;
+};
+
+export type AwardNoticeReissueInput = {
+  supplierOrgId?: string;
+  bidId?: string;
+  reason: string;
   payload: Record<string, unknown>;
 };
 
@@ -492,6 +557,23 @@ export type ContractMilestoneEvidenceInput = {
   note: string;
 };
 
+export type AwardContractDocumentDto = {
+  id: string;
+  name: string;
+  documentType: string;
+  createdAt: string;
+  contentUrl: string;
+  sourceLabel: string;
+};
+
+export type AwardContractDocumentUploadInput = {
+  name: string;
+  documentType?: string;
+  mimeType?: string;
+  size?: number;
+  contentBase64?: string;
+};
+
 export type ContractStatusPatchInput = {
   status: ContractStatus;
   note: string;
@@ -519,6 +601,7 @@ export type LifecycleItemInput = {
 export type LifecycleItemPatchInput = Partial<LifecycleItemInput> & {
   required?: boolean;
   waived?: boolean;
+  signatureKeyphrase?: string;
 };
 
 export type InspectionInput = LifecycleItemInput & {
@@ -559,6 +642,7 @@ export type TerminationInput = {
 
 export type TerminationPatchInput = Partial<TerminationInput> & {
   status?: ContractTerminationStatus;
+  signatureKeyphrase?: string;
 };
 
 export type TerminationNoticeInput = {
@@ -616,6 +700,7 @@ export type ContractCloseoutInput = {
   warrantyEndDate?: string;
   lessonsLearned?: string;
   payload: Record<string, unknown>;
+  signatureKeyphrase?: string;
 };
 
 export type SupplierPerformanceInput = {
@@ -661,6 +746,7 @@ export type NegotiationInput = {
 export type AwardSettlementInput = {
   note: string;
   payload: Record<string, unknown>;
+  signatureKeyphrase?: string;
 };
 
 export type DeliverableInput = LifecycleItemInput & {
@@ -859,6 +945,7 @@ export type PaymentApprovalInput = {
   currency: string;
   note?: string;
   payload: Record<string, unknown>;
+  signatureKeyphrase?: string;
 };
 
 export type PaymentConfirmationInput = {
@@ -905,5 +992,174 @@ export type SupplierRiskProfileInput = {
   openViolations?: number;
   summary?: string;
   drivers?: unknown[];
+  payload: Record<string, unknown>;
+};
+
+export type SampleReceiptInput = {
+  receivedQuantity?: number;
+  conditionAtReceipt?: string;
+  packagingCondition?: string;
+  deliveryRepresentative?: string;
+  receivingOfficerId?: string;
+  storageLocation?: string;
+  missingComponents?: string;
+  visibleDamage?: string;
+  remarks?: string;
+  receivedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type SampleVerificationInput = {
+  result: string;
+  quantityAccepted?: boolean;
+  certificatesAttached?: boolean;
+  packagingAccepted?: boolean;
+  matchesBid?: boolean;
+  completeUndamaged?: boolean;
+  clarificationRequired?: boolean;
+  note?: string;
+  verifiedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type SampleCustodyTransferInput = {
+  fromCustodianId?: string;
+  toCustodianId?: string;
+  previousLocation?: string;
+  newLocation?: string;
+  transferPurpose: string;
+  conditionBefore?: string;
+  conditionAfter?: string;
+  remarks?: string;
+  transferredAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type SampleEvaluationInput = {
+  criterion: string;
+  score?: number;
+  maximumScore?: number;
+  passed?: boolean;
+  decision?: string;
+  comments?: string;
+  evaluatedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type SampleTestInput = {
+  testName: string;
+  testingInstitution?: string;
+  testingOfficer?: string;
+  testingMethod?: string;
+  testingStandard?: string;
+  expectedResult?: string;
+  actualResult?: string;
+  result?: string;
+  testCost?: number;
+  currency: string;
+  responsibleParty?: string;
+  reportDocumentId?: string;
+  testedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type SampleDispositionInput = {
+  dispositionType: string;
+  reason?: string;
+  supplierNotifiedAt?: string;
+  collectionDeadline?: string;
+  collectionRepresentative?: string;
+  returnCondition?: string;
+  disposalMethod?: string;
+  witnesses?: string;
+  acknowledgementDocumentId?: string;
+  status?: string;
+  completedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractReferenceSampleInput = {
+  contractId?: string;
+  referenceNo?: string;
+  storageLocation?: string;
+  status?: string;
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractCommencementInput = {
+  noticeDate?: string;
+  startDate?: string;
+  effectiveDate?: string;
+  completionDate?: string;
+  deliveryLocation?: string;
+  buyerContractManager?: string;
+  supplierContractManager?: string;
+  initialMeetingDate?: string;
+  approvedWorkPlan?: string;
+  approvedDeliverySchedule?: string;
+  status?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractNonConformanceInput = {
+  category: string;
+  title: string;
+  description?: string;
+  relatedRecordId?: string;
+  contractClause?: string;
+  severity?: string;
+  responsibleSupplierOfficer?: string;
+  correctiveAction?: string;
+  correctiveActionDeadline?: string;
+  verificationResult?: string;
+  status?: string;
+  identifiedAt?: string;
+  closedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractSecurityInput = {
+  securityType: string;
+  issuingInstitution?: string;
+  referenceNumber?: string;
+  amount?: number;
+  currency: string;
+  issueDate?: string;
+  expiryDate?: string;
+  verificationStatus?: string;
+  claimStatus?: string;
+  releasedAt?: string;
+  documentId?: string;
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractPenaltyInput = {
+  invoiceId?: string;
+  penaltyType: string;
+  contractClause?: string;
+  basis?: string;
+  amount?: number;
+  currency: string;
+  status?: string;
+  evidence?: unknown[];
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractChangeRequestInput = {
+  changeType: string;
+  title: string;
+  reason?: string;
+  technicalReview?: string;
+  financialReview?: string;
+  budgetCheck?: string;
+  legalReview?: string;
+  supplierResponse?: string;
+  amendmentVersionId?: string;
+  status?: string;
+  approvedAt?: string;
+  signedAt?: string;
   payload: Record<string, unknown>;
 };

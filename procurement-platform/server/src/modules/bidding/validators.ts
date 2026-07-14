@@ -4,6 +4,7 @@ export const moduleStatusQuerySchema = z.object({}).passthrough();
 
 const uuidSchema = z.string().trim().uuid();
 const metadataSchema = z.record(z.unknown()).optional().default({});
+const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const tenderBidParamsSchema = z
   .object({
@@ -35,6 +36,7 @@ const bidSampleStatusSchema = z.enum(['REQUIRED', 'PENDING_SUBMISSION', 'SUBMITT
 
 const bidDocumentSchema = z
   .object({
+    documentId: uuidSchema.optional(),
     name: z.string().trim().min(1).max(240),
     documentType: z.string().trim().min(1).max(120),
     envelope: z.enum(['ADMINISTRATIVE', 'TECHNICAL', 'FINANCIAL', 'COMBINED']).optional().default('COMBINED'),
@@ -61,11 +63,12 @@ export const bidDraftBodySchema = z
     technical: z.record(z.unknown()).optional().default({}),
     financial: z.record(z.unknown()).optional().default({}),
     declarations: z.record(z.unknown()).optional().default({}),
-    responses: z.array(bidResponseSchema).max(300).optional().default([]),
-    documents: z.array(bidDocumentSchema).max(100).optional().default([]),
+    responses: z.array(bidResponseSchema).max(1000).optional().default([]),
+    documents: z.array(bidDocumentSchema).max(300).optional().default([]),
     fileManifest: z.record(z.unknown()).optional().default({}),
     envelopes: z.record(z.unknown()).optional().default({}),
     reviewReadiness: z.record(z.unknown()).optional().default({}),
+    workspaceState: z.record(z.unknown()).optional().default({}),
     totalAmount: z.coerce.number().min(0).max(999999999999999.99).optional(),
     currency: z.string().trim().min(3).max(8).optional(),
     completeness: z.record(z.unknown()).optional().default({}),
@@ -75,7 +78,7 @@ export const bidDraftBodySchema = z
 
 export const bidDocumentsBodySchema = z
   .object({
-    documents: z.array(bidDocumentSchema).min(1).max(100)
+    documents: z.array(bidDocumentSchema).min(1).max(300)
   })
   .strict();
 
@@ -107,5 +110,11 @@ export const patchBidSampleBodySchema = z
     inspectedAt: z.string().datetime().optional(),
     inspectionNotes: z.string().trim().max(2000).optional(),
     metadata: metadataSchema
+  })
+  .strict();
+
+export const bidSignatureBodySchema = z
+  .object({
+    signatureKeyphrase: signatureKeyphraseSchema
   })
   .strict();

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppSelector } from '@/app/store';
 import { adminApi } from '@/features/admin/api';
 import { identityApi } from '@/features/identity/api';
-import type { SigningCredentialStatus, VerificationMe } from '@/features/identity/types';
+import type { KeyphraseRecoveryHistoryItem, SigningCredentialStatus, VerificationMe } from '@/features/identity/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AdminCommandDrawer, AdminError, AdminHero, AdminShell, badgeClass, displayLabel, formatDate, useAdminCommand } from './AdminShared';
 
@@ -27,6 +27,7 @@ export function AdminProfileProcurexPage() {
   const sessionUser = useAppSelector((state) => state.auth.user);
   const [verificationMe, setVerificationMe] = useState<VerificationMe | null>(null);
   const [signature, setSignature] = useState<SigningCredentialStatus | null>(null);
+  const [keyphraseRecoveryHistory, setKeyphraseRecoveryHistory] = useState<KeyphraseRecoveryHistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<AdminProfileTab>('overview');
   const [language, setLanguage] = useState('en');
   const [timezone, setTimezone] = useState('Africa/Dar_es_Salaam');
@@ -46,6 +47,12 @@ export function AdminProfileProcurexPage() {
       ]);
       setVerificationMe(verificationResponse);
       setSignature(signatureResponse);
+      try {
+        const recoveryResponse = await identityApi.getAdminKeyphraseRecoveryHistory();
+        setKeyphraseRecoveryHistory(recoveryResponse.recoveries);
+      } catch {
+        setKeyphraseRecoveryHistory([]);
+      }
       setLanguage(verificationResponse.user?.preferences?.preferredLanguage ?? sessionUser?.preferences?.preferredLanguage ?? 'en');
       setTimezone(verificationResponse.user?.preferences?.timezone ?? sessionUser?.preferences?.timezone ?? 'Africa/Dar_es_Salaam');
     } catch (caught) {
@@ -194,6 +201,37 @@ export function AdminProfileProcurexPage() {
                 <dt>Created</dt><dd>{formatDate(signature?.createdAt)}</dd>
                 <dt>Revoked</dt><dd>{formatDate(signature?.revokedAt)}</dd>
               </dl>
+              <div className="iam-section-heading"><div><span className="section-kicker">Keyphrase recovery</span><h2>Recovery history</h2></div><span className="badge badge-info">Read only</span></div>
+              <div className="registry-info-table-wrap">
+                <table className="registry-info-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">User</th>
+                      <th scope="col">Organization</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Created</th>
+                      <th scope="col">Completed</th>
+                      <th scope="col">New fingerprint</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {keyphraseRecoveryHistory.length ? keyphraseRecoveryHistory.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.user?.displayName ?? item.email}</td>
+                        <td>{item.organization?.name ?? 'Not recorded'}</td>
+                        <td>{displayLabel(item.status)}</td>
+                        <td>{formatDate(item.createdAt)}</td>
+                        <td>{formatDate(item.completedAt)}</td>
+                        <td>{item.newKeyFingerprint ?? 'Not recorded'}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={6}>No keyphrase recovery events recorded.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </section>
           ) : null}
         </section>

@@ -106,7 +106,10 @@ export function CommunicationCenterProcurexPage() {
   const [messageLoading, setMessageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [supportRecipientNotice, setSupportRecipientNotice] = useState('');
+  const [supportSent, setSupportSent] = useState(false);
   const composePrefillKeyRef = useRef('');
+  const supportRecipientLookupRef = useRef('');
 
   useBodyPageMetadata('communication-center');
 
@@ -121,6 +124,7 @@ export function CommunicationCenterProcurexPage() {
   const attachmentsReady = composeAttachmentsReady(compose.attachments);
   const loadingAttachmentCount = compose.attachments.filter((attachment) => attachment.status === 'loading').length;
   const sendDisabled = saving || !hasRecipientDestination || !attachmentsReady;
+  const supportCompose = composeOpen && !replyOpen && searchParams.get('support') === 'true';
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder, nextPage = 1, nextSelectedId = '', nextSearch = '') => {
@@ -276,7 +280,8 @@ export function CommunicationCenterProcurexPage() {
 
     const prefilledCompose = composeStateFromParams(searchParams);
     if (prefilledCompose) setCompose(prefilledCompose);
-  }, [composeOpen, replyOpen, searchParamKey, searchParams]);
+    if (supportCompose) setSupportSent(false);
+  }, [composeOpen, replyOpen, searchParamKey, searchParams, supportCompose]);
 
   useEffect(() => {
     if (!composeOpen) return;
@@ -284,17 +289,33 @@ export function CommunicationCenterProcurexPage() {
 
     async function loadComposeLookups() {
       try {
+        const recipientSearch = supportCompose && !compose.recipientSearch.trim() ? 'admin' : compose.recipientSearch.trim() || undefined;
         const [recipientRows, tenderRows] = await Promise.all([
-          communicationApi.listRecipients({ search: compose.recipientSearch.trim() || undefined, pageSize: 20 }),
-          communicationApi.listTenderLinks({ search: compose.tenderSearch.trim() || undefined, pageSize: 20 })
+          communicationApi.listRecipients({ search: recipientSearch, pageSize: 20 }),
+          supportCompose ? Promise.resolve([]) : communicationApi.listTenderLinks({ search: compose.tenderSearch.trim() || undefined, pageSize: 20 })
         ]);
         if (!active) return;
         setRecipients(recipientRows);
         setTenders(tenderRows);
+        if (supportCompose && supportRecipientLookupRef.current !== searchParamKey) {
+          supportRecipientLookupRef.current = searchParamKey;
+          const supportRecipient = findSupportRecipient(recipientRows);
+          if (supportRecipient) {
+            setSupportRecipientNotice('');
+            setCompose((current) => ({
+              ...current,
+              recipients: current.recipients.length ? current.recipients : [supportRecipient],
+              recipientSearch: ''
+            }));
+          } else {
+            setSupportRecipientNotice('Select "ProcureX Platform" or an admin recipient before sending.');
+          }
+        }
       } catch {
         if (!active) return;
         setRecipients([]);
         setTenders([]);
+        if (supportCompose) setSupportRecipientNotice('Select "ProcureX Platform" or an admin recipient before sending.');
       }
     }
 
@@ -303,7 +324,7 @@ export function CommunicationCenterProcurexPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [compose.recipientSearch, compose.tenderSearch, composeOpen]);
+  }, [compose.recipientSearch, compose.tenderSearch, composeOpen, searchParamKey, supportCompose]);
 
   const counts = mailbox.counts;
   const visibleMessages = useMemo(
@@ -355,10 +376,20 @@ export function CommunicationCenterProcurexPage() {
   }
 
   function openCompose() {
+    setSupportRecipientNotice('');
+    setSupportSent(false);
     setCompose(initialComposeState());
     setSelectedId('');
     setSelectedMessage(null);
     setSearchParams({ view: 'compose' });
+  }
+
+  function closeCompose() {
+    if (supportCompose) {
+      navigate('/help');
+      return;
+    }
+    goCommunicationHome();
   }
 
   function openMessage(message: CommunicationMailboxMessage) {
@@ -491,6 +522,15 @@ export function CommunicationCenterProcurexPage() {
         })));
       const result = results[0];
       if (!result) throw new Error('No message was sent.');
+      if (supportCompose) {
+        setSupportSent(true);
+        setCompose(initialComposeState({
+          category: 'Support',
+          subject: 'Support request',
+          body: ''
+        }));
+        return;
+      }
       setFolder('sent');
       setSelectedId(result.message.id);
       setSelectedMessage(result.message);
@@ -541,16 +581,31 @@ export function CommunicationCenterProcurexPage() {
 
             {composeOpen ? (
               <section className="communication-compose-view">
+                {supportSent ? (
+                  <aside className="communication-compose-panel full-screen communication-detail empty">
+                    <strong>Support message sent</strong>
+                    <span>ProcureX admin support will reply through Communication Center.</span>
+                    <button className="btn btn-primary" type="button" onClick={() => navigate('/help')}>
+                      Return to Help Centre
+                    </button>
+                  </aside>
+                ) : (
                 <form className="communication-compose-panel full-screen" onSubmit={submitCompose}>
                   <div className="panel-heading">
                     <div>
-                      <span className="section-kicker">{replyOpen ? 'Reply message' : 'New message'}</span>
-                      <h2>{replyOpen ? 'Reply to sender' : 'Send procurement communication'}</h2>
+                      <span className="section-kicker">{supportCompose ? 'Support request' : replyOpen ? 'Reply message' : 'New message'}</span>
+                      <h2>{supportCompose ? 'Contact ProcureX admin support' : replyOpen ? 'Reply to sender' : 'Send procurement communication'}</h2>
                     </div>
-                    <button className="btn btn-secondary" type="button" onClick={() => goCommunicationHome()}>
+                    <button className="btn btn-secondary" type="button" onClick={closeCompose}>
                       Close
                     </button>
                   </div>
+                  {supportCompose ? (
+                    <section className="communication-context-panel">
+                      <strong>Support messages are sent privately to ProcureX admin support.</strong>
+                      <span>{supportRecipientNotice || 'The platform admin recipient will be selected automatically when available.'}</span>
+                    </section>
+                  ) : null}
                   <div className="communication-compose-grid">
                     <label className="span-2">
                       <span>From mailbox</span>
@@ -592,32 +647,36 @@ export function CommunicationCenterProcurexPage() {
                         <span className="badge badge-info">{compose.recipients.length} selected</span>
                       </div>
                     </div>
-                    <label className="span-2">
-                      <span>Find tender</span>
-                      <input className="form-input" value={compose.tenderSearch} onChange={(event) => setCompose((current) => ({ ...current, tenderSearch: event.target.value }))} placeholder="Search tender reference or title" />
-                    </label>
-                    <label>
-                      <span>Tender reference</span>
-                      <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
-                        <option value="">Not linked</option>
-                        {tenderOptions.map((tender) => (
-                          <option key={tender.id} value={tender.id}>
-                            {tender.reference}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span>Tender title</span>
-                      <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
-                        <option value="">Not linked</option>
-                        {tenderOptions.map((tender) => (
-                          <option key={tender.id} value={tender.id}>
-                            {tender.title}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    {!supportCompose ? (
+                      <>
+                        <label className="span-2">
+                          <span>Find tender</span>
+                          <input className="form-input" value={compose.tenderSearch} onChange={(event) => setCompose((current) => ({ ...current, tenderSearch: event.target.value }))} placeholder="Search tender reference or title" />
+                        </label>
+                        <label>
+                          <span>Tender reference</span>
+                          <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
+                            <option value="">Not linked</option>
+                            {tenderOptions.map((tender) => (
+                              <option key={tender.id} value={tender.id}>
+                                {tender.reference}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>Tender title</span>
+                          <select className="form-input" value={compose.tenderId} onChange={(event) => selectTender(event.target.value)}>
+                            <option value="">Not linked</option>
+                            {tenderOptions.map((tender) => (
+                              <option key={tender.id} value={tender.id}>
+                                {tender.title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    ) : null}
                     <label className="span-2">
                       <span>Subject</span>
                       <input className="form-input" value={compose.subject} onChange={(event) => setCompose((current) => ({ ...current, subject: event.target.value }))} placeholder="Subject" required />
@@ -659,16 +718,41 @@ export function CommunicationCenterProcurexPage() {
                         </div>
                       ) : null}
                     </div>
+                    {!supportCompose ? (
+                      <div className="span-2 communication-compose-attachments">
+                        <div>
+                          <span className="form-label">Attachments</span>
+                          <label className="btn btn-secondary communication-file-button">
+                            Add files
+                            <input type="file" multiple onChange={addAttachments} hidden />
+                          </label>
+                        </div>
+                        {compose.attachments.length ? (
+                          <div className="communication-attachment-list" aria-label="Selected attachments">
+                            {compose.attachments.map((attachment) => (
+                              <span className="communication-attachment-item" key={attachment.id}>
+                                <span>{attachment.name}</span>
+                                <em>{formatFileSize(attachment.size)}</em>
+                                <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
+                                  x
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="inline-actions">
                     <button className="btn btn-primary" type="submit" disabled={sendDisabled}>
-                      {saving ? 'Sending...' : replyOpen ? 'Send Reply' : 'Send Message'}
+                      {saving ? 'Sending...' : supportCompose ? 'Send Support Message' : replyOpen ? 'Send Reply' : 'Send Message'}
                     </button>
-                    <button className="btn btn-secondary" type="button" onClick={() => goCommunicationHome()}>
+                    <button className="btn btn-secondary" type="button" onClick={closeCompose}>
                       Cancel
                     </button>
                   </div>
                 </form>
+                )}
               </section>
             ) : messageView ? (
               <section className="communication-message-view">
@@ -932,9 +1016,10 @@ function composeStateFromParams(params: URLSearchParams): ComposeState | null {
   const recipientOrgId = params.get('recipientOrgId') ?? '';
   const recipientName = params.get('recipientName') ?? '';
   const subject = params.get('subject') ?? params.get('title') ?? '';
+  const body = params.get('body') ?? '';
   const category = params.get('category') ?? (params.get('mode') === 'clarification' ? 'Clarification' : '');
 
-  if (!tenderId && !recipientOrgId && !subject && !category) return null;
+  if (!tenderId && !recipientOrgId && !subject && !category && !body) return null;
 
   return initialComposeState({
     recipients: recipientOrgId
@@ -951,7 +1036,7 @@ function composeStateFromParams(params: URLSearchParams): ComposeState | null {
     tenderId,
     category: category || 'General Message',
     subject: subject || (category.toLowerCase().includes('clarification') ? 'Seeking clarification' : ''),
-    body: ''
+    body
   });
 }
 
@@ -971,8 +1056,10 @@ function metadataFromComposeParams(params: URLSearchParams): Record<string, unkn
   const actionLabel = params.get('actionLabel');
   const actionRoute = params.get('actionRoute');
   const mode = params.get('mode');
+  const support = params.get('support');
   return {
     ...(mode ? { mode } : {}),
+    ...(support ? { support } : {}),
     ...(actionLabel ? { actionLabel } : {}),
     ...(actionRoute ? { actionRoute } : {})
   };
@@ -1107,6 +1194,13 @@ function formatInputDate(value: string) {
 
 function errorMessage(_error: unknown, fallback: string) {
   return fallback;
+}
+
+function findSupportRecipient(recipients: CommunicationRecipient[]) {
+  return (
+    recipients.find((recipient) => recipient.kind === 'PLATFORM') ??
+    recipients.find((recipient) => /procurex platform|admin|support/i.test(recipient.name))
+  );
 }
 
 function recipientMatchesSearch(recipient: CommunicationRecipient, searchTerm: string) {

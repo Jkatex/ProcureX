@@ -307,6 +307,77 @@
       overflow-x: auto;
     }
 
+
+    .handover-index {
+      margin: 20px 0 28px;
+      padding: 16px 18px;
+      border: 1px solid var(--rule);
+      background: #fbfcff;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+    }
+
+    .handover-unit {
+      margin: 26px 0 34px;
+      padding: 18px 20px;
+      border: 1px solid var(--rule);
+      background: #ffffff;
+      break-before: page;
+      page-break-before: always;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      min-height: 820px;
+    }
+
+    .handover-unit h3 {
+      margin-top: 0;
+      color: var(--accent-dark);
+      font-size: 15pt;
+    }
+
+    .handover-unit h4 {
+      color: var(--ink);
+      margin-top: 16px;
+      font-size: 11pt;
+    }
+
+    .handover-unit .tagline {
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+    }
+
+    .handover-unit img {
+      max-height: 126mm;
+    }
+
+    .handover-unit table {
+      font-size: 9.6pt;
+    }
+
+    .mini-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0 18px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+    }
+
+    .mini-kpis div {
+      padding: 10px;
+      border: 1px solid var(--rule);
+      background: var(--soft);
+    }
+
+    .mini-kpis strong {
+      display: block;
+      color: var(--accent-dark);
+      font-size: 10.5pt;
+    }
+
+
     @media (max-width: 760px) {
       .page {
         margin: 0;
@@ -411,11 +482,11 @@
         </tr>
         <tr>
           <td>Prepared for</td>
-          <td>Implementation review, academic presentation, and project reporting</td>
+          <td>Engineering handover, implementation review, and technical maintenance</td>
         </tr>
         <tr>
           <td>Prepared on</td>
-          <td>July 12, 2026</td>
+          <td>July 13, 2026</td>
         </tr>
       </table>
     </section>
@@ -438,6 +509,7 @@
           <li><a href="#testing">Testing And Validation</a></li>
           <li><a href="#conclusion">Conclusion And Recommendations</a></li>
           <li><a href="#code-walkthrough">Code-Level Feature Walkthrough</a></li>
+          <li><a href="#engineering-handover">Engineering Handover Deep Dive</a></li>
           <li><a href="#references">References And Figures Used</a></li>
         </ol>
       </nav>
@@ -2124,7 +2196,7 @@ Workflow activity -> CommunicationItem | RecordEntry | AuditEvent</pre>
 202606190002_admin_full_cycle
 202606200001_bidding_active_bid_unique
 202606240001_contract_lifecycle_mvp
-202606250001_missing_award_contract_compliance_workflows
+202606250001_award_contract_compliance_workflows
 202606260001_award_contract_business_references
 202606280001_add_saved_tenders
 20260628154217_add_saved_tenders
@@ -4049,15 +4121,1635 @@ SignInProcurexPage.tsx
       </p>
     </section>
 
+
+    <section id="engineering-handover" class="section">
+      <h2>15. Engineering Handover Deep Dive</h2>
+      <p>
+        This section expands the implementation report into a handover manual for engineers who need to understand, maintain, test, and extend ProcureX. It is intentionally long and print-oriented: each handover plate starts on a fresh printed page and ties a system behavior back to concrete client, server, database, route, screenshot, or test evidence.
+      </p>
+      <div class="handover-index">
+        <strong>Handover plate index</strong>
+        <ol>
+          <li><a href="#handover-orientation">15.1 Engineering Handover Orientation</a></li>
+          <li><a href="#handover-module-public">15.2.1 Module Handover: Public Content And Marketplace Entry</a></li>
+          <li><a href="#handover-module-identity">15.2.2 Module Handover: Identity, Session, Verification, And Signing</a></li>
+          <li><a href="#handover-module-organization">15.2.3 Module Handover: Organization Membership And Capability Model</a></li>
+          <li><a href="#handover-module-procurement">15.2.4 Module Handover: Procurement Planning, Tenders, Publication, And Review</a></li>
+          <li><a href="#handover-module-bidding">15.2.5 Module Handover: Supplier Bidding Workspace</a></li>
+          <li><a href="#handover-module-evaluation">15.2.6 Module Handover: Bid Evaluation Workspace</a></li>
+          <li><a href="#handover-module-award-contract">15.2.7 Module Handover: Awarding, Contract Formation, And Post-Award Tracking</a></li>
+          <li><a href="#handover-module-communication">15.2.8 Module Handover: Communication Center</a></li>
+          <li><a href="#handover-module-records">15.2.9 Module Handover: Records And Operational History</a></li>
+          <li><a href="#handover-module-compliance-admin">15.2.10 Module Handover: Compliance Administration</a></li>
+          <li><a href="#handover-module-dashboard">15.2.11 Module Handover: Workspace Dashboard</a></li>
+          <li><a href="#handover-module-support">15.2.12 Module Handover: Support Tickets And Public Contact</a></li>
+          <li><a href="#handover-module-help-centre">15.2.13 Module Handover: Help Centre Knowledge Base</a></li>
+          <li><a href="#handover-module-documents">15.2.14 Module Handover: Document Object Boundary</a></li>
+          <li><a href="#handover-module-financial">15.2.15 Module Handover: Financial Workflow Records</a></li>
+          <li><a href="#handover-module-intelligence">15.2.16 Module Handover: Marketplace Intelligence</a></li>
+          <li><a href="#handover-module-integration">15.2.17 Module Handover: Integration Registry</a></li>
+          <li><a href="#handover-screen-welcome">15.3.1 Screen Handover: Welcome</a></li>
+          <li><a href="#handover-screen-about">15.3.2 Screen Handover: About ProcureX</a></li>
+          <li><a href="#handover-screen-privacy">15.3.3 Screen Handover: Privacy Policy</a></li>
+          <li><a href="#handover-screen-terms">15.3.4 Screen Handover: Terms And Conditions</a></li>
+          <li><a href="#handover-screen-contact">15.3.5 Screen Handover: Contact</a></li>
+          <li><a href="#handover-screen-guest-marketplace">15.3.6 Screen Handover: Guest Marketplace</a></li>
+          <li><a href="#handover-screen-register">15.3.7 Screen Handover: Registration</a></li>
+          <li><a href="#handover-screen-sign-in">15.3.8 Screen Handover: Sign In</a></li>
+          <li><a href="#handover-screen-role-selection">15.3.9 Screen Handover: Role Selection Redirect</a></li>
+          <li><a href="#handover-screen-iam-verification">15.3.10 Screen Handover: Identity Verification</a></li>
+          <li><a href="#handover-screen-verification-status">15.3.11 Screen Handover: Verification Status And Profile</a></li>
+          <li><a href="#handover-screen-app-launcher">15.3.12 Screen Handover: Application Launcher</a></li>
+          <li><a href="#handover-screen-workspace-dashboard">15.3.13 Screen Handover: Workspace Dashboard</a></li>
+          <li><a href="#handover-screen-supplier-marketplace">15.3.14 Screen Handover: Supplier Marketplace</a></li>
+          <li><a href="#handover-screen-create-tender">15.3.15 Screen Handover: Create Tender</a></li>
+          <li><a href="#handover-screen-tender-publication">15.3.16 Screen Handover: Tender Publication</a></li>
+          <li><a href="#handover-screen-tender-details">15.3.17 Screen Handover: Tender Details</a></li>
+          <li><a href="#handover-screen-tender-document">15.3.18 Screen Handover: Tender Document</a></li>
+          <li><a href="#handover-screen-supplier-tender-detail">15.3.19 Screen Handover: Supplier Tender Detail</a></li>
+          <li><a href="#handover-screen-supplier-journey">15.3.20 Screen Handover: Supplier Journey Guide</a></li>
+          <li><a href="#handover-screen-bidding-workspace">15.3.21 Screen Handover: Bidding Workspace</a></li>
+          <li><a href="#handover-screen-bid-evaluation">15.3.22 Screen Handover: Bid Evaluation</a></li>
+          <li><a href="#handover-screen-awarding-contracts">15.3.23 Screen Handover: Awarding And Contracts</a></li>
+          <li><a href="#handover-screen-award-recommendation">15.3.24 Screen Handover: Award Recommendation</a></li>
+          <li><a href="#handover-screen-award-response">15.3.25 Screen Handover: Award Response</a></li>
+          <li><a href="#handover-screen-contract-negotiation">15.3.26 Screen Handover: Contract Negotiation</a></li>
+          <li><a href="#handover-screen-post-award-tracking">15.3.27 Screen Handover: Post-Award Tracking</a></li>
+          <li><a href="#handover-screen-communication-center">15.3.28 Screen Handover: Communication Center</a></li>
+          <li><a href="#handover-screen-records-history">15.3.29 Screen Handover: Records History</a></li>
+          <li><a href="#handover-screen-admin-dashboard">15.3.30 Screen Handover: Admin Dashboard</a></li>
+          <li><a href="#handover-screen-admin-search">15.3.31 Screen Handover: Admin Search</a></li>
+          <li><a href="#handover-screen-admin-users">15.3.32 Screen Handover: Admin Users</a></li>
+          <li><a href="#handover-screen-admin-compliance">15.3.33 Screen Handover: Admin Compliance</a></li>
+          <li><a href="#handover-screen-admin-analytics">15.3.34 Screen Handover: Admin Analytics</a></li>
+          <li><a href="#handover-screen-admin-audit">15.3.35 Screen Handover: Admin Audit</a></li>
+          <li><a href="#handover-db-identity">15.4.1 Database Handover: Identity And Account Records</a></li>
+          <li><a href="#handover-db-organization">15.4.2 Database Handover: Organization And Capability Records</a></li>
+          <li><a href="#handover-db-procurement">15.4.3 Database Handover: Tender And Planning Records</a></li>
+          <li><a href="#handover-db-bidding">15.4.4 Database Handover: Bid Response Records</a></li>
+          <li><a href="#handover-db-evaluation">15.4.5 Database Handover: Evaluation Records</a></li>
+          <li><a href="#handover-db-award">15.4.6 Database Handover: Award Decision Records</a></li>
+          <li><a href="#handover-db-contract-core">15.4.7 Database Handover: Contract Formation Records</a></li>
+          <li><a href="#handover-db-contract-management">15.4.8 Database Handover: Post-Award Management Records</a></li>
+          <li><a href="#handover-db-samples">15.4.9 Database Handover: Sample And Inspection Records</a></li>
+          <li><a href="#handover-db-financial">15.4.10 Database Handover: Financial Control Records</a></li>
+          <li><a href="#handover-db-documents-audit">15.4.11 Database Handover: Documents, Audit, And Compliance Records</a></li>
+          <li><a href="#handover-db-communication">15.4.12 Database Handover: Communication, Support, And Records</a></li>
+          <li><a href="#handover-db-intelligence">15.4.13 Database Handover: Market Intelligence Records</a></li>
+          <li><a href="#handover-db-registry">15.4.14 Database Handover: Registry And Content Records</a></li>
+          <li><a href="#handover-db-enums">15.4.15 Database Handover: Core Enumerations</a></li>
+          <li><a href="#handover-flow-session">15.5.1 Data Flow Handover: Session Restoration</a></li>
+          <li><a href="#handover-flow-registration">15.5.2 Data Flow Handover: Registration And Activation</a></li>
+          <li><a href="#handover-flow-verification">15.5.3 Data Flow Handover: Organization Verification</a></li>
+          <li><a href="#handover-flow-tender-create">15.5.4 Data Flow Handover: Tender Creation</a></li>
+          <li><a href="#handover-flow-publication">15.5.5 Data Flow Handover: Tender Publication</a></li>
+          <li><a href="#handover-flow-bid-draft">15.5.6 Data Flow Handover: Bid Drafting</a></li>
+          <li><a href="#handover-flow-bid-submit">15.5.7 Data Flow Handover: Bid Submission</a></li>
+          <li><a href="#handover-flow-evaluation">15.5.8 Data Flow Handover: Evaluation Workspace Save</a></li>
+          <li><a href="#handover-flow-award">15.5.9 Data Flow Handover: Award Recommendation</a></li>
+          <li><a href="#handover-flow-contract">15.5.10 Data Flow Handover: Contract Execution</a></li>
+          <li><a href="#handover-flow-communication">15.5.11 Data Flow Handover: Message Collaboration</a></li>
+          <li><a href="#handover-flow-admin">15.5.12 Data Flow Handover: Admin Review</a></li>
+          <li><a href="#handover-flow-records">15.5.13 Data Flow Handover: Records Export</a></li>
+          <li><a href="#handover-flow-support">15.5.14 Data Flow Handover: Support Ticket</a></li>
+          <li><a href="#handover-flow-help">15.5.15 Data Flow Handover: Help Centre Message</a></li>
+          <li><a href="#handover-test-server-app">15.6.1 Testing Handover: Server Application Tests</a></li>
+          <li><a href="#handover-test-identity-auth">15.6.2 Testing Handover: Identity Authentication Tests</a></li>
+          <li><a href="#handover-test-module-validators">15.6.3 Testing Handover: Module Validator Tests</a></li>
+          <li><a href="#handover-test-procurement-service">15.6.4 Testing Handover: Procurement Tests</a></li>
+          <li><a href="#handover-test-bidding">15.6.5 Testing Handover: Bidding Tests</a></li>
+          <li><a href="#handover-test-evaluation">15.6.6 Testing Handover: Evaluation Tests</a></li>
+          <li><a href="#handover-test-award-contract">15.6.7 Testing Handover: Award Contract Tests</a></li>
+          <li><a href="#handover-test-client-routes">15.6.8 Testing Handover: Client Route Tests</a></li>
+          <li><a href="#handover-test-client-pages">15.6.9 Testing Handover: Client Page Tests</a></li>
+          <li><a href="#handover-test-i18n">15.6.10 Testing Handover: Localization And Shared Component Tests</a></li>
+          <li><a href="#handover-test-seed">15.6.11 Testing Handover: Seed And Demo Data Tests</a></li>
+          <li><a href="#handover-test-rls">15.6.12 Testing Handover: Row-Level Security Verification</a></li>
+          <li><a href="#handover-ops-workspace">15.7.1 Operations Handover: Workspace Setup</a></li>
+          <li><a href="#handover-ops-infra">15.7.2 Operations Handover: Local Infrastructure</a></li>
+          <li><a href="#handover-ops-database">15.7.3 Operations Handover: Database Lifecycle</a></li>
+          <li><a href="#handover-ops-server">15.7.4 Operations Handover: Server Runtime</a></li>
+          <li><a href="#handover-ops-client">15.7.5 Operations Handover: Client Runtime</a></li>
+          <li><a href="#handover-ops-screenshots">15.7.6 Operations Handover: UI Parity Screenshots</a></li>
+          <li><a href="#handover-ops-build">15.7.7 Operations Handover: Build Order</a></li>
+          <li><a href="#handover-ops-handover">15.7.8 Operations Handover: Maintenance Handover Routine</a></li>
+          <li><a href="#handover-closing">15.8 Engineering Handover Closing Notes</a></li>
+        </ol>
+      </div>
+
+    <article id="handover-orientation" class="handover-unit">
+      <h3>15.1 Engineering Handover Orientation</h3>
+      <p class="tagline">Purpose, reading order, and ownership boundaries for maintainers.</p>
+      <div class="summary-box">
+        <p>This chapter is written as an engineering handover layer on top of the formal report. Each plate is intentionally print-friendly: it starts on a new page, names the owned behavior, identifies the code paths or runtime contracts involved, and explains how a maintainer should reason about the implementation without changing application behavior.</p>
+      </div>
+      <p>The handover scope is the implemented ProcureX workspace as represented in the current repository. The frontend is the React application in <code>client/src</code>; the backend is the Express and Prisma application in <code>server/src</code>; shared account and organization contracts live in <code>shared/src</code>; local infrastructure is managed by Docker Compose. The static <code>procurex-ui</code> prototype remains a visual and workflow reference, while the production application is the React client registered through the page registry and router.</p>
+      <p>The report avoids speculative implementation claims. When a subsystem is documented here, the text describes an observable route, component, module boundary, schema model, script, test, or screenshot asset that exists in the repository.</p>
+            <table>
+        <tr><th>Reading Need</th><td>Start in the page registry, route file, module route file, or Prisma schema depending on whether the question is about UI, transport, business behavior, or persistence.</td></tr>
+        <tr><th>Layer Order</th><td>Browser route, feature component, API helper, Express route, controller, validator, service, repository, Prisma model, test.</td></tr>
+        <tr><th>Main Rule</th><td>Buyer and supplier are organization capabilities. Login account type remains <code>USER</code> or <code>ADMIN</code>.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-module-public" class="handover-unit">
+      <h3>15.2.1 Module Handover: Public Content And Marketplace Entry</h3>
+      <p class="tagline">Implemented module boundary: /api/public.</p>
+      <p>Public Content And Marketplace Entry is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/public</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/public</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/public</code></td></tr>
+        <tr><th>Primary data records</th><td>PublicPageVersion and public-facing procurement content</td></tr>
+        <tr><th>Route surface</th><td>Public pages, guest-facing content, and marketplace entry points</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-identity" class="handover-unit">
+      <h3>15.2.2 Module Handover: Identity, Session, Verification, And Signing</h3>
+      <p class="tagline">Implemented module boundary: /api/identity.</p>
+      <p>Identity, Session, Verification, And Signing is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/auth, client/src/features/identity</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/identity</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/identity</code></td></tr>
+        <tr><th>Primary data records</th><td>User, Account, Session, IdentityChallenge, VerificationProfile, DigitalSignature, SigningCredential, KeyphraseRecovery</td></tr>
+        <tr><th>Route surface</th><td>Registration, OTP, activation, password, sign-in, session, access/me, verification, signature, keyphrase, profile, and admin verification routes</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-organization" class="handover-unit">
+      <h3>15.2.3 Module Handover: Organization Membership And Capability Model</h3>
+      <p class="tagline">Implemented module boundary: /api/organization.</p>
+      <p>Organization Membership And Capability Model is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>shared contracts and client session state</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/organization</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/organization</code></td></tr>
+        <tr><th>Primary data records</th><td>Organization, OrganizationMember, OrganizationCapability, OrganizationProfile, BuyerProfile, SupplierProfile</td></tr>
+        <tr><th>Route surface</th><td>Organization profile and capability access</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-procurement" class="handover-unit">
+      <h3>15.2.4 Module Handover: Procurement Planning, Tenders, Publication, And Review</h3>
+      <p class="tagline">Implemented module boundary: /api/procurement.</p>
+      <p>Procurement Planning, Tenders, Publication, And Review is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/procurement, client/src/features/tenderPlanning</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/procurement</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/procurement</code></td></tr>
+        <tr><th>Primary data records</th><td>Tender, TenderAmendment, SavedTender, ProcurementPlan, TenderCategory, TenderDocument, TenderRequirement, TenderMilestone, TenderCommercialItem</td></tr>
+        <tr><th>Route surface</th><td>Marketplace, master data, design helpers, tenders, documents, amendments, publication, close, evaluation open, and planning</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-bidding" class="handover-unit">
+      <h3>15.2.5 Module Handover: Supplier Bidding Workspace</h3>
+      <p class="tagline">Implemented module boundary: /api/bidding.</p>
+      <p>Supplier Bidding Workspace is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/bidding</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/bidding</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/bidding</code></td></tr>
+        <tr><th>Primary data records</th><td>Bid, BidVersion, BidDocument, BidResponse, BidReceipt, BidSample</td></tr>
+        <tr><th>Route surface</th><td>My bids, tender schema, draft get/save, bid detail, patch, documents, samples, submit, and withdraw</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-evaluation" class="handover-unit">
+      <h3>15.2.6 Module Handover: Bid Evaluation Workspace</h3>
+      <p class="tagline">Implemented module boundary: /api/evaluation and /api/evaluations alias.</p>
+      <p>Bid Evaluation Workspace is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/evaluation</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/evaluation</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/evaluation and /api/evaluations alias</code></td></tr>
+        <tr><th>Primary data records</th><td>EvaluationWorkspace, WorkflowAssignment, EvaluationCriterion, EvaluationScore, AwardRecommendation</td></tr>
+        <tr><th>Route surface</th><td>Dashboard, records, drafts, ready list, and tender workspace get/save</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-award-contract" class="handover-unit">
+      <h3>15.2.7 Module Handover: Awarding, Contract Formation, And Post-Award Tracking</h3>
+      <p class="tagline">Implemented module boundary: /api/award-contract.</p>
+      <p>Awarding, Contract Formation, And Post-Award Tracking is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/awardsContracts</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/award-contract</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/award-contract</code></td></tr>
+        <tr><th>Primary data records</th><td>AwardRecommendation, AwardGroup, AwardWinner, ApprovalStep, AwardNotice, Contract, ContractVersion, ContractSignature, milestones, invoices, payments, risks, disputes, closeout</td></tr>
+        <tr><th>Route surface</th><td>Recommendations, approvals, notices, contract draft, samples, contracts, signatures, milestones, invoices, payments, risks, variations, disputes, terminations, closeout</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-communication" class="handover-unit">
+      <h3>15.2.8 Module Handover: Communication Center</h3>
+      <p class="tagline">Implemented module boundary: /api/communication.</p>
+      <p>Communication Center is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/communication</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/communication</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/communication</code></td></tr>
+        <tr><th>Primary data records</th><td>CommunicationItem, CommunicationAttachment</td></tr>
+        <tr><th>Route surface</th><td>Messages, compose, patch, read, archive, reply, recipients, tender links, and attachment delivery</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-records" class="handover-unit">
+      <h3>15.2.9 Module Handover: Records And Operational History</h3>
+      <p class="tagline">Implemented module boundary: /api/records.</p>
+      <p>Records And Operational History is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/records</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/records</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/records</code></td></tr>
+        <tr><th>Primary data records</th><td>RecordEntry and related history projections</td></tr>
+        <tr><th>Route surface</th><td>Dashboard, charts, insights, CSV export, PDF export, detail, and list</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-compliance-admin" class="handover-unit">
+      <h3>15.2.10 Module Handover: Compliance Administration</h3>
+      <p class="tagline">Implemented module boundary: /api/compliance-admin.</p>
+      <p>Compliance Administration is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/admin</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/compliance-admin</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/compliance-admin</code></td></tr>
+        <tr><th>Primary data records</th><td>ComplianceCase, ComplianceRule, SupplierRiskProfile, CollusionAlert, AdminAction, DataStoreEntry, AuditEvent</td></tr>
+        <tr><th>Route surface</th><td>Apps, dashboard, users, search, compliance, risk, audit, analytics, datastore, communication state, and admin actions</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-dashboard" class="handover-unit">
+      <h3>15.2.11 Module Handover: Workspace Dashboard</h3>
+      <p class="tagline">Implemented module boundary: /api/dashboard.</p>
+      <p>Workspace Dashboard is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/workspace</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/dashboard</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/dashboard</code></td></tr>
+        <tr><th>Primary data records</th><td>Aggregated tenders, bids, contracts, deadlines, and action queue data</td></tr>
+        <tr><th>Route surface</th><td>Workspace dashboard status and workspace data</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-support" class="handover-unit">
+      <h3>15.2.12 Module Handover: Support Tickets And Public Contact</h3>
+      <p class="tagline">Implemented module boundary: /api/support.</p>
+      <p>Support Tickets And Public Contact is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/support</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/support</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/support</code></td></tr>
+        <tr><th>Primary data records</th><td>SupportTicket, SupportTicketComment</td></tr>
+        <tr><th>Route surface</th><td>Public contact, ticket list, create, detail, comments, and status update</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-help-centre" class="handover-unit">
+      <h3>15.2.13 Module Handover: Help Centre Knowledge Base</h3>
+      <p class="tagline">Implemented module boundary: /api/help-centre.</p>
+      <p>Help Centre Knowledge Base is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>client/src/features/helpCentre and support pages</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/help-centre</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/help-centre</code></td></tr>
+        <tr><th>Primary data records</th><td>Help centre catalog and FAQ data</td></tr>
+        <tr><th>Route surface</th><td>Categories, FAQs, FAQ detail, popular, category, suggestions, and message</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-documents" class="handover-unit">
+      <h3>15.2.14 Module Handover: Document Object Boundary</h3>
+      <p class="tagline">Implemented module boundary: /api/documents.</p>
+      <p>Document Object Boundary is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>feature-specific document surfaces</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/documents</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/documents</code></td></tr>
+        <tr><th>Primary data records</th><td>DocumentObject with tender, bid, contract, communication, compliance, and verification relations</td></tr>
+        <tr><th>Route surface</th><td>Document status and session-aware object boundary</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-financial" class="handover-unit">
+      <h3>15.2.15 Module Handover: Financial Workflow Records</h3>
+      <p class="tagline">Implemented module boundary: /api/financial.</p>
+      <p>Financial Workflow Records is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>award-contract financial views</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/financial</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/financial</code></td></tr>
+        <tr><th>Primary data records</th><td>PurchaseOrder, Invoice, BudgetCommitment, ThreeWayMatchResult, PaymentApproval, PaymentConfirmation</td></tr>
+        <tr><th>Route surface</th><td>Financial lifecycle access and status</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-intelligence" class="handover-unit">
+      <h3>15.2.16 Module Handover: Marketplace Intelligence</h3>
+      <p class="tagline">Implemented module boundary: /api/intelligence.</p>
+      <p>Marketplace Intelligence is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>marketplace and analytics consumers</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/intelligence</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/intelligence</code></td></tr>
+        <tr><th>Primary data records</th><td>MarketSnapshot, PriceBenchmark, SupplierMatchSignal, RiskForecast, SupplierRiskProfile</td></tr>
+        <tr><th>Route surface</th><td>Marketplace analytics, recommendations, supplier matching, and intelligence status</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-module-integration" class="handover-unit">
+      <h3>15.2.17 Module Handover: Integration Registry</h3>
+      <p class="tagline">Implemented module boundary: /api/integration.</p>
+      <p>Integration Registry is maintained as a bounded feature area. A maintainer should read the route declarations first, then controller handlers, validators, service orchestration, repository persistence, Prisma records, and tests. This mirrors the runtime request path and keeps HTTP concerns separate from business rules.</p>
+            <table>
+        <tr><th>Client ownership</th><td><code>administrative and service consumers</code></td></tr>
+        <tr><th>Server ownership</th><td><code>server/src/modules/integration</code></td></tr>
+        <tr><th>API base path</th><td><code>/api/integration</code></td></tr>
+        <tr><th>Primary data records</th><td>Integration-facing registry and external reference records</td></tr>
+        <tr><th>Route surface</th><td>Integration status and registered integration views</td></tr>
+      </table>
+      <h4>Maintenance Method</h4>
+      <p>When investigating a user issue, start with the visible route or screen, identify the API helper called by that screen, verify the server endpoint mounted under the base path above, and then inspect the Prisma records named in the data row. For cross-module issues, follow stable identifiers such as account id, organization id, tender id, bid id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-screen-welcome" class="handover-unit">
+      <h3>15.3.1 Screen Handover: Welcome</h3>
+      <p class="tagline">User-facing route / in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/welcome.png" alt="Welcome screen">
+        <figcaption>Production React target screenshot for Welcome, routed at <code>/</code>.</figcaption>
+      </figure>
+      <p>The welcome screen establishes brand identity and routes guests toward marketplace discovery, registration, and sign-in.</p>
+            <table>
+        <tr><th>Route</th><td><code>/</code></td></tr>
+        <tr><th>Feature area</th><td>Public entry</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-about" class="handover-unit">
+      <h3>15.3.2 Screen Handover: About ProcureX</h3>
+      <p class="tagline">User-facing route /about in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/about-procurex.png" alt="About ProcureX screen">
+        <figcaption>Production React target screenshot for About ProcureX, routed at <code>/about</code>.</figcaption>
+      </figure>
+      <p>The about page explains the system value proposition without depending on authenticated workspace state.</p>
+            <table>
+        <tr><th>Route</th><td><code>/about</code></td></tr>
+        <tr><th>Feature area</th><td>Public information</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-privacy" class="handover-unit">
+      <h3>15.3.3 Screen Handover: Privacy Policy</h3>
+      <p class="tagline">User-facing route /privacy in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/privacy-policy.png" alt="Privacy Policy screen">
+        <figcaption>Production React target screenshot for Privacy Policy, routed at <code>/privacy</code>.</figcaption>
+      </figure>
+      <p>Policy pages are routed as public ProcureX pages so legal and trust content is reachable before account creation.</p>
+            <table>
+        <tr><th>Route</th><td><code>/privacy</code></td></tr>
+        <tr><th>Feature area</th><td>Public policy</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-terms" class="handover-unit">
+      <h3>15.3.4 Screen Handover: Terms And Conditions</h3>
+      <p class="tagline">User-facing route /terms in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/terms-and-conditions.png" alt="Terms And Conditions screen">
+        <figcaption>Production React target screenshot for Terms And Conditions, routed at <code>/terms</code>.</figcaption>
+      </figure>
+      <p>Terms content is implemented through the public page registry and styled with the ProcureX visual system.</p>
+            <table>
+        <tr><th>Route</th><td><code>/terms</code></td></tr>
+        <tr><th>Feature area</th><td>Public policy</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-contact" class="handover-unit">
+      <h3>15.3.5 Screen Handover: Contact</h3>
+      <p class="tagline">User-facing route /contact in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/contact.png" alt="Contact screen">
+        <figcaption>Production React target screenshot for Contact, routed at <code>/contact</code>.</figcaption>
+      </figure>
+      <p>The contact route connects public visitors to support and keeps support entry outside protected workspace routing.</p>
+            <table>
+        <tr><th>Route</th><td><code>/contact</code></td></tr>
+        <tr><th>Feature area</th><td>Support entry</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-guest-marketplace" class="handover-unit">
+      <h3>15.3.6 Screen Handover: Guest Marketplace</h3>
+      <p class="tagline">User-facing route /guest-marketplace in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/guest-marketplace.png" alt="Guest Marketplace screen">
+        <figcaption>Production React target screenshot for Guest Marketplace, routed at <code>/guest-marketplace</code>.</figcaption>
+      </figure>
+      <p>Guest marketplace previews procurement opportunities before sign-in while preserving the same product vocabulary used in authenticated marketplace flows.</p>
+            <table>
+        <tr><th>Route</th><td><code>/guest-marketplace</code></td></tr>
+        <tr><th>Feature area</th><td>Public marketplace</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-register" class="handover-unit">
+      <h3>15.3.7 Screen Handover: Registration</h3>
+      <p class="tagline">User-facing route /register in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/register.png" alt="Registration screen">
+        <figcaption>Production React target screenshot for Registration, routed at <code>/register</code>.</figcaption>
+      </figure>
+      <p>Registration begins identity creation, OTP verification, activation, and password setup through the identity module.</p>
+            <table>
+        <tr><th>Route</th><td><code>/register</code></td></tr>
+        <tr><th>Feature area</th><td>Identity onboarding</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-sign-in" class="handover-unit">
+      <h3>15.3.8 Screen Handover: Sign In</h3>
+      <p class="tagline">User-facing route /sign-in in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/sign-in.png" alt="Sign In screen">
+        <figcaption>Production React target screenshot for Sign In, routed at <code>/sign-in</code>.</figcaption>
+      </figure>
+      <p>Sign-in collects credentials and delegates token creation, session state, and access projection to the identity API.</p>
+            <table>
+        <tr><th>Route</th><td><code>/sign-in</code></td></tr>
+        <tr><th>Feature area</th><td>Authentication</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-role-selection" class="handover-unit">
+      <h3>15.3.9 Screen Handover: Role Selection Redirect</h3>
+      <p class="tagline">User-facing route /role-selection in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/role-selection.png" alt="Role Selection Redirect screen">
+        <figcaption>Production React target screenshot for Role Selection Redirect, routed at <code>/role-selection</code>.</figcaption>
+      </figure>
+      <p>The old role-selection surface is retained as route compatibility and redirects into registration because role behavior is organization-capability based.</p>
+            <table>
+        <tr><th>Route</th><td><code>/role-selection</code></td></tr>
+        <tr><th>Feature area</th><td>Identity compatibility</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-iam-verification" class="handover-unit">
+      <h3>15.3.10 Screen Handover: Identity Verification</h3>
+      <p class="tagline">User-facing route /identity/verification in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/iam-verification.png" alt="Identity Verification screen">
+        <figcaption>Production React target screenshot for Identity Verification, routed at <code>/identity/verification</code>.</figcaption>
+      </figure>
+      <p>Verification pages are protected but reachable before approval, allowing users to submit organization and registry evidence.</p>
+            <table>
+        <tr><th>Route</th><td><code>/identity/verification</code></td></tr>
+        <tr><th>Feature area</th><td>Verification workflow</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-verification-status" class="handover-unit">
+      <h3>15.3.11 Screen Handover: Verification Status And Profile</h3>
+      <p class="tagline">User-facing route /identity/profile in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/verification-status.png" alt="Verification Status And Profile screen">
+        <figcaption>Production React target screenshot for Verification Status And Profile, routed at <code>/identity/profile</code>.</figcaption>
+      </figure>
+      <p>Profile and verification status screens render account, organization, trust, and workflow readiness context.</p>
+            <table>
+        <tr><th>Route</th><td><code>/identity/profile</code></td></tr>
+        <tr><th>Feature area</th><td>Account profile</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-app-launcher" class="handover-unit">
+      <h3>15.3.12 Screen Handover: Application Launcher</h3>
+      <p class="tagline">User-facing route /apps in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/app-launcher.png" alt="Application Launcher screen">
+        <figcaption>Production React target screenshot for Application Launcher, routed at <code>/apps</code>.</figcaption>
+      </figure>
+      <p>The app launcher is verified-user workspace navigation that groups modules into a ProcureX operating system view.</p>
+            <table>
+        <tr><th>Route</th><td><code>/apps</code></td></tr>
+        <tr><th>Feature area</th><td>Workspace navigation</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-workspace-dashboard" class="handover-unit">
+      <h3>15.3.13 Screen Handover: Workspace Dashboard</h3>
+      <p class="tagline">User-facing route /dashboard in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/workspace-dashboard.png" alt="Workspace Dashboard screen">
+        <figcaption>Production React target screenshot for Workspace Dashboard, routed at <code>/dashboard</code>.</figcaption>
+      </figure>
+      <p>The dashboard route is verified and uses workspace summaries to direct users to tenders, bids, evaluations, awards, communication, and records.</p>
+            <table>
+        <tr><th>Route</th><td><code>/dashboard</code></td></tr>
+        <tr><th>Feature area</th><td>Operational dashboard</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-supplier-marketplace" class="handover-unit">
+      <h3>15.3.14 Screen Handover: Supplier Marketplace</h3>
+      <p class="tagline">User-facing route /procurement/marketplace in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/supplier-marketplace.png" alt="Supplier Marketplace screen">
+        <figcaption>Production React target screenshot for Supplier Marketplace, routed at <code>/procurement/marketplace</code>.</figcaption>
+      </figure>
+      <p>Marketplace screens expose published tender discovery, filtering, saved opportunities, and supplier-oriented tender navigation.</p>
+            <table>
+        <tr><th>Route</th><td><code>/procurement/marketplace</code></td></tr>
+        <tr><th>Feature area</th><td>Procurement marketplace</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-create-tender" class="handover-unit">
+      <h3>15.3.15 Screen Handover: Create Tender</h3>
+      <p class="tagline">User-facing route /procurement/create-tender in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/create-tender.png" alt="Create Tender screen">
+        <figcaption>Production React target screenshot for Create Tender, routed at <code>/procurement/create-tender</code>.</figcaption>
+      </figure>
+      <p>Create tender maps buyer input to tender, requirement, milestone, category, document, and commercial item records.</p>
+            <table>
+        <tr><th>Route</th><td><code>/procurement/create-tender</code></td></tr>
+        <tr><th>Feature area</th><td>Buyer tender creation</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-tender-publication" class="handover-unit">
+      <h3>15.3.16 Screen Handover: Tender Publication</h3>
+      <p class="tagline">User-facing route /procurement/tender-publication in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/tender-publication.png" alt="Tender Publication screen">
+        <figcaption>Production React target screenshot for Tender Publication, routed at <code>/procurement/tender-publication</code>.</figcaption>
+      </figure>
+      <p>Publication is the transition that makes prepared tender data visible for marketplace and supplier response workflows.</p>
+            <table>
+        <tr><th>Route</th><td><code>/procurement/tender-publication</code></td></tr>
+        <tr><th>Feature area</th><td>Tender lifecycle</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-tender-details" class="handover-unit">
+      <h3>15.3.17 Screen Handover: Tender Details</h3>
+      <p class="tagline">User-facing route /procurement/tender-details in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/tender-details.png" alt="Tender Details screen">
+        <figcaption>Production React target screenshot for Tender Details, routed at <code>/procurement/tender-details</code>.</figcaption>
+      </figure>
+      <p>Tender details aggregate procurement record data, documents, requirements, milestones, and publication state for review.</p>
+            <table>
+        <tr><th>Route</th><td><code>/procurement/tender-details</code></td></tr>
+        <tr><th>Feature area</th><td>Tender inspection</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-tender-document" class="handover-unit">
+      <h3>15.3.18 Screen Handover: Tender Document</h3>
+      <p class="tagline">User-facing route /procurement/tender-document in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/tender-document.png" alt="Tender Document screen">
+        <figcaption>Production React target screenshot for Tender Document, routed at <code>/procurement/tender-document</code>.</figcaption>
+      </figure>
+      <p>Document views provide the tender-document surface that connects procurement metadata and file evidence.</p>
+            <table>
+        <tr><th>Route</th><td><code>/procurement/tender-document</code></td></tr>
+        <tr><th>Feature area</th><td>Document inspection</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-supplier-tender-detail" class="handover-unit">
+      <h3>15.3.19 Screen Handover: Supplier Tender Detail</h3>
+      <p class="tagline">User-facing route /procurement/supplier-tender-detail in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/supplier-tender-detail.png" alt="Supplier Tender Detail screen">
+        <figcaption>Production React target screenshot for Supplier Tender Detail, routed at <code>/procurement/supplier-tender-detail</code>.</figcaption>
+      </figure>
+      <p>Supplier tender detail translates buyer publication data into a supplier response context that can lead into bidding.</p>
+            <table>
+        <tr><th>Route</th><td><code>/procurement/supplier-tender-detail</code></td></tr>
+        <tr><th>Feature area</th><td>Supplier opportunity detail</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-supplier-journey" class="handover-unit">
+      <h3>15.3.20 Screen Handover: Supplier Journey Guide</h3>
+      <p class="tagline">User-facing route /procurement/guide in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/supplier-journey.png" alt="Supplier Journey Guide screen">
+        <figcaption>Production React target screenshot for Supplier Journey Guide, routed at <code>/procurement/guide</code>.</figcaption>
+      </figure>
+      <p>The guide route explains workflow ordering across tender discovery, bidding, evaluation, and awards.</p>
+            <table>
+        <tr><th>Route</th><td><code>/procurement/guide</code></td></tr>
+        <tr><th>Feature area</th><td>Workflow guide</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-bidding-workspace" class="handover-unit">
+      <h3>15.3.21 Screen Handover: Bidding Workspace</h3>
+      <p class="tagline">User-facing route /bidding in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/bidding-workspace.png" alt="Bidding Workspace screen">
+        <figcaption>Production React target screenshot for Bidding Workspace, routed at <code>/bidding</code>.</figcaption>
+      </figure>
+      <p>Bidding workspace connects supplier drafts, bid responses, documents, samples, submit, withdraw, and receipt state.</p>
+            <table>
+        <tr><th>Route</th><td><code>/bidding</code></td></tr>
+        <tr><th>Feature area</th><td>Supplier bid preparation</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-bid-evaluation" class="handover-unit">
+      <h3>15.3.22 Screen Handover: Bid Evaluation</h3>
+      <p class="tagline">User-facing route /evaluation in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/bid-evaluation.png" alt="Bid Evaluation screen">
+        <figcaption>Production React target screenshot for Bid Evaluation, routed at <code>/evaluation</code>.</figcaption>
+      </figure>
+      <p>Evaluation screens show criteria, assignments, scoring, records, and recommendation preparation from submitted bid data.</p>
+            <table>
+        <tr><th>Route</th><td><code>/evaluation</code></td></tr>
+        <tr><th>Feature area</th><td>Evaluation</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-awarding-contracts" class="handover-unit">
+      <h3>15.3.23 Screen Handover: Awarding And Contracts</h3>
+      <p class="tagline">User-facing route /awards-contracts in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/awarding-contracts.png" alt="Awarding And Contracts screen">
+        <figcaption>Production React target screenshot for Awarding And Contracts, routed at <code>/awards-contracts</code>.</figcaption>
+      </figure>
+      <p>Awarding and contracts is the landing surface for recommendation review, award response, contract formation, samples, and post-award control.</p>
+            <table>
+        <tr><th>Route</th><td><code>/awards-contracts</code></td></tr>
+        <tr><th>Feature area</th><td>Award dashboard</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-award-recommendation" class="handover-unit">
+      <h3>15.3.24 Screen Handover: Award Recommendation</h3>
+      <p class="tagline">User-facing route /awards-contracts/recommendation in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/award-recommendation.png" alt="Award Recommendation screen">
+        <figcaption>Production React target screenshot for Award Recommendation, routed at <code>/awards-contracts/recommendation</code>.</figcaption>
+      </figure>
+      <p>Recommendation screens convert evaluation outputs into award groups, winner decisions, clauses, approval steps, and notices.</p>
+            <table>
+        <tr><th>Route</th><td><code>/awards-contracts/recommendation</code></td></tr>
+        <tr><th>Feature area</th><td>Award decision</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-award-response" class="handover-unit">
+      <h3>15.3.25 Screen Handover: Award Response</h3>
+      <p class="tagline">User-facing route /awards-contracts/award-response in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/award-response.png" alt="Award Response screen">
+        <figcaption>Production React target screenshot for Award Response, routed at <code>/awards-contracts/award-response</code>.</figcaption>
+      </figure>
+      <p>Award response handles supplier acknowledgement and response actions against issued award notices.</p>
+            <table>
+        <tr><th>Route</th><td><code>/awards-contracts/award-response</code></td></tr>
+        <tr><th>Feature area</th><td>Supplier award response</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-contract-negotiation" class="handover-unit">
+      <h3>15.3.26 Screen Handover: Contract Negotiation</h3>
+      <p class="tagline">User-facing route /awards-contracts/negotiation in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/contract-negotiation.png" alt="Contract Negotiation screen">
+        <figcaption>Production React target screenshot for Contract Negotiation, routed at <code>/awards-contracts/negotiation</code>.</figcaption>
+      </figure>
+      <p>Negotiation connects award recommendation data to contract clauses, versions, signatures, and parties.</p>
+            <table>
+        <tr><th>Route</th><td><code>/awards-contracts/negotiation</code></td></tr>
+        <tr><th>Feature area</th><td>Contract formation</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-post-award-tracking" class="handover-unit">
+      <h3>15.3.27 Screen Handover: Post-Award Tracking</h3>
+      <p class="tagline">User-facing route /awards-contracts/post-award in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/post-award-tracking.png" alt="Post-Award Tracking screen">
+        <figcaption>Production React target screenshot for Post-Award Tracking, routed at <code>/awards-contracts/post-award</code>.</figcaption>
+      </figure>
+      <p>Post-award tracking follows milestones, deliverables, inspections, invoices, payments, risks, variations, disputes, and closeout.</p>
+            <table>
+        <tr><th>Route</th><td><code>/awards-contracts/post-award</code></td></tr>
+        <tr><th>Feature area</th><td>Contract management</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-communication-center" class="handover-unit">
+      <h3>15.3.28 Screen Handover: Communication Center</h3>
+      <p class="tagline">User-facing route /communication in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/communication-center.png" alt="Communication Center screen">
+        <figcaption>Production React target screenshot for Communication Center, routed at <code>/communication</code>.</figcaption>
+      </figure>
+      <p>Communication pages expose structured messages, replies, attachments, tender links, read state, archive state, and admin communication review.</p>
+            <table>
+        <tr><th>Route</th><td><code>/communication</code></td></tr>
+        <tr><th>Feature area</th><td>Collaboration</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-records-history" class="handover-unit">
+      <h3>15.3.29 Screen Handover: Records History</h3>
+      <p class="tagline">User-facing route /records in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/records-history.png" alt="Records History screen">
+        <figcaption>Production React target screenshot for Records History, routed at <code>/records</code>.</figcaption>
+      </figure>
+      <p>Records history gives users an operational timeline with dashboard summaries, charts, exports, insights, and detail inspection.</p>
+            <table>
+        <tr><th>Route</th><td><code>/records</code></td></tr>
+        <tr><th>Feature area</th><td>Audit-facing history</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-admin-dashboard" class="handover-unit">
+      <h3>15.3.30 Screen Handover: Admin Dashboard</h3>
+      <p class="tagline">User-facing route /admin in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/admin-dashboard.png" alt="Admin Dashboard screen">
+        <figcaption>Production React target screenshot for Admin Dashboard, routed at <code>/admin</code>.</figcaption>
+      </figure>
+      <p>The admin dashboard is routed through AdminRoute and centralizes compliance, search, users, analytics, audit, datastore, and tender review navigation.</p>
+            <table>
+        <tr><th>Route</th><td><code>/admin</code></td></tr>
+        <tr><th>Feature area</th><td>Platform administration</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-admin-search" class="handover-unit">
+      <h3>15.3.31 Screen Handover: Admin Search</h3>
+      <p class="tagline">User-facing route /admin/search in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/admin-search.png" alt="Admin Search screen">
+        <figcaption>Production React target screenshot for Admin Search, routed at <code>/admin/search</code>.</figcaption>
+      </figure>
+      <p>Admin search is the platform-wide inspection surface for users, organizations, tenders, compliance records, and workflow evidence.</p>
+            <table>
+        <tr><th>Route</th><td><code>/admin/search</code></td></tr>
+        <tr><th>Feature area</th><td>Administrative search</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-admin-users" class="handover-unit">
+      <h3>15.3.32 Screen Handover: Admin Users</h3>
+      <p class="tagline">User-facing route /admin/users in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/admin-users.png" alt="Admin Users screen">
+        <figcaption>Production React target screenshot for Admin Users, routed at <code>/admin/users</code>.</figcaption>
+      </figure>
+      <p>User administration handles invite, suspend, reinstate, reset access, session revocation, and account oversight flows.</p>
+            <table>
+        <tr><th>Route</th><td><code>/admin/users</code></td></tr>
+        <tr><th>Feature area</th><td>User administration</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-admin-compliance" class="handover-unit">
+      <h3>15.3.33 Screen Handover: Admin Compliance</h3>
+      <p class="tagline">User-facing route /admin/compliance in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/admin-compliance.png" alt="Admin Compliance screen">
+        <figcaption>Production React target screenshot for Admin Compliance, routed at <code>/admin/compliance</code>.</figcaption>
+      </figure>
+      <p>Compliance pages work with cases, rules, reviews, violations, enforcements, appeals, supplier risk, and collusion alerts.</p>
+            <table>
+        <tr><th>Route</th><td><code>/admin/compliance</code></td></tr>
+        <tr><th>Feature area</th><td>Compliance casework</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-admin-analytics" class="handover-unit">
+      <h3>15.3.34 Screen Handover: Admin Analytics</h3>
+      <p class="tagline">User-facing route /admin/analytics in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/admin-analytics.png" alt="Admin Analytics screen">
+        <figcaption>Production React target screenshot for Admin Analytics, routed at <code>/admin/analytics</code>.</figcaption>
+      </figure>
+      <p>Admin analytics present procurement and compliance metrics assembled by the compliance administration module.</p>
+            <table>
+        <tr><th>Route</th><td><code>/admin/analytics</code></td></tr>
+        <tr><th>Feature area</th><td>Analytics</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-screen-admin-audit" class="handover-unit">
+      <h3>15.3.35 Screen Handover: Admin Audit</h3>
+      <p class="tagline">User-facing route /admin/audit in the implemented React client.</p>
+      <figure class="wide">
+        <img src="ui-parity/screenshots/desktop/target/admin-audit.png" alt="Admin Audit screen">
+        <figcaption>Production React target screenshot for Admin Audit, routed at <code>/admin/audit</code>.</figcaption>
+      </figure>
+      <p>Admin audit exposes audit events and platform action history to support traceability and compliance review.</p>
+            <table>
+        <tr><th>Route</th><td><code>/admin/audit</code></td></tr>
+        <tr><th>Feature area</th><td>Audit inspection</td></tr>
+        <tr><th>Registry relationship</th><td>The screen is exposed through the ProcureX page registry and then selected by the router. Public screens render directly. Workspace screens are wrapped with protected, verified, or admin guards depending on the workflow.</td></tr>
+        <tr><th>Maintenance check</th><td>When changing this screen, confirm the route still renders, the screenshot capture route remains mapped, and the related API helper continues to return data in the shape expected by the component.</td></tr>
+      </table>
+    </article>
+
+    <article id="handover-db-identity" class="handover-unit">
+      <h3>15.4.1 Database Handover: Identity And Account Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records describe people, account credentials, sessions, verification evidence, signing credentials, recovery actions, policy acceptance, and screening outcomes.</p>
+            <table>
+        <tr><th>Schema area</th><td>Identity And Account Records</td></tr>
+        <tr><th>Principal models</th><td>User, UserPreference, Account, UserPolicyAcceptance, Session, MfaFactor, IdentityChallenge, VerificationProfile, VerificationProfileHistory, DigitalSignature, SigningCredential, SignedAction, KeyphraseRecovery, VerificationDocument, ScreeningCheck</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-organization" class="handover-unit">
+      <h3>15.4.2 Database Handover: Organization And Capability Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records connect users to companies and express buyer or supplier ability as organization capabilities rather than login roles.</p>
+            <table>
+        <tr><th>Schema area</th><td>Organization And Capability Records</td></tr>
+        <tr><th>Principal models</th><td>Organization, OrganizationMember, OrganizationCapability, OrganizationProfile, BuyerProfile, SupplierProfile, TrustTierHistory, PermissionOverride</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-procurement" class="handover-unit">
+      <h3>15.4.3 Database Handover: Tender And Planning Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records support procurement planning, tender creation, publication, marketplace discovery, amendments, documents, requirements, milestones, commercial lines, and saved opportunities.</p>
+            <table>
+        <tr><th>Schema area</th><td>Tender And Planning Records</td></tr>
+        <tr><th>Principal models</th><td>Tender, TenderAmendment, SavedTender, ProcurementPlan, ProcurementPlanLine, TenderCategory, TenderDocument, TenderRequirement, TenderMilestone, TenderCommercialItem</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-bidding" class="handover-unit">
+      <h3>15.4.4 Database Handover: Bid Response Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records represent supplier workspaces, response versions, document evidence, response answers, submission receipts, and sample procurement evidence.</p>
+            <table>
+        <tr><th>Schema area</th><td>Bid Response Records</td></tr>
+        <tr><th>Principal models</th><td>Bid, BidVersion, BidDocument, BidResponse, BidReceipt, BidSample</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-evaluation" class="handover-unit">
+      <h3>15.4.5 Database Handover: Evaluation Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records hold evaluator workspace state, assignments, criteria, scoring evidence, and review progression.</p>
+            <table>
+        <tr><th>Schema area</th><td>Evaluation Records</td></tr>
+        <tr><th>Principal models</th><td>EvaluationWorkspace, WorkflowAssignment, EvaluationCriterion, EvaluationScore</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-award" class="handover-unit">
+      <h3>15.4.6 Database Handover: Award Decision Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records transform evaluation output into award decisions, approval routes, notices, response handling, feasibility checks, tie breakers, and award packs.</p>
+            <table>
+        <tr><th>Schema area</th><td>Award Decision Records</td></tr>
+        <tr><th>Principal models</th><td>AwardRecommendation, AwardGroup, AwardWinner, AwardClause, AwardNegotiation, AwardBidPack, ApprovalStep, AwardApprovalRoute, AwardApprovalStep, AwardTieBreaker, DeliveryFeasibilityCheck, AwardNotice, AwardResponse, StandstillPeriod, AwardNotification</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-contract-core" class="handover-unit">
+      <h3>15.4.7 Database Handover: Contract Formation Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records describe contract structure, participating parties, negotiated clauses, versions, signatures, milestone evidence, deliverables, and acceptance.</p>
+            <table>
+        <tr><th>Schema area</th><td>Contract Formation Records</td></tr>
+        <tr><th>Principal models</th><td>Contract, ContractParty, ContractClause, ContractNegotiation, ContractVersion, ContractSignature, ContractMilestone, ContractMilestoneEvidence, ContractDeliverable, ContractAcceptance</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-contract-management" class="handover-unit">
+      <h3>15.4.8 Database Handover: Post-Award Management Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records support live contract management, risk control, variations, disputes, termination, closeout, and performance history.</p>
+            <table>
+        <tr><th>Schema area</th><td>Post-Award Management Records</td></tr>
+        <tr><th>Principal models</th><td>ContractManagementPlan, ContractMobilizationItem, ContractKpi, ContractInspection, ContractRisk, ContractVariation, ContractIssue, ContractDispute, ContractTermination, TerminationNotice, TerminationEvidence, TerminationValuation, TerminationSettlement, ReplacementProcurementPlan, ContractCloseout, SupplierPerformanceRecord</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-samples" class="handover-unit">
+      <h3>15.4.9 Database Handover: Sample And Inspection Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records support technical sample handling, custody, testing, inspections, non-conformance, securities, penalties, change requests, approvals, and urgent actions.</p>
+            <table>
+        <tr><th>Schema area</th><td>Sample And Inspection Records</td></tr>
+        <tr><th>Principal models</th><td>GoodsInspection, PerformanceScore, ContractWarranty, ContractRequiredDocument, SampleReceipt, SampleCustodyLog, SampleVerification, SampleEvaluation, SampleTest, SampleDisposition, ContractReferenceSample, ContractCommencement, ContractNonConformance, ContractSecurity, ContractPenalty, ContractChangeRequest, ContractWorkflowApproval, UrgentAction</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-financial" class="handover-unit">
+      <h3>15.4.10 Database Handover: Financial Control Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records connect post-award execution to orders, invoices, commitments, matching outcomes, approvals, confirmations, and notifications.</p>
+            <table>
+        <tr><th>Schema area</th><td>Financial Control Records</td></tr>
+        <tr><th>Principal models</th><td>Notification, PurchaseOrder, Invoice, BudgetCommitment, ThreeWayMatchResult, PaymentApproval, PaymentConfirmation</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-documents-audit" class="handover-unit">
+      <h3>15.4.11 Database Handover: Documents, Audit, And Compliance Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records provide file metadata, audit evidence, compliance management, risk signals, enforcement, appeals, and administrator action history.</p>
+            <table>
+        <tr><th>Schema area</th><td>Documents, Audit, And Compliance Records</td></tr>
+        <tr><th>Principal models</th><td>DocumentObject, AuditEvent, ComplianceCase, ComplianceRule, RiskSignal, SupplierRiskProfile, RiskForecast, CollusionAlert, ComplianceReview, ViolationCase, ViolationEvidence, EnforcementRecord, AppealRecord, AdminAction</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-communication" class="handover-unit">
+      <h3>15.4.12 Database Handover: Communication, Support, And Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records preserve structured messages, attachments, user support history, comments, and operational record entries.</p>
+            <table>
+        <tr><th>Schema area</th><td>Communication, Support, And Records</td></tr>
+        <tr><th>Principal models</th><td>CommunicationItem, CommunicationAttachment, SupportTicket, SupportTicketComment, RecordEntry</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-intelligence" class="handover-unit">
+      <h3>15.4.13 Database Handover: Market Intelligence Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records support analytics, supplier matching, price benchmarking, and marketplace intelligence views.</p>
+            <table>
+        <tr><th>Schema area</th><td>Market Intelligence Records</td></tr>
+        <tr><th>Principal models</th><td>MarketSnapshot, PriceBenchmark, SupplierMatchSignal</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-registry" class="handover-unit">
+      <h3>15.4.14 Database Handover: Registry And Content Records</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>These records describe registered modules, public content versions, and administrator-maintained datastore entries.</p>
+            <table>
+        <tr><th>Schema area</th><td>Registry And Content Records</td></tr>
+        <tr><th>Principal models</th><td>ModuleRegistry, PublicPageVersion, DataStoreEntry</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-db-enums" class="handover-unit">
+      <h3>15.4.15 Database Handover: Core Enumerations</h3>
+      <p class="tagline">Prisma schema group in server/prisma/schema.prisma.</p>
+      <p>Enums make workflow states explicit across Prisma records, validators, services, and UI labels.</p>
+            <table>
+        <tr><th>Schema area</th><td>Core Enumerations</td></tr>
+        <tr><th>Principal models</th><td>AccountType, VerificationStatus, SessionStatus, OrganizationKind, OrganizationCapabilityName, MemberStatus, TrustTier, RiskLevel, TenderType, TenderStatus, ProcurementMethod, Visibility, BidStatus, EvaluationStatus, EvaluationStage, ApprovalStatus, RecommendationStatus, ContractStatus, SignatureStatus, InvoiceStatus, AuditSeverity, ComplianceCaseStatus, CommunicationStatus</td></tr>
+        <tr><th>Maintenance interpretation</th><td>Use these models as the persistence source of truth for the named workflow. Services should validate workflow intent before repositories write records, and UI components should treat API responses as projections of these records rather than direct database access.</td></tr>
+      </table>
+      <p>When extending this area, keep identifiers stable across related records. ProcureX workflows usually depend on account id, organization id, tender id, bid id, evaluation workspace id, recommendation id, contract id, document id, or audit event id.</p>
+    </article>
+
+    <article id="handover-flow-session" class="handover-unit">
+      <h3>15.5.1 Data Flow Handover: Session Restoration</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Browser reads stored bearer token; Axios attaches Authorization header; client auth state requests /api/identity/session; identity service validates token hash and session status; route guards decide whether to render, redirect to sign-in, redirect to verification, or redirect admins to admin routes.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-registration" class="handover-unit">
+      <h3>15.5.2 Data Flow Handover: Registration And Activation</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Registration starts through identity routes; validation normalizes applicant input; notification providers deliver or log OTP and activation codes according to environment; verified users set a password; session and profile flows then project account state to the client.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-verification" class="handover-unit">
+      <h3>15.5.3 Data Flow Handover: Organization Verification</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>The protected verification screen saves drafts, performs registry lookup, submits verification evidence, records screening outcome, and exposes administrator review and decision routes through identity admin endpoints.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-tender-create" class="handover-unit">
+      <h3>15.5.4 Data Flow Handover: Tender Creation</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Buyer opens create tender; procurement API submits structured tender data; validators enforce shape; service checks account and organization context; repository writes tender core data plus categories, requirements, milestones, documents, and commercial items.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-publication" class="handover-unit">
+      <h3>15.5.5 Data Flow Handover: Tender Publication</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>A prepared tender moves through publication endpoint; tender status changes; marketplace data begins exposing the opportunity to supplier discovery screens; supplier detail and bidding routes can then reason about published tender identifiers.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-bid-draft" class="handover-unit">
+      <h3>15.5.6 Data Flow Handover: Bid Drafting</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Supplier opens tender schema or draft; bidding service links tender and supplier organization; draft responses, documents, samples, and metadata are saved against bid records until submit or withdraw changes the lifecycle state.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-bid-submit" class="handover-unit">
+      <h3>15.5.7 Data Flow Handover: Bid Submission</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Submit validates draft readiness; repository performs transaction-safe state changes; bid version and receipt records preserve the submitted envelope, hashes, timestamps, and supplier response evidence.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-evaluation" class="handover-unit">
+      <h3>15.5.8 Data Flow Handover: Evaluation Workspace Save</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Evaluator opens tender workspace; evaluation module returns submitted bid records, criteria, assignments, and score state; save workspace updates criteria and scores; recommendation handoff data can then feed award-contract workflows.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-award" class="handover-unit">
+      <h3>15.5.9 Data Flow Handover: Award Recommendation</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Award-contract module lists recommendations; decision drafts, approval steps, clauses, standstill, notices, budget commitments, tie breakers, and negotiation records are updated through recommendation routes.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-contract" class="handover-unit">
+      <h3>15.5.10 Data Flow Handover: Contract Execution</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Contract endpoints create versions, clauses, negotiations, signatures, milestones, evidence, status updates, management plan records, commencement records, deliverables, acceptances, inspections, invoices, payments, risks, variations, disputes, terminations, warranties, and closeout records.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-communication" class="handover-unit">
+      <h3>15.5.11 Data Flow Handover: Message Collaboration</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Communication center lists messages; compose creates CommunicationItem records; replies, read state, archive state, attachments, recipients, and tender links maintain a structured collaboration trail.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-admin" class="handover-unit">
+      <h3>15.5.12 Data Flow Handover: Admin Review</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>AdminRoute verifies account type and admin permission; admin screens call compliance-admin and identity admin routes; actions update users, cases, rules, reviews, risk profiles, audit views, datastore entries, tender review decisions, and action history.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-records" class="handover-unit">
+      <h3>15.5.13 Data Flow Handover: Records Export</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Records module aggregates operational history; dashboard, charts, insights, and detail routes support inspection; CSV and PDF export routes package history for review outside the live workspace.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-support" class="handover-unit">
+      <h3>15.5.14 Data Flow Handover: Support Ticket</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Public contact can create initial support evidence; authenticated ticket routes list, create, detail, comment, and update status; support pages route users toward help centre content or ticket workflows.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-flow-help" class="handover-unit">
+      <h3>15.5.15 Data Flow Handover: Help Centre Message</h3>
+      <p class="tagline">End-to-end workflow reading guide.</p>
+      <p>Help centre routes return category and FAQ data; suggestion and popular routes support discovery; message route applies rate limiting before processing support-style help requests.</p>
+      <h4>Technical Reading Path</h4>
+      <ol>
+        <li>Start with the route or page that initiates the workflow.</li>
+        <li>Read the feature API helper to see the HTTP method and payload shape.</li>
+        <li>Inspect the backend route and controller to understand request handling.</li>
+        <li>Read validators and service methods for business rules.</li>
+        <li>Read repository calls and Prisma models for persistence behavior.</li>
+        <li>Check tests and seed data for preserved examples of the behavior.</li>
+      </ol>
+      <p>This path prevents confusion between display state, transport shape, business policy, and stored records. ProcureX is deliberately layered, so each concern has a different owner.</p>
+    </article>
+
+    <article id="handover-test-server-app" class="handover-unit">
+      <h3>15.6.1 Testing Handover: Server Application Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Health endpoint, module registration, middleware behavior, and error handling.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-identity-auth" class="handover-unit">
+      <h3>15.6.2 Testing Handover: Identity Authentication Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Registration, production auth restrictions, delivery providers, signing, sessions, and challenge behavior.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-module-validators" class="handover-unit">
+      <h3>15.6.3 Testing Handover: Module Validator Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Zod request validation and module-level input contracts.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-procurement-service" class="handover-unit">
+      <h3>15.6.4 Testing Handover: Procurement Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Tender lifecycle, marketplace data, review controls, saved tender behavior, and repository mapping.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-bidding" class="handover-unit">
+      <h3>15.6.5 Testing Handover: Bidding Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Supplier bid draft, document, sample, submit, withdraw, receipt, and uniqueness behavior.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-evaluation" class="handover-unit">
+      <h3>15.6.6 Testing Handover: Evaluation Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Workspace state, criteria, scores, ready lists, records, and recommendation handoff behavior.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-award-contract" class="handover-unit">
+      <h3>15.6.7 Testing Handover: Award Contract Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Award dashboards, recommendation actions, contract lifecycle records, signatures, samples, and post-award operations.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-client-routes" class="handover-unit">
+      <h3>15.6.8 Testing Handover: Client Route Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>ProtectedRoute, AdminRoute, loading state, session-expired state, verification redirects, and admin redirects.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-client-pages" class="handover-unit">
+      <h3>15.6.9 Testing Handover: Client Page Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>ProcureX page rendering, interaction controls, UI state, data display, and feature-specific smoke behavior.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-i18n" class="handover-unit">
+      <h3>15.6.10 Testing Handover: Localization And Shared Component Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Language switcher, static page rendering, top bar behavior, and shared component expectations.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-seed" class="handover-unit">
+      <h3>15.6.11 Testing Handover: Seed And Demo Data Tests</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Marketplace, evaluation intake, award-ready, and award-contract demo datasets that support realistic local verification.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-test-rls" class="handover-unit">
+      <h3>15.6.12 Testing Handover: Row-Level Security Verification</h3>
+      <p class="tagline">Verification surface for implemented behavior.</p>
+      <p>Database context and RLS verification for organization-aware data access.</p>
+            <table>
+        <tr><th>Command family</th><td><code>npm test</code>, <code>npm run test:client</code>, workspace-specific Vitest commands, and <code>npm --workspace server run verify:rls</code> for database security verification.</td></tr>
+        <tr><th>Why this matters</th><td>Tests are executable documentation. They show which behavior the implementation considers stable and which inputs, states, and user actions have been protected against regression.</td></tr>
+        <tr><th>Maintainer action</th><td>When changing this area, update or add focused tests beside the affected feature. Keep assertions tied to user-visible behavior, route behavior, service rules, repository persistence, or security guarantees.</td></tr>
+      </table>
+      <p>A handover reader should treat test files as the quickest way to learn what a module promises. Implementation files explain how behavior works, while tests explain which behavior must remain true after maintenance.</p>
+    </article>
+
+    <article id="handover-ops-workspace" class="handover-unit">
+      <h3>15.7.1 Operations Handover: Workspace Setup</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>Run commands from procurement-platform. Install dependencies with npm install. Use npm workspaces for shared, server, and client packages. Root scripts delegate to workspace scripts so common commands remain discoverable.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-ops-infra" class="handover-unit">
+      <h3>15.7.2 Operations Handover: Local Infrastructure</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>Docker Compose starts PostgreSQL, Redis, Elasticsearch, and MinIO. Server example environment points Prisma, Redis, search, and object storage settings at those local services.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-ops-database" class="handover-unit">
+      <h3>15.7.3 Operations Handover: Database Lifecycle</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>Use db:validate to check Prisma schema, db:migrate for local development migrations, db:deploy for deployment-style migration execution, and db:seed or seed variants for realistic local datasets.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-ops-server" class="handover-unit">
+      <h3>15.7.4 Operations Handover: Server Runtime</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>The server starts through tsx in watch mode for development. createApp configures Helmet, CORS, JSON parsing, health, registered modules, 404 handling, and centralized error responses.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-ops-client" class="handover-unit">
+      <h3>15.7.5 Operations Handover: Client Runtime</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>The client starts through Vite and uses VITE_API_BASE_URL to reach the server. React Router selects public, protected, verified, and admin surfaces.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-ops-screenshots" class="handover-unit">
+      <h3>15.7.6 Operations Handover: UI Parity Screenshots</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>The screenshot workflow reads docs/ui-parity/routes.json, opens prototype and React routes, injects session context for protected pages, and writes desktop and mobile images under docs/ui-parity/screenshots.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-ops-build" class="handover-unit">
+      <h3>15.7.7 Operations Handover: Build Order</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>The root build runs shared first, then server, then client. This ensures shared account and capability contracts compile before both consumers.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-ops-handover" class="handover-unit">
+      <h3>15.7.8 Operations Handover: Maintenance Handover Routine</h3>
+      <p class="tagline">Development and maintenance workflow.</p>
+      <p>For every change, identify the feature owner, update code at the correct layer, run the narrow test first, run broader checks when behavior crosses module boundaries, and refresh documentation only when behavior or setup changes.</p>
+            <table>
+        <tr><th>Primary location</th><td><code>procurement-platform</code></td></tr>
+        <tr><th>Common commands</th><td><code>npm install</code>, <code>npm run infra:up</code>, <code>npm run db:validate</code>, <code>npm run db:migrate</code>, <code>npm run db:seed</code>, <code>npm run dev:server:example</code>, <code>npm run dev:client:example</code>, <code>npm test</code>, <code>npm run build</code></td></tr>
+        <tr><th>Operational reading</th><td>Prefer root README, workspace README files, Docker README, scripts README, and architecture documentation before changing commands.</td></tr>
+      </table>
+      <p>This routine keeps setup knowledge close to the repository. A maintainer should be able to rebuild local services, validate schema, seed data, run the API, run the client, and execute checks without relying on hidden machine state.</p>
+    </article>
+
+    <article id="handover-closing" class="handover-unit">
+      <h3>15.8 Engineering Handover Closing Notes</h3>
+      <p class="tagline">Summary of the expanded handover chapter.</p>
+      <div class="mini-kpis">
+        <div><strong>17</strong>Registered backend modules documented.</div>
+        <div><strong>35</strong>Production target screenshots mapped to routes.</div>
+        <div><strong>15+</strong>Prisma schema groups explained for handover.</div>
+      </div>
+      <p>The expanded report now functions as both a narrative implementation document and a practical engineering handover manual. It explains where each major feature lives, how user journeys move through client routes and backend modules, what database records support the workflow, which tests preserve behavior, and how local development is operated.</p>
+      <p>The most important handover principle is that ProcureX is organized around stable boundaries. The client owns rendering and route-level experience, the API owns validation and orchestration, repositories own persistence, Prisma owns model truth, shared contracts own cross-workspace vocabulary, and Docker/workspace scripts own reproducible local setup.</p>
+      <p>Future maintainers should preserve that separation. When new behavior is added, it should land in the feature boundary that owns it, pass through validators and services before persistence, use explicit organization and account context, and leave tests or documented verification steps behind.</p>
+    </article>
+    </section>
+
     <section id="references" class="section">
-      <h2>15. References And Figures Used</h2>
+      <h2>16. References And Figures Used</h2>
       <p>
         This report was prepared from the implementation guide, repository
         structure, UI parity assets, backend module structure, Prisma database
         foundation, and screenshot capture workflow in the ProcureX workspace.
       </p>
 
-      <h3>15.1 Repository References</h3>
+      <h3>16.1 Repository References</h3>
       <ul>
         <li><code>procurement-platform/docs/architecture.md</code> - system implementation guide.</li>
         <li><code>procurement-platform/docs/ui-parity/README.md</code> - UI parity workflow.</li>
@@ -4072,11 +5764,13 @@ SignInProcurexPage.tsx
         <li><code>procurement-platform/server/prisma/schema.prisma</code> - database schema model.</li>
       </ul>
 
-      <h3>15.2 Figure Asset References</h3>
+      <h3>16.2 Figure Asset References</h3>
       <p>
-        All screenshots are reference UI assets from:
+        Screenshots are UI parity assets from the reference prototype and the
+        production React target:
       </p>
-      <pre>docs/ui-parity/screenshots/desktop/reference/</pre>
+      <pre>docs/ui-parity/screenshots/desktop/reference/
+docs/ui-parity/screenshots/desktop/target/</pre>
       <p class="note">
         Figures used: welcome, guest-marketplace, about-procurex, contact,
         privacy-policy, terms-and-conditions, register, sign-in,
@@ -4084,7 +5778,7 @@ SignInProcurexPage.tsx
         workspace-dashboard, supplier-marketplace, create-tender,
         tender-publication, tender-details, tender-document,
         supplier-tender-detail, supplier-journey, bidding-workspace,
-        bid-evaluation, awarding-contracts, award-recommendation,
+        bid-evaluation, awarding-contracts, award-recommendation, award-response,
         contract-negotiation, post-award-tracking, communication-center,
         records-history, admin-dashboard, admin-search, admin-users,
         admin-compliance, admin-analytics, and admin-audit.

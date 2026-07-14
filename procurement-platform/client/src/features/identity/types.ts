@@ -45,3 +45,24 @@ export type SigningCredentialStatus = {
   revokedAt: string | null;
   provider: string | null;
 };
+
+export type KeyphraseRecoveryHistoryItem = {
+  id: string;
+  status: string;
+  email: string;
+  phoneMasked: string | null;
+  emailVerifiedAt: string | null;
+  phoneVerifiedAt: string | null;
+  completedAt: string | null;
+  oldKeyFingerprint: string | null;
+  newKeyFingerprint: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; email: string; displayName: string } | null;
+  organization?: { id: string; name: string } | null;
+};
+
+export type KeyphraseStatusResponse = {
+  credential: SigningCredentialStatus;
+  recoveryHistory: KeyphraseRecoveryHistoryItem[];
+};

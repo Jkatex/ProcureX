@@ -468,7 +468,9 @@ model User {
   verificationProfiles      VerificationProfile[]
   verificationHistory       VerificationProfileHistory[]
   digitalSignatures         DigitalSignature[]
+  signedActions             SignedAction[]
   signingCredentials        SigningCredential[]
+  keyphraseRecoveries       KeyphraseRecovery[]
   screeningChecks           ScreeningCheck[]
   trustTierHistory          TrustTierHistory[]
   permissionOverrides       PermissionOverride[]
@@ -499,6 +501,7 @@ model User {
   updatedDataStoreEntries   DataStoreEntry[]             @relation("DataStoreUpdatedByUser")
   deletedDataStoreEntries   DataStoreEntry[]             @relation("DataStoreDeletedByUser")
   dataStoreVersions         DataStoreEntryVersion[]      @relation("DataStoreVersionActor")
+  generatedOfficialDocuments OfficialDocumentVersion[]    @relation("OfficialDocumentGeneratedBy")
 
   @@map("users")
   @@schema("identity")
@@ -693,9 +696,67 @@ model SigningCredential {
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signedActions       SignedAction[]
 
   @@index([userId, status])
   @@map("signing_credentials")
+  @@schema("identity")
+}
+
+model SignedAction {
+  id                   String            @id @default(uuid()) @db.Uuid
+  userId               String            @map("user_id") @db.Uuid
+  organizationId       String?           @map("organization_id") @db.Uuid
+  signingCredentialId  String            @map("signing_credential_id") @db.Uuid
+  moduleKey            String            @map("module_key")
+  actionKey            String            @map("action_key")
+  entityType           String            @map("entity_type")
+  entityRef            String            @map("entity_ref")
+  canonicalPayloadHash String            @map("canonical_payload_hash")
+  signatureHash        String            @unique @map("signature_hash")
+  keyFingerprint       String            @map("key_fingerprint")
+  signedAt             DateTime          @default(now()) @map("signed_at")
+  requestMetadata      Json              @default("{}") @map("request_metadata")
+  payload              Json              @default("{}")
+  providerMetadata     Json              @default("{}") @map("provider_metadata")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization         Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  signingCredential    SigningCredential @relation(fields: [signingCredentialId], references: [id], onDelete: Restrict)
+
+  @@index([userId, signedAt])
+  @@index([organizationId, signedAt])
+  @@index([moduleKey, actionKey])
+  @@index([entityType, entityRef])
+  @@map("signed_actions")
+  @@schema("identity")
+}
+
+model KeyphraseRecovery {
+  id                    String        @id @default(uuid()) @db.Uuid
+  userId                String?       @map("user_id") @db.Uuid
+  organizationId        String?       @map("organization_id") @db.Uuid
+  emailChallengeId      String?       @map("email_challenge_id") @db.Uuid
+  phoneChallengeId      String?       @map("phone_challenge_id") @db.Uuid
+  status                String        @default("STARTED")
+  email                 String
+  phoneMasked           String?       @map("phone_masked")
+  emailVerifiedAt       DateTime?     @map("email_verified_at")
+  phoneVerifiedAt       DateTime?     @map("phone_verified_at")
+  completedAt           DateTime?     @map("completed_at")
+  oldKeyFingerprint     String?       @map("old_key_fingerprint")
+  newKeyFingerprint     String?       @map("new_key_fingerprint")
+  requestMetadata       Json          @default("{}") @map("request_metadata")
+  payload               Json          @default("{}")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  user                  User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization          Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+  @@map("keyphrase_recoveries")
   @@schema("identity")
 }
 
@@ -754,6 +815,8 @@ model Organization {
   verificationProfiles      VerificationProfile[]
   verificationHistory       VerificationProfileHistory[]
   digitalSignatures         DigitalSignature[]
+  signedActions             SignedAction[]
+  keyphraseRecoveries       KeyphraseRecovery[]
   screeningChecks           ScreeningCheck[]
   trustTierHistory          TrustTierHistory[]
   permissionOverrides       PermissionOverride[]
@@ -783,6 +846,7 @@ model Organization {
   communicationReceived     CommunicationItem[]          @relation("CommunicationRecipientOrg")
   supportTickets            SupportTicket[]              @relation("SupportTicketOwnerOrg")
   auditEvents               AuditEvent[]
+  officialDocumentVersions   OfficialDocumentVersion[]
   complianceCases           ComplianceCase[]
   complianceRules           ComplianceRule[]
   adminActions              AdminAction[]
@@ -2380,6 +2444,331 @@ model ContractRequiredDocument {
   @@schema("contract")
 }
 
+model SampleReceipt {
+  id                    String   @id @default(uuid()) @db.Uuid
+  bidSampleId           String   @map("bid_sample_id") @db.Uuid
+  tenderId              String   @map("tender_id") @db.Uuid
+  bidId                 String   @map("bid_id") @db.Uuid
+  buyerOrgId            String   @map("buyer_org_id") @db.Uuid
+  supplierOrgId         String   @map("supplier_org_id") @db.Uuid
+  sampleReference       String?  @map("sample_reference")
+  receivedQuantity      Decimal? @map("received_quantity") @db.Decimal(18, 4)
+  conditionAtReceipt    String?  @map("condition_at_receipt")
+  packagingCondition    String?  @map("packaging_condition")
+  deliveryRepresentative String? @map("delivery_representative")
+  receivingOfficerId    String?  @map("receiving_officer_id") @db.Uuid
+  storageLocation       String?  @map("storage_location")
+  missingComponents     String?  @map("missing_components")
+  visibleDamage         String?  @map("visible_damage")
+  remarks               String?
+  status                String   @default("RECEIVED")
+  receivedAt            DateTime @default(now()) @map("received_at")
+  payload               Json     @default("{}")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@unique([bidSampleId])
+  @@index([tenderId])
+  @@index([bidId])
+  @@index([buyerOrgId])
+  @@index([supplierOrgId])
+  @@map("sample_receipts")
+  @@schema("contract")
+}
+
+model SampleCustodyLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  bidSampleId       String   @map("bid_sample_id") @db.Uuid
+  tenderId          String   @map("tender_id") @db.Uuid
+  bidId             String   @map("bid_id") @db.Uuid
+  buyerOrgId        String   @map("buyer_org_id") @db.Uuid
+  supplierOrgId     String   @map("supplier_org_id") @db.Uuid
+  fromCustodianId   String?  @map("from_custodian_id") @db.Uuid
+  toCustodianId     String?  @map("to_custodian_id") @db.Uuid
+  previousLocation  String?  @map("previous_location")
+  newLocation       String?  @map("new_location")
+  transferPurpose   String   @map("transfer_purpose")
+  conditionBefore   String?  @map("condition_before")
+  conditionAfter    String?  @map("condition_after")
+  authorizedById    String?  @map("authorized_by_id") @db.Uuid
+  remarks           String?
+  transferredAt     DateTime @default(now()) @map("transferred_at")
+  payload           Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([bidSampleId])
+  @@index([tenderId])
+  @@index([buyerOrgId])
+  @@map("sample_custody_logs")
+  @@schema("contract")
+}
+
+model SampleVerification {
+  id                   String   @id @default(uuid()) @db.Uuid
+  bidSampleId          String   @map("bid_sample_id") @db.Uuid
+  tenderId             String   @map("tender_id") @db.Uuid
+  bidId                String   @map("bid_id") @db.Uuid
+  buyerOrgId           String   @map("buyer_org_id") @db.Uuid
+  supplierOrgId        String   @map("supplier_org_id") @db.Uuid
+  result               String
+  quantityAccepted     Boolean  @default(false) @map("quantity_accepted")
+  certificatesAttached Boolean  @default(false) @map("certificates_attached")
+  packagingAccepted    Boolean  @default(false) @map("packaging_accepted")
+  matchesBid           Boolean  @default(false) @map("matches_bid")
+  completeUndamaged    Boolean  @default(false) @map("complete_undamaged")
+  clarificationRequired Boolean @default(false) @map("clarification_required")
+  note                 String?
+  verifiedByUserId     String?  @map("verified_by_user_id") @db.Uuid
+  verifiedAt           DateTime @default(now()) @map("verified_at")
+  payload              Json     @default("{}")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([bidSampleId])
+  @@index([tenderId])
+  @@index([buyerOrgId])
+  @@index([result])
+  @@map("sample_verifications")
+  @@schema("contract")
+}
+
+model SampleEvaluation {
+  id              String   @id @default(uuid()) @db.Uuid
+  bidSampleId     String   @map("bid_sample_id") @db.Uuid
+  tenderId        String   @map("tender_id") @db.Uuid
+  bidId           String   @map("bid_id") @db.Uuid
+  buyerOrgId      String   @map("buyer_org_id") @db.Uuid
+  supplierOrgId   String   @map("supplier_org_id") @db.Uuid
+  criterion       String
+  score           Decimal? @db.Decimal(8, 2)
+  maximumScore    Decimal? @map("maximum_score") @db.Decimal(8, 2)
+  passed          Boolean  @default(false)
+  decision        String   @default("UNDER_EVALUATION")
+  comments        String?
+  evaluatorUserId String?  @map("evaluator_user_id") @db.Uuid
+  evaluatedAt     DateTime @default(now()) @map("evaluated_at")
+  payload         Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([bidSampleId])
+  @@index([tenderId])
+  @@index([buyerOrgId])
+  @@index([decision])
+  @@map("sample_evaluations")
+  @@schema("contract")
+}
+
+model SampleTest {
+  id                 String   @id @default(uuid()) @db.Uuid
+  bidSampleId        String   @map("bid_sample_id") @db.Uuid
+  tenderId           String   @map("tender_id") @db.Uuid
+  bidId              String   @map("bid_id") @db.Uuid
+  buyerOrgId         String   @map("buyer_org_id") @db.Uuid
+  supplierOrgId      String   @map("supplier_org_id") @db.Uuid
+  testName           String   @map("test_name")
+  testingInstitution String?  @map("testing_institution")
+  testingOfficer     String?  @map("testing_officer")
+  testingMethod      String?  @map("testing_method")
+  testingStandard    String?  @map("testing_standard")
+  expectedResult     String?  @map("expected_result")
+  actualResult       String?  @map("actual_result")
+  result             String   @default("PENDING")
+  testCost           Decimal? @map("test_cost") @db.Decimal(18, 2)
+  currency           String   @default("TZS")
+  responsibleParty   String?  @map("responsible_party")
+  reportDocumentId   String?  @map("report_document_id") @db.Uuid
+  testedAt           DateTime @default(now()) @map("tested_at")
+  payload            Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([bidSampleId])
+  @@index([tenderId])
+  @@index([buyerOrgId])
+  @@map("sample_tests")
+  @@schema("contract")
+}
+
+model SampleDisposition {
+  id                       String    @id @default(uuid()) @db.Uuid
+  bidSampleId              String    @map("bid_sample_id") @db.Uuid
+  tenderId                 String    @map("tender_id") @db.Uuid
+  bidId                    String    @map("bid_id") @db.Uuid
+  buyerOrgId               String    @map("buyer_org_id") @db.Uuid
+  supplierOrgId            String    @map("supplier_org_id") @db.Uuid
+  dispositionType          String    @map("disposition_type")
+  reason                   String?
+  authorizedByUserId       String?   @map("authorized_by_user_id") @db.Uuid
+  supplierNotifiedAt       DateTime? @map("supplier_notified_at")
+  collectionDeadline       DateTime? @map("collection_deadline")
+  collectionRepresentative String?   @map("collection_representative")
+  returnCondition          String?   @map("return_condition")
+  disposalMethod           String?   @map("disposal_method")
+  witnesses                String?
+  acknowledgementDocumentId String?  @map("acknowledgement_document_id") @db.Uuid
+  status                   String    @default("OPEN")
+  completedAt              DateTime? @map("completed_at")
+  payload                  Json      @default("{}")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  @@index([bidSampleId])
+  @@index([tenderId])
+  @@index([buyerOrgId])
+  @@index([status])
+  @@map("sample_dispositions")
+  @@schema("contract")
+}
+
+model ContractReferenceSample {
+  id             String   @id @default(uuid()) @db.Uuid
+  contractId     String   @map("contract_id") @db.Uuid
+  bidSampleId    String   @map("bid_sample_id") @db.Uuid
+  tenderId       String   @map("tender_id") @db.Uuid
+  bidId          String   @map("bid_id") @db.Uuid
+  buyerOrgId     String   @map("buyer_org_id") @db.Uuid
+  supplierOrgId  String   @map("supplier_org_id") @db.Uuid
+  referenceNo    String   @map("reference_no")
+  sampleName     String   @map("sample_name")
+  storageLocation String? @map("storage_location")
+  status         String   @default("RETAINED")
+  note           String?
+  payload        Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([contractId, bidSampleId])
+  @@index([contractId])
+  @@index([bidSampleId])
+  @@index([tenderId])
+  @@map("contract_reference_samples")
+  @@schema("contract")
+}
+
+model ContractCommencement {
+  id                    String    @id @default(uuid()) @db.Uuid
+  contractId            String    @unique @map("contract_id") @db.Uuid
+  noticeDate            DateTime? @map("notice_date")
+  startDate             DateTime? @map("start_date")
+  effectiveDate         DateTime? @map("effective_date")
+  completionDate        DateTime? @map("completion_date")
+  deliveryLocation      String?   @map("delivery_location")
+  buyerContractManager  String?   @map("buyer_contract_manager")
+  supplierContractManager String? @map("supplier_contract_manager")
+  initialMeetingDate    DateTime? @map("initial_meeting_date")
+  approvedWorkPlan      String?   @map("approved_work_plan")
+  approvedDeliverySchedule String? @map("approved_delivery_schedule")
+  status                String    @default("DRAFT")
+  payload               Json      @default("{}")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("contract_commencements")
+  @@schema("contract")
+}
+
+model ContractNonConformance {
+  id                         String    @id @default(uuid()) @db.Uuid
+  contractId                 String    @map("contract_id") @db.Uuid
+  category                   String
+  title                      String
+  description                String?
+  relatedRecordId            String?   @map("related_record_id") @db.Uuid
+  contractClause             String?   @map("contract_clause")
+  severity                   String    @default("MINOR")
+  responsibleSupplierOfficer String?   @map("responsible_supplier_officer")
+  correctiveAction           String?   @map("corrective_action")
+  correctiveActionDeadline   DateTime? @map("corrective_action_deadline")
+  verificationResult         String?   @map("verification_result")
+  status                     String    @default("OPEN")
+  identifiedAt               DateTime  @default(now()) @map("identified_at")
+  closedAt                   DateTime? @map("closed_at")
+  payload                    Json      @default("{}")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  @@index([contractId, status])
+  @@index([severity])
+  @@map("contract_non_conformances")
+  @@schema("contract")
+}
+
+model ContractSecurity {
+  id                 String    @id @default(uuid()) @db.Uuid
+  contractId         String    @map("contract_id") @db.Uuid
+  securityType       String    @map("security_type")
+  issuingInstitution String?   @map("issuing_institution")
+  referenceNumber    String?   @map("reference_number")
+  amount             Decimal?  @db.Decimal(18, 2)
+  currency           String    @default("TZS")
+  issueDate          DateTime? @map("issue_date")
+  expiryDate         DateTime? @map("expiry_date")
+  verificationStatus String    @default("PENDING") @map("verification_status")
+  claimStatus        String    @default("NONE") @map("claim_status")
+  releasedAt         DateTime? @map("released_at")
+  documentId         String?   @map("document_id") @db.Uuid
+  note               String?
+  payload            Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([contractId, verificationStatus])
+  @@index([expiryDate])
+  @@map("contract_securities")
+  @@schema("contract")
+}
+
+model ContractPenalty {
+  id              String   @id @default(uuid()) @db.Uuid
+  contractId      String   @map("contract_id") @db.Uuid
+  invoiceId       String?  @map("invoice_id") @db.Uuid
+  penaltyType     String   @map("penalty_type")
+  contractClause  String?  @map("contract_clause")
+  basis           String?
+  amount          Decimal? @db.Decimal(18, 2)
+  currency        String   @default("TZS")
+  status          String   @default("DRAFT")
+  approvedByUserId String? @map("approved_by_user_id") @db.Uuid
+  evidence        Json     @default("[]")
+  note            String?
+  payload         Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([contractId, status])
+  @@index([invoiceId])
+  @@map("contract_penalties")
+  @@schema("contract")
+}
+
+model ContractChangeRequest {
+  id                 String    @id @default(uuid()) @db.Uuid
+  contractId         String    @map("contract_id") @db.Uuid
+  changeType         String    @map("change_type")
+  title              String
+  reason             String?
+  raisedByOrgId      String?   @map("raised_by_org_id") @db.Uuid
+  technicalReview    String?   @map("technical_review")
+  financialReview    String?   @map("financial_review")
+  budgetCheck        String?   @map("budget_check")
+  legalReview        String?   @map("legal_review")
+  supplierResponse   String?   @map("supplier_response")
+  amendmentVersionId String?   @map("amendment_version_id") @db.Uuid
+  status             String    @default("RAISED")
+  approvedAt         DateTime? @map("approved_at")
+  signedAt           DateTime? @map("signed_at")
+  payload            Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([contractId, status])
+  @@index([changeType])
+  @@map("contract_change_requests")
+  @@schema("contract")
+}
+
 model ContractWorkflowApproval {
   id          String                      @id @default(uuid()) @db.Uuid
   contractId  String                      @map("contract_id") @db.Uuid
@@ -2605,10 +2994,80 @@ model DocumentObject {
   contractMilestoneEvidence ContractMilestoneEvidence[]
   terminationEvidence       TerminationEvidence[]
   communicationAttachments  CommunicationAttachment[]
+  officialDocumentVersions   OfficialDocumentVersion[]
 
   @@index([ownerOrgId])
   @@index([uploadedByUserId])
   @@map("document_objects")
+  @@schema("documents")
+}
+
+model OfficialDocumentTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  name            String
+  description     String?
+  documentType    String   @map("document_type")
+  procurementType String?  @map("procurement_type")
+  jurisdiction    String   @default("TZ")
+  language        String   @default("en")
+  version         String   @default("1.0")
+  status          String   @default("ACTIVE")
+  sourceAuthority String   @default("PPRA") @map("source_authority")
+  sourceUrl       String?  @map("source_url")
+  sections        Json     @default("[]")
+  requiredFields  Json     @default("[]") @map("required_fields")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  versions        OfficialDocumentVersion[]
+
+  @@index([documentType, procurementType])
+  @@index([status])
+  @@map("official_document_templates")
+  @@schema("documents")
+}
+
+model OfficialDocumentVersion {
+  id                 String    @id @default(uuid()) @db.Uuid
+  templateId         String?   @map("template_id") @db.Uuid
+  documentObjectId   String?   @map("document_object_id") @db.Uuid
+  ownerOrgId         String?   @map("owner_org_id") @db.Uuid
+  generatedByUserId  String?   @map("generated_by_user_id") @db.Uuid
+  sourceModule       String    @map("source_module")
+  sourceEntityType   String    @map("source_entity_type")
+  sourceEntityId     String    @map("source_entity_id")
+  documentType       String    @map("document_type")
+  procurementType    String?   @map("procurement_type")
+  title              String
+  reference          String
+  versionNo          Int       @map("version_no")
+  templateVersion    String    @map("template_version")
+  status             String    @default("DRAFT")
+  contentHash        String    @map("content_hash")
+  pdfObjectKey       String    @map("pdf_object_key")
+  pdfContentType     String    @default("application/pdf") @map("pdf_content_type")
+  pdfSizeBytes       Int       @default(0) @map("pdf_size_bytes")
+  validationWarnings Json      @default("[]") @map("validation_warnings")
+  approvalMetadata   Json      @default("{}") @map("approval_metadata")
+  signatureMetadata  Json      @default("{}") @map("signature_metadata")
+  metadata           Json      @default("{}")
+  generatedAt        DateTime  @default(now()) @map("generated_at")
+  officialAt         DateTime? @map("official_at")
+  voidedAt           DateTime? @map("voided_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  template           OfficialDocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  documentObject     DocumentObject?           @relation(fields: [documentObjectId], references: [id], onDelete: SetNull)
+  ownerOrg           Organization?             @relation(fields: [ownerOrgId], references: [id], onDelete: SetNull)
+  generatedByUser    User?                     @relation("OfficialDocumentGeneratedBy", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceModule, sourceEntityType, sourceEntityId, documentType, versionNo])
+  @@index([templateId])
+  @@index([documentObjectId])
+  @@index([ownerOrgId, status])
+  @@index([sourceModule, sourceEntityType, sourceEntityId])
+  @@index([contentHash])
+  @@map("official_document_versions")
   @@schema("documents")
 }
 

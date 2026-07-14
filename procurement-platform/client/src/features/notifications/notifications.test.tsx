@@ -76,6 +76,83 @@ describe('ProcureX notification cards', () => {
     expect(cards[1]).toHaveTextContent('First notice');
   });
 
+  it('renders bidding workspace notices without the default leading icon and auto-dismisses them', async () => {
+    vi.useFakeTimers();
+    const store = renderToastStore();
+
+    act(() => {
+      store.dispatch(enqueueNotification({ tone: 'warning', presentation: 'bidNotice', title: 'Notice', message: 'Complete all mandatory eligibility requirements before continuing. Incomplete: Required field (Document upload)', dismissible: true, autoDismissMs: 3000 }));
+    });
+
+    const notice = screen.getByRole('alert');
+    expect(notice).toHaveClass('procurex-notification-card', 'presentation-bidNotice', 'tone-warning');
+    expect(notice).toHaveTextContent('Notice');
+    expect(notice).toHaveTextContent('Incomplete: Required field (Document upload)');
+    expect(notice.querySelector('.procurex-notification-icon')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dismiss notification' })).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('deduplicates identical active bidding workspace notices and refreshes their timer', () => {
+    vi.useFakeTimers();
+    const store = renderToastStore();
+
+    act(() => {
+      store.dispatch(enqueueNotification({ tone: 'info', presentation: 'bidNotice', title: 'Notice', message: 'Ready to prepare a new sealed bid.', dismissible: true, autoDismissMs: 3000 }));
+      vi.advanceTimersByTime(2000);
+      store.dispatch(enqueueNotification({ tone: 'info', presentation: 'bidNotice', title: 'Notice', message: 'Ready to prepare a new sealed bid.', dismissible: true, autoDismissMs: 3000 }));
+    });
+
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.getByRole('status')).toHaveTextContent('Ready to prepare a new sealed bid.');
+
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('allows different bidding workspace notices to stack', () => {
+    const store = renderToastStore();
+
+    act(() => {
+      store.dispatch(enqueueNotification({ tone: 'info', presentation: 'bidNotice', title: 'Notice', message: 'Ready to prepare a new sealed bid.', dismissible: true, autoDismissMs: 0 }));
+      store.dispatch(enqueueNotification({ tone: 'success', presentation: 'bidNotice', title: 'Notice', message: 'Draft saved to the database.', dismissible: true, autoDismissMs: 0 }));
+    });
+
+    const cards = Array.from(document.querySelectorAll('.procurex-notification-card.presentation-bidNotice'));
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent('Draft saved to the database.');
+    expect(cards[1]).toHaveTextContent('Ready to prepare a new sealed bid.');
+  });
+
+  it('keeps duplicate default notifications stacked', () => {
+    const store = renderToastStore();
+
+    act(() => {
+      store.dispatch(enqueueNotification({ tone: 'info', title: 'Notice', message: 'Same default message.', dismissible: true, autoDismissMs: 0 }));
+      store.dispatch(enqueueNotification({ tone: 'info', title: 'Notice', message: 'Same default message.', dismissible: true, autoDismissMs: 0 }));
+    });
+
+    expect(screen.getAllByText('Same default message.')).toHaveLength(2);
+  });
+
   it('auto-dismisses toast notifications and keeps a manual close control', () => {
     vi.useFakeTimers();
     const store = renderToastStore();

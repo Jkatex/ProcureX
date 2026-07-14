@@ -11,6 +11,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:e2e:awards": "node e2e/awards-contracts-smoke.mjs",
+    "test:e2e:evaluation": "node e2e/evaluation-workspace-flow.mjs",
     "lint": "eslint .",
     "generate:procurex-pages": "node ../scripts/generate-client-procurex-pages.mjs",
     "sync:procurex-ui": "node ../scripts/sync-procurex-ui.mjs",

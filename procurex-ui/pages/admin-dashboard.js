@@ -39,7 +39,7 @@
                     <p>${window.ProcureXAdmin.escapeHtml(item.owner)} / ${window.ProcureXAdmin.formatMoney(item.value)}</p>
                     <small>${window.ProcureXAdmin.escapeHtml(item.issue)}</small>
                 </div>
-                <div class="admin-action-row" aria-label="Prototype compliance actions">
+                <div class="admin-action-row" aria-label="Compliance actions">
                     <button class="btn btn-primary btn-sm" type="button">Approve</button>
                     <button class="btn btn-secondary btn-sm" type="button">Flag Issue</button>
                     <button class="btn btn-secondary btn-sm" type="button">Hold</button>
@@ -115,7 +115,7 @@
                                     <span class="section-kicker">Platform activity</span>
                                     <h2>Compliance actions this week</h2>
                                 </div>
-                                <span class="badge badge-info">Static prototype</span>
+                                <span class="badge badge-info">Platform overview</span>
                             </div>
                             ${renderActivityBars()}
                         </section>

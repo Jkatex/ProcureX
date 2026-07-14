@@ -4,7 +4,23 @@ import { EvaluationStatus, TenderType } from '@prisma/client';
 const allFilterSchema = z.literal('all');
 const uuidSchema = z.string().uuid();
 const decisionStatusSchema = z.enum(['PENDING', 'PASSED', 'FAILED', 'NEEDS_CLARIFICATION', 'RECOMMENDED']);
-const activeStageSchema = z.enum(['opening', 'administrative', 'criteria', 'financial', 'boq', 'pricing', 'sla', 'postqual', 'ranking', 'report']);
+const activeStageSchema = z.enum([
+  'opening',
+  'preliminary',
+  'technical',
+  'financial',
+  'verification',
+  'ranking',
+  'report',
+  'administrative',
+  'criteria',
+  'boq',
+  'pricing',
+  'sla',
+  'tor',
+  'postqual'
+]);
+const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const moduleStatusQuerySchema = z.object({}).strict();
 
@@ -51,6 +67,17 @@ export const saveWorkspaceBodySchema = z
       .default([]),
     activeStageId: activeStageSchema.optional(),
     selectedBidId: uuidSchema.optional(),
-    complete: z.boolean().optional().default(false)
+    sectionDraft: z.record(z.unknown()).optional().default({}),
+    complete: z.boolean().optional().default(false),
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.complete && !value.signatureKeyphrase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['signatureKeyphrase'],
+        message: 'Digital signature keyphrase is required to complete evaluation.'
+      });
+    }
+  });

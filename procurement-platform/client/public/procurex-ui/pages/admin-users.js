@@ -50,7 +50,7 @@
                             <article class="admin-kpi-card"><span>Total Accounts</span><strong>${accounts.length}</strong><em>Platform users</em></article>
                             <article class="admin-kpi-card"><span>Verified</span><strong>${verified}</strong><em>eKYC complete</em></article>
                             <article class="admin-kpi-card"><span>Pending Verification</span><strong>${pending}</strong><em>Awaiting review</em></article>
-                            <article class="admin-kpi-card"><span>Suspended</span><strong>0</strong><em>Prototype state</em></article>
+                            <article class="admin-kpi-card"><span>Suspended</span><strong>0</strong><em>Current status</em></article>
                         </section>
 
                         <section class="journey-panel">

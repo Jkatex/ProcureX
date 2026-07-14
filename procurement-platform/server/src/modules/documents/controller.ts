@@ -1,7 +1,14 @@
 import type { RequestHandler } from 'express';
 import { ModuleService } from './service.js';
 import { ModuleService as IdentityService } from '../identity/service.js';
-import { documentParamsSchema, moduleStatusQuerySchema } from './validators.js';
+import {
+  documentParamsSchema,
+  moduleStatusQuerySchema,
+  officialActionBodySchema,
+  officialDocumentParamsSchema,
+  officialGenerateBodySchema,
+  officialTemplateQuerySchema
+} from './validators.js';
 import type { DocumentRequestContext } from './types.js';
 
 function requestError(message: string, status = 400) {
@@ -43,6 +50,81 @@ export class ModuleController {
       const document = await this.service.content(params.data.id, await this.requireContext(req.header('authorization') ?? ''));
       if (req.query.download === 'true') res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
       res.type(document.contentType).send(document.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  officialTemplates: RequestHandler = async (req, res, next) => {
+    try {
+      const query = officialTemplateQuerySchema.parse(req.query);
+      res.json(await this.service.officialTemplates(query));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  generateOfficialDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const input = officialGenerateBodySchema.parse(req.body);
+      const context = await this.requireContext(req.header('authorization') ?? '');
+      res.status(201).json(await this.service.generateOfficialDocument(input, context));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  openOfficialDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = officialDocumentParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid official document id.');
+      const document = await this.service.officialDocumentFile(params.data.id, await this.requireContext(req.header('authorization') ?? ''));
+      res.setHeader('Content-Disposition', `inline; filename="${document.filename}"`);
+      res.type(document.contentType).send(document.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  downloadOfficialDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = officialDocumentParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid official document id.');
+      const document = await this.service.officialDocumentFile(params.data.id, await this.requireContext(req.header('authorization') ?? ''));
+      res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
+      res.type(document.contentType).send(document.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  officialDocumentVersions: RequestHandler = async (req, res, next) => {
+    try {
+      const params = officialDocumentParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid official document id.');
+      res.json(await this.service.officialDocumentVersions(params.data.id, await this.requireContext(req.header('authorization') ?? '')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  approveOfficialDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = officialDocumentParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid official document id.');
+      const input = officialActionBodySchema.parse(req.body ?? {});
+      res.json(await this.service.approveOfficialDocument(params.data.id, input, await this.requireContext(req.header('authorization') ?? '')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  signOfficialDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = officialDocumentParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid official document id.');
+      const input = officialActionBodySchema.parse(req.body ?? {});
+      res.json(await this.service.signOfficialDocument(params.data.id, input, await this.requireContext(req.header('authorization') ?? '')));
     } catch (error) {
       next(error);
     }

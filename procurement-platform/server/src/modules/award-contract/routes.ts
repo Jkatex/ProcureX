@@ -27,9 +27,27 @@ export function createModuleRouter() {
   router.post('/recommendations/:id/settle', controller.settleAwardGroup);
 
   router.post('/notices/:id/respond', controller.respondToNotice);
+  router.post('/notices/:id/cancel', controller.cancelAwardNotice);
+  router.post('/notices/:id/reissue', controller.reissueAwardNotice);
+
+  router.post('/tenders/:tenderId/contract-draft', controller.prepareTenderContractDraft);
+
+  router.get('/samples', controller.listSamples);
+  router.get('/samples/:sampleId', controller.sample);
+  router.post('/samples/:sampleId/receive', controller.receiveSample);
+  router.post('/samples/:sampleId/verify', controller.verifySample);
+  router.post('/samples/:sampleId/custody-transfer', controller.transferSampleCustody);
+  router.post('/samples/:sampleId/evaluations', controller.evaluateSample);
+  router.post('/samples/:sampleId/tests', controller.createSampleTest);
+  router.post('/samples/:sampleId/clarifications', controller.requestSampleClarification);
+  router.post('/samples/:sampleId/return', controller.returnSample);
+  router.post('/samples/:sampleId/retain', controller.retainSample);
+  router.post('/samples/:sampleId/dispose', controller.disposeSample);
 
   router.get('/contracts', controller.listContracts);
   router.get('/contracts/:id', controller.contract);
+  router.get('/contracts/:id/documents', controller.contractDocuments);
+  router.post('/contracts/:id/documents', controller.uploadContractDocument);
   router.post('/contracts/:id/versions', controller.createContractVersion);
   router.put('/contracts/:id/clauses', controller.upsertClause);
   router.post('/contracts/:id/negotiations', controller.createNegotiation);
@@ -40,6 +58,11 @@ export function createModuleRouter() {
   router.post('/contracts/:id/milestones/:milestoneId/evidence', controller.addMilestoneEvidence);
   router.patch('/contracts/:id/status', controller.updateContractStatus);
   router.put('/contracts/:id/management-plan', controller.upsertManagementPlan);
+  router.put('/contracts/:id/commencement', controller.upsertCommencement);
+  router.post('/contracts/:id/non-conformances', controller.createNonConformance);
+  router.post('/contracts/:id/securities', controller.createContractSecurity);
+  router.post('/contracts/:id/penalties', controller.createContractPenalty);
+  router.post('/contracts/:id/change-requests', controller.createContractChangeRequest);
   router.patch('/contracts/:id/mobilization/:itemId', controller.updateMobilizationItem);
   router.post('/contracts/:id/deliverables', controller.createDeliverable);
   router.post('/contracts/:id/acceptances', controller.createAcceptance);

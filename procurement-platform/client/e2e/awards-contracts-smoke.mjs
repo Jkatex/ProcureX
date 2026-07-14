@@ -7,7 +7,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173';
 const apiBaseURL = process.env.PLAYWRIGHT_API_BASE_URL ?? 'http://localhost:4000';
 const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
 const screenshotDir = process.env.AWARD_E2E_SCREENSHOT_DIR ?? path.resolve(process.cwd(), '.cache', 'award-contract-e2e');
-const shouldReseedDemo = process.env.AWARD_E2E_RESEED !== 'false';
+const shouldCleanupRetiredDemo = process.env.AWARD_E2E_CLEANUP_RETIRED_DEMO === 'true';
 const visualViewports = [
   { name: 'desktop', width: 1440, height: 960 },
   { name: 'tablet', width: 900, height: 1100 },
@@ -46,12 +46,12 @@ function repoRoot() {
     : process.cwd();
 }
 
-async function resetAwardContractDemo() {
-  if (!shouldReseedDemo) return;
+async function cleanupRetiredAwardContractDemo() {
+  if (!shouldCleanupRetiredDemo) return;
   await new Promise((resolve, reject) => {
     const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const reseedArgs = ['--workspace', 'server', 'run', 'db:seed:award-contract-demo'];
-    const child = spawn(process.platform === 'win32' ? `${npmCommand} ${reseedArgs.join(' ')}` : npmCommand, process.platform === 'win32' ? [] : reseedArgs, {
+    const cleanupArgs = ['--workspace', 'server', 'run', 'db:cleanup:award-contract-demo'];
+    const child = spawn(process.platform === 'win32' ? `${npmCommand} ${cleanupArgs.join(' ')}` : npmCommand, process.platform === 'win32' ? [] : cleanupArgs, {
       cwd: repoRoot(),
       env: process.env,
       shell: process.platform === 'win32',
@@ -71,7 +71,7 @@ async function resetAwardContractDemo() {
         resolve();
         return;
       }
-      reject(new Error(`Award-contract demo reseed failed with exit code ${code}.\n${stdout}\n${stderr}`.trim()));
+      reject(new Error(`Retired award-contract demo cleanup failed with exit code ${code}.\n${stdout}\n${stderr}`.trim()));
     });
   });
 }
@@ -203,22 +203,63 @@ async function openFirstQueueRecord(page, queue, label, expectedPath) {
   await page.waitForURL((url) => url.pathname.includes(expectedPath), { timeout: 15000 });
 }
 
+async function openDirectPostAwardChooser(page) {
+  await page.goto('/awards-contracts/post-award');
+  await assertHealthyPage(page, 'direct post-award chooser', ['Open an active or closed contract', 'Open tracking']);
+  await page.getByRole('button', { name: 'Open tracking' }).first().click();
+  await page.waitForURL((url) => (
+    url.pathname.includes('/awards-contracts/post-award')
+    && url.searchParams.has('contract')
+    && url.searchParams.get('step') === 'cmp'
+  ), { timeout: 15000 });
+  await assertHealthyPage(page, 'direct post-award selected contract', ['Recommended next actions', 'Choose the work area you need']);
+}
+
+async function uploadPostAwardMilestoneEvidence(page) {
+  const selectedUrl = new URL(page.url());
+  const contractId = selectedUrl.searchParams.get('contract');
+  if (!contractId) throw new Error('Post-award evidence smoke requires a selected contract.');
+  await page.goto(`/awards-contracts/post-award?contract=${encodeURIComponent(contractId)}&step=delivery`);
+  await assertHealthyPage(page, 'supplier post-award delivery evidence', ['Production action forms', 'Milestone evidence']);
+  const evidenceForm = page.locator('[data-award-contract-form="Milestone evidence"]');
+  await evidenceForm.waitFor({ state: 'visible', timeout: 15000 });
+  const openForm = evidenceForm.getByRole('button', { name: 'Open form' });
+  if (await openForm.isVisible().catch(() => false)) await openForm.click();
+  const fileName = `smoke-delivery-evidence-${Date.now()}.txt`;
+  await evidenceForm.locator('input[type="file"]').setInputFiles({
+    name: fileName,
+    mimeType: 'text/plain',
+    buffer: Buffer.from('E2E smoke post-award delivery evidence')
+  });
+  await evidenceForm.getByText(fileName).first().waitFor({ state: 'visible', timeout: 15000 });
+  const evidenceResponse = page.waitForResponse((response) => (
+    response.url().includes('/api/award-contract/contracts/')
+    && response.url().includes('/milestones/')
+    && response.url().includes('/evidence')
+  ), { timeout: 20000 });
+  await evidenceForm.getByRole('button', { name: 'Submit' }).click();
+  const response = await evidenceResponse;
+  if (!response.ok()) throw new Error(`Milestone evidence API returned ${response.status()}.`);
+  await assertHealthyPage(page, 'supplier post-award evidence after upload', ['Contract execution and monitoring']);
+}
+
 async function submitSupplierClarification(page) {
   const responseTab = page.getByRole('tab', { name: /Accept or Decline/i }).first();
   await responseTab.click();
   const responseForm = page.locator('[data-award-contract-form="Supplier award response"]');
-  await responseForm.getByRole('button', { name: 'Select' }).click();
+  const openForm = responseForm.getByRole('button', { name: 'Open form' });
+  if (await openForm.isVisible().catch(() => false)) await openForm.click();
   await responseForm.getByLabel(/Response action/i).selectOption('REQUEST_CLARIFICATION');
   await responseForm.getByLabel(/Response note/i).fill('E2E smoke clarification request for seeded award data.');
   const responsePromise = page.waitForResponse((response) => response.url().includes('/api/award-contract/notices/') && response.url().includes('/respond'), { timeout: 20000 });
-  await responseForm.getByRole('button', { name: 'Submit Response' }).click();
+  await responseForm.getByRole('button', { name: /Submit response/i }).click();
   const response = await responsePromise;
   if (!response.ok()) throw new Error(`Supplier response API returned ${response.status()}.`);
   await assertHealthyPage(page, 'supplier award response after clarification', ['Supplier award workspace']);
 }
 
 async function run() {
-  await resetAwardContractDemo();
+  await cleanupRetiredAwardContractDemo();
   await assertReachable();
   const browser = await chromium.launch({ headless });
   const summaries = [];
@@ -249,6 +290,8 @@ async function run() {
     await assertHealthyPage(buyerPage, 'buyer post-award tracking', ['Contract execution and monitoring', 'Post-award workspace']);
     await captureVisualSmoke(buyerPage, 'buyer post-award tracking', ['Contract execution and monitoring', 'Post-award workspace']);
     summaries.push('buyer opened post-award tracking');
+    await openDirectPostAwardChooser(buyerPage);
+    summaries.push('buyer opened post-award direct chooser');
     await assertBuyerGuards();
     await buyerContext.close();
 
@@ -270,6 +313,8 @@ async function run() {
 
     await openFirstQueueRecord(supplierPage, 'active-contracts', 'supplier active contract queue', '/awards-contracts/post-award');
     await assertHealthyPage(supplierPage, 'supplier post-award tracking', ['Contract execution and monitoring']);
+    await uploadPostAwardMilestoneEvidence(supplierPage);
+    summaries.push('supplier uploaded post-award milestone evidence');
     summaries.push('supplier opened post-award tracking');
     await assertSupplierGuards();
     await supplierContext.close();

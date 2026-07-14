@@ -14,6 +14,7 @@ export const procurexPageRegistry = {
   'register': lazy(() => import('@/features/auth/components/procurex/RegisterProcurexPage').then((module) => ({ default: module.RegisterProcurexPage }))),
   'sign-in': lazy(() => import('@/features/auth/components/procurex/SignInProcurexPage').then((module) => ({ default: module.SignInProcurexPage }))),
   'identity-verification': lazy(() => import('@/features/identity/components/procurex/IdentityVerificationProcurexPage').then((module) => ({ default: module.IdentityVerificationProcurexPage }))),
+  'identity-security-keyphrase': lazy(() => import('@/features/identity/components/procurex/IdentitySecurityKeyphraseProcurexPage').then((module) => ({ default: module.IdentitySecurityKeyphraseProcurexPage }))),
   'account-profile': lazy(() => import('@/features/identity/components/procurex/AccountProfileProcurexPage').then((module) => ({ default: module.AccountProfileProcurexPage }))),
   'app-launcher': lazy(() => import('@/features/workspace/components/procurex/AppLauncherProcurexPage').then((module) => ({ default: module.AppLauncherProcurexPage }))),
   'workspace-dashboard': lazy(() => import('@/features/workspace/components/procurex/WorkspaceDashboardProcurexPage').then((module) => ({ default: module.WorkspaceDashboardProcurexPage }))),
@@ -30,6 +31,7 @@ export const procurexPageRegistry = {
   'award-recommendation': lazy(() => import('@/features/awardsContracts/components/procurex/AwardRecommendationProcurexPage').then((module) => ({ default: module.AwardRecommendationProcurexPage }))),
   'award-response': lazy(() => import('@/features/awardsContracts/components/procurex/AwardResponseProcurexPage').then((module) => ({ default: module.AwardResponseProcurexPage }))),
   'contract-negotiation': lazy(() => import('@/features/awardsContracts/components/procurex/ContractNegotiationProcurexPage').then((module) => ({ default: module.ContractNegotiationProcurexPage }))),
+  'sample-procurement': lazy(() => import('@/features/awardsContracts/components/procurex/SampleProcurementProcurexPage').then((module) => ({ default: module.SampleProcurementProcurexPage }))),
   'post-award-tracking': lazy(() => import('@/features/awardsContracts/components/procurex/PostAwardTrackingProcurexPage').then((module) => ({ default: module.PostAwardTrackingProcurexPage }))),
   'communication-center': lazy(() => import('@/features/communication/components/procurex/CommunicationCenterProcurexPage').then((module) => ({ default: module.CommunicationCenterProcurexPage }))),
   'records-history': lazy(() => import('@/features/records/components/procurex/RecordsHistoryProcurexPage').then((module) => ({ default: module.RecordsHistoryProcurexPage }))),
@@ -46,3 +48,4 @@ export const procurexPageRegistry = {
 } satisfies Record<string, ProcurexPageComponent>;
 
 export type ProcurexPageKey = keyof typeof procurexPageRegistry;
+ 

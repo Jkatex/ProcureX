@@ -55,16 +55,16 @@ Invoke-RestMethod http://localhost:4000/health
 
 Copy `server/.env.example` or `client/.env.example` to its matching `.env` file only when you need custom local settings.
 
-To load the optional API-backed Awarding and Contract Management demo dataset:
+To remove the retired API-backed Awarding and Contract Management demo dataset from a local database:
 
 ```powershell
 npm run infra:up
 npm run db:migrate
 npm run db:seed
-npm run db:seed:awards-demo
+npm run db:cleanup:awards-demo
 ```
 
-The demo seed is idempotent and only recreates records marked as the `award-contract-full` dataset or references prefixed with `PX-DEMO-AC-`. Use `award-demo@procurex.tz` with password `Demo123!` to inspect populated buyer and supplier award queues, contract formation, post-award tracking, payment, risk, termination, close-out, supplier performance, and compliance screens.
+The cleanup removes records marked as the `award-contract-full` dataset or references prefixed with `PX-DEMO-AC-`. The default seed no longer recreates populated buyer and supplier award queues, contract formation, post-award tracking, payment, risk, termination, close-out, supplier performance, or compliance demo records.
 
 To load the optional award-ready tender with four submitted bids, completed evaluation, source documents, and a recommendation ready for awarding:
 

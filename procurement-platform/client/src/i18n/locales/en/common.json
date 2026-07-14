@@ -95,7 +95,7 @@
   "launcher": {
     "kicker": "Welcome to ProcureX",
     "title": "{{name}}, choose where to start.",
-    "body": "Your workspace is ready and starts clean. Procurement activity, messages, records, and audit trails will appear after this account begins real platform work.",
+    "body": "Your workspace is ready. Procurement activity, messages, records, and audit trails will appear as your team works in ProcureX.",
     "verificationNeeded": "Verification needed",
     "noActivity": "No activity yet",
     "continueToDashboard": "Continue to Dashboard",
@@ -137,7 +137,7 @@
       "firstRunKicker": "First run dashboard",
       "welcome": "Welcome,",
       "liveBody": "Your procurement work, messages, deadlines, and compliance actions are summarized from live ProcureX records.",
-      "firstRunBody": "This dashboard will fill with procurement work, messages, deadlines, and compliance actions as your team starts using ProcureX."
+      "firstRunBody": "Your dashboard will show procurement work, messages, deadlines, and compliance actions as your team uses ProcureX."
     },
     "actions": {
       "viewMarketplace": "View marketplace",
@@ -391,7 +391,8 @@
       "body": "ProcureX is a modern e-procurement marketplace built to make procurement simple, fair, secure, and accessible for everyone.",
       "support": "Create tenders, discover tenders, and build a procurement record today.",
       "primaryCta": "Get Started",
-      "secondaryCta": "Browse Open Tenders"
+      "secondaryCta": "Browse Open Tenders",
+      "demoCta": "View Demo"
     },
     "preview": {
       "title": "ProcureX Marketplace",
@@ -480,6 +481,68 @@
       "support": "Support",
       "helpCenter": "Help Center",
       "contactSupport": "Contact Support"
+    }
+  },
+  "helpCentre": {
+    "eyebrow": "ProcureX Help Centre",
+    "title": "ProcureX Help Centre",
+    "intro": "Welcome to the ProcureX Help Centre. Ask a question or select a topic below to receive detailed step-by-step guidance on using the platform.",
+    "publicContext": "Public guidance",
+    "searchLabel": "Ask a platform question",
+    "searchPlaceholder": "Example: How do I submit a bid?",
+    "ask": "Ask",
+    "asking": "Searching...",
+    "charactersRemaining": "{{count}} characters remaining",
+    "enterHint": "Press Enter to ask. Use Shift+Enter for a new line.",
+    "categories": "Categories",
+    "allCategories": "All categories",
+    "chatAria": "Help Centre conversation",
+      "assistantTitle": "Help Assistant",
+      "assistantName": "ProcureX Help Assistant",
+      "clear": "Clear conversation",
+      "panelLabel": "Help panel",
+      "openPanel": "Open help panel",
+      "hidePanel": "Hide help panel",
+      "closePanel": "Close help panel",
+      "hideCategories": "Hide categories",
+      "showCategories": "Show categories",
+      "hideSuggestions": "Hide suggestions",
+      "showSuggestions": "Show suggestions",
+      "emptyTitle": "Conversation cleared.",
+    "emptyBody": "Ask another question or choose a popular topic.",
+    "loading": "Loading Help Centre...",
+    "loadingAnswer": "Finding the best approved answer...",
+    "popular": "Popular questions",
+    "frequentlyViewed": "Frequently viewed",
+    "confidence": "{{count}}% match",
+    "welcomeMessage": "I can help with ProcureX registration, verification, tenders, bids, contracts, invoices, payments, records, and technical support.",
+    "welcomeStepSearch": "Type a question in the search box.",
+    "welcomeStepCategory": "Select a category or popular question if you prefer browsing.",
+    "welcomeStepSupport": "Use Contact Support when you need account-specific assistance.",
+    "disclaimer": "ProcureX Help Assistant provides platform guidance only. It does not make procurement, evaluation, award, contract, invoice or payment decisions.",
+    "sections": {
+      "steps": "Steps",
+      "notes": "Important notes",
+      "warnings": "Warnings",
+      "related": "Related questions"
+    },
+    "support": {
+      "title": "Need more help?",
+      "body": "Use support links for account-specific issues, technical problems, or communication that needs a human response.",
+      "communication": "Communication Centre",
+      "contactSupport": "Contact Support",
+      "privacy": "Privacy Policy",
+      "terms": "Terms and Conditions"
+    },
+    "fallback": {
+      "tryAgain": "Try asking the question using fewer words.",
+      "selectCategory": "Select the closest Help Centre category.",
+      "contactSupport": "Contact Support if you still need assistance."
+    },
+    "errors": {
+      "title": "Help Centre unavailable",
+      "load": "Help Centre content could not be loaded.",
+      "message": "The Help Assistant could not answer right now. Please try again."
     }
   },
   "support": {
@@ -644,7 +707,7 @@
     "cookie": {
       "ariaLabel": "Cookie notice",
       "message": "ProcureX uses essential browser storage for sign-in, language, security checks, and service reliability. See our",
-      "shortMessage": "ProcureX uses local storage and essential cookies to keep sessions, preferences, and demo workflows working.",
+      "shortMessage": "ProcureX uses browser storage and essential cookies to keep sessions, preferences, and core workflows working.",
       "accept": "Accept"
     }
   },
@@ -702,7 +765,7 @@
       "missing": "Complete the security check before continuing.",
       "missingSignIn": "Complete the security check before signing in.",
       "notConfigured": "Security check is not configured.",
-      "localDevelopment": "Local development security check is active.",
+      "localDevelopment": "Security check is active.",
       "ariaLabel": "Security check"
     },
     "register": {
@@ -797,10 +860,10 @@
         "submit": "Sign In",
         "submitting": "Signing in...",
         "demo": {
-          "title": "Demo account",
-          "body": "Use the seeded verified user for local walkthroughs.",
-          "button": "Sign in as demo user",
-          "securityHint": "Open the local demo workspace"
+          "title": "Test account",
+          "body": "Use a prepared account for internal testing.",
+          "button": "Sign in with test account",
+          "securityHint": "Open the prepared workspace"
         },
         "note": ""
       },

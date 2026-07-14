@@ -96,6 +96,15 @@ export function validateBidDraft(input: {
       if (valueForField(field, draft) !== true) addRequiredIssue(field, `Required declaration must be accepted: ${field.label}.`);
       continue;
     }
+    if (isStructuredField(field)) {
+      if (!hasRequiredResponse(field, draft)) {
+        addRequiredIssue(field, `Required response is missing: ${field.label}.`);
+        continue;
+      }
+      const missingEvidence = missingStructuredEvidenceUploads(field, draft);
+      if (missingEvidence.length) missingEvidence.forEach((slot) => addRequiredIssue(field, `Required evidence upload is missing: ${field.label} - ${slot.label}.`));
+      continue;
+    }
     if (!hasRequiredResponse(field, draft)) addRequiredIssue(field, `Required response is missing: ${field.label}.`);
   }
 
@@ -136,7 +145,7 @@ export function withValidation<T extends BidDto>(bid: T, validation: BidValidati
 export function draftFromBidRecord(bid: {
   payload: unknown;
   responses: Array<{ requirementKey: string; response: unknown }>;
-  documents: Array<{ envelope: string; document: { name: string; documentType: string; checksum: string | null; metadata: unknown } }>;
+  documents: Array<{ envelope: string; document: { id?: string; name: string; documentType: string; checksum: string | null; metadata: unknown } }>;
   totalAmount?: unknown;
   currency?: string;
 }): BidDraftInput {
@@ -150,6 +159,7 @@ export function draftFromBidRecord(bid: {
     declarations: objectPayload(payload.declarations),
     responses: bid.responses.map((item) => ({ requirementKey: item.requirementKey, response: objectPayload(item.response) })),
     documents: bid.documents.map((item) => ({
+      documentId: item.document.id,
       name: item.document.name,
       documentType: item.document.documentType,
       envelope: item.envelope as BidDocumentInput['envelope'],
@@ -159,6 +169,7 @@ export function draftFromBidRecord(bid: {
     fileManifest: objectPayload(payload.fileManifest),
     envelopes: objectPayload(payload.envelopes),
     reviewReadiness: objectPayload(payload.reviewReadiness),
+    workspaceState: objectPayload(payload.workspaceState),
     totalAmount: numericValue(bid.totalAmount) ?? undefined,
     currency: bid.currency,
     completeness: objectPayload(payload.completeness),
@@ -194,6 +205,51 @@ function isFinancialPricingField(field: BidSubmissionSchemaFieldDto) {
 function hasRequiredDocument(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {
   const documents = draft.documents ?? [];
   return documents.some((document) => documentMatchesField(document, field)) || responseContainsDocument(field, draft);
+}
+
+function isStructuredField(field: BidSubmissionSchemaFieldDto) {
+  return field.type === 'table' || field.responseType === 'structured';
+}
+
+type StructuredEvidenceSlot = {
+  key: string;
+  label: string;
+  requirementKey: string;
+};
+
+function structuredEvidenceSlots(field: BidSubmissionSchemaFieldDto): StructuredEvidenceSlot[] {
+  if (!isStructuredField(field)) return [];
+  const control = stringValue(field.validation.control);
+  if (control === 'goodsProductSpecification') return [];
+  return explicitEvidenceRows(control).map((row) => ({
+    ...row,
+    requirementKey: `${field.requirementKey}.${row.key}`
+  }));
+}
+
+function explicitEvidenceRows(control: string): Array<{ key: string; label: string }> {
+  if (control === 'worksSimilarProject') return [{ key: 'referenceEvidence', label: 'Upload similar project document' }];
+  if (control === 'worksPersonnel' || control === 'serviceStaffing' || control === 'consultancyKeyExpert') return [{ key: 'cvEvidence', label: 'CV upload' }];
+  if (control === 'worksEquipment' || control === 'serviceEquipment') return [{ key: 'evidenceReference', label: 'Upload Lease / access agreement' }];
+  return [];
+}
+
+function missingStructuredEvidenceUploads(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {
+  return structuredEvidenceSlots(field).filter((slot) => !hasStructuredEvidenceUpload(field, slot, draft));
+}
+
+function hasStructuredEvidenceUpload(field: BidSubmissionSchemaFieldDto, slot: StructuredEvidenceSlot, draft: BidDraftInput) {
+  return (draft.documents ?? []).some((document) => documentMatchesEvidenceSlot(document, field, slot));
+}
+
+function documentMatchesEvidenceSlot(document: BidDocumentInput, field: BidSubmissionSchemaFieldDto, slot: StructuredEvidenceSlot) {
+  if (!validEnvelope(document.envelope)) return false;
+  const metadata = objectPayload(document.metadata);
+  return (
+    stringEquals(metadata.requirementKey, slot.requirementKey) ||
+    (stringEquals(metadata.parentRequirementKey, field.requirementKey) && stringEquals(metadata.evidenceKey, slot.key)) ||
+    (stringEquals(metadata.fieldId, field.id) && stringEquals(metadata.evidenceKey, slot.key))
+  );
 }
 
 function documentMatchesField(document: BidDocumentInput, field: BidSubmissionSchemaFieldDto) {

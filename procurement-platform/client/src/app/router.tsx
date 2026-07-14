@@ -4,12 +4,15 @@ import { procurexPageRegistry, type ProcurexPageKey } from '@/features/procurexP
 import { ProcurexLoadingPage } from '@/shared/components/ProcurexLoadingPage';
 import { LegacyPageRedirect, HomeOrLegacyPage } from './legacyRedirects';
 import { AdminRoute, ProtectedRoute } from './routeGuards';
+import { supportComposeRoute } from '@/features/communication/supportComposeRoute';
 
 const ForgotPasswordProcurexPage = lazy(() =>
   import('@/features/auth/components/procurex/ForgotPasswordProcurexPage').then((module) => ({ default: module.ForgotPasswordProcurexPage }))
 );
+const RecoverKeyphraseProcurexPage = lazy(() =>
+  import('@/features/auth/components/procurex/RecoverKeyphraseProcurexPage').then((module) => ({ default: module.RecoverKeyphraseProcurexPage }))
+);
 const HelpCenterProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.HelpCenterProcurexPage })));
-const SignedInHelpDeskProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.SignedInHelpDeskProcurexPage })));
 const SystemStatusProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.SystemStatusProcurexPage })));
 const SessionExpiredProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.SessionExpiredProcurexPage })));
 const AccountLockedProcurexPage = lazy(() => import('@/features/support/pages/SupportPages').then((module) => ({ default: module.AccountLockedProcurexPage })));
@@ -76,6 +79,7 @@ export const routes = [
   { path: '/register', element: page('register') },
   { path: '/sign-in', element: page('sign-in') },
   { path: '/forgot-password', element: lazyElement(ForgotPasswordProcurexPage) },
+  { path: '/recover-keyphrase', element: lazyElement(RecoverKeyphraseProcurexPage) },
   { path: '/session-expired', element: lazyElement(SessionExpiredProcurexPage) },
   { path: '/account-locked', element: lazyElement(AccountLockedProcurexPage) },
   { path: '/role-selection', element: <Navigate to="/register" replace /> },
@@ -83,8 +87,9 @@ export const routes = [
   { path: '/apps', element: verifiedPage('app-launcher', { adminRedirectTo: '/admin' }) },
   { path: '/dashboard', element: verifiedPage('workspace-dashboard', { adminRedirectTo: '/admin' }) },
   { path: '/identity/verification', element: protectedPage('identity-verification', { adminRedirectTo: '/admin/profile' }) },
+  { path: '/identity/security/keyphrase', element: protectedPage('identity-security-keyphrase', { adminRedirectTo: '/admin/profile' }) },
   { path: '/identity/profile', element: protectedPage('account-profile', { adminRedirectTo: '/admin/profile' }) },
-  { path: '/support', element: <ProtectedRoute>{lazyElement(SignedInHelpDeskProcurexPage)}</ProtectedRoute> },
+  { path: '/support', element: <ProtectedRoute><Navigate to={supportComposeRoute()} replace /></ProtectedRoute> },
   { path: '/procurement/guide', element: verifiedPage('procurement-guide', { adminRedirectTo: '/admin' }) },
   { path: '/procurement/marketplace', element: verifiedPage('marketplace', { adminRedirectTo: '/admin/search' }) },
   { path: '/procurement/my-tenders', element: verifiedPage('marketplace', { adminRedirectTo: '/admin/search' }) },
@@ -100,8 +105,9 @@ export const routes = [
   { path: '/awards-contracts/recommendation', element: verifiedPage('award-recommendation', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/award-response', element: verifiedPage('award-response', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/negotiation', element: verifiedPage('contract-negotiation', { adminRedirectTo: '/admin/search' }) },
+  { path: '/awards-contracts/samples', element: verifiedPage('sample-procurement', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/post-award', element: verifiedPage('post-award-tracking', { adminRedirectTo: '/admin/search' }) },
-  { path: '/communication', element: verifiedPage('communication-center', { adminRedirectTo: '/admin/communication' }) },
+  { path: '/communication', element: verifiedPage('communication-center', { adminRedirectTo: '/admin/communication', allowSupportComposeForUnverified: true }) },
   { path: '/communication-center', element: <Navigate to="/communication" replace /> },
   { path: '/records', element: verifiedPage('records-history', { adminRedirectTo: '/admin/audit' }) },
   { path: '/documents', element: verifiedPage('tender-document', { adminRedirectTo: '/admin/search' }) },

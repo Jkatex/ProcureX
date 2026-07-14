@@ -100,7 +100,7 @@ function clearEvaluationEntrySelection() {
   try {
     evaluationSelectionStorageKeys.forEach((key) => window.localStorage.removeItem(key));
   } catch {
-    // localStorage may be unavailable in some embedded/test environments; window fallbacks above cover the prototype state.
+    // localStorage may be unavailable in some embedded/test environments; window fallbacks above cover page state.
   }
 }
 
@@ -965,7 +965,7 @@ function applyPlanningDraftToCreateTender(root: HTMLElement) {
     }
     setCreateTenderWizardStep(wizard, Number(plannedTender.startStep ?? 2));
   } catch {
-    // Bad localStorage content should never block rendering the static prototype page.
+    // Bad localStorage content should never block rendering the static page.
   }
 }
 
@@ -1147,7 +1147,7 @@ const authDemoAccounts: AuthDemoAccount[] = [
   {
     email: 'demo@procurex.tz',
     password: 'Demo123!',
-    displayName: 'Demo Verified User',
+    displayName: 'Verified User',
     accountType: 'USER'
   },
   {
@@ -1372,12 +1372,12 @@ function handleAuthClick(target: HTMLElement, root: HTMLElement) {
   }
 
   if (resendLink) {
-    notifyStaticPage('Activation link resent', 'Activation link resent in this frontend demo.', 'Check your email, then continue to password setup.', 'success');
+    notifyStaticPage('Activation link resent', 'Activation link resent.', 'Check your email, then continue to password setup.', 'success');
     return true;
   }
 
   if (openEmail) {
-    notifyStaticPage('Open email app', 'Open your email app, then continue to password setup in this frontend demo.', 'The next registration step needs the activation message.', 'info');
+    notifyStaticPage('Open email app', 'Open your email app, then continue to password setup.', 'The next registration step needs the activation message.', 'info');
     return true;
   }
 
@@ -1990,7 +1990,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       rootRef.current.dataset.planningDirty = 'false';
       const status = form.querySelector<HTMLElement>('[data-plan-form-status], .form-status');
       status?.classList.add('success');
-      if (status) status.textContent = 'Plan saved in this frontend demo.';
+      if (status) status.textContent = 'Plan saved.';
       closeProcurementPlanningEditor(rootRef.current);
       return;
     }
@@ -2014,7 +2014,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       const account = findAuthAccount(email, password);
 
       if (!account) {
-        setAuthFormStatus(form, 'Use a mock account or a frontend account you created.');
+        setAuthFormStatus(form, 'Use an active account or an account you created.');
         return;
       }
 
@@ -2041,7 +2041,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     }
 
     status?.classList.add('success');
-    if (status) status.textContent = 'Saved in this frontend demo.';
+    if (status) status.textContent = 'Saved.';
   }
 
   function handleChange(event: ChangeEvent<HTMLDivElement>) {

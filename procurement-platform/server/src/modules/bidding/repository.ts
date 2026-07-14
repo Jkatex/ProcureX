@@ -1,6 +1,7 @@
 import { BidSampleStatus, BidStatus, EnvelopeType, TenderStatus, TenderType, Visibility, type Prisma, type PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
+import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import { canonicalJson, sealBidPackage, sha256Hex, type CanonicalBidPackage } from './bidEncryption.service.js';
 import { draftFromBidRecord, validateBidDraft } from './bidValidation.service.js';
 import type { BidDocumentInput, BidDraftInput, BidDto, BidReceiptDto, BidSampleDto, CreateBidSampleInput, PatchBidSampleInput } from './types.js';
@@ -290,7 +291,7 @@ export class ModuleRepository {
     });
   }
 
-  async submit(input: { bidId: string; supplierOrgId: string; userId: string }): Promise<BidReceiptDto> {
+  async submit(input: { bidId: string; supplierOrgId: string; userId: string; signatureKeyphrase?: string }): Promise<BidReceiptDto> {
     const submittedAt = new Date();
     try {
       return await this.db.$transaction(async (tx) => {
@@ -357,6 +358,24 @@ export class ModuleRepository {
             receiptHash: receiptHash
           }
         });
+        await signSensitiveAction(tx, {
+          userId: input.userId,
+          organizationId: input.supplierOrgId,
+          signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+          moduleKey: 'bidding',
+          actionKey: 'bid.submit',
+          entityType: 'bid',
+          entityRef: fullBid.id,
+          payload: {
+            bidId: fullBid.id,
+            tenderId: fullBid.tenderId,
+            supplierOrgId: fullBid.supplierOrgId,
+            receiptRef,
+            receiptHash,
+            versionNo: nextVersion,
+            submittedAt: submittedAt.toISOString()
+          }
+        });
         await audit(tx, fullBid.buyerOrgId, input.userId, 'bidding.bid_submitted', fullBid.id, {
           tenderId: fullBid.tenderId,
           supplierOrgId: fullBid.supplierOrgId,
@@ -379,11 +398,27 @@ export class ModuleRepository {
     }
   }
 
-  async withdraw(input: { bid: BidRecord; userId: string }) {
+  async withdraw(input: { bid: BidRecord; userId: string; signatureKeyphrase?: string }) {
     const bid = await this.db.$transaction(async (tx) => {
       await tx.bid.update({
         where: { id: input.bid.id },
         data: { status: BidStatus.WITHDRAWN }
+      });
+      await signSensitiveAction(tx, {
+        userId: input.userId,
+        organizationId: input.bid.supplierOrgId,
+        signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+        moduleKey: 'bidding',
+        actionKey: 'bid.withdraw',
+        entityType: 'bid',
+        entityRef: input.bid.id,
+        payload: {
+          bidId: input.bid.id,
+          tenderId: input.bid.tenderId,
+          supplierOrgId: input.bid.supplierOrgId,
+          previousStatus: input.bid.status,
+          nextStatus: BidStatus.WITHDRAWN
+        }
       });
       await audit(tx, input.bid.buyerOrgId, input.userId, 'bidding.bid_withdrawn', input.bid.id, {
         tenderId: input.bid.tenderId,
@@ -571,6 +606,7 @@ function buildPayload(draft: BidDraftInput) {
     fileManifest: draft.fileManifest ?? {},
     envelopes: draft.envelopes ?? {},
     reviewReadiness: draft.reviewReadiness ?? {},
+    workspaceState: draft.workspaceState ?? {},
     completeness: draft.completeness,
     validationIssues: draft.validationIssues
   };
@@ -595,7 +631,7 @@ async function replaceDocuments(tx: Prisma.TransactionClient, bidId: string, own
 
 async function appendDocuments(tx: Prisma.TransactionClient, bidId: string, ownerOrgId: string, userId: string, documents: BidDocumentInput[]) {
   for (const document of documents) {
-    const object = await tx.documentObject.create({
+    const documentId = document.documentId || (await tx.documentObject.create({
       data: {
         ownerOrgId,
         uploadedByUserId: userId,
@@ -610,11 +646,12 @@ async function appendDocuments(tx: Prisma.TransactionClient, bidId: string, owne
           ...(document.mimeType ? { mimeType: document.mimeType } : {})
         } as Prisma.InputJsonObject
       }
-    });
+    })).id;
+    await tx.bidDocument.deleteMany({ where: { bidId, documentId } });
     await tx.bidDocument.create({
       data: {
         bidId,
-        documentId: object.id,
+        documentId,
         envelope: (document.envelope ?? 'COMBINED') as EnvelopeType
       }
     });
@@ -784,6 +821,11 @@ function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
   return error;
+}
+
+function requireSignatureKeyphrase(value?: string) {
+  if (!value) throw requestError('Digital signature keyphrase is required.', 400);
+  return value;
 }
 
 function isUniqueConstraintError(error: unknown) {

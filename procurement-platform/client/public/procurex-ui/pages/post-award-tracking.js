@@ -138,7 +138,7 @@ function renderPostAwardTracking() {
                     ${renderPostAwardQueueNavLink('My Urgent Actions', 'my-urgent-actions')}
                     ${renderPostAwardQueueNavLink('Awarding in Progress', 'awarding-in-progress')}
                     ${renderPostAwardQueueNavLink('Awards Received', 'awards-received')}
-                    ${renderPostAwardQueueNavLink('Contracts in Progress', 'contracts-in-progress')}
+                    ${renderPostAwardQueueNavLink('Contract Negotiation', 'contracts-in-progress')}
                     ${renderPostAwardQueueNavLink('Active Contracts', 'active-contracts', true)}
                     ${renderPostAwardQueueNavLink('Closed Contracts', 'closed-contracts')}
                     <li><a href="#" data-award-guard-navigate data-navigate="contract-negotiation" data-route-search="tab=signatures">Back to Contract</a></li>

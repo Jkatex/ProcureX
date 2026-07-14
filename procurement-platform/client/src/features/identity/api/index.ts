@@ -5,6 +5,8 @@ import type {
   EntityType,
   RegistryRecord,
   SigningCredentialStatus,
+  KeyphraseRecoveryHistoryItem,
+  KeyphraseStatusResponse,
   VerificationMe,
   VerificationProfile,
   VerificationSubmitResult
@@ -71,6 +73,38 @@ export const identityApi = {
   },
   async revokeSignature() {
     const response = await apiClient.post<SigningCredentialStatus>('/api/identity/signature/revoke');
+    return response.data;
+  },
+  async getKeyphraseStatus() {
+    const response = await apiClient.get<KeyphraseStatusResponse>('/api/identity/keyphrase/status');
+    return response.data;
+  },
+  async changeKeyphrase(input: { currentKeyphrase: string; password: string; newKeyphrase: string; confirmKeyphrase: string }) {
+    const response = await apiClient.post<SigningCredentialStatus>('/api/identity/keyphrase/change', input);
+    return response.data;
+  },
+  async startKeyphraseRecovery(input: { email: string; turnstileToken: string }) {
+    const response = await apiClient.post<{ ok: boolean; message: string; recoveryId?: string; expiresAt?: string; resendAvailableAt?: string }>('/api/identity/keyphrase/recovery/start', input);
+    return response.data;
+  },
+  async verifyKeyphraseRecoveryEmail(input: { recoveryId: string; code: string; turnstileToken: string }) {
+    const response = await apiClient.post<{ ok: boolean; recoveryId: string; phoneMasked: string | null; expiresAt: string }>('/api/identity/keyphrase/recovery/verify-email', input);
+    return response.data;
+  },
+  async verifyKeyphraseRecoveryPhone(input: { recoveryId: string; code: string; turnstileToken: string }) {
+    const response = await apiClient.post<{ ok: boolean; recoveryId: string }>('/api/identity/keyphrase/recovery/verify-phone', input);
+    return response.data;
+  },
+  async completeKeyphraseRecovery(input: { recoveryId: string; newKeyphrase: string; confirmKeyphrase: string; turnstileToken: string }) {
+    const response = await apiClient.post<{ ok: boolean; message: string }>('/api/identity/keyphrase/recovery/complete', input);
+    return response.data;
+  },
+  async getKeyphraseRecoveryHistory() {
+    const response = await apiClient.get<{ recoveries: KeyphraseRecoveryHistoryItem[] }>('/api/identity/keyphrase/recovery-history');
+    return response.data;
+  },
+  async getAdminKeyphraseRecoveryHistory() {
+    const response = await apiClient.get<{ recoveries: KeyphraseRecoveryHistoryItem[] }>('/api/identity/admin/keyphrase-recovery-history');
     return response.data;
   },
   async updateProfile(input: { profile: Record<string, unknown>; documents?: Record<string, unknown>[] }) {

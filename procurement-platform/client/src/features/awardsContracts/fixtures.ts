@@ -8,17 +8,17 @@ import type {
   PostAwardTab,
   SupplierAward,
   SummaryCard,
-  UrgentAction,
   PendingAward
 } from './types';
 
 export const awardQueueLabels: Record<AwardQueueId, string> = {
-  'my-urgent-actions': 'My Urgent Actions',
-  'awarding-in-progress': 'Awarding in Progress',
+  'sample-procurement': 'Samples',
+  'contract-preparation': 'Draft Contracts',
+  'awarding-in-progress': 'Award Decisions',
   'awards-received': 'Awards Received',
-  'contracts-in-progress': 'Contracts in Progress',
+  'contracts-in-progress': 'Contract Negotiation',
   'active-contracts': 'Active Contracts',
-  'closed-contracts': 'Closed Contracts'
+  'closed-contracts': 'Closed / Archived'
 };
 
 export const pendingAwards: PendingAward[] = [
@@ -36,56 +36,20 @@ export const activeContracts: ActiveContract[] = [
 export const closedContracts: ClosedContract[] = [
 ];
 
-export const urgentActions: UrgentAction[] = [
-  ...pendingAwards.map((row) => ({
-    id: `urgent-${row.id}`,
-    priority: 'Medium',
-    action: 'Continue Award',
-    item: row.title,
-    party: row.recommendedSupplier,
-    dueDate: '2026-07-15',
-    role: row.role,
-    status: row.awardStatus,
-    buttonLabel: 'Review',
-    nav: 'award-recommendation',
-    tenderId: row.id
-  })),
-  ...supplierAwards.map((row) => ({
-    id: `urgent-${row.id}`,
-    priority: 'Low',
-    action: 'Accept Award',
-    item: row.title,
-    party: row.buyer,
-    dueDate: '2026-07-04',
-    role: 'Supplier' as const,
-    status: row.contractStatus,
-    buttonLabel: 'Respond',
-    nav: 'award-response',
-    routeSearch: `award=${row.id}`,
-    tenderId: row.id
-  })),
-  ...contractActions.map((row) => ({
-    id: `urgent-${row.id}`,
-    priority: row.requiredAction.includes('Signature') ? 'High' : 'Medium',
-    action: row.requiredAction,
-    item: row.contract,
-    party: row.otherParty,
-    dueDate: row.dueDate,
-    role: row.role,
-    status: row.status,
-    buttonLabel: 'Review',
-    nav: 'contract-negotiation',
-    routeSearch: row.routeSearch
-  }))
-];
-
 export const summaryCards: SummaryCard[] = [
   {
-    queue: 'my-urgent-actions',
-    label: 'My Urgent Actions',
-    value: urgentActions.length,
-    detail: 'All buyer and supplier actions needing attention',
-    trend: '!'
+    queue: 'sample-procurement',
+    label: 'Sample Procurement',
+    value: 0,
+    detail: 'Receipt, verification, custody, evaluation, testing, return, disposal, and reference samples',
+    trend: 'Samples'
+  },
+  {
+    queue: 'contract-preparation',
+    label: 'Contract Preparation',
+    value: 0,
+    detail: 'Buyer-owned contract drafts prepared after tender publication and before award',
+    trend: 'Draft'
   },
   {
     queue: 'awarding-in-progress',
@@ -105,7 +69,7 @@ export const summaryCards: SummaryCard[] = [
     queue: 'contracts-in-progress',
     label: 'Contracts in Progress',
     value: contractActions.length,
-    detail: 'Drafting, review, negotiation, approval, and signing actions',
+    detail: 'Draft review, amendment requests, final acceptance, and communication confirmation',
     trend: 'Due'
   },
   {
@@ -129,7 +93,7 @@ export const awardWorkflowSteps: AwardWorkflowStep[] = [
   { id: 'award-decision', title: 'Award Decision', shortTitle: 'Award Decision', status: 'Award Decision Pending' },
   { id: 'approval', title: 'Approval', shortTitle: 'Approval', status: 'Approval pending' },
   { id: 'award-notification', title: 'Notice Preparation', shortTitle: 'Notices', status: 'Required notices pending' },
-  { id: 'standstill-period', title: 'Standstill & Complaints', shortTitle: 'Standstill', status: 'Contract blocked' },
+  { id: 'standstill-period', title: 'Waiting / Complaint Period (standstill)', shortTitle: 'Waiting Period', status: 'Contract blocked' },
   { id: 'supplier-acceptance', title: 'Supplier Acceptance', shortTitle: 'Acceptance', status: 'Awaiting supplier response' },
   { id: 'pre-contract-documents', title: 'Pre-Contract Documents', shortTitle: 'Documents', status: 'Documents pending' },
   { id: 'draft-contract', title: 'Draft Contract', shortTitle: 'Draft Contract', status: 'Blocked' }

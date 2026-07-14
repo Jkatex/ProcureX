@@ -228,6 +228,25 @@ const draftClosingDateSchema = z
     message: 'Closing date must be in the future.'
   });
 const categoryInputSchema = z.string().trim().min(1).max(120);
+const requirementRowSchema = z
+  .object({
+    id: z.string().trim().min(1).max(120).optional(),
+    section: z.string().trim().min(1).max(120),
+    payload: z.record(z.unknown()).optional().default({})
+  })
+  .strict();
+const commercialItemSchema = z
+  .object({
+    id: z.string().trim().min(1).max(120).optional(),
+    itemNo: z.string().trim().max(40).nullable().optional(),
+    description: z.string().trim().min(1).max(1000),
+    quantity: z.coerce.number().finite().nullable().optional(),
+    unit: z.string().trim().max(80).nullable().optional(),
+    rate: z.coerce.number().finite().nullable().optional(),
+    total: z.coerce.number().finite().nullable().optional(),
+    payload: z.record(z.unknown()).optional().default({})
+  })
+  .strict();
 
 export const standardizeCategoryBodySchema = z
   .object({
@@ -256,6 +275,8 @@ export const createTenderBodySchema = z
     category: categoryInputSchema.optional(),
     requirements: metadataSchema,
     metadata: metadataSchema,
+    requirementRows: z.array(requirementRowSchema).max(1000).optional().default([]),
+    commercialItems: z.array(commercialItemSchema).max(1000).optional().default([]),
     reference: z.string().trim().min(1).max(80).optional()
   })
   .strict()
@@ -291,7 +312,9 @@ export const updateTenderBodySchema = z
     categories: z.array(categoryInputSchema).max(20).optional(),
     category: categoryInputSchema.optional(),
     requirements: metadataSchema.optional(),
-    metadata: metadataSchema.optional()
+    metadata: metadataSchema.optional(),
+    requirementRows: z.array(requirementRowSchema).max(1000).optional(),
+    commercialItems: z.array(commercialItemSchema).max(1000).optional()
   })
   .strict()
   .refine((input) => Object.keys(input).length > 0, {
@@ -318,7 +341,15 @@ export const buyerNoticeBodySchema = z
   })
   .strict();
 
-export const publishTenderBodySchema = z.object({}).strict();
+const signatureKeyphraseSchema = z.string().min(6).max(128);
+
+export const publishTenderBodySchema = z
+  .object({
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
+  })
+  .strict();
+
+export const emptyActionBodySchema = z.object({}).strict();
 
 export const tenderReviewQuerySchema = z
   .object({

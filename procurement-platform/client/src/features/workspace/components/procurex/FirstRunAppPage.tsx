@@ -156,14 +156,14 @@ const adminNavItems: FirstRunNavItem[] = [
 
 const createTender: FirstRunCard = {
   title: 'Create tender',
-  description: 'Start the buyer workflow that creates the records other apps depend on.',
+  description: 'Start a buyer tender workflow.',
   page: 'create-tender',
   icon: 'procurement'
 };
 
 const viewMarketplace: FirstRunCard = {
   title: 'View marketplace',
-  description: 'Browse published opportunities once tenders exist in the system.',
+  description: 'Browse published opportunities.',
   page: 'marketplace',
   icon: 'procurement'
 };
@@ -177,7 +177,7 @@ const openCommunication: FirstRunCard = {
 
 const openEvaluation: FirstRunCard = {
   title: 'Open evaluation',
-  description: 'Return here after published tenders receive supplier bids.',
+  description: 'Review bids after submission.',
   page: 'bid-evaluation',
   icon: 'evaluation'
 };
@@ -191,7 +191,7 @@ const openAwards: FirstRunCard = {
 
 const openRecords: FirstRunCard = {
   title: 'Open records',
-  description: 'Review the archive after tenders, bids, awards, and contracts exist.',
+  description: 'Review procurement history and evidence.',
   page: 'records-history',
   icon: 'records'
 };
@@ -205,12 +205,12 @@ const procurementSequence: FirstRunStep[] = [
   {
     label: '02',
     title: 'Receive supplier activity',
-    description: 'Marketplace, bidding, and communication records appear as suppliers engage.'
+    description: 'Suppliers can review the opportunity, ask questions, and submit bids.'
   },
   {
     label: '03',
     title: 'Move into later apps',
-    description: 'Evaluation, awards, contracts, and records unlock naturally from real tender activity.'
+    description: 'Evaluation, awards, contracts, and records follow the tender workflow.'
   }
 ];
 
@@ -222,14 +222,14 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     sidebarNote: 'Marketplace and tender creation',
     kicker: 'Tender marketplace',
     heading: 'No published tenders yet.',
-    body: 'This marketplace will show open tenders, your published tenders, saved opportunities, and bid drafts once real procurement activity begins.',
+    body: 'Manage open tenders, your published tenders, saved opportunities, and bid drafts from this workspace.',
     statusLabel: 'No tenders yet',
     visualTitle: 'Marketplace is ready',
     visualText: 'Create a tender to publish your first opportunity, or return here when public opportunities are available.',
     primaryAction: { label: 'Create tender', page: 'create-tender' },
     secondaryAction: { label: 'View marketplace', page: 'marketplace', variant: 'secondary' },
     stats: [
-      { label: 'Open tenders', value: '0', note: 'Published opportunities will appear here.' },
+      { label: 'Open tenders', value: '0', note: 'Published opportunities.' },
       { label: 'My tenders', value: '0', note: 'Tenders created by your organization.' },
       { label: 'My bids', value: '0', note: 'Draft and submitted bid records.' },
       { label: 'Saved tenders', value: '0', note: 'Opportunities you mark for follow-up.' }
@@ -246,10 +246,10 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     pageKey: 'tender-publication',
     kicker: 'Publication workspace',
     heading: 'There is no tender ready for publication yet.',
-    body: 'This page is where a completed tender package is reviewed and published to the marketplace. It opens after a tender draft has enough required information.',
+    body: 'Review and publish completed tender packages after the draft has the required information.',
     statusLabel: 'Awaiting tender draft',
     visualTitle: 'Publication checkpoint',
-    visualText: 'Tender details, requirements, dates, and review confirmations will appear here before publication.',
+    visualText: 'Tender details, requirements, dates, and review confirmations are checked before publication.',
     primaryAction: { label: 'Create tender', page: 'create-tender' },
     secondaryAction: { label: 'View marketplace', page: 'marketplace', variant: 'secondary' },
     stats: [
@@ -270,7 +270,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     pageKey: 'tender-details',
     kicker: 'Buyer tender record',
     heading: 'No buyer tender is selected yet.',
-    body: 'Buyer tender details will show the requirements, supplier interest, clarifications, amendments, and evaluation readiness for a tender your organization created.',
+    body: 'Review requirements, supplier interest, clarifications, amendments, and evaluation readiness for buyer tenders.',
     statusLabel: 'No selected tender',
     visualTitle: 'Tender record waiting',
     visualText: 'Create and publish a tender before this page has a record to inspect.',
@@ -297,7 +297,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     body: 'Tender documents are generated from the tender package after the buyer captures scope, requirements, evaluation criteria, and dates.',
     statusLabel: 'No document yet',
     visualTitle: 'Document builder waiting',
-    visualText: 'Complete a tender draft and the generated document pack will appear here.',
+    visualText: 'Complete a tender draft to generate the document pack.',
     primaryAction: { label: 'Create tender', page: 'create-tender' },
     secondaryAction: { label: 'View marketplace', page: 'marketplace', variant: 'secondary' },
     stats: [
@@ -318,7 +318,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     pageKey: 'tender-detail',
     kicker: 'Supplier tender view',
     heading: 'No supplier tender has been selected.',
-    body: 'This page shows the supplier-facing tender pack, clarification options, document downloads, and bid entry point after a marketplace tender is selected.',
+    body: 'Open a marketplace tender to review the tender pack, download documents, ask clarifications, and start a bid.',
     statusLabel: 'No selected opportunity',
     visualTitle: 'Supplier view waiting',
     visualText: 'Open the marketplace first, then choose a published tender to inspect or bid on.',
@@ -351,7 +351,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     body: 'Bid forms are generated from a selected tender, so this workspace stays empty until you open a published opportunity from the marketplace.',
     statusLabel: 'No bid draft',
     visualTitle: 'Bid workspace waiting',
-    visualText: 'Once you select a tender, eligibility documents, technical responses, pricing, and declarations will appear here.',
+    visualText: 'Select a tender to prepare eligibility documents, technical responses, pricing, and declarations.',
     primaryAction: { label: 'View marketplace', page: 'marketplace' },
     secondaryAction: { label: 'Create tender', page: 'create-tender', variant: 'secondary' },
     stats: [
@@ -381,7 +381,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     body: 'This is where you will evaluate bidders after a tender is published, the closing date passes, and supplier bids have been submitted.',
     statusLabel: 'Waiting for bids',
     visualTitle: 'Evaluation comes later',
-    visualText: 'Create and publish a tender first. After suppliers submit bids, this workspace will show scoring, compliance, and award recommendation tools.',
+    visualText: 'Create and publish a tender first. Submitted bids can then move into scoring, compliance checks, and award recommendation.',
     primaryAction: { label: 'Create tender', page: 'create-tender' },
     secondaryAction: { label: 'View marketplace', page: 'marketplace', variant: 'secondary' },
     stats: [
@@ -411,7 +411,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     body: 'Awarding starts after evaluation is complete. Contracts begin after an award decision is accepted and the parties are ready to prepare terms.',
     statusLabel: 'No award queue',
     visualTitle: 'Contract lifecycle waiting',
-    visualText: 'Create a tender, receive bids, complete evaluation, then award and contract actions will appear here.',
+    visualText: 'Create a tender, receive bids, and complete evaluation before award and contract actions begin.',
     primaryAction: { label: 'Create tender', page: 'create-tender' },
     secondaryAction: { label: 'Open evaluation', page: 'bid-evaluation', variant: 'secondary' },
     stats: [
@@ -439,7 +439,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     body: 'Award recommendations are prepared only after the evaluation team has reviewed submitted bids and identified the responsive supplier.',
     statusLabel: 'No evaluated tender',
     visualTitle: 'Recommendation waiting',
-    visualText: 'Finish evaluation first, then this page will show the supplier, amount, justification, and approval trail.',
+    visualText: 'Finish evaluation first to prepare the supplier, amount, justification, and approval trail.',
     primaryAction: { label: 'Open evaluation', page: 'bid-evaluation' },
     secondaryAction: { label: 'Create tender', page: 'create-tender', variant: 'secondary' },
     stats: [
@@ -464,7 +464,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     pageKey: 'award-response',
     kicker: 'Supplier award response',
     heading: 'No award notice has been received yet.',
-    body: 'This page is where a supplier accepts an award, requests clarification, or declines before contract preparation begins.',
+    body: 'Suppliers can accept an award, request clarification, or decline before contract preparation begins.',
     statusLabel: 'No award notice',
     visualTitle: 'Supplier response waiting',
     visualText: 'Award notices appear here only after a buyer evaluates bids and issues an award to your organization.',
@@ -576,10 +576,10 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     sidebarNote: 'System oversight',
     kicker: 'Admin command center',
     heading: 'No platform activity has been indexed yet.',
-    body: 'Admin metrics will show real account reviews, compliance flags, tender checks, and audit events after users begin platform activity.',
+    body: 'Admin metrics summarize account reviews, compliance flags, tender checks, and audit events.',
     statusLabel: 'No admin queue',
-    visualTitle: 'Oversight waiting for real activity',
-    visualText: 'The admin console should not show sample organizations or artificial procurement volume.',
+    visualTitle: 'Oversight ready',
+    visualText: 'Admin totals remain empty until platform activity is recorded.',
     primaryAction: { label: 'Go to dashboard', page: 'workspace-dashboard' },
     secondaryAction: { label: 'Open communication', page: 'communication-center', variant: 'secondary' },
     stats: [
@@ -589,7 +589,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
       { label: 'Reports ready', value: '0', note: 'Exportable admin reports.' }
     ],
     stepsKicker: 'Admin scope',
-    stepsTitle: 'Admin tools observe real platform activity',
+    stepsTitle: 'Admin tools observe platform activity',
     steps: [
       { label: '01', title: 'Users create activity', description: 'Accounts, tenders, bids, and contracts create reviewable records.' },
       { label: '02', title: 'Compliance checks run', description: 'Rules and review queues populate from those records.' },
@@ -599,7 +599,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     actionTitle: 'Oversight areas',
     actions: [
       { title: 'Deep search', description: 'Search will index users, tenders, bids, and records once they exist.', page: 'admin-search', icon: 'records' },
-      { title: 'Compliance rules', description: 'Review compliance queues after real records are submitted.', page: 'admin-compliance', icon: 'evaluation' },
+      { title: 'Compliance rules', description: 'Review compliance queues after records are submitted.', page: 'admin-compliance', icon: 'evaluation' },
       { title: 'Audit trail', description: 'Audit events will appear after platform actions occur.', page: 'admin-audit', icon: 'records' }
     ],
     navItems: adminNavItems
@@ -609,10 +609,10 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     pageKey: 'admin-search',
     kicker: 'Deep search',
     heading: 'There are no indexed records to search yet.',
-    body: 'Admin search will cover real users, tenders, bids, contracts, compliance evidence, and audit entries once the platform has activity.',
+    body: 'Admin search covers users, tenders, bids, contracts, compliance evidence, and audit entries.',
     statusLabel: 'Search index empty',
     visualTitle: 'Nothing indexed yet',
-    visualText: 'The search surface is ready, but it should not show sample accounts or tenders.',
+    visualText: 'The search surface is ready and fills as platform records are indexed.',
     primaryAction: { label: 'Go to admin', page: 'admin-dashboard' },
     secondaryAction: { label: 'Go to dashboard', page: 'workspace-dashboard', variant: 'secondary' },
     stats: [
@@ -622,7 +622,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
       { label: 'Audit rows', value: '0', note: 'System events.' }
     ],
     stepsKicker: 'Search scope',
-    stepsTitle: 'Search fills from real records',
+    stepsTitle: 'Search fills from platform records',
     steps: firstRunConfigsPlaceholderSteps(),
     actionKicker: 'Admin navigation',
     actionTitle: 'Where to go',
@@ -638,7 +638,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     pageKey: 'admin-users',
     kicker: 'User management',
     heading: 'No user accounts are waiting for admin review.',
-    body: 'User management will show registered accounts, verification status, and review actions once real users enter the platform.',
+    body: 'User management shows registered accounts, verification status, and review actions.',
     statusLabel: 'No user queue',
     visualTitle: 'Account review waiting',
     visualText: 'This page should not list sample people or organizations before registration happens.',
@@ -657,7 +657,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     actionTitle: 'Review areas',
     actions: [
       { title: 'Compliance rules', description: 'Review rule queues after evidence is submitted.', page: 'admin-compliance', icon: 'evaluation' },
-      { title: 'Deep search', description: 'Search real users and records after indexing.', page: 'admin-search', icon: 'records' },
+      { title: 'Deep search', description: 'Search users and records after indexing.', page: 'admin-search', icon: 'records' },
       { title: 'Audit trail', description: 'Inspect user-related platform events.', page: 'admin-audit', icon: 'records' }
     ],
     navItems: adminNavItems
@@ -670,7 +670,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     body: 'Compliance queues will populate from submitted verification evidence, tender records, procurement documents, and flagged workflow events.',
     statusLabel: 'No compliance queue',
     visualTitle: 'Rules are ready',
-    visualText: 'When real records arrive, admin review can inspect evidence and route issues without changing procurement outcomes.',
+    visualText: 'When records arrive, admin review can inspect evidence and route issues without changing procurement outcomes.',
     primaryAction: { label: 'Go to admin', page: 'admin-dashboard' },
     secondaryAction: { label: 'Open audit trail', page: 'admin-audit', variant: 'secondary' },
     stats: [
@@ -685,7 +685,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     actionKicker: 'Admin navigation',
     actionTitle: 'Oversight actions',
     actions: [
-      { title: 'Deep search', description: 'Find evidence after real records are indexed.', page: 'admin-search', icon: 'records' },
+      { title: 'Deep search', description: 'Find evidence after records are indexed.', page: 'admin-search', icon: 'records' },
       { title: 'Audit trail', description: 'Inspect the event trail for compliance activity.', page: 'admin-audit', icon: 'records' },
       { title: 'User management', description: 'Review account verification queues.', page: 'admin-users', icon: 'iam' }
     ],
@@ -699,7 +699,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     body: 'Analytics will summarize real procurement volume, cycle times, supplier participation, compliance trends, and account activity after records exist.',
     statusLabel: 'No analytics data',
     visualTitle: 'Charts waiting for records',
-    visualText: 'No artificial totals, sample buyers, or benchmark rows are shown before actual activity.',
+    visualText: 'Analytics totals update when procurement records are available.',
     primaryAction: { label: 'Go to admin', page: 'admin-dashboard' },
     secondaryAction: { label: 'Open records', page: 'records-history', variant: 'secondary' },
     stats: [
@@ -709,7 +709,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
       { label: 'Reports', value: '0', note: 'Generated analytics exports.' }
     ],
     stepsKicker: 'Analytics source',
-    stepsTitle: 'Charts need real activity',
+    stepsTitle: 'Charts need platform activity',
     steps: firstRunConfigsPlaceholderSteps(),
     actionKicker: 'Admin navigation',
     actionTitle: 'Where data will come from',
@@ -755,7 +755,7 @@ function firstRunConfigsPlaceholderSteps(): FirstRunStep[] {
   return [
     {
       label: '01',
-      title: 'Real users create records',
+      title: 'Users create records',
       description: 'Registration, tender creation, bidding, and contracting create the data source.'
     },
     {

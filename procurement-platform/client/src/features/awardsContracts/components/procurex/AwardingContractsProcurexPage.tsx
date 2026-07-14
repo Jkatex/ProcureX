@@ -12,8 +12,18 @@ import {
 } from './AwardsContractsProcurexShared';
 
 const queueIds = Object.keys(awardQueueLabels) as AwardQueueId[];
+const smartQueueOrder: AwardQueueId[] = [
+  'awarding-in-progress',
+  'awards-received',
+  'contracts-in-progress',
+  'active-contracts',
+  'contract-preparation',
+  'sample-procurement',
+  'closed-contracts'
+];
 const emptyQueues: AwardContractDashboard['queues'] = {
-  'my-urgent-actions': [],
+  'sample-procurement': [],
+  'contract-preparation': [],
   'awarding-in-progress': [],
   'awards-received': [],
   'contracts-in-progress': [],
@@ -22,27 +32,33 @@ const emptyQueues: AwardContractDashboard['queues'] = {
 };
 
 const queueNotes: Record<AwardQueueId, string> = {
-  'my-urgent-actions': 'This queue aggregates buyer and supplier work that needs attention across awards, contracts, invoices, variations, and closure.',
-  'awarding-in-progress': 'Buyer-side tenders moving from evaluation result, recommendation, approval, notices, and contract handoff.',
-  'awards-received': 'Supplier-side awards awaiting notice review, response, clarification, acceptance, or contract formation.',
-  'contracts-in-progress': 'Drafting, review, negotiation, approval, document completion, and signing actions.',
-  'active-contracts': 'Contracts under mobilization, delivery, inspections, risk control, invoice review, payment tracking, or warranty work.',
-  'closed-contracts': 'Completed, terminated, or archived contract records with closure and performance history.'
+  'sample-procurement': 'Manage required samples, including receipt, verification, custody, testing, return, disposal, and reference sample records.',
+  'contract-preparation': 'Prepare draft contract clauses and documents before award decisions are ready.',
+  'awarding-in-progress': 'Review evaluation results, confirm award decisions, send notices, and hand work into contract setup.',
+  'awards-received': 'Respond to awards your supplier organization has received, including acceptance, clarification, or decline.',
+  'contracts-in-progress': 'Negotiate draft contracts, resolve amendment requests, confirm final acceptance, and prepare outcome notices.',
+  'active-contracts': 'Track delivery, inspections, payments, risks, changes, warranties, and close-out work.',
+  'closed-contracts': 'Review completed, terminated, or archived contract records and performance history.'
 };
 
-function getQueueFromSearch(search: string): AwardQueueId {
+function explicitQueueFromSearch(search: string): AwardQueueId | null {
   const queue = new URLSearchParams(search).get('queue') as AwardQueueId | null;
-  return queue && queueIds.includes(queue) ? queue : 'my-urgent-actions';
+  return queue && queueIds.includes(queue) ? queue : null;
+}
+
+function smartDefaultQueue(queues: AwardContractDashboard['queues']): AwardQueueId {
+  return smartQueueOrder.find((queue) => queues[queue].length > 0) ?? 'awarding-in-progress';
 }
 
 function emptyQueueMessage(queue: AwardQueueId) {
   const messages: Record<AwardQueueId, string> = {
-    'my-urgent-actions': 'No urgent award or contract actions yet.',
-    'awarding-in-progress': 'No buyer-side awards are in progress yet.',
+    'sample-procurement': 'No sample actions are waiting yet.',
+    'contract-preparation': 'No draft contracts are being prepared yet.',
+    'awarding-in-progress': 'No award decisions need action yet. After evaluation is complete, award recommendations and notice steps will appear here.',
     'awards-received': 'No supplier awards have been received yet.',
-    'contracts-in-progress': 'No contracts are in progress yet.',
+    'contracts-in-progress': 'No contracts need negotiation or final acceptance yet.',
     'active-contracts': 'No active contracts are available yet.',
-    'closed-contracts': 'No closed contracts are archived yet.'
+    'closed-contracts': 'No closed or archived contracts are available yet.'
   };
   return messages[queue];
 }
@@ -67,10 +83,14 @@ function rowReference(row: LifecycleAction) {
 
 function rowButtonLabel(row: LifecycleAction, queue: AwardQueueId) {
   if (row.nextAction?.label) return row.nextAction.label;
-  if (queue === 'active-contracts') return 'Track';
-  if (queue === 'closed-contracts') return 'View Closure';
-  if (queue === 'awards-received') return 'Respond';
-  return row.requiredAction || 'Review';
+  if (queue === 'awarding-in-progress') return 'Review award';
+  if (queue === 'sample-procurement') return 'Manage samples';
+  if (queue === 'contract-preparation') return 'Prepare contract';
+  if (queue === 'contracts-in-progress') return 'Negotiate contract';
+  if (queue === 'active-contracts') return 'Track delivery';
+  if (queue === 'closed-contracts') return 'View closure';
+  if (queue === 'awards-received') return 'Respond to award';
+  return row.requiredAction || 'Open';
 }
 
 function rowPriority(row: LifecycleAction) {
@@ -83,6 +103,93 @@ function rowPriority(row: LifecycleAction) {
 function formatDue(row: LifecycleAction) {
   if (row.dueDate) return new Date(row.dueDate).toLocaleDateString();
   return row.currentStage || 'Not dated';
+}
+
+function queueRank(queue: AwardQueueId) {
+  const index = smartQueueOrder.indexOf(queue);
+  return index === -1 ? smartQueueOrder.length : index;
+}
+
+function priorityRank(row: LifecycleAction) {
+  const priority = rowPriority(row);
+  if (priority === 'Critical') return 0;
+  if (priority === 'High') return 1;
+  if (priority === 'Medium') return 2;
+  return 3;
+}
+
+function dueTime(row: LifecycleAction) {
+  if (!row.dueDate) return Number.MAX_SAFE_INTEGER;
+  const time = new Date(row.dueDate).getTime();
+  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time;
+}
+
+function nextActionRows(queues: AwardContractDashboard['queues']) {
+  return smartQueueOrder
+    .flatMap((queue) => queues[queue].map((row) => ({ queue, row })))
+    .filter(({ row }) => row.nextAction?.canAct !== false)
+    .sort((left, right) => {
+      const priority = priorityRank(left.row) - priorityRank(right.row);
+      if (priority !== 0) return priority;
+      const due = dueTime(left.row) - dueTime(right.row);
+      if (due !== 0) return due;
+      return queueRank(left.queue) - queueRank(right.queue);
+    })
+    .slice(0, 5);
+}
+
+function NextActionsPanel({ actions, onAction }: { actions: Array<{ queue: AwardQueueId; row: LifecycleAction }>; onAction: (row: LifecycleAction) => void }) {
+  return (
+    <section className="procurement-panel evaluation-panel awarding-next-actions-panel">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Your next actions</span>
+          <h2>Start with the work that needs attention first</h2>
+          <p>ProcureX combines buyer and supplier responsibilities here so you do not have to inspect every queue.</p>
+        </div>
+        <StatusBadge value={actions.length ? `${actions.length} ready` : 'No actions'} tone={actions.length ? 'success' : 'info'} />
+      </div>
+      {actions.length ? (
+        <div className="data-table evaluation-table-scroll awarding-contracts-table awarding-next-actions-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Priority</th>
+                <th>Next action</th>
+                <th>Work area</th>
+                <th>Due / Impact</th>
+                <th>Role</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              {actions.map(({ queue, row }) => (
+                <tr key={`${queue}-${row.id}`}>
+                  <td><StatusBadge value={rowPriority(row)} /></td>
+                  <td>
+                    <strong>{row.requiredAction}</strong>
+                    <span>{row.title}</span>
+                    <small>{row.otherParty}</small>
+                  </td>
+                  <td>
+                    <strong>{awardQueueLabels[queue]}</strong>
+                    <span>{row.currentStage}</span>
+                  </td>
+                  <td>{formatDue(row)}</td>
+                  <td><StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} tone="info" /></td>
+                  <td><button className="btn btn-primary btn-sm" type="button" onClick={() => onAction(row)}>{rowButtonLabel(row, queue)}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="scope-empty award-card-empty">
+          <p>No award or contract action needs your attention right now. When evaluation, award notices, negotiation, final acceptance, signing, delivery, or close-out work becomes ready, it will appear here first.</p>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function QueueTable({
@@ -157,7 +264,6 @@ function QueueTable({
 export function AwardingContractsProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const activeQueue = useMemo(() => getQueueFromSearch(location.search), [location.search]);
   const [dashboard, setDashboard] = useState<AwardContractDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -180,10 +286,11 @@ export function AwardingContractsProcurexPage() {
   }, [loadDashboard]);
 
   const queues = dashboard?.queues ?? emptyQueues;
+  const activeQueue = useMemo(() => explicitQueueFromSearch(location.search) ?? smartDefaultQueue(queues), [location.search, queues]);
+  const nextActions = useMemo(() => nextActionRows(queues), [queues]);
   const summary = dashboard?.summary ?? {
-    urgentActions: queues['my-urgent-actions'].length,
     awardQueues: queues['awarding-in-progress'].length + queues['awards-received'].length,
-    contractActions: queues['contracts-in-progress'].length + queues['active-contracts'].length
+    contractActions: queues['sample-procurement'].length + queues['contract-preparation'].length + queues['contracts-in-progress'].length + queues['active-contracts'].length
   };
 
   function jumpToQueue(queue: AwardQueueId) {
@@ -204,7 +311,7 @@ export function AwardingContractsProcurexPage() {
             title="Your awarding and contracts - in every role you play"
             copy="Your company can be a buyer on tenders you created and a supplier on tenders you won. Both roles are shown below with clear next actions."
             stats={[
-              { value: summary.urgentActions, label: 'Urgent actions' },
+              { value: queues['sample-procurement'].length, label: 'Sample actions' },
               { value: summary.awardQueues, label: 'Awards' },
               { value: summary.contractActions, label: 'Contract actions' }
             ]}
@@ -232,12 +339,14 @@ export function AwardingContractsProcurexPage() {
 
           {!isLoading && !loadError ? (
             <>
+              <NextActionsPanel actions={nextActions} onAction={followAction} />
+
               <section className="procurement-panel evaluation-panel awarding-tabs-panel">
                 <div className="panel-heading">
                   <div>
                     <span className="section-kicker">Lifecycle queues</span>
-                    <h2>Work is sorted by required action, with role shown inside each row</h2>
-                    <p>The dashboard keeps buyer and supplier responsibilities visible without forcing separate accounts.</p>
+                    <h2>Choose a work area when you need the full queue</h2>
+                    <p>The dashboard keeps buyer and supplier responsibilities visible without forcing separate accounts. Official workflow terms stay in the row details.</p>
                   </div>
                 </div>
 

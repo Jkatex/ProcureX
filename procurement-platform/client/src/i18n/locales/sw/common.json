@@ -391,7 +391,8 @@
       "body": "ProcureX ni soko la kisasa la ununuzi mtandaoni lililojengwa kufanya ununuzi uwe rahisi, wa haki, salama, na unaopatikana kwa wote.",
       "support": "Tengeneza zabuni, gundua zabuni, na jenga kumbukumbu ya ununuzi leo.",
       "primaryCta": "Anza Sasa",
-      "secondaryCta": "Tazama Zabuni Zilizo Wazi"
+      "secondaryCta": "Tazama Zabuni Zilizo Wazi",
+      "demoCta": "Tazama Demo"
     },
     "preview": {
       "title": "Soko la ProcureX",
@@ -480,6 +481,68 @@
       "support": "Msaada",
       "helpCenter": "Kituo cha Msaada",
       "contactSupport": "Wasiliana na Msaada"
+    }
+  },
+  "helpCentre": {
+    "eyebrow": "Kituo cha Msaada cha ProcureX",
+    "title": "Kituo cha Msaada cha ProcureX",
+    "intro": "Karibu kwenye Kituo cha Msaada cha ProcureX. Uliza swali au chagua mada ili upate mwongozo wa hatua kwa hatua kuhusu kutumia jukwaa.",
+    "publicContext": "Mwongozo wa umma",
+    "searchLabel": "Uliza swali la jukwaa",
+    "searchPlaceholder": "Mfano: Ninawezaje kuwasilisha zabuni?",
+    "ask": "Uliza",
+    "asking": "Inatafuta...",
+    "charactersRemaining": "Herufi {{count}} zimebaki",
+    "enterHint": "Bonyeza Enter kuuliza. Tumia Shift+Enter kwa mstari mpya.",
+    "categories": "Makundi",
+    "allCategories": "Makundi yote",
+    "chatAria": "Mazungumzo ya Kituo cha Msaada",
+      "assistantTitle": "Msaidizi wa Msaada",
+      "assistantName": "Msaidizi wa Msaada wa ProcureX",
+      "clear": "Futa mazungumzo",
+      "panelLabel": "Paneli ya msaada",
+      "openPanel": "Fungua paneli ya msaada",
+      "hidePanel": "Ficha paneli ya msaada",
+      "closePanel": "Funga paneli ya msaada",
+      "hideCategories": "Ficha makundi",
+      "showCategories": "Onyesha makundi",
+      "hideSuggestions": "Ficha mapendekezo",
+      "showSuggestions": "Onyesha mapendekezo",
+      "emptyTitle": "Mazungumzo yamefutwa.",
+    "emptyBody": "Uliza swali lingine au chagua mada maarufu.",
+    "loading": "Inapakia Kituo cha Msaada...",
+    "loadingAnswer": "Inatafuta jibu rasmi linalofaa...",
+    "popular": "Maswali maarufu",
+    "frequentlyViewed": "Yanayotazamwa mara nyingi",
+    "confidence": "Ulinganifu {{count}}%",
+    "welcomeMessage": "Ninaweza kusaidia kuhusu usajili, uthibitishaji, zabuni, mikataba, ankara, malipo, kumbukumbu, na msaada wa kiufundi wa ProcureX.",
+    "welcomeStepSearch": "Andika swali kwenye kisanduku cha utafutaji.",
+    "welcomeStepCategory": "Chagua kundi au swali maarufu kama unapendelea kuvinjari.",
+    "welcomeStepSupport": "Tumia Wasiliana na Msaada unapohitaji usaidizi maalum wa akaunti.",
+    "disclaimer": "Msaidizi wa Msaada wa ProcureX hutoa mwongozo wa jukwaa pekee. Haufanyi maamuzi ya ununuzi, tathmini, tuzo, mkataba, ankara au malipo.",
+    "sections": {
+      "steps": "Hatua",
+      "notes": "Maelezo muhimu",
+      "warnings": "Tahadhari",
+      "related": "Maswali yanayohusiana"
+    },
+    "support": {
+      "title": "Unahitaji msaada zaidi?",
+      "body": "Tumia viungo vya msaada kwa masuala maalum ya akaunti, matatizo ya kiufundi, au mawasiliano yanayohitaji majibu ya mtu.",
+      "communication": "Kituo cha Mawasiliano",
+      "contactSupport": "Wasiliana na Msaada",
+      "privacy": "Sera ya Faragha",
+      "terms": "Vigezo na Masharti"
+    },
+    "fallback": {
+      "tryAgain": "Jaribu kuuliza swali kwa maneno machache.",
+      "selectCategory": "Chagua kundi la Kituo cha Msaada linalokaribiana.",
+      "contactSupport": "Wasiliana na Msaada kama bado unahitaji usaidizi."
+    },
+    "errors": {
+      "title": "Kituo cha Msaada hakipatikani",
+      "load": "Maudhui ya Kituo cha Msaada hayakuweza kupakiwa.",
+      "message": "Msaidizi wa Msaada hawezi kujibu sasa. Tafadhali jaribu tena."
     }
   },
   "support": {
@@ -644,7 +707,7 @@
     "cookie": {
       "ariaLabel": "Taarifa ya vidakuzi",
       "message": "ProcureX hutumia hifadhi muhimu ya kivinjari kwa kuingia, lugha, ukaguzi wa usalama, na kutegemewa kwa huduma. Tazama",
-      "shortMessage": "ProcureX hutumia hifadhi ya ndani na vidakuzi muhimu ili kuweka vikao, mapendeleo, na mitiririko ya onyesho ikifanya kazi.",
+      "shortMessage": "ProcureX hutumia hifadhi ya kivinjari na vidakuzi muhimu ili kuweka vikao, mapendeleo, na mitiririko muhimu ikifanya kazi.",
       "accept": "Kubali"
     }
   },
@@ -702,7 +765,7 @@
       "missing": "Kamilisha ukaguzi wa usalama kabla ya kuendelea.",
       "missingSignIn": "Kamilisha ukaguzi wa usalama kabla ya kuingia.",
       "notConfigured": "Ukaguzi wa usalama haujasanidiwa.",
-      "localDevelopment": "Ukaguzi wa usalama wa mazingira ya ndani umewezeshwa.",
+      "localDevelopment": "Ukaguzi wa usalama umewezeshwa.",
       "ariaLabel": "Ukaguzi wa usalama"
     },
     "register": {
@@ -797,10 +860,10 @@
         "submit": "Ingia",
         "submitting": "Inaingia...",
         "demo": {
-          "title": "Akaunti ya onyesho",
-          "body": "Tumia mtumiaji aliyethibitishwa wa seed kwa majaribio ya ndani.",
-          "button": "Ingia kama mtumiaji wa onyesho",
-          "securityHint": "Fungua eneo la kazi la onyesho la ndani"
+          "title": "Akaunti ya majaribio",
+          "body": "Tumia akaunti iliyoandaliwa kwa majaribio ya ndani.",
+          "button": "Ingia kwa akaunti ya majaribio",
+          "securityHint": "Fungua eneo la kazi lililoandaliwa"
         },
         "note": ""
       },

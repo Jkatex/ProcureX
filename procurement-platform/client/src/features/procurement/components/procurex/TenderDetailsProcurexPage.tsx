@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { apiErrorMessage } from '@/shared/api/errors';
+import { awardsContractsApi } from '@/features/awardsContracts/api';
 import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';
 import { useTenderDetail } from '../../hooks';
 import { procurementApi } from '../../api';
@@ -110,6 +112,7 @@ export function TenderDetailsProcurexPage() {
 }
 
 function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
+  const navigate = useNavigate();
   const summary = tender.bidSummary ?? { total: 0, draft: 0, submitted: 0, withdrawn: 0 };
   const clarificationInquiries = tender.clarificationInquiries ?? [];
   const [notice, setNotice] = useState(() => buyerNoticeText(tender));
@@ -144,6 +147,23 @@ function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
       setNoticeMessage('Buyer notice could not be removed. Try again.');
     } finally {
       setIsSavingNotice(false);
+    }
+  }
+  const [isPreparingContract, setIsPreparingContract] = useState(false);
+  const [contractMessage, setContractMessage] = useState('');
+  const canPrepareContract = buyerCanPrepareContract(tender);
+
+  async function prepareContract() {
+    if (isPreparingContract || !canPrepareContract) return;
+    setIsPreparingContract(true);
+    setContractMessage('');
+    try {
+      const contract = await awardsContractsApi.prepareTenderContract(tender.id);
+      navigate(`/awards-contracts/negotiation?contract=${contract.id}&step=clauses`);
+    } catch (error) {
+      setContractMessage(apiErrorMessage(error, 'Contract preparation could not be opened.'));
+    } finally {
+      setIsPreparingContract(false);
     }
   }
 
@@ -232,6 +252,16 @@ function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
         </article>
 
         <article className="journey-panel control-panel">
+          <span className="section-kicker">Contract preparation</span>
+          <h3>Prepare contract</h3>
+          <p>Prepare contract clauses, document versions, and amendment notes before evaluation results are ready.</p>
+          <button className="btn btn-secondary" type="button" disabled={!canPrepareContract || isPreparingContract} onClick={() => void prepareContract()}>
+            {isPreparingContract ? 'Opening...' : 'Prepare contract'}
+          </button>
+          {contractMessage ? <span className="tender-detail-muted">{contractMessage}</span> : null}
+        </article>
+
+        <article className="journey-panel control-panel">
           <span className="section-kicker">Make amendment</span>
           <h3>Make amendment</h3>
           <p>Use an amendment when tender requirements, dates, documents, or pricing instructions need to change.</p>
@@ -251,6 +281,11 @@ function BuyerTenderActivity({ tender }: { tender: TenderDetail }) {
       </div>
     </section>
   );
+}
+
+function buyerCanPrepareContract(tender: TenderDetail) {
+  const status = String(tender.status || '').toUpperCase();
+  return Boolean(tender.ownedByCurrentOrganization) && ['PUBLISHED', 'OPEN', 'EVALUATION'].includes(status);
 }
 
 function daysRemainingUntil(closingDate: string) {

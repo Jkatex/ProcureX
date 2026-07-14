@@ -76,7 +76,7 @@
 
                         <section class="admin-kpi-grid four-col">
                             <article class="admin-kpi-card"><span>Total Procurement Value</span><strong>${window.ProcureXAdmin.formatCompactMoney(totalValue)}</strong><em>All indexed tenders</em></article>
-                            <article class="admin-kpi-card"><span>Tenders Published</span><strong>${tenders.length}</strong><em>Current mock registry</em></article>
+                            <article class="admin-kpi-card"><span>Tenders Published</span><strong>${tenders.length}</strong><em>Current registry</em></article>
                             <article class="admin-kpi-card"><span>Avg Evaluation Duration</span><strong>18 days</strong><em>Static benchmark</em></article>
                             <article class="admin-kpi-card"><span>Avg Award Cycle Time</span><strong>24 days</strong><em>Static benchmark</em></article>
                         </section>

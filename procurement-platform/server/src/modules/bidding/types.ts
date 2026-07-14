@@ -12,6 +12,7 @@ export type ModuleStatus = {
 };
 
 export type BidDocumentInput = {
+  documentId?: string;
   name: string;
   documentType: string;
   envelope?: 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' | 'COMBINED';
@@ -60,6 +61,7 @@ export type BidDraftInput = {
   fileManifest?: Record<string, unknown>;
   envelopes?: Record<string, unknown>;
   reviewReadiness?: Record<string, unknown>;
+  workspaceState?: Record<string, unknown>;
   totalAmount?: number;
   currency?: string;
   completeness?: Record<string, unknown>;

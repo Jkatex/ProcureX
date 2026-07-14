@@ -2,6 +2,10 @@ import { BidStatus, CommunicationKind, CommunicationStatus, RiskLevel, TenderAme
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleRepository } from './repository.js';
 
+vi.mock('../identity/sensitiveActionSigning.js', () => ({
+  signSensitiveAction: vi.fn().mockResolvedValue({ id: 'signed-action-1' })
+}));
+
 describe('procurement public welcome repository', () => {
   it('filters featured tenders to public open marketplace opportunities', async () => {
     const db = {
@@ -1578,7 +1582,7 @@ describe('procurement tender write repository', () => {
       $transaction: vi.fn((callback) => callback(tx))
     } as any);
 
-    const result = await repository.submitTenderForReview('tender-review', 'org-1', { userId: 'user-1' });
+    const result = await repository.submitTenderForReview('tender-review', 'org-1', { userId: 'user-1', signatureKeyphrase: 'Signing123' });
 
     expect(tx.tender.update).toHaveBeenCalledWith({
       where: { id: 'tender-review' },
@@ -1641,7 +1645,7 @@ describe('procurement tender write repository', () => {
 
     const result = await repository.passTenderReview(
       'tender-review',
-      { adminOrgId: 'platform-org-1', adminUserId: 'admin-user-1' },
+      { adminOrgId: 'platform-org-1', adminUserId: 'admin-user-1', signatureKeyphrase: 'Signing123' },
       Visibility.PUBLIC_MARKETPLACE
     );
 

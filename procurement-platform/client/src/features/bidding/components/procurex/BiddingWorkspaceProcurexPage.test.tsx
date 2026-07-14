@@ -1,6 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { configureStore } from '@reduxjs/toolkit';
+import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NotificationToastHost } from '@/features/notifications/NotificationToastHost';
+import notificationsReducer, { enqueueNotification } from '@/features/notifications/slice';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
@@ -10,6 +14,19 @@ import { BiddingWorkspaceProcurexPage } from './BiddingWorkspaceProcurexPage';
 vi.mock('@/features/procurement/hooks', () => ({
   useTenderDetail: vi.fn()
 }));
+
+function renderWorkspaceWithNotifications() {
+  const store = configureStore({ reducer: { notifications: notificationsReducer } });
+  const view = render(
+    <Provider store={store}>
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+        <NotificationToastHost />
+      </MemoryRouter>
+    </Provider>
+  );
+  return { ...view, store };
+}
 
 describe('BiddingWorkspaceProcurexPage document upload', () => {
   beforeEach(() => {
@@ -61,8 +78,9 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     completeGate();
     const technicalStep = screen.getAllByRole('button', { name: /Technical Response/i })[0];
     fireEvent.click(technicalStep);
+    expect(screen.getByText('Product brochures, catalogues, and specification evidence')).toBeInTheDocument();
     const uploadInput = screen
-      .getByText('Product brochures, catalogues, and specification evidence')
+      .getByText('Upload evidence')
       .closest('label')
       ?.querySelector('input[type="file"]') as HTMLInputElement | null;
     expect(uploadInput).not.toBeNull();
@@ -77,7 +95,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
       files: [file],
       documentType: 'TECHNICAL_PRODUCT_BROCHURES',
       envelope: 'TECHNICAL',
-      metadata: { requirementKey: 'goods-technical', requirementLabel: 'Product brochures, catalogues, and specification evidence', source: 'bid-workspace' }
+      metadata: { requirementKey: 'goods-technical', requirementLabel: 'Upload evidence', source: 'bid-workspace', fieldId: 'technical.productEvidence' }
     });
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
@@ -92,6 +110,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     );
     expect(savedPayload.documents).toEqual([
       expect.objectContaining({
+        documentId: 'doc-1',
         name: 'technical.pdf',
         documentType: 'TECHNICAL_PRODUCT_BROCHURES',
         envelope: 'TECHNICAL',
@@ -99,6 +118,15 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
         metadata: expect.objectContaining({ requirementKey: 'goods-technical', storage: 'local-dev' })
       })
     ]);
+    expect(savedPayload.workspaceState).toEqual(
+      expect.objectContaining({
+        source: 'react-bidding-workspace',
+        workflowType: 'goods',
+        documents: [expect.objectContaining({ documentId: 'doc-1', name: 'technical.pdf' })],
+        form: expect.any(Object),
+        schemaResponses: expect.any(Object)
+      })
+    );
     expect(savedPayload.documents[0]).not.toBeInstanceOf(File);
   });
 
@@ -317,6 +345,23 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(progressStepLabels()).toEqual(expected);
   });
 
+  it('shows only one active new-bid notice when the same bid notice is replayed', async () => {
+    const { store } = renderWorkspaceWithNotifications();
+
+    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    act(() => {
+      store.dispatch(enqueueNotification({ tone: 'info', presentation: 'bidNotice', title: 'Notice', message: 'Ready to prepare a new sealed bid.', dismissible: true, autoDismissMs: 3000 }));
+    });
+
+    const notices = store.getState().notifications.items.filter((notice) => notice.presentation === 'bidNotice' && notice.message === 'Ready to prepare a new sealed bid.');
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toMatchObject({
+      tone: 'info',
+      title: 'Notice',
+      autoDismissMs: 3000
+    });
+  });
+
   it('uses procurex-ui visual shell and progress step markup without the old status summary bar', async () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
@@ -353,17 +398,29 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
   });
 
   it('blocks Continue and forward step navigation until the mandatory gate is complete', async () => {
-    render(
-      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
-        <BiddingWorkspaceProcurexPage />
-      </MemoryRouter>
-    );
+    const notices: Array<Record<string, unknown>> = [];
+    const listener = (event: Event) => notices.push((event as CustomEvent<Record<string, unknown>>).detail);
+    window.addEventListener('procurex:notify', listener);
+    const { container } = renderWorkspaceWithNotifications();
 
     expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
-    expect(screen.getAllByText(/Complete required tender fields before continuing/i).length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(notices).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            tone: 'warning',
+            title: 'Notice',
+            presentation: 'bidNotice',
+            autoDismissMs: 3000,
+            message: expect.stringMatching(/Complete all mandatory eligibility requirements before continuing.*Incomplete: Confirm eligibility to participate \(Confirmation\)/i)
+          })
+        ])
+      )
+    );
+    expect(container.querySelector('.form-status')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole('button', { name: /Technical Response/i })[0]);
     expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
@@ -371,6 +428,45 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
+    window.removeEventListener('procurex:notify', listener);
+  });
+
+  it('shows the procurex-ui notice wording for missing mandatory eligibility uploads', async () => {
+    const notices: Array<Record<string, unknown>> = [];
+    const listener = (event: Event) => notices.push((event as CustomEvent<Record<string, unknown>>).detail);
+    window.addEventListener('procurex:notify', listener);
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.requiredUpload', 'Required field', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', true, 'required-upload', {
+              documentType: 'ADMIN_REQUIRED'
+            })
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')])
+        ]
+      })
+    );
+    const { container } = renderWorkspaceWithNotifications();
+
+    expect(await screen.findByText('Required field')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    await waitFor(() =>
+      expect(notices).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            tone: 'warning',
+            title: 'Notice',
+            presentation: 'bidNotice',
+            autoDismissMs: 3000,
+            message: 'Complete all mandatory eligibility requirements before continuing. Incomplete: Required field (Document upload)'
+          })
+        ])
+      )
+    );
+    expect(container.querySelector('.form-status')).not.toBeInTheDocument();
+    window.removeEventListener('procurex:notify', listener);
   });
 
   it('renders the administrative gate with procurex-ui grouped eligibility sections', async () => {
@@ -379,10 +475,6 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
         steps: [
           step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
             field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
-            field('administrative.authorized', 'Confirm authorized representative', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'authorized'),
-            field('administrative.similarProjects', 'Confirm similar project evidence', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'administrative.similarProjects', {
-              prompt: 'Confirm that similar completed project evidence is completed in the technical capacity response.'
-            }),
             field('administrative.shippingLicense', 'Shipping Agency License', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', true, 'regulatoryLicenseRequirementRows.shipping', {
               documentType: 'ADMIN_LICENSE',
               prompt: 'Tanzania Shipping Agencies Corporation'
@@ -400,11 +492,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       })
     );
 
-    const { container } = render(
-      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
-        <BiddingWorkspaceProcurexPage />
-      </MemoryRouter>
-    );
+    const { container } = renderWorkspaceWithNotifications();
 
     expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
     expect(screen.getByText('1. Licenses and certifications')).toBeInTheDocument();
@@ -420,14 +508,14 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.getByText('Eligibility and administrative evidence')).toBeInTheDocument();
     expect(screen.getByText('4. Eligibility declarations/confirmations')).toBeInTheDocument();
     expect(screen.getByText('Administrative confirmations')).toBeInTheDocument();
-    expect(screen.getAllByText('Administrative compliance').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText('Administrative compliance').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Confirm eligibility to participate')).toBeInTheDocument();
-    expect(screen.getByText('Confirm authorized representative')).toBeInTheDocument();
-    expect(screen.getByText('Confirm similar project evidence')).toBeInTheDocument();
-    expect(screen.getByText('Confirm that similar completed project evidence is completed in the technical capacity response.')).toBeInTheDocument();
-    expect(screen.getAllByText('I confirm and accept this requirement.').length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText('Confirm authorized representative')).not.toBeInTheDocument();
+    expect(screen.queryByText('Confirm similar project evidence')).not.toBeInTheDocument();
+    expect(screen.queryByText('Confirm that similar completed project evidence is completed in the technical capacity response.')).not.toBeInTheDocument();
+    expect(screen.getAllByText('I confirm and accept this requirement.').length).toBeGreaterThanOrEqual(1);
     expect(container.querySelectorAll('.bid-gate-group').length).toBeGreaterThanOrEqual(4);
-    expect(container.querySelectorAll('.bid-requirement-card').length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll('.bid-requirement-card').length).toBeGreaterThanOrEqual(1);
   });
 
   it('uses the hero Review Submission action as a jump to the review step', async () => {
@@ -495,14 +583,13 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     ]);
   });
 
-  it('renders ProcureX structured product specification matrices and saves structured responses', async () => {
+  it('renders ProcureX goods technical response cards and saves structured responses', async () => {
     vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
       bidSchema({
         steps: [
           step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
             field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
             field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
-            field('administrative.authorized', 'Confirm authorized representative', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'authorized'),
             field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed'),
             field('administrative.eligibilityDocument', 'Eligibility and administrative evidence', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', false, 'eligibility', { documentType: 'ADMINISTRATIVE_EVIDENCE' })
           ]),
@@ -510,7 +597,12 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
               control: 'goodsProductSpecification',
               rowIndex: 1,
-              prompt: 'Processor: Core i7 / RAM: 16GB / Storage: 512GB SSD'
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              buyerSpecification: 'Processor: Core i7 / RAM: 16GB / Storage: 512GB SSD',
+              quantity: 1,
+              unit: 'Each',
+              prompt: '0934e352-111f-443f-8877-63477037937e 1 Laptop 1 Each false'
             })
           ]),
           step('financial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
@@ -533,7 +625,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
 
-    render(
+    const { container } = render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
         <BiddingWorkspaceProcurexPage />
       </MemoryRouter>
@@ -543,10 +635,19 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    expect(screen.getByText('Product specification compliance response')).toBeInTheDocument();
+    expect(screen.getByText('Tenderer template')).toBeInTheDocument();
+    expect(screen.getByText('Download CSV response template')).toBeInTheDocument();
+    expect(screen.getByText('Need clarification about product specifications?')).toBeInTheDocument();
+    expect(container.querySelector('.goods-compliance-card')).toBeInTheDocument();
+    expect(container.querySelector('.premium-response-matrix')).not.toBeInTheDocument();
+    expect(screen.getByText('Item 1')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Laptop' })).toBeInTheDocument();
+    expect(screen.getByText('Processor: Core i7 / RAM: 16GB / Storage: 512GB SSD')).toBeInTheDocument();
+    expect(screen.queryByText(/0934e352-111f-443f-8877-63477037937e/i)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Compliant' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Supplier offered specification'), { target: { value: 'Core i7, 16GB RAM, 512GB SSD' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Evidence / attachment reference'), { target: { value: 'brochure.pdf' } });
+    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Deviations / comments'), { target: { value: 'No deviations.' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
 
     await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
@@ -558,12 +659,123 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             value: expect.objectContaining({
               complianceStatus: 'Compliant',
               offeredSpecification: 'Core i7, 16GB RAM, 512GB SSD',
-              evidenceReference: 'brochure.pdf'
+              evidenceReference: 'brochure.pdf',
+              deviations: 'No deviations.'
             })
           }
         })
       ])
     );
+  });
+
+  it('imports goods technical response CSV rows by requirement key', async () => {
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+            field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+            field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed')
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [
+            field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
+              control: 'goodsProductSpecification',
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              buyerSpecification: 'Core i7 laptop',
+              quantity: 1,
+              unit: 'Each'
+            })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Confirm eligibility to participate')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    const csv = [
+      'requirementKey,fieldId,itemNo,requestedProduct,buyerSpecification,complianceStatus,offeredSpecification,evidenceReference,deviations',
+      'goods.productSpecification.line-1,technical.productSpec.line1,1,Laptop,Core i7 laptop,Compliant,"Core i7, 16GB RAM",catalogue.pdf,None'
+    ].join('\n');
+    const importInput = screen.getByLabelText('Import goods technical response CSV') as HTMLInputElement;
+    fireEvent.change(importInput, { target: { files: [new File([csv], 'goods-response.csv', { type: 'text/csv' })] } });
+
+    await waitFor(() => expect(screen.getByLabelText('Product specification response - Laptop Supplier offered specification')).toHaveValue('Core i7, 16GB RAM'));
+    expect(screen.getByLabelText('Product specification response - Laptop Compliance')).toHaveValue('Compliant');
+    expect(screen.getByLabelText('Product specification response - Laptop Evidence / attachment reference')).toHaveValue('catalogue.pdf');
+    expect(screen.getByLabelText('Product specification response - Laptop Deviations / comments')).toHaveValue('None');
+  });
+
+  it('uploads goods technical evidence through existing document metadata', async () => {
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+            field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+            field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed')
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [
+            field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
+              control: 'goodsProductSpecification',
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              buyerSpecification: 'Core i7 laptop'
+            }),
+            field('technical.productBrochure', 'Product brochures, catalogues, and specification evidence', 'file', 'technical', 'attachment', 'TECHNICAL', true, 'goods-technical', {
+              documentType: 'TECHNICAL_PRODUCT_BROCHURES',
+              prompt: 'Upload OEM catalogue evidence.'
+            })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Confirm eligibility to participate')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText('Technical requirement uploads')).toBeInTheDocument();
+    const uploadInput = screen
+      .getByText('Upload mandatory evidence')
+      .closest('label')
+      ?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(uploadInput).not.toBeNull();
+    const file = new File(['brochure'], 'brochure.pdf', { type: 'application/pdf' });
+    fireEvent.change(uploadInput!, { target: { files: [file] } });
+
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
+    expect(biddingApi.uploadDocuments).toHaveBeenCalledWith('bid-1', {
+      files: [file],
+      documentType: 'TECHNICAL_PRODUCT_BROCHURES',
+      envelope: 'TECHNICAL',
+      metadata: {
+        requirementKey: 'goods-technical',
+        requirementLabel: 'Upload mandatory evidence',
+        source: 'bid-workspace',
+        fieldId: 'technical.productBrochure'
+      }
+    });
   });
 
   it('renders works technical capacity with the procurex-ui workbook layout and saves structured responses', async () => {
@@ -580,7 +792,6 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
           step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
             field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
             field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
-            field('administrative.authorized', 'Confirm authorized representative', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'authorized'),
             field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed')
           ]),
           step('worksCapacity', 'Technical Capacity and Experience', 'TECHNICAL', [
@@ -612,17 +823,13 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             })
           ]),
           step('worksReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')]),
-          step('worksDeclaration', 'Declaration and Submission', 'COMBINED', [field('declarations.confirmAccuracy', 'I confirm the bid is accurate and complete', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'confirmAccuracy')])
+          step('worksDeclaration', 'Declaration and Submission', 'COMBINED', worksDeclarationFields())
         ]
       })
     );
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
 
-    const { container } = render(
-      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
-        <BiddingWorkspaceProcurexPage />
-      </MemoryRouter>
-    );
+    const { container } = renderWorkspaceWithNotifications();
 
     expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
     completeGate();
@@ -639,12 +846,25 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(container.querySelector('.works-person-card')).toBeInTheDocument();
     expect(container.querySelector('.works-person-avatar')).toBeInTheDocument();
     expect(container.querySelector('.works-equipment-table')).toBeInTheDocument();
+    expect(screen.getByText('Upload Similar project document')).toBeInTheDocument();
+    expect(screen.getByText('CV upload')).toBeInTheDocument();
+    expect(screen.getByText('Upload Lease / access agreement')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Project / client'), { target: { value: 'Rural distribution network' } });
     fireEvent.change(screen.getByLabelText('Personnel Position'), { target: { value: 'Site engineer' } });
     fireEvent.change(screen.getByLabelText('Quantity available for Excavator'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Ownership status for Excavator'), { target: { value: 'Owned' } });
     fireEvent.change(screen.getByLabelText('HSE policy response'), { target: { value: 'HSE plan available with safety officer assigned.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('heading', { name: 'Technical Capacity and Experience' })).toBeInTheDocument();
+    const blockerNotice = await screen.findByRole('alert');
+    expect(blockerNotice).toHaveClass('presentation-bidNotice');
+    expect(blockerNotice).toHaveTextContent('Notice');
+    expect(blockerNotice).toHaveTextContent(/Complete 3 required responses in this section before continuing/i);
+    expect(blockerNotice).toHaveTextContent(/First incomplete: Similar completed project evidence/i);
+    expect(container.querySelector('.form-status')).not.toBeInTheDocument();
+
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
 
     await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
@@ -668,6 +888,350 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
         })
       ])
     );
+  });
+
+  it('uploads works technical capacity evidence with structured field metadata', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({ type: 'WORKS', title: 'Solar mini-grid civil works', category: 'Works' }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(worksCapacityBidSchema());
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, payload) => {
+      const metadata = payload.metadata ?? {};
+      return bidDto({
+        documents: [
+          {
+            id: `bid-doc-${String(metadata.requirementKey)}`,
+            documentId: `doc-${String(metadata.requirementKey)}`,
+            name: payload.files[0]?.name ?? 'evidence.pdf',
+            documentType: payload.documentType,
+            envelope: payload.envelope,
+            reviewStatus: 'UPLOADED',
+            checksum: 'c'.repeat(64),
+            metadata
+          }
+        ]
+      });
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    const similarInput = screen.getByText('Upload Similar project document').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    const personnelInput = screen.getByText('CV upload').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    const equipmentInput = screen.getByText('Upload Lease / access agreement').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(similarInput).not.toBeNull();
+    expect(personnelInput).not.toBeNull();
+    expect(equipmentInput).not.toBeNull();
+
+    const projectEvidence = new File(['project reference'], 'project-reference.pdf', { type: 'application/pdf' });
+    const cvEvidence = new File(['cv'], 'site-engineer-cv.pdf', { type: 'application/pdf' });
+    const equipmentEvidence = new File(['lease'], 'excavator-lease.pdf', { type: 'application/pdf' });
+    fireEvent.change(similarInput!, { target: { files: [projectEvidence] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(1));
+    fireEvent.change(personnelInput!, { target: { files: [cvEvidence] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
+    fireEvent.change(equipmentInput!, { target: { files: [equipmentEvidence] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(3));
+
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(
+      1,
+      'bid-1',
+      expect.objectContaining({
+        files: [projectEvidence],
+        envelope: 'TECHNICAL',
+        metadata: expect.objectContaining({
+          requirementKey: 'works.similarProjects.referenceEvidence',
+          parentRequirementKey: 'works.similarProjects',
+          fieldId: 'works.similarProjects',
+          evidenceKey: 'referenceEvidence',
+          requirementLabel: 'Upload Similar project document',
+          source: 'bid-workspace'
+        })
+      })
+    );
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(
+      2,
+      'bid-1',
+      expect.objectContaining({
+        files: [cvEvidence],
+        envelope: 'TECHNICAL',
+        metadata: expect.objectContaining({
+          requirementKey: 'works.keyPersonnel.cvEvidence',
+          parentRequirementKey: 'works.keyPersonnel',
+          fieldId: 'works.keyPersonnel',
+          evidenceKey: 'cvEvidence',
+          requirementLabel: 'CV upload',
+          source: 'bid-workspace'
+        })
+      })
+    );
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(
+      3,
+      'bid-1',
+      expect.objectContaining({
+        files: [equipmentEvidence],
+        envelope: 'TECHNICAL',
+        metadata: expect.objectContaining({
+          requirementKey: 'works.equipment.excavator.evidenceReference',
+          parentRequirementKey: 'works.equipment.excavator',
+          fieldId: 'works.equipment.excavator',
+          evidenceKey: 'evidenceReference',
+          requirementLabel: 'Upload Lease / access agreement',
+          source: 'bid-workspace'
+        })
+      })
+    );
+  });
+
+  it('renders the works technical proposal workbook with schedule, drawings, and site visit controls', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({
+        type: 'WORKS',
+        title: 'Solar mini-grid civil works',
+        category: 'Works',
+        description: 'Build and commission civil works.',
+        requirements: {
+          worksRequirements: {
+            scopeSummary: 'Construct foundations, trenching, fencing, and site restoration.',
+            completionPeriod: '14 months',
+            siteVisitRequirement: 'Mandatory',
+            drawingDesignRows: [{ documentType: 'Foundation drawings', buyerDocumentUpload: 'foundation-drawings.pdf' }]
+          }
+        }
+      }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(worksCapacityBidSchema());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    completeGate();
+    openProgressStep('Technical Proposal and Work Program');
+
+    expect(screen.getByText('Project understanding and methodology')).toBeInTheDocument();
+    expect(screen.getByText('Construction schedule / work program')).toBeInTheDocument();
+    expect(screen.getByText('Drawing and Design Section')).toBeInTheDocument();
+    expect(screen.getByText('Foundation drawings')).toBeInTheDocument();
+    expect(screen.getAllByText('Site visit response')).not.toHaveLength(0);
+    expect(screen.getByText('Upload work program')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Construction Methodology'), { target: { value: 'Phased works with QA/QC hold points.' } });
+    fireEvent.change(screen.getByLabelText('Proposed Start Date'), { target: { value: '2026-09-01' } });
+    fireEvent.change(screen.getByLabelText('Proposed Completion Period'), { target: { value: '14 months' } });
+    fireEvent.change(screen.getByLabelText('Alternative Design Proposed?'), { target: { value: 'Yes' } });
+
+    expect(screen.getByText('Upload proposed alternative designs')).toBeInTheDocument();
+    expect(screen.getByLabelText('Proposed Design Alternative')).toBeInTheDocument();
+  });
+
+  it('renders works BOQ cost breakdown, recalculates totals, and saves financial payloads', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({ type: 'WORKS', title: 'Solar mini-grid civil works', category: 'Works' }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(worksCapacityBidSchema());
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    completeGate();
+    openProgressStep('Financial Proposal / BOQ Pricing');
+
+    expect(screen.getByRole('table', { name: 'Editable financial offer review table' })).toBeInTheDocument();
+    ['Item', 'Work Item', 'Qty', 'Unit', 'Status', 'Labor', 'Material', 'Equipment', 'Overheads', 'Profit %', 'Unit Rate', 'Total'].forEach((heading) => {
+      expect(screen.getByRole('columnheader', { name: heading })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Commercial terms response')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Bid status for work item 1'), { target: { value: 'Bid' } });
+    fireEvent.change(screen.getByLabelText('Labor cost for work item 1'), { target: { value: '1000' } });
+    fireEvent.change(screen.getByLabelText('Material cost for work item 1'), { target: { value: '2000' } });
+    fireEvent.change(screen.getByLabelText('Equipment cost for work item 1'), { target: { value: '500' } });
+    fireEvent.change(screen.getByLabelText('Overheads for work item 1'), { target: { value: '500' } });
+    fireEvent.change(screen.getByLabelText('Profit margin percentage for work item 1'), { target: { value: '10' } });
+    expect(screen.getAllByText('TZS 4,400').length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getByLabelText('Bid security submitted, if required by this tender.'));
+    expect(screen.getByText('Bid security document')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Commercial Clarifications'), { target: { value: 'Rates exclude night work.' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
+
+    await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
+    const payload = vi.mocked(biddingApi.saveTenderDraft).mock.calls[0][1];
+    expect(payload.responses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          requirementKey: 'unitRate',
+          response: {
+            value: expect.objectContaining({
+              status: 'Bid',
+              labor: 1000,
+              material: 2000,
+              equipment: 500,
+              overheads: 500,
+              profit: 10,
+              unitRate: 4400
+            })
+          }
+        }),
+        expect.objectContaining({
+          requirementKey: 'works.commercial.clarifications',
+          response: { value: 'Rates exclude night work.' }
+        })
+      ])
+    );
+    expect(payload.financial.items).toEqual([
+      expect.objectContaining({
+        id: 'line-1',
+        rate: 4400,
+        total: 4400
+      })
+    ]);
+
+    fireEvent.change(screen.getByLabelText('Bid status for work item 1'), { target: { value: 'Not Bid' } });
+    expect(screen.getAllByText('TZS 0').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders works declaration and submission like procurex-ui, uploads company stamp, and saves draft responses', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({ type: 'WORKS', title: 'Solar mini-grid civil works', category: 'Works' }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        tenderType: 'WORKS',
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible')]),
+          step('worksDeclaration', 'Declaration and Submission', 'COMBINED', worksDeclarationFields())
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, payload) => {
+      const metadata = payload.metadata ?? {};
+      return bidDto({
+        documents: [
+          {
+            id: 'bid-doc-company-stamp',
+            documentId: 'doc-company-stamp',
+            name: payload.files[0]?.name ?? 'company-stamp.png',
+            documentType: payload.documentType,
+            envelope: payload.envelope,
+            reviewStatus: 'UPLOADED',
+            checksum: 'd'.repeat(64),
+            metadata
+          }
+        ]
+      });
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('I confirm and accept this requirement.'));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('heading', { name: 'Declaration and Submission' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Authorized Signatory Name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Position')).toBeInTheDocument();
+    expect(screen.getByLabelText('Company stamp upload')).toHaveAttribute('accept', '.pdf,.jpg,.jpeg,.png');
+    expect(screen.getByPlaceholderText('Type authorized digital signature')).toBeInTheDocument();
+    expect(screen.getByText('I confirm this works bid is complete, accurate, and authorized.')).toBeInTheDocument();
+    expect(screen.getByText('I declare no conflict of interest.')).toBeInTheDocument();
+    expect(screen.getByText('I accept anti-corruption declarations.')).toBeInTheDocument();
+    expect(screen.getByText('Submission date')).toBeInTheDocument();
+    expect(screen.getByText(new Date().toISOString().slice(0, 10))).toBeInTheDocument();
+    expect(screen.getByText('Draft until submitted')).toBeInTheDocument();
+    expect(screen.getByText('Ready to seal')).toBeInTheDocument();
+    expect(screen.getByText('The system will check required responses, seal the works bid, and store a receipt.')).toBeInTheDocument();
+    const submitStrip = screen.getByText('Ready to seal').closest('.submit-strip') as HTMLElement;
+    expect(within(submitStrip).queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(submitStrip).getByRole('button', { name: 'Submit Bid' }));
+    await waitFor(() => expect(biddingApi.submitBid).not.toHaveBeenCalled());
+    expect(screen.getByText(/Complete required sections before submitting:/)).toBeInTheDocument();
+
+    openProgressStep('Declaration and Submission');
+    fireEvent.change(screen.getByLabelText('Authorized Signatory Name'), { target: { value: 'Asha Contractor' } });
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: 'Managing Director' } });
+    fireEvent.change(screen.getByLabelText('Digital Signature'), { target: { value: 'Asha Contractor' } });
+    fireEvent.click(screen.getByLabelText('I confirm this works bid is complete, accurate, and authorized.'));
+    fireEvent.click(screen.getByLabelText('I declare no conflict of interest.'));
+    fireEvent.click(screen.getByLabelText('I accept anti-corruption declarations.'));
+    const stamp = new File(['stamp'], 'company-stamp.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Company stamp upload'), { target: { files: [stamp] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
+
+    expect(biddingApi.uploadDocuments).toHaveBeenCalledWith(
+      'bid-1',
+      expect.objectContaining({
+        files: [stamp],
+        documentType: 'DECLARATION_COMPANY_STAMP',
+        envelope: 'COMBINED',
+        metadata: expect.objectContaining({
+          requirementKey: 'works.declaration.companyStamp',
+          requirementLabel: 'Company stamp upload',
+          fieldId: 'works.declaration.companyStamp',
+          source: 'bid-workspace'
+        })
+      })
+    );
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
+    await waitFor(() => expect(biddingApi.updateBid).toHaveBeenCalled());
+    const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
+    expect(savedPayload?.responses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requirementKey: 'works.declaration.signatoryName', response: { value: 'Asha Contractor' } }),
+        expect.objectContaining({ requirementKey: 'works.declaration.position', response: { value: 'Managing Director' } }),
+        expect.objectContaining({ requirementKey: 'works.declaration.digitalSignature', response: { value: 'Asha Contractor' } }),
+        expect.objectContaining({ requirementKey: 'works.declaration.final', response: { value: true } }),
+        expect.objectContaining({ requirementKey: 'works.declaration.conflict', response: { value: true } }),
+        expect.objectContaining({ requirementKey: 'works.declaration.antiCorruption', response: { value: true } })
+      ])
+    );
+    expect(savedPayload?.documents).toEqual([
+      expect.objectContaining({
+        name: 'company-stamp.png',
+        documentType: 'DECLARATION_COMPANY_STAMP',
+        envelope: 'COMBINED',
+        metadata: expect.objectContaining({ requirementKey: 'works.declaration.companyStamp' })
+      })
+    ]);
   });
 
   it('renders the supplier bid submission review document with editable response rows', async () => {
@@ -762,7 +1326,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     Object.defineProperty(window, 'print', { configurable: true, value: print });
     const draft = bidDto({
       payload: {
-        administrative: { eligible: true, taxCompliant: true, authorized: true, documentsConfirmed: true },
+        administrative: { eligible: true, taxCompliant: true, documentsConfirmed: true },
         technical: { productCompliance: 'Compliant product response.' },
         financial: { items: [{ id: 'line-1', itemNo: '1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000 }] },
         declarations: { confirmAccuracy: false, acceptTerms: false, noConflict: true }
@@ -835,9 +1399,17 @@ function completeGate() {
   [
     'Confirm eligibility to participate',
     'Confirm tax and statutory compliance',
-    'Confirm authorized representative',
     'Confirm mandatory documents are attached'
   ].forEach(checkCard);
+}
+
+function openProgressStep(label: string) {
+  const button = screen
+    .getAllByText(label)
+    .map((element) => element.closest('button') as HTMLButtonElement | null)
+    .find(Boolean);
+  if (!button) throw new Error(`Progress step not found for ${label}`);
+  fireEvent.click(button);
 }
 
 function checkCard(label: string) {
@@ -858,7 +1430,6 @@ function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?
   const administrative = step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
     field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
     field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
-    field('administrative.authorized', 'Confirm authorized representative', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'authorized'),
     field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed'),
     field('administrative.eligibilityDocument', 'Eligibility and administrative evidence', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', false, 'eligibility', {
       documentType: 'ADMINISTRATIVE_EVIDENCE'
@@ -916,7 +1487,7 @@ function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?
           step('worksTechnicalProposal', 'Technical Proposal and Work Program', 'TECHNICAL', goodsTechnical),
           step('worksFinancial', 'Financial Proposal / BOQ Pricing', 'FINANCIAL', pricingFields),
           step('worksReview', 'Review Submission', 'COMBINED', [review]),
-          step('worksDeclaration', 'Declaration and Submission', 'COMBINED', declarations)
+          step('worksDeclaration', 'Declaration and Submission', 'COMBINED', worksDeclarationFields())
         ]
       : type.includes('service')
         ? [
@@ -959,6 +1530,85 @@ function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?
     schemaVersion: 'bid-submission-schema-v1',
     steps
   };
+}
+
+function worksCapacityBidSchema(): BidSubmissionSchemaDto {
+  return bidSchema({
+    tenderType: 'WORKS',
+    steps: [
+      step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+        field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+        field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+        field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed')
+      ]),
+      step('worksCapacity', 'Technical Capacity and Experience', 'TECHNICAL', [
+        field('works.similarProjects', 'Similar completed project evidence', 'table', 'technical', 'structured', 'TECHNICAL', true, 'works.similarProjects', {
+          control: 'worksSimilarProject',
+          prompt: 'Upload documents explaining previous similar projects.'
+        }),
+        field('works.keyPersonnel', 'Key personnel CV and qualification response', 'table', 'technical', 'structured', 'TECHNICAL', true, 'works.keyPersonnel', {
+          control: 'worksPersonnel'
+        }),
+        field('works.equipment.excavator', 'Excavator', 'table', 'technical', 'structured', 'TECHNICAL', true, 'works.equipment.excavator', {
+          control: 'worksEquipment',
+          equipmentName: 'Excavator',
+          quantity: 2,
+          ownershipRequirement: 'Owned or leased'
+        }),
+        field('works.hsePolicy', 'HSE policy response', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.hsePolicy'),
+        field('works.capacityNarrative', 'Capacity narrative', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.capacityNarrative')
+      ]),
+      step('worksTechnicalProposal', 'Technical Proposal and Work Program', 'TECHNICAL', [
+        field('works.proposal.understanding', 'Project Understanding', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.proposal.understanding', { control: 'worksProposalNarrative' }),
+        field('works.proposal.methodology', 'Construction Methodology', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.proposal.methodology', { control: 'worksProposalNarrative' }),
+        field('works.proposal.riskPlan', 'Risk Mitigation Plan', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.proposal.riskPlan', { control: 'worksProposalNarrative' }),
+        field('works.proposal.qualityPlan', 'Quality Assurance Approach', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.proposal.qualityPlan', { control: 'worksProposalNarrative' }),
+        field('works.schedule.startDate', 'Proposed Start Date', 'date', 'technical', 'date', 'TECHNICAL', false, 'works.schedule.startDate', { control: 'worksSchedule' }),
+        field('works.schedule.completionPeriod', 'Proposed Completion Period', 'text', 'technical', 'text', 'TECHNICAL', false, 'works.schedule.completionPeriod', { control: 'worksSchedule' }),
+        field('works.schedule.workPlan', 'Proposed Work Plan', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.schedule.workPlan', { control: 'worksSchedule' }),
+        field('works.schedule.resources', 'Resource Allocation Plan', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.schedule.resources', { control: 'worksSchedule' }),
+        field('works.schedule.workProgramUpload', 'Upload work program', 'file', 'technical', 'attachment', 'TECHNICAL', false, 'works.schedule.workProgramUpload', { documentType: 'TECHNICAL_UPLOAD_WORK_PROGRAM', control: 'worksSchedule' }),
+        field('works.drawings.reviewedAcknowledgement', 'Drawing reviewed acknowledgement', 'boolean', 'technical', 'acknowledgement', 'TECHNICAL', false, 'works.drawings.reviewedAcknowledgement', { control: 'worksDrawingDesign' }),
+        field('works.design.clarificationNeeded', 'Design Clarification Needed', 'select', 'technical', 'text', 'TECHNICAL', false, 'works.design.clarificationNeeded', { control: 'worksDrawingDesign', options: ['Yes', 'No'] }),
+        field('works.design.alternativeProposed', 'Alternative Design Proposed?', 'select', 'technical', 'text', 'TECHNICAL', false, 'works.design.alternativeProposed', { control: 'worksDrawingDesign', options: ['Yes', 'No'] }),
+        field('works.design.alternativeUpload', 'Upload proposed alternative designs', 'file', 'technical', 'attachment', 'TECHNICAL', false, 'works.design.alternativeUpload', { documentType: 'TECHNICAL_UPLOAD_PROPOSED_ALTERNATIVE_DESIGNS', control: 'worksDrawingDesign' }),
+        field('works.design.alternative', 'Proposed Design Alternative', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.design.alternative', { control: 'worksDrawingDesign' }),
+        field('works.siteVisit', 'Site visit response', 'select', 'technical', 'text', 'TECHNICAL', false, 'works.siteVisit', { control: 'worksSiteVisit', options: ['Conducted', 'Scheduled', 'Not conducted', 'Not applicable'] }),
+        field('works.siteVisitEvidence', 'Site visit evidence upload', 'file', 'technical', 'attachment', 'TECHNICAL', false, 'works.siteVisitEvidence', { documentType: 'TECHNICAL_SITE_VISIT_EVIDENCE_UPLOAD', control: 'worksSiteVisit' }),
+        field('works.siteVisit.notes', 'Site Visit Notes', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.siteVisit.notes', { control: 'worksSiteVisit' })
+      ]),
+      step('worksFinancial', 'Financial Proposal / BOQ Pricing', 'FINANCIAL', [
+        field('financial.unitRate', 'Unit rate for Civil works', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'unitRate', {
+          control: 'worksBoqCostBreakdown',
+          itemId: 'line-1',
+          itemNo: '1',
+          description: 'Civil works',
+          quantity: 1,
+          unit: 'Lot',
+          min: 0
+        }),
+        field('works.commercial.bidValidity', 'Bid Validity Period (days)', 'number', 'financial', 'number', 'FINANCIAL', true, 'works.commercial.bidValidity', { control: 'worksCommercialTerms', min: 1 }),
+        field('works.commercial.currency', 'Currency', 'select', 'financial', 'text', 'FINANCIAL', true, 'works.commercial.currency', { control: 'worksCommercialTerms', options: ['TZS', 'USD', 'EUR', 'GBP'] }),
+        field('works.commercial.clarifications', 'Commercial Clarifications', 'textarea', 'financial', 'text', 'FINANCIAL', false, 'works.commercial.clarifications', { control: 'worksCommercialTerms' }),
+        field('works.commercial.bidSecuritySubmitted', 'Bid security submitted, if required by this tender.', 'boolean', 'financial', 'boolean', 'FINANCIAL', false, 'works.commercial.bidSecuritySubmitted', { control: 'worksCommercialTerms' }),
+        field('works.commercial.bidSecurityDocument', 'Bid security document', 'file', 'financial', 'attachment', 'FINANCIAL', false, 'works.commercial.bidSecurityDocument', { documentType: 'FINANCIAL_BID_SECURITY_DOCUMENT', control: 'worksCommercialTerms' })
+      ]),
+      step('worksReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')]),
+      step('worksDeclaration', 'Declaration and Submission', 'COMBINED', worksDeclarationFields())
+    ]
+  });
+}
+
+function worksDeclarationFields(): BidSubmissionSchemaFieldDto[] {
+  return [
+    field('works.declaration.signatoryName', 'Authorized Signatory Name', 'text', 'declarations', 'text', 'COMBINED', true, 'works.declaration.signatoryName', { control: 'worksDeclaration' }),
+    field('works.declaration.position', 'Position', 'text', 'declarations', 'text', 'COMBINED', true, 'works.declaration.position', { control: 'worksDeclaration' }),
+    field('works.declaration.companyStamp', 'Company stamp upload', 'file', 'declarations', 'attachment', 'COMBINED', false, 'works.declaration.companyStamp', { control: 'worksDeclaration', accept: '.pdf,.jpg,.jpeg,.png', documentType: 'DECLARATION_COMPANY_STAMP' }),
+    field('works.declaration.digitalSignature', 'Digital Signature', 'text', 'declarations', 'text', 'COMBINED', true, 'works.declaration.digitalSignature', { control: 'worksDeclaration', placeholder: 'Type authorized digital signature' }),
+    field('works.declaration.final', 'I confirm this works bid is complete, accurate, and authorized.', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'works.declaration.final', { control: 'worksDeclaration' }),
+    field('works.declaration.conflict', 'I declare no conflict of interest.', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'works.declaration.conflict', { control: 'worksDeclaration' }),
+    field('works.declaration.antiCorruption', 'I accept anti-corruption declarations.', 'boolean', 'declarations', 'declaration', 'COMBINED', true, 'works.declaration.antiCorruption', { control: 'worksDeclaration' })
+  ];
 }
 
 function step(id: BidSubmissionStepId, label: string, envelope: BidDocumentEnvelope, fields: BidSubmissionSchemaFieldDto[]): BidSubmissionSchemaStepDto {
