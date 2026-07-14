@@ -5161,6 +5161,8 @@ function createTenderPersistencePayload(draft: CreateTenderDraft): CreateTenderP
     location: draft.location.trim() || draft.worksRequirements?.location?.trim() || 'Tanzania',
     requirements: buildBackendRequirements(draft),
     metadata,
+    requirementRows: draftRequirementRows(draft),
+    commercialItems: draftCommercialItems(draft),
     ...(budget ? { budget } : {}),
     ...(draft.submissionDate ? { closingDate: draft.submissionDate } : {})
   };

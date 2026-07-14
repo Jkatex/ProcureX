@@ -4,7 +4,22 @@ import { EvaluationStatus, TenderType } from '@prisma/client';
 const allFilterSchema = z.literal('all');
 const uuidSchema = z.string().uuid();
 const decisionStatusSchema = z.enum(['PENDING', 'PASSED', 'FAILED', 'NEEDS_CLARIFICATION', 'RECOMMENDED']);
-const activeStageSchema = z.enum(['opening', 'administrative', 'criteria', 'financial', 'boq', 'pricing', 'sla', 'postqual', 'ranking', 'report']);
+const activeStageSchema = z.enum([
+  'opening',
+  'preliminary',
+  'technical',
+  'financial',
+  'verification',
+  'ranking',
+  'report',
+  'administrative',
+  'criteria',
+  'boq',
+  'pricing',
+  'sla',
+  'tor',
+  'postqual'
+]);
 
 export const moduleStatusQuerySchema = z.object({}).strict();
 
@@ -51,6 +66,7 @@ export const saveWorkspaceBodySchema = z
       .default([]),
     activeStageId: activeStageSchema.optional(),
     selectedBidId: uuidSchema.optional(),
+    sectionDraft: z.record(z.unknown()).optional().default({}),
     complete: z.boolean().optional().default(false)
   })
   .strict();

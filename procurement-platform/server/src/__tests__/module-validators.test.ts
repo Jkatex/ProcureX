@@ -34,11 +34,15 @@ describe('module validators', () => {
       saveWorkspaceBodySchema.parse({
         scores: [{ bidId, criterionId, score: '87.5', comment: 'Responsive technical bid.' }],
         decisions: [{ bidId, status: 'PASSED', comment: 'Eligible.' }],
+        activeStageId: 'tor',
+        sectionDraft: { tor: { [bidId]: { methodology: { decision: 'Pass', remark: 'Responsive.' } } } },
         complete: true
       })
     ).toEqual({
       scores: [{ bidId, criterionId, score: 87.5, comment: 'Responsive technical bid.' }],
       decisions: [{ bidId, status: 'PASSED', comment: 'Eligible.' }],
+      activeStageId: 'tor',
+      sectionDraft: { tor: { [bidId]: { methodology: { decision: 'Pass', remark: 'Responsive.' } } } },
       complete: true
     });
     expect(() => saveWorkspaceBodySchema.parse({ scores: [{ bidId, criterionId, score: -1 }] })).toThrow();

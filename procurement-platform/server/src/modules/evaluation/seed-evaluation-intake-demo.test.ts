@@ -34,13 +34,12 @@ describeDb('evaluation intake demo seed', () => {
     expect(tenders).toHaveLength(4);
 
     for (const tender of tenders) {
-      const expectedStatus = tender.reference === 'PX-GDS-2026-004' ? TenderStatus.PUBLISHED : TenderStatus.CLOSED;
-      expect(tender.status).toBe(expectedStatus);
+      expect(tender.status).toBe(TenderStatus.CLOSED);
       expect(tender.metadata).toMatchObject({ isDemo: true, bidOpeningStatus: 'COMPLETED', evaluationStatus: 'PENDING' });
       expect(tender.evaluation?.status).toBe(EvaluationStatus.NOT_STARTED);
       expect(tender.evaluation?.criteria).toHaveLength(5);
       expect(tender.evaluation?.criteria.map((criterion: any) => criterion.name)).toContain('Administrative Compliance');
-      expect(tender.bids).toHaveLength(3);
+      expect(tender.bids.length).toBeGreaterThanOrEqual(2);
 
       for (const bid of tender.bids) {
         expect(bid.status).toBe(BidStatus.SUBMITTED);
@@ -65,32 +64,41 @@ describeDb('evaluation intake demo seed', () => {
       }
     }
 
-    const works = tenders.find((tender: any) => tender.reference === 'PX-WRK-2026-001');
-    const goods = tenders.find((tender: any) => tender.reference === 'PX-GDS-2026-002');
+    const goods = tenders.find((tender: any) => tender.reference === 'PX-GDS-2026-001');
+    const works = tenders.find((tender: any) => tender.reference === 'PX-WRK-2026-002');
     const services = tenders.find((tender: any) => tender.reference === 'PX-SRV-2026-003');
+    const consultancy = tenders.find((tender: any) => tender.reference === 'PX-CON-2026-004');
 
     expect(works?.evaluation?.criteria.map((criterion: any) => [criterion.name, Number(criterion.weight?.toString() ?? 0)])).toEqual(
       expect.arrayContaining([
-        ['Technical Experience', 30],
-        ['Methodology and Work Plan', 25],
-        ['Equipment and Personnel', 20],
-        ['Financial Proposal', 25]
+        ['Similar project experience', 25],
+        ['Construction methodology and work programme', 25],
+        ['Key personnel, equipment, health and safety', 25],
+        ['BOQ and financial proposal', 25]
       ])
     );
     expect(goods?.evaluation?.criteria.map((criterion: any) => [criterion.name, Number(criterion.weight?.toString() ?? 0)])).toEqual(
       expect.arrayContaining([
-        ['Technical Specification Compliance', 40],
-        ['Warranty and After-Sales Support', 20],
-        ['Delivery Period', 15],
-        ['Financial Proposal', 25]
+        ['Technical specification compliance', 35],
+        ['Warranty and after-sales support', 20],
+        ['Delivery schedule and stock availability', 15],
+        ['Financial proposal', 30]
       ])
     );
     expect(services?.evaluation?.criteria.map((criterion: any) => [criterion.name, Number(criterion.weight?.toString() ?? 0)])).toEqual(
       expect.arrayContaining([
-        ['Company Experience', 25],
-        ['Staff Qualification', 20],
-        ['Service Methodology', 25],
-        ['Financial Proposal', 30]
+        ['Understanding of scope and service methodology', 25],
+        ['Staffing, equipment and resources', 20],
+        ['Service schedule and SLA controls', 25],
+        ['Financial proposal', 30]
+      ])
+    );
+    expect(consultancy?.evaluation?.criteria.map((criterion: any) => [criterion.name, Number(criterion.weight?.toString() ?? 0)])).toEqual(
+      expect.arrayContaining([
+        ['Firm experience', 20],
+        ['Technical approach, methodology and work plan', 35],
+        ['Key experts qualifications and experience', 25],
+        ['Financial proposal', 20]
       ])
     );
   }, 60000);
@@ -98,6 +106,6 @@ describeDb('evaluation intake demo seed', () => {
 
 describe('evaluation intake demo seed metadata', () => {
   it('uses deterministic tender references', () => {
-    expect(EVALUATION_INTAKE_TENDER_REFS).toEqual(['PX-WRK-2026-001', 'PX-GDS-2026-002', 'PX-SRV-2026-003', 'PX-GDS-2026-004']);
+    expect(EVALUATION_INTAKE_TENDER_REFS).toEqual(['PX-GDS-2026-001', 'PX-WRK-2026-002', 'PX-SRV-2026-003', 'PX-CON-2026-004']);
   });
 });

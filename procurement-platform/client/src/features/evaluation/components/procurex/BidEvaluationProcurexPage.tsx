@@ -30,7 +30,29 @@ type ScoreDraft = { score: string; comment: string; decision?: string };
 type ScoreDraftMap = Record<string, ScoreDraft>;
 type DecisionDraft = { status: EvaluationDecisionStatus; comment: string };
 type DecisionDraftMap = Record<string, DecisionDraft>;
-type EvaluationStageId = 'opening' | 'administrative' | 'criteria' | 'financial' | 'boq' | 'pricing' | 'sla' | 'postqual' | 'ranking' | 'report';
+type EvaluationStageId = 'opening' | 'preliminary' | 'technical' | 'financial' | 'verification' | 'ranking' | 'report';
+type SectionDraftMap = Record<string, unknown>;
+type SectionDecision = { decision?: string; remark?: string };
+type SectionDefinition = { id: string; label: string; description: string; source?: string; keywords?: string[]; mandatory?: boolean };
+type CustomCriterionDetails = {
+  description: string;
+  evaluationType: string;
+  evidenceRequired: string[];
+  mandatory: boolean;
+  passFailGate: boolean;
+  subcriteria: string[];
+};
+type CommercialReviewRow = {
+  id: string;
+  label: string;
+  description: string;
+  quantity: number | null;
+  unit: string | null;
+  rate: number | null;
+  total: number | null;
+  source: string;
+};
+type CompletionState = { complete: number; total: number; percent: number; canComplete: boolean };
 
 type TenderQueueRow = {
   tenderId: string;
@@ -81,6 +103,7 @@ export function BidEvaluationProcurexPage() {
   const [expandedBidId, setExpandedBidId] = useState('');
   const [scoreDrafts, setScoreDrafts] = useState<ScoreDraftMap>({});
   const [decisionDrafts, setDecisionDrafts] = useState<DecisionDraftMap>({});
+  const [sectionDraft, setSectionDraft] = useState<SectionDraftMap>({});
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
@@ -185,6 +208,7 @@ export function BidEvaluationProcurexPage() {
         setExpandedBidId('');
         setScoreDrafts({});
         setDecisionDrafts({});
+        setSectionDraft({});
         setWorkspaceError('');
         return;
       }
@@ -195,7 +219,7 @@ export function BidEvaluationProcurexPage() {
       try {
         const data = await evaluationApi.getWorkspace(selectedTenderId);
         if (!mounted) return;
-        const workspaceStages = data.tender ? stagesForType(data.tender.procurementType) : stagesForType('GOODS');
+        const workspaceStages = stagesForWorkspace(data);
         const restoredStageId = restoreStageId(data.summary.activeStageId, workspaceStages);
         const restoredBidId = data.summary.selectedBidId && data.bids.some((bid) => bid.id === data.summary.selectedBidId)
           ? data.summary.selectedBidId
@@ -205,12 +229,14 @@ export function BidEvaluationProcurexPage() {
         setExpandedBidId('');
         setScoreDrafts(createScoreDrafts(data));
         setDecisionDrafts(createDecisionDrafts(data));
+        setSectionDraft(data.sectionDraft ?? {});
         setActiveStageId(restoredStageId);
       } catch {
         if (!mounted) return;
         setWorkspace(null);
         setScoreDrafts({});
         setDecisionDrafts({});
+        setSectionDraft({});
         setWorkspaceError(t('evaluationApp.p5.errors.load'));
       } finally {
         if (mounted) setWorkspaceLoading(false);
@@ -232,10 +258,10 @@ export function BidEvaluationProcurexPage() {
   const scopedDrafts = useMemo(() => drafts.filter((draft) => draftMatches(draft, search, typeFilter)), [drafts, search, typeFilter]);
   const scoredBids = useMemo(() => (workspace ? buildScoredBids(workspace, scoreDrafts, decisionDrafts) : []), [decisionDrafts, scoreDrafts, workspace]);
   const selectedBid = scoredBids.find((bid) => bid.id === selectedBidId) ?? scoredBids[0] ?? null;
-  const activeStages = workspace?.tender ? stagesForType(workspace.tender.procurementType) : stagesForType('GOODS');
+  const activeStages = workspace ? stagesForWorkspace(workspace) : stagesForType('GOODS');
   const normalizedStageId = activeStages.some((stage) => stage.id === activeStageId) ? activeStageId : activeStages[0].id;
   const rankings = useMemo(() => buildRankings(scoredBids), [scoredBids]);
-  const completion = useMemo(() => completionState(workspace, scoredBids), [scoredBids, workspace]);
+  const completion = useMemo(() => completionState(workspace, scoredBids, sectionDraft), [scoredBids, sectionDraft, workspace]);
 
   function navigateToPage(pageKey: string) {
     navigate(pageToRoute[pageKey as AppRouteKey] ?? '/dashboard');
@@ -263,6 +289,7 @@ export function BidEvaluationProcurexPage() {
   }
 
   function updateScoreDraft(bidId: string, criterionId: string, patch: Partial<ScoreDraft>) {
+    setWorkspaceError('');
     const key = draftKey(bidId, criterionId);
     setScoreDrafts((current) => ({
       ...current,
@@ -274,6 +301,7 @@ export function BidEvaluationProcurexPage() {
   }
 
   function updateDecisionDraft(bidId: string, patch: Partial<DecisionDraft>) {
+    setWorkspaceError('');
     setDecisionDrafts((current) => ({
       ...current,
       [bidId]: {
@@ -281,6 +309,11 @@ export function BidEvaluationProcurexPage() {
         ...patch
       }
     }));
+  }
+
+  function updateSectionDraft(path: string[], patch: Record<string, unknown>) {
+    setWorkspaceError('');
+    setSectionDraft((current) => patchSectionDraft(current, path, patch));
   }
 
   async function refreshLists() {
@@ -314,7 +347,8 @@ export function BidEvaluationProcurexPage() {
 
   async function saveWorkspace(complete = false) {
     if (!workspace?.tender || workspaceSaving) return;
-    const validation = validateScoreDrafts(workspace, scoreDrafts);
+    const nextCompletion = completionState(workspace, scoredBids, sectionDraft);
+    const validation = complete ? validateWorkspaceDrafts(workspace, scoreDrafts, sectionDraft) : validateScoreDrafts(workspace, scoreDrafts);
     if (validation) {
       setWorkspaceError(validation);
       const firstInvalid = firstMissingScoreStage(workspace, scoreDrafts);
@@ -332,9 +366,7 @@ export function BidEvaluationProcurexPage() {
             const [bidId, criterionId] = key.split(':');
             if (!bidId || !criterionId || draft.score === '') return [];
             const criterion = workspace.criteria.find((item) => item.id === criterionId);
-            const comment = criterion && workspace.tender?.procurementType === 'GOODS' && isAdministrativeCriterion(criterion)
-              ? goodsAdministrativeComment(draft)
-              : draft.comment;
+            const comment = criterion ? scoreCommentWithDecision(draft) : draft.comment;
             return [{ bidId, criterionId, score: Number(draft.score), comment }];
           }),
         decisions: Object.entries(decisionDrafts).map(([bidId, draft]) => ({
@@ -344,11 +376,16 @@ export function BidEvaluationProcurexPage() {
         })),
         activeStageId: normalizedStageId,
         selectedBidId: selectedBidId || undefined,
+        sectionDraft: {
+          ...sectionDraft,
+          completion: nextCompletion
+        },
         complete
       });
       setWorkspace(saved);
       setScoreDrafts(createScoreDrafts(saved));
       setDecisionDrafts(createDecisionDrafts(saved));
+      setSectionDraft(saved.sectionDraft ?? {});
       await refreshLists();
       notifySuccess(complete ? 'Evaluation completed' : 'Evaluation saved', complete ? 'Evaluation workspace completed.' : 'Evaluation workspace saved.', {
         reason: complete ? 'Scores, decisions, ranking, and recommendation data were saved.' : 'Your current evaluation entries were saved as progress.'
@@ -396,11 +433,13 @@ export function BidEvaluationProcurexPage() {
               onPreviewReport={() => setActiveStageId('report')}
               onSave={(complete) => void saveWorkspace(complete)}
               onScoreChange={updateScoreDraft}
+              onSectionDraftChange={updateSectionDraft}
               onSelectBid={setSelectedBidId}
               onStageChange={setActiveStageId}
               onToggleBid={(bidId) => setExpandedBidId((current) => current === bidId ? '' : bidId)}
               rankings={rankings}
               saving={workspaceSaving}
+              sectionDraft={sectionDraft}
               selectedBid={selectedBid}
               selectedBidId={selectedBid?.id ?? ''}
               stages={activeStages}
@@ -613,11 +652,13 @@ function EvaluationWorkspaceView({
   onPreviewReport,
   onSave,
   onScoreChange,
+  onSectionDraftChange,
   onSelectBid,
   onStageChange,
   onToggleBid,
   rankings,
   saving,
+  sectionDraft,
   selectedBid,
   selectedBidId,
   stages,
@@ -636,11 +677,13 @@ function EvaluationWorkspaceView({
   onPreviewReport: () => void;
   onSave: (complete: boolean) => void;
   onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+  onSectionDraftChange: (path: string[], patch: Record<string, unknown>) => void;
   onSelectBid: (bidId: string) => void;
   onStageChange: (stageId: EvaluationStageId) => void;
   onToggleBid: (bidId: string) => void;
   rankings: ReturnType<typeof buildRankings>;
   saving: boolean;
+  sectionDraft: SectionDraftMap;
   selectedBid: EditableEvaluationBid | null;
   selectedBidId: string;
   stages: Array<{ id: EvaluationStageId; label: string }>;
@@ -651,6 +694,11 @@ function EvaluationWorkspaceView({
   const tender = workspace.tender;
   if (!tender) return null;
   const currentStageLabel = stages.find((stage) => stage.id === activeStageId)?.label ?? stages[0].label;
+  const activeIndex = Math.max(0, stages.findIndex((stage) => stage.id === activeStageId));
+  const previousStage = stages[Math.max(0, activeIndex - 1)]?.id ?? activeStageId;
+  const nextStage = stages[Math.min(stages.length - 1, activeIndex + 1)]?.id ?? activeStageId;
+  const canMovePrevious = activeIndex > 0;
+  const canMoveNext = activeIndex < stages.length - 1;
 
   return (
     <>
@@ -684,7 +732,7 @@ function EvaluationWorkspaceView({
         ) : null}
         {!workspace.availability.isReady ? <div className="evaluation-notice warning">{workspace.availability.reason}</div> : null}
 
-        <BidderTabs bids={bids} selectedBidId={selectedBidId} onSelectBid={onSelectBid} />
+        {isBidderSpecificStage(activeStageId) ? <BidderTabs bids={bids} selectedBidId={selectedBidId} onSelectBid={onSelectBid} /> : null}
         <div className="evaluation-progress-track evaluation-workspace-progress"><span style={{ width: `${completion.percent}%` }} /></div>
         <EvaluationStepper stages={stages} activeStageId={activeStageId} onStageChange={onStageChange} />
         <div className="evaluation-review-main">
@@ -696,8 +744,10 @@ function EvaluationWorkspaceView({
             formatMoney={formatMoney}
             onDecisionChange={onDecisionChange}
             onScoreChange={onScoreChange}
+            onSectionDraftChange={onSectionDraftChange}
             onToggleBid={onToggleBid}
             rankings={rankings}
+            sectionDraft={sectionDraft}
             selectedBid={selectedBid}
             workspace={workspace}
           />
@@ -714,9 +764,15 @@ function EvaluationWorkspaceView({
               <SaveRoundedIcon fontSize="small" aria-hidden="true" />
               <span>{saving ? 'Saving...' : 'Save Draft'}</span>
             </button>
+            <button className="btn btn-secondary" type="button" disabled={!canMovePrevious || saving || workspaceLoading} onClick={() => onStageChange(previousStage)}>Previous</button>
+            <button className="btn btn-secondary" type="button" disabled={saving || workspaceLoading} onClick={() => {
+              onSave(false);
+              if (canMoveNext) onStageChange(nextStage);
+            }}>Save and Continue</button>
+            <button className="btn btn-secondary" type="button" disabled={!canMoveNext || saving || workspaceLoading} onClick={() => onStageChange(nextStage)}>Next</button>
             <button className="btn btn-secondary" type="button" onClick={onPreviewReport}>Preview Report</button>
             <button className="btn btn-secondary" type="button" onClick={() => window.print()}>Download Report</button>
-            <button className="btn btn-primary" type="button" disabled={!completion.canComplete || saving || workspaceLoading} onClick={() => onSave(true)}>Complete Evaluation</button>
+            <button className="btn btn-primary" type="button" disabled={!completion.canComplete || saving || workspaceLoading} onClick={() => onSave(true)}>Submit Evaluation</button>
             <button className="btn btn-secondary" type="button" onClick={onBack}>Back to Tender List</button>
           </div>
         </div>
@@ -764,8 +820,10 @@ function StagePanel({
   formatMoney,
   onDecisionChange,
   onScoreChange,
+  onSectionDraftChange,
   onToggleBid,
   rankings,
+  sectionDraft,
   selectedBid,
   workspace
 }: {
@@ -776,8 +834,10 @@ function StagePanel({
   formatMoney: (value: number | null, currency: string) => string;
   onDecisionChange: (bidId: string, patch: Partial<DecisionDraft>) => void;
   onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
+  onSectionDraftChange: (path: string[], patch: Record<string, unknown>) => void;
   onToggleBid: (bidId: string) => void;
   rankings: ReturnType<typeof buildRankings>;
+  sectionDraft: SectionDraftMap;
   selectedBid: EditableEvaluationBid | null;
   workspace: EvaluationWorkspace;
 }) {
@@ -791,15 +851,26 @@ function StagePanel({
           </div>
           <span className="badge badge-success">Opened</span>
         </div>
+        <div className="evaluation-top-summary">
+          <div><span>Total submitted bids</span><strong>{bids.length}</strong></div>
+          <div><span>Opened bids</span><strong>{bids.filter((bid) => !isWithdrawnBid(bid) && !isLateBid(bid)).length}</strong></div>
+          <div><span>Rejected at opening</span><strong>{bids.filter(isOpeningRejectedBid).length}</strong></div>
+          <div><span>Withdrawn bids</span><strong>{bids.filter(isWithdrawnBid).length}</strong></div>
+          <div><span>Late submissions</span><strong>{bids.filter(isLateBid).length}</strong></div>
+        </div>
         <div className="evaluation-table-scroll">
           <table>
             <thead>
               <tr>
                 <th>Supplier</th>
                 <th>Submitted</th>
-                <th>Documents</th>
-                <th>Offer value</th>
+                <th>Receipt number</th>
+                <th>Original bid amount</th>
+                <th>Discount</th>
+                <th>Bid security</th>
                 <th>Opening status</th>
+                <th>Withdrawal / late status</th>
+                <th>Opening remarks</th>
                 <th>Submission</th>
               </tr>
             </thead>
@@ -809,9 +880,13 @@ function StagePanel({
                   <tr>
                     <td><strong>{bid.supplierName}</strong><span>{bid.reference}</span></td>
                     <td>{formatDate(bid.submittedAt)}</td>
-                    <td>{bid.documents.length}</td>
+                    <td>{bid.receiptRef || bid.receiptHash || '-'}</td>
                     <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
-                    <td><span className="badge badge-success">Opened</span></td>
+                    <td>{bidResponseText(bid, /discount/i) || '-'}</td>
+                    <td>{bidResponseText(bid, /bid.*security|security/i) || '-'}</td>
+                    <td><span className={isOpeningRejectedBid(bid) ? 'badge badge-error' : 'badge badge-success'}>{isOpeningRejectedBid(bid) ? 'Rejected at opening' : 'Opened'}</span></td>
+                    <td>{isWithdrawnBid(bid) ? 'Withdrawn' : isLateBid(bid) ? 'Late submission' : 'On time'}</td>
+                    <td>{bidResponseText(bid, /opening.*remark|remark/i) || '-'}</td>
                     <td>
                       <button className="btn btn-secondary btn-sm" type="button" onClick={() => onToggleBid(bid.id)}>
                         <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
@@ -821,7 +896,7 @@ function StagePanel({
                   </tr>
                   {expandedBidId === bid.id ? (
                     <tr>
-                      <td colSpan={6}><BidSubmissionDetail bid={bid} formatMoney={formatMoney} /></td>
+                      <td colSpan={10}><BidSubmissionDetail bid={bid} formatMoney={formatMoney} /></td>
                     </tr>
                   ) : null}
                 </Fragment>
@@ -833,59 +908,60 @@ function StagePanel({
     );
   }
 
-  if (activeStageId === 'administrative') {
-    if (workspace.tender?.procurementType === 'GOODS') {
-      return (
-        <GoodsAdministrativeReviewPanel
-          bid={selectedBid}
-          criteria={administrativeCriteria(workspace.criteria)}
-          onScoreChange={onScoreChange}
-        />
-      );
-    }
-
+  if (activeStageId === 'preliminary') {
     return (
-      <SupplierScoringPanel
+      <ManualSectionReviewPanel
         bid={selectedBid}
-        criteria={administrativeCriteria(workspace.criteria)}
-        emptyMessage="No administrative compliance criterion is available for this tender."
-        kicker="Administrative & Eligibility Evaluation"
-        onScoreChange={onScoreChange}
+        definitions={sectionDefinitionsForStage(workspace, 'preliminary')}
+        sectionId="preliminary"
+        sectionDraft={sectionDraft}
+        title="Administrative & Eligibility Evaluation"
+        onSectionDraftChange={onSectionDraftChange}
       />
     );
   }
 
-  if (activeStageId === 'criteria') {
+  if (activeStageId === 'technical') {
     return (
-      <SupplierScoringPanel
-        bid={selectedBid}
-        criteria={technicalCriteria(workspace.criteria)}
-        emptyMessage="No technical criteria are available for this tender."
-        kicker="Custom Evaluation Criteria"
-        onScoreChange={onScoreChange}
-      />
-    );
-  }
-
-  if (activeStageId === 'financial' || activeStageId === 'boq' || activeStageId === 'pricing') {
-    return (
-      <FinancialReviewPanel
-        bids={bids}
-        criteria={financialCriteria(workspace.criteria)}
-        formatMoney={formatMoney}
+      <TechnicalEvaluationPanel
         onScoreChange={onScoreChange}
         selectedBid={selectedBid}
-        title={activeStageId === 'boq' ? 'Financial Review' : activeStageId === 'pricing' ? 'Service Pricing Review' : 'Financial Review'}
+        workspace={workspace}
       />
     );
   }
 
-  if (activeStageId === 'sla' || activeStageId === 'postqual') {
-    return <DecisionPanel bids={bids} selectedBid={selectedBid} onDecisionChange={onDecisionChange} title={activeStageId === 'sla' ? 'SLA / Performance Review' : 'Post-Qualification'} />;
+  if (activeStageId === 'financial') {
+    return (
+      <CommercialReviewPanel
+        activeStageId={activeStageId}
+        bids={bids}
+        formatMoney={formatMoney}
+        onSectionDraftChange={onSectionDraftChange}
+        sectionDraft={sectionDraft}
+        selectedBid={selectedBid}
+        workspace={workspace}
+        title="Financial Review"
+      />
+    );
+  }
+
+  if (activeStageId === 'verification') {
+    const title = workspace.tender?.procurementType === 'CONSULTANCY' ? 'Due Diligence & Negotiation' : 'Verification / Post-Qualification';
+    return (
+      <ManualSectionReviewPanel
+        bid={selectedBid}
+        definitions={sectionDefinitionsForStage(workspace, activeStageId)}
+        sectionId={activeStageId}
+        sectionDraft={sectionDraft}
+        title={title}
+        onSectionDraftChange={onSectionDraftChange}
+      />
+    );
   }
 
   if (activeStageId === 'ranking') {
-    return <RankingPanel rankings={rankings} />;
+    return <RankingPanel bids={bids} onDecisionChange={onDecisionChange} rankings={rankings} sectionDraft={sectionDraft} workspace={workspace} />;
   }
 
   return <ReportPanel bids={bids} rankings={rankings} workspace={workspace} formatDate={formatDate} formatMoney={formatMoney} />;
@@ -895,13 +971,13 @@ function SupplierScoringPanel({
   bid,
   criteria,
   emptyMessage,
-  kicker,
+  workspace,
   onScoreChange
 }: {
   bid: EditableEvaluationBid | null;
   criteria: EvaluationWorkspaceCriterion[];
   emptyMessage: string;
-  kicker: string;
+  workspace: EvaluationWorkspace;
   onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
 }) {
   if (!bid) return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected." />;
@@ -911,103 +987,33 @@ function SupplierScoringPanel({
     <section className="evaluation-section-workspace">
       <div className="panel-heading">
         <div>
-          <span className="section-kicker">{kicker}</span>
-          <h2>{bid.supplierName}</h2>
+          <span className="section-kicker">Criteria source: published tender</span>
+          <h2>Custom Evaluation Criteria</h2>
+          <p>These are the exact custom criteria configured for the tender. The system only displays evidence and totals; the buyer records the score or pass/fail decision.</p>
         </div>
-        <span className="badge badge-info">{bid.evaluated ? 'Evaluated' : 'Pending'}</span>
+        <span className="badge badge-info">{criteria.length} criteria</span>
       </div>
-      <div className="evaluation-supplier-profile">
-        <div className="evaluation-supplier-info-grid">
-          <article><span>Supplier</span><strong>{bid.supplierName}</strong></article>
-          <article><span>Submitted</span><strong>{bid.submittedAt ? new Date(bid.submittedAt).toLocaleString() : '-'}</strong></article>
-          <article><span>Documents</span><strong>{bid.documents.length}</strong></article>
-          <article><span>Status</span><strong>{bid.status}</strong></article>
-        </div>
-      </div>
-      <div className="evaluation-requirement-list">
-        {criteria.map((criterion) => {
-          const score = bid.scores.find((item) => item.criterionId === criterion.id) ?? { score: null, comment: '' };
-          const isPassFail = criterion.maxScore <= 1;
-          return (
-            <article className="evaluation-requirement-row" key={criterion.id}>
-              <div className="evaluation-requirement-main">
-                <span className="section-kicker">{criterion.category}</span>
-                <h3>{criterion.name}</h3>
-                <p>{criterion.weight === null ? 'Pass/fail gate' : `${criterion.weight}% weight / max ${criterion.maxScore}`}</p>
-              </div>
-              <div className="evaluation-evidence-panel">
-                <strong>Evidence</strong>
-                {bid.documents.slice(0, 4).map((document) => (
-                  <div className="evaluation-evidence-item" key={document.id}>
-                    <span>{document.documentType}</span>
-                    <p>{document.name}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="evaluation-decision-panel">
-                <label>
-                  Decision / score
-                  {isPassFail ? (
-                    <select className="form-input" value={score.score === null ? '' : String(score.score)} onChange={(event) => onScoreChange(bid.id, criterion.id, { score: event.target.value })}>
-                      <option value="">Select</option>
-                      <option value="1">Pass</option>
-                      <option value="0">Fail</option>
-                    </select>
-                  ) : (
-                    <input className="form-input" type="number" min="0" max={criterion.maxScore} step="0.01" value={score.score === null ? '' : String(score.score)} onChange={(event) => onScoreChange(bid.id, criterion.id, { score: event.target.value })} />
-                  )}
-                </label>
-                <label className="wide">
-                  Evaluator comment
-                  <textarea className="form-input evaluation-p5-comment" value={score.comment} onChange={(event) => onScoreChange(bid.id, criterion.id, { comment: event.target.value })} />
-                </label>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function GoodsAdministrativeReviewPanel({
-  bid,
-  criteria,
-  onScoreChange
-}: {
-  bid: EditableEvaluationBid | null;
-  criteria: EvaluationWorkspaceCriterion[];
-  onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
-}) {
-  if (!bid) return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected." />;
-  if (!criteria.length) return <EvaluationEmptyMessage icon={<RuleRoundedIcon fontSize="small" aria-hidden="true" />} message="No administrative eligibility checks are available for this goods tender." />;
-
-  return (
-    <section className="evaluation-section-workspace">
-      <div className="panel-heading">
-        <div>
-          <span className="section-kicker">Administrative & Eligibility Evaluation</span>
-          <h2>{bid.supplierName}</h2>
-          <p>Pass/fail review of mandatory eligibility, regulatory, document, and declaration checks.</p>
-        </div>
-        <span className="badge badge-info">Buyer decision required</span>
-      </div>
-
+      <div className="evaluation-notice warning">The system does not create new criteria or decide the winner. Scores and decisions below are manual buyer entries.</div>
       <div className="goods-evaluation-card-list">
-        {criteria.map((criterion) => {
-          const saved = bid.scores.find((item) => item.criterionId === criterion.id) ?? { score: null, comment: '' };
-          const scoreDraft = bid.scoreDrafts?.[criterion.id];
-          const decision = scoreDraft?.decision ?? goodsAdministrativeDecision(saved.score, saved.comment);
-          const evidence = matchingGoodsEvidence(bid, criterion);
-
+        {criteria.map((criterion, index) => {
+          const score = bid.scoreDrafts?.[criterion.id] ?? { score: '', comment: '' };
+          const details = customCriterionDetails(workspace, criterion);
+          const isGate = isCustomCriterionGate(criterion, details);
+          const evidence = matchingCriterionEvidence(bid, criterion, details);
           return (
             <article className="goods-evaluation-card" key={criterion.id}>
               <div>
-                <span className="section-kicker">{criterion.maxScore <= 1 ? 'Mandatory' : 'Optional'}</span>
+                <span className="section-kicker">Criterion {index + 1} / {formatEvaluationType(details.evaluationType, isGate)}</span>
                 <h3>{criterion.name}</h3>
-                <p>{criterion.category || 'Published tender requirement'}</p>
+                <p>{details.description || 'Buyer-defined criterion.'}</p>
+                <div className="goods-criterion-meta">
+                  <span>Weight: {criterion.weight ?? 0}</span>
+                  <span>Max score: {criterion.maxScore}</span>
+                  {details.mandatory ? <span>Mandatory</span> : null}
+                  {details.passFailGate || isGate ? <span>Gate</span> : null}
+                </div>
+                {details.evidenceRequired.length ? <p>Evidence expected: {details.evidenceRequired.join(', ')}</p> : null}
               </div>
-
               <aside className="goods-evidence-panel">
                 <strong>Supplier Evidence</strong>
                 {evidence.length ? evidence.map((document) => (
@@ -1020,28 +1026,45 @@ function GoodsAdministrativeReviewPanel({
                     </div>
                   </div>
                 )) : (
-                  <p>No matching submitted evidence was found. The buyer must decide manually from the available bid package.</p>
+                  <p>No matching submitted evidence was found. Review the full bid package before deciding.</p>
                 )}
               </aside>
-
               <div className="evaluation-decision-panel">
                 <label>
-                  Buyer decision
+                  Buyer Decision
                   <select
                     className="form-input"
-                    value={decision}
-                    onChange={(event) => onScoreChange(bid.id, criterion.id, { decision: event.target.value, score: goodsAdministrativeScore(event.target.value) })}
+                    value={score.decision ?? ''}
+                    onChange={(event) => {
+                      const decision = event.target.value;
+                      onScoreChange(bid.id, criterion.id, {
+                        decision,
+                        ...(isGate ? { score: decisionScore(decision, criterion) } : {})
+                      });
+                    }}
                   >
-                    <option value="">Select decision</option>
-                    <option value="Pass">Pass</option>
-                    <option value="Fail">Fail</option>
-                    <option value="Not Applicable">Not Applicable</option>
-                    <option value="Clarification Required">Clarification Required</option>
+                    {criterionDecisionOptions(isGate).map((option) => (
+                      <option key={option} value={option}>{option || 'Select decision'}</option>
+                    ))}
                   </select>
                 </label>
-                <label>
-                  Remark
-                  <textarea className="form-input" rows={3} value={saved.comment} onChange={(event) => onScoreChange(bid.id, criterion.id, { comment: event.target.value })} />
+                {!isGate ? (
+                  <label>
+                    Buyer Score / {criterion.maxScore}
+                    <input
+                      className="form-input"
+                      type="number"
+                      min="0"
+                      max={criterion.maxScore}
+                      step="0.5"
+                      value={score.score}
+                      onChange={(event) => onScoreChange(bid.id, criterion.id, { score: event.target.value })}
+                    />
+                  </label>
+                ) : null}
+                <label className="wide">
+                  Buyer comment
+                  <textarea className="form-input evaluation-p5-comment" value={score.comment} onChange={(event) => onScoreChange(bid.id, criterion.id, { comment: event.target.value })} />
                 </label>
               </div>
             </article>
@@ -1052,121 +1075,307 @@ function GoodsAdministrativeReviewPanel({
   );
 }
 
-function FinancialReviewPanel({
-  bids,
-  criteria,
-  formatMoney,
+function TechnicalEvaluationPanel({
   onScoreChange,
   selectedBid,
-  title
+  workspace
 }: {
-  bids: EditableEvaluationBid[];
-  criteria: EvaluationWorkspaceCriterion[];
-  formatMoney: (value: number | null, currency: string) => string;
   onScoreChange: (bidId: string, criterionId: string, patch: Partial<ScoreDraft>) => void;
   selectedBid: EditableEvaluationBid | null;
+  workspace: EvaluationWorkspace;
+}) {
+  const criteria = customEvaluationCriteria(workspace.criteria);
+  if (!criteria.length) {
+    return <EvaluationEmptyMessage icon={<RuleRoundedIcon fontSize="small" aria-hidden="true" />} message="No custom evaluation criteria were configured for this tender." />;
+  }
+
+  return (
+    <SupplierScoringPanel
+      bid={selectedBid}
+      criteria={criteria}
+      emptyMessage="No buyer-defined evaluation criteria were configured for this tender."
+      workspace={workspace}
+      onScoreChange={onScoreChange}
+    />
+  );
+}
+
+function ManualSectionReviewPanel({
+  bid,
+  definitions,
+  onSectionDraftChange,
+  sectionDraft,
+  sectionId,
+  title
+}: {
+  bid: EditableEvaluationBid | null;
+  definitions: SectionDefinition[];
+  onSectionDraftChange: (path: string[], patch: Record<string, unknown>) => void;
+  sectionDraft: SectionDraftMap;
+  sectionId: EvaluationStageId;
   title: string;
 }) {
+  if (!bid) return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected." />;
+  if (!definitions.length) return <EvaluationEmptyMessage icon={<RuleRoundedIcon fontSize="small" aria-hidden="true" />} message={emptyManualSectionMessage(sectionId, title)} />;
+
   return (
     <section className="evaluation-section-workspace">
       <div className="panel-heading">
         <div>
           <span className="section-kicker">{title}</span>
-          <h2>Financial comparison and scoring</h2>
+          <h2>{bid.supplierName}</h2>
+          <p>{manualSectionDescription(sectionId)}</p>
         </div>
-        <span className="badge badge-info">{bids.length} opened bids</span>
+        <span className="badge badge-info">Manual review</span>
       </div>
+      <div className="goods-evaluation-card-list">
+        {definitions.map((definition) => {
+          const decision = sectionDecision(sectionDraft, sectionId, bid.id, definition.id);
+          const evidence = matchingSectionEvidence(bid, definition);
+          return (
+            <article className="goods-evaluation-card" key={definition.id}>
+              <div>
+                <span className="section-kicker">{definition.mandatory === false ? 'Optional' : 'Mandatory'} / {definition.source ?? 'Tender requirement'}</span>
+                <h3>{definition.label}</h3>
+                <p>{definition.description}</p>
+              </div>
+              <aside className="goods-evidence-panel">
+                <strong>Supplier Evidence</strong>
+                {evidence.length ? evidence.map((document) => (
+                  <div className="evaluation-evidence-item" key={document.id}>
+                    <span>{document.documentType || 'Submitted document'}</span>
+                    <p>{document.name}</p>
+                    <div className="evaluation-document-actions">
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => openEvidenceMetadata(document)}>View</button>
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => downloadEvidenceMetadata(document)}>Download</button>
+                    </div>
+                  </div>
+                )) : (
+                  <p>No matching submitted evidence was found. Review the full bid package before deciding.</p>
+                )}
+              </aside>
+              <div className="evaluation-decision-panel">
+                <label>
+                  Buyer decision
+                  <select
+                    className="form-input"
+                    value={decision.decision ?? ''}
+                    onChange={(event) => onSectionDraftChange([sectionId, bid.id, definition.id], { decision: event.target.value })}
+                  >
+                    <option value="">Select decision</option>
+                    <option value="Pass">Pass</option>
+                    <option value="Fail">Fail</option>
+                    <option value="Not Applicable">Not Applicable</option>
+                    <option value="Clarification Required">Clarification Required</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </label>
+                <label>
+                  Remark
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    value={decision.remark ?? ''}
+                    onChange={(event) => onSectionDraftChange([sectionId, bid.id, definition.id], { remark: event.target.value })}
+                  />
+                </label>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function CommercialReviewPanel({
+  activeStageId,
+  bids,
+  formatMoney,
+  onSectionDraftChange,
+  sectionDraft,
+  selectedBid,
+  title,
+  workspace
+}: {
+  activeStageId: EvaluationStageId;
+  bids: EditableEvaluationBid[];
+  formatMoney: (value: number | null, currency: string) => string;
+  onSectionDraftChange: (path: string[], patch: Record<string, unknown>) => void;
+  sectionDraft: SectionDraftMap;
+  selectedBid: EditableEvaluationBid | null;
+  title: string;
+  workspace: EvaluationWorkspace;
+}) {
+  if (!selectedBid) {
+    return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected for financial review." />;
+  }
+
+  const rows = commercialReviewRows(workspace, selectedBid);
+  const calculation = financialCalculation(selectedBid);
+  const financialScores = localFinancialScores(bids);
+  const financialDocuments = financialEvidenceDocuments(selectedBid);
+  const type = workspace.tender?.procurementType ?? 'GOODS';
+  const pricingStatus = bidResponseText(selectedBid, /pricing.*status|financial.*status|boq.*status|commercial.*status/i) || 'Pending line review';
+
+  return (
+    <section className="evaluation-section-workspace">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Financial review, not automatic scoring</span>
+          <h2>{financialReviewHeading(type)}</h2>
+          <p>{financialReviewCopy(type)}</p>
+        </div>
+        <span className="badge badge-info">{formatMoney(calculation.evaluatedPrice, selectedBid.currency)}</span>
+      </div>
+
+      <div className="evaluation-financial-review">
+        <div><span>Read-out price</span><strong>{formatMoney(calculation.original, selectedBid.currency)}</strong></div>
+        <div><span>Corrected / evaluated price</span><strong>{formatMoney(calculation.evaluatedPrice, selectedBid.currency)}</strong></div>
+        <div><span>Discount</span><strong>{calculation.discounts ? formatMoney(calculation.discounts, selectedBid.currency) : 'None recorded'}</strong></div>
+        <div><span>Pricing status</span><strong>{pricingStatus}</strong></div>
+      </div>
+
+      <details className="evaluation-bid-document-review" open>
+        <summary>Financial evidence</summary>
+        {financialDocuments.length ? (
+          <div className="goods-evaluation-card-list">
+            {financialDocuments.map((document) => (
+              <article className="goods-evidence-panel" key={document.id}>
+                <strong>{document.documentType || 'Financial document'}</strong>
+                <p>{document.name}</p>
+                <div className="evaluation-document-actions">
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => openEvidenceMetadata(document)}>View</button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => downloadEvidenceMetadata(document)}>Download</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p>No submitted financial documents matched the financial review keywords. Review the full bid package before deciding.</p>
+        )}
+      </details>
+
       <div className="evaluation-table-scroll">
-        <table>
+        <table className={`${commercialTableClass(type)} goods-evaluation-table`}>
           <thead>
             <tr>
-              <th>Supplier</th>
-              <th>Financial amount</th>
-              <th>Calculated price score</th>
-              <th>Current total</th>
+              <th>{commercialLineLabel(type)}</th>
+              <th>Requirement / description</th>
+              <th>Quantity</th>
+              <th>Unit</th>
+              <th>Supplier rate</th>
+              <th>Total</th>
+              <th>Buyer check</th>
+              <th>Remark</th>
             </tr>
           </thead>
           <tbody>
-            {bids.map((bid) => (
-              <tr key={bid.id}>
-                <td><strong>{bid.supplierName}</strong></td>
-                <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
-                <td>{bid.financialScore === null ? '-' : `${bid.financialScore}%`}</td>
-                <td>{bid.totalScore === null ? '-' : `${bid.totalScore}%`}</td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const decision = sectionDecision(sectionDraft, activeStageId, selectedBid.id, row.id);
+              return (
+                <tr key={row.id}>
+                  <td><strong>{row.label}</strong><span>{row.source}</span></td>
+                  <td>{row.description}</td>
+                  <td>{row.quantity ?? '-'}</td>
+                  <td>{row.unit ?? '-'}</td>
+                  <td>{row.rate === null ? '-' : formatMoney(row.rate, selectedBid.currency)}</td>
+                  <td>{row.total === null ? '-' : formatMoney(row.total, selectedBid.currency)}</td>
+                  <td>
+                    <select
+                      className="form-input"
+                      value={decision.decision ?? ''}
+                      onChange={(event) => onSectionDraftChange([activeStageId, selectedBid.id, row.id], { decision: event.target.value })}
+                    >
+                      <option value="">Select check</option>
+                      {financialLineCheckOptions(type).map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      className="form-input"
+                      value={decision.remark ?? ''}
+                      onChange={(event) => onSectionDraftChange([activeStageId, selectedBid.id, row.id], { remark: event.target.value })}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      {selectedBid && criteria.length ? (
-        <SupplierScoringPanel bid={selectedBid} criteria={criteria} emptyMessage="No financial criterion is available." kicker="Financial Proposal Scoring" onScoreChange={onScoreChange} />
-      ) : null}
+
+      <div className="evaluation-boq-comparison">
+        <div className="panel-heading">
+          <div>
+            <span className="section-kicker">{title}</span>
+            <h2>Bidder price comparison</h2>
+            <p>Evaluated bid price uses original price plus corrections, minus discounts, plus evaluation adjustments.</p>
+          </div>
+          <span className="badge badge-info">{bids.length} opened bids</span>
+        </div>
+        <div className="evaluation-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Supplier</th>
+                <th>Original bid price</th>
+                <th>Corrections</th>
+                <th>Discounts</th>
+                <th>Adjustments</th>
+                <th>Evaluated bid price</th>
+                <th>Financial score</th>
+                <th>Technical score</th>
+                <th>Combined / total score</th>
+                <th>Financial status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bids.map((bid) => {
+                const bidCalculation = financialCalculation(bid);
+                const bidScore = financialScores.get(bid.id) ?? bid.financialScore;
+                return (
+                  <tr key={bid.id}>
+                    <td><strong>{bid.supplierName}</strong></td>
+                    <td>{formatMoney(bid.financialAmount, bid.currency)}</td>
+                    <td>{formatMoney(bidCalculation.corrections, bid.currency)}</td>
+                    <td>{formatMoney(bidCalculation.discounts, bid.currency)}</td>
+                    <td>{formatMoney(bidCalculation.adjustments, bid.currency)}</td>
+                    <td>{formatMoney(bidCalculation.evaluatedPrice, bid.currency)}</td>
+                    <td>{bidScore === null || bidScore === undefined ? '-' : `${bidScore}%`}</td>
+                    <td>{bid.technicalScore === null ? '-' : `${bid.technicalScore}%`}</td>
+                    <td>{bid.totalScore === null ? '-' : `${bid.totalScore}%`}</td>
+                    <td><span className={isFinanciallyEligible(workspace, sectionDraft, bid) ? 'badge badge-success' : 'badge badge-warning'}>{isFinanciallyEligible(workspace, sectionDraft, bid) ? 'Eligible' : 'Held'}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
   );
 }
 
-function DecisionPanel({
+function RankingPanel({
   bids,
   onDecisionChange,
-  selectedBid,
-  title
+  rankings,
+  sectionDraft,
+  workspace
 }: {
   bids: EditableEvaluationBid[];
   onDecisionChange: (bidId: string, patch: Partial<DecisionDraft>) => void;
-  selectedBid: EditableEvaluationBid | null;
-  title: string;
+  rankings: ReturnType<typeof buildRankings>;
+  sectionDraft: SectionDraftMap;
+  workspace: EvaluationWorkspace;
 }) {
-  if (!selectedBid) return <EvaluationEmptyMessage icon={<FolderOpenRoundedIcon fontSize="small" aria-hidden="true" />} message="No submitted supplier bid is selected." />;
   return (
     <section className="evaluation-section-workspace">
       <div className="panel-heading">
         <div>
-          <span className="section-kicker">{title}</span>
-          <h2>{selectedBid.supplierName}</h2>
-        </div>
-        <span className="badge badge-info">{selectedBid.decisionStatus}</span>
-      </div>
-      <div className="evaluation-requirement-row">
-        <div className="evaluation-requirement-main">
-          <span className="section-kicker">Buyer decision</span>
-          <h3>Manual qualification outcome</h3>
-          <p>Use this decision to capture post-evaluation qualification, recommendation, or clarification status.</p>
-        </div>
-        <div className="evaluation-evidence-panel">
-          <strong>Ranking context</strong>
-          {bids.map((bid) => (
-            <div className="evaluation-evidence-item" key={bid.id}>
-              <span>{bid.supplierName}</span>
-              <p>{bid.totalScore === null ? 'Not fully evaluated' : `${bid.totalScore}% total score`}</p>
-            </div>
-          ))}
-        </div>
-        <div className="evaluation-decision-panel">
-          <label>
-            Decision
-            <select className="form-input" value={selectedBid.decisionStatus} onChange={(event) => onDecisionChange(selectedBid.id, { status: event.target.value as EvaluationDecisionStatus })}>
-              {decisionOptions.map((option) => (
-                <option key={option} value={option} disabled={option === 'RECOMMENDED' && !selectedBid.evaluated}>{decisionLabel(option)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="wide">
-            Reason / evaluator note
-            <textarea className="form-input evaluation-p5-comment" value={selectedBid.decisionComment} onChange={(event) => onDecisionChange(selectedBid.id, { comment: event.target.value })} />
-          </label>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function RankingPanel({ rankings }: { rankings: ReturnType<typeof buildRankings> }) {
-  return (
-    <section className="evaluation-section-workspace">
-      <div className="panel-heading">
-        <div>
-          <span className="section-kicker">Final Ranking</span>
-          <h2>Supplier ranking</h2>
+          <span className="section-kicker">Ranking & Recommendation</span>
+          <h2>Consolidated supplier comparison</h2>
         </div>
         <span className="badge badge-info">{rankings.length} ranked</span>
       </div>
@@ -1177,29 +1386,74 @@ function RankingPanel({ rankings }: { rankings: ReturnType<typeof buildRankings>
               <tr>
                 <th>Rank</th>
                 <th>Bidder</th>
+                <th>Preliminary result</th>
                 <th>Technical score</th>
+                <th>Evaluated price</th>
                 <th>Financial score</th>
                 <th>Total score</th>
+                <th>Post-qualification result</th>
                 <th>Decision</th>
                 <th>Comment</th>
               </tr>
             </thead>
             <tbody>
-              {rankings.map((row) => (
-                <tr key={row.bidId}>
-                  <td>{row.rank}</td>
-                  <td><strong>{row.bidderName}</strong></td>
-                  <td>{row.technicalScore === null ? '-' : `${row.technicalScore}%`}</td>
-                  <td>{row.financialScore === null ? '-' : `${row.financialScore}%`}</td>
-                  <td>{row.totalScore}%</td>
-                  <td><span className="badge badge-info">{decisionLabel(row.decisionStatus)}</span></td>
-                  <td>{row.commentSummary || '-'}</td>
-                </tr>
-              ))}
+              {rankings.map((row) => {
+                const bid = bids.find((item) => item.id === row.bidId);
+                const calculation = bid ? financialCalculation(bid) : null;
+                return (
+                  <tr key={row.bidId}>
+                    <td>{row.rank}</td>
+                    <td><strong>{row.bidderName}</strong></td>
+                    <td>{bid ? stageResultLabel(sectionDraft, 'preliminary', bid.id) : '-'}</td>
+                    <td>{row.technicalScore === null ? '-' : `${row.technicalScore}%`}</td>
+                    <td>{bid && calculation ? `${bid.currency} ${calculation.evaluatedPrice.toLocaleString()}` : '-'}</td>
+                    <td>{row.financialScore === null ? '-' : `${row.financialScore}%`}</td>
+                    <td>{row.totalScore}%</td>
+                    <td>{bid ? stageResultLabel(sectionDraft, 'verification', bid.id) : '-'}</td>
+                    <td><span className="badge badge-info">{decisionLabel(row.decisionStatus)}</span></td>
+                    <td>{row.commentSummary || '-'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ) : <EvaluationEmptyMessage icon={<LeaderboardRoundedIcon fontSize="small" aria-hidden="true" />} message="No evaluated bidders yet. Ranking will appear after scores are entered." />}
+      <div className="evaluation-requirement-list">
+        {bids.map((bid) => {
+          const blockedReason = recommendationBlockReason(workspace, sectionDraft, bid);
+          return (
+            <article className="evaluation-requirement-row" key={bid.id}>
+              <div className="evaluation-requirement-main">
+                <span className="section-kicker">Final buyer decision</span>
+                <h3>{bid.supplierName}</h3>
+                <p>{blockedReason || (bid.totalScore === null ? 'Complete scoring and section checks before recommendation.' : `${bid.totalScore}% current total score`)}</p>
+              </div>
+              <div className="evaluation-evidence-panel">
+                <strong>Ranking context</strong>
+                <div className="evaluation-evidence-item">
+                  <span>{bid.reference}</span>
+                  <p>{bid.financialAmount === null ? 'No financial offer amount captured' : `${bid.currency} ${bid.financialAmount.toLocaleString()}`}</p>
+                </div>
+              </div>
+              <div className="evaluation-decision-panel">
+                <label>
+                  Decision
+                  <select className="form-input" value={bid.decisionStatus} onChange={(event) => onDecisionChange(bid.id, { status: event.target.value as EvaluationDecisionStatus })}>
+                    {decisionOptions.map((option) => (
+                      <option key={option} value={option} disabled={option === 'RECOMMENDED' && Boolean(blockedReason)}>{decisionLabel(option)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="wide">
+                  Recommendation reason
+                  <textarea className="form-input evaluation-p5-comment" value={bid.decisionComment} onChange={(event) => onDecisionChange(bid.id, { comment: event.target.value })} />
+                </label>
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -1423,7 +1677,7 @@ function createScoreDrafts(workspace: EvaluationWorkspace): ScoreDraftMap {
   for (const bid of workspace.bids) {
     for (const criterion of workspace.criteria) {
       const existing = bid.scores.find((score) => score.criterionId === criterion.id);
-      const parsedComment = parseGoodsAdministrativeComment(existing?.comment ?? '');
+      const parsedComment = parseScoreComment(existing?.comment ?? '');
       drafts[draftKey(bid.id, criterion.id)] = {
         score: existing?.score === null || existing?.score === undefined ? '' : String(existing.score),
         comment: parsedComment.remark,
@@ -1458,7 +1712,7 @@ function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraft
     const scores = workspace.criteria.map((criterion) => {
       const draft = scoreDrafts[draftKey(bid.id, criterion.id)];
       const parsedScore = draft?.score === '' || draft?.score === undefined ? null : Number(draft.score);
-      const parsedComment = parseGoodsAdministrativeComment(draft?.comment ?? '');
+      const parsedComment = parseScoreComment(draft?.comment ?? '');
       return {
         criterionId: criterion.id,
         score: Number.isFinite(parsedScore) ? parsedScore : null,
@@ -1467,7 +1721,8 @@ function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraft
         evaluatedAt: bid.scores.find((score) => score.criterionId === criterion.id)?.evaluatedAt ?? null
       };
     });
-    const technical = localTechnicalScore(workspace.criteria, scores);
+    const technical = localTechnicalScore(technicalCriteria(workspace.criteria), scores);
+    const financialScore = financial.get(bid.id) ?? bid.financialScore;
     const decision = decisionDrafts[bid.id] ?? { status: bid.decisionStatus, comment: bid.decisionComment };
     const commentSummary = decision.comment || scores.find((score) => score.comment)?.comment || '';
     return {
@@ -1475,9 +1730,9 @@ function buildScoredBids(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraft
       scores,
       scoreDrafts: Object.fromEntries(workspace.criteria.map((criterion) => [criterion.id, scoreDrafts[draftKey(bid.id, criterion.id)] ?? { score: '', comment: '' }])),
       technicalScore: technical,
-      financialScore: financial.get(bid.id) ?? bid.financialScore,
-      totalScore: technical,
-      evaluated: technical !== null,
+      financialScore,
+      totalScore: localTotalScore(workspace, technical, financialScore),
+      evaluated: technical !== null || financialScore !== null,
       decisionStatus: decision.status,
       decisionComment: decision.comment,
       commentSummary
@@ -1508,13 +1763,25 @@ function localTechnicalScore(criteria: EvaluationWorkspace['criteria'], scores: 
 
 function localFinancialScores(bids: EvaluationWorkspace['bids']) {
   const amounts = bids
-    .map((bid) => ({ bidId: bid.id, amount: bid.financialAmount }))
+    .map((bid) => ({ bidId: bid.id, amount: financialCalculation(bid).evaluatedPrice }))
     .filter((row): row is { bidId: string; amount: number } => typeof row.amount === 'number' && row.amount > 0);
   const lowest = Math.min(...amounts.map((row) => row.amount));
   const scores = new Map<string, number>();
   if (!Number.isFinite(lowest)) return scores;
   for (const row of amounts) scores.set(row.bidId, roundScore((lowest / row.amount) * 100));
   return scores;
+}
+
+function localTotalScore(workspace: EvaluationWorkspace, technical: number | null, financial: number | null) {
+  const technicalWeight = workspace.evaluationConfiguration?.technicalWeight ?? null;
+  const financialWeight = workspace.evaluationConfiguration?.financialWeight ?? null;
+  if (technical !== null && financial !== null && technicalWeight !== null && financialWeight !== null && technicalWeight + financialWeight > 0) {
+    return roundScore((technical * technicalWeight + financial * financialWeight) / (technicalWeight + financialWeight));
+  }
+  if (technical !== null && financial !== null && workspace.tender?.procurementType === 'CONSULTANCY') {
+    return roundScore((technical * 0.8) + (financial * 0.2));
+  }
+  return technical ?? financial;
 }
 
 function buildRankings(bids: EditableEvaluationBid[]) {
@@ -1533,11 +1800,12 @@ function buildRankings(bids: EditableEvaluationBid[]) {
     }));
 }
 
-function completionState(workspace: EvaluationWorkspace | null, bids: EditableEvaluationBid[]) {
+function completionState(workspace: EvaluationWorkspace | null, bids: EditableEvaluationBid[], sectionDraft: SectionDraftMap): CompletionState {
   if (!workspace) return { complete: 0, total: 0, percent: 0, canComplete: false };
-  const total = workspace.criteria.length * bids.length;
-  const complete = bids.reduce(
-    (sum, bid) => sum + workspace.criteria.filter((criterion) => {
+  const scoreCriteria = scoreCriteriaForCompletion(workspace);
+  const scoreTotal = scoreCriteria.length * bids.length;
+  const scoreComplete = bids.reduce(
+    (sum, bid) => sum + scoreCriteria.filter((criterion) => {
       if (workspace.tender?.procurementType === 'GOODS' && isAdministrativeCriterion(criterion)) {
         return isGoodsAdministrativeDraftComplete(bid.scoreDrafts?.[criterion.id]);
       }
@@ -1546,19 +1814,51 @@ function completionState(workspace: EvaluationWorkspace | null, bids: EditableEv
     }).length,
     0
   );
+  const manualSections = requiredManualStages(workspace);
+  const manualDefinitions = manualSections.flatMap((stageId) => sectionDefinitionsForStage(workspace, stageId).map((definition) => ({ stageId, definition })));
+  const manualTotal = manualDefinitions.length * bids.length;
+  const manualComplete = bids.reduce(
+    (sum, bid) => sum + manualDefinitions.filter(({ stageId, definition }) => isSectionDecisionComplete(sectionDecision(sectionDraft, stageId, bid.id, definition.id))).length,
+    0
+  );
+  const rankingTotal = bids.length;
+  const rankingComplete = bids.filter((bid) => isFinalDecisionComplete(bid)).length;
+  const total = scoreTotal + manualTotal + rankingTotal;
+  const complete = scoreComplete + manualComplete + rankingComplete;
   const percent = total > 0 ? Math.round((complete / total) * 100) : 0;
-  return { complete, total, percent, canComplete: total > 0 && complete === total };
+  const hasRecommendation = bids.some((bid) => bid.decisionStatus === 'RECOMMENDED' && !recommendationBlockReason(workspace, sectionDraft, bid));
+  const allRejected = bids.length > 0 && bids.every((bid) => bid.decisionStatus === 'FAILED');
+  return { complete, total, percent, canComplete: total > 0 && complete === total && (hasRecommendation || allRejected) };
+}
+
+function validateWorkspaceDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap, sectionDraft: SectionDraftMap) {
+  const scoreValidation = validateScoreDrafts(workspace, scoreDrafts);
+  if (scoreValidation) return scoreValidation;
+  for (const bid of workspace.bids) {
+    for (const stageId of requiredManualStages(workspace)) {
+      for (const definition of sectionDefinitionsForStage(workspace, stageId)) {
+        const decision = sectionDecision(sectionDraft, stageId, bid.id, definition.id);
+        if (isNegativeSectionDecision(decision.decision) && !String(decision.remark ?? '').trim()) {
+          return `Add a remark for ${definition.label} when the decision is failed, rejected, or clarification required.`;
+        }
+      }
+    }
+  }
+  return '';
 }
 
 function validateScoreDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap) {
   for (const bid of workspace.bids) {
-    for (const criterion of workspace.criteria) {
+    for (const criterion of scoreCriteriaForCompletion(workspace)) {
       const draft = scoreDrafts[draftKey(bid.id, criterion.id)];
       if (workspace.tender?.procurementType === 'GOODS' && isAdministrativeCriterion(criterion)) {
         if (!draft?.decision && draft?.score) return 'Select a buyer decision for every goods administrative check with a score.';
         if (draft?.decision && isGoodsManualDecisionNegative(draft.decision) && !draft.comment.trim()) {
           return 'Add a remark for failed or clarification-required administrative checks.';
         }
+      }
+      if (draft?.decision && isGoodsManualDecisionNegative(draft.decision) && !draft.comment.trim()) {
+        return 'Add a buyer comment for failed, non-responsive, or clarification-required custom criteria.';
       }
       if (!draft || draft.score === '') continue;
       const score = Number(draft.score);
@@ -1570,62 +1870,226 @@ function validateScoreDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreD
 }
 
 function firstMissingScoreStage(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap): EvaluationStageId {
-  const missing = workspace.criteria.find((criterion) =>
+  const missing = scoreCriteriaForCompletion(workspace).find((criterion) =>
     workspace.bids.some((bid) => {
       const draft = scoreDrafts[draftKey(bid.id, criterion.id)];
       return !draft || draft.score === '';
     })
   );
-  if (!missing) return 'criteria';
-  if (isAdministrativeCriterion(missing)) return 'administrative';
-  if (isFinancialCriterion(missing)) return workspace.tender?.procurementType === 'WORKS' ? 'boq' : workspace.tender?.procurementType === 'SERVICE' ? 'pricing' : 'financial';
-  return 'criteria';
+  if (!missing) return 'technical';
+  return 'technical';
 }
 
-function administrativeCriteria(criteria: EvaluationWorkspaceCriterion[]) {
-  return criteria.filter(isAdministrativeCriterion);
+function scoreCriteriaForCompletion(workspace: EvaluationWorkspace) {
+  return workspace.criteria.filter((criterion) => !isAdministrativeCriterion(criterion));
+}
+
+function requiredManualStages(workspace: EvaluationWorkspace): EvaluationStageId[] {
+  void workspace;
+  return ['preliminary', 'financial', 'verification'];
+}
+
+function sectionDefinitionsForStage(workspace: EvaluationWorkspace, stageId: EvaluationStageId): SectionDefinition[] {
+  const sectionIds = legacyStageAliases(stageId);
+  const items = workspace.evaluationConfiguration?.sections
+    .filter((item) => sectionIds.includes(item.id))
+    .flatMap((section) => section.items) ?? [];
+  return items
+    .filter((item) => !((stageId === 'technical' || stageId === 'financial') && item.source === 'evaluation criteria'))
+    .map((item) => ({
+    id: item.id,
+    label: item.title,
+    description: item.description || item.category,
+    source: item.source,
+    keywords: wordsFrom(`${item.title} ${item.description} ${item.category} ${item.evidenceRequired.join(' ')}`),
+    mandatory: item.mandatory
+  }));
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function wordsFrom(value: string) {
+  return value.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 3);
+}
+
+function legacyStageAliases(stageId: EvaluationStageId) {
+  const aliases: Record<EvaluationStageId, string[]> = {
+    opening: ['opening'],
+    preliminary: ['preliminary', 'administrative'],
+    technical: ['technical', 'criteria', 'tor'],
+    financial: ['financial', 'boq', 'pricing'],
+    verification: ['verification', 'postqual', 'sla'],
+    ranking: ['ranking'],
+    report: ['report']
+  };
+  return aliases[stageId];
+}
+
+function sectionDecision(sectionDraft: SectionDraftMap, sectionId: EvaluationStageId, bidId: string, itemId: string): SectionDecision {
+  let row: Record<string, unknown> = {};
+  for (const candidateId of legacyStageAliases(sectionId)) {
+    const section = objectValue(sectionDraft[candidateId]);
+    const bid = objectValue(section[bidId]);
+    row = objectValue(bid[itemId]);
+    if (row.decision || row.remark) break;
+  }
+  return {
+    decision: typeof row.decision === 'string' ? row.decision : '',
+    remark: typeof row.remark === 'string' ? row.remark : ''
+  };
+}
+
+function patchSectionDraft(current: SectionDraftMap, path: string[], patch: Record<string, unknown>): SectionDraftMap {
+  const [sectionId, bidId, itemId] = path;
+  if (!sectionId || !bidId || !itemId) return current;
+  const section = objectValue(current[sectionId]);
+  const bid = objectValue(section[bidId]);
+  const row = objectValue(bid[itemId]);
+  return {
+    ...current,
+    [sectionId]: {
+      ...section,
+      [bidId]: {
+        ...bid,
+        [itemId]: {
+          ...row,
+          ...patch
+        }
+      }
+    }
+  };
+}
+
+function matchingSectionEvidence(bid: EditableEvaluationBid, definition: SectionDefinition) {
+  const keywords = definition.keywords?.length ? definition.keywords : wordsFrom(`${definition.label} ${definition.description}`);
+  return bid.documents.filter((document) => {
+    const haystack = `${document.name} ${document.documentType}`.toLowerCase();
+    return keywords.some((word) => haystack.includes(word));
+  }).slice(0, 2);
+}
+
+function emptyManualSectionMessage(sectionId: EvaluationStageId, title: string) {
+  if (sectionId === 'preliminary') return 'No preliminary or eligibility requirements were configured for this tender.';
+  if (sectionId === 'financial') return 'No financial or commercial review lines were configured for this tender.';
+  if (sectionId === 'verification') return 'No verification or post-qualification requirements were configured for this tender.';
+  return `No ${title.toLowerCase()} checks were configured for this tender.`;
+}
+
+function manualSectionDescription(sectionId: EvaluationStageId) {
+  if (sectionId === 'preliminary') return 'Pass/fail review of mandatory eligibility, regulatory, document, and declaration checks.';
+  return 'Record the buyer committee decision for each required check. Failed, rejected, and clarification-required outcomes need a remark.';
+}
+
+function matchingCriterionEvidence(bid: EditableEvaluationBid, criterion: EvaluationWorkspaceCriterion, details: CustomCriterionDetails) {
+  const keywords = wordsFrom(`${criterion.name} ${criterion.category} ${details.description} ${details.subcriteria.join(' ')} ${details.evidenceRequired.join(' ')}`);
+  return bid.documents.filter((document) => {
+    const haystack = `${document.name} ${document.documentType}`.toLowerCase();
+    return keywords.some((word) => haystack.includes(word));
+  }).slice(0, 3);
+}
+
+function isSectionDecisionComplete(decision: SectionDecision) {
+  if (!decision.decision) return false;
+  if (isNegativeSectionDecision(decision.decision) && !String(decision.remark ?? '').trim()) return false;
+  return true;
+}
+
+function isNegativeSectionDecision(decision = '') {
+  return /fail|clarification|required|rejected|non-responsive|not qualified|non-compliant/i.test(decision);
+}
+
+function isFinalDecisionComplete(bid: EditableEvaluationBid) {
+  if (bid.decisionStatus === 'PENDING') return false;
+  if ((bid.decisionStatus === 'FAILED' || bid.decisionStatus === 'NEEDS_CLARIFICATION' || bid.decisionStatus === 'RECOMMENDED') && !bid.decisionComment.trim()) return false;
+  return true;
+}
+
+function customEvaluationCriteria(criteria: EvaluationWorkspaceCriterion[]) {
+  return criteria.filter((criterion) => !isAdministrativeCriterion(criterion));
 }
 
 function technicalCriteria(criteria: EvaluationWorkspaceCriterion[]) {
   return criteria.filter((criterion) => !isAdministrativeCriterion(criterion) && !isFinancialCriterion(criterion));
 }
 
-function financialCriteria(criteria: EvaluationWorkspaceCriterion[]) {
-  return criteria.filter(isFinancialCriterion);
+function customCriterionDetails(workspace: EvaluationWorkspace, criterion: EvaluationWorkspaceCriterion): CustomCriterionDetails {
+  const config = workspace.evaluationConfiguration?.evaluationCriteria.find((item) => item.id === `criterion-${criterion.id}`);
+  const payload = objectValue(config?.payload);
+  const evaluationType = textFromUnknown(payload.evaluationType, payload.type, payload.scoringType) || (criterion.maxScore <= 1 ? 'pass_fail' : 'scored');
+  const subcriteria = textListFromUnknown(payload.subcriteria);
+  return {
+    description: config?.description && config.description !== criterion.category ? config.description : textFromUnknown(payload.description, payload.scoringGuide, payload.requirement),
+    evaluationType,
+    evidenceRequired: config?.evidenceRequired?.length ? config.evidenceRequired : textListFromUnknown(payload.evidenceRequired),
+    mandatory: Boolean(config?.mandatory || payload.mandatory === true),
+    passFailGate: Boolean(payload.passFailGate === true || payload.gate === true || /pass.?fail|document_check|mandatory/i.test(evaluationType)),
+    subcriteria
+  };
+}
+
+function isCustomCriterionGate(criterion: EvaluationWorkspaceCriterion, details: CustomCriterionDetails) {
+  return details.passFailGate || criterion.maxScore <= 1;
+}
+
+function formatEvaluationType(value: string, isGate: boolean) {
+  if (isGate) return 'Pass / fail';
+  return value ? humanizeEnum(value) : 'Scored';
+}
+
+function criterionDecisionOptions(isGate: boolean) {
+  return isGate
+    ? ['', 'Pass', 'Fail', 'Not Applicable', 'Clarification Required']
+    : ['', 'Pass', 'Fail', 'Responsive', 'Non-responsive', 'Clarification Required', 'Not Applicable'];
+}
+
+function decisionScore(decision: string, criterion: EvaluationWorkspaceCriterion) {
+  if (/^pass$|responsive|not applicable/i.test(decision)) return String(criterion.maxScore);
+  if (/fail|non-responsive/i.test(decision)) return '0';
+  return '';
+}
+
+function textFromUnknown(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) {
+      const text = value.map((item) => textFromUnknown(item)).filter(Boolean).join(', ');
+      if (text) return text;
+    }
+    if (value && typeof value === 'object') {
+      const object = value as Record<string, unknown>;
+      const text = textFromUnknown(object.title, object.label, object.name, object.description, object.value, object.requirement);
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function textListFromUnknown(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => textFromUnknown(item)).filter(Boolean);
+  const text = textFromUnknown(value);
+  return text ? text.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean) : [];
 }
 
 function isAdministrativeCriterion(criterion: EvaluationWorkspaceCriterion) {
-  return criterion.maxScore <= 1 || /administrative|eligibility|compliance/i.test(`${criterion.name} ${criterion.category}`);
+  return criterion.stage === 'ELIGIBILITY' || /administrative|eligibility|mandatory document|required document|preliminary/i.test(`${criterion.name} ${criterion.category}`);
 }
 
-function goodsAdministrativeDecision(score: number | null, comment = '') {
-  const parsed = parseGoodsAdministrativeComment(comment);
-  if (parsed.decision) return parsed.decision;
-  if (score === null || score === undefined) return '';
-  if (/not applicable/i.test(comment)) return 'Not Applicable';
-  if (/clarification/i.test(comment)) return 'Clarification Required';
-  return Number(score) > 0 ? 'Pass' : 'Fail';
-}
-
-function goodsAdministrativeComment(draft: ScoreDraft) {
+function scoreCommentWithDecision(draft: ScoreDraft) {
   const decision = draft.decision?.trim();
   const remark = draft.comment.trim();
   return decision ? `[Decision: ${decision}]${remark ? `\n${remark}` : ''}` : remark;
 }
 
-function parseGoodsAdministrativeComment(comment = '') {
+function parseScoreComment(comment = '') {
   const match = comment.match(/^\[Decision:\s*([^\]]+)\]\s*/i);
   if (!match) return { decision: '', remark: comment };
   return {
     decision: match[1].trim(),
     remark: comment.slice(match[0].length)
   };
-}
-
-function goodsAdministrativeScore(decision: string) {
-  if (decision === 'Pass' || decision === 'Not Applicable') return '1';
-  if (decision === 'Fail' || decision === 'Clarification Required') return '0';
-  return '';
 }
 
 function isGoodsManualDecisionNegative(decision = '') {
@@ -1636,18 +2100,6 @@ function isGoodsAdministrativeDraftComplete(draft: ScoreDraft | undefined) {
   if (!draft?.decision) return false;
   if (isGoodsManualDecisionNegative(draft.decision) && !draft.comment.trim()) return false;
   return true;
-}
-
-function matchingGoodsEvidence(bid: EditableEvaluationBid, criterion: EvaluationWorkspaceCriterion) {
-  const keywords = `${criterion.name} ${criterion.category}`
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => word.length > 3);
-  const matches = bid.documents.filter((document) => {
-    const haystack = `${document.name} ${document.documentType}`.toLowerCase();
-    return keywords.some((word) => haystack.includes(word));
-  });
-  return matches.slice(0, 1);
 }
 
 function openEvidenceMetadata(document: EvaluationEvidenceDocument) {
@@ -1686,48 +2138,59 @@ function isFinancialCriterion(criterion: EvaluationWorkspaceCriterion) {
   return criterion.stage === 'FINANCIAL' || /financial|price|proposal/i.test(`${criterion.name} ${criterion.category}`);
 }
 
+function stagesForWorkspace(workspace: EvaluationWorkspace): Array<{ id: EvaluationStageId; label: string }> {
+  const configured = workspace.evaluationConfiguration?.stages
+    .map((stage) => ({ id: normalizeStageId(stage.id), label: stageLabel(stage.id) }))
+    .filter((stage): stage is { id: EvaluationStageId; label: string } => Boolean(stage.id))
+    .filter((stage, index, stages) => stages.findIndex((candidate) => candidate.id === stage.id) === index);
+  return configured?.length ? configured : workspace.tender ? stagesForType(workspace.tender.procurementType) : stagesForType('GOODS');
+}
+
+function isBidderSpecificStage(stageId: EvaluationStageId) {
+  return stageId === 'preliminary' || stageId === 'technical' || stageId === 'financial' || stageId === 'verification';
+}
+
+function isEvaluationStageId(value: string): value is EvaluationStageId {
+  return ['opening', 'preliminary', 'technical', 'financial', 'verification', 'ranking', 'report'].includes(value);
+}
+
+function normalizeStageId(value: string | null): EvaluationStageId | null {
+  if (!value) return null;
+  if (isEvaluationStageId(value)) return value;
+  const aliases: Record<string, EvaluationStageId> = {
+    OPENING: 'opening',
+    administrative: 'preliminary',
+    ELIGIBILITY: 'preliminary',
+    PRELIMINARY: 'preliminary',
+    criteria: 'technical',
+    TECHNICAL: 'technical',
+    tor: 'technical',
+    financial: 'financial',
+    boq: 'financial',
+    pricing: 'financial',
+    FINANCIAL: 'financial',
+    postqual: 'verification',
+    sla: 'verification',
+    verification: 'verification',
+    CLARIFICATIONS: 'verification',
+    ranking: 'ranking',
+    COMPARISON: 'ranking',
+    report: 'report',
+    REPORT: 'report',
+    RECOMMENDATION: 'report'
+  };
+  return aliases[value] ?? null;
+}
+
 function stagesForType(type: Exclude<ProcurementTypeFilter, 'all'>): Array<{ id: EvaluationStageId; label: string }> {
-  if (type === 'WORKS') {
-    return [
-      { id: 'opening', label: 'Opening Register' },
-      { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
-      { id: 'criteria', label: 'Custom Evaluation Criteria' },
-      { id: 'boq', label: 'Financial Review' },
-      { id: 'postqual', label: 'Post-Qualification' },
-      { id: 'ranking', label: 'Final Ranking' },
-      { id: 'report', label: 'Evaluation Report' }
-    ];
-  }
-  if (type === 'SERVICE') {
-    return [
-      { id: 'opening', label: 'Opening Register' },
-      { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
-      { id: 'criteria', label: 'Custom Evaluation Criteria' },
-      { id: 'pricing', label: 'Service Pricing Review' },
-      { id: 'sla', label: 'SLA / Performance Review' },
-      { id: 'postqual', label: 'Post-Qualification' },
-      { id: 'ranking', label: 'Final Ranking' },
-      { id: 'report', label: 'Evaluation Report' }
-    ];
-  }
-  if (type === 'CONSULTANCY') {
-    return [
-      { id: 'opening', label: 'Opening Register' },
-      { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
-      { id: 'criteria', label: 'Custom Evaluation Criteria' },
-      { id: 'financial', label: 'Financial Proposal Review' },
-      { id: 'ranking', label: 'Selection Method / Ranking' },
-      { id: 'postqual', label: 'Post-Qualification' },
-      { id: 'report', label: 'Evaluation Report' }
-    ];
-  }
+  void type;
   return [
     { id: 'opening', label: 'Opening Register' },
-    { id: 'administrative', label: 'Administrative & Eligibility Evaluation' },
-    { id: 'criteria', label: 'Custom Evaluation Criteria' },
+    { id: 'preliminary', label: 'Administrative & Eligibility Evaluation' },
+    { id: 'technical', label: 'Custom Evaluation Criteria' },
     { id: 'financial', label: 'Financial Review' },
-    { id: 'postqual', label: 'Post-Qualification' },
-    { id: 'ranking', label: 'Final Ranking' },
+    { id: 'verification', label: 'Verification / Post-Qualification' },
+    { id: 'ranking', label: 'Ranking & Recommendation' },
     { id: 'report', label: 'Evaluation Report' }
   ];
 }
@@ -1767,20 +2230,24 @@ function stageLabel(value: string | null) {
   const labels: Record<string, string> = {
     opening: 'Opening Register',
     OPENING: 'Opening Register',
+    preliminary: 'Administrative & Eligibility Evaluation',
     administrative: 'Administrative & Eligibility Evaluation',
     ELIGIBILITY: 'Administrative & Eligibility Evaluation',
     PRELIMINARY: 'Administrative & Eligibility Evaluation',
+    technical: 'Custom Evaluation Criteria',
     criteria: 'Custom Evaluation Criteria',
     TECHNICAL: 'Custom Evaluation Criteria',
+    tor: 'Custom Evaluation Criteria',
     financial: 'Financial Review',
     boq: 'Financial Review',
-    pricing: 'Service Pricing Review',
+    pricing: 'Financial Review',
     FINANCIAL: 'Financial Review',
-    sla: 'SLA / Performance Review',
-    postqual: 'Post-Qualification',
-    CLARIFICATIONS: 'Post-Qualification',
-    ranking: 'Final Ranking',
-    COMPARISON: 'Final Ranking',
+    verification: 'Verification / Post-Qualification',
+    sla: 'Verification / Post-Qualification',
+    postqual: 'Verification / Post-Qualification',
+    CLARIFICATIONS: 'Verification / Post-Qualification',
+    ranking: 'Ranking & Recommendation',
+    COMPARISON: 'Ranking & Recommendation',
     report: 'Evaluation Report',
     REPORT: 'Evaluation Report',
     RECOMMENDATION: 'Evaluation Report'
@@ -1789,7 +2256,8 @@ function stageLabel(value: string | null) {
 }
 
 function restoreStageId(savedStageId: string | null, stages: Array<{ id: EvaluationStageId; label: string }>): EvaluationStageId {
-  const saved = stages.find((stage) => stage.id === savedStageId);
+  const normalized = normalizeStageId(savedStageId);
+  const saved = stages.find((stage) => stage.id === normalized);
   return saved?.id ?? stages[0]?.id ?? 'opening';
 }
 
@@ -1810,6 +2278,171 @@ function formatResponse(value: unknown) {
   } catch {
     return String(value);
   }
+}
+
+function bidResponseText(bid: EvaluationWorkspaceBid, pattern: RegExp) {
+  const match = bid.responses.find((response) => pattern.test(`${response.requirementKey} ${formatResponse(response.response)}`));
+  return match ? formatResponse(match.response) : '';
+}
+
+function numericBidResponse(bid: EvaluationWorkspaceBid, pattern: RegExp) {
+  const text = bidResponseText(bid, pattern).replace(/,/g, '');
+  const match = text.match(/-?\d+(\.\d+)?/);
+  const value = match ? Number(match[0]) : 0;
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isWithdrawnBid(bid: EvaluationWorkspaceBid) {
+  return /withdraw/i.test(`${bid.status} ${bidResponseText(bid, /withdraw/i)}`);
+}
+
+function isLateBid(bid: EvaluationWorkspaceBid) {
+  return /late/i.test(`${bid.status} ${bidResponseText(bid, /late|submission/i)}`);
+}
+
+function isOpeningRejectedBid(bid: EvaluationWorkspaceBid) {
+  return /reject|non-responsive|disqualif/i.test(`${bid.status} ${bidResponseText(bid, /opening|status|remark/i)}`) || isLateBid(bid);
+}
+
+function financialCalculation(bid: EvaluationWorkspaceBid) {
+  const original = bid.financialAmount ?? 0;
+  const corrections = numericBidResponse(bid, /arithmetic|correction/i);
+  const discounts = numericBidResponse(bid, /discount/i);
+  const adjustments = numericBidResponse(bid, /adjustment|provisional|tax|conversion/i);
+  return {
+    original,
+    corrections,
+    discounts,
+    adjustments,
+    evaluatedPrice: Math.max(0, original + corrections - discounts + adjustments)
+  };
+}
+
+function commercialReviewRows(workspace: EvaluationWorkspace, bid: EvaluationWorkspaceBid): CommercialReviewRow[] {
+  const type = workspace.tender?.procurementType ?? 'GOODS';
+  const configuredRows = workspace.tender?.commercialItems ?? [];
+  const commercialRows = configuredRows.map((item) => ({
+      id: `commercial-${item.id}`,
+      label: item.itemNo ? `${item.itemNo} - ${item.description}` : item.description,
+      description: commercialItemDescription(item),
+      quantity: item.quantity,
+      unit: item.unit,
+      rate: item.rate,
+      total: item.total,
+      source: type === 'WORKS' ? 'Bill of quantities' : type === 'SERVICE' ? 'Price schedule' : type === 'CONSULTANCY' ? 'Financial proposal schedule' : 'Commercial schedule'
+  }));
+  const configuredFinancialDefinitions = sectionDefinitionsForStage(workspace, 'financial');
+  if (configuredFinancialDefinitions.length) {
+    return configuredFinancialDefinitions.map((definition) => {
+      const commercialRow = commercialRows.find((row) => row.id === definition.id);
+      return commercialRow ?? {
+        id: definition.id,
+        label: definition.label,
+        description: definition.description,
+        quantity: null,
+        unit: null,
+        rate: null,
+        total: null,
+        source: definition.source ?? 'Published financial requirement'
+      };
+    });
+  }
+
+  const calculation = financialCalculation(bid);
+  return [{
+    id: 'financial-offer-total',
+    label: 'Financial offer total',
+    description: 'No commercial schedule rows were configured for this tender; review the submitted total financial offer.',
+    quantity: 1,
+    unit: 'Lot',
+    rate: calculation.evaluatedPrice,
+    total: calculation.evaluatedPrice,
+    source: 'Submitted financial proposal'
+  }];
+}
+
+function commercialItemDescription(item: NonNullable<EvaluationWorkspace['tender']>['commercialItems'][number]) {
+  return [
+    item.quantity === null ? '' : `Qty ${item.quantity}`,
+    item.unit ?? '',
+    item.rate === null ? '' : `Rate ${item.rate}`,
+    item.total === null ? '' : `Total ${item.total}`
+  ].filter(Boolean).join(' / ') || 'Published commercial requirement';
+}
+
+function financialEvidenceDocuments(bid: EvaluationWorkspaceBid): EvaluationEvidenceDocument[] {
+  const matches = bid.documents.filter((document) => /financial|price|pricing|commercial|proposal|boq|bill|quantity|schedule|quotation|quote|fee|tax|discount/i.test(`${document.name} ${document.documentType}`));
+  return (matches.length ? matches : bid.documents).slice(0, 6);
+}
+
+function financialReviewHeading(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'WORKS') return 'Financial Review';
+  if (type === 'SERVICE') return 'Service Pricing Review';
+  if (type === 'CONSULTANCY') return 'Financial Proposal Review';
+  return 'Quantity schedule and price checks';
+}
+
+function financialReviewCopy(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'WORKS') return 'Check priced works items, BOQ rate breakdowns, totals, arithmetic, taxes, discounts, abnormal rates, and financial documents. Financial scoring stays in custom criteria only.';
+  if (type === 'SERVICE') return 'Check service rates, duration, totals, taxes, discounts, completeness, arithmetic, and financial documents. Financial scoring stays in custom criteria only.';
+  if (type === 'CONSULTANCY') return 'Review fees, reimbursables, taxes, validity, method-specific ranking inputs, and financial proposal documents for technically qualified consultants.';
+  return 'Review prices, taxes, discounts, missing lines, and arithmetic. Apply score only through custom financial criteria.';
+}
+
+function financialLineCheckOptions(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'GOODS') return ['Accepted', 'Arithmetic Correction Required', 'Incomplete', 'Clarification Required', 'Abnormally Low Price Review Required'];
+  if (type === 'WORKS') return ['Accepted', 'Correction Required', 'Not Priced', 'Clarification Required', 'Abnormally Low/High Rate Review'];
+  if (type === 'SERVICE') return ['Accepted', 'Correction Required', 'Not Priced', 'Clarification Required', 'Abnormally Low/High Price Review'];
+  return ['Accepted', 'Correction Required', 'Not Priced', 'Clarification Required', 'Negotiation Required'];
+}
+
+function commercialLineLabel(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'WORKS') return 'BOQ item';
+  if (type === 'SERVICE') return 'Service line';
+  if (type === 'CONSULTANCY') return 'Financial proposal line';
+  return 'Item';
+}
+
+function commercialTableClass(type: Exclude<ProcurementTypeFilter, 'all'>) {
+  if (type === 'WORKS') return 'works-evaluation-table';
+  if (type === 'SERVICE') return 'service-evaluation-table';
+  if (type === 'CONSULTANCY') return 'consultancy-evaluation-table';
+  return 'goods-evaluation-table';
+}
+
+function isFinanciallyEligible(workspace: EvaluationWorkspace, sectionDraft: SectionDraftMap, bid: EditableEvaluationBid) {
+  if (hasFailedStageDraft(workspace, sectionDraft, 'preliminary', bid.id)) return false;
+  if (workspace.tender?.procurementType === 'CONSULTANCY') return !failsTechnicalThreshold(workspace, bid);
+  return !hasFailedStageDraft(workspace, sectionDraft, 'preliminary', bid.id);
+}
+
+function failsTechnicalThreshold(workspace: EvaluationWorkspace, bid: EditableEvaluationBid) {
+  const threshold = workspace.evaluationConfiguration?.minimumPassMark;
+  return workspace.tender?.procurementType === 'CONSULTANCY' && threshold !== null && threshold !== undefined && (bid.technicalScore ?? -1) < threshold;
+}
+
+function recommendationBlockReason(workspace: EvaluationWorkspace, sectionDraft: SectionDraftMap, bid: EditableEvaluationBid) {
+  if (hasFailedStageDraft(workspace, sectionDraft, 'preliminary', bid.id)) return 'Cannot recommend: bidder failed a mandatory preliminary gate.';
+  if (failsTechnicalThreshold(workspace, bid)) return 'Cannot recommend: consultancy bidder failed the technical threshold.';
+  if (hasFailedStageDraft(workspace, sectionDraft, 'verification', bid.id)) return 'Cannot recommend: bidder failed verification or post-qualification.';
+  return '';
+}
+
+function hasFailedStageDraft(workspace: EvaluationWorkspace, sectionDraft: SectionDraftMap, stageId: EvaluationStageId, bidId: string) {
+  return sectionDefinitionsForStage(workspace, stageId).some((definition) => isNegativeSectionDecision(sectionDecision(sectionDraft, stageId, bidId, definition.id).decision));
+}
+
+function stageResultLabel(sectionDraft: SectionDraftMap, stageId: EvaluationStageId, bidId: string) {
+  const aliases = legacyStageAliases(stageId);
+  const rows = aliases.flatMap((alias) => {
+    const section = objectValue(sectionDraft[alias]);
+    const bid = objectValue(section[bidId]);
+    return Object.values(bid).map(objectValue);
+  });
+  if (!rows.length) return 'Pending';
+  if (rows.some((row) => isNegativeSectionDecision(typeof row.decision === 'string' ? row.decision : ''))) return 'Failed';
+  if (rows.some((row) => typeof row.decision === 'string' && row.decision)) return 'Passed';
+  return 'Pending';
 }
 
 function roundScore(value: number) {

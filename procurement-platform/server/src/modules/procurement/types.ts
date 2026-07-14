@@ -447,6 +447,17 @@ export type CreateTenderInput = {
   categories: string[];
   requirements: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  requirementRows?: Array<{ id?: string; section: string; payload: Record<string, unknown> }>;
+  commercialItems?: Array<{
+    id?: string;
+    itemNo?: string | null;
+    description: string;
+    quantity?: number | string | null;
+    unit?: string | null;
+    rate?: number | string | null;
+    total?: number | string | null;
+    payload?: Record<string, unknown>;
+  }>;
   reference?: string;
 };
 
@@ -461,6 +472,17 @@ export type UpdateTenderInput = {
   categories?: string[];
   requirements?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  requirementRows?: Array<{ id?: string; section: string; payload: Record<string, unknown> }>;
+  commercialItems?: Array<{
+    id?: string;
+    itemNo?: string | null;
+    description: string;
+    quantity?: number | string | null;
+    unit?: string | null;
+    rate?: number | string | null;
+    total?: number | string | null;
+    payload?: Record<string, unknown>;
+  }>;
 };
 
 export type CreateTenderResponseDto = {

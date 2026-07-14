@@ -667,6 +667,8 @@ export class ModuleRepository {
             });
           }
 
+          await replaceTenderDesignRows(tx, savedTender.id, input);
+
           return savedTender;
         });
 
@@ -717,6 +719,10 @@ export class ModuleRepository {
             skipDuplicates: true
           });
         }
+      }
+
+      if (input.requirementRows !== undefined || input.commercialItems !== undefined) {
+        await replaceTenderDesignRows(tx, tenderId, input);
       }
 
       const tender = await tx.tender.update({
@@ -2363,6 +2369,53 @@ function normalizeCategoryInputs(categories: string[]) {
       seen.add(key);
       return true;
     });
+}
+
+async function replaceTenderDesignRows(
+  tx: Prisma.TransactionClient,
+  tenderId: string,
+  input: Pick<CreateTenderInput, 'requirementRows' | 'commercialItems'>
+) {
+  if (input.requirementRows !== undefined) {
+    await tx.tenderRequirement.deleteMany({ where: { tenderId } });
+    const rows = input.requirementRows
+      .map((row) => ({
+        tenderId,
+        section: row.section,
+        payload: {
+          ...row.payload,
+          ...(row.id ? { sourceId: row.id } : {})
+        } as Prisma.InputJsonObject
+      }))
+      .filter((row) => row.section.trim());
+    if (rows.length) await tx.tenderRequirement.createMany({ data: rows });
+  }
+
+  if (input.commercialItems !== undefined) {
+    await tx.tenderCommercialItem.deleteMany({ where: { tenderId } });
+    const rows = input.commercialItems
+      .map((item) => ({
+        tenderId,
+        itemNo: item.itemNo ?? null,
+        description: item.description,
+        quantity: decimalOrNull(item.quantity),
+        unit: item.unit ?? null,
+        rate: decimalOrNull(item.rate),
+        total: decimalOrNull(item.total),
+        payload: {
+          ...(item.payload ?? {}),
+          ...(item.id ? { sourceId: item.id } : {})
+        } as Prisma.InputJsonObject
+      }))
+      .filter((item) => item.description.trim());
+    if (rows.length) await tx.tenderCommercialItem.createMany({ data: rows });
+  }
+}
+
+function decimalOrNull(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(String(value).replace(/,/g, '').trim());
+  return Number.isFinite(number) ? number : null;
 }
 
 function tenderUpdateInput(input: UpdateTenderInput): Prisma.TenderUpdateInput {

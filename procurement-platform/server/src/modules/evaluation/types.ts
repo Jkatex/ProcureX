@@ -111,12 +111,70 @@ export type EvaluationRequestContext = {
 export type EvaluationWorkspaceTenderDto = {
   id: string;
   reference: string;
+  referenceNumber: string;
   title: string;
   buyerName: string;
   procurementType: string;
+  procurementCategory: string;
+  procurementMethod: string;
+  evaluationMethod: string;
   status: string;
   closingDate: string | null;
   currency: string;
+  requirements: unknown;
+  metadata: unknown;
+  requirementRows: Array<{
+    id: string;
+    section: string;
+    payload: unknown;
+  }>;
+  commercialItems: Array<{
+    id: string;
+    itemNo: string | null;
+    description: string;
+    quantity: number | null;
+    unit: string | null;
+    rate: number | null;
+    total: number | null;
+    payload: unknown;
+  }>;
+};
+
+export type EvaluationConfigurationItemDto = {
+  id: string;
+  stageId: string;
+  title: string;
+  description: string;
+  source: string;
+  category: string;
+  mandatory: boolean;
+  weight: number | null;
+  maxScore: number | null;
+  evidenceRequired: string[];
+  payload: unknown;
+};
+
+export type EvaluationConfigurationSectionDto = {
+  id: string;
+  label: string;
+  emptyMessage: string;
+  items: EvaluationConfigurationItemDto[];
+};
+
+export type EvaluationConfigurationDto = {
+  procurementCategory: string;
+  procurementMethod: string;
+  evaluationMethod: string;
+  minimumPassMark: number | null;
+  technicalWeight: number | null;
+  financialWeight: number | null;
+  requirements: unknown;
+  requiredDocuments: EvaluationConfigurationItemDto[];
+  technicalSpecifications: EvaluationConfigurationItemDto[];
+  evaluationCriteria: EvaluationConfigurationItemDto[];
+  qualificationRequirements: EvaluationConfigurationItemDto[];
+  stages: Array<{ id: string; label: string }>;
+  sections: EvaluationConfigurationSectionDto[];
 };
 
 export type EvaluationWorkspaceSummaryDto = {
@@ -157,6 +215,8 @@ export type EvaluationWorkspaceBidDto = {
   supplierName: string;
   status: string;
   submittedAt: string | null;
+  receiptRef: string | null;
+  receiptHash: string | null;
   documents: Array<{
     id: string;
     name: string;
@@ -204,9 +264,11 @@ export type EvaluationWorkspaceDto = {
     reason: string | null;
   };
   summary: EvaluationWorkspaceSummaryDto;
+  evaluationConfiguration: EvaluationConfigurationDto | null;
   criteria: EvaluationWorkspaceCriterionDto[];
   bids: EvaluationWorkspaceBidDto[];
   rankings: EvaluationRankingRowDto[];
+  sectionDraft: Record<string, unknown>;
   audit: {
     evaluatedBy: string | null;
     lastUpdatedBy: string | null;
@@ -230,6 +292,7 @@ export type EvaluationDecisionInput = {
 export type SaveEvaluationWorkspaceInput = {
   scores: EvaluationScoreInput[];
   decisions: EvaluationDecisionInput[];
+  sectionDraft: Record<string, unknown>;
   complete: boolean;
   activeStageId?: string;
   selectedBidId?: string;
