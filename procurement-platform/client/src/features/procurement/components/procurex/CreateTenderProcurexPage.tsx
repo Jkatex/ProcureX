@@ -5472,19 +5472,33 @@ function getDraftValidationNote(validation?: TenderDraftValidation) {
   return notes.slice(0, 3).join(' ');
 }
 
-function getApiErrorMessage(_error: unknown, fallback: string) {
-  return fallback;
+function getApiErrorMessage(error: unknown, fallback: string) {
+  return getApiValidationErrorMessage(error, fallback);
 }
 
 function getPublishTenderErrorMessage(error: unknown, fallback: string) {
+  return getApiValidationErrorMessage(error, fallback);
+}
+
+function getApiValidationErrorMessage(error: unknown, fallback: string) {
   const body = apiErrorBody(error);
   const issueMessages = Array.isArray(body?.errors)
     ? body.errors
-        .map((issue) => (isRecordValue(issue) ? stringValue(issue.message) : ''))
+        .map((issue) => (isRecordValue(issue) ? friendlyApiValidationMessage(issue) : ''))
         .filter(Boolean)
     : [];
   if (issueMessages.length) return issueMessages.slice(0, 3).join(' ');
   return fallback;
+}
+
+function friendlyApiValidationMessage(issue: Record<string, unknown>) {
+  const path = stringValue(issue.path || issue.field);
+  const message = stringValue(issue.message);
+  if (path === 'title' || path.endsWith('.title')) return 'Tender title must contain at least 5 characters.';
+  if (path === 'closingDate' || path.endsWith('.closingDate')) return 'Submission deadline must be in the future.';
+  if (/string must contain at least 5/i.test(message)) return 'Tender title must contain at least 5 characters.';
+  if (/closing date must be in the future/i.test(message)) return 'Submission deadline must be in the future.';
+  return message;
 }
 
 function apiErrorBody(error: unknown) {
@@ -5824,7 +5838,7 @@ function autoBalanceCriteria(criteria: CreateTenderEvaluationCriterion[], change
 }
 
 function getCreateTenderResumeStep(draft: CreateTenderDraft) {
-  if (!draft.title.trim() || !draft.fundingSource || !draft.submissionDate || !draft.openingDate || (!draft.contact.email.trim() && !draft.contact.phone.trim())) return 0;
+  if (validateBasicTenderInformation(draft)) return 0;
   if (!draft.procurementTypeId || !draft.categories.length || !draft.method) return 1;
   if (validateTenderRequirements(draft)) return 2;
   if (!draft.evaluationCriteria.length || getEvaluationSummary(draft.evaluationCriteria).state !== 'balanced') return 3;
@@ -5833,9 +5847,7 @@ function getCreateTenderResumeStep(draft: CreateTenderDraft) {
 }
 
 function validateStep(step: number, draft: CreateTenderDraft, total: number) {
-  if (step === 0 && (!draft.title.trim() || !draft.fundingSource || !draft.submissionDate || !draft.openingDate || (!draft.contact.email.trim() && !draft.contact.phone.trim()))) {
-    return 'Please add the title, funding source, key dates, and one contact option before continuing.';
-  }
+  if (step === 0) return validateBasicTenderInformation(draft);
   if (step === 1 && (!draft.procurementTypeId || !draft.categories.length || !draft.method)) return 'Please choose a procurement type, method, and at least one category before continuing.';
   if (step === 1 && draft.method === 'Invited Tender' && draft.invitedSuppliers.length === 0) return 'Please add at least one supplier for this invited tender.';
   if (step === 2) return validateTenderRequirements(draft);
@@ -5882,6 +5894,21 @@ function getTenderReviewSubmissionBlocker(draft: CreateTenderDraft, total: numbe
   }
 
   return null;
+}
+
+function validateBasicTenderInformation(draft: CreateTenderDraft) {
+  if (draft.title.trim().length < 5) return 'Add a tender title with at least 5 characters before continuing.';
+  if (!draft.fundingSource) return 'Select a funding source before continuing.';
+  if (!draft.submissionDate) return 'Select a future submission deadline before continuing.';
+  if (!isFutureDateOnly(draft.submissionDate)) return 'Select a submission deadline in the future before continuing.';
+  if (!draft.openingDate) return 'Select an opening date before continuing.';
+  if (!draft.contact.email.trim() && !draft.contact.phone.trim()) return 'Add at least one contact email or phone before continuing.';
+  return '';
+}
+
+function isFutureDateOnly(value: string) {
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+  return Number.isFinite(timestamp) && timestamp > Date.now();
 }
 
 function validateTenderRequirements(draft: CreateTenderDraft) {
