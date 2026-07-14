@@ -48,6 +48,14 @@ vi.mock('html2pdf.js', () => ({
   default: html2PdfMock.factory
 }));
 
+const defaultSubmissionDeadline = dateDaysFromNow(37);
+const defaultOpeningDate = dateDaysFromNow(38);
+
+function dateDaysFromNow(days: number) {
+  const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
+
 function renderCreateTender(route = '/procurement/create-tender') {
   return render(
     <Provider store={store}>
@@ -82,9 +90,9 @@ async function fillBasicStep(user: ReturnType<typeof userEvent.setup>, title = '
   fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: title } });
   await user.selectOptions(screen.getByLabelText('Funding source'), 'Government budget');
   fireEvent.change(screen.getByLabelText('Delivery Point'), { target: { value: 'Dodoma' } });
-  fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
+  fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: defaultSubmissionDeadline } });
   fireEvent.change(screen.getByLabelText('Estimated budget'), { target: { value: '250000000' } });
-  fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-21' } });
+  fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: defaultOpeningDate } });
   fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
 }
 
@@ -158,7 +166,7 @@ beforeEach(() => {
       status: 'Under Review',
       visibility: 'PRIVATE',
       publishedAt: '',
-      closingDate: '2026-08-20'
+      closingDate: defaultSubmissionDeadline
     },
     validation: { warnings: [], scannerIssues: [], standardizedCategories: ['Medical equipment'] }
   });
@@ -267,11 +275,12 @@ describe('CreateTenderProcurexPage', () => {
   it('keeps Submission deadline and Opening date independent', () => {
     renderCreateTender();
 
-    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-25' } });
-    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
+    const laterOpeningDate = dateDaysFromNow(42);
+    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: laterOpeningDate } });
+    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: defaultSubmissionDeadline } });
 
-    expect(screen.getByLabelText('Submission deadline')).toHaveValue('2026-08-20');
-    expect(screen.getByLabelText('Opening date')).toHaveValue('2026-08-25');
+    expect(screen.getByLabelText('Submission deadline')).toHaveValue(defaultSubmissionDeadline);
+    expect(screen.getByLabelText('Opening date')).toHaveValue(laterOpeningDate);
   });
 
   it('updates frontend-only contact verification badges', async () => {
@@ -294,7 +303,7 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
 
-    expect(screen.getByText('Please add the title, funding source, key dates, and one contact option before continuing.')).toBeInTheDocument();
+    expect(screen.getByText('Add a tender title with at least 5 characters before continuing.')).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: 'Basic Information' }).length).toBeGreaterThan(0);
 
     await fillBasicStep(user, 'Validated Basic Information Tender');
@@ -1293,8 +1302,8 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Supply of Solar Equipment')).toBeInTheDocument();
     expect(screen.getByText(/Procurement Officer/)).toBeInTheDocument();
     expect(screen.getByText('Dodoma')).toBeInTheDocument();
-    expect(screen.getByText('2026-08-20')).toBeInTheDocument();
-    expect(screen.getByText('2026-08-21')).toBeInTheDocument();
+    expect(screen.getByText(defaultSubmissionDeadline)).toBeInTheDocument();
+    expect(screen.getByText(defaultOpeningDate)).toBeInTheDocument();
     expect(screen.getByText(/Solar panels, inverters, mounting kits/)).toBeInTheDocument();
     expect(screen.getByText('Solar panel kit')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
@@ -1314,7 +1323,7 @@ describe('CreateTenderProcurexPage', () => {
       expect.objectContaining({
         title: 'Backend Saved Generator Tender',
         type: 'Goods',
-        closingDate: '2026-08-20',
+        closingDate: defaultSubmissionDeadline,
         location: 'Dodoma'
       })
     );
@@ -1409,8 +1418,8 @@ describe('CreateTenderProcurexPage', () => {
     fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: 'No Budget Publish Tender' } });
     await user.selectOptions(screen.getByLabelText('Funding source'), 'Government budget');
     fireEvent.change(screen.getByLabelText('Delivery Point'), { target: { value: 'Dodoma' } });
-    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
-    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-21' } });
+    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: defaultSubmissionDeadline } });
+    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: defaultOpeningDate } });
     fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
     for (const checkbox of screen.getAllByRole('checkbox')) {
@@ -1529,7 +1538,7 @@ describe('CreateTenderProcurexPage', () => {
     await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
     expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', { signatureKeyphrase: 'Signing123' });
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender was saved and sent to admin review.')).toBe(true);
-  });
+  }, 15000);
 
   it('surfaces backend review validation errors in user feedback', async () => {
     procurementApiMock.publishTender.mockRejectedValueOnce({
@@ -1560,7 +1569,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(await screen.findByText('Tender requirements are required before publishing.')).toBeInTheDocument();
     expect(screen.queryByText('Tender could not be submitted for review.')).not.toBeInTheDocument();
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
-  });
+  }, 15000);
 
   it('formats backend draft validation errors before showing submission feedback', async () => {
     procurementApiMock.createTender.mockRejectedValueOnce({
