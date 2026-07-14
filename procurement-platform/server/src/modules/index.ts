@@ -4,6 +4,7 @@ import { createModuleRouter as createProcurementRouter, moduleDefinition as proc
 import { createModuleRouter as createBiddingRouter, moduleDefinition as biddingDefinition } from './bidding/index.js';
 import { createModuleRouter as createEvaluationRouter, moduleDefinition as evaluationDefinition } from './evaluation/index.js';
 import { createModuleRouter as createAwardContractRouter, moduleDefinition as awardContractDefinition } from './award-contract/index.js';
+import { createModuleRouter as createPostAwardRouter, moduleDefinition as postAwardDefinition } from './post-award/index.js';
 import { createModuleRouter as createFinancialRouter, moduleDefinition as financialDefinition } from './financial/index.js';
 import { createModuleRouter as createComplianceAdminRouter, moduleDefinition as complianceAdminDefinition } from './compliance-admin/index.js';
 import { createModuleRouter as createCommunicationRouter, moduleDefinition as communicationDefinition } from './communication/index.js';
@@ -25,6 +26,7 @@ export const registeredModules: RegisteredModule[] = [
   { ...biddingDefinition, basePath: '/api/bidding', router: createBiddingRouter() },
   { ...evaluationDefinition, basePath: '/api/evaluation', router: createEvaluationRouter() },
   { ...awardContractDefinition, basePath: '/api/award-contract', router: createAwardContractRouter() },
+  { ...postAwardDefinition, basePath: '/api/post-award', router: createPostAwardRouter() },
   { ...financialDefinition, basePath: '/api/financial', router: createFinancialRouter() },
   { ...complianceAdminDefinition, basePath: '/api/compliance-admin', router: createComplianceAdminRouter() },
   { ...communicationDefinition, basePath: '/api/communication', router: createCommunicationRouter() },

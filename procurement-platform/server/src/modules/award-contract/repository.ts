@@ -1212,7 +1212,7 @@ function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER
       requiredAction: 'Complete mobilization checklist',
       dueDate: firstDueDate(record.mobilizationItems) ?? daysFromNow(5),
       riskLevel: 'Medium' as const,
-      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=mobilization`
+      nextRoute: `/post-award?contract=${record.id}&stage=setup`
     };
   }
   if (record.status === ContractStatus.AT_RISK || record.status === ContractStatus.TERMINATION_REVIEW) {
@@ -1221,7 +1221,7 @@ function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER
       requiredAction: record.status === ContractStatus.AT_RISK ? 'Review risk and cure actions' : 'Complete termination review',
       dueDate: daysFromNow(1),
       riskLevel: 'Critical' as const,
-      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=termination`
+      nextRoute: `/post-award?contract=${record.id}&stage=history`
     };
   }
   if (record.status === ContractStatus.COMPLETED || record.status === ContractStatus.WARRANTY_DEFECTS) {
@@ -1230,7 +1230,7 @@ function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER
       requiredAction: 'Complete close-out',
       dueDate: daysFromNow(7),
       riskLevel: 'Low' as const,
-      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=closure`
+      nextRoute: `/post-award?contract=${record.id}&stage=closeout`
     };
   }
   if (record.status === ContractStatus.TERMINATED || record.status === ContractStatus.CLOSED) {
@@ -1239,7 +1239,7 @@ function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER
       requiredAction: 'View audit file',
       dueDate: null,
       riskLevel: 'Low' as const,
-      nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=closure`
+      nextRoute: `/post-award?contract=${record.id}&stage=history`
     };
   }
   const dueDate = firstDueDate(record.milestones);
@@ -1248,7 +1248,7 @@ function contractAction(record: ContractRecord, roleContext: 'BUYER' | 'SUPPLIER
     requiredAction: record.milestones.some((milestone) => milestone.status === ContractMilestoneStatus.SUBMITTED) ? 'Inspect submitted milestone' : 'Monitor contract',
     dueDate,
     riskLevel: urgencyFromDate(dueDate),
-    nextRoute: `/awards-contracts/post-award?contract=${record.id}&tab=milestones`
+    nextRoute: `/post-award?contract=${record.id}&stage=delivery`
   };
 }
 

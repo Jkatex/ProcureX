@@ -314,7 +314,7 @@ describe('awards and contracts empty lifecycle flow', () => {
 
     await waitFor(() => expect(screen.getByText('Road maintenance contract')).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Open tracking' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/awards-contracts/post-award?contract=contract-1&step=cmp');
+    expect(screen.getByTestId('location')).toHaveTextContent('/post-award?contract=contract-1&step=cmp');
   });
 
   it('shows Sample required for opened missing required sample records', async () => {

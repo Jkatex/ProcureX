@@ -7,9 +7,10 @@ export type PlatformAppPageKey =
   | 'communication-center'
   | 'bid-evaluation'
   | 'awarding-contracts'
+  | 'post-award'
   | 'records-history';
 
-export type PlatformAppIconKind = 'iam' | 'procurement' | 'communication' | 'evaluation' | 'awarding' | 'records';
+export type PlatformAppIconKind = 'iam' | 'procurement' | 'communication' | 'evaluation' | 'awarding' | 'postAward' | 'records';
 
 type PlatformAppItem = {
   className: string;
@@ -68,6 +69,13 @@ export const platformAppItems = [
     descriptionKey: 'platformApps.items.awarding.description'
   },
   {
+    className: 'app-menu-post-award',
+    page: 'post-award',
+    icon: 'postAward',
+    titleKey: 'platformApps.items.postAward.title',
+    descriptionKey: 'platformApps.items.postAward.description'
+  },
+  {
     className: 'app-menu-contracts',
     page: 'records-history',
     icon: 'records',
@@ -82,6 +90,7 @@ export const platformAppRoutes: Record<PlatformAppPageKey, string> = {
   'communication-center': '/communication',
   'bid-evaluation': '/evaluation',
   'awarding-contracts': '/awards-contracts',
+  'post-award': '/post-award',
   'records-history': '/records'
 };
 
@@ -205,6 +214,14 @@ export function PlatformAppIcon({ kind, useImage = true }: { kind: PlatformAppIc
             <circle cx="12" cy="8" r="4" />
             <path d="M8.5 11.5L7 21l5-3 5 3-1.5-9.5" />
             <path d="M10.5 8l1 1 2-2" />
+          </>
+        ) : null}
+        {kind === 'postAward' ? (
+          <>
+            <path d="M4 5h16v14H4z" />
+            <path d="M8 9h8" />
+            <path d="M8 13h5" />
+            <path d="M16 13l1.5 1.5L21 11" />
           </>
         ) : null}
         {kind === 'records' ? (

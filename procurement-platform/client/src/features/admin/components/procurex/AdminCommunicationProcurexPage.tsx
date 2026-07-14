@@ -1038,7 +1038,7 @@ function resolveMessageAction(message: CommunicationMailboxMessage, admin = fals
   }
 
   if (/(delivery|invoice|payment|post-award|performance)/.test(text) && tenderId) {
-    return { label: 'Track Contract', route: `/awards-contracts/post-award?tenderId=${tenderId}` };
+    return { label: 'Track Contract', route: `/post-award?tenderId=${tenderId}` };
   }
 
   if (/(failed review|amend|amendment|published|tender)/.test(text) && tenderId) {

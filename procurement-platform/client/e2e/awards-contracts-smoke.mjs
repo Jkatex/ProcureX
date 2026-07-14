@@ -204,43 +204,35 @@ async function openFirstQueueRecord(page, queue, label, expectedPath) {
 }
 
 async function openDirectPostAwardChooser(page) {
-  await page.goto('/awards-contracts/post-award');
-  await assertHealthyPage(page, 'direct post-award chooser', ['Open an active or closed contract', 'Open tracking']);
-  await page.getByRole('button', { name: 'Open tracking' }).first().click();
+  await page.goto('/post-award');
   await page.waitForURL((url) => (
-    url.pathname.includes('/awards-contracts/post-award')
+    url.pathname.includes('/post-award')
     && url.searchParams.has('contract')
-    && url.searchParams.get('step') === 'cmp'
   ), { timeout: 15000 });
-  await assertHealthyPage(page, 'direct post-award selected contract', ['Recommended next actions', 'Choose the work area you need']);
+  await assertHealthyPage(page, 'direct post-award selected contract', ['Contract workspace', 'Action queue', 'Secondary tools and registers']);
 }
 
 async function uploadPostAwardMilestoneEvidence(page) {
   const selectedUrl = new URL(page.url());
   const contractId = selectedUrl.searchParams.get('contract');
   if (!contractId) throw new Error('Post-award evidence smoke requires a selected contract.');
-  await page.goto(`/awards-contracts/post-award?contract=${encodeURIComponent(contractId)}&step=delivery`);
-  await assertHealthyPage(page, 'supplier post-award delivery evidence', ['Production action forms', 'Milestone evidence']);
-  const evidenceForm = page.locator('[data-award-contract-form="Milestone evidence"]');
-  await evidenceForm.waitFor({ state: 'visible', timeout: 15000 });
-  const openForm = evidenceForm.getByRole('button', { name: 'Open form' });
-  if (await openForm.isVisible().catch(() => false)) await openForm.click();
+  await page.goto(`/post-award?contract=${encodeURIComponent(contractId)}&stage=delivery`);
+  await assertHealthyPage(page, 'supplier post-award delivery evidence', ['Delivery', 'Action queue', 'Upload milestone evidence']);
+  await page.getByRole('button', { name: /Upload milestone evidence/i }).click();
   const fileName = `smoke-delivery-evidence-${Date.now()}.txt`;
-  await evidenceForm.locator('input[type="file"]').setInputFiles({
-    name: fileName,
-    mimeType: 'text/plain',
-    buffer: Buffer.from('E2E smoke post-award delivery evidence')
-  });
-  await evidenceForm.getByText(fileName).first().waitFor({ state: 'visible', timeout: 15000 });
+  const evidenceForm = page.locator('form.post-award-form').filter({ hasText: 'Evidence' });
+  await evidenceForm.getByLabel(/Milestone/i).selectOption({ index: 1 });
+  await evidenceForm.getByLabel(/Evidence file name/i).fill(fileName);
+  await evidenceForm.getByLabel(/Evidence note/i).fill('E2E smoke post-award delivery evidence.');
   const evidenceResponse = page.waitForResponse((response) => (
-    response.url().includes('/api/award-contract/contracts/')
+    response.url().includes('/api/post-award/contracts/')
     && response.url().includes('/milestones/')
     && response.url().includes('/evidence')
   ), { timeout: 20000 });
-  await evidenceForm.getByRole('button', { name: 'Submit' }).click();
+  await evidenceForm.getByRole('button', { name: 'Save action' }).click();
   const response = await evidenceResponse;
   if (!response.ok()) throw new Error(`Milestone evidence API returned ${response.status()}.`);
-  await assertHealthyPage(page, 'supplier post-award evidence after upload', ['Contract execution and monitoring']);
+  await assertHealthyPage(page, 'supplier post-award evidence after upload', ['Delivery', 'Action queue']);
 }
 
 async function submitSupplierClarification(page) {
@@ -286,9 +278,9 @@ async function run() {
     await captureVisualSmoke(buyerPage, 'buyer contract negotiation', ['Contract preparation', 'Contract formation workspace']);
     summaries.push('buyer opened contract negotiation');
 
-    await openFirstQueueRecord(buyerPage, 'active-contracts', 'buyer active contract queue', '/awards-contracts/post-award');
-    await assertHealthyPage(buyerPage, 'buyer post-award tracking', ['Contract execution and monitoring', 'Post-award workspace']);
-    await captureVisualSmoke(buyerPage, 'buyer post-award tracking', ['Contract execution and monitoring', 'Post-award workspace']);
+    await openFirstQueueRecord(buyerPage, 'active-contracts', 'buyer active contract queue', '/post-award');
+    await assertHealthyPage(buyerPage, 'buyer post-award tracking', ['Contract workspace', 'Action queue']);
+    await captureVisualSmoke(buyerPage, 'buyer post-award tracking', ['Contract workspace', 'Action queue']);
     summaries.push('buyer opened post-award tracking');
     await openDirectPostAwardChooser(buyerPage);
     summaries.push('buyer opened post-award direct chooser');
@@ -311,8 +303,8 @@ async function run() {
     await assertHealthyPage(supplierPage, 'supplier contract negotiation', ['Contract preparation']);
     summaries.push('supplier opened contract negotiation');
 
-    await openFirstQueueRecord(supplierPage, 'active-contracts', 'supplier active contract queue', '/awards-contracts/post-award');
-    await assertHealthyPage(supplierPage, 'supplier post-award tracking', ['Contract execution and monitoring']);
+    await openFirstQueueRecord(supplierPage, 'active-contracts', 'supplier active contract queue', '/post-award');
+    await assertHealthyPage(supplierPage, 'supplier post-award tracking', ['Contract workspace', 'Action queue']);
     await uploadPostAwardMilestoneEvidence(supplierPage);
     summaries.push('supplier uploaded post-award milestone evidence');
     summaries.push('supplier opened post-award tracking');

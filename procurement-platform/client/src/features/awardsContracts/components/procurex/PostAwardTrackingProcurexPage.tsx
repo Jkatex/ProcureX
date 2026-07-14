@@ -285,12 +285,12 @@ export function PostAwardTrackingProcurexPage() {
   }
 
   function selectFlowStep(step: PostAwardGroupId) {
-    navigate({ pathname: '/awards-contracts/post-award', search: searchWithFlowStep(location.search, step) });
+    navigate({ pathname: '/post-award', search: searchWithFlowStep(location.search, step) });
   }
 
   function openContractTracking(row: LifecycleAction) {
     if (!row.contractId) return;
-    navigate(`/awards-contracts/post-award?contract=${encodeURIComponent(row.contractId)}&step=cmp`);
+    navigate(`/post-award?contract=${encodeURIComponent(row.contractId)}&step=cmp`);
   }
 
   function refreshContractAndAdvance(step: PostAwardGroupId) {

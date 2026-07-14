@@ -1,4 +1,4 @@
-import { Navigate, createBrowserRouter } from 'react-router-dom';
+import { Navigate, createBrowserRouter, useLocation } from 'react-router-dom';
 import { lazy, Suspense, type ComponentProps, type ElementType, type ReactNode } from 'react';
 import { procurexPageRegistry, type ProcurexPageKey } from '@/features/procurexPageRegistry';
 import { ProcurexLoadingPage } from '@/shared/components/ProcurexLoadingPage';
@@ -47,6 +47,11 @@ function verifiedPage(
 
 function adminPage(pageKey: ProcurexPageKey) {
   return <AdminRoute>{page(pageKey)}</AdminRoute>;
+}
+
+function RedirectWithSearch({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
 }
 
 // Temporary development switch: keep core procurement routes auth-only while trust gates are being iterated.
@@ -106,7 +111,8 @@ export const routes = [
   { path: '/awards-contracts/award-response', element: verifiedPage('award-response', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/negotiation', element: verifiedPage('contract-negotiation', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/samples', element: verifiedPage('sample-procurement', { adminRedirectTo: '/admin/search' }) },
-  { path: '/awards-contracts/post-award', element: verifiedPage('post-award-tracking', { adminRedirectTo: '/admin/search' }) },
+  { path: '/post-award', element: verifiedPage('post-award', { adminRedirectTo: '/admin/search' }) },
+  { path: '/awards-contracts/post-award', element: <ProtectedRoute requireVerified adminRedirectTo="/admin/search"><RedirectWithSearch to="/post-award" /></ProtectedRoute> },
   { path: '/communication', element: verifiedPage('communication-center', { adminRedirectTo: '/admin/communication', allowSupportComposeForUnverified: true }) },
   { path: '/communication-center', element: <Navigate to="/communication" replace /> },
   { path: '/records', element: verifiedPage('records-history', { adminRedirectTo: '/admin/audit' }) },

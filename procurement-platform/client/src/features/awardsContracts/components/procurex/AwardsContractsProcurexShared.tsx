@@ -37,7 +37,7 @@ const routeByPage: Record<string, string> = {
   'award-response': '/awards-contracts/award-response',
   'contract-negotiation': '/awards-contracts/negotiation',
   'sample-procurement': '/awards-contracts/samples',
-  'post-award-tracking': '/awards-contracts/post-award',
+  'post-award-tracking': '/post-award',
   'records-history': '/records'
 };
 

@@ -58,7 +58,7 @@ const pageToRoute: Record<string, string> = {
   'award-recommendation': '/awards-contracts/recommendation',
   'award-response': '/awards-contracts/award-response',
   'contract-negotiation': '/awards-contracts/negotiation',
-  'post-award-tracking': '/awards-contracts/post-award',
+  'post-award-tracking': '/post-award',
   'communication-center': '/communication',
   'records-history': '/records',
   'admin-dashboard': '/admin',
@@ -1948,7 +1948,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       event.preventDefault();
       const contract = closedContractJump.getAttribute('data-closed-contract-jump') || 'closed-contract-1';
       activateClosedContractPanel(rootRef.current, contract);
-      navigate(`/awards-contracts/post-award?mode=closed&contract=${encodeURIComponent(contract)}&tab=closure`);
+      navigate(`/post-award?mode=closed&contract=${encodeURIComponent(contract)}&stage=closeout`);
       return;
     }
 
