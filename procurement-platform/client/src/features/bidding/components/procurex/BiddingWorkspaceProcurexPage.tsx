@@ -581,7 +581,7 @@ export function BiddingWorkspaceProcurexPage() {
     if (!step) return true;
     const currentSchemaStep = schemaStep(schema, step.id);
     if (currentSchemaStep && !isReviewStep(currentSchemaStep) && !isReceiptStep(currentSchemaStep)) {
-      const missing = currentSchemaStep.fields.filter((field) => field.required && !schemaFieldComplete(field, schemaResponses, documents, samples));
+      const missing = schemaStepValidationFields(currentSchemaStep).filter((field) => field.required && !schemaFieldComplete(field, schemaResponses, documents, samples));
       if (missing.length) {
         const firstMissing = missing[0];
         const message = step.id === 'administrative'
@@ -706,7 +706,22 @@ export function BiddingWorkspaceProcurexPage() {
 
   function renderStep(stepId: string) {
     if (receipt && isReceiptPanelStep(workflow, stepId)) {
-      return <ReceiptPanel receipt={receipt} totalAmount={totalAmount} currency={loadedTender.currency} documents={documents} onWithdraw={withdrawBid} canWithdraw={!saving && !uploading && isSubmitted} />;
+      return (
+        <ReceiptPanel
+          tender={loadedTender}
+          schema={loadedSchema}
+          responses={schemaResponses}
+          documents={documents}
+          samples={samples}
+          issues={validationIssues}
+          totalAmount={totalAmount}
+          currency={loadedTender.currency}
+          completeness={completeness}
+          receipt={receipt}
+          onWithdraw={withdrawBid}
+          canWithdraw={!saving && !uploading && isSubmitted}
+        />
+      );
     }
 
     const currentSchemaStep = schemaStep(loadedSchema, stepId);
@@ -726,6 +741,7 @@ export function BiddingWorkspaceProcurexPage() {
               completeness={completeness}
               isSubmitted={isSubmitted || Boolean(receipt)}
               onEditField={editReviewField}
+              onPatch={patchSchemaResponse}
             />
             {reviewStepSubmits(workflow, currentSchemaStep.id) ? (
               <>
@@ -1552,34 +1568,29 @@ function WorksCapacitySchemaPanel({
   onFiles: UploadHandler;
 }) {
   const groups = worksCapacityGroups(step);
-  const hasAnyGroupedSection = groups.similarProjects.length || groups.personnel.length || groups.equipment.length || groups.hse.length || groups.remaining.length;
+  const hasAnyGroupedSection = groups.similarProjects.length || groups.personnel.length || groups.equipment.length || groups.hse.length;
   if (!hasAnyGroupedSection) return <div className="scope-empty">No technical capacity fields were configured for this tender.</div>;
   return (
     <div className="works-capacity-workbook">
-      {groups.similarProjects.length ? <WorksSimilarProjectsSection fields={groups.similarProjects} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
+      {groups.similarProjects.length ? <WorksSimilarProjectsSection fields={groups.similarProjects} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} /> : null}
       {groups.personnel.length ? <WorksPersonnelSection fields={groups.personnel} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
       {groups.equipment.length ? <WorksEquipmentSection fields={groups.equipment} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
-      {groups.hse.length ? <WorksCapacityFallbackSection title="Health, Safety and Environmental Response" description="Provide site-specific safety, environmental, incident, PPE, and waste management controls." fields={groups.hse} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
-      {groups.remaining.length ? <WorksCapacityFallbackSection title="Additional capacity responses" description="Complete the remaining buyer-configured technical capacity fields for this works tender." fields={groups.remaining} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
+      {groups.hse.length ? <WorksHseResponseSection fields={groups.hse} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} /> : null}
     </div>
   );
 }
 
 function WorksSimilarProjectsSection({
   fields,
-  responses,
   documents,
   disabled,
   uploadingKey,
-  onPatch,
   onFiles
 }: {
   fields: BidSubmissionSchemaFieldDto[];
-  responses: SchemaResponseState;
   documents: BidDocumentState[];
   disabled: boolean;
   uploadingKey: string | null;
-  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
   onFiles: UploadHandler;
 }) {
   const required = fields.some((field) => field.required);
@@ -1594,16 +1605,12 @@ function WorksSimilarProjectsSection({
       </div>
       <div className="works-card-grid" data-works-similar-project-list>
         {fields.map((field, index) => {
-          const value = structuredValue(schemaFieldValue(field, responses));
           return (
             <article className="works-capacity-card" data-bid-review-source-id={field.id} data-works-similar-project-card key={field.id}>
               <div className="bid-dynamic-group-heading">
                 <span className="section-kicker">{`Similar project ${index + 1}`}</span>
               </div>
-              <div className="form-grid two">
-                <WorksStructuredInput field={field} value={value} fieldKey="projectName" label="Project / client" disabled={disabled} onPatch={onPatch} />
-                <WorksStructuredInput field={field} value={value} fieldKey="contractValue" label="Value" type="number" disabled={disabled} onPatch={onPatch} />
-                <WorksStructuredInput field={field} value={value} fieldKey="completionDate" label="Completion / status" disabled={disabled} onPatch={onPatch} />
+              <div className="form-grid">
                 {evidenceUploadSlotsForField(field).map((slot) => (
                   <TechnicalEvidenceUpload key={slot.key} field={field} slot={slot} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
                 ))}
@@ -1654,8 +1661,6 @@ function WorksPersonnelSection({
                 </div>
                 <div className="form-grid two">
                   <WorksStructuredInput field={field} value={value} fieldKey="namedResource" label="Personnel Position" disabled={disabled} onPatch={onPatch} />
-                  <WorksStructuredInput field={field} value={value} fieldKey="qualification" label="Qualification / certification" disabled={disabled} onPatch={onPatch} />
-                  <WorksStructuredInput field={field} value={value} fieldKey="experienceYears" label="Years experience" type="number" disabled={disabled} onPatch={onPatch} />
                   {evidenceUploadSlotsForField(field).map((slot) => (
                     <TechnicalEvidenceUpload key={slot.key} field={field} slot={slot} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
                   ))}
@@ -1664,6 +1669,52 @@ function WorksPersonnelSection({
             </article>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function WorksHseResponseSection({
+  fields,
+  responses,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: UploadHandler;
+}) {
+  const responseField = worksHseResponseField(fields);
+  const uploadField = worksHseUploadField(fields) ?? responseField;
+  if (!responseField) return null;
+  const required = fields.some((field) => field.required);
+  const value = structuredValue(schemaFieldValue(responseField, responses));
+  return (
+    <section className="works-response-section" data-bid-review-source-id={responseField.id}>
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Health, Safety and Environmental Response</h3>
+          <p>Provide site-specific safety, environmental, incident, PPE, and waste management controls.</p>
+        </div>
+        <span className={`badge ${required ? 'badge-warning' : 'badge-info'}`}>{required ? 'Required' : 'Optional response'}</span>
+      </div>
+      <div className="form-grid two">
+        <WorksHseSelect field={responseField} value={value} fieldKey="safetyPolicyAvailable" label="Safety Policy Available" disabled={disabled} onPatch={onPatch} />
+        <WorksHseSelect field={responseField} value={value} fieldKey="environmentalPolicyAvailable" label="Environmental Policy Available" disabled={disabled} onPatch={onPatch} />
+        <WorksHseSelect field={responseField} value={value} fieldKey="safetyOfficerAssigned" label="Safety Officer Assigned" disabled={disabled} onPatch={onPatch} />
+        <WorksHseEvidenceUpload field={responseField} uploadField={uploadField} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+      </div>
+      <div className="form-grid">
+        <WorksHseTextArea field={responseField} value={value} fieldKey="ppePlan" label="PPE Plan" disabled={disabled} onPatch={onPatch} />
+        <WorksHseTextArea field={responseField} value={value} fieldKey="incidentManagementPlan" label="Incident Management Plan" disabled={disabled} onPatch={onPatch} />
+        <WorksHseTextArea field={responseField} value={value} fieldKey="wasteManagementPlan" label="Waste Management Plan" disabled={disabled} onPatch={onPatch} />
       </div>
     </section>
   );
@@ -1866,11 +1917,16 @@ function WorksFinancialProposalPanel({
   onFiles: UploadHandler;
 }) {
   const pricingFields = step.fields.filter(isSchemaBoqPricingField);
-  const commercialFields = step.fields.filter((field) => !isSchemaBoqPricingField(field));
+  const nonPricingFields = step.fields.filter((field) => !isSchemaBoqPricingField(field));
+  const financialAttachments = nonPricingFields.filter(isSchemaAttachmentField);
+  const commercialFields = nonPricingFields.filter((field) => !isSchemaAttachmentField(field));
   const bidSecurityField = schemaFieldByRequirement(commercialFields, 'works.commercial.bidSecuritySubmitted');
+  const bidSecurityDocumentField = schemaFieldByRequirement(financialAttachments, 'works.commercial.bidSecurityDocument');
+  const otherFinancialAttachments = financialAttachments.filter((field) => field !== bidSecurityDocumentField);
   const bidSecuritySubmitted = schemaOptionalFieldValue(bidSecurityField, responses) === true;
   return (
     <>
+      <WorksFinancialCapacityMatrix fields={otherFinancialAttachments} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
       <div className="data-table works-boq-table premium-review-table">
         <table className="financial-review-table" aria-label="Editable financial offer review table">
           <thead>
@@ -1908,11 +1964,85 @@ function WorksFinancialProposalPanel({
             <WorksSchemaSelect field={schemaFieldByRequirement(commercialFields, 'works.commercial.currency')} responses={responses} disabled={disabled} fallbackValue={currency || 'TZS'} onPatch={onPatch} />
             <WorksSchemaTextArea className="wide" field={schemaFieldByRequirement(commercialFields, 'works.commercial.clarifications')} responses={responses} disabled={disabled} rows={2} placeholder="Optional BOQ pricing assumptions only. Contract terms are handled after award." onPatch={onPatch} />
             <WorksSchemaCheck field={bidSecurityField} responses={responses} disabled={disabled} onPatch={onPatch} label="Bid security submitted, if required by this tender." />
-            {bidSecuritySubmitted ? <WorksSchemaUpload className="wide bid-security-upload-panel" field={schemaFieldByRequirement(commercialFields, 'works.commercial.bidSecurityDocument')} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} /> : null}
+            {bidSecuritySubmitted ? <WorksSchemaUpload className="wide bid-security-upload-panel" field={bidSecurityDocumentField} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} /> : null}
           </div>
         </div>
       </section>
     </>
+  );
+}
+
+function WorksFinancialCapacityMatrix({
+  fields,
+  responses,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: UploadHandler;
+}) {
+  const requiredCount = fields.filter((field) => field.required).length;
+  const optionalCount = Math.max(0, fields.length - requiredCount);
+  return (
+    <section className="bid-dynamic-group financial-capacity-matrix financial-statements-requirements">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Financial statements and capacity requirements</h3>
+          <p>Respond to the financial requirements configured by the buyer and upload the requested statements or supporting evidence.</p>
+        </div>
+        <span className={`badge ${requiredCount ? 'badge-warning' : 'badge-info'}`}>{fields.length ? `${requiredCount} mandatory / ${optionalCount} optional` : 'Not configured'}</span>
+      </div>
+      {fields.length ? (
+        <div className="data-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Buyer Requirement</th>
+                <th>Minimum / Period</th>
+                <th>Evidence Required</th>
+                <th>Your Response</th>
+                <th>Evidence Note</th>
+                <th>Upload</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fields.map((field, index) => {
+                const value = structuredValue(schemaFieldValue(field, responses));
+                return (
+                  <tr data-bid-review-source-id={field.id} key={field.id}>
+                    <td>
+                      <strong>{field.label || `Financial requirement ${index + 1}`}</strong>
+                      <small>{field.required ? 'Mandatory' : 'Optional'}</small>
+                    </td>
+                    <td>{worksFinancialMinimumPeriod(field)}</td>
+                    <td>{worksFinancialEvidenceRequired(field)}</td>
+                    <td>
+                      <textarea className="form-input" rows={2} aria-label={`Response for ${field.label}`} placeholder="Enter amount or response" value={String(value.response ?? '')} disabled={disabled} onChange={(event) => worksPatchStructuredField(field, value, 'response', event.target.value, onPatch)} />
+                    </td>
+                    <td>
+                      <textarea className="form-input" rows={2} aria-label={`Evidence note for ${field.label}`} value={String(value.evidenceNote ?? '')} disabled={disabled} onChange={(event) => worksPatchStructuredField(field, value, 'evidenceNote', event.target.value, onPatch)} />
+                    </td>
+                    <td>
+                      <WorksSchemaUpload field={field} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="scope-empty">No financial statement requirements were configured for this tender.</div>
+      )}
+    </section>
   );
 }
 
@@ -2256,6 +2386,90 @@ function WorksStructuredSelect({
   );
 }
 
+function WorksHseSelect({
+  field,
+  value,
+  fieldKey,
+  label,
+  disabled,
+  onPatch
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: Record<string, unknown>;
+  fieldKey: string;
+  label: string;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <label className="form-group">
+      <span>{label}</span>
+      <select className="form-input" aria-label={label} value={String(value[fieldKey] ?? '')} disabled={disabled} onChange={(event) => worksPatchStructuredField(field, value, fieldKey, event.target.value, onPatch)}>
+        <option value="">Select</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+    </label>
+  );
+}
+
+function WorksHseTextArea({
+  field,
+  value,
+  fieldKey,
+  label,
+  disabled,
+  onPatch
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: Record<string, unknown>;
+  fieldKey: string;
+  label: string;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <label className="form-group">
+      <span>{label}</span>
+      <textarea className="form-input" rows={4} aria-label={label} value={String(value[fieldKey] ?? '')} disabled={disabled} onChange={(event) => worksPatchStructuredField(field, value, fieldKey, event.target.value, onPatch)} />
+    </label>
+  );
+}
+
+function WorksHseEvidenceUpload({
+  field,
+  uploadField,
+  documents,
+  disabled,
+  uploadingKey,
+  onFiles
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  uploadField: BidSubmissionSchemaFieldDto;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onFiles: UploadHandler;
+}) {
+  const slot = hseEvidenceUploadSlot(field, uploadField);
+  const uploaded = documentsForHseUpload(documents, field, uploadField, slot);
+  return (
+    <div className="form-group technical-evidence-upload">
+      <UploadBox
+        envelope={uploadField.envelope}
+        title={slot.label}
+        documentType={slot.documentType}
+        requirementKey={slot.requirementKey}
+        disabled={disabled}
+        isUploading={uploadingKey === slot.requirementKey}
+        metadata={{ parentRequirementKey: field.requirementKey, fieldId: field.id, evidenceKey: slot.key }}
+        onFiles={onFiles}
+      />
+      {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : field.required || uploadField.required ? <span className="form-hint">Required evidence upload.</span> : null}
+    </div>
+  );
+}
+
 function worksCapacityGroups(step: BidSubmissionSchemaStepDto) {
   const fields = step.fields.filter((field) => field.section !== 'receipt' && field.section !== 'review');
   const similarProjects = fields.filter((field) => worksFieldControl(field) === 'worksSimilarProject');
@@ -2274,6 +2488,14 @@ function worksFieldControl(field: BidSubmissionSchemaFieldDto) {
 
 function isWorksHseField(field: BidSubmissionSchemaFieldDto) {
   return /hse|health|safety|environment|environmental|osha|ppe|incident|waste/i.test(worksFieldSearchText(field));
+}
+
+function worksHseResponseField(fields: BidSubmissionSchemaFieldDto[]) {
+  return fields.find((field) => field.type !== 'file' && field.responseType !== 'attachment') ?? fields[0];
+}
+
+function worksHseUploadField(fields: BidSubmissionSchemaFieldDto[]) {
+  return fields.find((field) => field.type === 'file' || field.responseType === 'attachment');
 }
 
 function worksFieldSearchText(field: BidSubmissionSchemaFieldDto) {
@@ -2296,6 +2518,19 @@ function worksEquipmentDetail(field: BidSubmissionSchemaFieldDto) {
   const quantity = field.validation.quantity ?? field.validation.requiredQuantity ?? field.validation.qty ?? '1';
   const ownership = field.validation.ownershipRequirement ?? field.validation.ownership ?? field.validation.prompt ?? 'Evidence required';
   return `Requested: ${String(quantity)} / ${String(ownership)}`;
+}
+
+function worksFinancialMinimumPeriod(field: BidSubmissionSchemaFieldDto) {
+  const amount = field.validation.amount ?? field.validation.minimumAmount ?? field.validation.minAmount ?? field.validation.turnoverAmount;
+  const period = field.validation.period ?? field.validation.duration ?? field.validation.statementPeriod ?? field.validation.minimumPeriod;
+  const amountText = amount === undefined || amount === null || amount === '' ? '' : String(amount);
+  const periodText = period === undefined || period === null || period === '' ? '' : String(period);
+  if (amountText && periodText) return `${amountText} / ${periodText}`;
+  return amountText || periodText || 'Not specified';
+}
+
+function worksFinancialEvidenceRequired(field: BidSubmissionSchemaFieldDto) {
+  return String(field.validation.evidenceRequired ?? field.validation.evidence ?? field.validation.supportingEvidence ?? field.validation.documentType ?? 'Financial capability evidence');
 }
 
 function GoodsTechnicalResponsePanel({
@@ -4087,6 +4322,12 @@ type ReviewDocumentSection = {
   rows: ReviewDocumentRow[];
 };
 
+type ReviewChecklistItem = {
+  label: string;
+  value: string;
+  note: string;
+};
+
 function ReviewPanel({
   tender,
   schema,
@@ -4098,7 +4339,8 @@ function ReviewPanel({
   currency,
   completeness,
   isSubmitted,
-  onEditField
+  onEditField,
+  onPatch
 }: {
   tender: TenderDetail;
   schema: BidSubmissionSchemaDto;
@@ -4111,22 +4353,74 @@ function ReviewPanel({
   completeness: { percent: number; sectionsComplete: number; totalSections: number };
   isSubmitted: boolean;
   onEditField: (sourceId: string) => void;
+  onPatch?: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
 }) {
   const sections = reviewDocumentSections(schema, responses, documents, samples, currency);
   const responseCount = sections.reduce((sum, section) => sum + section.rows.length, 0);
   const statusLabel = isSubmitted ? 'Submitted' : issues.length ? 'Draft review' : 'Ready for submission';
+  const checklistItems = reviewCompletenessChecklist(schema, responses, documents, samples, currency);
+  const confirmationField = reviewConfirmationField(schema);
+  const confirmationChecked = confirmationField ? schemaFieldValue(confirmationField, responses) === true : false;
   return (
     <>
-      <div className="record-summary tender-detail-summary">
+      <div className="record-summary submission-readiness-dashboard">
+        <SummaryItem label="Bidder" value="Supplier organization" />
         <SummaryItem label="Eligibility readiness" value={sectionReadiness(schema, responses, documents, samples, 'administrative')} />
-        <SummaryItem label="Workflow" value={schema.tenderType} />
-        <SummaryItem label="Administrative" value={sectionReadiness(schema, responses, documents, samples, 'administrative')} />
-        <SummaryItem label="Technical responses" value={`${schemaSectionRows(schema, responses, documents, samples, currency, 'technical').length} response fields`} />
-        <SummaryItem label="Documents" value={`${documents.length} evidence record${documents.length === 1 ? '' : 's'}`} />
-        <SummaryItem label="Financial total" value={formatMoney(totalAmount, currency)} />
+        <SummaryItem label="Technical response" value={`${technicalReviewResponseCount(schema, responses, documents, samples, currency)} response fields`} />
+        <SummaryItem label="Financial offer" value={formatMoney(totalAmount, currency)} />
+        <SummaryItem label="Evidence files" value={`${documents.length} uploaded`} />
+        <SummaryItem label="Submission status" value={statusLabel} />
       </div>
-      {issues.length ? <div className="scope-empty">Complete required sections before submitting: {issues.join(', ')}.</div> : <div className="scope-empty">Bid package is ready for sealed submission.</div>}
+      <div className="bid-step-intro">
+        <strong>Submission readiness dashboard</strong>
+        <span>Review completeness, pricing, technical evidence, work program details, and declaration readiness before submitting.</span>
+      </div>
+      <section className="bid-dynamic-group bid-validation-checklist">
+        <div className="bid-dynamic-group-heading">
+          <div>
+            <h3>Bid submission completeness checklist</h3>
+            <p>Confirm the bid package is complete before the declaration and sealed submission.</p>
+          </div>
+          <span className="badge badge-warning">{`${checklistItems.length} checks`}</span>
+        </div>
+        <div className="review-summary-grid">
+          {checklistItems.map((item) => (
+            <article className="review-card" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.note}</small>
+            </article>
+          ))}
+        </div>
+        <label className="bid-response-check">
+          <input
+            type="checkbox"
+            checked={confirmationChecked}
+            disabled={isSubmitted || !confirmationField || !onPatch}
+            onChange={(event) => {
+              if (confirmationField && onPatch) onPatch(confirmationField, event.target.checked);
+            }}
+          />
+          <span>I have reviewed the completeness checklist and corrected any incomplete bid sections.</span>
+        </label>
+      </section>
+      <section className="bid-response-review" data-bid-response-review>
       <div className="evaluation-bid-document-review">
+        <div className="bid-response-download-panel">
+          <div>
+            <span className="section-kicker">Supplier submission preview</span>
+            <strong>Bid submission review preview</strong>
+            <p>Download or print the current supplier bid review after required actions are captured.</p>
+          </div>
+          <div className="inline-actions">
+            <button className="btn btn-secondary" type="button" data-bid-download-review-document onClick={(event) => downloadBidResponseDocument(tender, event.currentTarget)}>
+              Download HTML
+            </button>
+            <button className="btn btn-primary" type="button" data-bid-print-review-document onClick={(event) => printBidResponseDocument(tender, event.currentTarget)}>
+              Print / Save PDF
+            </button>
+          </div>
+        </div>
         <div className="bid-response-document procurex-bid-package-document">
           <div className="bid-response-document-masthead">
             <div className="bid-response-document-mark">PX</div>
@@ -4186,6 +4480,16 @@ function ReviewPanel({
             </article>
           </div>
           <div className="bid-response-document-sections">
+            <section className="bid-completeness-summary">
+              <div>
+                <span className="section-kicker">Action required before submission</span>
+                <strong>{`${completeness.percent}%`}</strong>
+                <p>{issues.length ? `Complete ${issues.length} pending required item${issues.length === 1 ? '' : 's'} before final submission.` : 'All required review checks are complete.'}</p>
+              </div>
+              <div className="bid-completeness-meter" aria-label={`${completeness.percent}% complete`}>
+                <span style={{ width: `${completeness.percent}%` }} />
+              </div>
+            </section>
             {sections.map((section, sectionIndex) => (
               <article className="bid-response-document-section" key={section.id}>
                 <div className="bid-response-document-section-heading">
@@ -4242,6 +4546,7 @@ function ReviewPanel({
           </footer>
         </div>
       </div>
+      </section>
     </>
   );
 }
@@ -4255,6 +4560,52 @@ function reviewDocumentSections(schema: BidSubmissionSchemaDto, responses: Schem
       rows: schemaSectionRows(schema, responses, documents, samples, currency, step.id)
     }))
     .filter((section) => section.rows.length);
+}
+
+function reviewCompletenessChecklist(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string): ReviewChecklistItem[] {
+  const eligibilityRows = schemaSectionRows(schema, responses, documents, samples, currency, 'administrative');
+  const technicalRows = schema.steps
+    .filter((step) => /technical|capacity|methodology|staffing|sla/i.test(step.id) || step.fields.some((field) => field.envelope === 'TECHNICAL'))
+    .flatMap((step) => schemaSectionRows(schema, responses, documents, samples, currency, step.id));
+  const financialRows = schema.steps
+    .filter((step) => /financial|commercial/i.test(step.id) || step.fields.some((field) => field.envelope === 'FINANCIAL'))
+    .flatMap((step) => schemaSectionRows(schema, responses, documents, samples, currency, step.id));
+  const requiredRows = reviewDocumentSections(schema, responses, documents, samples, currency).flatMap((section) => section.rows.filter((row) => row.mandatory));
+  const samplesRows = schemaSectionRows(schema, responses, documents, samples, currency, 'samples');
+  const declarationsRows = schema.steps
+    .filter((step) => isDeclarationStep(step))
+    .flatMap((step) => schemaSectionRows(schema, responses, documents, samples, currency, step.id));
+  return [
+    reviewChecklistItem('Eligibility documents', eligibilityRows, 'gate items reviewed'),
+    reviewChecklistItem('Technical response', technicalRows, 'technical responses checked'),
+    reviewChecklistItem('Financial offer', financialRows, 'pricing items reviewed'),
+    reviewChecklistItem('Required supporting evidence', requiredRows.filter((row) => row.upload), 'evidence areas checked'),
+    reviewChecklistItem('Financial capacity', financialRows.filter((row) => /capacity|statement|bank|financial/i.test(`${row.label} ${row.requirement}`)), 'capacity matrix completed'),
+    reviewChecklistItem('Award-stage terms', declarationsRows, 'contract clauses configured'),
+    reviewChecklistItem('Samples / site / category extras', samplesRows, 'extra visit and drawing response checked')
+  ];
+}
+
+function reviewChecklistItem(label: string, rows: ReviewDocumentRow[], suffix: string): ReviewChecklistItem {
+  const complete = rows.filter((row) => row.complete).length;
+  const total = rows.length;
+  return {
+    label,
+    value: total ? `${complete}/${total}` : 'Not required',
+    note: total ? suffix : 'No configured items'
+  };
+}
+
+function technicalReviewResponseCount(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string) {
+  return schema.steps
+    .filter((step) => /technical|capacity|methodology|staffing|sla/i.test(step.id) || step.fields.some((field) => field.envelope === 'TECHNICAL'))
+    .flatMap((step) => schemaSectionRows(schema, responses, documents, samples, currency, step.id)).length;
+}
+
+function reviewConfirmationField(schema: BidSubmissionSchemaDto) {
+  const reviewFields = schema.steps.filter((step) => isReviewStep(step)).flatMap((step) => step.fields);
+  return reviewFields.find((field) => /confirm|complete|checklist|reviewed/i.test(`${field.id} ${field.requirementKey} ${field.label}`))
+    ?? reviewFields.find((field) => field.type === 'boolean' || field.responseType === 'boolean' || field.responseType === 'acknowledgement');
 }
 
 function schemaSectionRows(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string, sectionId: string): ReviewDocumentRow[] {
@@ -4302,6 +4653,107 @@ function reviewRow(id: string, label: string, requirement: string, value: string
 
 function documentNames(documents: BidDocumentState[]) {
   return documents.map((document) => document.name).join(', ');
+}
+
+function downloadBidResponseDocument(tender: TenderDetail, trigger: HTMLElement) {
+  const documentHtml = getExportableBidResponseDocument(trigger);
+  if (!documentHtml) return;
+  const blob = new Blob([buildBidResponseDocumentExportHtml(tender, documentHtml)], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${safeFileName(`${tender.reference || tender.title || 'bid-submission-review'}-review`)}.html`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function printBidResponseDocument(tender: TenderDetail, trigger: HTMLElement) {
+  const documentHtml = getExportableBidResponseDocument(trigger);
+  if (!documentHtml) return;
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    window.print();
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(buildBidResponseDocumentExportHtml(tender, documentHtml));
+  printWindow.document.close();
+  printWindow.focus();
+  window.setTimeout(() => printWindow.print(), 250);
+}
+
+function getExportableBidResponseDocument(trigger: HTMLElement) {
+  const review = trigger.closest('[data-bid-response-review]');
+  const documentNode = review?.querySelector('.bid-response-document');
+  if (!documentNode) return '';
+  const clone = documentNode.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('.bid-status-chip.editable, .bid-review-edit-button').forEach((node) => node.remove());
+  return clone.outerHTML;
+}
+
+function buildBidResponseDocumentExportHtml(tender: TenderDetail, documentHtml: string) {
+  const title = `${tender.title || 'Bid Submission Review'} - ${tender.reference || 'review'}`;
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escapeBidDocumentHtml(title)}</title>
+<style>
+body { margin: 0; padding: 32px; background: #eef2f7; color: #0f172a; font-family: Arial, Helvetica, sans-serif; }
+.bid-response-document { max-width: 980px; margin: 0 auto; padding: 46px 52px 34px; border: 1px solid #cbd5e1; background: #fff; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14); }
+.bid-response-document-masthead { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 14px; padding-bottom: 18px; border-bottom: 2px solid #071a33; }
+.bid-response-document-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 4px; background: #071a33; color: #fff; font-weight: 900; }
+.bid-response-document-masthead span, .section-kicker, .bid-response-document-meta span { color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.bid-response-document-masthead strong { display: block; color: #071a33; font-size: 18px; }
+.bid-response-document-masthead em { justify-self: end; color: #475569; font-size: 11px; font-style: normal; font-weight: 800; text-transform: uppercase; }
+.bid-response-document-cover { display: flex; justify-content: space-between; gap: 22px; padding: 24px 0 20px; border-bottom: 1px solid #cbd5e1; }
+.bid-response-document-cover h3 { margin: 0; color: #071a33; font-size: 28px; line-height: 1.16; }
+.bid-response-document-cover p { margin: 8px 0 0; color: #475569; line-height: 1.5; }
+.bid-response-document-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.bid-status-chip { display: inline-flex; min-height: 24px; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.bid-status-chip.review { background: #dbeafe; color: #1e40af; }
+.bid-status-chip.submitted { background: #dcfce7; color: #166534; }
+.bid-status-chip.offer { background: #e0f2fe; color: #075985; }
+.bid-response-document-meta { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #cbd5e1; margin: 24px 0; }
+.bid-response-document-meta article { padding: 15px 16px; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+.bid-response-document-meta strong { display: block; margin-top: 6px; color: #071a33; font-size: 16px; }
+.bid-response-document-meta em { display: block; margin-top: 4px; color: #94a3b8; font-size: 12px; font-style: normal; }
+.bid-completeness-summary { display: grid; gap: 10px; padding: 14px; border: 1px solid #bbf7d0; background: #f0fdf4; margin-bottom: 22px; }
+.bid-completeness-summary strong { display: block; margin-top: 4px; color: #0d7c3d; font-size: 28px; line-height: 1; }
+.bid-completeness-summary p { margin: 6px 0 0; color: #334155; font-size: 13px; }
+.bid-completeness-meter { overflow: hidden; height: 8px; border-radius: 999px; background: #dcfce7; }
+.bid-completeness-meter span { display: block; height: 100%; border-radius: inherit; background: #0d7c3d; }
+.bid-response-document-sections { display: grid; gap: 22px; }
+.bid-response-document-section-heading { display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid #cbd5e1; }
+.bid-response-document-section-heading > span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 4px; background: #071a33; color: #fff; font-size: 12px; font-weight: 900; }
+.bid-response-document-section-heading h4 { margin: 0; color: #071a33; font-size: 17px; }
+.bid-response-document-section-heading small { color: #64748b; font-size: 12px; }
+.bid-response-document-table { overflow-x: auto; margin-top: 14px; border: 1px solid #e2e8f0; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 13px 14px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; font-size: 14px; line-height: 1.4; }
+th { background: #f1f5f9; color: #334155; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+td strong { display: block; color: #0f172a; }
+td small { display: block; margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.35; }
+.bid-requirement-marker { display: inline-flex; min-height: 22px; margin: 0 5px 5px 0; padding: 4px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.required-complete { background: #e8f5e9; color: #0d7c3d; }
+.required-incomplete { background: #fff1f1; color: #b00020; }
+.optional-complete { background: #e0f2fe; color: #075985; }
+.optional-empty { background: #f1f5f9; color: #64748b; }
+.is-incomplete td { background: #fffafa; }
+.bid-review-readonly { display: inline-flex; align-items: center; min-height: 28px; color: #64748b; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.bid-response-document-footer { display: flex; justify-content: space-between; margin-top: 28px; padding-top: 14px; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+@page { size: A4 portrait; margin: 16mm; }
+@media print { body { padding: 0; background: #fff; } .bid-response-document { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; border: 0; } table, tr, .bid-response-document-section { break-inside: avoid; page-break-inside: avoid; } }
+</style>
+</head>
+<body>${documentHtml}</body>
+</html>`;
+}
+
+function escapeBidDocumentHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
 function DeclarationSubmitPanel({ saving, uploading, isSubmitted, form, onPatch, onSave, onSubmit }: { saving: boolean; uploading: boolean; isSubmitted: boolean; form: BidFormState; onPatch: (key: string, value: boolean | string) => void; onSave: () => void; onSubmit: () => void }) {
@@ -4374,7 +4826,33 @@ function safeFileName(value: string) {
   return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'bid-record';
 }
 
-function ReceiptPanel({ receipt, totalAmount, currency, documents, onWithdraw, canWithdraw }: { receipt: BidReceiptDto; totalAmount: number; currency: string; documents: BidDocumentState[]; onWithdraw: () => void; canWithdraw: boolean }) {
+function ReceiptPanel({
+  tender,
+  schema,
+  responses,
+  documents,
+  samples,
+  issues,
+  totalAmount,
+  currency,
+  completeness,
+  receipt,
+  onWithdraw,
+  canWithdraw
+}: {
+  tender: TenderDetail;
+  schema: BidSubmissionSchemaDto;
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  samples: BidSampleDto[];
+  issues: string[];
+  totalAmount: number;
+  currency: string;
+  completeness: { percent: number; sectionsComplete: number; totalSections: number };
+  receipt: BidReceiptDto;
+  onWithdraw: () => void;
+  canWithdraw: boolean;
+}) {
   return (
     <>
       <section className="bid-submission-confirmation">
@@ -4409,6 +4887,19 @@ function ReceiptPanel({ receipt, totalAmount, currency, documents, onWithdraw, c
           </Link>
         </div>
       </section>
+      <ReviewPanel
+        tender={tender}
+        schema={schema}
+        responses={responses}
+        documents={documents}
+        samples={samples}
+        issues={issues}
+        totalAmount={totalAmount || receipt.bid.totalAmount}
+        currency={currency}
+        completeness={completeness}
+        isSubmitted
+        onEditField={() => undefined}
+      />
     </>
   );
 }
@@ -4581,7 +5072,7 @@ function schemaResponsesFromPayload(payload: Record<string, unknown>) {
 
 function schemaResponseList(schema: BidSubmissionSchemaDto, responses: SchemaResponseState) {
   return actionableSchemaFields(schema)
-    .filter((field) => field.section !== 'samples' && field.type !== 'file' && field.responseType !== 'attachment')
+    .filter((field) => field.section !== 'samples' && (field.type !== 'file' && field.responseType !== 'attachment' || hasMeaningfulStructuredResponse(schemaFieldValue(field, responses))))
     .map((field) => ({
       requirementKey: field.requirementKey,
       response: { value: schemaFieldValue(field, responses) }
@@ -4602,20 +5093,44 @@ function actionableSchemaFields(schema: BidSubmissionSchemaDto) {
 }
 
 function requiredSchemaFieldCount(schema: BidSubmissionSchemaDto) {
-  return actionableSchemaFields(schema).filter((field) => field.required).length;
+  return actionableValidationFields(schema).filter((field) => field.required).length;
 }
 
 function validateSchemaResponses(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
-  return actionableSchemaFields(schema)
+  return actionableValidationFields(schema)
     .filter((field) => field.required && !schemaFieldComplete(field, responses, documents, samples))
     .map((field) => field.label);
 }
 
 function schemaCompleteness(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
-  const fields = actionableSchemaFields(schema).filter((field) => field.required);
+  const fields = actionableValidationFields(schema).filter((field) => field.required);
   const totalSections = Math.max(1, fields.length);
   const sectionsComplete = fields.filter((field) => schemaFieldComplete(field, responses, documents, samples)).length;
   return { percent: Math.round((sectionsComplete / totalSections) * 100), sectionsComplete, totalSections };
+}
+
+function actionableValidationFields(schema: BidSubmissionSchemaDto) {
+  return schema.steps.flatMap(schemaStepValidationFields).filter((field) => field.section !== 'review' && field.section !== 'receipt');
+}
+
+function schemaStepValidationFields(step: BidSubmissionSchemaStepDto) {
+  if (step.id !== 'worksCapacity') return step.fields;
+  return worksCapacityRenderableFields(step);
+}
+
+function worksCapacityRenderableFields(step: BidSubmissionSchemaStepDto) {
+  const groups = worksCapacityGroups(step);
+  return uniqueSchemaFields([...groups.similarProjects, ...groups.personnel, ...groups.equipment, ...groups.hse]);
+}
+
+function uniqueSchemaFields(fields: BidSubmissionSchemaFieldDto[]) {
+  const seen = new Set<string>();
+  return fields.filter((field) => {
+    const key = `${field.id}::${field.requirementKey}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function schemaFieldComplete(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
@@ -4626,6 +5141,9 @@ function schemaFieldComplete(field: BidSubmissionSchemaFieldDto, responses: Sche
   if (isSchemaBoqPricingField(field) && goodsOfferResponseValue(value)) return goodsOfferValue(value).status === 'Not Bid' || schemaFinancialFieldTotal(field, responses) > 0;
   if (isSchemaBoqPricingField(field) && worksBoqResponseValue(value)) return worksBoqValue(value).status === 'Not Bid' || schemaFinancialFieldTotal(field, responses) > 0;
   if (field.responseType === 'money' || field.responseType === 'pricing') return Number(value) > 0;
+  if (worksFieldControl(field) === 'worksSimilarProject') return field.required ? fieldEvidenceUploadsComplete(field, documents) : hasMeaningfulStructuredResponse(value) || fieldEvidenceUploadsComplete(field, documents);
+  if (worksFieldControl(field) === 'worksPersonnel') return field.required ? hasFilledStructuredKey(value, 'namedResource') && fieldEvidenceUploadsComplete(field, documents) : hasFilledStructuredKey(value, 'namedResource') || fieldEvidenceUploadsComplete(field, documents);
+  if (isWorksHseField(field)) return worksHseFieldComplete(field, responses, documents);
   if (field.type === 'table' || field.responseType === 'structured') {
     const hasResponse = hasMeaningfulStructuredResponse(value);
     return field.required ? hasResponse && fieldEvidenceUploadsComplete(field, documents) : hasResponse;
@@ -4736,6 +5254,35 @@ function documentsForEvidenceSlot(documents: BidDocumentState[], field: BidSubmi
   });
 }
 
+function hseEvidenceUploadSlot(field: BidSubmissionSchemaFieldDto, uploadField = field): EvidenceUploadSlot {
+  const documentType = String(uploadField.validation.documentType ?? '');
+  const requirementKey = uploadField === field || (uploadField.type !== 'file' && uploadField.responseType !== 'attachment') ? `${field.requirementKey}.documents` : uploadField.requirementKey;
+  return {
+    key: 'documents',
+    label: 'Upload HSE documents',
+    requirementKey,
+    documentType: documentType || 'TECHNICAL_HSE_DOCUMENTS'
+  };
+}
+
+function documentsForHseUpload(documents: BidDocumentState[], field: BidSubmissionSchemaFieldDto, uploadField = field, slot = hseEvidenceUploadSlot(field, uploadField)) {
+  return documents.filter((document) => {
+    const metadata = objectPayload(document.metadata);
+    const requirementKey = String(metadata.requirementKey ?? '');
+    const parentRequirementKey = String(metadata.parentRequirementKey ?? '');
+    const fieldId = String(metadata.fieldId ?? '');
+    const evidenceKey = String(metadata.evidenceKey ?? '');
+    return (
+      requirementKey === slot.requirementKey ||
+      requirementKey === field.requirementKey ||
+      requirementKey === uploadField.requirementKey ||
+      (parentRequirementKey === field.requirementKey && evidenceKey === slot.key) ||
+      (fieldId === field.id && evidenceKey === slot.key) ||
+      document.documentType === slot.documentType
+    );
+  });
+}
+
 function fieldEvidenceUploadsComplete(field: BidSubmissionSchemaFieldDto, documents: BidDocumentState[]) {
   return evidenceUploadSlotsForField(field).every((slot) => documentsForEvidenceSlot(documents, field, slot).length > 0);
 }
@@ -4752,6 +5299,25 @@ function evidenceUploadSummary(field: BidSubmissionSchemaFieldDto, documents: Bi
     })
     .filter(Boolean)
     .join(' / ');
+}
+
+function hasFilledStructuredKey(value: unknown, key: string) {
+  const payload = structuredValue(value);
+  return String(payload[key] ?? '').trim().length > 0;
+}
+
+function worksHseFieldComplete(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState, documents: BidDocumentState[]) {
+  const value = worksHseAggregateValue(field, responses);
+  const responseComplete = ['safetyPolicyAvailable', 'environmentalPolicyAvailable', 'safetyOfficerAssigned', 'ppePlan', 'incidentManagementPlan', 'wasteManagementPlan'].every((key) => String(value[key] ?? '').trim().length > 0);
+  if (!field.required) return responseComplete || documentsForHseUpload(documents, field).length > 0;
+  return responseComplete && documentsForHseUpload(documents, field).length > 0;
+}
+
+function worksHseAggregateValue(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState) {
+  const ownValue = structuredValue(schemaFieldValue(field, responses));
+  if (hasMeaningfulStructuredResponse(ownValue)) return ownValue;
+  const hseEntry = Object.entries(responses).find(([key, value]) => /hse|health|safety|environment|environmental|ppe|incident|waste/i.test(key) && hasMeaningfulStructuredResponse(value));
+  return hseEntry ? structuredValue(hseEntry[1]) : ownValue;
 }
 
 function schemaFieldByRequirement(fields: BidSubmissionSchemaFieldDto[], requirementKey: string) {
@@ -4851,7 +5417,7 @@ function schemaSourceStepId(schema: BidSubmissionSchemaDto, sourceId: string) {
 }
 
 function sectionReadiness(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], section: string) {
-  const fields = actionableSchemaFields(schema).filter((field) => field.section === section && field.required);
+  const fields = actionableValidationFields(schema).filter((field) => field.section === section && field.required);
   if (!fields.length) return 'No required fields';
   const complete = fields.filter((field) => schemaFieldComplete(field, responses, documents, samples)).length;
   return complete === fields.length ? 'Complete' : `${fields.length - complete} pending`;

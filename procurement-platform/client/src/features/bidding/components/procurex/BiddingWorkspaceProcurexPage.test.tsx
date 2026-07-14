@@ -947,7 +947,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
               ownershipRequirement: 'Owned or leased'
             }),
             field('works.hsePolicy', 'HSE policy response', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.hsePolicy'),
-            field('works.capacityNarrative', 'Capacity narrative', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.capacityNarrative')
+            field('works.capacityNarrative', 'Capacity narrative', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.capacityNarrative')
           ]),
           step('worksTechnicalProposal', 'Technical Proposal and Work Program', 'TECHNICAL', [field('technical.methodStatement', 'Method statement response', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.methodStatement')]),
           step('worksFinancial', 'Financial Proposal / BOQ Pricing', 'FINANCIAL', [
@@ -958,6 +958,10 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
               quantity: 1,
               unit: 'Lot',
               min: 0
+            }),
+            field('works.financialCapacityEvidence', 'Financial capacity and bank statement evidence', 'file', 'financial', 'attachment', 'FINANCIAL', true, 'works.financialCapacityEvidence', {
+              documentType: 'FINANCIAL_CAPACITY_EVIDENCE',
+              prompt: 'Upload bank statements or financial capacity evidence.'
             })
           ]),
           step('worksReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')]),
@@ -978,7 +982,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.getByText('Key personnel')).toBeInTheDocument();
     expect(screen.getByText('Equipment capacity')).toBeInTheDocument();
     expect(screen.getByText('Health, Safety and Environmental Response')).toBeInTheDocument();
-    expect(screen.getByText('Additional capacity responses')).toBeInTheDocument();
+    expect(screen.queryByText('Additional capacity responses')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Capacity narrative')).not.toBeInTheDocument();
     expect(container.querySelector('.works-capacity-workbook')).toBeInTheDocument();
     expect(container.querySelector('.works-capacity-card')).toBeInTheDocument();
     expect(container.querySelector('.works-person-card')).toBeInTheDocument();
@@ -987,20 +992,40 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.getByText('Upload Similar project document')).toBeInTheDocument();
     expect(screen.getByText('CV upload')).toBeInTheDocument();
     expect(screen.getByText('Upload Lease / access agreement')).toBeInTheDocument();
+    expect(screen.getByText('Upload HSE documents')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Project / client')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Value')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Completion / status')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Qualification / certification')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Years experience')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Project / client'), { target: { value: 'Rural distribution network' } });
     fireEvent.change(screen.getByLabelText('Personnel Position'), { target: { value: 'Site engineer' } });
     fireEvent.change(screen.getByLabelText('Quantity available for Excavator'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Ownership status for Excavator'), { target: { value: 'Owned' } });
-    fireEvent.change(screen.getByLabelText('HSE policy response'), { target: { value: 'HSE plan available with safety officer assigned.' } });
+    fireEvent.change(screen.getByLabelText('Safety Policy Available'), { target: { value: 'Yes' } });
+    fireEvent.change(screen.getByLabelText('Environmental Policy Available'), { target: { value: 'Yes' } });
+    fireEvent.change(screen.getByLabelText('Safety Officer Assigned'), { target: { value: 'Yes' } });
+    fireEvent.change(screen.getByLabelText('PPE Plan'), { target: { value: 'PPE is issued, inspected, and replaced for all site workers.' } });
+    fireEvent.change(screen.getByLabelText('Incident Management Plan'), { target: { value: 'Incident reporting, first aid response, and escalation are defined.' } });
+    fireEvent.change(screen.getByLabelText('Waste Management Plan'), { target: { value: 'Waste streams are separated, stored safely, and disposed through licensed handlers.' } });
+    const notices: Array<{ title?: string; message?: string; presentation?: string }> = [];
+    const listener = ((event: Event) => notices.push((event as CustomEvent).detail ?? {})) as EventListener;
+    window.addEventListener('procurex:notify', listener);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(screen.getByRole('heading', { name: 'Technical Capacity and Experience' })).toBeInTheDocument();
-    const blockerNotice = await screen.findByRole('alert');
-    expect(blockerNotice).toHaveClass('presentation-bidNotice');
-    expect(blockerNotice).toHaveTextContent('Notice');
-    expect(blockerNotice).toHaveTextContent(/Complete 3 required responses in this section before continuing/i);
-    expect(blockerNotice).toHaveTextContent(/First incomplete: Similar completed project evidence/i);
+    await waitFor(() => {
+      expect(notices).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            title: 'Notice',
+            presentation: 'bidNotice',
+            message: expect.stringMatching(/Complete 4 required responses in this section before continuing.*First incomplete: Similar completed project evidence/i)
+          })
+        ])
+      );
+    });
+    window.removeEventListener('procurex:notify', listener);
     expect(container.querySelector('.form-status')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
@@ -1010,7 +1035,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       expect.arrayContaining([
         expect.objectContaining({
           requirementKey: 'works.similarProjects',
-          response: { value: expect.objectContaining({ projectName: 'Rural distribution network' }) }
+          response: { value: undefined }
         }),
         expect.objectContaining({
           requirementKey: 'works.keyPersonnel',
@@ -1022,7 +1047,16 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
         }),
         expect.objectContaining({
           requirementKey: 'works.hsePolicy',
-          response: { value: 'HSE plan available with safety officer assigned.' }
+          response: {
+            value: expect.objectContaining({
+              safetyPolicyAvailable: 'Yes',
+              environmentalPolicyAvailable: 'Yes',
+              safetyOfficerAssigned: 'Yes',
+              ppePlan: 'PPE is issued, inspected, and replaced for all site workers.',
+              incidentManagementPlan: 'Incident reporting, first aid response, and escalation are defined.',
+              wasteManagementPlan: 'Waste streams are separated, stored safely, and disposed through licensed handlers.'
+            })
+          }
         })
       ])
     );
@@ -1069,19 +1103,24 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     const similarInput = screen.getByText('Upload Similar project document').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
     const personnelInput = screen.getByText('CV upload').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
     const equipmentInput = screen.getByText('Upload Lease / access agreement').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    const hseInput = screen.getByText('Upload HSE documents').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
     expect(similarInput).not.toBeNull();
     expect(personnelInput).not.toBeNull();
     expect(equipmentInput).not.toBeNull();
+    expect(hseInput).not.toBeNull();
 
     const projectEvidence = new File(['project reference'], 'project-reference.pdf', { type: 'application/pdf' });
     const cvEvidence = new File(['cv'], 'site-engineer-cv.pdf', { type: 'application/pdf' });
     const equipmentEvidence = new File(['lease'], 'excavator-lease.pdf', { type: 'application/pdf' });
+    const hseEvidence = new File(['hse'], 'hse-plan.pdf', { type: 'application/pdf' });
     fireEvent.change(similarInput!, { target: { files: [projectEvidence] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(1));
     fireEvent.change(personnelInput!, { target: { files: [cvEvidence] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
     fireEvent.change(equipmentInput!, { target: { files: [equipmentEvidence] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(3));
+    fireEvent.change(hseInput!, { target: { files: [hseEvidence] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(4));
 
     expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(
       1,
@@ -1127,6 +1166,23 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
           fieldId: 'works.equipment.excavator',
           evidenceKey: 'evidenceReference',
           requirementLabel: 'Upload Lease / access agreement',
+          source: 'bid-workspace'
+        })
+      })
+    );
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(
+      4,
+      'bid-1',
+      expect.objectContaining({
+        files: [hseEvidence],
+        envelope: 'TECHNICAL',
+        documentType: 'TECHNICAL_HSE_DOCUMENTS',
+        metadata: expect.objectContaining({
+          requirementKey: 'works.hsePolicy.documents',
+          parentRequirementKey: 'works.hsePolicy',
+          fieldId: 'works.hsePolicy',
+          evidenceKey: 'documents',
+          requirementLabel: 'Upload HSE documents',
           source: 'bid-workspace'
         })
       })
@@ -1190,6 +1246,22 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     });
     vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(worksCapacityBidSchema());
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, payload) =>
+      bidDto({
+        documents: [
+          {
+            id: 'bid-doc-financial-capacity',
+            documentId: 'doc-financial-capacity',
+            name: payload.files[0]?.name ?? 'financial-capacity.pdf',
+            documentType: payload.documentType,
+            envelope: payload.envelope,
+            reviewStatus: 'UPLOADED',
+            checksum: 'c'.repeat(64),
+            metadata: payload.metadata ?? {}
+          }
+        ]
+      })
+    );
 
     render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
@@ -1201,7 +1273,16 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     openProgressStep('Financial Proposal / BOQ Pricing');
 
-    expect(screen.getByRole('table', { name: 'Editable financial offer review table' })).toBeInTheDocument();
+    expect(screen.getByText('Financial statements and capacity requirements')).toBeInTheDocument();
+    ['Buyer Requirement', 'Minimum / Period', 'Evidence Required', 'Your Response', 'Evidence Note', 'Upload'].forEach((heading) => {
+      expect(screen.getByRole('columnheader', { name: heading })).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Financial evidence uploads')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Financial capacity and bank statement evidence').length).toBeGreaterThanOrEqual(1);
+    const matrixSection = screen.getByText('Financial statements and capacity requirements').closest('section');
+    const boqTable = screen.getByRole('table', { name: 'Editable financial offer review table' });
+    expect(matrixSection?.compareDocumentPosition(boqTable) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(boqTable).toBeInTheDocument();
     ['Item', 'Work Item', 'Qty', 'Unit', 'Status', 'Labor', 'Material', 'Equipment', 'Overheads', 'Profit %', 'Unit Rate', 'Total'].forEach((heading) => {
       expect(screen.getByRole('columnheader', { name: heading })).toBeInTheDocument();
     });
@@ -1217,6 +1298,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     fireEvent.click(screen.getByLabelText('Bid security submitted, if required by this tender.'));
     expect(screen.getByText('Bid security document')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Response for Financial capacity and bank statement evidence'), { target: { value: 'Average monthly balance exceeds minimum requirement.' } });
+    fireEvent.change(screen.getByLabelText('Evidence note for Financial capacity and bank statement evidence'), { target: { value: 'Attached six months of bank statements.' } });
     fireEvent.change(screen.getByLabelText('Commercial Clarifications'), { target: { value: 'Rates exclude night work.' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
 
@@ -1239,6 +1322,15 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
           }
         }),
         expect.objectContaining({
+          requirementKey: 'works.financialCapacityEvidence',
+          response: {
+            value: expect.objectContaining({
+              response: 'Average monthly balance exceeds minimum requirement.',
+              evidenceNote: 'Attached six months of bank statements.'
+            })
+          }
+        }),
+        expect.objectContaining({
           requirementKey: 'works.commercial.clarifications',
           response: { value: 'Rates exclude night work.' }
         })
@@ -1254,6 +1346,23 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     fireEvent.change(screen.getByLabelText('Bid status for work item 1'), { target: { value: 'Not Bid' } });
     expect(screen.getAllByText('TZS 0').length).toBeGreaterThanOrEqual(2);
+
+    const financialUploadSection = screen.getByText('Financial statements and capacity requirements').closest('section');
+    const financialCapacityInput = financialUploadSection?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(financialCapacityInput).not.toBeNull();
+    const financialCapacityFile = new File(['bank statements'], 'bank-statements.pdf', { type: 'application/pdf' });
+    fireEvent.change(financialCapacityInput!, { target: { files: [financialCapacityFile] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledWith('bid-1', expect.objectContaining({
+      files: [financialCapacityFile],
+      envelope: 'FINANCIAL',
+      documentType: 'FINANCIAL_CAPACITY_EVIDENCE',
+      metadata: expect.objectContaining({
+        requirementKey: 'works.financialCapacityEvidence',
+        requirementLabel: 'Financial capacity and bank statement evidence',
+        fieldId: 'works.financialCapacityEvidence',
+        source: 'bid-workspace'
+      })
+    })));
   });
 
   it('renders works declaration and submission like procurex-ui, uploads company stamp, and saves draft responses', async () => {
@@ -1390,9 +1499,78 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(within(reviewDocument).getByText('Technical Response')).toBeInTheDocument();
     expect(within(reviewDocument).getByText('Quantity Schedule / Financial Offer')).toBeInTheDocument();
     expect(within(reviewDocument).getByText('Supplier Declaration and Submit')).toBeInTheDocument();
+    expect(screen.getByText('Bid submission completeness checklist')).toBeInTheDocument();
+    expect(screen.getByText('Bid submission review preview')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download HTML' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Print / Save PDF' })).toBeInTheDocument();
+    expect(screen.getByLabelText('I have reviewed the completeness checklist and corrected any incomplete bid sections.')).toBeInTheDocument();
     expect(screen.getAllByText('Complete').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Missing').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: 'Replace file' }).length).toBeGreaterThan(0);
+  });
+
+  it('downloads the review submission document as clean standalone HTML', async () => {
+    const captured: { anchor?: HTMLAnchorElement; blob?: Blob } = {};
+    const createObjectUrl = vi.fn((blob: Blob | MediaSource) => {
+      captured.blob = blob as Blob;
+      return 'blob:bid-review';
+    });
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectUrl });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+      const element = originalCreateElement(tagName, options);
+      if (tagName.toLowerCase() === 'a') captured.anchor = element as HTMLAnchorElement;
+      return element;
+    }) as typeof document.createElement);
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Download HTML' }));
+
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
+    if (!captured.anchor) throw new Error('Expected the review download to create an anchor element.');
+    expect(captured.anchor.download).toMatch(/-review\.html$/);
+    expect(anchorClick).toHaveBeenCalled();
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:bid-review');
+    if (!captured.blob) throw new Error('Expected the review download to create an HTML blob.');
+    const exportedHtml = await readBlobText(captured.blob);
+    expect(exportedHtml).toContain('Supplier Bid Submission Review');
+    expect(exportedHtml).toContain('Supply of laptops');
+    expect(exportedHtml).not.toContain('bid-review-edit-button');
+    expect(exportedHtml).not.toContain('Edits enabled');
+  });
+
+  it('opens the review submission document for print and PDF saving', async () => {
+    const print = vi.fn();
+    const write = vi.fn();
+    const open = vi.fn(() => ({
+      document: { open: vi.fn(), write, close: vi.fn() },
+      focus: vi.fn(),
+      print
+    }));
+    Object.defineProperty(window, 'open', { configurable: true, value: open });
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Print / Save PDF' }));
+
+    expect(open).toHaveBeenCalledWith('', '_blank');
+    expect(write).toHaveBeenCalledWith(expect.stringContaining('Supplier Bid Submission Review'));
   });
 
   it('uses review Change actions to navigate back to the editable technical source field', async () => {
@@ -1694,7 +1872,7 @@ function worksCapacityBidSchema(): BidSubmissionSchemaDto {
           ownershipRequirement: 'Owned or leased'
         }),
         field('works.hsePolicy', 'HSE policy response', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.hsePolicy'),
-        field('works.capacityNarrative', 'Capacity narrative', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.capacityNarrative')
+        field('works.capacityNarrative', 'Capacity narrative', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'works.capacityNarrative')
       ]),
       step('worksTechnicalProposal', 'Technical Proposal and Work Program', 'TECHNICAL', [
         field('works.proposal.understanding', 'Project Understanding', 'textarea', 'technical', 'text', 'TECHNICAL', false, 'works.proposal.understanding', { control: 'worksProposalNarrative' }),
@@ -1728,6 +1906,7 @@ function worksCapacityBidSchema(): BidSubmissionSchemaDto {
         field('works.commercial.bidValidity', 'Bid Validity Period (days)', 'number', 'financial', 'number', 'FINANCIAL', true, 'works.commercial.bidValidity', { control: 'worksCommercialTerms', min: 1 }),
         field('works.commercial.currency', 'Currency', 'select', 'financial', 'text', 'FINANCIAL', true, 'works.commercial.currency', { control: 'worksCommercialTerms', options: ['TZS', 'USD', 'EUR', 'GBP'] }),
         field('works.commercial.clarifications', 'Commercial Clarifications', 'textarea', 'financial', 'text', 'FINANCIAL', false, 'works.commercial.clarifications', { control: 'worksCommercialTerms' }),
+        field('works.financialCapacityEvidence', 'Financial capacity and bank statement evidence', 'file', 'financial', 'attachment', 'FINANCIAL', true, 'works.financialCapacityEvidence', { documentType: 'FINANCIAL_CAPACITY_EVIDENCE', prompt: 'Upload bank statements or financial capacity evidence.' }),
         field('works.commercial.bidSecuritySubmitted', 'Bid security submitted, if required by this tender.', 'boolean', 'financial', 'boolean', 'FINANCIAL', false, 'works.commercial.bidSecuritySubmitted', { control: 'worksCommercialTerms' }),
         field('works.commercial.bidSecurityDocument', 'Bid security document', 'file', 'financial', 'attachment', 'FINANCIAL', false, 'works.commercial.bidSecurityDocument', { documentType: 'FINANCIAL_BID_SECURITY_DOCUMENT', control: 'worksCommercialTerms' })
       ]),
@@ -1886,4 +2065,13 @@ function sampleDto(patch: Partial<BidSampleDto> = {}): BidSampleDto {
     updatedAt: '2026-07-09T10:00:00.000Z',
     ...patch
   };
+}
+
+function readBlobText(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
 }

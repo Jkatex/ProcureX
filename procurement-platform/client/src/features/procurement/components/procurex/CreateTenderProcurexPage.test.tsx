@@ -1,6 +1,7 @@
 import { ThemeProvider } from '@mui/material';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import * as XLSX from 'xlsx';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -223,6 +224,14 @@ function mockBrowserDownload() {
   });
 
   return { blobs, click, downloads };
+}
+
+function spreadsheetFile(rows: unknown[][], fileName = 'import.xlsx') {
+  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+  const data = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  return new File([data], fileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 afterEach(() => {
@@ -726,8 +735,8 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByRole('columnheader', { name: /qty/i })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /unit price/i })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /^total$/i })).toBeInTheDocument();
-    expect(screen.getByText('Import Excel')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download Excel Template' })).toBeInTheDocument();
+    expect(screen.getAllByText('Import Excel / CSV')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Download Excel Template' })).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Sample Requirements' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Financial Capacity Requirements' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
@@ -744,6 +753,123 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('25,000')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Solar panel kit' })).toBeInTheDocument();
     expect(screen.getByText('No specifications added for this item yet.')).toBeInTheDocument();
+  });
+
+  it('imports goods BOQ rows from CSV and allows the same file to be selected again', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
+    const file = new File(['Item,Description,Unit,Qty\n1,Solar inverter,Pcs,3'], 'goods-boq.csv', { type: 'text/csv' });
+
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByDisplayValue('Solar inverter')).toBeInTheDocument();
+    expect(screen.getByLabelText('Item 1 unit')).toHaveValue('Pcs');
+    expect(screen.getByLabelText('Item 1 quantity')).toHaveValue('3');
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Goods quantity schedule imported 1 row.')).toBe(true);
+    expect(input).toHaveValue('');
+
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(screen.getAllByDisplayValue('Solar inverter')).toHaveLength(2));
+    expect(input).toHaveValue('');
+  });
+
+  it('imports goods product specification rows from CSV and maps them to existing goods items', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+    await user.click(screen.getByRole('button', { name: 'Add Item' }));
+    await user.type(screen.getByLabelText('Item 1 description'), 'Solar inverter');
+
+    const input = screen.getByLabelText('Import product specifications') as HTMLInputElement;
+    const file = new File(['Item,Specification,Specific detail required\n1,Battery backup,4 hours minimum'], 'product-specs.csv', { type: 'text/csv' });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByDisplayValue('Battery backup')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('4 hours minimum')).toBeInTheDocument();
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Product specifications imported 1 row.')).toBe(true);
+  });
+
+  it('imports service BOQ rows from CSV', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Non Consultancy/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    const input = screen.getByLabelText('Import service BOQ') as HTMLInputElement;
+    const file = new File(['No.,Description,Unit,Quantity,Rate\n1,Security guard services,Month,12,500000'], 'service-boq.csv', { type: 'text/csv' });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByDisplayValue('Security guard services')).toBeInTheDocument();
+    expect(screen.getByLabelText('Service BOQ unit 1')).toHaveValue('Month');
+    expect(screen.getByLabelText('Service BOQ quantity 1')).toHaveValue('12');
+    expect(screen.getByLabelText('Service BOQ rate 1')).toHaveValue('500000');
+    expect(screen.getByText('6,000,000')).toBeInTheDocument();
+  });
+
+  it('imports works BOQ rows from CSV', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Procurement Planning/ })[0]);
+    await user.click(screen.getByRole('button', { name: /Works/ }));
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    const input = screen.getByLabelText('Import works BOQ') as HTMLInputElement;
+    const file = new File(['No.,Description,Unit,Quantity\n1,Concrete works,Sqm,10'], 'works-boq.csv', { type: 'text/csv' });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByDisplayValue('Concrete works')).toBeInTheDocument();
+    expect(screen.getByLabelText('BOQ unit 1')).toHaveValue('Sqm');
+    expect(screen.getByLabelText('BOQ quantity 1')).toHaveValue('10');
+  });
+
+  it('imports goods BOQ rows from XLSX files', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
+    const file = spreadsheetFile([
+      ['Item', 'Description', 'Unit', 'Qty'],
+      ['1', 'Water pump', 'Pcs', '4']
+    ]);
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByDisplayValue('Water pump')).toBeInTheDocument();
+    expect(screen.getByLabelText('Item 1 quantity')).toHaveValue('4');
+  });
+
+  it('warns on empty spreadsheets and unsupported import files without mutating goods rows', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+
+    const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [spreadsheetFile([], 'empty.xlsx')] } });
+
+    await waitFor(() =>
+      expect(store.getState().notifications.items.some((notification) => notification.message === 'Goods quantity schedule did not include usable rows.')).toBe(true)
+    );
+    expect(screen.queryByLabelText('Item 1 description')).not.toBeInTheDocument();
+    expect(input).toHaveValue('');
+
+    fireEvent.change(input, { target: { files: [new File(['%PDF-1.4'], 'goods.pdf', { type: 'application/pdf' })] } });
+
+    await waitFor(() => expect(store.getState().notifications.items.some((notification) => notification.message === 'Use an Excel or CSV file for this import.')).toBe(true));
+    expect(screen.queryByLabelText('Item 1 description')).not.toBeInTheDocument();
+    expect(input).toHaveValue('');
   });
 
   it('orders goods requirements with regulatory licenses after financial capacity', async () => {
