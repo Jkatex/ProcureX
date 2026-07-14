@@ -54,7 +54,7 @@ function getRecordsHistoryCurrentUser() {
 
     return {
         role: ownerRole,
-        organization: registryRecord.name || account.organization || fallbackOrganization || account.displayName || 'Kilimanjaro Supplies Limited'
+        organization: registryRecord.name || account.organization || fallbackOrganization || account.displayName || 'Verified Company Account'
     };
 }
 
@@ -197,29 +197,6 @@ function getRecordsHistoryBaseRecords() {
             ]
         }),
         buildProcurementRecord({
-            id: 'rec-005',
-            ownerRole: 'buyer',
-            ownerOrganization: 'Ministry of Health',
-            date: '2026-09-02',
-            type: 'Amendment',
-            title: 'Amendment to clinic equipment delivery schedule',
-            reference: 'PX-AMD-2026-011',
-            buyer: 'Ministry of Health',
-            supplier: 'Kilimanjaro Supplies Limited',
-            category: 'Goods',
-            status: 'Completed',
-            value: 640000000,
-            evidenceItems: ['Details', 'Amendment', 'Contract'],
-            timeline: [
-                { title: 'Amendment issued', date: 'Sep 02, 2026 12:15', role: 'Contract Officer' },
-                { title: 'Compliance document uploaded', date: 'Sep 03, 2026 08:40', role: 'Supplier' }
-            ],
-            documents: [
-                { name: 'Amendment notice', type: 'PDF', date: 'Sep 02, 2026' },
-                { name: 'Contract addendum', type: 'PDF', date: 'Sep 02, 2026' }
-            ]
-        }),
-        buildProcurementRecord({
             id: 'rec-006',
             ownerRole: 'buyer',
             ownerOrganization: 'Ministry of Health',
@@ -242,144 +219,6 @@ function getRecordsHistoryBaseRecords() {
                 { name: 'Cancellation notice', type: 'PDF', date: 'Sep 11, 2026' }
             ]
         }),
-        buildProcurementRecord({
-            id: 'rec-101',
-            ownerRole: 'supplier',
-            ownerOrganization: 'Kilimanjaro Supplies Limited',
-            date: '2026-07-19',
-            type: 'Tender',
-            title: 'Solar Mini-Grid Civil Works and Distribution Network',
-            reference: 'PX-WRK-2026-003',
-            buyer: 'Rural Energy Agency',
-            supplier: 'Kilimanjaro Supplies Limited',
-            category: 'Works',
-            status: 'Open',
-            value: 4980000000,
-            evidenceItems: ['Details', 'Clarification', 'Bids', 'Opening'],
-            timeline: [
-                { title: 'Tender viewed', date: 'Jul 19, 2026 08:25', role: 'Supplier' },
-                { title: 'Clarification answered', date: 'Jul 20, 2026 14:30', role: 'Procurement Officer' },
-                { title: 'Bid submitted', date: 'Aug 04, 2026 16:42', role: 'Supplier' }
-            ],
-            documents: [
-                { name: 'Tender notice', type: 'PDF', date: 'Jul 17, 2026' },
-                { name: 'Clarification response', type: 'PDF', date: 'Jul 20, 2026' },
-                { name: 'Bid submission receipt', type: 'PDF', date: 'Aug 04, 2026' }
-            ]
-        }),
-        buildProcurementRecord({
-            id: 'rec-102',
-            ownerRole: 'supplier',
-            ownerOrganization: 'Kilimanjaro Supplies Limited',
-            date: '2026-08-04',
-            type: 'Bid',
-            title: 'Bid submission for solar mini-grid civil works',
-            reference: 'PX-BID-2026-021',
-            buyer: 'Rural Energy Agency',
-            supplier: 'Kilimanjaro Supplies Limited',
-            category: 'Works',
-            status: 'Submitted',
-            value: 4720000000,
-            evidenceItems: ['Details', 'Bids', 'Compliance', 'Receipt'],
-            timeline: [
-                { title: 'Bid submitted', date: 'Aug 04, 2026 16:42', role: 'Supplier' },
-                { title: 'Bid opening completed', date: 'Aug 05, 2026 17:30', role: 'Evaluation Committee' }
-            ],
-            documents: [
-                { name: 'Bid submission receipt', type: 'PDF', date: 'Aug 04, 2026' },
-                { name: 'Compliance evidence', type: 'PDF', date: 'Aug 04, 2026' }
-            ]
-        }),
-        buildProcurementRecord({
-            id: 'rec-103',
-            ownerRole: 'supplier',
-            ownerOrganization: 'Kilimanjaro Supplies Limited',
-            date: '2026-08-15',
-            type: 'Award',
-            title: 'Award result for solar mini-grid civil works',
-            reference: 'PX-AWD-2026-012',
-            buyer: 'Rural Energy Agency',
-            supplier: 'Kilimanjaro Supplies Limited',
-            category: 'Works',
-            status: 'Awarded',
-            value: 4720000000,
-            evidenceItems: ['Award', 'Opening', 'Contract'],
-            timeline: [
-                { title: 'Evaluation completed', date: 'Aug 12, 2026 11:20', role: 'Evaluation Committee' },
-                { title: 'Award issued', date: 'Aug 15, 2026 15:10', role: 'Procurement Committee' }
-            ],
-            documents: [
-                { name: 'Award notice', type: 'PDF', date: 'Aug 15, 2026' },
-                { name: 'Generated report', type: 'PDF', date: 'Aug 15, 2026' }
-            ]
-        }),
-        buildProcurementRecord({
-            id: 'rec-104',
-            ownerRole: 'supplier',
-            ownerOrganization: 'Kilimanjaro Supplies Limited',
-            date: '2026-08-26',
-            type: 'Contract',
-            title: 'Solar mini-grid implementation contract',
-            reference: 'PX-CON-2026-010',
-            buyer: 'Rural Energy Agency',
-            supplier: 'Kilimanjaro Supplies Limited',
-            category: 'Works',
-            status: 'Contracted',
-            value: 4720000000,
-            evidenceItems: ['Contract', 'Award', 'Compliance'],
-            timeline: [
-                { title: 'Contract created', date: 'Aug 26, 2026 10:35', role: 'Contract Officer' },
-                { title: 'Compliance document uploaded', date: 'Aug 27, 2026 12:05', role: 'Supplier' }
-            ],
-            documents: [
-                { name: 'Contract document', type: 'PDF', date: 'Aug 26, 2026' },
-                { name: 'Compliance evidence', type: 'PDF', date: 'Aug 27, 2026' }
-            ]
-        }),
-        buildProcurementRecord({
-            id: 'rec-105',
-            ownerRole: 'supplier',
-            ownerOrganization: 'Kilimanjaro Supplies Limited',
-            date: '2026-09-03',
-            type: 'Compliance',
-            title: 'Tax clearance and business registration upload',
-            reference: 'PX-CMP-2026-018',
-            buyer: 'Ministry of Health',
-            supplier: 'Kilimanjaro Supplies Limited',
-            category: 'Goods',
-            status: 'Completed',
-            value: 0,
-            evidenceItems: ['Compliance', 'Details'],
-            timeline: [
-                { title: 'Compliance document uploaded', date: 'Sep 03, 2026 08:40', role: 'Supplier' },
-                { title: 'Report generated', date: 'Sep 03, 2026 09:15', role: 'Supplier' }
-            ],
-            documents: [
-                { name: 'Compliance evidence', type: 'PDF', date: 'Sep 03, 2026' },
-                { name: 'Generated report', type: 'PDF', date: 'Sep 03, 2026' }
-            ]
-        }),
-        buildProcurementRecord({
-            id: 'rec-106',
-            ownerRole: 'supplier',
-            ownerOrganization: 'Kilimanjaro Supplies Limited',
-            date: '2026-09-13',
-            type: 'Report',
-            title: 'Supplier participation report for submitted bids',
-            reference: 'PX-RPT-2026-027',
-            buyer: 'Rural Energy Agency',
-            supplier: 'Kilimanjaro Supplies Limited',
-            category: 'Reporting',
-            status: 'Completed',
-            value: 0,
-            evidenceItems: ['Report', 'Bids', 'Award'],
-            timeline: [
-                { title: 'Report generated', date: 'Sep 13, 2026 10:10', role: 'Supplier' }
-            ],
-            documents: [
-                { name: 'Generated report', type: 'PDF', date: 'Sep 13, 2026' }
-            ]
-        })
     ];
 }
 

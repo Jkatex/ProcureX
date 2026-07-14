@@ -68,7 +68,7 @@ function renderIamVerification() {
                             <h1>${isUpdateMode ? 'Update verification details' : 'Identity verification flow'}</h1>
                             <p>${accountEmail ? `Signed in as ${accountEmail}. ` : ''}${isUpdateMode ? 'Your verified profile is already loaded. Update the changed fields, fetch matching registry details when TIN or BRELA changes, confirm the signature, and save.' : 'Start with applicant type, fetch TRA or BRELA details for review, create a digital signature, then continue to the app launcher.'}</p>
                         </div>
-                        <span class="badge badge-info">${isUpdateMode ? 'Edit mode' : 'Demo flow'}</span>
+                        <span class="badge badge-info">${isUpdateMode ? 'Edit mode' : 'Onboarding'}</span>
                     </div>
 
                     <form class="ekyc-form" data-action="complete-ekyc" data-ekyc-mode="${isUpdateMode ? 'update' : 'onboarding'}" data-registry-fetched="${hasRegistryRecord ? 'true' : ''}" novalidate>
@@ -229,7 +229,7 @@ function renderIamVerification() {
                                 <span class="ekyc-step-badge">3</span>
                                 <div>
                                     <h2>Create digital signature</h2>
-                                    <p>This typed signature represents the verified user in this demo. Later implementation will anchor the digital signature with blockchain records.</p>
+                                    <p>This digital signature confirms the authorized signer for this ProcureX account.</p>
                                 </div>
                             </div>
 
@@ -260,7 +260,7 @@ function renderIamVerification() {
                                         <span>Confirm digital signature</span>
                                     </button>
                                     <p class="confirm-action-note" data-confirm-note>
-                                        Confirm that this digital signature is authorized for this ProcureX account and may later be anchored on blockchain.
+                                        Confirm that this digital signature is authorized for this ProcureX account.
                                     </p>
                                 </div>
                             </div>
@@ -282,7 +282,6 @@ function renderIamVerification() {
                                     <div><span>Applicant type</span><strong>Individual</strong></div>
                                     <div><span>Registry source</span><strong>TRA</strong></div>
                                     <div><span>Signature</span><strong>Prepared</strong></div>
-                                    <div><span>Blockchain anchor</span><strong>Pending implementation</strong></div>
                                 </div>
                             </div>
 

@@ -277,56 +277,80 @@ export function BiddingWorkspaceProcurexPage() {
 
   function hydrateDraft(draft: BidDto) {
     const payload = draft.payload;
+    const workspaceState = objectPayload(payload.workspaceState);
+    const workspaceForm = objectPayload(workspaceState.form);
+    const workspaceFinancial = objectPayload(workspaceForm.financial);
     const administrative = objectPayload(payload.administrative);
     const technical = objectPayload(payload.technical);
     const financial = objectPayload(payload.financial);
     const declarations = objectPayload(payload.declarations);
+    const workspaceAdministrative = objectPayload(workspaceForm.administrative);
+    const workspaceTechnical = objectPayload(workspaceForm.technical);
+    const workspaceDeclarations = objectPayload(workspaceForm.declarations);
+    const workspaceSchemaResponses = objectPayload(workspaceState.schemaResponses);
     const responseState = Object.fromEntries(draft.responses.map((item) => [item.requirementKey, responseValue(item.response)]));
     setSchemaResponses({
       ...responseState,
       ...schemaResponsesFromPayload(administrative),
       ...schemaResponsesFromPayload(technical),
       ...schemaResponsesFromPayload(financial),
-      ...schemaResponsesFromPayload(declarations)
+      ...schemaResponsesFromPayload(declarations),
+      ...workspaceSchemaResponses
     });
     setForm((current) => ({
-      administrative: { ...current.administrative, ...administrative },
-      technical: { ...current.technical, ...technical },
+      administrative: { ...current.administrative, ...administrative, ...workspaceAdministrative },
+      technical: { ...current.technical, ...technical, ...workspaceTechnical },
       financial: {
         ...current.financial,
-        items: normalizePriceRows(financial.items, current.financial.items),
-        boqItems: normalizePriceRows(financial.boqItems, current.financial.boqItems),
-        fees: normalizePriceRows(financial.fees, current.financial.fees),
-        paymentTerms: String(financial.paymentTerms ?? current.financial.paymentTerms),
-        validityDays: String(financial.validityDays ?? current.financial.validityDays)
+        items: normalizePriceRows(workspaceFinancial.items ?? financial.items, current.financial.items),
+        boqItems: normalizePriceRows(workspaceFinancial.boqItems ?? financial.boqItems, current.financial.boqItems),
+        fees: normalizePriceRows(workspaceFinancial.fees ?? financial.fees, current.financial.fees),
+        paymentTerms: String(workspaceFinancial.paymentTerms ?? financial.paymentTerms ?? current.financial.paymentTerms),
+        validityDays: String(workspaceFinancial.validityDays ?? financial.validityDays ?? current.financial.validityDays)
       },
-      declarations: { ...current.declarations, ...declarations }
+      declarations: { ...current.declarations, ...declarations, ...workspaceDeclarations }
     }));
   }
 
   function draftPayload(): BidDraftPayload {
+    const administrative = schema ? schemaSectionPayload(schema, schemaResponses, 'administrative') : form.administrative;
     const technical = schema ? schemaSectionPayload(schema, schemaResponses, 'technical') : backendTechnicalPayload(workflow, form.technical);
     const responses = schema ? schemaResponseList(schema, schemaResponses) : responseList(workflow, { ...form, technical });
     const financialItems = schema ? schemaFinancialRows(schema, schemaResponses) : form.financial.items.map(withTotal);
+    const financial = {
+      items: financialItems,
+      boqItems: schema && workflow === 'works' ? financialItems : form.financial.boqItems.map(withTotal),
+      fees: schema && workflow === 'consultancy' ? financialItems : form.financial.fees.map(withTotal),
+      paymentTerms: schema ? String(schemaResponses['financial.paymentTerms'] ?? '') : form.financial.paymentTerms,
+      validityDays: schema ? String(schemaResponses['financial.validityDays'] ?? '') : form.financial.validityDays
+    };
+    const declarations = schema ? schemaSectionPayload(schema, schemaResponses, 'declarations') : form.declarations;
     const draftDocuments = documents.map(bidDocumentInputFromDto);
     return {
       workflowType: workflow,
       workflowVersion: WORKFLOW_VERSION,
-      administrative: schema ? schemaSectionPayload(schema, schemaResponses, 'administrative') : form.administrative,
+      administrative,
       technical,
-      financial: {
-        items: financialItems,
-        boqItems: schema && workflow === 'works' ? financialItems : form.financial.boqItems.map(withTotal),
-        fees: schema && workflow === 'consultancy' ? financialItems : form.financial.fees.map(withTotal),
-        paymentTerms: schema ? String(schemaResponses['financial.paymentTerms'] ?? '') : form.financial.paymentTerms,
-        validityDays: schema ? String(schemaResponses['financial.validityDays'] ?? '') : form.financial.validityDays
-      },
-      declarations: schema ? schemaSectionPayload(schema, schemaResponses, 'declarations') : form.declarations,
+      financial,
+      declarations,
       responses,
       documents: draftDocuments,
       fileManifest: { documentCount: documents.length, checksums: documents.map((document) => document.checksum).filter(Boolean) },
       envelopes: envelopeManifest(workflow, documents),
       reviewReadiness: { issues: validationIssues, totalAmount, generatedAt: new Date().toISOString() },
+      workspaceState: reactWorkspaceState({
+        activeStep,
+        completeness,
+        currency: tender?.currency || 'TZS',
+        documents: draftDocuments,
+        form,
+        samples,
+        schemaResponses,
+        tenderId,
+        totalAmount,
+        validationIssues,
+        workflow
+      }),
       totalAmount,
       currency: tender?.currency || 'TZS',
       completeness,
@@ -5183,10 +5207,42 @@ function stepBadge(stepId: string, issues: string[], documents: BidDocumentState
   return issues.length ? 'In progress' : 'Ready';
 }
 
+function reactWorkspaceState(input: {
+  activeStep: number;
+  completeness: { percent: number; sectionsComplete: number; totalSections: number };
+  currency: string;
+  documents: BidDocumentInput[];
+  form: BidFormState;
+  samples: BidSampleDto[];
+  schemaResponses: SchemaResponseState;
+  tenderId: string | null;
+  totalAmount: number;
+  validationIssues: string[];
+  workflow: WorkflowType;
+}): Record<string, unknown> {
+  return {
+    source: 'react-bidding-workspace',
+    workflowType: input.workflow,
+    workflowVersion: WORKFLOW_VERSION,
+    tenderId: input.tenderId,
+    activeStep: input.activeStep,
+    schemaResponses: input.schemaResponses,
+    form: input.form,
+    documents: input.documents,
+    samples: input.samples,
+    totalAmount: input.totalAmount,
+    currency: input.currency,
+    completeness: input.completeness,
+    validationIssues: input.validationIssues,
+    updatedAt: new Date().toISOString()
+  };
+}
+
 function bidDocumentInputFromDto(document: BidDocumentState): BidDocumentInput {
   const metadata = objectPayload(document.metadata);
   const size = Number(metadata.size);
   return {
+    documentId: document.documentId,
     name: document.name,
     documentType: document.documentType,
     envelope: coerceEnvelope(document.envelope),

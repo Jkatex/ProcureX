@@ -6,43 +6,33 @@
     const fallbackGetMyTenderRows = window.getProcurexMyTenderRows;
     const fallbackGetMyBidRows = window.getProcurexMyBidRows;
     const fallbackTenderOwnership = window.isProcurexTenderOwnedByCurrentUser;
-    const fallbackGetCurrentAccount = window.getProcurexCurrentAccount;
 
-    const state = sanitizeMarketplaceState(window.procurexMarketplaceState);
+    const emptyPayload = () => ({
+        tenders: [],
+        myTenders: [],
+        myBids: [],
+        summary: null
+    });
+
+    const state = window.procurexMarketplaceState || {
+        loading: false,
+        error: null,
+        payload: emptyPayload(),
+        loadedAt: null,
+        requestId: 0
+    };
+
+    state.payload = sanitizeMarketplacePayload(state.payload);
     window.procurexMarketplaceState = state;
-
-    let latestRequestId = 0;
-    let hasBackendData = false;
-    const savingTenderIds = new Set();
 
     function sanitizeMarketplacePayload(payload) {
         const source = payload && typeof payload === 'object' ? payload : {};
         return {
-            marketplaceTenders: Array.isArray(source.tenders) ? source.tenders : [],
-            myTenderRows: Array.isArray(source.myTenders) ? source.myTenders : [],
-            myBidRows: Array.isArray(source.myBids) ? source.myBids : [],
-            summary: source.summary && typeof source.summary === 'object' ? source.summary : {}
+            tenders: Array.isArray(source.tenders) ? source.tenders : [],
+            myTenders: Array.isArray(source.myTenders) ? source.myTenders : [],
+            myBids: Array.isArray(source.myBids) ? source.myBids : [],
+            summary: source.summary && typeof source.summary === 'object' ? source.summary : null
         };
-    }
-
-    function sanitizeMarketplaceState(source) {
-        const current = source && typeof source === 'object' ? source : {};
-        return {
-            marketplaceTenders: Array.isArray(current.marketplaceTenders) ? current.marketplaceTenders : [],
-            myTenderRows: Array.isArray(current.myTenderRows) ? current.myTenderRows : [],
-            myBidRows: Array.isArray(current.myBidRows) ? current.myBidRows : [],
-            summary: current.summary && typeof current.summary === 'object' ? current.summary : {},
-            loading: current.loading === true,
-            error: typeof current.error === 'string' ? current.error : null
-        };
-    }
-
-    function applyMarketplacePayload(payload) {
-        const sanitized = sanitizeMarketplacePayload(payload);
-        state.marketplaceTenders = sanitized.marketplaceTenders;
-        state.myTenderRows = sanitized.myTenderRows;
-        state.myBidRows = sanitized.myBidRows;
-        state.summary = sanitized.summary;
     }
 
     function getStoredAuthToken() {
@@ -81,10 +71,6 @@
         return search ? `${url}?${search}` : url;
     }
 
-    function buildTenderSaveUrl(tenderId = '') {
-        return `${getApiBaseUrl()}/api/procurement/tenders/${encodeURIComponent(tenderId)}/save`;
-    }
-
     function fallbackMarketplaceTenders() {
         if (typeof fallbackGetMarketplaceTenders === 'function') {
             return fallbackGetMarketplaceTenders();
@@ -105,6 +91,10 @@
         return typeof fallbackGetMyBidRows === 'function' ? fallbackGetMyBidRows() : [];
     }
 
+    function shouldUsePayload() {
+        return Boolean(state.loadedAt);
+    }
+
     function dispatchMarketplaceEvent(name, detail = {}) {
         window.dispatchEvent(new CustomEvent(name, {
             detail: {
@@ -114,111 +104,17 @@
         }));
     }
 
-    function notifyUser(message = '', tone = 'info') {
-        if (!message) return;
-        if (typeof window.app?.showNotification === 'function') {
-            window.app.showNotification(message, { tone });
-            return;
-        }
-        if (typeof window.alert === 'function') {
-            window.alert(message);
-        }
-    }
-
-    function navigateToSignIn() {
-        if (typeof window.app?.navigateTo === 'function') {
-            window.app.navigateTo('sign-in');
-            return;
-        }
-        const url = new URL(window.location.href);
-        url.searchParams.set('page', 'sign-in');
-        window.location.href = url.toString();
-    }
-
-    function createUserNotifiedError(message = 'Sign in to save tenders.') {
-        const error = new Error(message);
-        error.userNotified = true;
-        return error;
-    }
-
-    function requireAuthToken() {
-        const token = getStoredAuthToken();
-        if (token) return token;
-        notifyUser('Sign in to save tenders to your watchlist.', 'warning');
-        navigateToSignIn();
-        throw createUserNotifiedError();
-    }
-
     function rerenderMarketplacePage() {
         const page = window.app?.currentPage || '';
-        if (!['marketplace', 'supplier-marketplace', 'guest-marketplace', 'tender-detail'].includes(page)) return;
+        if (!['marketplace', 'supplier-marketplace', 'guest-marketplace'].includes(page)) return;
         if (typeof window.app?.renderPage === 'function') {
             window.app.renderPage();
         }
     }
 
-    function normalizeTenderId(value = '') {
-        return String(value || '').trim();
-    }
-
-    function tenderMatchesId(tender = {}, tenderId = '') {
-        const target = normalizeTenderId(tenderId);
-        return [tender.id, tender.tenderId, tender.reference]
-            .map(normalizeTenderId)
-            .some(value => value && value === target);
-    }
-
-    function updateTenderSavedFlag(tender = {}, tenderId = '', isSaved = false) {
-        if (!tender || typeof tender !== 'object') return tender;
-        if (!tenderMatchesId(tender, tenderId)) return tender;
-        return { ...tender, isSaved };
-    }
-
-    function applyTenderSavedState(tenderId = '', isSaved = false) {
-        state.marketplaceTenders = state.marketplaceTenders.map(tender => updateTenderSavedFlag(tender, tenderId, isSaved));
-        state.myTenderRows = state.myTenderRows.map(row => ({
-            ...row,
-            tender: updateTenderSavedFlag(row.tender, tenderId, isSaved)
-        }));
-        state.myBidRows = state.myBidRows.map(row => ({
-            ...row,
-            tender: updateTenderSavedFlag(row.tender, tenderId, isSaved)
-        }));
-
-        dispatchMarketplaceEvent('procurex:marketplace-data', {
-            state,
-            tenderId,
-            isSaved
-        });
-        rerenderMarketplacePage();
-    }
-
-    async function readResponseBody(response) {
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-            try {
-                return await response.json();
-            } catch (error) {
-                return {};
-            }
-        }
-        try {
-            return { message: await response.text() };
-        } catch (error) {
-            return {};
-        }
-    }
-
-    function getResponseMessage(payload = {}, fallback = 'Unable to update saved tender.') {
-        if (typeof payload.message === 'string' && payload.message.trim()) return payload.message.trim();
-        if (typeof payload.error === 'string' && payload.error.trim()) return payload.error.trim();
-        if (Array.isArray(payload.errors) && payload.errors[0]?.message) return String(payload.errors[0].message);
-        return fallback;
-    }
-
     async function refreshProcurexMarketplaceData(options = {}) {
-        const requestId = latestRequestId + 1;
-        latestRequestId = requestId;
+        const requestId = state.requestId + 1;
+        state.requestId = requestId;
         state.loading = true;
         state.error = null;
         dispatchMarketplaceEvent('procurex:marketplace-loading', { requestId });
@@ -237,37 +133,37 @@
                 throw new Error(`Marketplace request failed with status ${response.status}.`);
             }
 
-            const payload = await response.json();
-            if (latestRequestId !== requestId) return state;
+            const payload = sanitizeMarketplacePayload(await response.json());
+            if (state.requestId !== requestId) return state;
 
-            applyMarketplacePayload(payload);
-            hasBackendData = true;
+            state.payload = payload;
             state.loading = false;
             state.error = null;
-            dispatchMarketplaceEvent('procurex:marketplace-data', { requestId, payload, state });
+            state.loadedAt = new Date().toISOString();
+            dispatchMarketplaceEvent('procurex:marketplace-data', { requestId, payload });
             rerenderMarketplacePage();
             return state;
         } catch (error) {
-            if (latestRequestId !== requestId) return state;
+            if (state.requestId !== requestId) return state;
 
             state.loading = false;
             state.error = error instanceof Error ? error.message : 'Unable to load marketplace data.';
-            dispatchMarketplaceEvent('procurex:marketplace-error', { requestId, error: state.error, state });
+            dispatchMarketplaceEvent('procurex:marketplace-error', { requestId, error: state.error });
             rerenderMarketplacePage();
             return state;
         }
     }
 
     function getProcurexMarketplaceTenders() {
-        return hasBackendData ? state.marketplaceTenders : fallbackMarketplaceTenders();
+        return shouldUsePayload() ? state.payload.tenders : fallbackMarketplaceTenders();
     }
 
     function getProcurexMyTenderRows() {
-        return hasBackendData ? state.myTenderRows : fallbackMyTenderRowsValue();
+        return shouldUsePayload() ? state.payload.myTenders : fallbackMyTenderRowsValue();
     }
 
     function getProcurexMyBidRows() {
-        return hasBackendData ? state.myBidRows : fallbackMyBidRowsValue();
+        return shouldUsePayload() ? state.payload.myBids : fallbackMyBidRowsValue();
     }
 
     function isProcurexTenderOwnedByCurrentUser(tender = {}) {
@@ -277,90 +173,13 @@
         return typeof fallbackTenderOwnership === 'function' ? fallbackTenderOwnership(tender) : false;
     }
 
-    function getProcurexCurrentAccount() {
-        return typeof fallbackGetCurrentAccount === 'function' ? fallbackGetCurrentAccount() || {} : {};
-    }
-
-    async function toggleProcurexTenderSave(tenderId = '', shouldSave = true) {
-        const normalizedTenderId = normalizeTenderId(tenderId);
-        if (!normalizedTenderId) {
-            throw new Error('Tender id is required before saving.');
-        }
-
-        if (savingTenderIds.has(normalizedTenderId)) {
-            throw new Error('This tender save request is already in progress.');
-        }
-
-        const token = requireAuthToken();
-        savingTenderIds.add(normalizedTenderId);
-        dispatchMarketplaceEvent('procurex:marketplace-save-loading', {
-            tenderId: normalizedTenderId,
-            isSaved: shouldSave
-        });
-
-        try {
-            const response = await fetch(buildTenderSaveUrl(normalizedTenderId), {
-                method: shouldSave ? 'POST' : 'DELETE',
-                headers: {
-                    Accept: 'application/json',
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            const payload = await readResponseBody(response);
-
-            if (!response.ok) {
-                throw new Error(getResponseMessage(payload));
-            }
-
-            applyTenderSavedState(normalizedTenderId, shouldSave);
-            notifyUser(shouldSave ? 'Tender saved.' : 'Tender removed from saved tenders.', 'success');
-            return {
-                success: true,
-                isSaved: shouldSave,
-                tenderId: normalizedTenderId,
-                payload
-            };
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unable to update saved tender.';
-            state.error = message;
-            dispatchMarketplaceEvent('procurex:marketplace-error', {
-                tenderId: normalizedTenderId,
-                error: message,
-                state
-            });
-            notifyUser(message, 'error');
-            const forwarded = error instanceof Error ? error : new Error(message);
-            forwarded.userNotified = true;
-            throw forwarded;
-        } finally {
-            savingTenderIds.delete(normalizedTenderId);
-        }
-    }
-
-    function saveProcurexTender(tenderId = '') {
-        return toggleProcurexTenderSave(tenderId, true);
-    }
-
-    function unsaveProcurexTender(tenderId = '') {
-        return toggleProcurexTenderSave(tenderId, false);
-    }
-
-    function exposeMarketplaceGlobals() {
-        window.refreshProcurexMarketplaceData = refreshProcurexMarketplaceData;
-        window.getProcurexMarketplaceTenders = getProcurexMarketplaceTenders;
-        window.getProcurexMyTenderRows = getProcurexMyTenderRows;
-        window.getProcurexMyBidRows = getProcurexMyBidRows;
-        window.isProcurexTenderOwnedByCurrentUser = isProcurexTenderOwnedByCurrentUser;
-        window.getProcurexCurrentAccount = getProcurexCurrentAccount;
-        window.saveProcurexTender = saveProcurexTender;
-        window.unsaveProcurexTender = unsaveProcurexTender;
-        window.toggleProcurexTenderSave = toggleProcurexTenderSave;
-    }
-
-    exposeMarketplaceGlobals();
+    window.refreshProcurexMarketplaceData = refreshProcurexMarketplaceData;
+    window.getProcurexMarketplaceTenders = getProcurexMarketplaceTenders;
+    window.getProcurexMyTenderRows = getProcurexMyTenderRows;
+    window.getProcurexMyBidRows = getProcurexMyBidRows;
+    window.isProcurexTenderOwnedByCurrentUser = isProcurexTenderOwnedByCurrentUser;
 
     document.addEventListener('DOMContentLoaded', () => {
-        exposeMarketplaceGlobals();
         refreshProcurexMarketplaceData();
     });
 })();

@@ -26,7 +26,6 @@
     "contact": "Contact",
     "dashboard": "Dashboard",
     "identity": "Registration and Verification",
-    "tenderPlanning": "Tender Planning",
     "procurement": "Procurement",
     "bidding": "Bidding",
     "evaluation": "Evaluation",
@@ -71,10 +70,6 @@
         "title": "Registration and Verification",
         "description": "Account and identity verification"
       },
-      "tenderPlanning": {
-        "title": "Procurement Planning",
-        "description": "APP, SPP, budgets, approvals"
-      },
       "procurement": {
         "title": "Procurement",
         "description": "Marketplace, create tender, bid"
@@ -100,7 +95,7 @@
   "launcher": {
     "kicker": "Welcome to ProcureX",
     "title": "{{name}}, choose where to start.",
-    "body": "Your workspace is ready and starts clean. Procurement activity, messages, records, and audit trails will appear after this account begins real platform work.",
+    "body": "Your workspace is ready. Procurement activity, messages, records, and audit trails will appear as your team works in ProcureX.",
     "verificationNeeded": "Verification needed",
     "noActivity": "No activity yet",
     "continueToDashboard": "Continue to Dashboard",
@@ -115,9 +110,6 @@
     "apps": {
       "accountProfile": {
         "description": "Review identity, profile, and organization details."
-      },
-      "tenderPlanning": {
-        "description": "Create plan lines before preparing tenders."
       },
       "procurement": {
         "description": "Browse opportunities or create your first tender."
@@ -145,7 +137,7 @@
       "firstRunKicker": "First run dashboard",
       "welcome": "Welcome,",
       "liveBody": "Your procurement work, messages, deadlines, and compliance actions are summarized from live ProcureX records.",
-      "firstRunBody": "This dashboard will fill with procurement work, messages, deadlines, and compliance actions as your team starts using ProcureX."
+      "firstRunBody": "Your dashboard will show procurement work, messages, deadlines, and compliance actions as your team uses ProcureX."
     },
     "actions": {
       "viewMarketplace": "View marketplace",
@@ -212,10 +204,6 @@
     "tryOtherApps": "Try other apps",
     "allWorkspaceApps": "All workspace apps",
     "startActions": {
-      "plan": {
-        "title": "Create your first procurement plan",
-        "description": "Set up the annual plan before tenders move into publication."
-      },
       "message": {
         "title": "Send your first platform message",
         "description": "Use the mailbox for procurement questions, clarifications, and notices."
@@ -226,10 +214,6 @@
       }
     },
     "otherActions": {
-      "createPlan": {
-        "title": "Create plan",
-        "description": "Build or upload procurement plan lines."
-      },
       "createMessage": {
         "title": "Create message",
         "description": "Open communication, clarifications, and notices."
@@ -304,10 +288,6 @@
     "dashboard": {
       "title": "Workspace Dashboard",
       "subtitle": "Track active tenders, bids, communications, evaluations, awards, deadlines, and records."
-    },
-    "tenderPlanning": {
-      "title": "Tender Planning",
-      "subtitle": "Manage APP, SPP, budget confirmation, approvals, planning reports, and Tender/RFQ handoff before award and contract."
     },
     "procurementGuide": {
       "title": "Procurement Process Guide",
@@ -411,7 +391,8 @@
       "body": "ProcureX is a modern e-procurement marketplace built to make procurement simple, fair, secure, and accessible for everyone.",
       "support": "Create tenders, discover tenders, and build a procurement record today.",
       "primaryCta": "Get Started",
-      "secondaryCta": "Browse Open Tenders"
+      "secondaryCta": "Browse Open Tenders",
+      "demoCta": "View Demo"
     },
     "preview": {
       "title": "ProcureX Marketplace",
@@ -726,7 +707,7 @@
     "cookie": {
       "ariaLabel": "Cookie notice",
       "message": "ProcureX uses essential browser storage for sign-in, language, security checks, and service reliability. See our",
-      "shortMessage": "ProcureX uses local storage and essential cookies to keep sessions, preferences, and demo workflows working.",
+      "shortMessage": "ProcureX uses browser storage and essential cookies to keep sessions, preferences, and core workflows working.",
       "accept": "Accept"
     }
   },
@@ -784,7 +765,7 @@
       "missing": "Complete the security check before continuing.",
       "missingSignIn": "Complete the security check before signing in.",
       "notConfigured": "Security check is not configured.",
-      "localDevelopment": "Local development security check is active.",
+      "localDevelopment": "Security check is active.",
       "ariaLabel": "Security check"
     },
     "register": {
@@ -879,10 +860,10 @@
         "submit": "Sign In",
         "submitting": "Signing in...",
         "demo": {
-          "title": "Demo account",
-          "body": "Use the seeded verified user for local walkthroughs.",
-          "button": "Sign in as demo user",
-          "securityHint": "Open the local demo workspace"
+          "title": "Test account",
+          "body": "Use a prepared account for internal testing.",
+          "button": "Sign in with test account",
+          "securityHint": "Open the prepared workspace"
         },
         "note": ""
       },
@@ -961,8 +942,7 @@
       "lockedUntilClosing": "Locked Until Closing"
     },
     "actions": {
-      "createTender": "Create Tender",
-      "viewTenderPlanning": "View Tender Planning"
+      "createTender": "Create Tender"
     },
     "records": {
       "kicker": "Evaluation records",
@@ -1205,8 +1185,7 @@
       "kicker": "Record sources",
       "title": "Create the first record source",
       "createTender": "Create Tender",
-      "viewMarketplace": "View Marketplace",
-      "createPlan": "Create Plan"
+      "viewMarketplace": "View Marketplace"
     },
     "labels": {
       "notAvailable": "Not available",

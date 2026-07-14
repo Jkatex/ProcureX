@@ -1,7 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import fs from 'node:fs';
-import path from 'node:path';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
@@ -15,7 +13,6 @@ vi.mock('@/shared/api/http', () => ({
 }));
 
 const apiGet = vi.mocked(apiClient.get);
-const rawPrototypeDemoPath = '/procurex-ui/index.html?page=sign-in';
 
 function renderWelcome() {
   return render(
@@ -66,11 +63,7 @@ describe('WelcomeProcurexPage', () => {
     expect(screen.getAllByRole('button', { name: 'Get Started' })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Browse Open Tenders' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Browse Open Tenders' })[0]).toHaveAttribute('href', '/guest-marketplace');
-    expect(document.querySelector('.welcome-nav-actions-v2')).not.toHaveTextContent('View demo');
-    expect(screen.getAllByRole('link', { name: 'View demo' })).toHaveLength(2);
-    screen.getAllByRole('link', { name: 'View demo' }).forEach((link) => {
-      expect(link).toHaveAttribute('href', rawPrototypeDemoPath);
-    });
+    expect(screen.getByRole('link', { name: 'View Demo' })).toHaveAttribute('href', '/procurex-ui/index.html?demo=1');
 
     expect(await screen.findByText('PX-WRK-2026-001')).toBeInTheDocument();
     expect(screen.getByText('Construction of community water wells')).toBeInTheDocument();
@@ -88,15 +81,6 @@ describe('WelcomeProcurexPage', () => {
     expect(screen.getByText('PX-OPEN-2026')).toBeInTheDocument();
     expect(screen.getByText('12 open tenders visible now.')).toBeInTheDocument();
     expect(screen.getByText('98.4% Completion Rate')).toBeInTheDocument();
-  });
-
-  it('serves the raw ProcureX UI prototype from the public demo path', () => {
-    const prototypeIndex = path.resolve(process.cwd(), 'public/procurex-ui/index.html');
-    const prototypeSignIn = path.resolve(process.cwd(), 'public/procurex-ui/pages/sign-in.js');
-
-    expect(fs.existsSync(prototypeIndex)).toBe(true);
-    expect(fs.existsSync(prototypeSignIn)).toBe(true);
-    expect(fs.readFileSync(prototypeSignIn, 'utf8')).toContain('demo@procurex.tz');
   });
 
   it('opens and closes the mobile navigation with accessible links', async () => {

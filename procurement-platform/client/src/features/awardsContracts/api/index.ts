@@ -1,5 +1,14 @@
 import { apiClient } from '@/shared/api/http';
-import type { AwardContractDashboard, AwardContractSampleDashboard, AwardContractSampleDto, AwardDecisionDraftInput, AwardRecommendationDetailDto, ContractDetailDto } from '../types';
+import type {
+  AwardContractDashboard,
+  AwardContractDocumentDto,
+  AwardContractDocumentUploadInput,
+  AwardContractSampleDashboard,
+  AwardContractSampleDto,
+  AwardDecisionDraftInput,
+  AwardRecommendationDetailDto,
+  ContractDetailDto
+} from '../types';
 
 const emptyDashboard: AwardContractDashboard = {
   summary: {
@@ -26,6 +35,15 @@ export const awardsContractsApi = {
   async contract(contractId: string) {
     if (import.meta.env.MODE === 'test') throw new Error(`No test contract fixture for ${contractId}.`);
     const response = await apiClient.get<ContractDetailDto>(`/api/award-contract/contracts/${contractId}`);
+    return response.data;
+  },
+  async contractDocuments(contractId: string) {
+    if (import.meta.env.MODE === 'test') return [] satisfies AwardContractDocumentDto[];
+    const response = await apiClient.get<AwardContractDocumentDto[]>(`/api/award-contract/contracts/${contractId}/documents`);
+    return response.data;
+  },
+  async uploadContractDocument(contractId: string, payload: AwardContractDocumentUploadInput) {
+    const response = await apiClient.post<AwardContractDocumentDto>(`/api/award-contract/contracts/${contractId}/documents`, payload);
     return response.data;
   },
   async recommendation(recommendationId: string) {
@@ -145,6 +163,14 @@ export const awardsContractsApi = {
   },
   async respondToNotice(noticeId: string, action: 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE', note = '', payload: Record<string, unknown> = {}, signatureKeyphrase = '') {
     const response = await apiClient.post(`/api/award-contract/notices/${noticeId}/respond`, { action, note, payload, ...(signatureKeyphrase ? { signatureKeyphrase } : {}) });
+    return response.data;
+  },
+  async cancelAwardNotice(noticeId: string, reason: string, payload: Record<string, unknown> = {}) {
+    const response = await apiClient.post<AwardRecommendationDetailDto>(`/api/award-contract/notices/${noticeId}/cancel`, { reason, payload });
+    return response.data;
+  },
+  async reissueAwardNotice(noticeId: string, reason: string, payload: Record<string, unknown> = {}) {
+    const response = await apiClient.post<AwardRecommendationDetailDto>(`/api/award-contract/notices/${noticeId}/reissue`, { reason, payload });
     return response.data;
   },
   async saveDraft(contractId: string, payload: Record<string, unknown>) {

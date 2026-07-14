@@ -23,8 +23,8 @@ import type {
   ReadyEvaluationTender
 } from '@/features/evaluation/types';
 import { useNotifications } from '@/features/notifications/hooks';
-import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
 import { NotificationCard } from '@/shared/components/NotificationCard';
+import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 
 type ScoreDraft = { score: string; comment: string; decision?: string };
@@ -415,7 +415,7 @@ export function BidEvaluationProcurexPage() {
         onCancel={() => setShowCompletionSignature(false)}
         onConfirm={(signatureKeyphrase) => void saveWorkspace(true, signatureKeyphrase)}
       />
-      <PlanningTopBar title="Evaluation" onNavigate={navigateToPage} />
+      <WorkspaceTopBar title="Evaluation" onNavigate={navigateToPage} />
       <div className="main-layout procurement-layout evaluation-app-layout">
         <aside className="sidebar evaluation-sidebar">
           <div className="evaluation-sidebar-head">
@@ -2489,7 +2489,6 @@ const decisionOptions: EvaluationDecisionStatus[] = ['PENDING', 'PASSED', 'FAILE
 
 const pageToRoute = {
   'create-tender': '/procurement/tenders/new',
-  'tender-planning': '/tender-planning',
   'bid-evaluation': '/evaluation',
   'award-recommendation': '/awards-contracts',
   'workspace-dashboard': '/dashboard',

@@ -18,7 +18,6 @@ export const procurexPageRegistry = {
   'account-profile': lazy(() => import('@/features/identity/components/procurex/AccountProfileProcurexPage').then((module) => ({ default: module.AccountProfileProcurexPage }))),
   'app-launcher': lazy(() => import('@/features/workspace/components/procurex/AppLauncherProcurexPage').then((module) => ({ default: module.AppLauncherProcurexPage }))),
   'workspace-dashboard': lazy(() => import('@/features/workspace/components/procurex/WorkspaceDashboardProcurexPage').then((module) => ({ default: module.WorkspaceDashboardProcurexPage }))),
-  'tender-planning': lazy(() => import('@/features/tenderPlanning/components/procurex/TenderPlanningProcurexPage').then((module) => ({ default: module.TenderPlanningProcurexPage }))),
   'marketplace': lazy(() => import('@/features/procurement/components/procurex/MarketplaceProcurexPage').then((module) => ({ default: module.MarketplaceProcurexPage }))),
   'create-tender': lazy(() => import('@/features/procurement/components/procurex/CreateTenderProcurexPage').then((module) => ({ default: module.CreateTenderProcurexPage }))),
   'tender-publication': lazy(() => import('@/features/procurement/components/procurex/TenderPublicationProcurexPage').then((module) => ({ default: module.TenderPublicationProcurexPage }))),

@@ -96,6 +96,16 @@ export const contractQuerySchema = z
   })
   .strict();
 
+export const contractDocumentUploadBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(240),
+    documentType: z.string().trim().min(1).max(120).optional(),
+    mimeType: z.string().trim().min(1).max(160).optional(),
+    size: z.coerce.number().int().nonnegative().optional(),
+    contentBase64: z.string().trim().max(20_000_000).optional()
+  })
+  .strict();
+
 export const awardDecisionBodySchema = z
   .object({
     selectedSupplier: z.string().trim().max(240).optional(),
@@ -134,6 +144,22 @@ export const awardNoticeResponseBodySchema = z
       });
     }
   });
+
+export const awardNoticeCancelBodySchema = z
+  .object({
+    reason: nonEmptyText.max(4000),
+    payload: jsonObjectSchema.optional().default({})
+  })
+  .strict();
+
+export const awardNoticeReissueBodySchema = z
+  .object({
+    supplierOrgId: uuidSchema.optional(),
+    bidId: uuidSchema.optional(),
+    reason: nonEmptyText.max(4000),
+    payload: jsonObjectSchema.optional().default({})
+  })
+  .strict();
 
 export const contractVersionBodySchema = z
   .object({

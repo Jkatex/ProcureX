@@ -29,7 +29,7 @@ export function DataTable<T>({ columns, rows, getRowKey }: DataTableProps<T>) {
           ) : (
             <tr>
               <td colSpan={columns.length}>
-                <div className="scope-empty">No records yet. Real activity will appear here after users start working.</div>
+                <div className="scope-empty">No records yet. Activity will appear here after users start working.</div>
               </td>
             </tr>
           )}

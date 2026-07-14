@@ -3701,6 +3701,14 @@ textarea.form-input {
     transition: width 160ms ease;
 }
 
+.communication-attachment-loading-note {
+    display: block;
+    width: 100%;
+    color: var(--primary-blue);
+    font-size: 13px;
+    font-weight: 800;
+}
+
 .communication-attachment-item button {
     min-height: 24px;
     border: 0;
@@ -8882,6 +8890,7 @@ ul.closure-checklist {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    width: 100%;
 }
 
 .supplier-detail-actions .btn {
@@ -15529,6 +15538,32 @@ ul.closure-checklist {
     display: grid;
     align-content: start;
     min-width: 0;
+}
+
+.procurement-tender-list.market-list .market-row .market-row-title-text {
+    font-size: 20px;
+    line-height: 1.25;
+    font-weight: 900;
+}
+
+.procurement-tender-list.market-list .market-row .market-row-detail-line {
+    font-size: 17px;
+    line-height: 1.45;
+    font-weight: 400;
+}
+
+.procurement-tender-list.market-list .market-row .market-row-summary-text {
+    font-size: 15px;
+    line-height: 1.45;
+    font-weight: 400;
+}
+
+.procurement-tender-list.market-list .market-row .market-row-meta,
+.procurement-tender-list.market-list .market-row .market-row-meta span {
+    font-size: 14px;
+    line-height: 1.35;
+    font-style: normal;
+    font-weight: 400;
 }
 
 .procurement-tender-list.market-list .market-row .tender-row-actions {
@@ -27982,6 +28017,38 @@ fieldset.award-form-field {
     margin-top: 16px;
 }
 
+.post-award-work-chooser .award-simple-details[open] {
+    border-color: color-mix(in srgb, var(--design-primary, #2563eb) 34%, var(--award-form-line));
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.post-award-work-chooser .award-simple-detail-action {
+    align-items: flex-start;
+}
+
+.post-award-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 10px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+}
+
+.post-award-subnav .tab {
+    min-height: 34px;
+}
+
+.awarding-next-actions-panel .panel-heading p {
+    max-width: 760px;
+}
+
+.awarding-next-actions-panel .evaluation-table-scroll {
+    margin-top: 12px;
+}
+
 .award-source-document-list,
 .award-bid-document-list {
     display: grid;
@@ -28073,6 +28140,81 @@ fieldset.award-form-field {
 
 .award-action-inline-row.selected .award-action-form-inline {
     border-top: 1px solid var(--award-form-line);
+}
+
+.post-award-contract-chooser .data-table {
+    margin-top: 12px;
+}
+
+.post-award-next-actions {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+}
+
+.post-award-next-actions .panel-heading {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.post-award-action-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.post-award-action-card {
+    display: grid;
+    gap: 6px;
+    min-height: 116px;
+    padding: 12px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.post-award-action-card:hover,
+.post-award-action-card:focus-visible {
+    border-color: color-mix(in srgb, var(--design-primary, #2563eb) 45%, var(--award-form-line));
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+    outline: none;
+}
+
+.post-award-action-card span {
+    color: var(--design-primary, #2563eb);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.post-award-action-card strong {
+    font-size: 14px;
+}
+
+.post-award-action-card em {
+    color: var(--text-secondary);
+    font-style: normal;
+    line-height: 1.45;
+}
+
+.award-document-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.award-document-actions .btn.disabled {
+    opacity: 0.62;
+    pointer-events: none;
 }
 
 @media (max-width: 720px) {
@@ -29877,7 +30019,8 @@ body[data-page="admin-audit"] {
 }
 
 .guest-topbar-actions,
-.guest-hero-actions {
+.guest-hero-actions,
+.guest-hero-auth-panel {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -29887,14 +30030,50 @@ body[data-page="admin-audit"] {
 
 .guest-market-hero.marketplace-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 24px;
-    align-items: end;
+    grid-template-columns: minmax(0, 0.58fr) minmax(280px, 0.42fr) !important;
+    gap: clamp(24px, 5vw, 56px);
+    align-items: center;
 }
 
-.guest-market-hero .guest-hero-actions {
+.guest-hero-copy {
+    display: grid;
+    justify-items: center;
+    max-width: 660px;
+    text-align: center;
+}
+
+.guest-hero-auth-panel .btn {
+    width: fit-content;
+}
+
+.guest-market-hero.marketplace-hero .guest-hero-copy h2,
+.guest-market-hero.marketplace-hero .guest-hero-copy p {
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+.guest-hero-auth-panel {
     position: relative;
     z-index: 1;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 12px;
+    min-height: 190px;
+    text-align: center;
+}
+
+.guest-hero-auth-panel p {
+    width: min(100%, 260px);
+    margin: 0 !important;
+    color: var(--design-ink-deep) !important;
+    font-size: 15px !important;
+    line-height: 1.45 !important;
+}
+
+.guest-hero-auth-panel a:not(.btn) {
+    color: var(--design-primary-deep);
+    font-weight: 800;
 }
 
 .guest-search-panel-v2.procurement-search-panel {
@@ -29904,13 +30083,22 @@ body[data-page="admin-audit"] {
     background: #ffffff !important;
 }
 
+.guest-marketplace-v2 .marketplace-category-grid,
 .guest-category-grid.marketplace-category-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     margin: 0;
 }
 
 .guest-market-summary.procurement-market-summary {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    justify-self: center;
+}
+
+.guest-market-summary .kpi-card {
+    display: grid;
+    justify-items: center;
+    text-align: center;
 }
 
 .guest-list-panel.procurement-list-panel,
@@ -29972,6 +30160,47 @@ body[data-page="admin-audit"] {
     color: var(--design-primary-deep);
 }
 
+.guest-final-cta-panel {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    padding: clamp(28px, 5vw, 42px);
+    border: 1px solid var(--px-line-soft);
+    border-radius: var(--px-card-radius-sm);
+    background: #ffffff;
+    text-align: center;
+}
+
+.guest-final-cta-panel strong {
+    color: var(--design-ink-deep);
+    font-size: clamp(20px, 3vw, 28px);
+    line-height: 1.25;
+}
+
+.guest-final-cta-panel a {
+    color: var(--design-primary-deep);
+    font-size: 17px;
+    font-weight: 900;
+}
+
+.marketplace-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.marketplace-pagination-status {
+    min-width: 112px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 800;
+    text-align: center;
+    text-transform: lowercase;
+}
+
 @media (max-width: 1080px) {
     .guest-market-hero.marketplace-hero,
     .guest-search-panel-v2.procurement-search-panel,
@@ -29983,7 +30212,7 @@ body[data-page="admin-audit"] {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .guest-hero-actions {
+    .guest-hero-auth-panel {
         justify-content: flex-start;
     }
 }
@@ -29995,14 +30224,16 @@ body[data-page="admin-audit"] {
     }
 
     .guest-topbar-actions,
-    .guest-hero-actions {
+    .guest-hero-auth-panel {
         width: 100%;
+        justify-items: stretch;
         justify-content: stretch;
     }
 
     .guest-topbar-actions .btn,
-    .guest-hero-actions .btn {
+    .guest-hero-auth-panel .btn {
         flex: 1 1 140px;
+        width: 100%;
     }
 
     .guest-market-summary.procurement-market-summary,

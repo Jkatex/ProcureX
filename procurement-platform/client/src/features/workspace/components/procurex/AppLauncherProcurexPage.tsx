@@ -2,12 +2,11 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
-import { AppMenuIcon } from '@/features/tenderPlanning/components/procurex/icons';
-import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
+import { AppMenuIcon } from '@/shared/components/procurex/PlatformAppsDrawer';
+import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 
 type LauncherRouteKey =
   | 'account-profile'
-  | 'tender-planning'
   | 'marketplace'
   | 'communication-center'
   | 'bid-evaluation'
@@ -18,7 +17,6 @@ type LauncherRouteKey =
 
 const pageToRoute: Record<LauncherRouteKey, string> = {
   'account-profile': '/identity/profile',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'communication-center': '/communication',
   'bid-evaluation': '/evaluation',
@@ -36,14 +34,6 @@ const apps = [
     badgeKey: 'launcher.badges.verified',
     titleKey: 'platformApps.items.accountProfile.title',
     descriptionKey: 'launcher.apps.accountProfile.description'
-  },
-  {
-    className: 'app-tone-procurement',
-    page: 'tender-planning',
-    icon: 'planning',
-    badgeKey: 'launcher.badges.startHere',
-    titleKey: 'platformApps.items.tenderPlanning.title',
-    descriptionKey: 'launcher.apps.tenderPlanning.description'
   },
   {
     className: 'app-tone-procurement',
@@ -112,7 +102,7 @@ export function AppLauncherProcurexPage() {
 
   return (
     <>
-      <PlanningTopBar title={t('pages.launcher.title')} onNavigate={navigateToPage} />
+      <WorkspaceTopBar title={t('pages.launcher.title')} onNavigate={navigateToPage} />
       <div className="workspace-home launcher-intro-page">
         <main className="workspace-shell launcher-shell">
           <section className="launcher-intro-hero">

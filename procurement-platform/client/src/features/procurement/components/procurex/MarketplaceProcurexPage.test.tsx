@@ -51,7 +51,7 @@ describe('MarketplaceProcurexPage', () => {
     const drawer = screen.getByText('ProcureX Apps').closest<HTMLElement>('[data-app-menu]');
     expect(appsButton).toHaveAttribute('aria-expanded', 'true');
     expect(drawer).toHaveClass('open');
-    expect(within(drawer!).getByText('Procurement Planning')).toBeInTheDocument();
+    expect(within(drawer!).queryByText('Procurement Planning')).not.toBeInTheDocument();
 
     await user.click(within(drawer!).getByRole('button', { name: /Communication Center Messages, clarifications, alerts/i }));
 
@@ -99,7 +99,7 @@ describe('MarketplaceProcurexPage', () => {
       myBids: []
     } satisfies MarketplacePayload);
 
-    renderMarketplace();
+    renderMarketplace('/procurement/marketplace?view=all-tenders');
 
     expect(await screen.findByText('Active Marketplace Tender')).toBeInTheDocument();
     expect(screen.queryByText('Expired Marketplace Tender')).not.toBeInTheDocument();
@@ -197,6 +197,57 @@ describe('MarketplaceProcurexPage', () => {
     const recommendedRows = await screen.findAllByRole('article');
     expect(within(recommendedRows[0]).getByText('Construction of District Maternal Health Wing')).toBeInTheDocument();
     expect(within(recommendedRows[1]).getByText('Supply of Hospital Diagnostic Equipment')).toBeInTheDocument();
+  });
+
+  it('paginates Recommended and All Tenders after 20 rows', async () => {
+    const user = userEvent.setup();
+    const tenders = Array.from({ length: 25 }, (_, index) =>
+      marketplaceTender({
+        id: `pagination-tender-${index + 1}`,
+        reference: `PX-PAGE-${String(index + 1).padStart(3, '0')}`,
+        title: `Pagination Tender ${String(index + 1).padStart(2, '0')}`,
+        closingDate: futureDate(index + 1)
+      })
+    );
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders,
+      recommendedTenders: tenders,
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    const { unmount } = renderMarketplace('/procurement/marketplace');
+
+    expect(await screen.findByText('Pagination Tender 01')).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(20);
+    expect(screen.getByText('page 1 of 2')).toBeInTheDocument();
+    expect(screen.queryByText('Pagination Tender 21')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'next >' }));
+
+    expect(await screen.findByText('Pagination Tender 21')).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(5);
+    expect(screen.getByText('page 2 of 2')).toBeInTheDocument();
+
+    unmount();
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders,
+      recommendedTenders: tenders,
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=all-tenders');
+
+    expect(await screen.findByText('Pagination Tender 01')).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(20);
+    expect(screen.getByText('page 1 of 2')).toBeInTheDocument();
+    expect(screen.queryByText('Pagination Tender 21')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'next >' }));
+
+    expect(await screen.findByText('Pagination Tender 21')).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(5);
   });
 
   it('selects all tenders and workspace from route paths', async () => {
@@ -302,6 +353,29 @@ describe('MarketplaceProcurexPage', () => {
     expect(screen.queryByText('Recommended Invited Tender')).not.toBeInTheDocument();
   });
 
+  it('does not fall back to all published tenders when the backend has no recommendations', async () => {
+    const user = userEvent.setup();
+    const publicTender = marketplaceTender({
+      id: 'not-recommended-public',
+      reference: 'PX-NOT-REC',
+      title: 'Published But Not Recommended Tender'
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [publicTender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace');
+
+    expect(await screen.findByText('No relevant recommended tenders right now.')).toBeInTheDocument();
+    expect(screen.queryByText('Published But Not Recommended Tender')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'All Tenders' }));
+
+    expect(await screen.findByText('Published But Not Recommended Tender')).toBeInTheDocument();
+  });
+
   it('uses buyer-safe actions for owned tenders', async () => {
     renderMarketplace();
 
@@ -366,6 +440,31 @@ describe('MarketplaceProcurexPage', () => {
     expect(within(tenderRow!).queryByRole('button', { name: /^Bid$/i })).not.toBeInTheDocument();
   });
 
+  it('marks future-opening public tenders as upcoming and disables bidding', async () => {
+    const upcomingTender = marketplaceTender({
+      id: 'upcoming-public-tender',
+      reference: 'PX-UPCOMING-001',
+      title: 'Upcoming Public Tender',
+      openingDate: futureDate(2),
+      closingDate: futureDate(12),
+      canBid: true
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [upcomingTender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=all-tenders');
+
+    expect(await screen.findByText('Upcoming Public Tender')).toBeInTheDocument();
+    const tenderRow = screen.getByText('Upcoming Public Tender').closest('article');
+
+    expect(within(tenderRow!).getByText('Upcoming')).toBeInTheDocument();
+    expect(within(tenderRow!).getByRole('button', { name: /^Bid$/i })).toBeDisabled();
+    expect(within(tenderRow!).queryByRole('link', { name: /^Bid$/i })).not.toBeInTheDocument();
+  });
+
   it('shows only public open marketplace tenders in All Tenders', async () => {
     vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
       tenders: [
@@ -421,7 +520,7 @@ describe('MarketplaceProcurexPage', () => {
       myTenders: [],
       myBids: []
     } satisfies MarketplacePayload);
-    renderMarketplace();
+    renderMarketplace('/procurement/marketplace?view=all-tenders');
 
     await screen.findByText('Save Only Tender');
     const tenderRow = screen.getByText('Save Only Tender').closest('article');
@@ -682,6 +781,7 @@ describe('MarketplaceProcurexPage', () => {
 
     vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
       tenders: [tender],
+      recommendedTenders: [tender],
       myTenders: [],
       myBids: []
     } satisfies MarketplacePayload);
@@ -725,18 +825,21 @@ function marketplaceTender(overrides: Partial<MarketplaceTenderRow> = {}): Marke
 }
 
 function defaultMarketplacePayload(): MarketplacePayload {
+  const tenders = fixtureTenders.map((tender): MarketplaceTenderRow => ({
+    ...tender,
+    ownerOrganization: tender.organization,
+    ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
+    canBid: !tender.createdByCurrentUser && !tender.hasSubmittedBid,
+    hasDraftBid: Boolean(tender.hasDraftBid),
+    hasSubmittedBid: Boolean(tender.hasSubmittedBid),
+    isSaved: Boolean(tender.isSaved),
+    visibility: tender.visibility ?? 'PUBLIC_MARKETPLACE',
+    categories: tender.categories.length ? tender.categories : [tender.type]
+  }));
+
   return {
-    tenders: fixtureTenders.map((tender): MarketplaceTenderRow => ({
-      ...tender,
-      ownerOrganization: tender.organization,
-      ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
-      canBid: !tender.createdByCurrentUser && !tender.hasSubmittedBid,
-      hasDraftBid: Boolean(tender.hasDraftBid),
-      hasSubmittedBid: Boolean(tender.hasSubmittedBid),
-      isSaved: Boolean(tender.isSaved),
-      visibility: tender.visibility ?? 'PUBLIC_MARKETPLACE',
-      categories: tender.categories.length ? tender.categories : [tender.type]
-    })),
+    tenders,
+    recommendedTenders: tenders,
     myTenders: [],
     myBids: []
   };

@@ -71,7 +71,6 @@ export function SupplierTenderDetailProcurexPage() {
           <div className="journey-page supplier-tender-detail-page" data-supplier-tender-detail data-tender-id={tender.id}>
             <section className="journey-hero compact">
               <div>
-                <span className="badge badge-success">{formatStatus(tender.status)}</span>
                 <h1>{tender.title}</h1>
                 <p>{tender.organization}. Review the full tender, save it for later, ask clarifications, then start the bid only when ready.</p>
               </div>
@@ -91,7 +90,7 @@ export function SupplierTenderDetailProcurexPage() {
                 </div>
                 <div className="supplier-detail-action-row">
                   <button className="btn btn-secondary" type="button" disabled={tender.ownedByCurrentOrganization}>{tender.isSaved ? 'Saved' : 'Save Tender'}</button>
-                  <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask Buyer</Link>
+                  <Link className="btn btn-secondary" to={clarificationComposeUrl(tender)}>Ask for Clarification</Link>
                 </div>
               </div>
             </section>

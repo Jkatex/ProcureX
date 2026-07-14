@@ -35,6 +35,7 @@ describe('procurementApi runtime data access', () => {
             category: 'Medical Equipment',
             status: 'Open',
             budget: 250000000,
+            openingDate: '2026-08-01',
             closingDate: '2026-08-30',
             location: 'Dar es Salaam',
             description: 'Diagnostic equipment package',
@@ -73,6 +74,7 @@ describe('procurementApi runtime data access', () => {
       category: 'Medical Equipment',
       categories: ['Medical Equipment'],
       currency: 'TZS',
+      openingDate: '2026-08-01',
       isSaved: true
     });
     expect(result.recommendedTenders?.[0]).toMatchObject({
@@ -80,6 +82,39 @@ describe('procurementApi runtime data access', () => {
       visibility: 'INVITED',
       categories: ['Maintenance']
     });
+  });
+
+  it('does not synthesize recommendations from all marketplace tenders when the backend omits recommendations', async () => {
+    vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
+      data: {
+        tenders: [
+          {
+            id: 'tender-1',
+            reference: 'PX-2026-001',
+            title: 'Supply of unrelated furniture',
+            organization: 'Buyer',
+            ownerOrganization: 'Buyer',
+            type: 'Goods',
+            category: 'Furniture',
+            status: 'Open',
+            budget: 1000000,
+            closingDate: '2026-08-30',
+            location: 'Dar es Salaam',
+            description: 'Office furniture package',
+            createdByCurrentUser: false
+          }
+        ],
+        myTenders: [],
+        myBids: [],
+        summary: {},
+        pagination: { page: 1, limit: 20, matching: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false }
+      }
+    });
+
+    const result = await procurementApi.getMarketplace();
+
+    expect(result.tenders).toHaveLength(1);
+    expect(result.recommendedTenders).toEqual([]);
   });
 
   it('normalizes backend tender detail category before detail pages render it', async () => {

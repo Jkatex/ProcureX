@@ -110,6 +110,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     );
     expect(savedPayload.documents).toEqual([
       expect.objectContaining({
+        documentId: 'doc-1',
         name: 'technical.pdf',
         documentType: 'TECHNICAL_PRODUCT_BROCHURES',
         envelope: 'TECHNICAL',
@@ -117,6 +118,15 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
         metadata: expect.objectContaining({ requirementKey: 'goods-technical', storage: 'local-dev' })
       })
     ]);
+    expect(savedPayload.workspaceState).toEqual(
+      expect.objectContaining({
+        source: 'react-bidding-workspace',
+        workflowType: 'goods',
+        documents: [expect.objectContaining({ documentId: 'doc-1', name: 'technical.pdf' })],
+        form: expect.any(Object),
+        schemaResponses: expect.any(Object)
+      })
+    );
     expect(savedPayload.documents[0]).not.toBeInstanceOf(File);
   });
 

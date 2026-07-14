@@ -510,6 +510,18 @@ export type AwardNoticeResponseInput = {
   signatureKeyphrase?: string;
 };
 
+export type AwardNoticeCancelInput = {
+  reason: string;
+  payload: Record<string, unknown>;
+};
+
+export type AwardNoticeReissueInput = {
+  supplierOrgId?: string;
+  bidId?: string;
+  reason: string;
+  payload: Record<string, unknown>;
+};
+
 export type ContractVersionInput = {
   documentId?: string;
   payload: Record<string, unknown>;
@@ -543,6 +555,23 @@ export type ContractMilestonePatchInput = Partial<ContractMilestoneInput> & {
 export type ContractMilestoneEvidenceInput = {
   documentId: string;
   note: string;
+};
+
+export type AwardContractDocumentDto = {
+  id: string;
+  name: string;
+  documentType: string;
+  createdAt: string;
+  contentUrl: string;
+  sourceLabel: string;
+};
+
+export type AwardContractDocumentUploadInput = {
+  name: string;
+  documentType?: string;
+  mimeType?: string;
+  size?: number;
+  contentBase64?: string;
 };
 
 export type ContractStatusPatchInput = {

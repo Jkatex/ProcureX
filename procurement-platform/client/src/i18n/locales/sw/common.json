@@ -26,7 +26,6 @@
     "contact": "Mawasiliano",
     "dashboard": "Dashibodi",
     "identity": "Usajili na Uthibitishaji",
-    "tenderPlanning": "Mipango ya Zabuni",
     "procurement": "Ununuzi",
     "bidding": "Uandaaji Zabuni",
     "evaluation": "Tathmini",
@@ -71,10 +70,6 @@
         "title": "Usajili na Uthibitishaji",
         "description": "Akaunti na uthibitishaji wa utambulisho"
       },
-      "tenderPlanning": {
-        "title": "Mipango ya Ununuzi",
-        "description": "APP, SPP, bajeti, idhini"
-      },
       "procurement": {
         "title": "Ununuzi",
         "description": "Soko, tengeneza zabuni, wasilisha zabuni"
@@ -115,9 +110,6 @@
     "apps": {
       "accountProfile": {
         "description": "Hakiki utambulisho, wasifu, na taarifa za shirika."
-      },
-      "tenderPlanning": {
-        "description": "Tengeneza mistari ya mpango kabla ya kuandaa zabuni."
       },
       "procurement": {
         "description": "Tazama fursa au tengeneza zabuni yako ya kwanza."
@@ -212,10 +204,6 @@
     "tryOtherApps": "Jaribu programu nyingine",
     "allWorkspaceApps": "Programu zote za eneo la kazi",
     "startActions": {
-      "plan": {
-        "title": "Tengeneza mpango wako wa kwanza wa ununuzi",
-        "description": "Sanidi mpango wa mwaka kabla ya zabuni kwenda kwenye uchapishaji."
-      },
       "message": {
         "title": "Tuma ujumbe wako wa kwanza wa jukwaa",
         "description": "Tumia kisanduku cha ujumbe kwa maswali ya ununuzi, ufafanuzi, na taarifa."
@@ -226,10 +214,6 @@
       }
     },
     "otherActions": {
-      "createPlan": {
-        "title": "Tengeneza mpango",
-        "description": "Jenga au pakia mistari ya mpango wa ununuzi."
-      },
       "createMessage": {
         "title": "Tengeneza ujumbe",
         "description": "Fungua mawasiliano, ufafanuzi, na taarifa."
@@ -304,10 +288,6 @@
     "dashboard": {
       "title": "Dashibodi ya Kazi",
       "subtitle": "Fuatilia zabuni hai, zabuni ulizowasilisha, mawasiliano, tathmini, tuzo, muda wa mwisho, na kumbukumbu."
-    },
-    "tenderPlanning": {
-      "title": "Mipango ya Zabuni",
-      "subtitle": "Simamia APP, SPP, uthibitisho wa bajeti, idhini, ripoti za mipango, na uhamishaji kwenda Tender/RFQ kabla ya tuzo na mkataba."
     },
     "procurementGuide": {
       "title": "Mwongozo wa Mchakato wa Ununuzi",
@@ -411,7 +391,8 @@
       "body": "ProcureX ni soko la kisasa la ununuzi mtandaoni lililojengwa kufanya ununuzi uwe rahisi, wa haki, salama, na unaopatikana kwa wote.",
       "support": "Tengeneza zabuni, gundua zabuni, na jenga kumbukumbu ya ununuzi leo.",
       "primaryCta": "Anza Sasa",
-      "secondaryCta": "Tazama Zabuni Zilizo Wazi"
+      "secondaryCta": "Tazama Zabuni Zilizo Wazi",
+      "demoCta": "Tazama Demo"
     },
     "preview": {
       "title": "Soko la ProcureX",
@@ -726,7 +707,7 @@
     "cookie": {
       "ariaLabel": "Taarifa ya vidakuzi",
       "message": "ProcureX hutumia hifadhi muhimu ya kivinjari kwa kuingia, lugha, ukaguzi wa usalama, na kutegemewa kwa huduma. Tazama",
-      "shortMessage": "ProcureX hutumia hifadhi ya ndani na vidakuzi muhimu ili kuweka vikao, mapendeleo, na mitiririko ya onyesho ikifanya kazi.",
+      "shortMessage": "ProcureX hutumia hifadhi ya kivinjari na vidakuzi muhimu ili kuweka vikao, mapendeleo, na mitiririko muhimu ikifanya kazi.",
       "accept": "Kubali"
     }
   },
@@ -784,7 +765,7 @@
       "missing": "Kamilisha ukaguzi wa usalama kabla ya kuendelea.",
       "missingSignIn": "Kamilisha ukaguzi wa usalama kabla ya kuingia.",
       "notConfigured": "Ukaguzi wa usalama haujasanidiwa.",
-      "localDevelopment": "Ukaguzi wa usalama wa mazingira ya ndani umewezeshwa.",
+      "localDevelopment": "Ukaguzi wa usalama umewezeshwa.",
       "ariaLabel": "Ukaguzi wa usalama"
     },
     "register": {
@@ -879,10 +860,10 @@
         "submit": "Ingia",
         "submitting": "Inaingia...",
         "demo": {
-          "title": "Akaunti ya onyesho",
-          "body": "Tumia mtumiaji aliyethibitishwa wa seed kwa majaribio ya ndani.",
-          "button": "Ingia kama mtumiaji wa onyesho",
-          "securityHint": "Fungua eneo la kazi la onyesho la ndani"
+          "title": "Akaunti ya majaribio",
+          "body": "Tumia akaunti iliyoandaliwa kwa majaribio ya ndani.",
+          "button": "Ingia kwa akaunti ya majaribio",
+          "securityHint": "Fungua eneo la kazi lililoandaliwa"
         },
         "note": ""
       },
@@ -961,8 +942,7 @@
       "lockedUntilClosing": "Zilizofungwa Hadi Kufungwa"
     },
     "actions": {
-      "createTender": "Tengeneza Zabuni",
-      "viewTenderPlanning": "Tazama Mpango wa Zabuni"
+      "createTender": "Tengeneza Zabuni"
     },
     "records": {
       "kicker": "Rekodi za tathmini",
@@ -1205,8 +1185,7 @@
       "kicker": "Vyanzo vya kumbukumbu",
       "title": "Tengeneza chanzo cha kwanza cha kumbukumbu",
       "createTender": "Tengeneza Zabuni",
-      "viewMarketplace": "Tazama Soko",
-      "createPlan": "Tengeneza Mpango"
+      "viewMarketplace": "Tazama Soko"
     },
     "labels": {
       "notAvailable": "Haipatikani",

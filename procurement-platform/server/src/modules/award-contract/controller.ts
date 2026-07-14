@@ -6,6 +6,8 @@ import {
   awardApprovalRouteBodySchema,
   awardApprovalStepBodySchema,
   awardNotificationBodySchema,
+  awardNoticeCancelBodySchema,
+  awardNoticeReissueBodySchema,
   awardNoticeResponseBodySchema,
   awardSettlementBodySchema,
   awardTieBreakerBodySchema,
@@ -15,6 +17,7 @@ import {
   clauseBodySchema,
   contractChangeRequestBodySchema,
   contractCommencementBodySchema,
+  contractDocumentUploadBodySchema,
   contractPaymentBodySchema,
   contractManagementPlanBodySchema,
   contractPenaltyBodySchema,
@@ -473,6 +476,30 @@ export class ModuleController {
     }
   };
 
+  cancelAwardNotice: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award notice id.');
+      const body = awardNoticeCancelBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award notice cancellation payload.');
+      res.json(await this.service.cancelAwardNotice(params.data.id, body.data, await this.requirePermissionContext(req, 'award.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reissueAwardNotice: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid award notice id.');
+      const body = awardNoticeReissueBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid award notice reissue payload.');
+      res.json(await this.service.reissueAwardNotice(params.data.id, body.data, await this.requirePermissionContext(req, 'award.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   listContracts: RequestHandler = async (req, res, next) => {
     try {
       const query = contractQuerySchema.safeParse(req.query);
@@ -498,6 +525,28 @@ export class ModuleController {
       const params = idParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid contract id.');
       res.json(await this.service.contract(params.data.id, await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  contractDocuments: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      res.json(await this.service.contractDocuments(params.data.id, await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  uploadContractDocument: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      const body = contractDocumentUploadBodySchema.safeParse(req.body);
+      if (!body.success) throw requestError('Invalid contract document upload payload.');
+      res.status(201).json(await this.service.uploadContractDocument(params.data.id, body.data, await this.requirePermissionContext(req, 'contract.track')));
     } catch (error) {
       next(error);
     }

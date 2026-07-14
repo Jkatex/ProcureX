@@ -48,6 +48,14 @@ vi.mock('html2pdf.js', () => ({
   default: html2PdfMock.factory
 }));
 
+const defaultSubmissionDeadline = dateDaysFromNow(37);
+const defaultOpeningDate = dateDaysFromNow(38);
+
+function dateDaysFromNow(days: number) {
+  const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
+
 function renderCreateTender(route = '/procurement/create-tender') {
   return render(
     <Provider store={store}>
@@ -82,9 +90,9 @@ async function fillBasicStep(user: ReturnType<typeof userEvent.setup>, title = '
   fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: title } });
   await user.selectOptions(screen.getByLabelText('Funding source'), 'Government budget');
   fireEvent.change(screen.getByLabelText('Delivery Point'), { target: { value: 'Dodoma' } });
-  fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
+  fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: defaultSubmissionDeadline } });
   fireEvent.change(screen.getByLabelText('Estimated budget'), { target: { value: '250000000' } });
-  fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-21' } });
+  fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: defaultOpeningDate } });
   fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
 }
 
@@ -92,6 +100,18 @@ async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, cate
   await user.clear(screen.getByLabelText('Category'));
   await user.type(screen.getByLabelText('Category'), category);
   await user.click(await screen.findByRole('button', { name: category }));
+}
+
+async function completeMinimumGoodsRequirements(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+  await user.click(screen.getByRole('button', { name: 'Add Item' }));
+  await user.type(screen.getByLabelText('Item 1 description'), 'Laptop computer');
+  await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+  await user.type(screen.getByLabelText('Item 1 quantity'), '5');
+  await user.click(screen.getByRole('button', { name: 'Add Specification' }));
+  await user.type(screen.getByLabelText('Specification name'), 'Processor');
+  await user.type(screen.getByLabelText('Specific detail required'), 'Core i5 or above');
+  await user.click(screen.getByRole('button', { name: 'Save Specification' }));
 }
 
 function emptyMarketplaceResponse() {
@@ -146,7 +166,7 @@ beforeEach(() => {
       status: 'Under Review',
       visibility: 'PRIVATE',
       publishedAt: '',
-      closingDate: '2026-08-20'
+      closingDate: defaultSubmissionDeadline
     },
     validation: { warnings: [], scannerIssues: [], standardizedCategories: ['Medical equipment'] }
   });
@@ -255,11 +275,12 @@ describe('CreateTenderProcurexPage', () => {
   it('keeps Submission deadline and Opening date independent', () => {
     renderCreateTender();
 
-    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-25' } });
-    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
+    const laterOpeningDate = dateDaysFromNow(42);
+    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: laterOpeningDate } });
+    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: defaultSubmissionDeadline } });
 
-    expect(screen.getByLabelText('Submission deadline')).toHaveValue('2026-08-20');
-    expect(screen.getByLabelText('Opening date')).toHaveValue('2026-08-25');
+    expect(screen.getByLabelText('Submission deadline')).toHaveValue(defaultSubmissionDeadline);
+    expect(screen.getByLabelText('Opening date')).toHaveValue(laterOpeningDate);
   });
 
   it('updates frontend-only contact verification badges', async () => {
@@ -282,7 +303,7 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
 
-    expect(screen.getByText('Please add the title, funding source, key dates, and one contact option before continuing.')).toBeInTheDocument();
+    expect(screen.getByText('Add a tender title with at least 5 characters before continuing.')).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: 'Basic Information' }).length).toBeGreaterThan(0);
 
     await fillBasicStep(user, 'Validated Basic Information Tender');
@@ -1281,8 +1302,8 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Supply of Solar Equipment')).toBeInTheDocument();
     expect(screen.getByText(/Procurement Officer/)).toBeInTheDocument();
     expect(screen.getByText('Dodoma')).toBeInTheDocument();
-    expect(screen.getByText('2026-08-20')).toBeInTheDocument();
-    expect(screen.getByText('2026-08-21')).toBeInTheDocument();
+    expect(screen.getByText(defaultSubmissionDeadline)).toBeInTheDocument();
+    expect(screen.getByText(defaultOpeningDate)).toBeInTheDocument();
     expect(screen.getByText(/Solar panels, inverters, mounting kits/)).toBeInTheDocument();
     expect(screen.getByText('Solar panel kit')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
@@ -1302,7 +1323,7 @@ describe('CreateTenderProcurexPage', () => {
       expect.objectContaining({
         title: 'Backend Saved Generator Tender',
         type: 'Goods',
-        closingDate: '2026-08-20',
+        closingDate: defaultSubmissionDeadline,
         location: 'Dodoma'
       })
     );
@@ -1397,8 +1418,8 @@ describe('CreateTenderProcurexPage', () => {
     fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: 'No Budget Publish Tender' } });
     await user.selectOptions(screen.getByLabelText('Funding source'), 'Government budget');
     fireEvent.change(screen.getByLabelText('Delivery Point'), { target: { value: 'Dodoma' } });
-    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: '2026-08-20' } });
-    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: '2026-08-21' } });
+    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: defaultSubmissionDeadline } });
+    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: defaultOpeningDate } });
     fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
     for (const checkbox of screen.getAllByRole('checkbox')) {
@@ -1412,6 +1433,66 @@ describe('CreateTenderProcurexPage', () => {
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
 
+  it('blocks review submission before backend calls when the title is too short', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Bad');
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+
+    expect(await screen.findByText('Add a tender title with at least 5 characters before submitting this tender for review.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Basic Information' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.updateTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
+  });
+
+  it('blocks review submission before backend calls when the submission deadline is not future dated', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Expired Closing Date Tender');
+    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: new Date().toISOString().slice(0, 10) } });
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+
+    expect(await screen.findByText('Select a submission deadline in the future before submitting this tender for review.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Basic Information' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.updateTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
+  });
+
+  it('blocks review submission before backend calls when goods requirements are incomplete', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Missing Goods Requirements Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+
+    expect(await screen.findByText('Add at least one goods quantity line before submitting this tender for review.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Quantity Schedule / BOQ' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.updateTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
+  });
+
   it('submit requires confirmations, then saves and sends the tender to admin review', async () => {
     const user = userEvent.setup();
     const download = mockBrowserDownload();
@@ -1420,6 +1501,7 @@ describe('CreateTenderProcurexPage', () => {
     await fillBasicStep(user, 'Published React Tender');
     await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
     await addDefaultCategory(user);
+    await completeMinimumGoodsRequirements(user);
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
 
     expect(screen.getByText('Review submission')).toBeInTheDocument();
@@ -1447,14 +1529,18 @@ describe('CreateTenderProcurexPage', () => {
       await user.click(checkbox);
     }
 
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    expect(await screen.findByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
 
     await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
-    expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
+    expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', { signatureKeyphrase: 'Signing123' });
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender was saved and sent to admin review.')).toBe(true);
-  });
+  }, 15000);
 
-  it('keeps backend review validation errors out of user feedback', async () => {
+  it('surfaces backend review validation errors in user feedback', async () => {
     procurementApiMock.publishTender.mockRejectedValueOnce({
       response: {
         data: {
@@ -1468,16 +1554,56 @@ describe('CreateTenderProcurexPage', () => {
     renderCreateTender();
 
     await fillBasicStep(user, 'Invalid Publish Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await completeMinimumGoodsRequirements(user);
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
     for (const checkbox of screen.getAllByRole('checkbox')) {
       await user.click(checkbox);
     }
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
 
-    expect(await screen.findByText('Tender could not be submitted for review.')).toBeInTheDocument();
-    expect(screen.queryByText('Tender requirements are required before publishing.')).not.toBeInTheDocument();
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender could not be submitted for review.')).toBe(true);
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(false);
+    expect(await screen.findByText('Tender requirements are required before publishing.')).toBeInTheDocument();
+    expect(screen.queryByText('Tender could not be submitted for review.')).not.toBeInTheDocument();
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
+  }, 15000);
+
+  it('formats backend draft validation errors before showing submission feedback', async () => {
+    procurementApiMock.createTender.mockRejectedValueOnce({
+      response: {
+        data: {
+          success: false,
+          message: 'Validation failed',
+          errors: [
+            { path: 'title', message: 'String must contain at least 5 character(s)', code: 'too_small' },
+            { path: 'closingDate', message: 'Closing date must be in the future.', code: 'custom' }
+          ]
+        }
+      }
+    });
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Backend Validation Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await completeMinimumGoodsRequirements(user);
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
+
+    expect(await screen.findByText('Tender title must contain at least 5 characters. Submission deadline must be in the future.')).toBeInTheDocument();
+    expect(screen.queryByText(/String must contain at least 5 character/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Closing date must be in the future.')).not.toBeInTheDocument();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
 
   it('blocks invited tender review submission while that method is unavailable', async () => {

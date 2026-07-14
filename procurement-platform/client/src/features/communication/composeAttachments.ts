@@ -20,7 +20,7 @@ export function createComposeAttachment(file: File, documentType: string): Compo
     id: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     name: file.name,
     size: file.size,
-    type: file.type,
+    type: file.type || mimeTypeForFileName(file.name),
     documentType,
     file,
     status: 'loading',
@@ -53,6 +53,23 @@ export async function toCommunicationAttachmentUpload(attachment: ComposeAttachm
     size: attachment.size,
     contentBase64: attachment.contentBase64
   };
+}
+
+function mimeTypeForFileName(name: string) {
+  const extension = name.includes('.') ? name.split('.').pop()?.trim().toLowerCase() : '';
+  if (!extension) return '';
+  const mimeTypes: Record<string, string> = {
+    csv: 'text/csv',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    pdf: 'application/pdf',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  };
+  return mimeTypes[extension] ?? '';
 }
 
 export function readComposeAttachmentContent(file: File, onProgress?: (progress: number) => void): Promise<string> {

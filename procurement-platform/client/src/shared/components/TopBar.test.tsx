@@ -27,7 +27,7 @@ vi.mock('@/features/auth/api', () => ({
     getSession: vi.fn().mockResolvedValue({
       user: {
         id: 'user-1',
-        displayName: 'Demo Verified User',
+        displayName: 'Verified User',
         email: 'demo@procurex.test',
         accountType: 'USER',
         organization: 'Company account tools',
@@ -69,7 +69,7 @@ function renderTopBar(userOverride?: SessionUser) {
     assumeUser(
       userOverride ?? {
         id: 'user-1',
-        displayName: 'Demo Verified User',
+        displayName: 'Verified User',
         email: 'demo@procurex.test',
         accountType: 'USER',
         organization: 'Company account tools',
@@ -123,7 +123,7 @@ describe('TopBar platform apps drawer', () => {
     expect(drawer).toHaveClass('open');
     expect(drawer).not.toBeNull();
     expect(within(drawer!).getByText('Registration and Verification')).toBeInTheDocument();
-    expect(within(drawer!).getByText('Procurement Planning')).toBeInTheDocument();
+    expect(within(drawer!).queryByText('Procurement Planning')).not.toBeInTheDocument();
     expect(within(drawer!).getByText('Procurement')).toBeInTheDocument();
     expect(within(drawer!).getByText('Communication Center')).toBeInTheDocument();
     expect(within(drawer!).getByText('Evaluation')).toBeInTheDocument();
@@ -174,7 +174,7 @@ describe('TopBar platform apps drawer', () => {
     renderTopBar();
 
     await user.click(screen.getByRole('button', { name: 'Open account menu' }));
-    expect(await screen.findByText('Demo Verified User')).toBeInTheDocument();
+    expect(await screen.findByText('Verified User')).toBeInTheDocument();
     await waitFor(() => expect(listMailbox).toHaveBeenCalledWith({ organizationId: 'org-1', folder: 'unread', page: 1, pageSize: 1 }));
 
     await user.click(screen.getByText('Profile'));

@@ -4622,7 +4622,7 @@ function renderBidEvaluationWorkspace(reference = '') {
                 <div>
                     <span class="section-kicker">No submissions</span>
                     <h1>${escapeEvaluationHtml(tender.title)}</h1>
-                    <p>No supplier bid package is available for this tender in the current demo data or browser submission store.</p>
+                    <p>No supplier bid package is available for this tender yet.</p>
                 </div>
                 <div class="evaluation-hero-stats">
                     <div><strong>${escapeEvaluationHtml(profile.id)}</strong><span>Procurement type</span></div>

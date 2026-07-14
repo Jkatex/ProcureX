@@ -84,16 +84,16 @@ describe('AuthAlert', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Msimbo wa uthibitishaji si sahihi.');
   });
 
-  it('keeps temporary code notifications visible longer than the default duration', () => {
+  it('keeps verification code notifications visible longer than the default duration', () => {
     vi.useFakeTimers();
-    render(<AuthAlert message={authAlertText('Temporary phone verification code: 123456', 'info', 30_000)} />);
+    render(<AuthAlert message={authAlertText('Phone verification code: 123456', 'info', 30_000)} />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Temporary phone verification code: 123456');
+    expect(screen.getByRole('status')).toHaveTextContent('Phone verification code: 123456');
 
     act(() => {
       vi.advanceTimersByTime(6_500);
     });
-    expect(screen.getByRole('status')).toHaveTextContent('Temporary phone verification code: 123456');
+    expect(screen.getByRole('status')).toHaveTextContent('Phone verification code: 123456');
 
     act(() => {
       vi.advanceTimersByTime(23_500);
@@ -101,13 +101,13 @@ describe('AuthAlert', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('maps temporary code alerts to long-lived floating toast notifications', () => {
-    const notification = authAlertToNotification(authAlertText('Temporary phone verification code: 123456', 'info', 30_000), i18n.t);
+  it('maps verification code alerts to long-lived floating toast notifications', () => {
+    const notification = authAlertToNotification(authAlertText('Phone verification code: 123456', 'info', 30_000), i18n.t);
 
     expect(notification).toMatchObject({
       tone: 'info',
       title: 'Information',
-      message: 'Temporary phone verification code: 123456',
+      message: 'Phone verification code: 123456',
       dismissible: true,
       autoDismissMs: 30_000
     });

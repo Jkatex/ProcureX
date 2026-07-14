@@ -279,12 +279,12 @@ function renderContractNegotiation() {
     return `
         <div class="main-layout procurement-layout evaluation-app-layout contract-page" data-award-contract-workspace data-award-current-step="${escapeContractNegotiationHtml(draft.currentStep || 'draft-contract')}" data-award-tender-id="${escapeContractNegotiationHtml(draft.tenderId || tender.id || '')}">
             <aside class="sidebar evaluation-sidebar">
-                <div class="evaluation-sidebar-head"><h3>Contracts in Progress</h3><span>Contract #${escapeContractNegotiationHtml(contract.contractId || 'Draft')}</span></div>
+                <div class="evaluation-sidebar-head"><h3>Contract Negotiation</h3><span>Contract #${escapeContractNegotiationHtml(contract.contractId || 'Draft')}</span></div>
                 <ul class="sidebar-nav">
                     ${renderContractQueueNavLink('My Urgent Actions', 'my-urgent-actions')}
                     ${renderContractQueueNavLink('Awarding in Progress', 'awarding-in-progress')}
                     ${renderContractQueueNavLink('Awards Received', 'awards-received')}
-                    ${renderContractQueueNavLink('Contracts in Progress', 'contracts-in-progress', true)}
+                    ${renderContractQueueNavLink('Contract Negotiation', 'contracts-in-progress', true)}
                     ${renderContractQueueNavLink('Active Contracts', 'active-contracts')}
                     ${renderContractQueueNavLink('Closed Contracts', 'closed-contracts')}
                     <li><a href="#" data-award-guard-navigate data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
@@ -295,7 +295,7 @@ function renderContractNegotiation() {
             <main class="main-content procurement-content contract-negotiation-workspace">
                 <section class="procurement-hero evaluation-hero-panel award-hero-panel">
                     <div>
-                        <span class="section-kicker">Contracts in Progress</span>
+                        <span class="section-kicker">Contract Negotiation</span>
                         <h1>${escapeContractNegotiationHtml(contract.title || 'Contract finalization')}</h1>
                         <p>Negotiate selected contract terms and clauses after award acceptance and before signing. Locked tender and evaluation fields cannot be reopened.</p>
                     </div>

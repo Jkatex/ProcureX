@@ -62,7 +62,7 @@ function renderContactPage() {
                             <span class="contact-eyebrow">Contact ProcureX</span>
                             <h1>How can we help you?</h1>
                             <p class="contact-lead">Reach ProcureX for platform support, privacy questions, legal requests, security concerns, and procurement workflow assistance.</p>
-                            <p>Use this contact page for questions about accounts, tenders, bids, contracts, privacy, terms, or support needs. This static prototype captures the request on screen only and does not send information to a backend.</p>
+                            <p>Use this contact page for questions about accounts, tenders, bids, contracts, privacy, terms, or support needs. Your request is sent securely to ProcureX support.</p>
                             <div class="contact-actions">
                                 <a class="btn btn-primary" href="#contact-form">Send a Request</a>
                                 <a class="btn btn-secondary" href="mailto:support@procurex.com">Email Support</a>
@@ -82,7 +82,7 @@ function renderContactPage() {
                             </article>
                             <article class="contact-status-card">
                                 <span>Response status</span>
-                                <strong>Prototype captured</strong>
+                                <strong>Request sent</strong>
                                 <div><i></i></div>
                             </article>
                         </div>

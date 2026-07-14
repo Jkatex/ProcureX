@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { awardsContractsApi } from '../../api';
-import type { ContractDetailDto, ContractLifecycleItemDto } from '../../types';
+import type {
+  AwardContractDashboard,
+  AwardContractDocumentDto,
+  AwardContractDocumentUploadInput,
+  ContractDetailDto,
+  ContractLifecycleItemDto,
+  LifecycleAction,
+  PickerOption
+} from '../../types';
 import {
   ActionFormPanel,
   contractStatusOptions,
@@ -36,9 +44,39 @@ function getContractId(search: string) {
 
 type PostAwardGroupId = 'cmp' | 'delivery' | 'inspections' | 'payments' | 'risk' | 'changes' | 'termination' | 'warranty' | 'closeout' | 'performance' | 'registers';
 const postAwardFlowStepIds = ['cmp', 'delivery', 'inspections', 'payments', 'risk', 'changes', 'termination', 'warranty', 'closeout', 'performance', 'registers'] as const;
+type PostAwardSectionId = typeof postAwardFlowStepIds[number];
+type PostAwardWorkGroupId = 'setup' | 'delivery' | 'finance' | 'risk-changes' | 'closeout-performance';
+
+const postAwardWorkGroups: Array<{
+  id: PostAwardWorkGroupId;
+  label: string;
+  description: string;
+  sectionIds: PostAwardSectionId[];
+}> = [
+  { id: 'setup', label: 'Setup', description: 'Contract management plan (CMP), commencement, required documents, securities, and reference samples.', sectionIds: ['cmp', 'warranty'] },
+  { id: 'delivery', label: 'Delivery', description: 'Mobilization, milestones, deliverables, inspections, and acceptances.', sectionIds: ['delivery', 'inspections'] },
+  { id: 'finance', label: 'Finance', description: 'Purchase orders, invoices, payment approvals, payments, and penalties.', sectionIds: ['payments'] },
+  { id: 'risk-changes', label: 'Risk & Changes', description: 'Risks, non-conformance, variations, issues, disputes, and termination.', sectionIds: ['risk', 'changes', 'termination'] },
+  { id: 'closeout-performance', label: 'Close-out & Performance', description: 'Warranty/defects, close-out, supplier performance, and saved history.', sectionIds: ['closeout', 'performance', 'registers'] }
+];
 
 function asRecords(items: Array<Record<string, unknown>> | ContractLifecycleItemDto[] | undefined) {
   return (items ?? []) as Array<Record<string, unknown>>;
+}
+
+function workGroupForSection(sectionId: PostAwardSectionId) {
+  return postAwardWorkGroups.find((group) => group.sectionIds.includes(sectionId)) ?? postAwardWorkGroups[0];
+}
+
+function sectionDisplayTitle(section: WorkflowSection<PostAwardSectionId>) {
+  if (section.id === 'cmp') return 'Contract management plan (CMP)';
+  if (section.id === 'inspections') return 'Inspections and acceptance';
+  if (section.id === 'payments') return 'Finance records';
+  if (section.id === 'risk') return 'Risks and non-conformance';
+  if (section.id === 'changes') return 'Changes, issues, and disputes';
+  if (section.id === 'warranty') return 'Documents, securities, and warranty';
+  if (section.id === 'registers') return 'Saved history';
+  return section.label;
 }
 
 function driverLines(value: unknown) {
@@ -54,11 +92,142 @@ function driverLines(value: unknown) {
     .join('\n');
 }
 
+function dateLabel(value?: string | null) {
+  if (!value) return 'Not dated';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+}
+
+function documentOptions(documents: AwardContractDocumentDto[]): PickerOption[] {
+  return [
+    { value: '', label: 'Upload or choose a document', description: 'Attach evidence before submitting this form' },
+    ...documents.map((document) => ({
+      value: document.id,
+      label: document.name,
+      description: `${document.sourceLabel} | ${document.documentType} | ${dateLabel(document.createdAt)}`,
+      status: document.sourceLabel
+    }))
+  ];
+}
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result ?? '');
+      resolve(value.includes(',') ? value.split(',').pop() ?? '' : value);
+    };
+    reader.onerror = () => reject(new Error('File could not be read.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function contractChooserRows(dashboard: AwardContractDashboard | null) {
+  return [
+    ...(dashboard?.queues['active-contracts'] ?? []),
+    ...(dashboard?.queues['closed-contracts'] ?? [])
+  ].filter((row) => row.contractId);
+}
+
+function recommendedPostAwardActions(contract: ContractDetailDto, sections: Array<WorkflowSection<PostAwardSectionId>>) {
+  const actions: Array<{ step: PostAwardSectionId; title: string; detail: string; priority: string }> = [];
+  if (!contract.managementPlan) actions.push({ step: 'cmp', title: 'Create contract management plan', detail: 'Define monitoring, reporting, and communication before execution records grow.', priority: 'High' });
+  if (contract.milestones.length === 0) actions.push({ step: 'cmp', title: 'Create first milestone', detail: 'Milestones drive delivery evidence, inspections, payment schedules, and close-out.', priority: 'High' });
+  if (contract.milestones.length > 0 && (contract.deliverables?.length ?? 0) === 0) actions.push({ step: 'delivery', title: 'Record deliverable', detail: 'Capture the supplier delivery against the active milestone.', priority: 'Medium' });
+  if ((contract.deliverables?.length ?? 0) > 0 && contract.inspections.length === 0 && (contract.goodsInspections?.length ?? 0) === 0) actions.push({ step: 'inspections', title: 'Inspect and accept delivery', detail: 'Record inspection results before payment review.', priority: 'Medium' });
+  if ((contract.invoices?.length ?? 0) > 0 && (contract.paymentConfirmations?.length ?? 0) === 0) actions.push({ step: 'payments', title: 'Review payment evidence', detail: 'Match invoice, approval, and payment confirmation records.', priority: 'Medium' });
+  if (contract.risks.length > 0) actions.push({ step: 'risk', title: 'Update open risk', detail: 'Keep mitigation and ownership current while the contract is active.', priority: 'Medium' });
+  if (contract.status === 'COMPLETED' && !contract.closeout) actions.push({ step: 'closeout', title: 'Prepare close-out', detail: 'Complete final account, completion certificate, and lessons learned.', priority: 'High' });
+  if ((contract.supplierPerformanceRecords.length ?? 0) === 0) actions.push({ step: 'performance', title: 'Score supplier performance', detail: 'Capture delivery, quality, cost, and compliance performance.', priority: 'Low' });
+
+  if (actions.length === 0) {
+    const busiest = [...sections].sort((left, right) => (right.count ?? 0) - (left.count ?? 0))[0];
+    return [{ step: (busiest?.id ?? 'registers') as PostAwardSectionId, title: 'Review saved history', detail: 'All core post-award records are available for review.', priority: 'Info' }];
+  }
+  return actions.slice(0, 4);
+}
+
+function PostAwardContractChooser({
+  rows,
+  isLoading,
+  error,
+  onRetry,
+  onOpen,
+  onBack
+}: {
+  rows: LifecycleAction[];
+  isLoading: boolean;
+  error: string;
+  onRetry: () => void;
+  onOpen: (row: LifecycleAction) => void;
+  onBack: () => void;
+}) {
+  return (
+    <section className="procurement-panel evaluation-panel post-award-panel post-award-contract-chooser">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Choose contract</span>
+          <h2>Open an active or closed contract to continue post-award tracking</h2>
+          <p>Post-award records belong to a signed contract. Choose the contract first, then ProcureX will show delivery, finance, risk, close-out, and performance actions.</p>
+        </div>
+        <StatusBadge value={rows.length ? `${rows.length} contracts` : 'No contract selected'} />
+      </div>
+      {isLoading ? (
+        <div className="scope-empty">Loading active and closed contracts...</div>
+      ) : error ? (
+        <div className="scope-empty">
+          <p>{error}</p>
+          <button className="btn btn-secondary btn-sm" type="button" onClick={onRetry}>Retry</button>
+        </div>
+      ) : rows.length ? (
+        <div className="data-table evaluation-table-scroll awarding-contracts-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Contract</th>
+                <th>Role</th>
+                <th>Other party</th>
+                <th>Status</th>
+                <th>Due / stage</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <strong>{row.title}</strong>
+                    <span>{row.reference ?? row.contractId}</span>
+                  </td>
+                  <td><StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} tone="info" /></td>
+                  <td>{row.otherParty}</td>
+                  <td><StatusBadge value={row.status} /></td>
+                  <td>{row.dueDate ? dateLabel(row.dueDate) : row.currentStage}</td>
+                  <td><button className="btn btn-primary btn-sm" type="button" onClick={() => onOpen(row)}>Open tracking</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="scope-empty award-card-empty">
+          <p>No active or closed contracts are ready for post-award tracking yet. Complete award response, contract negotiation, signatures, and activation first.</p>
+          <button className="btn btn-secondary btn-sm" type="button" onClick={onBack}>Back to Awards and Contracts</button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function PostAwardTrackingProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const contractId = useMemo(() => getContractId(location.search), [location.search]);
   const [contract, setContract] = useState<ContractDetailDto | null>(null);
+  const [contractDocuments, setContractDocuments] = useState<AwardContractDocumentDto[]>([]);
+  const [dashboard, setDashboard] = useState<AwardContractDashboard | null>(null);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const activeGroup = useMemo(() => flowStepFromSearch(location.search, postAwardFlowStepIds, 'cmp'), [location.search]);
@@ -66,6 +235,7 @@ export function PostAwardTrackingProcurexPage() {
   const loadContract = useCallback(async () => {
     if (!contractId) {
       setContract(null);
+      setContractDocuments([]);
       setLoadError('');
       setIsLoading(false);
       return;
@@ -73,18 +243,42 @@ export function PostAwardTrackingProcurexPage() {
     setIsLoading(true);
     setLoadError('');
     try {
-      setContract(await awardsContractsApi.contract(contractId));
+      const [nextContract, nextDocuments] = await Promise.all([
+        awardsContractsApi.contract(contractId),
+        awardsContractsApi.contractDocuments(contractId)
+      ]);
+      setContract(nextContract);
+      setContractDocuments(nextDocuments);
     } catch (error) {
       setContract(null);
+      setContractDocuments([]);
       setLoadError(apiErrorMessage(error, 'Post-award contract detail could not be loaded.'));
     } finally {
       setIsLoading(false);
     }
   }, [contractId]);
 
+  const loadDashboard = useCallback(async () => {
+    if (contractId) return;
+    setIsDashboardLoading(true);
+    setDashboardError('');
+    try {
+      setDashboard(await awardsContractsApi.dashboard());
+    } catch (error) {
+      setDashboard(null);
+      setDashboardError(apiErrorMessage(error, 'Active and closed contracts could not be loaded.'));
+    } finally {
+      setIsDashboardLoading(false);
+    }
+  }, [contractId]);
+
   useEffect(() => {
     void loadContract();
   }, [loadContract]);
+
+  useEffect(() => {
+    if (!contractId) void loadDashboard();
+  }, [contractId, loadDashboard]);
 
   function refreshContract(result: unknown) {
     setContract(result as ContractDetailDto);
@@ -94,10 +288,34 @@ export function PostAwardTrackingProcurexPage() {
     navigate({ pathname: '/awards-contracts/post-award', search: searchWithFlowStep(location.search, step) });
   }
 
+  function openContractTracking(row: LifecycleAction) {
+    if (!row.contractId) return;
+    navigate(`/awards-contracts/post-award?contract=${encodeURIComponent(row.contractId)}&step=cmp`);
+  }
+
   function refreshContractAndAdvance(step: PostAwardGroupId) {
     return (result: unknown) => {
       refreshContract(result);
       selectFlowStep(step);
+    };
+  }
+
+  async function uploadEvidenceDocument(file: File): Promise<PickerOption> {
+    if (!contract) throw new Error('Choose a contract before uploading evidence.');
+    const payload: AwardContractDocumentUploadInput = {
+      name: file.name,
+      documentType: file.type || 'POST_AWARD_EVIDENCE',
+      mimeType: file.type || undefined,
+      size: file.size,
+      contentBase64: await fileToBase64(file)
+    };
+    const uploaded = await awardsContractsApi.uploadContractDocument(contract.id, payload);
+    setContractDocuments((current) => [uploaded, ...current.filter((document) => document.id !== uploaded.id)]);
+    return {
+      value: uploaded.id,
+      label: uploaded.name,
+      description: `${uploaded.sourceLabel} | ${uploaded.documentType} | ${dateLabel(uploaded.createdAt)}`,
+      status: uploaded.sourceLabel
     };
   }
 
@@ -108,6 +326,7 @@ export function PostAwardTrackingProcurexPage() {
   const invoiceOptions = recordPickerOptions(invoices, 'Select invoice');
   const paymentOptions = recordPickerOptions(payments, 'Select payment');
   const purchaseOrderOptions = recordPickerOptions(purchaseOrders, 'No linked purchase order');
+  const evidenceDocumentOptions = documentOptions(contractDocuments);
   const contractManagerOptions = [
     option('', contract?.managementPlan?.contractManagerId ? 'Keep current manager' : 'Assign later from user administration'),
     ...(contract?.managementPlan?.contractManagerId ? [option(contract.managementPlan.contractManagerId, 'Current contract manager')] : [])
@@ -123,29 +342,31 @@ export function PostAwardTrackingProcurexPage() {
   ];
   const workflowRoleOptions = [option('Buyer'), option('Supplier'), option('Contract Manager'), option('Inspector'), option('Finance'), option('Legal'), option('Technical')];
   const documentOwnerOptions = [option('Supplier Representative'), option('Buyer Representative'), option('Contract Manager'), option('Inspector'), option('Finance')];
-  const sections: Array<WorkflowSection<PostAwardGroupId>> = [
-    { id: 'cmp', label: 'CMP', description: 'Plan, commencement, and status.', count: (contract?.managementPlan ? 1 : 0) + (contract?.commencements?.length ?? 0) },
-    { id: 'delivery', label: 'Delivery', description: 'Mobilization and milestones.', count: (contract?.mobilizationItems.length ?? 0) + (contract?.milestones.length ?? 0) + (contract?.deliverables?.length ?? 0) },
-    { id: 'inspections', label: 'Inspections', description: 'Inspection and acceptance.', count: (contract?.inspections.length ?? 0) + (contract?.goodsInspections?.length ?? 0) + (contract?.acceptances?.length ?? 0) },
-    { id: 'payments', label: 'Payments', description: 'Invoices, matching, penalties, and approvals.', count: invoices.length + payments.length + (contract?.paymentApprovals?.length ?? 0) + (contract?.penalties?.length ?? 0) },
-    { id: 'risk', label: 'Risk', description: 'Risks, forecasts, and non-conformance.', count: (contract?.risks.length ?? 0) + (contract?.riskForecasts?.length ?? 0) + (contract?.nonConformances?.length ?? 0) },
-    { id: 'changes', label: 'Changes', description: 'Variations, change requests, issues, disputes.', count: (contract?.variations.length ?? 0) + (contract?.changeRequests?.length ?? 0) + (contract?.issues.length ?? 0) + (contract?.disputes.length ?? 0) },
-    { id: 'termination', label: 'Termination', description: 'Termination workflow.', count: contract?.terminations.length ?? 0 },
-    { id: 'warranty', label: 'Securities', description: 'Guarantees, defects, documents, and reference samples.', count: (contract?.securities?.length ?? 0) + (contract?.warranties?.length ?? 0) + (contract?.requiredDocuments?.length ?? 0) + (contract?.referenceSamples?.length ?? 0) },
-    { id: 'closeout', label: 'Close-out', description: 'Completion record.', count: contract?.closeout ? 1 : 0 },
-    { id: 'performance', label: 'Performance', description: 'Scores and supplier risk.', count: (contract?.supplierPerformanceRecords.length ?? 0) + (contract?.performanceScores?.length ?? 0) },
-    { id: 'registers', label: 'History', description: 'Saved contract records.', count: contract ? 1 : 0 }
+  const sections: Array<WorkflowSection<PostAwardSectionId>> = [
+    { id: 'cmp', label: 'Contract management plan (CMP)', description: 'Plan, commencement, and contract status.', count: (contract?.managementPlan ? 1 : 0) + (contract?.commencements?.length ?? 0) },
+    { id: 'delivery', label: 'Delivery', description: 'Mobilization, milestones, and deliverables.', count: (contract?.mobilizationItems.length ?? 0) + (contract?.milestones.length ?? 0) + (contract?.deliverables?.length ?? 0) },
+    { id: 'inspections', label: 'Inspections and acceptance', description: 'Inspection, goods checks, and acceptance certificates.', count: (contract?.inspections.length ?? 0) + (contract?.goodsInspections?.length ?? 0) + (contract?.acceptances?.length ?? 0) },
+    { id: 'payments', label: 'Finance records', description: 'Invoices, matching, penalties, payment approvals, and confirmations.', count: invoices.length + payments.length + (contract?.paymentApprovals?.length ?? 0) + (contract?.penalties?.length ?? 0) },
+    { id: 'risk', label: 'Risks and non-conformance', description: 'Risks, forecasts, and non-conformance records.', count: (contract?.risks.length ?? 0) + (contract?.riskForecasts?.length ?? 0) + (contract?.nonConformances?.length ?? 0) },
+    { id: 'changes', label: 'Changes, issues, and disputes', description: 'Variations, change requests, issues, and disputes.', count: (contract?.variations.length ?? 0) + (contract?.changeRequests?.length ?? 0) + (contract?.issues.length ?? 0) + (contract?.disputes.length ?? 0) },
+    { id: 'termination', label: 'Termination', description: 'Termination review, notices, evidence, valuation, settlement, and replacement procurement.', count: contract?.terminations.length ?? 0 },
+    { id: 'warranty', label: 'Documents, securities, and warranty', description: 'Required documents, guarantees, defects, warranty items, and reference samples.', count: (contract?.securities?.length ?? 0) + (contract?.warranties?.length ?? 0) + (contract?.requiredDocuments?.length ?? 0) + (contract?.referenceSamples?.length ?? 0) },
+    { id: 'closeout', label: 'Close-out', description: 'Completion and final account records.', count: contract?.closeout ? 1 : 0 },
+    { id: 'performance', label: 'Supplier performance', description: 'Performance scores and supplier risk profile.', count: (contract?.supplierPerformanceRecords.length ?? 0) + (contract?.performanceScores?.length ?? 0) },
+    { id: 'registers', label: 'Saved history', description: 'All saved contract records and audit history.', count: contract ? 1 : 0 }
   ];
   const formationLocked = Boolean(contract && ['DRAFT', 'NEGOTIATION', 'SIGNATURE_PENDING'].includes(contract.status));
   const activeFlowLock = useMemo(() => {
     const noContract = { message: 'Select an active or closed contract before continuing post-award tracking.', actionLabel: 'Back to Active Contracts', navigatePage: 'awarding-contracts', routeSearch: 'queue=active-contracts' };
-    const notReady = { message: 'Execution modules are locked until contract formation and required signatures are complete.', actionLabel: 'Open Contract Formation', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
+    const notReady = { message: 'Finish negotiation, final draft acceptance, outcome notices, and signing before recording delivery, finance, risk, changes, or close-out work.', actionLabel: 'Open contract negotiation', navigatePage: 'contract-negotiation', routeSearch: `contract=${contractId}&step=signatures` };
     if (!contract) return noContract;
     if (formationLocked && !['cmp', 'registers'].includes(activeGroup)) return notReady;
     return null;
   }, [activeGroup, contract, contractId, formationLocked]);
   const activeSection = sections.find((section) => section.id === activeGroup);
-  const detailSections = sections.filter((section) => section.id !== 'cmp');
+  const activeWorkGroup = workGroupForSection(activeGroup);
+  const chooserRows = contractChooserRows(dashboard);
+  const recommendedActions = contract ? recommendedPostAwardActions(contract, sections) : [];
 
   return (
     <ProcurexAwardFrame pageKey="post-award-tracking">
@@ -154,7 +375,7 @@ export function PostAwardTrackingProcurexPage() {
           <AwardHero
             kicker="Contract execution and monitoring"
             title={contract?.title ?? 'No active or closed contract selected'}
-            copy="Track CMP, mobilization, milestones, inspections, payments, risks, variations, issues, disputes, termination, warranty, close-out, and supplier performance."
+            copy="Track setup, delivery, finance, risk, changes, close-out, and supplier performance in grouped work areas. Official records such as the contract management plan (CMP) stay inside the relevant group."
             stats={[
               { value: contract?.milestones.length ?? 0, label: 'Milestones' },
               { value: contract?.risks.length ?? 0, label: 'Open risk records' },
@@ -183,30 +404,24 @@ export function PostAwardTrackingProcurexPage() {
           ) : null}
 
           {!isLoading && !loadError && !contract ? (
-            <section className="procurement-panel evaluation-panel post-award-panel">
-              <div className="panel-heading">
-                <div><span className="section-kicker">Execution workspace</span><h2>No post-award records are available yet.</h2></div>
-                <StatusBadge value="No records" />
-              </div>
-              <div className="scope-empty">When a contract is signed and activated, post-award tracking records will appear here.</div>
-              <div className="inline-actions">
-                <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=active-contracts">Back to Active Contracts</button>
-              </div>
-              <LockedFlowStepPanel
-                title="Post-award tracking is locked"
-                reason={{ message: 'Choose an active or closed contract to resume post-award tracking.' }}
-              />
-            </section>
+            <PostAwardContractChooser
+              rows={chooserRows}
+              isLoading={isDashboardLoading}
+              error={dashboardError}
+              onRetry={() => void loadDashboard()}
+              onOpen={openContractTracking}
+              onBack={() => navigate('/awards-contracts?queue=active-contracts')}
+            />
           ) : !isLoading && !loadError && contract ? (
             <AwardContractAccessProvider access={contract.access ? { ...contract.access, hideLockedActions: true } : undefined}>
           <section className="procurement-panel evaluation-panel post-award-panel post-award-cmp-panel">
             <div className="panel-heading">
               <div>
                 <span className="section-kicker">Track delivery</span>
-                <h2>Track delivery</h2>
-                <p>Keep the contract management plan visible. Open the sections below when you need delivery records, payments, changes, close-out, or performance.</p>
+                <h2>Choose the work area you need</h2>
+                <p>Start with setup, then move into delivery, finance, risk and changes, or close-out. Detailed official records remain inside each group.</p>
               </div>
-              <StatusBadge value={activeSection?.label ?? 'CMP'} />
+              <StatusBadge value={activeWorkGroup.label} />
             </div>
             <section className="contract-overview-grid">
               <article><span>Status</span><strong>{contract.status}</strong></article>
@@ -214,50 +429,73 @@ export function PostAwardTrackingProcurexPage() {
               <article><span>Supplier</span><strong>{contract.supplierName ?? 'Supplier pending'}</strong></article>
               <article><span>Reference</span><strong>{contract.reference}</strong></article>
             </section>
+            <section className="post-award-next-actions" aria-label="Recommended next actions">
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">Recommended next actions</span>
+                  <h2>Start with the records most likely to unblock this contract</h2>
+                </div>
+              </div>
+              <div className="post-award-action-list">
+                {recommendedActions.map((action) => (
+                  <button className="post-award-action-card" type="button" onClick={() => selectFlowStep(action.step)} key={`${action.step}-${action.title}`}>
+                    <span>{action.priority}</span>
+                    <strong>{action.title}</strong>
+                    <em>{action.detail}</em>
+                  </button>
+                ))}
+              </div>
+            </section>
             <div className="award-simple-details-stack post-award-work-chooser" aria-label="Post-award work areas">
-              {detailSections.map((section) => {
-                const lockedByFormation = formationLocked && section.id !== 'registers';
+              {postAwardWorkGroups.map((group) => {
+                const groupSections = group.sectionIds.map((id) => sections.find((section) => section.id === id)).filter(Boolean) as Array<WorkflowSection<PostAwardSectionId>>;
+                const groupCount = groupSections.reduce((sum, section) => sum + (section.count ?? 0), 0);
+                const lockedByFormation = formationLocked && !group.sectionIds.some((id) => id === 'cmp' || id === 'registers');
                 return (
                   <ExpandableAwardDetails
-                    title={
-                      section.id === 'delivery'
-                        ? 'Delivery and milestones'
-                        : section.id === 'inspections'
-                          ? 'Inspections and acceptance'
-                          : section.id === 'risk'
-                            ? 'Risks'
-                            : section.id === 'changes'
-                              ? 'Changes and issues'
-                              : section.id === 'closeout'
-                                ? 'Close contract'
-                                : section.id === 'performance'
-                                  ? 'Supplier performance'
-                                  : section.label
-                    }
-                    summary={lockedByFormation ? 'Locked until contract is signed' : `${section.count} record${section.count === 1 ? '' : 's'}`}
-                    open={activeGroup === section.id}
-                    key={section.id}
+                    title={group.label}
+                    summary={lockedByFormation ? 'Locked until contract is signed' : `${groupCount} record${groupCount === 1 ? '' : 's'}`}
+                    open={activeWorkGroup.id === group.id}
+                    key={group.id}
                   >
                     <div className="award-simple-detail-action">
-                      <p>{section.description}</p>
-                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => selectFlowStep(section.id)}>
-                        Work on {section.id === 'registers' ? 'saved records' : section.label.toLowerCase()}
+                      <p>{group.description}</p>
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => selectFlowStep(group.sectionIds[0])}>
+                        Open {group.label.toLowerCase()}
                       </button>
                     </div>
                   </ExpandableAwardDetails>
                 );
               })}
             </div>
+            <div className="post-award-subnav" role="tablist" aria-label={`${activeWorkGroup.label} records`}>
+              {activeWorkGroup.sectionIds.map((sectionId) => {
+                const section = sections.find((item) => item.id === sectionId);
+                if (!section) return null;
+                return (
+                  <button
+                    className={`btn btn-secondary btn-sm${activeGroup === sectionId ? ' active' : ''}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeGroup === sectionId}
+                    onClick={() => selectFlowStep(sectionId)}
+                    key={sectionId}
+                  >
+                    {sectionDisplayTitle(section)}
+                  </button>
+                );
+              })}
+            </div>
           </section>
           {activeFlowLock ? (
-            <LockedFlowStepPanel title={`${activeSection?.label ?? 'Work area'} is locked`} reason={activeFlowLock} />
+            <LockedFlowStepPanel title={`${activeSection ? sectionDisplayTitle(activeSection) : 'Work area'} is locked`} reason={activeFlowLock} />
           ) : null}
           {!activeFlowLock ? (
           <div className="post-award-grouped" data-post-award-active-group={activeGroup}>
           {activeGroup === 'cmp' ? (
           <section className="procurement-panel evaluation-panel post-award-panel post-award-forms-panel">
             <div className="panel-heading">
-              <div><span className="section-kicker">Contract Management Plan</span><h2>Objectives and monitoring</h2></div>
+              <div><span className="section-kicker">Contract management plan (CMP)</span><h2>Objectives and monitoring</h2></div>
               <StatusBadge value={contract.managementPlan ? 'Created' : 'Required'} />
             </div>
             <section className="contract-overview-grid">
@@ -268,16 +506,16 @@ export function PostAwardTrackingProcurexPage() {
             </section>
             <div className="award-control-grid">
               <ActionFormPanel
-                title="Contract Management Plan"
+                title="Contract management plan (CMP)"
                 badge="CMP"
-                submitLabel="Save CMP"
+                submitLabel="Save plan"
                 fields={[
                   { name: 'contractManagerId', label: 'Contract manager', kind: 'select', options: contractManagerOptions, helpText: 'Use the current manager when present, or assign later from user administration.' },
                   { name: 'objectives', label: 'Objectives', kind: 'textarea', rows: 4 },
                   { name: 'monitoringPlan', label: 'Monitoring plan', kind: 'textarea', rows: 4 },
                   { name: 'reportingPlan', label: 'Reporting plan', kind: 'textarea', rows: 4 },
                   { name: 'communicationPlan', label: 'Communication plan', kind: 'textarea', rows: 4 },
-                  { name: 'payload', label: 'CMP payload', kind: 'json', rows: 4 }
+                  { name: 'payload', label: 'Contract management plan payload', kind: 'json', rows: 4 }
                 ]}
                 initialValues={{
                   contractManagerId: contract.managementPlan?.contractManagerId ?? '',
@@ -422,7 +660,7 @@ export function PostAwardTrackingProcurexPage() {
                 badge="Evidence"
                 fields={[
                   { name: 'milestoneId', label: 'Milestone', kind: 'select', required: true, options: itemOptions(contract.milestones as ContractLifecycleItemDto[], 'Select milestone') },
-                  { name: 'documentId', label: 'External evidence document reference', kind: 'uuid', required: true, helpText: 'Required until the document picker/upload flow is available; paste an existing external document UUID.' },
+                  { name: 'documentId', label: 'Evidence document', kind: 'document', required: true, document: { options: evidenceDocumentOptions, onUpload: uploadEvidenceDocument }, helpText: 'Choose an existing contract document or upload evidence now.' },
                   { name: 'note', label: 'Note', kind: 'textarea' }
                 ]}
                 initialValues={{ milestoneId: contract.milestones[0]?.id ?? '' }}
@@ -471,7 +709,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'note', label: 'Note', kind: 'textarea' },
                   { name: 'payload', label: 'Inspection payload', kind: 'json', rows: 4 }
                 ]}
-                initialValues={{ inspectionType: 'acceptance', title: 'Inspection and acceptance review', status: 'APPROVED', payload: '{}' }}
+                initialValues={{ inspectionType: 'acceptance', title: 'Inspection and acceptance review', status: 'SUBMITTED', payload: '{}' }}
                 onSubmit={(payload) => awardsContractsApi.createInspection(contract.id, payload)}
                 onComplete={refreshContract}
               />
@@ -498,7 +736,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'note', label: 'Inspection note', kind: 'textarea' },
                   { name: 'payload', label: 'Goods inspection payload', kind: 'json', rows: 4 }
                 ]}
-                initialValues={{ goodsDescription: contract.title, unit: 'each', result: 'APPROVED', payload: '{}' }}
+                initialValues={{ goodsDescription: contract.title, unit: 'each', result: 'SUBMITTED', payload: '{}' }}
                 onSubmit={(payload) => {
                   const { defectType, defectQuantity, defectSeverity, defectNote, ...body } = payload;
                   const defect = [defectType, defectQuantity, defectSeverity, defectNote].some((value) => value !== undefined && String(value).trim() !== '')
@@ -527,7 +765,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'note', label: 'Note', kind: 'textarea' },
                   { name: 'payload', label: 'Acceptance payload', kind: 'json', rows: 4 }
                 ]}
-                initialValues={{ status: 'APPROVED', currency: contract.currency, payload: '{}' }}
+                initialValues={{ status: 'SUBMITTED', currency: contract.currency, payload: '{}' }}
                 onSubmit={(payload) => awardsContractsApi.createAcceptance(contract.id, payload)}
                 onComplete={refreshContract}
               />
@@ -653,7 +891,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'paidAmount', label: 'Paid amount', kind: 'number', min: 0, step: '0.01', required: true },
                   { name: 'currency', label: 'Currency', kind: 'currency' },
                   { name: 'paidAt', label: 'Paid at', kind: 'datetime' },
-                  { name: 'evidenceDocumentId', label: 'External evidence document reference (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded payment document outside this workflow.' },
+                  { name: 'evidenceDocumentId', label: 'Payment evidence document', kind: 'document', document: { options: evidenceDocumentOptions, onUpload: uploadEvidenceDocument }, helpText: 'Upload or choose proof of payment, receipt, or bank confirmation.' },
                   { name: 'note', label: 'Payment note', kind: 'textarea' },
                   { name: 'payload', label: 'Payment confirmation payload', kind: 'json', rows: 4 }
                 ]}
@@ -976,7 +1214,7 @@ export function PostAwardTrackingProcurexPage() {
                 badge="Evidence"
                 fields={[
                   { name: 'terminationId', label: 'Termination', kind: 'select', required: true, options: itemOptions(contract.terminations as ContractLifecycleItemDto[], 'Select termination') },
-                  { name: 'documentId', label: 'External evidence document reference (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded termination document outside this workflow.' },
+                  { name: 'documentId', label: 'Termination evidence document', kind: 'document', document: { options: evidenceDocumentOptions, onUpload: uploadEvidenceDocument }, helpText: 'Upload or choose notices, correspondence, performance records, or other termination evidence.' },
                   { name: 'evidenceType', label: 'Evidence type', kind: 'text', required: true },
                   { name: 'note', label: 'Note', kind: 'textarea' },
                   { name: 'payload', label: 'Evidence payload', kind: 'json', rows: 4 }
@@ -1086,7 +1324,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'expiryDate', label: 'Expiry date', kind: 'date' },
                   { name: 'verificationStatus', label: 'Verification status', kind: 'select', options: ['PENDING', 'VERIFIED', 'APPROVED', 'REJECTED', 'RELEASED'].map((value) => option(value)) },
                   { name: 'claimStatus', label: 'Claim status', kind: 'select', options: ['NONE', 'NOTICE_SENT', 'CLAIMED', 'RELEASED'].map((value) => option(value)) },
-                  { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid' },
+                  { name: 'documentId', label: 'Security document', kind: 'document', document: { options: evidenceDocumentOptions, onUpload: uploadEvidenceDocument }, helpText: 'Upload or choose the guarantee, security, or release document.' },
                   { name: 'note', label: 'Note', kind: 'textarea' },
                   { name: 'payload', label: 'Security payload', kind: 'json', rows: 4 }
                 ]}
@@ -1102,7 +1340,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'title', label: 'Title', kind: 'text', required: true },
                   { name: 'ownerRole', label: 'Document owner', kind: 'select', required: true, options: documentOwnerOptions },
                   { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
-                  { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid', helpText: 'Use only when referencing a document stored outside this workflow.' },
+                  { name: 'documentId', label: 'Required document file', kind: 'document', document: { options: evidenceDocumentOptions, onUpload: uploadEvidenceDocument }, helpText: 'Upload or choose the file satisfying this requirement.' },
                   { name: 'dueDate', label: 'Due date', kind: 'date' },
                   { name: 'reviewedAt', label: 'Reviewed at', kind: 'datetime' },
                   { name: 'note', label: 'Note', kind: 'textarea' },
@@ -1129,7 +1367,7 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'signatureKeyphrase', label: 'Signature keyphrase', kind: 'password', helpText: 'Required for final close-out approvals and completion certificates.' },
                   { name: 'payload', label: 'Close-out payload', kind: 'json', rows: 4 }
                 ]}
-                initialValues={{ status: 'APPROVED', completionCertificate: false, finalAccountApproved: false, payload: '{}' }}
+                initialValues={{ status: 'OPEN', completionCertificate: false, finalAccountApproved: false, payload: '{}' }}
                 onSubmit={(payload) => awardsContractsApi.upsertCloseout(contract.id, payload)}
                 onComplete={refreshContractAndAdvance('performance')}
               />

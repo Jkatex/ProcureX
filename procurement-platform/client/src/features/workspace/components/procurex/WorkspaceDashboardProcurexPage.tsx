@@ -2,16 +2,14 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
-import { AppMenuIcon } from '@/features/tenderPlanning/components/procurex/icons';
-import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
 import { workspaceDashboardApi } from '@/features/workspace/api';
 import { useLocaleFormat } from '@/shared/hooks/useLocaleFormat';
 import type { DashboardPriority, WorkspaceDashboardData } from '@/features/workspace/types';
-import { platformAppItems } from '@/shared/components/procurex/PlatformAppsDrawer';
+import { AppMenuIcon, platformAppItems } from '@/shared/components/procurex/PlatformAppsDrawer';
+import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 
 const pageToRoute: Record<string, string> = {
   'account-profile': '/identity/profile',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'communication-center': '/communication',
   'bid-evaluation': '/evaluation',
@@ -64,12 +62,6 @@ const emptyDashboardData: WorkspaceDashboardData = {
 
 const startActions = [
   {
-    page: 'tender-planning',
-    icon: 'planning',
-    titleKey: 'workspaceDashboard.startActions.plan.title',
-    descriptionKey: 'workspaceDashboard.startActions.plan.description'
-  },
-  {
     page: 'communication-center',
     icon: 'communication',
     titleKey: 'workspaceDashboard.startActions.message.title',
@@ -84,12 +76,6 @@ const startActions = [
 ] as const;
 
 const otherAppActions = [
-  {
-    page: 'tender-planning',
-    icon: 'planning',
-    titleKey: 'workspaceDashboard.otherActions.createPlan.title',
-    descriptionKey: 'workspaceDashboard.otherActions.createPlan.description'
-  },
   {
     page: 'communication-center',
     icon: 'communication',
@@ -179,7 +165,7 @@ export function WorkspaceDashboardProcurexPage() {
 
   return (
     <>
-      <PlanningTopBar title={t('pages.dashboard.title')} onNavigate={navigateToPage} />
+      <WorkspaceTopBar title={t('pages.dashboard.title')} onNavigate={navigateToPage} />
       <div className="main-layout dashboard-command-center dashboard-first-run-page">
         <aside className="sidebar dashboard-sidebar">
           <div className="sidebar-heading">
@@ -188,7 +174,6 @@ export function WorkspaceDashboardProcurexPage() {
           </div>
           <ul className="sidebar-nav">
             <li><button type="button" className="active" onClick={() => navigateToPage('workspace-dashboard')}>{t('nav.dashboard')}</button></li>
-            <li><button type="button" onClick={() => navigateToPage('tender-planning')}>{t('platformApps.items.tenderPlanning.title')}</button></li>
             <li><button type="button" onClick={() => navigateToPage('communication-center')}>{t('nav.communication')}</button></li>
             <li><button type="button" onClick={() => navigateToPage('create-tender')}>{t('pages.createTender.title')}</button></li>
             <li><button type="button" onClick={() => navigateToPage('marketplace')}>{t('nav.marketplace')}</button></li>
@@ -391,9 +376,6 @@ export function WorkspaceDashboardProcurexPage() {
                           </button>
                         ))}
                       </div>
-                      <button className="btn btn-secondary" type="button" onClick={() => navigateToPage('tender-planning')}>
-                        {t('workspaceDashboard.deadlines.addPlanDates')}
-                      </button>
                     </article>
                   ) : null}
                 </section>

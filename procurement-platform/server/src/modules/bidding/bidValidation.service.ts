@@ -145,7 +145,7 @@ export function withValidation<T extends BidDto>(bid: T, validation: BidValidati
 export function draftFromBidRecord(bid: {
   payload: unknown;
   responses: Array<{ requirementKey: string; response: unknown }>;
-  documents: Array<{ envelope: string; document: { name: string; documentType: string; checksum: string | null; metadata: unknown } }>;
+  documents: Array<{ envelope: string; document: { id?: string; name: string; documentType: string; checksum: string | null; metadata: unknown } }>;
   totalAmount?: unknown;
   currency?: string;
 }): BidDraftInput {
@@ -159,6 +159,7 @@ export function draftFromBidRecord(bid: {
     declarations: objectPayload(payload.declarations),
     responses: bid.responses.map((item) => ({ requirementKey: item.requirementKey, response: objectPayload(item.response) })),
     documents: bid.documents.map((item) => ({
+      documentId: item.document.id,
       name: item.document.name,
       documentType: item.document.documentType,
       envelope: item.envelope as BidDocumentInput['envelope'],
@@ -168,6 +169,7 @@ export function draftFromBidRecord(bid: {
     fileManifest: objectPayload(payload.fileManifest),
     envelopes: objectPayload(payload.envelopes),
     reviewReadiness: objectPayload(payload.reviewReadiness),
+    workspaceState: objectPayload(payload.workspaceState),
     totalAmount: numericValue(bid.totalAmount) ?? undefined,
     currency: bid.currency,
     completeness: objectPayload(payload.completeness),

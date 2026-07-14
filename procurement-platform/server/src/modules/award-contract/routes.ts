@@ -27,6 +27,8 @@ export function createModuleRouter() {
   router.post('/recommendations/:id/settle', controller.settleAwardGroup);
 
   router.post('/notices/:id/respond', controller.respondToNotice);
+  router.post('/notices/:id/cancel', controller.cancelAwardNotice);
+  router.post('/notices/:id/reissue', controller.reissueAwardNotice);
 
   router.post('/tenders/:tenderId/contract-draft', controller.prepareTenderContractDraft);
 
@@ -44,6 +46,8 @@ export function createModuleRouter() {
 
   router.get('/contracts', controller.listContracts);
   router.get('/contracts/:id', controller.contract);
+  router.get('/contracts/:id/documents', controller.contractDocuments);
+  router.post('/contracts/:id/documents', controller.uploadContractDocument);
   router.post('/contracts/:id/versions', controller.createContractVersion);
   router.put('/contracts/:id/clauses', controller.upsertClause);
   router.post('/contracts/:id/negotiations', controller.createNegotiation);

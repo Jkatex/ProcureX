@@ -37,7 +37,6 @@ const pageToRoute: Record<string, string> = {
   'buyer-dashboard': '/dashboard',
   'supplier-dashboard': '/dashboard',
   'procurement-dashboard': '/dashboard',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'supplier-marketplace': '/procurement/marketplace',
   'my-tenders': '/procurement/my-tenders',
@@ -101,7 +100,7 @@ function clearEvaluationEntrySelection() {
   try {
     evaluationSelectionStorageKeys.forEach((key) => window.localStorage.removeItem(key));
   } catch {
-    // localStorage may be unavailable in some embedded/test environments; window fallbacks above cover the prototype state.
+    // localStorage may be unavailable in some embedded/test environments; window fallbacks above cover page state.
   }
 }
 
@@ -126,14 +125,6 @@ const appDrawerHtml = `
       </svg>
     </span>
     <span><strong>Registration and Verification</strong><em>Account and identity verification</em></span>
-  </button>
-  <button class="app-menu-card app-menu-procurement" type="button" data-navigate="tender-planning">
-    <span class="app-menu-icon">
-      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/>
-      </svg>
-    </span>
-    <span><strong>Procurement Planning</strong><em>APP, SPP, budgets, approvals</em></span>
   </button>
   <button class="app-menu-card app-menu-procurement" type="button" data-navigate="marketplace">
     <span class="app-menu-icon">
@@ -545,16 +536,6 @@ function activateAwardResponsePanel(root: HTMLElement, awardId: string) {
 
 function applyRouteSearchState(root: HTMLElement, pageKey: string, search: string) {
   const params = new URLSearchParams(search);
-
-  if (pageKey === 'tender-planning') {
-    const view = params.get('view') || 'front';
-    const planId = params.get('plan') || '';
-    if (view === 'detail' && planId) {
-      const button = root.querySelector<HTMLElement>(`[data-plan-details="${cssEscape(planId)}"]`);
-      if (button) setProcurementPlanningDetailFromButton(button, root);
-    }
-    setProcurementPlanningRoute(root, view);
-  }
 
   if (pageKey === 'awarding-contracts') {
     activateAwardingQueueTabByName(root, params.get('queue') || 'my-urgent-actions');
@@ -984,7 +965,7 @@ function applyPlanningDraftToCreateTender(root: HTMLElement) {
     }
     setCreateTenderWizardStep(wizard, Number(plannedTender.startStep ?? 2));
   } catch {
-    // Bad localStorage content should never block rendering the static prototype page.
+    // Bad localStorage content should never block rendering the static page.
   }
 }
 
@@ -1166,7 +1147,7 @@ const authDemoAccounts: AuthDemoAccount[] = [
   {
     email: 'demo@procurex.tz',
     password: 'Demo123!',
-    displayName: 'Demo Verified User',
+    displayName: 'Verified User',
     accountType: 'USER'
   },
   {
@@ -1391,12 +1372,12 @@ function handleAuthClick(target: HTMLElement, root: HTMLElement) {
   }
 
   if (resendLink) {
-    notifyStaticPage('Activation link resent', 'Activation link resent in this frontend demo.', 'Check your email, then continue to password setup.', 'success');
+    notifyStaticPage('Activation link resent', 'Activation link resent.', 'Check your email, then continue to password setup.', 'success');
     return true;
   }
 
   if (openEmail) {
-    notifyStaticPage('Open email app', 'Open your email app, then continue to password setup in this frontend demo.', 'The next registration step needs the activation message.', 'info');
+    notifyStaticPage('Open email app', 'Open your email app, then continue to password setup.', 'The next registration step needs the activation message.', 'info');
     return true;
   }
 
@@ -1705,7 +1686,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       event.preventDefault();
       setProcurementPlanningDetailFromButton(procurementPlanDetails, rootRef.current);
       setProcurementPlanningRoute(rootRef.current, 'detail');
-      navigate(`/tender-planning?view=detail&plan=${encodeURIComponent(procurementPlanDetails.getAttribute('data-plan-details') || '')}`);
+      navigate('/procurement/create-tender');
       return;
     }
 
@@ -1731,7 +1712,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       event.preventDefault();
       setProcurementPlanningMode(procurementPlanningMode, rootRef.current);
       if (procurementPlanningMode.getAttribute('data-planning-mode') === 'create') {
-        navigate('/tender-planning?view=create');
+        navigate('/procurement/create-tender');
       }
       return;
     }
@@ -1760,7 +1741,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     if (procurementPlanningViewFull && rootRef.current) {
       event.preventDefault();
       setProcurementPlanningRoute(rootRef.current, 'full');
-      navigate('/tender-planning?view=full');
+      navigate('/procurement/create-tender');
       return;
     }
 
@@ -2009,7 +1990,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       rootRef.current.dataset.planningDirty = 'false';
       const status = form.querySelector<HTMLElement>('[data-plan-form-status], .form-status');
       status?.classList.add('success');
-      if (status) status.textContent = 'Plan saved in this frontend demo.';
+      if (status) status.textContent = 'Plan saved.';
       closeProcurementPlanningEditor(rootRef.current);
       return;
     }
@@ -2033,7 +2014,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       const account = findAuthAccount(email, password);
 
       if (!account) {
-        setAuthFormStatus(form, 'Use a mock account or a frontend account you created.');
+        setAuthFormStatus(form, 'Use an active account or an account you created.');
         return;
       }
 
@@ -2060,7 +2041,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     }
 
     status?.classList.add('success');
-    if (status) status.textContent = 'Saved in this frontend demo.';
+    if (status) status.textContent = 'Saved.';
   }
 
   function handleChange(event: ChangeEvent<HTMLDivElement>) {

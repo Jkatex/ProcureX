@@ -44,6 +44,8 @@ const tabRoutes: Record<MarketplaceTabId, string> = {
   'my-workspace': '/procurement/marketplace?view=my-workspace'
 };
 
+const marketplacePageSize = 20;
+
 export function MarketplaceProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -56,6 +58,8 @@ export function MarketplaceProcurexPage() {
   const [savingTenderIds, setSavingTenderIds] = useState<Set<string>>(() => new Set());
   const [saveError, setSaveError] = useState('');
   const [deadlineNow, setDeadlineNow] = useState(() => Date.now());
+  const [recommendedPage, setRecommendedPage] = useState(1);
+  const [allTendersPage, setAllTendersPage] = useState(1);
   const activeTab = getActiveTab(location.pathname, location.search);
   const organization = user?.organization || demoUsers.user.organization;
   const canCreateTender = !user || user.capabilities.includes('BUYER');
@@ -69,13 +73,16 @@ export function MarketplaceProcurexPage() {
   }, [activeMarketplaceTenders, deadlineNow, filters]);
 
   const activeRecommendedTenders = useMemo(() => {
-    const rows = data?.recommendedTenders ?? activeMarketplaceTenders;
+    const rows = data?.recommendedTenders ?? [];
     return rows.filter((tender) => isActiveMarketplaceTender(tender, deadlineNow) || isActiveInvitedTender(tender, deadlineNow));
-  }, [activeMarketplaceTenders, data?.recommendedTenders, deadlineNow]);
+  }, [data?.recommendedTenders, deadlineNow]);
 
   const recommendedTenders = useMemo(() => {
     return filterRecommendedTenders(activeRecommendedTenders, recommendedQuery, deadlineNow);
   }, [activeRecommendedTenders, deadlineNow, recommendedQuery]);
+
+  const recommendedPagination = useMemo(() => paginateRows(recommendedTenders, recommendedPage), [recommendedPage, recommendedTenders]);
+  const allTendersPagination = useMemo(() => paginateRows(visibleTenders, allTendersPage), [allTendersPage, visibleTenders]);
 
   const invitedTenders = useMemo(() => {
     const rows = data?.invitedTenders ?? (data?.tenders ?? []).filter((tender) => isActiveInvitedTender(tender, deadlineNow));
@@ -101,6 +108,22 @@ export function MarketplaceProcurexPage() {
   }
 
   useEffect(() => {
+    setRecommendedPage(1);
+  }, [recommendedQuery]);
+
+  useEffect(() => {
+    setAllTendersPage(1);
+  }, [filters]);
+
+  useEffect(() => {
+    setRecommendedPage((current) => Math.min(current, recommendedPagination.totalPages));
+  }, [recommendedPagination.totalPages]);
+
+  useEffect(() => {
+    setAllTendersPage((current) => Math.min(current, allTendersPagination.totalPages));
+  }, [allTendersPagination.totalPages]);
+
+  useEffect(() => {
     const savedIds = new Set(
       [...(data?.tenders ?? []), ...(data?.recommendedTenders ?? []), ...(data?.invitedTenders ?? [])]
         .filter((tender) => tender.isSaved)
@@ -111,22 +134,16 @@ export function MarketplaceProcurexPage() {
 
   useEffect(() => {
     const now = Date.now();
-    const nextDeadline = (data?.tenders ?? []).reduce<number | null>((nearest, tender) => {
-      const deadline = Date.parse(tender.closingDate);
-      if (!Number.isFinite(deadline) || deadline <= now) return nearest;
-      return nearest === null || deadline < nearest ? deadline : nearest;
-    }, null);
+    const nextTransition = findNextMarketplaceTransition(collectTenderRows(data), now);
 
-    if (nextDeadline === null) return undefined;
+    if (nextTransition === null) return undefined;
 
-    // Re-evaluate at the exact next deadline so an open marketplace page does
-    // not continue showing an expired tender until its next data refresh.
     const timer = window.setTimeout(
       () => setDeadlineNow(Date.now()),
-      Math.min(Math.max(nextDeadline - now, 0), 2_147_483_647)
+      Math.min(Math.max(nextTransition - now, 0), 2_147_483_647)
     );
     return () => window.clearTimeout(timer);
-  }, [data?.tenders, deadlineNow]);
+  }, [data, deadlineNow]);
 
   async function toggleSaved(tender: MarketplaceTenderRow) {
     const tenderId = tender.id;
@@ -171,102 +188,144 @@ export function MarketplaceProcurexPage() {
           {saveError ? <div className="scope-empty">{saveError}</div> : null}
 
           {data ? (
-            <>
-              <section className="supplier-detail-tabbed-view marketplace-tabbed-view">
-                <MarketplaceTabs activeTab={activeTab} onTabChange={selectTab} />
-                <div className="supplier-detail-tab-panels marketplace-tab-panels">
-                  {activeTab === 'recommended' ? (
-                    <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="Recommended tenders">
-                      <MarketplaceRecommendedSearch query={recommendedQuery} onQueryChange={setRecommendedQuery} />
-                      <TenderListPanel
-                        tenders={recommendedTenders}
-                        savedTenderIds={savedTenderIds}
-                        savingTenderIds={savingTenderIds}
-                        onToggleSaved={toggleSaved}
-                        title="Recommended tenders"
-                        kicker="Recommended"
-                      />
-                    </section>
-                  ) : null}
+            <section className="supplier-detail-tabbed-view marketplace-tabbed-view">
+              <MarketplaceTabs activeTab={activeTab} onTabChange={selectTab} />
+              <div className="supplier-detail-tab-panels marketplace-tab-panels">
+                {activeTab === 'recommended' ? (
+                  <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="Recommended tenders">
+                    <MarketplaceRecommendedSearch query={recommendedQuery} onQueryChange={setRecommendedQuery} />
+                    <TenderListPanel
+                      tenders={recommendedPagination.rows}
+                      savedTenderIds={savedTenderIds}
+                      savingTenderIds={savingTenderIds}
+                      onToggleSaved={toggleSaved}
+                      title="Recommended tenders"
+                      empty="No relevant recommended tenders right now."
+                      pagination={
+                        <MarketplacePaginationControls
+                          currentPage={recommendedPagination.currentPage}
+                          totalPages={recommendedPagination.totalPages}
+                          onPageChange={setRecommendedPage}
+                        />
+                      }
+                    />
+                  </section>
+                ) : null}
 
-                  {activeTab === 'all-tenders' ? (
-                    <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="All tenders">
-                      <MarketplaceFilters
-                        query={filters.query}
-                        region={filters.region}
-                        budgetMin={filters.budgetMin}
-                        budgetMax={filters.budgetMax}
-                        onQueryChange={(value) => updateFilter('query', value)}
-                        onRegionChange={(value) => updateFilter('region', value)}
-                        onBudgetMinChange={(value) => updateFilter('budgetMin', value)}
-                        onBudgetMaxChange={(value) => updateFilter('budgetMax', value)}
-                      />
-                      <MarketplaceCategoryGrid
-                        tenders={activeMarketplaceTenders}
-                        selectedType={filters.type}
-                        onSelectType={(value) => updateFilter('type', value)}
-                      />
-                      <TenderListPanel
-                        tenders={visibleTenders}
-                        savedTenderIds={savedTenderIds}
-                        savingTenderIds={savingTenderIds}
-                        onToggleSaved={toggleSaved}
-                        title="All tenders"
-                        kicker="Tender list"
-                      />
-                    </section>
-                  ) : null}
+                {activeTab === 'all-tenders' ? (
+                  <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="All tenders">
+                    <MarketplaceFilters
+                      query={filters.query}
+                      region={filters.region}
+                      budgetMin={filters.budgetMin}
+                      budgetMax={filters.budgetMax}
+                      onQueryChange={(value) => updateFilter('query', value)}
+                      onRegionChange={(value) => updateFilter('region', value)}
+                      onBudgetMinChange={(value) => updateFilter('budgetMin', value)}
+                      onBudgetMaxChange={(value) => updateFilter('budgetMax', value)}
+                    />
+                    <MarketplaceCategoryGrid
+                      tenders={activeMarketplaceTenders}
+                      selectedType={filters.type}
+                      onSelectType={(value) => updateFilter('type', value)}
+                    />
+                    <TenderListPanel
+                      tenders={allTendersPagination.rows}
+                      savedTenderIds={savedTenderIds}
+                      savingTenderIds={savingTenderIds}
+                      onToggleSaved={toggleSaved}
+                      title="All tenders"
+                      pagination={
+                        <MarketplacePaginationControls
+                          currentPage={allTendersPagination.currentPage}
+                          totalPages={allTendersPagination.totalPages}
+                          onPageChange={setAllTendersPage}
+                        />
+                      }
+                    />
+                  </section>
+                ) : null}
 
-                  {activeTab === 'invited-tenders' ? (
-                    <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="Invited tenders">
-                      <MarketplaceRecommendedSearch query={invitedQuery} onQueryChange={setInvitedQuery} />
-                      <TenderListPanel
-                        tenders={invitedTenders}
-                        savedTenderIds={savedTenderIds}
-                        savingTenderIds={savingTenderIds}
-                        onToggleSaved={toggleSaved}
-                        title="Invited tenders"
-                        kicker="Invited"
-                        empty="Tenders you are invited to, will appear here"
-                      />
-                    </section>
-                  ) : null}
+                {activeTab === 'invited-tenders' ? (
+                  <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="Invited tenders">
+                    <MarketplaceRecommendedSearch query={invitedQuery} onQueryChange={setInvitedQuery} />
+                    <TenderListPanel
+                      tenders={invitedTenders}
+                      savedTenderIds={savedTenderIds}
+                      savingTenderIds={savingTenderIds}
+                      onToggleSaved={toggleSaved}
+                      title="Invited tenders"
+                      empty="Tenders you are invited to, will appear here"
+                    />
+                  </section>
+                ) : null}
 
-                  {activeTab === 'my-workspace' ? (
-                    <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="My workspace">
-                      <TenderListPanel
-                        tenders={workspace.saved}
-                        savedTenderIds={savedTenderIds}
-                        savingTenderIds={savingTenderIds}
-                        onToggleSaved={toggleSaved}
-                        title="Saved"
-                        kicker="Saved tenders"
-                        empty="No saved active tenders. Save an open tender from Recommended or All Tenders to track it here."
-                      />
-                      <MarketplaceSection
-                        title="My Bids"
-                        kicker="Bid workspace"
-                        rows={workspace.myBids}
-                        empty="No active tender bid drafts or submitted bids for this account."
-                        renderRow={(row) => <MyBidRowCard key={row.id} row={row} />}
-                      />
-                      <MarketplaceSection
-                        title="My Tenders"
-                        kicker="Tender creation"
-                        rows={workspace.myTenders}
-                        empty="No active created tenders, drafts, review items, or failed-review tenders for this account."
-                        renderRow={(row) => <MyTenderRowCard key={row.id} row={row} />}
-                      />
-                    </section>
-                  ) : null}
-                </div>
-              </section>
-            </>
+                {activeTab === 'my-workspace' ? (
+                  <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="My workspace">
+                    <TenderListPanel
+                      tenders={workspace.saved}
+                      savedTenderIds={savedTenderIds}
+                      savingTenderIds={savingTenderIds}
+                      onToggleSaved={toggleSaved}
+                      title="Saved"
+                      empty="No saved active tenders. Save an open tender from Recommended or All Tenders to track it here."
+                    />
+                    <MarketplaceSection
+                      title="My Bids"
+                      rows={workspace.myBids}
+                      empty="No active tender bid drafts or submitted bids for this account."
+                      renderRow={(row) => <MyBidRowCard key={row.id} row={row} />}
+                    />
+                    <MarketplaceSection
+                      title="My Tenders"
+                      rows={workspace.myTenders}
+                      empty="No active created tenders, drafts, review items, or failed-review tenders for this account."
+                      renderRow={(row) => <MyTenderRowCard key={row.id} row={row} />}
+                    />
+                  </section>
+                ) : null}
+              </div>
+            </section>
           ) : null}
         </main>
       </div>
     </ProcurexWorkspaceChrome>
   );
+}
+
+function MarketplacePaginationControls({
+  currentPage,
+  totalPages,
+  onPageChange
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <nav className="marketplace-pagination" aria-label="Tender list pagination">
+      <button className="btn btn-secondary" type="button" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)}>
+        &lt; prev
+      </button>
+      <span className="marketplace-pagination-status">page {currentPage} of {totalPages}</span>
+      <button className="btn btn-secondary" type="button" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)}>
+        next &gt;
+      </button>
+    </nav>
+  );
+}
+
+function paginateRows<T>(rows: T[], page: number) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / marketplacePageSize));
+  const currentPage = Math.min(Math.max(page, 1), totalPages);
+  const start = (currentPage - 1) * marketplacePageSize;
+  return {
+    rows: rows.slice(start, start + marketplacePageSize),
+    currentPage,
+    totalPages
+  };
 }
 
 function getActiveTab(pathname: string, search = ''): MarketplaceTabId {
@@ -288,7 +347,7 @@ function filterTenders(tenders: MarketplaceTenderRow[], filters: MarketplaceFilt
 
   const filtered = tenders.filter((tender) => {
     if (!isActiveMarketplaceTender(tender, now)) return false;
-    if (query && !tender.title.toLowerCase().includes(query)) return false;
+    if (query && !searchableTenderText(tender).includes(query)) return false;
     if (region && !tender.location.toLowerCase().includes(region)) return false;
     if (type && normalizeTenderTypeFilter(tender.type) !== type) return false;
     if (budgetMin !== null && tender.budget < budgetMin) return false;
@@ -306,7 +365,7 @@ function filterRecommendedTenders(tenders: MarketplaceTenderRow[], query: string
     return !normalizedQuery || searchableTenderText(tender).includes(normalizedQuery);
   });
 
-  return sortTendersByDeadline(filtered);
+  return sortTendersByDeadline(uniqueTenderRows(filtered));
 }
 
 function filterInvitedTenders(tenders: MarketplaceTenderRow[], query: string, now = Date.now()) {
@@ -410,8 +469,42 @@ function sortWorkspaceRowsByDeadline<T extends { tender?: MarketplaceTenderRow; 
 }
 
 function tenderDeadlineTime(tender?: MarketplaceTenderRow) {
-  const parsed = Date.parse(tender?.closingDate ?? '');
+  const parsed = marketplaceTransitionTime(tender?.closingDate, 'end');
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function collectTenderRows(data: ReturnType<typeof useMarketplaceData>['data']) {
+  if (!data) return [];
+  return [
+    ...data.tenders,
+    ...(data.recommendedTenders ?? []),
+    ...(data.invitedTenders ?? []),
+    ...data.myBids.map((row) => row.tender),
+    ...data.myTenders.map((row) => row.tender).filter((tender): tender is MarketplaceTenderRow => Boolean(tender))
+  ];
+}
+
+function findNextMarketplaceTransition(tenders: MarketplaceTenderRow[], now: number) {
+  return tenders.reduce<number | null>((nearest, tender) => {
+    const nextTime = [marketplaceTransitionTime(tender.openingDate, 'start'), marketplaceTransitionTime(tender.closingDate, 'end')].reduce<number | null>(
+      (candidate, time) => {
+        if (!Number.isFinite(time) || time <= now) return candidate;
+        return candidate === null || time < candidate ? time : candidate;
+      },
+      null
+    );
+    if (nextTime === null) return nearest;
+    return nearest === null || nextTime < nearest ? nextTime : nearest;
+  }, null);
+}
+
+function marketplaceTransitionTime(value: string | undefined, boundary: 'start' | 'end') {
+  if (!value) return Number.NaN;
+  const normalized = value.trim();
+  const withBoundary = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+    ? `${normalized}T${boundary === 'start' ? '00:00:00.000' : '23:59:59.999'}`
+    : normalized;
+  return Date.parse(withBoundary);
 }
 
 function normalizedWorkspaceStatus(value: string) {

@@ -3,14 +3,13 @@ import { useTranslation } from 'react-i18next';
 
 export type PlatformAppPageKey =
   | 'account-profile'
-  | 'tender-planning'
   | 'marketplace'
   | 'communication-center'
   | 'bid-evaluation'
   | 'awarding-contracts'
   | 'records-history';
 
-export type PlatformAppIconKind = 'iam' | 'planning' | 'procurement' | 'communication' | 'evaluation' | 'awarding' | 'records';
+export type PlatformAppIconKind = 'iam' | 'procurement' | 'communication' | 'evaluation' | 'awarding' | 'records';
 
 type PlatformAppItem = {
   className: string;
@@ -39,13 +38,6 @@ export const platformAppItems = [
     icon: 'iam',
     titleKey: 'platformApps.items.accountProfile.title',
     descriptionKey: 'platformApps.items.accountProfile.description'
-  },
-  {
-    className: 'app-menu-procurement',
-    page: 'tender-planning',
-    icon: 'planning',
-    titleKey: 'platformApps.items.tenderPlanning.title',
-    descriptionKey: 'platformApps.items.tenderPlanning.description'
   },
   {
     className: 'app-menu-procurement',
@@ -86,7 +78,6 @@ export const platformAppItems = [
 
 export const platformAppRoutes: Record<PlatformAppPageKey, string> = {
   'account-profile': '/identity/profile',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'communication-center': '/communication',
   'bid-evaluation': '/evaluation',
@@ -186,14 +177,6 @@ export function PlatformAppIcon({ kind, useImage = true }: { kind: PlatformAppIc
             <path d="M16 11l2 2 4-4" />
           </>
         ) : null}
-        {kind === 'planning' ? (
-          <>
-            <path d="M4 4h16v16H4z" />
-            <path d="M8 8h8" />
-            <path d="M8 12h8" />
-            <path d="M8 16h5" />
-          </>
-        ) : null}
         {kind === 'procurement' ? (
           <>
             <path d="M3 9h18l-2-5H5z" />
@@ -235,4 +218,8 @@ export function PlatformAppIcon({ kind, useImage = true }: { kind: PlatformAppIc
       </svg>
     </span>
   );
+}
+
+export function AppMenuIcon({ kind }: { kind: PlatformAppIconKind }) {
+  return <PlatformAppIcon kind={kind} />;
 }

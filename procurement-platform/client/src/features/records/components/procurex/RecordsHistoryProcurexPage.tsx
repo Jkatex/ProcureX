@@ -17,7 +17,7 @@ import type {
   RecordsRecordStatus,
   RecordsRecordType
 } from '@/features/records/types';
-import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
+import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 
 export function RecordsHistoryProcurexPage() {
@@ -253,7 +253,7 @@ export function RecordsHistoryProcurexPage() {
 
   return (
     <>
-      <PlanningTopBar title={t('recordsApp.shell.title')} onNavigate={navigateToPage} />
+      <WorkspaceTopBar title={t('recordsApp.shell.title')} onNavigate={navigateToPage} />
       <div className="records-history-page records-empty-app records-visual-app">
         <main className="records-visual-main">
           <div className="journey-page records-history-shell records-empty-shell records-visual-shell">
@@ -534,7 +534,6 @@ export function RecordsHistoryProcurexPage() {
 
 type AppRouteKey =
   | 'workspace-dashboard'
-  | 'tender-planning'
   | 'marketplace'
   | 'create-tender'
   | 'bidding-workspace'
@@ -547,7 +546,6 @@ type RecordsTab = 'records' | 'insights';
 
 const pageToRoute: Record<AppRouteKey, string> = {
   'workspace-dashboard': '/dashboard',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'create-tender': '/procurement/create-tender',
   'bidding-workspace': '/bidding',

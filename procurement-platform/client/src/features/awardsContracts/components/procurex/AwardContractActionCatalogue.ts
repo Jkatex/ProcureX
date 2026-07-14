@@ -11,7 +11,7 @@ export const awardContractActionCatalogue: AwardContractActionDefinition[] = [
   { key: 'signature-request', label: 'Signature request', owner: 'BUYER', group: 'Formation', targetRecordType: 'contractSignature' },
   { key: 'sign-buyer', label: 'Sign BUYER', owner: 'BUYER', group: 'Formation', targetRecordType: 'contractSignature' },
   { key: 'sign-supplier', label: 'Sign SUPPLIER', owner: 'SUPPLIER', group: 'Formation', targetRecordType: 'contractSignature' },
-  { key: 'cmp', label: 'Maintain CMP', owner: 'BUYER', group: 'Post-award', targetRecordType: 'contractManagementPlan' },
+  { key: 'cmp', label: 'Maintain contract management plan (CMP)', owner: 'BUYER', group: 'Post-award', targetRecordType: 'contractManagementPlan' },
   { key: 'deliverable', label: 'Submit deliverable', owner: 'SUPPLIER', group: 'Delivery', targetRecordType: 'contractDeliverable' },
   { key: 'inspection', label: 'Record inspection', owner: 'BUYER', group: 'Inspections', targetRecordType: 'contractInspection' },
   { key: 'invoice', label: 'Submit invoice', owner: 'SUPPLIER', group: 'Payments', targetRecordType: 'invoice' },

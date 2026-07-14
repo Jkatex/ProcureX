@@ -9,8 +9,7 @@ import type { TenderDetail, TenderDetailDocument } from '../../types';
 import {
   DetailSummary,
   PrototypeTabs,
-  formatDate,
-  tenderStatusBadgeClass
+  formatDate
 } from './TenderDetailPrototypeComponents';
 import { SupplierProcurementDetails, buyerNoticeText } from './SupplierTenderDetailProcurexPage';
 
@@ -62,7 +61,6 @@ export function TenderDetailsProcurexPage() {
           <div className="journey-page buyer-tender-detail-page" data-buyer-tender-detail data-tender-id={tender.id}>
             <section className="journey-hero compact">
               <div>
-                <span className={`badge ${tenderStatusBadgeClass(tender)}`}>Active tender</span>
                 <h1>{tender.title}</h1>
                 <p>{tender.organization}. View the supplier-facing tender information and manage tender activity.</p>
               </div>

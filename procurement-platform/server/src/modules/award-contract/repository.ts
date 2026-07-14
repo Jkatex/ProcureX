@@ -19,7 +19,7 @@ import {
   type Prisma,
   type PrismaClient
 } from '@prisma/client';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
 import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import { buildBidSubmissionSchema } from '../bidding/bidSubmissionSchema.service.js';
@@ -33,6 +33,8 @@ import type {
   AwardApprovalRouteInput,
   AwardApprovalStepInput,
   AwardNotificationInput,
+  AwardNoticeCancelInput,
+  AwardNoticeReissueInput,
   AwardNoticeResponseInput,
   AwardRecommendationDetailDto,
   AwardRecommendationListItemDto,
@@ -41,6 +43,8 @@ import type {
   AwardTieBreakerInput,
   BudgetCommitmentInput,
   ContractDetailDto,
+  AwardContractDocumentDto,
+  AwardContractDocumentUploadInput,
   ContractCloseoutInput,
   ContractListItemDto,
   ContractManagementPlanInput,
@@ -297,6 +301,17 @@ type RecommendationRecord = Prisma.AwardRecommendationGetPayload<{ include: type
 type ContractRecord = Prisma.ContractGetPayload<{ include: typeof contractInclude }>;
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
+const documentSelect = {
+  id: true,
+  name: true,
+  documentType: true,
+  createdAt: true,
+  ownerOrgId: true,
+  metadata: true
+} satisfies Prisma.DocumentObjectSelect;
+
+type ContractDocumentRecord = Prisma.DocumentObjectGetPayload<{ select: typeof documentSelect }>;
+
 function requestError(message: string, status = 400) {
   const error = new Error(message) as Error & { status?: number };
   error.status = status;
@@ -343,6 +358,16 @@ function contractScope(context: AwardContractRequestContext, requestedOrgId?: st
   };
 }
 
+function documentVisibilityWhere(context: AwardContractRequestContext): Prisma.DocumentObjectWhereInput {
+  if (context.isAdmin) return {};
+  return {
+    OR: [
+      { ownerOrgId: null },
+      { ownerOrgId: context.organizationId ?? '' }
+    ]
+  };
+}
+
 function assertBuyerAccess(record: { workspace: { buyerOrgId: string } }, context: AwardContractRequestContext) {
   if (context.isAdmin) return;
   if (!context.organizationId || record.workspace.buyerOrgId !== context.organizationId) {
@@ -385,6 +410,45 @@ function isPreAwardContract(record: { awardId?: string | null; supplierOrgId?: s
 function assertAwardLinkedContract(record: { awardId?: string | null; supplierOrgId?: string | null }) {
   if (!record.awardId || !record.supplierOrgId) {
     throw requestError('Evaluation results and an accepted award are required before this contract can be signed or activated.', 409);
+  }
+}
+
+function finalDraftAcceptanceRole(item: { payload: unknown; status: ContractLifecycleItemStatus }) {
+  if (item.status !== ContractLifecycleItemStatus.APPROVED && item.status !== ContractLifecycleItemStatus.CLOSED) return '';
+  const payload = objectPayload(item.payload);
+  if (payload.acceptanceType !== 'NEGOTIATED_DRAFT') return '';
+  return typeof payload.role === 'string' ? payload.role.toUpperCase() : '';
+}
+
+function openNegotiationItems(record: { negotiations: Array<{ status: ContractLifecycleItemStatus }> }) {
+  const resolvedStatuses = new Set<ContractLifecycleItemStatus>([
+    ContractLifecycleItemStatus.APPROVED,
+    ContractLifecycleItemStatus.REJECTED,
+    ContractLifecycleItemStatus.WAIVED,
+    ContractLifecycleItemStatus.CLOSED
+  ]);
+  return record.negotiations.filter((item) => !resolvedStatuses.has(item.status));
+}
+
+function assertFinalDraftReadyForSignatures(record: {
+  negotiations: Array<{ status: ContractLifecycleItemStatus }>;
+  acceptances: Array<{ payload: unknown; status: ContractLifecycleItemStatus }>;
+  approvalSteps?: Array<{ stepKey: string; status: ContractLifecycleItemStatus }>;
+}) {
+  const unresolved = openNegotiationItems(record);
+  if (unresolved.length > 0) {
+    throw requestError('Resolve all amendment and clarification requests before requesting signatures.', 409);
+  }
+  const acceptedRoles = new Set(record.acceptances.map(finalDraftAcceptanceRole).filter(Boolean));
+  if (!acceptedRoles.has('BUYER') || !acceptedRoles.has('SUPPLIER')) {
+    throw requestError('Buyer and supplier must both accept the negotiated draft before signatures can be requested.', 409);
+  }
+  const outcomeNoticeConfirmed = (record.approvalSteps ?? []).some((step) =>
+    step.stepKey === 'outcome-communications' &&
+    (step.status === ContractLifecycleItemStatus.APPROVED || step.status === ContractLifecycleItemStatus.CLOSED)
+  );
+  if (!outcomeNoticeConfirmed) {
+    throw requestError('Confirm winner and non-winning supplier outcome communications before requesting signatures.', 409);
   }
 }
 
@@ -742,12 +806,27 @@ function safeFilename(value: string) {
   return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-').replace(/^-+|-+$/g, '') || 'document';
 }
 
+function safeObjectName(value: string) {
+  return safeFilename(value).slice(0, 180) || 'document';
+}
+
 function sourceDocumentDto(input: Omit<AwardSourceDocumentDto, 'openUrl' | 'downloadUrl'>): AwardSourceDocumentDto {
   const baseUrl = input.documentId ? `/api/documents/${input.documentId}/content` : '';
   return {
     ...input,
     openUrl: baseUrl,
     downloadUrl: baseUrl ? `${baseUrl}?download=true` : ''
+  };
+}
+
+function contractDocumentDto(document: ContractDocumentRecord, sourceLabel: string): AwardContractDocumentDto {
+  return {
+    id: document.id,
+    name: document.name,
+    documentType: document.documentType,
+    createdAt: document.createdAt.toISOString(),
+    contentUrl: `/api/documents/${document.id}/content`,
+    sourceLabel
   };
 }
 
@@ -2835,6 +2914,185 @@ export class ModuleRepository {
     return this.getRecommendationByNotice(id, context);
   }
 
+  async cancelAwardNotice(id: string, input: AwardNoticeCancelInput, context: AwardContractRequestContext) {
+    await this.db.$transaction(async (tx) => {
+      const notice = await tx.awardNotice.findUnique({
+        where: { id },
+        include: {
+          recommendation: {
+            include: recommendationInclude
+          }
+        }
+      });
+      if (!notice) throw requestError('Award notice was not found.', 404);
+      assertBuyerAccess(notice.recommendation, context);
+      if (notice.status === AwardNoticeStatus.ACCEPTED) {
+        throw requestError('Cancel the supplier handoff from contract negotiation when the award notice has already been accepted.', 409);
+      }
+      const now = new Date().toISOString();
+      const currentPayload = objectPayload(notice.payload);
+      const cancellationHistory = Array.isArray(currentPayload.cancellationHistory) ? currentPayload.cancellationHistory : [];
+      await tx.awardNotice.update({
+        where: { id },
+        data: {
+          status: AwardNoticeStatus.CANCELLED,
+          buyerNote: input.reason,
+          payload: {
+            ...currentPayload,
+            cancellationReason: input.reason,
+            cancellationPayload: input.payload,
+            cancellationHistory: [
+              ...cancellationHistory,
+              {
+                reason: input.reason,
+                payload: input.payload,
+                cancelledAt: now,
+                actorUserId: context.userId ?? null,
+                actorOrgId: context.organizationId ?? null
+              }
+            ]
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardWinner.updateMany({
+        where: { noticeId: notice.id },
+        data: {
+          status: AwardNoticeStatus.CANCELLED,
+          payload: {
+            cancellationReason: input.reason,
+            cancelledAt: now
+          } as Prisma.InputJsonObject
+        }
+      });
+      await this.audit(tx, notice.buyerOrgId, context.userId, 'award.notice.cancelled', 'award_notice', notice.id, {
+        reason: input.reason,
+        supplierOrgId: notice.supplierOrgId,
+        recommendationId: notice.recommendationId
+      });
+    });
+
+    return this.getRecommendationByNotice(id, context);
+  }
+
+  async reissueAwardNotice(id: string, input: AwardNoticeReissueInput, context: AwardContractRequestContext) {
+    let nextRecommendationId = '';
+    await this.db.$transaction(async (tx) => {
+      const currentNotice = await tx.awardNotice.findUnique({
+        where: { id },
+        include: {
+          recommendation: {
+            include: recommendationInclude
+          }
+        }
+      });
+      if (!currentNotice) throw requestError('Award notice was not found.', 404);
+      assertBuyerAccess(currentNotice.recommendation, context);
+      if (!currentNotice.recommendation.awardGroupId) throw requestError('Award ranking is not available for this notice.', 409);
+
+      const winners = await tx.awardWinner.findMany({
+        where: { awardGroupId: currentNotice.recommendation.awardGroupId },
+        orderBy: { createdAt: 'asc' }
+      });
+      const candidate = winners.find((winner) => {
+        if (!winner.recommendationId || winner.recommendationId === currentNotice.recommendationId) return false;
+        if (input.supplierOrgId && winner.supplierOrgId !== input.supplierOrgId) return false;
+        if (input.bidId && winner.bidId !== input.bidId) return false;
+        if (!input.supplierOrgId && !input.bidId && (winner.status === 'CONTRACT_FORMED' || winner.status === AwardNoticeStatus.ACCEPTED)) return false;
+        return true;
+      });
+      if (!candidate?.recommendationId || !candidate.supplierOrgId || !candidate.bidId) {
+        throw requestError('No alternate ranked supplier is available for a new award notice.', 409);
+      }
+
+      const recommendation = await tx.awardRecommendation.findUnique({
+        where: { id: candidate.recommendationId },
+        include: recommendationInclude
+      });
+      if (!recommendation?.supplierOrgId || !recommendation.bidId) throw requestError('Selected ranked supplier is not ready for notice.', 409);
+      nextRecommendationId = recommendation.id;
+
+      const now = new Date().toISOString();
+      await tx.awardNotice.update({
+        where: { id: currentNotice.id },
+        data: {
+          status: AwardNoticeStatus.CANCELLED,
+          buyerNote: currentNotice.buyerNote ?? input.reason,
+          payload: {
+            ...objectPayload(currentNotice.payload),
+            reissuedToRecommendationId: recommendation.id,
+            reissueReason: input.reason,
+            reissuedAt: now
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardWinner.updateMany({
+        where: { noticeId: currentNotice.id },
+        data: { status: AwardNoticeStatus.CANCELLED }
+      });
+
+      const notice = await tx.awardNotice.upsert({
+        where: { recommendationId: recommendation.id },
+        update: {
+          status: AwardNoticeStatus.PENDING_RESPONSE,
+          buyerNote: input.reason,
+          issuedByUserId: context.userId ?? null,
+          respondedByUserId: null,
+          respondedAt: null,
+          payload: {
+            ...objectPayload(recommendation.notice?.payload),
+            awardGroupId: currentNotice.recommendation.awardGroupId,
+            reissuePayload: input.payload,
+            reissueReason: input.reason,
+            previousNoticeId: currentNotice.id
+          } as Prisma.InputJsonObject
+        },
+        create: {
+          reference: awardNoticeReference(),
+          recommendationId: recommendation.id,
+          buyerOrgId: recommendation.workspace.buyerOrgId,
+          supplierOrgId: recommendation.supplierOrgId,
+          buyerNote: input.reason,
+          issuedByUserId: context.userId ?? null,
+          payload: {
+            tenderId: recommendation.workspace.tenderId,
+            bidId: recommendation.bidId,
+            awardGroupId: currentNotice.recommendation.awardGroupId,
+            reissuePayload: input.payload,
+            reissueReason: input.reason,
+            previousNoticeId: currentNotice.id
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardWinner.update({
+        where: { id: candidate.id },
+        data: {
+          status: AwardNoticeStatus.PENDING_RESPONSE,
+          noticeId: notice.id,
+          payload: {
+            ...objectPayload(candidate.payload),
+            reissuedAt: now,
+            reissueReason: input.reason
+          } as Prisma.InputJsonObject
+        }
+      });
+      await tx.awardRecommendation.update({
+        where: { id: recommendation.id },
+        data: {
+          status: RecommendationStatus.APPROVED,
+          reason: input.reason || recommendation.reason
+        }
+      });
+      await this.audit(tx, recommendation.workspace.buyerOrgId, context.userId, 'award.notice.reissued', 'award_notice', notice.id, {
+        reason: input.reason,
+        previousNoticeId: currentNotice.id,
+        recommendationId: recommendation.id,
+        supplierOrgId: recommendation.supplierOrgId
+      });
+    });
+
+    return this.getRecommendation(nextRecommendationId, context);
+  }
+
   async listContracts(query: ContractQuery, context: AwardContractRequestContext): Promise<ListContractsResponseDto> {
     const where = contractWhere(query, context);
     const [records, totalRecords] = await Promise.all([
@@ -3025,6 +3283,88 @@ export class ModuleRepository {
     };
   }
 
+  async contractDocuments(contractId: string, context: AwardContractRequestContext): Promise<AwardContractDocumentDto[]> {
+    const contract = await this.requireContract(this.db, contractId, context);
+    const sourceLabels = new Map<string, string>();
+    const [
+      versions,
+      milestoneEvidence,
+      paymentConfirmations,
+      terminationEvidence,
+      securities,
+      requiredDocuments,
+      uploadedDocuments
+    ] = await Promise.all([
+      this.db.contractVersion.findMany({ where: { contractId, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.contractMilestoneEvidence.findMany({ where: { milestone: { contractId } }, select: { documentId: true } }),
+      this.db.paymentConfirmation.findMany({ where: { contractId, evidenceDocumentId: { not: null } }, select: { evidenceDocumentId: true } }),
+      this.db.terminationEvidence.findMany({ where: { termination: { contractId }, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.contractSecurity.findMany({ where: { contractId, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.contractRequiredDocument.findMany({ where: { contractId, documentId: { not: null } }, select: { documentId: true } }),
+      this.db.documentObject.findMany({
+        where: {
+          AND: [
+            { metadata: { path: ['sourceModule'], equals: 'award-contract' } },
+            { metadata: { path: ['contractId'], equals: contractId } },
+            documentVisibilityWhere(context)
+          ]
+        },
+        orderBy: { createdAt: 'desc' },
+        select: documentSelect
+      })
+    ]);
+
+    for (const row of versions) if (row.documentId) sourceLabels.set(row.documentId, 'Contract version');
+    for (const row of milestoneEvidence) sourceLabels.set(row.documentId, 'Milestone evidence');
+    for (const row of paymentConfirmations) if (row.evidenceDocumentId) sourceLabels.set(row.evidenceDocumentId, 'Payment confirmation');
+    for (const row of terminationEvidence) if (row.documentId) sourceLabels.set(row.documentId, 'Termination evidence');
+    for (const row of securities) if (row.documentId) sourceLabels.set(row.documentId, 'Security or guarantee');
+    for (const row of requiredDocuments) if (row.documentId) sourceLabels.set(row.documentId, 'Required document');
+    for (const row of uploadedDocuments) sourceLabels.set(row.id, sourceLabels.get(row.id) ?? 'Uploaded evidence');
+
+    const documentIds = Array.from(sourceLabels.keys());
+    const linkedDocuments = documentIds.length
+      ? await this.db.documentObject.findMany({
+          where: { id: { in: documentIds } },
+          orderBy: { createdAt: 'desc' },
+          select: documentSelect
+        })
+      : [];
+    const byId = new Map([...uploadedDocuments, ...linkedDocuments].map((document) => [document.id, document]));
+
+    return Array.from(byId.values())
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .map((document) => contractDocumentDto(document, sourceLabels.get(document.id) ?? contract.reference));
+  }
+
+  async uploadContractDocument(contractId: string, input: AwardContractDocumentUploadInput, context: AwardContractRequestContext): Promise<AwardContractDocumentDto> {
+    const contract = await this.requireContract(this.db, contractId, context);
+    const content = input.contentBase64 ? Buffer.from(input.contentBase64, 'base64') : null;
+    const document = await this.db.documentObject.create({
+      data: {
+        ownerOrgId: context.organizationId ?? contract.buyerOrgId,
+        uploadedByUserId: context.userId ?? null,
+        name: input.name,
+        objectKey: `award-contract/${contract.id}/${randomUUID()}/${safeObjectName(input.name)}`,
+        documentType: input.documentType ?? input.mimeType ?? 'POST_AWARD_EVIDENCE',
+        checksum: content ? createHash('sha256').update(content).digest('hex') : null,
+        metadata: {
+          sourceModule: 'award-contract',
+          sourceEntityType: 'contract',
+          sourceEntityId: contract.id,
+          contractId: contract.id,
+          contractReference: contract.reference,
+          mimeType: input.mimeType ?? null,
+          size: input.size ?? content?.byteLength ?? null,
+          contentBase64: input.contentBase64 ?? null
+        } as Prisma.InputJsonObject
+      },
+      select: documentSelect
+    });
+    await this.audit(this.db, contract.buyerOrgId, context.userId, 'contract.document.uploaded', 'contract', contract.id, { documentId: document.id });
+    return contractDocumentDto(document, 'Uploaded evidence');
+  }
+
   async createContractVersion(id: string, input: ContractVersionInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
       const contract = await tx.contract.findUnique({ where: { id }, include: { versions: { orderBy: { versionNo: 'desc' }, take: 1 } } });
@@ -3051,11 +3391,19 @@ export class ModuleRepository {
 
   async createSignatureRequests(id: string, input: ContractSignatureRequestInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
-      const contract = await tx.contract.findUnique({ where: { id } });
+      const contract = await tx.contract.findUnique({
+        where: { id },
+        include: {
+          negotiations: true,
+          acceptances: true,
+          approvalSteps: true
+        }
+      });
       if (!contract) throw requestError('Contract was not found.', 404);
       assertContractVisible(contract, context);
       assertContractManager(contract, context);
       assertAwardLinkedContract(contract);
+      assertFinalDraftReadyForSignatures(contract);
 
       for (const role of input.roles) {
         const signerOrgId = role === ContractPartyRole.BUYER ? contract.buyerOrgId : contract.supplierOrgId;
@@ -3096,6 +3444,17 @@ export class ModuleRepository {
       assertContractVisible(signature.contract, context);
       if (!context.isAdmin && signature.signerOrgId !== context.organizationId) throw requestError('Signature is assigned to another organization.', 403);
       if (signature.status === SignatureStatus.SIGNED) return;
+      if (signature.status !== SignatureStatus.PENDING) throw requestError('Only pending signature requests can be signed.', 409);
+      if (signature.role === ContractPartyRole.SUPPLIER) {
+        const buyerSigned = await tx.contractSignature.count({
+          where: {
+            contractId,
+            role: ContractPartyRole.BUYER,
+            status: SignatureStatus.SIGNED
+          }
+        });
+        if (buyerSigned === 0) throw requestError('Buyer signature must be completed before supplier signature.', 409);
+      }
       if (!context.userId) throw requestError('Authenticated signer is required.', 403);
 
       const signingCredential = await tx.signingCredential.findFirst({
@@ -3241,6 +3600,9 @@ export class ModuleRepository {
       const awardLinkedStatuses: ContractStatus[] = [ContractStatus.SIGNATURE_PENDING, ContractStatus.SIGNED, ContractStatus.MOBILIZATION, ContractStatus.ACTIVE];
       if (awardLinkedStatuses.includes(input.status)) {
         assertAwardLinkedContract(contract);
+      }
+      if (input.status === ContractStatus.SIGNATURE_PENDING) {
+        assertFinalDraftReadyForSignatures(contract);
       }
       if (input.status === ContractStatus.ACTIVE) {
         this.assertActivationReady(contract);

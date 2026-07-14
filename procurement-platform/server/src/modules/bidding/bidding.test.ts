@@ -21,6 +21,7 @@ const originalBidEncryptionKey = process.env.BID_ENCRYPTION_KEY;
 const originalBidDocumentUploadDir = process.env.BID_DOCUMENT_UPLOAD_DIR;
 const originalBidDocumentStorageDriver = process.env.BID_DOCUMENT_STORAGE_DRIVER;
 const originalBidDocumentMaxBytes = process.env.BID_DOCUMENT_MAX_BYTES;
+const testSignatureKeyphrase = 'correct horse battery staple';
 
 afterEach(() => {
   if (originalBidEncryptionKey === undefined) delete process.env.BID_ENCRYPTION_KEY;
@@ -1622,9 +1623,10 @@ describe('bidding repository rules', () => {
 
   it('submits bids in a transaction by creating a sealed version, receipt, and audit event', async () => {
     delete process.env.BID_ENCRYPTION_KEY;
-    const { repository, db, tx } = repositorySubmitFixture({ signingCredential: await testSigningCredential() });
+    const { repository, db, tx } = repositorySubmitFixture();
+    await installSigningCredential(tx);
 
-    const result = await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1', signatureKeyphrase: 'Signing123' });
+    const result = await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1', signatureKeyphrase: testSignatureKeyphrase });
 
     expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -1712,9 +1714,10 @@ describe('bidding repository rules', () => {
 
   it('submits bids with encrypted sealed payloads when BID_ENCRYPTION_KEY is configured', async () => {
     process.env.BID_ENCRYPTION_KEY = '12345678901234567890123456789012';
-    const { repository, tx } = repositorySubmitFixture({ signingCredential: await testSigningCredential() });
+    const { repository, tx } = repositorySubmitFixture();
+    await installSigningCredential(tx);
 
-    await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1', signatureKeyphrase: 'Signing123' });
+    await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1', signatureKeyphrase: testSignatureKeyphrase });
 
     const versionPayload = tx.bidVersion.create.mock.calls[0][0].data.payload;
     expect(versionPayload).toMatchObject({
@@ -2219,15 +2222,6 @@ function biddingRouterApp() {
   return app;
 }
 
-async function testSigningCredential() {
-  return {
-    id: 'credential-1',
-    userId: 'user-1',
-    status: 'ACTIVE',
-    ...(await createEncryptedSigningCredential('Signing123'))
-  };
-}
-
 function repositorySubmitFixture(options: { bid?: ReturnType<typeof bidRecord>; signingCredential?: Record<string, unknown> | null } = {}) {
   const tx = transactionMock();
   const db = {
@@ -2254,6 +2248,18 @@ function repositorySubmitFixture(options: { bid?: ReturnType<typeof bidRecord>; 
     db,
     repository: new ModuleRepository(db as any)
   };
+}
+
+async function installSigningCredential(tx: ReturnType<typeof transactionMock>) {
+  const credential = await createEncryptedSigningCredential(testSignatureKeyphrase);
+  tx.signingCredential.findFirst.mockResolvedValue({
+    id: 'signing-credential-1',
+    userId: 'user-1',
+    status: 'ACTIVE',
+    createdAt: new Date('2026-07-01T07:59:00.000Z'),
+    revokedAt: null,
+    ...credential
+  });
 }
 
 function expectNoSubmitWrites(tx: ReturnType<typeof transactionMock>) {
@@ -2304,7 +2310,7 @@ function transactionMock() {
       create: vi.fn()
     },
     signingCredential: {
-      findFirst: vi.fn()
+      findFirst: vi.fn().mockResolvedValue(null)
     },
     signedAction: {
       create: vi.fn().mockResolvedValue({ id: 'signed-action-1' })

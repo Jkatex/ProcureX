@@ -1,0 +1,4 @@
+requirementKey,fieldId,itemNo,requestedProduct,buyerSpecification,complianceStatus,offeredSpecification,evidenceReference,deviations
+goods.productSpecification.54ef9819-97db-4bb1-9c73-921462377c54,goods.productSpecification.54ef9819-97db-4bb1-9c73-921462377c54,1,Business laptop computers with warranty,Buyer specification details not provided.,,,,
+goods.productSpecification.3fb8d82f-022c-49a1-b462-364e818aa1d6,goods.productSpecification.3fb8d82f-022c-49a1-b462-364e818aa1d6,2,Network switches and installation,Buyer specification details not provided.,,,,
+goods.productSpecification.fa52e770-1a1d-407b-a16b-003ea50e21b6,goods.productSpecification.fa52e770-1a1d-407b-a16b-003ea50e21b6,3,Printer supply and configuration,Buyer specification details not provided.,,,,

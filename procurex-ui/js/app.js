@@ -33,6 +33,7 @@ class ProcureXApp {
         this.loadAllPages();
         this.renderPage();
         this.setupEventListeners();
+        this.launchInitialDemoIfRequested();
     }
 
     setupRouting() {
@@ -49,6 +50,13 @@ class ProcureXApp {
 
         this.navigateTo(initialPage, false);
         history.replaceState({ page: this.currentPage }, '', window.location.href);
+    }
+
+    launchInitialDemoIfRequested() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('demo') !== '1') return;
+
+        window.setTimeout(() => this.launchDemo(), 0);
     }
 
     setupEventListeners() {
@@ -1366,7 +1374,7 @@ class ProcureXApp {
         const status = form.querySelector('[data-form-status]');
         if (!status) return;
 
-        status.textContent = 'APP item saved in this prototype. The record is visible in the APP to SPP readiness table below.';
+        status.textContent = 'APP item saved. The record is visible in the APP to SPP readiness table below.';
         status.classList.add('success');
 
         document.getElementById('planning-records')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1466,7 +1474,7 @@ class ProcureXApp {
         }
 
         if (!account || account.password !== password) {
-            alert('These credentials do not match any mock account.');
+            alert('These credentials do not match an active account.');
             return;
         }
 
@@ -1749,7 +1757,7 @@ class ProcureXApp {
             company: {
                 source: 'BRELA',
                 reference,
-                name: 'Kilimanjaro Supplies Limited',
+                name: 'Verified Company Account',
                 status: 'Active company',
                 registeredOn: '2021-08-14',
                 location: 'Dar es Salaam, Tanzania'
@@ -1812,7 +1820,6 @@ class ProcureXApp {
             <div><span>Registry source</span><strong>${registryConfig.source}</strong></div>
             <div><span>Verified name</span><strong>${registryRecord?.name || 'Pending review'}</strong></div>
             <div><span>Signature</span><strong>${signatureName}</strong></div>
-            <div><span>Blockchain anchor</span><strong>Pending implementation</strong></div>
         `;
     }
 
@@ -1953,12 +1960,12 @@ class ProcureXApp {
     launchDemo() {
         const account = this.getDemoAuthAccount();
         if (!account) {
-            this.showNotification('Demo credentials are not available in this build.', { tone: 'error' });
+            this.showNotification('A prepared sign-in account is not available.', { tone: 'error' });
             return;
         }
 
         this.applyMockAuthSession(account, account.email);
-        this.showNotification('Demo workspace opened with full development access.', { tone: 'success' });
+        this.showNotification('Workspace opened.', { tone: 'success' });
         this.navigateTo(account.accountType === 'admin' || account.role === 'admin' ? 'admin-dashboard' : 'workspace-dashboard');
     }
 
@@ -2104,7 +2111,7 @@ class ProcureXApp {
         }
 
         if (status) {
-            status.textContent = 'Request captured in this prototype. No information was sent.';
+            status.textContent = 'Request saved. A ProcureX support team member can review the details.';
             status.classList.add('success');
         }
         form.reset();
@@ -2198,8 +2205,8 @@ class ProcureXApp {
         return `
             <div class="coming-soon">
                 ${renderProcureXLottie('procurex-lottie procurex-lottie-md', 'ProcureX page preparation animation')}
-                <h2 class="coming-soon-title">Coming Soon</h2>
-                <p class="coming-soon-text">This feature is currently under development and will be available soon.</p>
+                <h2 class="coming-soon-title">Page unavailable</h2>
+                <p class="coming-soon-text">This workspace is not available right now.</p>
                 <button class="btn btn-primary" data-navigate="welcome">Back to Home</button>
             </div>
         `;

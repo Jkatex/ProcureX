@@ -118,7 +118,7 @@ const adminAppIconByKey: Record<string, PlatformAppIconKind> = {
   'command-center': 'records',
   'deep-search': 'procurement',
   'user-management': 'iam',
-  'compliance-rules': 'planning',
+  'compliance-rules': 'evaluation',
   'platform-analytics': 'evaluation',
   'full-audit-trail': 'records',
   'data-store': 'records',

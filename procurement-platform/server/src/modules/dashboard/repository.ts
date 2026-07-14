@@ -520,7 +520,7 @@ function planLineDeadlines(line: {
           title: line.tenderTitle,
           date: line.openingDate.toISOString(),
           kind: 'Planned opening',
-          route: '/tender-planning'
+          route: '/procurement/create-tender'
         }
       : null,
     line.closingDate
@@ -529,7 +529,7 @@ function planLineDeadlines(line: {
           title: line.tenderTitle,
           date: line.closingDate.toISOString(),
           kind: 'Planned closing',
-          route: '/tender-planning'
+          route: '/procurement/create-tender'
         }
       : null,
     line.expectedCompletionDate
@@ -538,7 +538,7 @@ function planLineDeadlines(line: {
           title: line.tenderTitle,
           date: line.expectedCompletionDate.toISOString(),
           kind: 'Expected completion',
-          route: '/tender-planning'
+          route: '/procurement/create-tender'
         }
       : null
   ].filter(Boolean) as DashboardDeadlineDto[];

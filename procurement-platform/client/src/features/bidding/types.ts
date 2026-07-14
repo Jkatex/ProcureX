@@ -2,6 +2,7 @@ export type BidDocumentEnvelope = 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' |
 export type BidWorkflowType = 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
 
 export type BidDocumentInput = {
+  documentId?: string;
   name: string;
   documentType: string;
   envelope?: BidDocumentEnvelope;
@@ -31,6 +32,7 @@ export type BidDraftPayload = {
   fileManifest?: Record<string, unknown>;
   envelopes?: Record<string, unknown>;
   reviewReadiness?: Record<string, unknown>;
+  workspaceState?: Record<string, unknown>;
   totalAmount?: number;
   currency?: string;
   completeness?: Record<string, unknown>;
