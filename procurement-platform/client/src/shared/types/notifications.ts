@@ -9,6 +9,7 @@ export type NotificationAction = {
 export type UserNotification = {
   id: string;
   tone: NotificationTone;
+  presentation?: 'default' | 'bidNotice';
   title: string;
   message: string;
   reason?: string;

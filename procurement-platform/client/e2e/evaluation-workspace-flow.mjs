@@ -12,6 +12,7 @@ const credentials = {
   email: process.env.EVALUATION_BUYER_EMAIL ?? 'evaluation-buyer@procurex.tz',
   password: process.env.EVALUATION_BUYER_PASSWORD ?? 'Demo123!'
 };
+const signatureKeyphrase = process.env.EVALUATION_BUYER_SIGNATURE_KEYPHRASE ?? 'Signing123';
 const seededTenders = [
   { reference: 'PX-GDS-2026-001', category: 'Goods' },
   { reference: 'PX-WRK-2026-002', category: 'Works' },
@@ -261,12 +262,16 @@ async function submitFinal(page) {
   if (await button.isDisabled()) {
     throw new Error(`Submit Evaluation button is disabled. Body excerpt:\n${(await page.locator('body').innerText()).slice(0, 2200)}`);
   }
+  await button.click();
+  const dialog = page.getByRole('dialog', { name: /Complete evaluation/i });
+  await dialog.waitFor({ state: 'visible', timeout: 10000 });
+  await dialog.getByLabel('Signature keyphrase').fill(signatureKeyphrase);
   const responsePromise = page
     .waitForResponse((response) => response.url().includes('/api/evaluations/tenders/') && response.url().includes('/workspace') && response.request().method() === 'PUT', { timeout: 20000 })
     .catch(async (error) => {
       throw new Error(`${error.message}\nAfter Submit Evaluation click body excerpt:\n${(await page.locator('body').innerText()).slice(0, 2200)}`);
     });
-  await button.click();
+  await dialog.getByRole('button', { name: 'Complete evaluation' }).click();
   const response = await responsePromise;
   if (!response.ok()) throw new Error(`Submit Evaluation API returned ${response.status()}.`);
   await assertHealthyPage(page, 'workspace after final submission', ['Evaluation completed']);

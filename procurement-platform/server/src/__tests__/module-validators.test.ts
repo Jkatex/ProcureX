@@ -36,15 +36,18 @@ describe('module validators', () => {
         decisions: [{ bidId, status: 'PASSED', comment: 'Eligible.' }],
         activeStageId: 'tor',
         sectionDraft: { tor: { [bidId]: { methodology: { decision: 'Pass', remark: 'Responsive.' } } } },
-        complete: true
+        complete: true,
+        signatureKeyphrase: 'committee-signature'
       })
     ).toEqual({
       scores: [{ bidId, criterionId, score: 87.5, comment: 'Responsive technical bid.' }],
       decisions: [{ bidId, status: 'PASSED', comment: 'Eligible.' }],
       activeStageId: 'tor',
       sectionDraft: { tor: { [bidId]: { methodology: { decision: 'Pass', remark: 'Responsive.' } } } },
-      complete: true
+      complete: true,
+      signatureKeyphrase: 'committee-signature'
     });
+    expect(() => saveWorkspaceBodySchema.parse({ complete: true })).toThrow();
     expect(() => saveWorkspaceBodySchema.parse({ scores: [{ bidId, criterionId, score: -1 }] })).toThrow();
     expect(() => saveWorkspaceBodySchema.parse({ decisions: [{ bidId, status: 'AWARDED' }] })).toThrow();
     expect(() => saveWorkspaceBodySchema.parse({ extra: true })).toThrow();

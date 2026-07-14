@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { store } from '@/app/store';
 import { assumeUser, signOut } from '@/features/auth/slice';
 import { communicationApi } from '@/features/communication/api';
+import { supportComposeRoute } from '@/features/communication/supportComposeRoute';
 import type { CommunicationListResponse, CommunicationMailboxMessage } from '@/features/communication/types';
 import { CommunicationCenterProcurexPage } from './CommunicationCenterProcurexPage';
 
@@ -16,7 +17,7 @@ vi.mock('@/features/communication/api', () => ({
     markRead: vi.fn(),
     composeMessage: vi.fn(),
     replyToMessage: vi.fn(),
-    archive: vi.fn(),
+    getAttachment: vi.fn(),
     listRecipients: vi.fn(),
     listTenderLinks: vi.fn()
   }
@@ -27,7 +28,7 @@ const getMessage = vi.mocked(communicationApi.getMessage);
 const markRead = vi.mocked(communicationApi.markRead);
 const composeMessage = vi.mocked(communicationApi.composeMessage);
 const replyToMessage = vi.mocked(communicationApi.replyToMessage);
-const archive = vi.mocked(communicationApi.archive);
+const getAttachment = vi.mocked(communicationApi.getAttachment);
 const listRecipients = vi.mocked(communicationApi.listRecipients);
 const listTenderLinks = vi.mocked(communicationApi.listTenderLinks);
 
@@ -148,7 +149,21 @@ describe('CommunicationCenterProcurexPage', () => {
     markRead.mockResolvedValue(readMessage);
     composeMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
     replyToMessage.mockResolvedValue({ message: sentMessage, deliveries: [sentMessage] });
-    archive.mockResolvedValue({ ...readMessage, folder: 'archived', status: 'ARCHIVED' });
+    getAttachment.mockResolvedValue(new Blob(['agenda'], { type: 'application/pdf' }));
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:attachment')
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn()
+    });
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: vi.fn(() => ({}))
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
     listRecipients.mockResolvedValue([
       { id: 'platform', name: 'Admin', kind: 'PLATFORM', country: 'TZ', capabilities: [] },
       { id: 'org-2', name: 'Ministry of Health', kind: 'COMPANY', country: 'TZ', capabilities: ['BUYER'] },
@@ -177,7 +192,25 @@ describe('CommunicationCenterProcurexPage', () => {
     expect(screen.queryByText('Message context')).not.toBeInTheDocument();
     expect(screen.queryByText('General Message')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reply' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.getByText('agenda.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('PDF')).not.toBeInTheDocument();
+  });
+
+  it('opens and downloads message attachments for the mailbox owner', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
+
+    vi.mocked(window.open).mockReturnValueOnce(null);
+    await userEvent.click(screen.getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'open'));
+    expect(window.open).toHaveBeenCalledWith('blob:attachment', '_blank', 'noopener,noreferrer');
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+    expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Check that popups are allowed'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(getAttachment).toHaveBeenCalledWith(message.id, 'attachment-1', 'download'));
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
   });
 
   it('reloads mailbox data for search and folder changes', async () => {
@@ -220,6 +253,7 @@ describe('CommunicationCenterProcurexPage', () => {
     ]);
     expect(screen.getByText('report.pdf')).toBeInTheDocument();
     expect(screen.getByText('site-photo.png')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Ready')).toHaveLength(2));
     expect(await screen.findByRole('option', { name: 'PX-2026-001' })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
@@ -229,6 +263,7 @@ describe('CommunicationCenterProcurexPage', () => {
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Clarification request' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please confirm the meeting location.' } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send Message' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
 
     await waitFor(() => expect(composeMessage).toHaveBeenCalledTimes(2));
@@ -262,15 +297,47 @@ describe('CommunicationCenterProcurexPage', () => {
     );
   });
 
-  it('replies and archives through the communication API', async () => {
+  it('opens support compose with an admin recipient and sends through communication API', async () => {
+    renderPage([supportComposeRoute()]);
+
+    expect(await screen.findByRole('heading', { name: 'Contact ProcureX admin support' })).toBeInTheDocument();
+    await waitFor(() => expect(listRecipients).toHaveBeenCalledWith(expect.objectContaining({ search: 'admin' })));
+    expect(await screen.findByRole('button', { name: /Remove Admin/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tender reference')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Add files')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Subject')).toHaveValue('Support request');
+    expect(screen.getByLabelText('Message')).toHaveValue('Please describe the support issue you need admin help with.');
+
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'I need admin support with verification.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send Support Message' }));
+
+    await waitFor(() => expect(composeMessage).toHaveBeenCalledWith(expect.objectContaining({
+      senderOrgId: 'org-1',
+      recipientOrgId: 'platform',
+      category: 'Support',
+      subject: 'Support request',
+      body: 'I need admin support with verification.',
+      metadata: expect.objectContaining({ support: 'true' })
+    })));
+    expect(await screen.findByText('Support message sent')).toBeInTheDocument();
+  });
+
+  it('shows a support recipient fallback notice when admin lookup fails', async () => {
+    listRecipients.mockResolvedValueOnce([]);
+
+    renderPage([supportComposeRoute()]);
+
+    expect(await screen.findByText('Select "ProcureX Platform" or an admin recipient before sending.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Remove Admin/i })).not.toBeInTheDocument();
+  });
+
+  it('replies through the communication API without archive controls', async () => {
     renderPage();
     await screen.findByRole('button', { name: /site visit schedule/i });
     await userEvent.click(screen.getByRole('button', { name: /site visit schedule/i }));
 
-    await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
-    await waitFor(() => expect(archive).toHaveBeenCalledWith(message.id));
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
 
-    await userEvent.click(await screen.findByRole('button', { name: /site visit schedule/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Reply' }));
     expect(await screen.findByLabelText('Subject')).toHaveValue('Re: Site visit schedule');
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Confirmed for Friday.' } });

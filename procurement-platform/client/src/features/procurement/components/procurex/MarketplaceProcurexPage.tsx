@@ -5,7 +5,7 @@ import { demoUsers } from '@/shared/data/fixtures';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import { procurementApi } from '../../api';
 import { useMarketplaceData } from '../../hooks';
-import { hasActiveMarketplaceDeadline, isActiveMarketplaceTender } from '../../marketplaceTenderVisibility';
+import { hasActiveMarketplaceDeadline, isActiveInvitedTender, isActiveMarketplaceTender } from '../../marketplaceTenderVisibility';
 import type { MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../../types';
 import {
   MarketplaceCategoryGrid,
@@ -40,6 +40,7 @@ const emptyFilters: MarketplaceFiltersState = {
 const tabRoutes: Record<MarketplaceTabId, string> = {
   recommended: '/procurement/marketplace',
   'all-tenders': '/procurement/marketplace?view=all-tenders',
+  'invited-tenders': '/procurement/marketplace?view=invited-tenders',
   'my-workspace': '/procurement/marketplace?view=my-workspace'
 };
 
@@ -50,6 +51,7 @@ export function MarketplaceProcurexPage() {
   const { data, isLoading, isError } = useMarketplaceData();
   const [filters, setFilters] = useState<MarketplaceFiltersState>(emptyFilters);
   const [recommendedQuery, setRecommendedQuery] = useState('');
+  const [invitedQuery, setInvitedQuery] = useState('');
   const [savedTenderIds, setSavedTenderIds] = useState<Set<string>>(() => new Set());
   const [savingTenderIds, setSavingTenderIds] = useState<Set<string>>(() => new Set());
   const [saveError, setSaveError] = useState('');
@@ -66,9 +68,19 @@ export function MarketplaceProcurexPage() {
     return filterTenders(activeMarketplaceTenders, filters, deadlineNow);
   }, [activeMarketplaceTenders, deadlineNow, filters]);
 
+  const activeRecommendedTenders = useMemo(() => {
+    const rows = data?.recommendedTenders ?? activeMarketplaceTenders;
+    return rows.filter((tender) => isActiveMarketplaceTender(tender, deadlineNow) || isActiveInvitedTender(tender, deadlineNow));
+  }, [activeMarketplaceTenders, data?.recommendedTenders, deadlineNow]);
+
   const recommendedTenders = useMemo(() => {
-    return filterRecommendedTenders(activeMarketplaceTenders, recommendedQuery, deadlineNow);
-  }, [activeMarketplaceTenders, deadlineNow, recommendedQuery]);
+    return filterRecommendedTenders(activeRecommendedTenders, recommendedQuery, deadlineNow);
+  }, [activeRecommendedTenders, deadlineNow, recommendedQuery]);
+
+  const invitedTenders = useMemo(() => {
+    const rows = data?.invitedTenders ?? (data?.tenders ?? []).filter((tender) => isActiveInvitedTender(tender, deadlineNow));
+    return filterInvitedTenders(rows, invitedQuery, deadlineNow);
+  }, [data?.invitedTenders, data?.tenders, deadlineNow, invitedQuery]);
 
   const workspace = useMemo(() => {
     return buildWorkspaceSections({
@@ -89,9 +101,13 @@ export function MarketplaceProcurexPage() {
   }
 
   useEffect(() => {
-    const savedIds = new Set((data?.tenders ?? []).filter((tender) => tender.isSaved).map((tender) => tender.id));
+    const savedIds = new Set(
+      [...(data?.tenders ?? []), ...(data?.recommendedTenders ?? []), ...(data?.invitedTenders ?? [])]
+        .filter((tender) => tender.isSaved)
+        .map((tender) => tender.id)
+    );
     setSavedTenderIds(savedIds);
-  }, [data?.tenders]);
+  }, [data?.invitedTenders, data?.recommendedTenders, data?.tenders]);
 
   useEffect(() => {
     const now = Date.now();
@@ -201,6 +217,21 @@ export function MarketplaceProcurexPage() {
                     </section>
                   ) : null}
 
+                  {activeTab === 'invited-tenders' ? (
+                    <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="Invited tenders">
+                      <MarketplaceRecommendedSearch query={invitedQuery} onQueryChange={setInvitedQuery} />
+                      <TenderListPanel
+                        tenders={invitedTenders}
+                        savedTenderIds={savedTenderIds}
+                        savingTenderIds={savingTenderIds}
+                        onToggleSaved={toggleSaved}
+                        title="Invited tenders"
+                        kicker="Invited"
+                        empty="Tenders you are invited to, will appear here"
+                      />
+                    </section>
+                  ) : null}
+
                   {activeTab === 'my-workspace' ? (
                     <section className="supplier-detail-tab-panel" role="tabpanel" aria-label="My workspace">
                       <TenderListPanel
@@ -243,6 +274,7 @@ function getActiveTab(pathname: string, search = ''): MarketplaceTabId {
 
   const view = new URLSearchParams(search).get('view');
   if (view === 'all-tenders') return 'all-tenders';
+  if (view === 'invited-tenders') return 'invited-tenders';
   if (view === 'my-workspace') return 'my-workspace';
   return 'recommended';
 }
@@ -270,11 +302,21 @@ function filterTenders(tenders: MarketplaceTenderRow[], filters: MarketplaceFilt
 function filterRecommendedTenders(tenders: MarketplaceTenderRow[], query: string, now = Date.now()) {
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = tenders.filter((tender) => {
-    if (!isActiveMarketplaceTender(tender, now)) return false;
+    if (!isActiveMarketplaceTender(tender, now) && !isActiveInvitedTender(tender, now)) return false;
     return !normalizedQuery || searchableTenderText(tender).includes(normalizedQuery);
   });
 
   return sortTendersByDeadline(filtered);
+}
+
+function filterInvitedTenders(tenders: MarketplaceTenderRow[], query: string, now = Date.now()) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = tenders.filter((tender) => {
+    if (!isActiveInvitedTender(tender, now)) return false;
+    return !normalizedQuery || searchableTenderText(tender).includes(normalizedQuery);
+  });
+
+  return sortTendersByDeadline(uniqueTenderRows(filtered));
 }
 
 function buildWorkspaceSections({

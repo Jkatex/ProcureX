@@ -45,6 +45,7 @@ export type CommunicationAttachmentUploadInput = {
   documentType?: string;
   mimeType?: string;
   size?: number;
+  contentBase64?: string;
 };
 
 export type ComposeMessageInput = {
@@ -103,6 +104,12 @@ export type CommunicationAttachmentDto = {
   objectKey: string;
   checksum: string | null;
   createdAt: string;
+};
+
+export type CommunicationAttachmentFileDto = {
+  name: string;
+  mimeType: string;
+  content: Buffer;
 };
 
 export type CommunicationMessageDto = {

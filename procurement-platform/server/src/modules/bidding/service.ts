@@ -218,20 +218,20 @@ export class ModuleService {
     throw requestError('Bid access is not allowed.', 403);
   }
 
-  async submit(token: string | undefined, bidId: string) {
+  async submit(token: string | undefined, bidId: string, input: { signatureKeyphrase?: string } = {}) {
     const session = await this.identity.requirePermission(token, 'bidding.submit');
     const supplierOrgId = requireOrganization(session.user.organizationId);
-    return this.repository.submit({ bidId, supplierOrgId, userId: session.user.id });
+    return this.repository.submit({ bidId, supplierOrgId, userId: session.user.id, signatureKeyphrase: input.signatureKeyphrase });
   }
 
-  async withdraw(token: string | undefined, bidId: string) {
+  async withdraw(token: string | undefined, bidId: string, input: { signatureKeyphrase?: string } = {}) {
     const session = await this.identity.requirePermission(token, 'bidding.submit');
     const bid = await this.repository.findBidForAccess(bidId);
     if (!bid) throw requestError('Bid was not found.', 404);
     assertSupplierOwnsBid(bid, session.user.organizationId);
     if (bid.status !== BidStatus.SUBMITTED) throw requestError('Only submitted bids can be withdrawn.', 409);
     if (!tenderAcceptsBids(bid.tender)) throw requestError('The tender is closed; withdrawal is no longer available.', 409);
-    return this.repository.withdraw({ bid, userId: session.user.id });
+    return this.repository.withdraw({ bid, userId: session.user.id, signatureKeyphrase: input.signatureKeyphrase });
   }
 }
 

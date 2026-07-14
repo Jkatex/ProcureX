@@ -96,6 +96,15 @@ export function validateBidDraft(input: {
       if (valueForField(field, draft) !== true) addRequiredIssue(field, `Required declaration must be accepted: ${field.label}.`);
       continue;
     }
+    if (isStructuredField(field)) {
+      if (!hasRequiredResponse(field, draft)) {
+        addRequiredIssue(field, `Required response is missing: ${field.label}.`);
+        continue;
+      }
+      const missingEvidence = missingStructuredEvidenceUploads(field, draft);
+      if (missingEvidence.length) missingEvidence.forEach((slot) => addRequiredIssue(field, `Required evidence upload is missing: ${field.label} - ${slot.label}.`));
+      continue;
+    }
     if (!hasRequiredResponse(field, draft)) addRequiredIssue(field, `Required response is missing: ${field.label}.`);
   }
 
@@ -194,6 +203,51 @@ function isFinancialPricingField(field: BidSubmissionSchemaFieldDto) {
 function hasRequiredDocument(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {
   const documents = draft.documents ?? [];
   return documents.some((document) => documentMatchesField(document, field)) || responseContainsDocument(field, draft);
+}
+
+function isStructuredField(field: BidSubmissionSchemaFieldDto) {
+  return field.type === 'table' || field.responseType === 'structured';
+}
+
+type StructuredEvidenceSlot = {
+  key: string;
+  label: string;
+  requirementKey: string;
+};
+
+function structuredEvidenceSlots(field: BidSubmissionSchemaFieldDto): StructuredEvidenceSlot[] {
+  if (!isStructuredField(field)) return [];
+  const control = stringValue(field.validation.control);
+  if (control === 'goodsProductSpecification') return [];
+  return explicitEvidenceRows(control).map((row) => ({
+    ...row,
+    requirementKey: `${field.requirementKey}.${row.key}`
+  }));
+}
+
+function explicitEvidenceRows(control: string): Array<{ key: string; label: string }> {
+  if (control === 'worksSimilarProject') return [{ key: 'referenceEvidence', label: 'Upload similar project document' }];
+  if (control === 'worksPersonnel' || control === 'serviceStaffing' || control === 'consultancyKeyExpert') return [{ key: 'cvEvidence', label: 'CV upload' }];
+  if (control === 'worksEquipment' || control === 'serviceEquipment') return [{ key: 'evidenceReference', label: 'Upload Lease / access agreement' }];
+  return [];
+}
+
+function missingStructuredEvidenceUploads(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput) {
+  return structuredEvidenceSlots(field).filter((slot) => !hasStructuredEvidenceUpload(field, slot, draft));
+}
+
+function hasStructuredEvidenceUpload(field: BidSubmissionSchemaFieldDto, slot: StructuredEvidenceSlot, draft: BidDraftInput) {
+  return (draft.documents ?? []).some((document) => documentMatchesEvidenceSlot(document, field, slot));
+}
+
+function documentMatchesEvidenceSlot(document: BidDocumentInput, field: BidSubmissionSchemaFieldDto, slot: StructuredEvidenceSlot) {
+  if (!validEnvelope(document.envelope)) return false;
+  const metadata = objectPayload(document.metadata);
+  return (
+    stringEquals(metadata.requirementKey, slot.requirementKey) ||
+    (stringEquals(metadata.parentRequirementKey, field.requirementKey) && stringEquals(metadata.evidenceKey, slot.key)) ||
+    (stringEquals(metadata.fieldId, field.id) && stringEquals(metadata.evidenceKey, slot.key))
+  );
 }
 
 function documentMatchesField(document: BidDocumentInput, field: BidSubmissionSchemaFieldDto) {

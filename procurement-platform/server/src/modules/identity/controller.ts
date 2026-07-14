@@ -12,6 +12,11 @@ import {
   profileUpdateSchema,
   registryLookupSchema,
   forgotPasswordSchema,
+  keyphraseChangeSchema,
+  keyphraseRecoveryCompleteSchema,
+  keyphraseRecoveryEmailSchema,
+  keyphraseRecoveryPhoneSchema,
+  keyphraseRecoveryStartSchema,
   resendChallengeSchema,
   resetPasswordSchema,
   setPasswordSchema,
@@ -340,6 +345,79 @@ export class ModuleController {
   revokeSignature: RequestHandler = async (req, res, next) => {
     try {
       res.json(await this.service.revokeSignature(bearerToken(req), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getKeyphraseStatus: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.keyphraseStatus(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  changeKeyphrase: RequestHandler = async (req, res, next) => {
+    try {
+      const input = keyphraseChangeSchema.parse(req.body);
+      res.json(await this.service.changeKeyphrase(bearerToken(req), input, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  startKeyphraseRecovery: RequestHandler = async (req, res, next) => {
+    try {
+      const input = keyphraseRecoveryStartSchema.parse(req.body);
+      await this.requireTurnstile(req, input.turnstileToken, input.email);
+      res.json(await this.service.startKeyphraseRecovery(input.email, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyKeyphraseRecoveryEmail: RequestHandler = async (req, res, next) => {
+    try {
+      const input = keyphraseRecoveryEmailSchema.parse(req.body);
+      await this.requireTurnstile(req, input.turnstileToken);
+      res.json(await this.service.verifyKeyphraseRecoveryEmail(input.recoveryId, input.code, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyKeyphraseRecoveryPhone: RequestHandler = async (req, res, next) => {
+    try {
+      const input = keyphraseRecoveryPhoneSchema.parse(req.body);
+      await this.requireTurnstile(req, input.turnstileToken);
+      res.json(await this.service.verifyKeyphraseRecoveryPhone(input.recoveryId, input.code, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  completeKeyphraseRecovery: RequestHandler = async (req, res, next) => {
+    try {
+      const input = keyphraseRecoveryCompleteSchema.parse(req.body);
+      await this.requireTurnstile(req, input.turnstileToken);
+      res.json(await this.service.completeKeyphraseRecovery(input.recoveryId, input.newKeyphrase, input.confirmKeyphrase, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  keyphraseRecoveryHistory: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.keyphraseRecoveryHistory(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  adminKeyphraseRecoveryHistory: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.adminKeyphraseRecoveryHistory(bearerToken(req)));
     } catch (error) {
       next(error);
     }

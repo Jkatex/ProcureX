@@ -266,4 +266,5 @@ export type SaveEvaluationWorkspaceInput = {
   activeStageId?: string;
   selectedBidId?: string;
   sectionDraft?: Record<string, unknown>;
+  signatureKeyphrase?: string;
 };

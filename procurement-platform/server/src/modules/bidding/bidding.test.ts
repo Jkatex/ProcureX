@@ -331,25 +331,47 @@ describe('bid submission schema builder', () => {
     expect(schema.tenderType).toBe('WORKS');
     expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'worksCapacity', 'worksTechnicalProposal', 'worksFinancial', 'worksReview', 'worksDeclaration']);
     expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['Similar completed project evidence', 'Site engineer', 'Concrete mixer']));
-    expect(stepFields(schema, 'financial')).toEqual([
+    const worksTechnicalFields = stepFields(schema, 'worksTechnicalProposal');
+    expect(worksTechnicalFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requirementKey: 'works.proposal.understanding', label: 'Project Understanding' }),
+        expect.objectContaining({ requirementKey: 'works.schedule.workProgramUpload', label: 'Upload work program', type: 'file' }),
+        expect.objectContaining({ requirementKey: 'works.drawings.reviewedAcknowledgement', label: 'Drawing reviewed acknowledgement' }),
+        expect.objectContaining({ requirementKey: 'works.design.alternativeProposed', label: 'Alternative Design Proposed?' })
+      ])
+    );
+    const worksFinancialFields = stepFields(schema, 'financial');
+    expect(worksFinancialFields).toEqual(expect.arrayContaining([
       expect.objectContaining({
         requirementKey: 'commercialItems.boq-1.unitRate',
         label: 'Unit rate for Partition works',
-        validation: expect.objectContaining({ itemId: 'boq-1', itemNo: '1', description: 'Partition works', quantity: 1, unit: 'Lot' })
-      })
-    ]);
-    expect(stepFields(schema, 'administrative')).toEqual(
+        validation: expect.objectContaining({ control: 'worksBoqCostBreakdown', itemId: 'boq-1', itemNo: '1', description: 'Partition works', quantity: 1, unit: 'Lot' })
+      }),
+      expect.objectContaining({ requirementKey: 'works.commercial.bidValidity', label: 'Bid Validity Period (days)' }),
+      expect.objectContaining({ requirementKey: 'works.commercial.currency', label: 'Currency' }),
+      expect.objectContaining({ requirementKey: 'works.commercial.bidSecurityDocument', label: 'Bid security document', type: 'file' })
+    ]));
+    const worksDeclarationFields = stepFields(schema, 'worksDeclaration');
+    expect(worksDeclarationFields).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ label: 'Contractor registration', type: 'file' }),
+        expect.objectContaining({ requirementKey: 'works.declaration.signatoryName', label: 'Authorized Signatory Name', type: 'text', required: true }),
+        expect.objectContaining({ requirementKey: 'works.declaration.position', label: 'Position', type: 'text', required: true }),
         expect.objectContaining({
-          requirementKey: 'administrative.similarProjects',
-          label: 'Confirm similar project evidence',
-          type: 'boolean',
-          responseType: 'acknowledgement',
-          required: true
-        })
+          requirementKey: 'works.declaration.companyStamp',
+          label: 'Company stamp upload',
+          type: 'file',
+          required: false,
+          validation: expect.objectContaining({ control: 'worksDeclaration', accept: '.pdf,.jpg,.jpeg,.png', documentType: 'DECLARATION_COMPANY_STAMP' })
+        }),
+        expect.objectContaining({ requirementKey: 'works.declaration.digitalSignature', label: 'Digital Signature', type: 'text', required: true, validation: expect.objectContaining({ placeholder: 'Type authorized digital signature' }) }),
+        expect.objectContaining({ requirementKey: 'works.declaration.final', label: 'I confirm this works bid is complete, accurate, and authorized.', type: 'boolean', required: true }),
+        expect.objectContaining({ requirementKey: 'works.declaration.conflict', label: 'I declare no conflict of interest.', type: 'boolean', required: true }),
+        expect.objectContaining({ requirementKey: 'works.declaration.antiCorruption', label: 'I accept anti-corruption declarations.', type: 'boolean', required: true })
       ])
     );
+    const administrativeFields = stepFields(schema, 'administrative');
+    expect(administrativeFields).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Contractor registration', type: 'file' })]));
+    expect(administrativeFields.map((field) => field.label)).not.toEqual(expect.arrayContaining(['Confirm authorized representative', 'Confirm similar project evidence']));
   });
 
   it('derives service BOQ rows when top-level commercial items are empty', () => {
@@ -765,6 +787,89 @@ describe('bidding service rules', () => {
       mode: 'submit'
     });
     expect(present.valid).toBe(true);
+  });
+
+  it('requires evidence uploads for required structured technical capacity fields', () => {
+    const tender = tenderRecord({
+      type: 'WORKS',
+      requirements: {
+        works: {
+          fields: {
+            similarCompletedProjectsRequired: true,
+            mainConstructionActivities: 'Provide a method statement for the works.'
+          }
+        }
+      }
+    });
+    const draft = {
+      ...draftInput(),
+      technical: {
+        methodStatement: 'We will deliver the works using the approved method statement.',
+        similarProjects: {
+          projectName: 'District clinic renovation',
+          contractValue: 150000000,
+          completionDate: 'Completed in 2025'
+        }
+      },
+      responses: [
+        {
+          requirementKey: 'works.similarProjects',
+          response: {
+            value: {
+              projectName: 'District clinic renovation',
+              contractValue: 150000000,
+              completionDate: 'Completed in 2025'
+            }
+          }
+        },
+        {
+          requirementKey: 'works.methodStatement',
+          response: { value: 'We will deliver the works using the approved method statement.' }
+        }
+      ],
+      documents: []
+    };
+
+    const missing = validateBidDraft({ draft, tender, mode: 'submit' });
+
+    expect(missing.valid).toBe(false);
+    expect(missing.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'works.similarProjects',
+          message: 'Required evidence upload is missing: Similar completed project evidence - Upload similar project document.'
+        })
+      ])
+    );
+
+    const present = validateBidDraft({
+      draft: {
+        ...draft,
+        documents: [
+          {
+            name: 'district-clinic-reference.pdf',
+            documentType: 'TECHNICAL_SIMILAR_PROJECT_EVIDENCE',
+            envelope: 'TECHNICAL' as const,
+            metadata: {
+              requirementKey: 'works.similarProjects.referenceEvidence',
+              parentRequirementKey: 'works.similarProjects',
+              fieldId: 'works.similarProjects',
+              evidenceKey: 'referenceEvidence'
+            }
+          }
+        ]
+      },
+      tender,
+      mode: 'submit'
+    });
+    expect(present.issues).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: 'works.similarProjects',
+          message: expect.stringContaining('Required evidence upload is missing')
+        })
+      ])
+    );
   });
 
   it('validates BOQ pricing through financial rows and standalone financial criteria through responses', () => {
@@ -1821,8 +1926,7 @@ function validBidPayload() {
   return {
     administrative: {
       eligible: true,
-      taxCompliant: true,
-      authorized: true
+      taxCompliant: true
     },
     technical: {
       approach: 'We will deliver according to the tender specifications.',

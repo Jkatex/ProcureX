@@ -8,12 +8,12 @@ import type {
   PostAwardTab,
   SupplierAward,
   SummaryCard,
-  UrgentAction,
   PendingAward
 } from './types';
 
 export const awardQueueLabels: Record<AwardQueueId, string> = {
-  'my-urgent-actions': 'My Urgent Actions',
+  'sample-procurement': 'Sample Procurement',
+  'contract-preparation': 'Contract Preparation',
   'awarding-in-progress': 'Awarding in Progress',
   'awards-received': 'Awards Received',
   'contracts-in-progress': 'Contracts in Progress',
@@ -36,56 +36,20 @@ export const activeContracts: ActiveContract[] = [
 export const closedContracts: ClosedContract[] = [
 ];
 
-export const urgentActions: UrgentAction[] = [
-  ...pendingAwards.map((row) => ({
-    id: `urgent-${row.id}`,
-    priority: 'Medium',
-    action: 'Continue Award',
-    item: row.title,
-    party: row.recommendedSupplier,
-    dueDate: '2026-07-15',
-    role: row.role,
-    status: row.awardStatus,
-    buttonLabel: 'Review',
-    nav: 'award-recommendation',
-    tenderId: row.id
-  })),
-  ...supplierAwards.map((row) => ({
-    id: `urgent-${row.id}`,
-    priority: 'Low',
-    action: 'Accept Award',
-    item: row.title,
-    party: row.buyer,
-    dueDate: '2026-07-04',
-    role: 'Supplier' as const,
-    status: row.contractStatus,
-    buttonLabel: 'Respond',
-    nav: 'award-response',
-    routeSearch: `award=${row.id}`,
-    tenderId: row.id
-  })),
-  ...contractActions.map((row) => ({
-    id: `urgent-${row.id}`,
-    priority: row.requiredAction.includes('Signature') ? 'High' : 'Medium',
-    action: row.requiredAction,
-    item: row.contract,
-    party: row.otherParty,
-    dueDate: row.dueDate,
-    role: row.role,
-    status: row.status,
-    buttonLabel: 'Review',
-    nav: 'contract-negotiation',
-    routeSearch: row.routeSearch
-  }))
-];
-
 export const summaryCards: SummaryCard[] = [
   {
-    queue: 'my-urgent-actions',
-    label: 'My Urgent Actions',
-    value: urgentActions.length,
-    detail: 'All buyer and supplier actions needing attention',
-    trend: '!'
+    queue: 'sample-procurement',
+    label: 'Sample Procurement',
+    value: 0,
+    detail: 'Receipt, verification, custody, evaluation, testing, return, disposal, and reference samples',
+    trend: 'Samples'
+  },
+  {
+    queue: 'contract-preparation',
+    label: 'Contract Preparation',
+    value: 0,
+    detail: 'Buyer-owned contract drafts prepared after tender publication and before award',
+    trend: 'Draft'
   },
   {
     queue: 'awarding-in-progress',

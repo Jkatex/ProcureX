@@ -485,6 +485,10 @@ export type UpdateTenderInput = {
   }>;
 };
 
+export type UpdateBuyerNoticeInput = {
+  buyerNotice: string;
+};
+
 export type CreateTenderResponseDto = {
   success: true;
   message: 'Tender draft created successfully' | 'Tender draft saved successfully';
@@ -510,6 +514,16 @@ export type UpdateTenderResponseDto = {
     updatedAt: string;
   };
   validation?: TenderDraftValidationDto;
+};
+
+export type UpdateBuyerNoticeResponseDto = {
+  success: true;
+  message: 'Buyer notice saved successfully';
+  data: {
+    id: string;
+    buyerNotice: string;
+    updatedAt: string;
+  };
 };
 
 export type PublishTenderResponseDto = {
@@ -651,6 +665,8 @@ export type MarketplacePaginationDto = {
 
 export type ProcurementMarketplacePayload = {
   tenders: MarketplaceTenderRow[];
+  recommendedTenders: MarketplaceTenderRow[];
+  invitedTenders: MarketplaceTenderRow[];
   myTenders: MyTenderRow[];
   myBids: MyBidRow[];
   summary: ProcurementMarketplaceSummary;
@@ -707,6 +723,17 @@ export type TenderDetailDto = {
     id: string;
     name: string;
     submittedAt: string | null;
+  }>;
+  clarificationInquiries: Array<{
+    id: string;
+    senderOrgId: string | null;
+    senderName: string | null;
+    subject: string;
+    body: string;
+    status: string;
+    read: boolean;
+    createdAt: string;
+    updatedAt: string;
   }>;
   currentBid: {
     id: string;

@@ -128,6 +128,77 @@ export class ModuleRepository {
     });
   }
 
+  updateSigningCredential(
+    id: string,
+    input: {
+      encryptedPrivateKey: string;
+      kdfMetadata: Prisma.InputJsonObject;
+      encryptionMetadata: Prisma.InputJsonObject;
+      providerMetadata: Prisma.InputJsonObject;
+    }
+  ) {
+    return this.db.signingCredential.update({
+      where: { id },
+      data: input
+    });
+  }
+
+  createKeyphraseRecovery(input: {
+    userId?: string | null;
+    organizationId?: string | null;
+    email: string;
+    phoneMasked?: string | null;
+    emailChallengeId?: string | null;
+    phoneChallengeId?: string | null;
+    status?: string;
+    requestMetadata?: Prisma.InputJsonObject;
+    payload?: Prisma.InputJsonObject;
+  }) {
+    return this.db.keyphraseRecovery.create({
+      data: {
+        userId: input.userId ?? null,
+        organizationId: input.organizationId ?? null,
+        email: input.email,
+        phoneMasked: input.phoneMasked ?? null,
+        emailChallengeId: input.emailChallengeId ?? null,
+        phoneChallengeId: input.phoneChallengeId ?? null,
+        status: input.status ?? 'STARTED',
+        requestMetadata: input.requestMetadata ?? {},
+        payload: input.payload ?? {}
+      }
+    });
+  }
+
+  findKeyphraseRecovery(id: string) {
+    return this.db.keyphraseRecovery.findUnique({
+      where: { id },
+      include: { user: { include: userInclude }, organization: true }
+    });
+  }
+
+  updateKeyphraseRecovery(id: string, data: Prisma.KeyphraseRecoveryUpdateInput) {
+    return this.db.keyphraseRecovery.update({
+      where: { id },
+      data
+    });
+  }
+
+  listKeyphraseRecoveriesForUser(userId: string) {
+    return this.db.keyphraseRecovery.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+  }
+
+  listKeyphraseRecoveriesForAdmin() {
+    return this.db.keyphraseRecovery.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { user: { select: { id: true, email: true, displayName: true } }, organization: { select: { id: true, name: true } } }
+    });
+  }
+
   upsertPreference(input: { userId: string; preferredLanguage?: string; timezone?: string; metadata?: Prisma.InputJsonObject }) {
     return this.db.userPreference.upsert({
       where: { userId: input.userId },

@@ -37,6 +37,7 @@ const routeByPage: Record<string, string> = {
   'award-recommendation': '/awards-contracts/recommendation',
   'award-response': '/awards-contracts/award-response',
   'contract-negotiation': '/awards-contracts/negotiation',
+  'sample-procurement': '/awards-contracts/samples',
   'post-award-tracking': '/awards-contracts/post-award',
   'records-history': '/records'
 };
@@ -270,7 +271,7 @@ export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
   );
 }
 
-export function AwardSidebar({ title, subtitle, activeQueue = 'my-urgent-actions', extraItems }: SidebarProps) {
+export function AwardSidebar({ title, subtitle, activeQueue = 'sample-procurement', extraItems }: SidebarProps) {
   return (
     <aside className="sidebar evaluation-sidebar award-floating-sidebar">
       <div className="evaluation-sidebar-head">

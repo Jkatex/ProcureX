@@ -20,6 +20,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../src/db/prisma.js';
 import { withDbContext } from '../src/db/context.js';
+import { createEncryptedSigningCredential } from '../src/modules/identity/signing.js';
 
 type AnyDb = Record<string, any>;
 type DemoTender = (typeof DEMO_TENDERS)[number];
@@ -29,6 +30,7 @@ export const EVALUATION_INTAKE_DEMO_DATASET = 'evaluation-intake-demo';
 export const EVALUATION_INTAKE_TENDER_REFS = ['PX-GDS-2026-001', 'PX-WRK-2026-002', 'PX-SRV-2026-003', 'PX-CON-2026-004'] as const;
 export const EVALUATION_INTAKE_BUYER_EMAIL = 'evaluation-buyer@procurex.tz';
 export const EVALUATION_INTAKE_BUYER_PASSWORD = 'Demo123!';
+export const EVALUATION_INTAKE_BUYER_SIGNATURE_KEYPHRASE = 'Signing123';
 
 const scrypt = promisify(scryptCallback);
 
@@ -431,6 +433,43 @@ async function upsertUser(db: AnyDb, org: any, name: string, capability: Organiz
   return user;
 }
 
+async function ensureEvaluationBuyerSigningCredential(db: AnyDb, user: any, org: any) {
+  await db.signingCredential.updateMany({
+    where: { userId: user.id, status: 'ACTIVE' },
+    data: { status: 'REVOKED', revokedAt: new Date() }
+  });
+
+  const encrypted = await createEncryptedSigningCredential(EVALUATION_INTAKE_BUYER_SIGNATURE_KEYPHRASE);
+  const credential = await db.signingCredential.create({
+    data: {
+      userId: user.id,
+      publicKeyPem: encrypted.publicKeyPem,
+      keyFingerprint: encrypted.keyFingerprint,
+      encryptedPrivateKey: encrypted.encryptedPrivateKey,
+      kdfMetadata: encrypted.kdfMetadata,
+      encryptionMetadata: encrypted.encryptionMetadata,
+      providerMetadata: demoPayload({
+        ...encrypted.providerMetadata,
+        provisionedBy: EVALUATION_INTAKE_DEMO_DATASET,
+        provisionedAt: new Date().toISOString()
+      })
+    }
+  });
+
+  await db.keyphraseRecovery.create({
+    data: {
+      userId: user.id,
+      organizationId: org.id,
+      email: user.email,
+      status: 'ADMIN_SEEDED',
+      completedAt: new Date(),
+      newKeyFingerprint: credential.keyFingerprint,
+      requestMetadata: demoPayload({ source: EVALUATION_INTAKE_DEMO_DATASET }),
+      payload: demoPayload({ mode: 'evaluation_e2e_keyphrase', credentialId: credential.id })
+    }
+  });
+}
+
 async function upsertTender(db: AnyDb, item: DemoTender, buyerOrg: any, buyerUser: any) {
   const data = {
     buyerOrgId: buyerOrg.id,
@@ -694,10 +733,15 @@ export async function seedEvaluationIntakeDemo() {
   await withDbContext({ accountType: AccountType.ADMIN }, async (tx) => {
     const db = tx as AnyDb;
     await resetEvaluationIntakeDemo(db);
+    const signedBuyerIds = new Set<string>();
 
     for (const item of DEMO_TENDERS) {
       const buyerOrg = await upsertOrganization(db, item.buyer, OrganizationCapabilityName.BUYER);
       const buyerUser = await upsertUser(db, buyerOrg, item.buyer, OrganizationCapabilityName.BUYER);
+      if (!signedBuyerIds.has(buyerUser.id)) {
+        await ensureEvaluationBuyerSigningCredential(db, buyerUser, buyerOrg);
+        signedBuyerIds.add(buyerUser.id);
+      }
       const tender = await upsertTender(db, item, buyerOrg, buyerUser);
 
       for (const [index, bid] of item.bids.entries()) {

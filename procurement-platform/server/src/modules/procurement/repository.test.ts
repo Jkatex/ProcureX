@@ -1,6 +1,10 @@
-import { BidStatus, CommunicationStatus, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
+import { BidStatus, CommunicationKind, CommunicationStatus, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleRepository } from './repository.js';
+
+vi.mock('../identity/sensitiveActionSigning.js', () => ({
+  signSensitiveAction: vi.fn().mockResolvedValue({ id: 'signed-action-1' })
+}));
 
 describe('procurement public welcome repository', () => {
   it('filters featured tenders to public open marketplace opportunities', async () => {
@@ -102,7 +106,7 @@ describe('procurement marketplace repository', () => {
     };
     const db = {
       tender: {
-        findMany: vi.fn().mockResolvedValueOnce([publicTender]).mockResolvedValueOnce([ownDraftTender])
+        findMany: vi.fn().mockResolvedValueOnce([publicTender]).mockResolvedValueOnce([]).mockResolvedValueOnce([ownDraftTender])
       },
       bid: {
         findMany: vi.fn().mockResolvedValue([submittedBid])
@@ -248,6 +252,15 @@ describe('procurement marketplace repository', () => {
       2,
       expect.objectContaining({
         where: expect.objectContaining({
+          visibility: Visibility.INVITED,
+          NOT: { buyerOrgId: supplierOrgId }
+        })
+      })
+    );
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        where: expect.objectContaining({
           buyerOrgId: supplierOrgId
         })
       })
@@ -273,12 +286,11 @@ describe('procurement marketplace repository', () => {
     const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
     const db = {
       tender: {
-        findMany: vi
-          .fn()
-          .mockResolvedValueOnce([passedTender])
-          .mockResolvedValueOnce([])
-          .mockResolvedValueOnce([passedTender])
-          .mockResolvedValueOnce([passedTender])
+        findMany: vi.fn(({ where }) => {
+          if (where?.buyerOrgId) return Promise.resolve(where.buyerOrgId === ownerOrgId ? [passedTender] : []);
+          if (where?.visibility === Visibility.INVITED) return Promise.resolve([]);
+          return Promise.resolve([passedTender]);
+        })
       },
       bid: {
         findMany: vi.fn().mockResolvedValue([])
@@ -357,6 +369,211 @@ describe('procurement marketplace repository', () => {
     await expect(repository.getMarketplaceData({ organizationId: 'other-org', userId: 'user-a' }, query)).resolves.toMatchObject({
       myTenders: []
     });
+  });
+
+  it('returns invited tenders only for invited supplier organizations', async () => {
+    const invitedTender = tenderDetailRecord({
+      id: 'invited-tender-1',
+      reference: 'PX-INV-001',
+      title: 'Invited cleaning services',
+      buyerOrgId: 'buyer-org-1',
+      ownerUserId: 'buyer-user-1',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.INVITED,
+      metadata: { invitedSuppliers: ['Supplier Works Ltd'] },
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      buyerOrg: { id: 'buyer-org-1', name: 'Buyer Authority' },
+      categories: [{ name: 'Services' }]
+    });
+    const otherInvitedTender = tenderDetailRecord({
+      id: 'invited-tender-2',
+      reference: 'PX-INV-002',
+      title: 'Different invitation',
+      buyerOrgId: 'buyer-org-2',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.INVITED,
+      metadata: { invitedSuppliers: ['Another Supplier'] },
+      buyerOrg: { id: 'buyer-org-2', name: 'Other Buyer' }
+    });
+    const db = {
+      organization: {
+        findUnique: vi.fn().mockResolvedValue({ name: 'Supplier Works Ltd' })
+      },
+      tender: {
+        findMany: vi.fn(({ where }) => {
+          if (where?.visibility === Visibility.INVITED) return Promise.resolve([invitedTender, otherInvitedTender]);
+          return Promise.resolve([]);
+        })
+      },
+      bid: {
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+    const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
+
+    const payload = await repository.getMarketplaceData({ organizationId: 'supplier-org-1', userId: 'supplier-user-1' }, query);
+
+    expect(payload.tenders).toEqual([]);
+    expect(payload.invitedTenders).toMatchObject([
+      {
+        id: 'invited-tender-1',
+        title: 'Invited cleaning services',
+        visibility: Visibility.INVITED,
+        canBid: true
+      }
+    ]);
+    expect(payload.invitedTenders).toHaveLength(1);
+  });
+
+  it('builds recommended tenders from bid awards, profile signals, saved tenders, and invited tenders', async () => {
+    const supplierOrgId = 'supplier-org-1';
+    const supplierName = 'Supplier Works Ltd';
+    const healthCandidate = tenderDetailRecord({
+      id: 'health-candidate',
+      reference: 'PX-HLT-001',
+      title: 'Supply diagnostic laboratory analyzers',
+      type: TenderType.GOODS,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      closingDate: new Date('2026-08-30T00:00:00.000Z'),
+      categories: [{ name: 'Medical equipment' }]
+    });
+    const savedWorksCandidate = tenderDetailRecord({
+      id: 'saved-works-candidate',
+      reference: 'PX-WKS-001',
+      title: 'Road drainage rehabilitation',
+      type: TenderType.WORKS,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      closingDate: new Date('2026-08-15T00:00:00.000Z'),
+      categories: [{ name: 'Civil works' }]
+    });
+    const requirementsMatchedCandidate = tenderDetailRecord({
+      id: 'requirements-matched-candidate',
+      reference: 'PX-REQ-001',
+      title: 'Specialist eligibility framework',
+      description: 'Advisory support for standards mapping.',
+      type: TenderType.CONSULTANCY,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      location: 'Mwanza',
+      closingDate: new Date('2026-08-18T00:00:00.000Z'),
+      categories: [{ name: 'Professional services' }],
+      requirements: {
+        certification: 'Medical device compliance certificate',
+        scope: 'Laboratory diagnostics support'
+      },
+      metadata: {
+        supplierClassification: 'Medical equipment supplier'
+      }
+    });
+    const invitedCandidate = tenderDetailRecord({
+      id: 'invited-cleaning-candidate',
+      reference: 'PX-INV-001',
+      title: 'Invited hospital cleaning services',
+      type: TenderType.SERVICE,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.INVITED,
+      closingDate: new Date('2026-08-20T00:00:00.000Z'),
+      metadata: { invitedSuppliers: [supplierName] },
+      categories: [{ name: 'Cleaning services' }]
+    });
+    const awardedHistoryTender = tenderDetailRecord({
+      id: 'awarded-history-tender',
+      reference: 'PX-HLT-HIST',
+      title: 'Awarded medical equipment package',
+      type: TenderType.GOODS,
+      status: TenderStatus.CLOSED,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      categories: [{ name: 'Medical equipment' }]
+    });
+    const awardedBid = {
+      id: 'awarded-bid-1',
+      tenderId: awardedHistoryTender.id,
+      buyerOrgId: 'buyer-org-1',
+      supplierOrgId,
+      submittedByUserId: 'supplier-user-1',
+      reference: 'BID-AWARD-001',
+      status: BidStatus.AWARDED,
+      submittedAt: new Date('2026-06-10T08:00:00.000Z'),
+      totalAmount: 200000000,
+      currency: 'TZS',
+      payload: {},
+      createdAt: new Date('2026-06-09T08:00:00.000Z'),
+      updatedAt: new Date('2026-06-12T08:00:00.000Z'),
+      tender: awardedHistoryTender,
+      receipt: { receiptHash: 'hash-awarded' }
+    };
+    const db = {
+      organization: {
+        findUnique: vi.fn().mockResolvedValue({ name: supplierName })
+      },
+      tender: {
+        findMany: vi.fn(({ where }) => {
+          if (where?.visibility === Visibility.INVITED) return Promise.resolve([invitedCandidate]);
+          if (where?.buyerOrgId) return Promise.resolve([]);
+          return Promise.resolve([savedWorksCandidate, healthCandidate, requirementsMatchedCandidate]);
+        })
+      },
+      bid: {
+        findMany: vi.fn().mockResolvedValue([awardedBid])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([{ tenderId: savedWorksCandidate.id }])
+      },
+      verificationProfile: {
+        findFirst: vi.fn().mockResolvedValue({
+          status: VerificationStatus.APPROVED,
+          registrySource: 'BRELA',
+          registryNumber: 'REG-001',
+          payload: {
+            classification: ['Medical equipment supplier'],
+            categories: ['Laboratory diagnostics'],
+            region: 'Dar es Salaam'
+          },
+          documents: [
+            {
+              document: {
+                name: 'Medical device compliance certificate',
+                documentType: 'CERTIFICATE'
+              }
+            }
+          ]
+        })
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+    const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
+
+    const payload = await repository.getMarketplaceData({ organizationId: supplierOrgId, userId: 'supplier-user-1' }, query);
+
+    expect(payload.invitedTenders).toMatchObject([{ id: 'invited-cleaning-candidate' }]);
+    const recommendedIds = payload.recommendedTenders.map((tender) => tender.id);
+    expect(recommendedIds).toEqual(expect.arrayContaining([
+      'invited-cleaning-candidate',
+      'health-candidate',
+      'saved-works-candidate',
+      'requirements-matched-candidate'
+    ]));
+    expect(recommendedIds.indexOf('health-candidate')).toBeLessThan(recommendedIds.indexOf('saved-works-candidate'));
+    expect(payload.recommendedTenders.find((tender) => tender.id === 'invited-cleaning-candidate')).toMatchObject({
+      visibility: Visibility.INVITED,
+      canBid: true
+    });
+    expect(payload.recommendedTenders.find((tender) => tender.id === 'health-candidate')).toMatchObject({
+      category: 'Medical Equipment',
+      type: 'Goods'
+    });
+    expect(payload.recommendedTenders.find((tender) => tender.id === 'saved-works-candidate')).toMatchObject({
+      isSaved: true
+    });
+    expect(db.verificationProfile.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { organizationId: supplierOrgId }
+    }));
   });
 
   it('sorts and paginates marketplace tenders while summarizing the full filtered result set', async () => {
@@ -652,6 +869,15 @@ describe('procurement marketplace repository', () => {
     expect(payload.myTenders).toMatchObject([{ id: 'tender-invited-owner' }]);
     expect(db.tender.findMany).toHaveBeenNthCalledWith(
       2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          visibility: Visibility.INVITED,
+          NOT: { buyerOrgId: 'buyer-org-1' }
+        })
+      })
+    );
+    expect(db.tender.findMany).toHaveBeenNthCalledWith(
+      3,
       expect.objectContaining({
         where: expect.objectContaining({
           buyerOrgId: 'buyer-org-1',
@@ -1053,6 +1279,77 @@ describe('procurement tender write repository', () => {
     }
   });
 
+  it('updates buyer notice metadata for published owner tenders', async () => {
+    const tx = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tender-1',
+          buyerOrgId: 'org-1',
+          status: TenderStatus.OPEN,
+          metadata: { source: 'marketplace-demo' }
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: 'tender-1',
+          updatedAt: new Date('2099-08-01T10:00:00.000Z')
+        })
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: vi.fn((callback) => callback(tx))
+    } as any);
+
+    const result = await repository.updateTenderBuyerNotice('tender-1', { buyerNotice: ' Use Gate B. ' }, { organizationId: 'org-1', userId: 'user-1' });
+
+    expect(tx.tender.findUnique).toHaveBeenCalledWith({
+      where: { id: 'tender-1' },
+      select: { id: true, buyerOrgId: true, status: true, metadata: true }
+    });
+    expect(tx.tender.update).toHaveBeenCalledWith({
+      where: { id: 'tender-1' },
+      data: {
+        metadata: expect.objectContaining({
+          source: 'marketplace-demo',
+          buyerNotice: 'Use Gate B.',
+          buyerNoticeUpdatedByUserId: 'user-1',
+          buyerNoticeUpdatedAt: expect.any(String)
+        })
+      },
+      select: { id: true, updatedAt: true }
+    });
+    expect(result).toEqual({
+      success: true,
+      message: 'Buyer notice saved successfully',
+      data: {
+        id: 'tender-1',
+        buyerNotice: 'Use Gate B.',
+        updatedAt: '2099-08-01T10:00:00.000Z'
+      }
+    });
+  });
+
+  it('rejects buyer notice updates from non-owner organizations', async () => {
+    const tx = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'tender-1',
+          buyerOrgId: 'org-2',
+          status: TenderStatus.OPEN,
+          metadata: {}
+        }),
+        update: vi.fn()
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: vi.fn((callback) => callback(tx))
+    } as any);
+
+    await expect(repository.updateTenderBuyerNotice('tender-1', { buyerNotice: 'Use Gate B.' }, { organizationId: 'org-1', userId: 'user-1' })).rejects.toMatchObject({
+      status: 403,
+      message: 'Only the owner organization can update this tender.'
+    });
+    expect(tx.tender.update).not.toHaveBeenCalled();
+  });
+
   it('publishes owner-scoped tenders as open marketplace records', async () => {
     const publishedTender = tenderDetailRecord({
       id: 'tender-1',
@@ -1186,7 +1483,7 @@ describe('procurement tender write repository', () => {
       $transaction: vi.fn((callback) => callback(tx))
     } as any);
 
-    const result = await repository.submitTenderForReview('tender-review', 'org-1', { userId: 'user-1' });
+    const result = await repository.submitTenderForReview('tender-review', 'org-1', { userId: 'user-1', signatureKeyphrase: 'Signing123' });
 
     expect(tx.tender.update).toHaveBeenCalledWith({
       where: { id: 'tender-review' },
@@ -1249,7 +1546,7 @@ describe('procurement tender write repository', () => {
 
     const result = await repository.passTenderReview(
       'tender-review',
-      { adminOrgId: 'platform-org-1', adminUserId: 'admin-user-1' },
+      { adminOrgId: 'platform-org-1', adminUserId: 'admin-user-1', signatureKeyphrase: 'Signing123' },
       Visibility.PUBLIC_MARKETPLACE
     );
 
@@ -1765,6 +2062,7 @@ describe('procurement tender detail repository', () => {
         'amendmentSummary',
         'canBid',
         'category',
+        'clarificationInquiries',
         'closingDate',
         'contractType',
         'createdByCurrentUser',
@@ -1826,6 +2124,7 @@ describe('procurement tender detail repository', () => {
       milestones: [],
       commercialItems: [],
       bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
+      clarificationInquiries: [],
       currentBid: null,
       activity: { marketplaceViews: 0, documentDownloads: 0, clarifications: 0 }
     });
@@ -1929,6 +2228,155 @@ describe('procurement tender detail repository', () => {
       hasDraftBid: false,
       hasSubmittedBid: false
     });
+  });
+
+  it('returns buyer clarification inquiries for owner tender detail views', async () => {
+    const ownerTender = tenderDetailRecord({
+      id: 'tender-owner',
+      buyerOrgId: 'owner-org-1',
+      ownerUserId: 'owner-user-1',
+      status: TenderStatus.OPEN,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      buyerOrg: { id: 'owner-org-1', name: 'Owner Authority' }
+    });
+    const clarificationInquiries = [
+      {
+        id: 'clarification-1',
+        ownerOrgId: 'owner-org-1',
+        senderOrgId: 'supplier-org-1',
+        recipientOrgId: 'owner-org-1',
+        tenderId: 'tender-owner',
+        kind: CommunicationKind.CLARIFICATION,
+        folder: 'inbox',
+        category: 'Clarification',
+        subject: 'Site access clarification',
+        body: 'Can bidders access the delivery site before final submission?',
+        status: CommunicationStatus.UNREAD,
+        priority: 'NORMAL',
+        read: false,
+        actionRequired: true,
+        visibility: null,
+        payload: {},
+        createdAt: new Date('2026-07-10T08:00:00.000Z'),
+        updatedAt: new Date('2026-07-10T08:00:00.000Z'),
+        senderOrg: { id: 'supplier-org-1', name: 'Prime Medical Supplies' }
+      },
+      {
+        id: 'clarification-2',
+        ownerOrgId: 'owner-org-1',
+        senderOrgId: 'supplier-org-2',
+        recipientOrgId: 'owner-org-1',
+        tenderId: 'tender-owner',
+        kind: CommunicationKind.CLARIFICATION,
+        folder: 'inbox',
+        category: 'Clarification',
+        subject: 'Delivery staging clarification',
+        body: 'Please confirm whether partial delivery will be accepted.',
+        status: CommunicationStatus.READ,
+        priority: 'NORMAL',
+        read: true,
+        actionRequired: false,
+        visibility: null,
+        payload: {},
+        createdAt: new Date('2026-07-11T08:00:00.000Z'),
+        updatedAt: new Date('2026-07-11T08:00:00.000Z'),
+        senderOrg: { id: 'supplier-org-2', name: 'Taifa Diagnostics' }
+      },
+      {
+        id: 'clarification-reply-sent',
+        ownerOrgId: 'owner-org-1',
+        senderOrgId: 'owner-org-1',
+        recipientOrgId: 'supplier-org-2',
+        tenderId: 'tender-owner',
+        kind: CommunicationKind.CLARIFICATION,
+        folder: 'sent',
+        category: 'Clarification',
+        subject: 'Re: Delivery staging clarification',
+        body: 'Buyer reply that should stay in Communication Center only.',
+        status: CommunicationStatus.READ,
+        priority: 'NORMAL',
+        read: true,
+        actionRequired: false,
+        visibility: null,
+        payload: { relatedMessageId: 'clarification-2' },
+        createdAt: new Date('2026-07-11T09:00:00.000Z'),
+        updatedAt: new Date('2026-07-11T09:00:00.000Z'),
+        senderOrg: { id: 'owner-org-1', name: 'Owner Authority' }
+      },
+      {
+        id: 'clarification-reply-inbox',
+        ownerOrgId: 'owner-org-1',
+        senderOrgId: 'supplier-org-2',
+        recipientOrgId: 'owner-org-1',
+        tenderId: 'tender-owner',
+        kind: CommunicationKind.CLARIFICATION,
+        folder: 'inbox',
+        category: 'Clarification',
+        subject: 'Re: Delivery staging clarification',
+        body: 'Supplier reply that should stay in Communication Center only.',
+        status: CommunicationStatus.UNREAD,
+        priority: 'NORMAL',
+        read: false,
+        actionRequired: true,
+        visibility: null,
+        payload: { relatedMessageId: 'clarification-2' },
+        createdAt: new Date('2026-07-11T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-11T10:00:00.000Z'),
+        senderOrg: { id: 'supplier-org-2', name: 'Taifa Diagnostics' }
+      }
+    ];
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue(ownerTender)
+      },
+      communicationItem: {
+        findMany: vi.fn().mockResolvedValue(clarificationInquiries)
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const result = await repository.getTenderDetail('tender-owner', { organizationId: 'owner-org-1', userId: 'owner-user-1' });
+
+    expect(db.communicationItem.findMany).toHaveBeenCalledWith({
+      where: {
+        tenderId: 'tender-owner',
+        ownerOrgId: 'owner-org-1',
+        recipientOrgId: 'owner-org-1',
+        senderOrgId: { not: 'owner-org-1' },
+        folder: 'inbox',
+        kind: CommunicationKind.CLARIFICATION,
+        status: { not: CommunicationStatus.DELETED }
+      },
+      include: {
+        senderOrg: { select: { id: true, name: true } }
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 50
+    });
+    expect(result?.clarificationInquiries).toEqual([
+      {
+        id: 'clarification-1',
+        senderOrgId: 'supplier-org-1',
+        senderName: 'Prime Medical Supplies',
+        subject: 'Site access clarification',
+        body: 'Can bidders access the delivery site before final submission?',
+        status: CommunicationStatus.UNREAD,
+        read: false,
+        createdAt: '2026-07-10T08:00:00.000Z',
+        updatedAt: '2026-07-10T08:00:00.000Z'
+      },
+      {
+        id: 'clarification-2',
+        senderOrgId: 'supplier-org-2',
+        senderName: 'Taifa Diagnostics',
+        subject: 'Delivery staging clarification',
+        body: 'Please confirm whether partial delivery will be accepted.',
+        status: CommunicationStatus.READ,
+        read: true,
+        createdAt: '2026-07-11T08:00:00.000Z',
+        updatedAt: '2026-07-11T08:00:00.000Z'
+      }
+    ]);
   });
 
   it('aggregates tender activity and records non-owner public detail views', async () => {

@@ -101,10 +101,12 @@ function openAppsDrawer() {
 }
 
 describe('TopBar platform apps drawer', () => {
-  afterEach(() => {
+  afterEach(async () => {
     act(() => {
       store.dispatch(signOut());
     });
+    window.localStorage.clear();
+    await i18n.changeLanguage('en');
     recordActivity.mockClear();
     updatePreferences.mockClear();
     authSignOut.mockClear();
@@ -181,7 +183,7 @@ describe('TopBar platform apps drawer', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/identity/profile');
   });
 
-  it('opens signed-in help from the account menu', async () => {
+  it('opens Help Centre from the account menu', async () => {
     const user = userEvent.setup();
     renderTopBar();
 
@@ -189,7 +191,7 @@ describe('TopBar platform apps drawer', () => {
     await user.click(await screen.findByText('Help'));
 
     expect(recordActivity).toHaveBeenCalledWith('support.help.opened');
-    expect(screen.getByTestId('location')).toHaveTextContent('/support');
+    expect(screen.getByTestId('location')).toHaveTextContent('/help');
   });
 
   it('opens admin account menu links on admin pages', async () => {
@@ -211,8 +213,7 @@ describe('TopBar platform apps drawer', () => {
     renderTopBar();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open account menu' }));
-    fireEvent.mouseDown(await screen.findByText('English'));
-    fireEvent.click(await screen.findByRole('option', { name: 'Kiswahili' }));
+    fireEvent.change(await screen.findByTestId('account-language-select'), { target: { value: 'sw' } });
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith({ preferredLanguage: 'sw' }));
     expect(window.localStorage.getItem('procurex.language')).toBe('sw');

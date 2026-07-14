@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { store } from '@/app/store';
 import { assumeUser, signOut } from '@/features/auth/slice';
-import { demoUsers } from '@/shared/data/fixtures';
+import { demoUsers, tenders as fixtureTenders } from '@/shared/data/fixtures';
 import { procurexTheme } from '@/styles/mui-theme';
 import { procurementApi } from '../../api';
 import type { MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../../types';
@@ -36,6 +36,7 @@ describe('MarketplaceProcurexPage', () => {
     vi.restoreAllMocks();
     store.dispatch(signOut());
     store.dispatch(assumeUser(demoUsers.user));
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValue(defaultMarketplacePayload());
     vi.spyOn(procurementApi, 'saveTender').mockResolvedValue({ success: true, message: 'Tender saved successfully' });
     vi.spyOn(procurementApi, 'unsaveTender').mockResolvedValue({ success: true, message: 'Tender removed from saved tenders' });
   });
@@ -71,6 +72,7 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByRole('tab', { name: 'Recommended', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'All Tenders' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Invited Tenders' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'My Workspace' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Marketplace' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'My Tenders' })).not.toBeInTheDocument();
@@ -211,6 +213,93 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByRole('tab', { name: 'All Tenders', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'All tenders' })).toBeInTheDocument();
+  });
+
+  it('shows invited tenders between all tenders and workspace with empty prompt', async () => {
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [],
+      invitedTenders: [],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=invited-tenders');
+
+    expect(await screen.findByRole('tab', { name: 'Invited Tenders', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Invited tenders' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search title, buyer, reference, sector, location' })).toBeInTheDocument();
+    expect(screen.getByText('Tenders you are invited to, will appear here')).toBeInTheDocument();
+  });
+
+  it('lists and searches invited tenders without publishing them in All Tenders', async () => {
+    const user = userEvent.setup();
+    const invitedTender = marketplaceTender({
+      id: 'invited-open-tender',
+      reference: 'PX-INV-001',
+      title: 'Invited Cleaning Tender',
+      visibility: 'INVITED',
+      organization: 'Invitation Buyer',
+      canBid: true
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [],
+      invitedTenders: [invitedTender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=invited-tenders');
+
+    expect(await screen.findByText('Invited Cleaning Tender')).toBeInTheDocument();
+    const tenderRow = screen.getByText('Invited Cleaning Tender').closest('article');
+    expect(within(tenderRow!).getByRole('link', { name: /^Bid$/i })).toHaveAttribute('href', '/bidding?tenderId=invited-open-tender');
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search title, buyer, reference, sector, location' }), 'nothing-matches');
+
+    expect(screen.queryByText('Invited Cleaning Tender')).not.toBeInTheDocument();
+    expect(screen.getByText('Tenders you are invited to, will appear here')).toBeInTheDocument();
+  });
+
+  it('renders backend recommended tenders including invited matches', async () => {
+    const user = userEvent.setup();
+    const recommendedPublic = marketplaceTender({
+      id: 'recommended-public',
+      reference: 'PX-REC-001',
+      title: 'Recommended Medical Equipment Tender',
+      categories: ['Medical Equipment']
+    });
+    const invitedTender = marketplaceTender({
+      id: 'recommended-invited',
+      reference: 'PX-INV-REC',
+      title: 'Recommended Invited Tender',
+      visibility: 'INVITED',
+      organization: 'Invitation Buyer',
+      categories: ['Cleaning Services']
+    });
+    const publicButNotRecommended = marketplaceTender({
+      id: 'other-public',
+      reference: 'PX-OTHER-001',
+      title: 'Other Public Tender'
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [publicButNotRecommended, recommendedPublic],
+      recommendedTenders: [invitedTender, recommendedPublic],
+      invitedTenders: [invitedTender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace');
+
+    expect(await screen.findByText('Recommended Invited Tender')).toBeInTheDocument();
+    expect(screen.getByText('Recommended Medical Equipment Tender')).toBeInTheDocument();
+    expect(screen.queryByText('Other Public Tender')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'All Tenders' }));
+
+    expect(await screen.findByText('Other Public Tender')).toBeInTheDocument();
+    expect(screen.getByText('Recommended Medical Equipment Tender')).toBeInTheDocument();
+    expect(screen.queryByText('Recommended Invited Tender')).not.toBeInTheDocument();
   });
 
   it('uses buyer-safe actions for owned tenders', async () => {
@@ -632,6 +721,24 @@ function marketplaceTender(overrides: Partial<MarketplaceTenderRow> = {}): Marke
     visibility: 'PUBLIC_MARKETPLACE',
     categories: ['Goods'],
     ...overrides
+  };
+}
+
+function defaultMarketplacePayload(): MarketplacePayload {
+  return {
+    tenders: fixtureTenders.map((tender): MarketplaceTenderRow => ({
+      ...tender,
+      ownerOrganization: tender.organization,
+      ownedByCurrentOrganization: Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser),
+      canBid: !tender.createdByCurrentUser && !tender.hasSubmittedBid,
+      hasDraftBid: Boolean(tender.hasDraftBid),
+      hasSubmittedBid: Boolean(tender.hasSubmittedBid),
+      isSaved: Boolean(tender.isSaved),
+      visibility: tender.visibility ?? 'PUBLIC_MARKETPLACE',
+      categories: tender.categories.length ? tender.categories : [tender.type]
+    })),
+    myTenders: [],
+    myBids: []
   };
 }
 

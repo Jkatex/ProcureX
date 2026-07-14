@@ -36,11 +36,19 @@ export function createModuleRouter() {
   router.post('/signature/request', controller.requestSignature);
   router.post('/signature/test', controller.testSignature);
   router.post('/signature/revoke', controller.revokeSignature);
+  router.get('/keyphrase/status', controller.getKeyphraseStatus);
+  router.post('/keyphrase/change', controller.changeKeyphrase);
+  router.post('/keyphrase/recovery/start', publicAuthLimit, controller.startKeyphraseRecovery);
+  router.post('/keyphrase/recovery/verify-email', publicAuthLimit, controller.verifyKeyphraseRecoveryEmail);
+  router.post('/keyphrase/recovery/verify-phone', publicAuthLimit, controller.verifyKeyphraseRecoveryPhone);
+  router.post('/keyphrase/recovery/complete', publicAuthLimit, controller.completeKeyphraseRecovery);
+  router.get('/keyphrase/recovery-history', controller.keyphraseRecoveryHistory);
   router.put('/profile', controller.updateProfile);
 
   router.get('/admin/verifications', controller.listAdminVerifications);
   router.post('/admin/verifications/:id/decision', controller.decideAdminVerification);
   router.post('/admin/verifications/:id/rescreen', controller.rescreenAdminVerification);
+  router.get('/admin/keyphrase-recovery-history', controller.adminKeyphraseRecoveryHistory);
 
   return router;
 }

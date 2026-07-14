@@ -5,7 +5,7 @@ import { setSessionUser } from '@/features/auth/slice';
 import { identityApi } from '@/features/identity/api';
 import { useNotifications } from '@/features/notifications/hooks';
 import { createTenderSetup } from '@/features/procurement/createTenderConfig';
-import type { VerificationProfile } from '@/features/identity/types';
+import type { SigningCredentialStatus, VerificationProfile } from '@/features/identity/types';
 import { apiClient } from '@/shared/api/http';
 import { notificationFromApiError } from '@/shared/api/errors';
 import { AccountMenu } from '@/shared/components/AccountMenu';
@@ -22,7 +22,7 @@ import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import type { CreateNotificationInput } from '@/shared/types/notifications';
 import { getTanzaniaRegions, isValidTanzaniaLocation, type TanzaniaLocationSelection } from '@procurex/shared';
 
-type ProfileTab = 'overview' | 'account' | 'entity' | 'classification' | 'documents';
+type ProfileTab = 'overview' | 'account' | 'entity' | 'classification' | 'documents' | 'security';
 
 type ProfileForm = {
   fullName: string;
@@ -62,7 +62,8 @@ const tabs: Array<{ key: ProfileTab; label: string }> = [
   { key: 'account', label: 'Account' },
   { key: 'entity', label: 'Entity' },
   { key: 'classification', label: 'Classification' },
-  { key: 'documents', label: 'Documents' }
+  { key: 'documents', label: 'Documents' },
+  { key: 'security', label: 'Security' }
 ];
 
 const profileDocumentNames = [
@@ -206,6 +207,7 @@ export function AccountProfileProcurexPage() {
   const user = useAppSelector((state) => state.auth.user);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [verification, setVerification] = useState<VerificationProfile | null>(null);
+  const [signingCredential, setSigningCredential] = useState<SigningCredentialStatus | null>(null);
   const [profile, setProfile] = useState<ProfileForm>(defaultProfile);
   const [documents, setDocuments] = useState<ProfileDocumentRow[]>([]);
   const [businessCategoryOptions, setBusinessCategoryOptions] = useState<string[]>(fallbackBusinessCategories);
@@ -252,6 +254,8 @@ export function AccountProfileProcurexPage() {
   const registryRecord = objectValue(payload.registryRecord);
   const reasons = reviewReasons(verification);
   const trustRisk = user?.trustRisk;
+  const eKycApproved = user?.verificationStatus === 'APPROVED' || verification?.status === 'APPROVED';
+  const visibleTabs = eKycApproved ? tabs : tabs.filter((tab) => tab.key !== 'security');
   const requiredValues = [
     profile.fullName,
     profile.emailAddress,
@@ -302,6 +306,17 @@ export function AccountProfileProcurexPage() {
           accountNumber: stringValue(savedProfile.accountNumber)
         });
         setDocuments(savedDocuments.map((document, index) => createDocumentRow(objectValue(document), index)).filter((document) => document.name || document.fileName));
+        if (response.user.verificationStatus === 'APPROVED' || response.verification?.status === 'APPROVED') {
+          try {
+            const keyphraseStatus = await identityApi.getKeyphraseStatus();
+            if (active) setSigningCredential(keyphraseStatus.credential);
+          } catch {
+            if (active) setSigningCredential(null);
+          }
+        } else if (active) {
+          setSigningCredential(null);
+          if (activeTab === 'security') setActiveTab('overview');
+        }
       } catch (error) {
         if (active) setStatusMessage(notificationFromApiError(error, { title: 'Account profile could not load', fallback: 'Could not load account profile.' }));
       } finally {
@@ -430,6 +445,11 @@ export function AccountProfileProcurexPage() {
                   <button className="btn btn-secondary" type="button" onClick={() => navigate('/identity/verification')}>
                     Update Identity Verification
                   </button>
+                  {eKycApproved ? (
+                    <button className="btn btn-secondary" type="button" onClick={() => navigate('/identity/security/keyphrase')}>
+                      Signing Keyphrase
+                    </button>
+                  ) : null}
                 </div>
                 {statusMessage ? (
                   <NotificationCard notification={statusMessage} compact />
@@ -452,7 +472,7 @@ export function AccountProfileProcurexPage() {
             </section>
 
             <nav className="iam-profile-tabs" aria-label="account profile sections">
-              {tabs.map((tab) => (
+              {visibleTabs.map((tab) => (
                 <button className={activeTab === tab.key ? 'active' : ''} key={tab.key} type="button" onClick={() => setActiveTab(tab.key)}>
                   {tab.label}
                 </button>
@@ -714,6 +734,49 @@ export function AccountProfileProcurexPage() {
                 )}
               </div>
             </section>
+
+            {eKycApproved ? (
+              <section className={`iam-profile-section ${activeTab === 'security' ? 'active' : ''}`}>
+                <div className="iam-section-heading">
+                  <div>
+                    <span className="section-kicker">Identity security</span>
+                    <h2>Signing keyphrase</h2>
+                  </div>
+                  <span className={signingCredential?.hasCredential ? 'badge badge-success' : 'badge badge-warning'}>
+                    {signingCredential?.hasCredential ? 'Active' : 'Setup needed'}
+                  </span>
+                </div>
+                <div className="iam-overview-grid">
+                  <div className="iam-readonly-row">
+                    <span>Credential status</span>
+                    <strong>{signingCredential?.hasCredential ? signingCredential.status : 'No active credential'}</strong>
+                  </div>
+                  <div className="iam-readonly-row">
+                    <span>Fingerprint</span>
+                    <strong>{signingCredential?.keyFingerprint ?? 'Not recorded'}</strong>
+                  </div>
+                  <div className="iam-readonly-row">
+                    <span>Provider</span>
+                    <strong>{signingCredential?.provider ?? 'Not recorded'}</strong>
+                  </div>
+                  <div className="iam-readonly-row">
+                    <span>Created</span>
+                    <strong>{signingCredential?.createdAt ? new Date(signingCredential.createdAt).toLocaleString() : 'Not created yet'}</strong>
+                  </div>
+                </div>
+                <div className="auth-note">
+                  <strong>Use this area after eKYC approval.</strong> Change a known signing keyphrase, create one if missing, or recover a forgotten keyphrase through email and phone verification.
+                </div>
+                <div className="iam-hero-actions">
+                  <button className="btn btn-primary" type="button" onClick={() => navigate('/identity/security/keyphrase')}>
+                    Manage Signing Keyphrase
+                  </button>
+                  <button className="btn btn-secondary" type="button" onClick={() => navigate('/recover-keyphrase')}>
+                    Recover Forgotten Keyphrase
+                  </button>
+                </div>
+              </section>
+            ) : null}
           </form>
         </div>
       </div>

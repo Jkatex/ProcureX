@@ -30,6 +30,7 @@ export type CommunicationAttachmentUpload = {
   documentType?: string;
   mimeType?: string;
   size?: number;
+  contentBase64?: string;
 };
 
 export type CommunicationThreadEntry = {
@@ -83,7 +84,7 @@ export type CommunicationCounts = {
 
 export type CommunicationMailboxQuery = Partial<{
   organizationId: string;
-  folder: 'all' | 'inbox' | 'sent' | 'drafts' | 'archived' | 'unread';
+  folder: 'all' | 'inbox' | 'sent' | 'drafts' | 'unread';
   search: string;
   kind: CommunicationKind | 'all';
   status: CommunicationStatus | 'all';
@@ -136,7 +137,7 @@ export type ReplyCommunicationMessageInput = {
 };
 
 export type PatchCommunicationMessageInput = Partial<{
-  folder: 'inbox' | 'sent' | 'archived';
+  folder: 'inbox' | 'sent';
   status: CommunicationStatus;
   priority: CommunicationPriority;
   read: boolean;

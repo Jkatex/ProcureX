@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
+import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { awardsContractsApi } from '../../api';
 import type { AwardDecisionDraftInput, AwardRecommendationDetailDto, LifecycleAction } from '../../types';
 import { ActionFormPanel, lifecycleStatusOptions, option } from './AwardContractActionForms';
@@ -42,6 +43,7 @@ export function AwardRecommendationProcurexPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [detailError, setDetailError] = useState('');
+  const [pendingSignature, setPendingSignature] = useState<{ action: 'confirm' | 'settle'; payload?: AwardDecisionDraftInput } | null>(null);
 
   const loadRecommendations = useCallback(async () => {
     setIsLoading(true);
@@ -111,11 +113,16 @@ export function AwardRecommendationProcurexPage() {
     }
   }
 
-  async function confirmDecision(payload: AwardDecisionDraftInput) {
+  async function confirmDecision(payload: AwardDecisionDraftInput, signatureKeyphrase?: string) {
     if (!activeRecommendationId) return;
+    if (!signatureKeyphrase) {
+      setPendingSignature({ action: 'confirm', payload });
+      return;
+    }
     setIsSaving(true);
     try {
-      setDetail(await awardsContractsApi.approveRecommendation(activeRecommendationId, payload.note, payload));
+      setDetail(await awardsContractsApi.approveRecommendation(activeRecommendationId, payload.note, payload, signatureKeyphrase));
+      setPendingSignature(null);
       notifyAward('success', 'Award confirmed', 'The award decision has been confirmed.');
     } catch (error) {
       notifyAward('error', 'Award not confirmed', apiErrorMessage(error, 'The award could not be confirmed.'));
@@ -124,15 +131,20 @@ export function AwardRecommendationProcurexPage() {
     }
   }
 
-  async function sendNotices() {
+  async function sendNotices(signatureKeyphrase?: string) {
     if (!activeRecommendationId) return;
     if (!isAwardConfirmed) {
       notifyAward('warning', 'Confirm award first', 'Confirm the award before sending notices.');
       return;
     }
+    if (!signatureKeyphrase) {
+      setPendingSignature({ action: 'settle' });
+      return;
+    }
     try {
       const note = String(recommendationDraft(detail).reason ?? detail?.reason ?? 'Award terms settled and notices sent.');
-      setDetail(await awardsContractsApi.settleAwardGroup(activeRecommendationId, note, { source: 'simple-award-workspace' }));
+      setDetail(await awardsContractsApi.settleAwardGroup(activeRecommendationId, note, { source: 'simple-award-workspace' }, signatureKeyphrase));
+      setPendingSignature(null);
       notifyAward('success', 'Notices sent', 'Award notices were prepared for the selected supplier.');
     } catch (error) {
       const message = apiErrorMessage(error, 'Notices could not be sent.');
@@ -150,6 +162,17 @@ export function AwardRecommendationProcurexPage() {
 
   return (
     <ProcurexAwardFrame pageKey="award-recommendation">
+      <SignatureKeyphraseModal
+        open={pendingSignature !== null}
+        title={pendingSignature?.action === 'settle' ? 'Send award notices' : 'Confirm award recommendation'}
+        actionLabel={pendingSignature?.action === 'settle' ? 'Send notices' : 'Confirm award'}
+        isSubmitting={isSaving}
+        onCancel={() => setPendingSignature(null)}
+        onConfirm={(signatureKeyphrase) => {
+          if (pendingSignature?.action === 'settle') void sendNotices(signatureKeyphrase);
+          else if (pendingSignature?.payload) void confirmDecision(pendingSignature.payload, signatureKeyphrase);
+        }}
+      />
       <div className="main-layout procurement-layout evaluation-app-layout award-page award-page-no-sidebar award-simple-page" data-award-contract-workspace>
         <main className="main-content procurement-content evaluation-workspace award-simple-workspace">
           <AwardHero
@@ -208,7 +231,7 @@ export function AwardRecommendationProcurexPage() {
           ) : null}
 
           {!isLoading && !loadError && activeRecommendation ? (
-            <AwardContractAccessProvider access={access}>
+            <AwardContractAccessProvider access={{ ...access, hideLockedActions: true }}>
               <AwardDecisionForm recommendation={detail ?? (activeRecommendation as unknown as AwardRecommendationDetailDto)} saving={isSaving} onSave={saveDecision} onConfirm={confirmDecision} />
 
               <div className="award-simple-actions award-simple-actions-secondary">

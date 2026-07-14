@@ -20,6 +20,7 @@ const activeStageSchema = z.enum([
   'tor',
   'postqual'
 ]);
+const signatureKeyphraseSchema = z.string().min(6).max(128);
 
 export const moduleStatusQuerySchema = z.object({}).strict();
 
@@ -67,6 +68,16 @@ export const saveWorkspaceBodySchema = z
     activeStageId: activeStageSchema.optional(),
     selectedBidId: uuidSchema.optional(),
     sectionDraft: z.record(z.unknown()).optional().default({}),
-    complete: z.boolean().optional().default(false)
+    complete: z.boolean().optional().default(false),
+    signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.complete && !value.signatureKeyphrase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['signatureKeyphrase'],
+        message: 'Digital signature keyphrase is required to complete evaluation.'
+      });
+    }
+  });

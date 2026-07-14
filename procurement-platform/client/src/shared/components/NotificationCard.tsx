@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import type { NotificationTone, UserNotification } from '@/shared/types/notifications';
 
 type NotificationCardProps = {
-  notification: Pick<UserNotification, 'tone' | 'title' | 'message' | 'reason' | 'action' | 'details' | 'dismissible' | 'autoDismissMs'>;
+  notification: Pick<UserNotification, 'tone' | 'presentation' | 'title' | 'message' | 'reason' | 'action' | 'details' | 'dismissible' | 'autoDismissMs'>;
   onDismiss?: () => void;
   compact?: boolean;
 };
@@ -23,6 +23,7 @@ export function NotificationCard({ notification, onDismiss, compact = false }: N
   const [dismissed, setDismissed] = useState(false);
   const role = notification.tone === 'success' || notification.tone === 'info' ? 'status' : 'alert';
   const ariaLive = notification.tone === 'success' || notification.tone === 'info' ? 'polite' : 'assertive';
+  const isBidNotice = notification.presentation === 'bidNotice';
 
   useEffect(() => {
     const duration = notification.autoDismissMs === undefined ? 6000 : notification.autoDismissMs;
@@ -39,10 +40,12 @@ export function NotificationCard({ notification, onDismiss, compact = false }: N
   }
 
   return (
-    <article className={`procurex-notification-card tone-${notification.tone} ${compact ? 'is-compact' : ''}`} role={role} aria-live={ariaLive}>
-      <span className="procurex-notification-icon">
-        <ToneIcon tone={notification.tone} />
-      </span>
+    <article className={`procurex-notification-card tone-${notification.tone} ${compact ? 'is-compact' : ''} ${isBidNotice ? 'presentation-bidNotice' : ''}`} role={role} aria-live={ariaLive}>
+      {isBidNotice ? null : (
+        <span className="procurex-notification-icon">
+          <ToneIcon tone={notification.tone} />
+        </span>
+      )}
       <div className="procurex-notification-copy">
         <strong>{notification.title}</strong>
         <p>{notification.message}</p>
