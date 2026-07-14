@@ -19,6 +19,7 @@ import {
   type CategoryStandardizationResponseDto,
   type CreateTenderInput,
   type CreateTenderResponseDto,
+  type DeleteTenderDraftResponseDto,
   type DesignFormSchemaListResponseDto,
   type DesignFormSchemaResponseDto,
   type MasterDataGroupResponseDto,
@@ -323,6 +324,12 @@ export class ModuleService {
       { organizationId, userId: session.user.id }
     );
     return tender ? { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) } : null;
+  }
+
+  async deleteTenderDraft(tenderId: string, token: string | undefined): Promise<DeleteTenderDraftResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.deleteTenderDraft(tenderId, { organizationId, userId: session.user.id });
   }
 
   async updateTenderBuyerNotice(tenderId: string, token: string | undefined, input: UpdateBuyerNoticeInput): Promise<UpdateBuyerNoticeResponseDto | null> {

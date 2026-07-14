@@ -276,9 +276,18 @@ export function MarketplaceSection<T>({
   );
 }
 
-export function MyTenderRowCard({ row }: { row: MyTenderRow }) {
+export function MyTenderRowCard({
+  row,
+  isDeleting = false,
+  onDeleteDraft
+}: {
+  row: MyTenderRow;
+  isDeleting?: boolean;
+  onDeleteDraft?: (row: MyTenderRow) => void;
+}) {
   const tender = row.tender;
   const action = myTenderAction(row);
+  const canDeleteDraft = action.kind === 'link' && action.label === 'Continue creating' && (row.section === 'draft' || isDraftStatus(row.status));
 
   return (
     <article className="procurement-tender-row market-row is-owned">
@@ -302,9 +311,16 @@ export function MyTenderRowCard({ row }: { row: MyTenderRow }) {
             {action.label}
           </button>
         ) : (
-          <Link className="btn btn-primary" to={action.to}>
-            {action.label}
-          </Link>
+          <>
+            <Link className="btn btn-primary" to={action.to}>
+              {action.label}
+            </Link>
+            {canDeleteDraft ? (
+              <button className="btn btn-secondary marketplace-delete-draft-button" type="button" disabled={isDeleting} onClick={() => onDeleteDraft?.(row)}>
+                {isDeleting ? 'Deleting...' : 'Delete Tender'}
+              </button>
+            ) : null}
+          </>
         )}
       </div>
     </article>

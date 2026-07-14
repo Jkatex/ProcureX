@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@mui/material';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -39,6 +39,15 @@ describe('MarketplaceProcurexPage', () => {
     vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValue(defaultMarketplacePayload());
     vi.spyOn(procurementApi, 'saveTender').mockResolvedValue({ success: true, message: 'Tender saved successfully' });
     vi.spyOn(procurementApi, 'unsaveTender').mockResolvedValue({ success: true, message: 'Tender removed from saved tenders' });
+    vi.spyOn(procurementApi, 'deleteTenderDraft').mockResolvedValue({
+      success: true,
+      message: 'Tender draft deleted successfully',
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        reference: 'PX-DRAFT-001',
+        title: 'Draft Owned Tender'
+      }
+    });
   });
 
   it('opens the top-right ProcureX apps drawer and navigates to an app', async () => {
@@ -684,10 +693,63 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByText('Draft Owned Tender')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue creating' })).toHaveAttribute('href', '/procurement/create-tender?draftId=draft-tender');
+    expect(screen.getByRole('button', { name: 'Delete Tender' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Awaiting review' })).toBeDisabled();
     expect(screen.queryByRole('link', { name: 'Awaiting review' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Amend tender' })).toHaveAttribute('href', '/procurement/create-tender?tenderId=failed-tender');
     expect(screen.getByRole('link', { name: 'View tender' })).toHaveAttribute('href', '/procurement/tender-details?tenderId=published-tender');
+    expect(screen.getAllByRole('button', { name: 'Delete Tender' })).toHaveLength(1);
+  });
+
+  it('deletes draft tenders from My Workspace after confirmation', async () => {
+    const user = userEvent.setup();
+    const tenderId = '11111111-1111-4111-8111-111111111111';
+    const draftTender = marketplaceTender({
+      id: tenderId,
+      reference: 'PX-DRAFT-001',
+      title: 'Draft Owned Tender',
+      status: 'DRAFT' as MarketplaceTenderRow['status'],
+      createdByCurrentUser: true,
+      ownedByCurrentOrganization: true
+    });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteTenderDraft = vi.spyOn(procurementApi, 'deleteTenderDraft').mockResolvedValueOnce({
+      success: true,
+      message: 'Tender draft deleted successfully',
+      data: {
+        id: tenderId,
+        reference: 'PX-DRAFT-001',
+        title: 'Draft Owned Tender'
+      }
+    });
+
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [],
+      myBids: [],
+      myTenders: [
+        {
+          id: tenderId,
+          title: 'Draft Owned Tender',
+          section: 'draft',
+          status: 'Draft',
+          type: 'GOODS',
+          tender: draftTender,
+          lastActivity: new Date().toISOString(),
+          actionLabel: 'Continue creating',
+          nav: `/procurement/create-tender?draftId=${tenderId}`
+        }
+      ]
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=my-workspace');
+
+    expect(await screen.findByText('Draft Owned Tender')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Delete Tender' }));
+
+    expect(confirm).toHaveBeenCalledWith('Delete this tender draft completely? This cannot be undone.');
+    await waitFor(() => expect(deleteTenderDraft).toHaveBeenCalledWith(tenderId));
+    await waitFor(() => expect(screen.queryByText('Draft Owned Tender')).not.toBeInTheDocument());
   });
 
   it('does not render marketplace summary KPI cards', async () => {

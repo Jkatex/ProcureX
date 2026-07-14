@@ -73,7 +73,6 @@ const financialRequirementTypes = [
 ];
 const financialPeriods = ['Annual', 'Current', 'Last 12 Months', 'Last 3 Years', 'Last 5 Years'];
 const financialEvidence = ['Audited accounts', 'Bank statement', 'Bank letter', 'Credit facility letter', 'Tax clearance', 'Management accounts'];
-const eligibilityPresets = ['Certificate of incorporation', 'Tax clearance certificate', 'Manufacturer authorization', 'Past supply contracts', 'Audited financial statements'];
 const worksContractTypes = ['Lump Sum Contract', 'Unit Price Contract', 'Fixed Price Contract', 'Framework Contract', 'Consultancy / Time-Based Contract', 'Other'];
 const worksDocumentTypes = ['Architectural drawings', 'Structural drawings', 'Electrical drawings', 'Mechanical drawings', 'Geotechnical report', 'Environmental report', 'Other'];
 const worksTechnicalSpecificationTitles = ['Applicable standards / codes', 'Material specifications', 'Workmanship standards', 'Engineering requirements', 'Equipment requirements', 'Others'];
@@ -1384,7 +1383,8 @@ function RequirementsStep({
   }
 
   function addSampleRequirement() {
-    const sourceItem = draft.commercialItems[0] ?? { id: createRowId('item'), description: '', quantity: '', unit: '', unitPrice: '' };
+    const sourceItem = draft.commercialItems[0];
+    if (!sourceItem) return;
     const row: CreateTenderSampleRequirementRow = {
       id: createRowId('sample'),
       relatedBoqItemId: sourceItem.id,
@@ -1397,7 +1397,6 @@ function RequirementsStep({
       returnableSample: false
     };
     onPatch({
-      commercialItems: draft.commercialItems.length ? draft.commercialItems : [sourceItem],
       sampleRequirements: [...draft.sampleRequirements, row]
     });
   }
@@ -1578,267 +1577,291 @@ function RequirementsStep({
 
     return (
       <div className="wizard-step-surface requirements-step-surface goods-requirements-step">
-        <section className="planning-section wizard-section goods-requirements-hero">
-          <div className="scope-list-heading">
+        <div className="requirement-type-header">
+          <div>
+            <span className="section-kicker">Tender requirements</span>
+            <h3>Goods Tender Requirements</h3>
+          </div>
+          <span className="badge badge-info">Quantity Schedule</span>
+        </div>
+
+        <div className="requirement-section-grid">
+          <article className="requirement-block" id="requirement-section-quantitySchedule">
             <div>
-              <span className="section-kicker">Tender requirements</span>
-              <h3>Goods Tender Requirements</h3>
+              <h4>Quantity Schedule / BOQ</h4>
+              <span className="form-hint">Editable table with row numbering and calculated totals.</span>
             </div>
-            <span className="status-badge">Quantity Schedule</span>
-          </div>
-        </section>
-
-        <section className="planning-section wizard-section goods-requirements-section">
-          <div>
-            <h3>Quantity Schedule / BOQ</h3>
-            <span className="form-hint">Define the items and quantities bidders must price in their submissions.</span>
-          </div>
-          <div className="form-label">Quantity lines</div>
-          <div className="requirement-table-wrap goods-quantity-table-wrap">
-            <table className="requirement-table goods-quantity-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Description</th>
-                  <th>Unit</th>
-                  <th>Qty</th>
-                  <th aria-label="Actions"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {draft.commercialItems.length ? (
-                  draft.commercialItems.map((item, index) => (
-                    <tr key={item.id}>
-                      <td>{index + 1}</td>
-                      <td>
-                        <input
-                          aria-label={`Item ${index + 1} description`}
-                          value={item.description}
-                          onChange={(event) => onUpdateLineItem(item.id, { description: event.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <select aria-label={`Item ${index + 1} unit`} value={item.unit} onChange={(event) => onUpdateLineItem(item.id, { unit: event.target.value })}>
-                          <option value="">Select unit</option>
-                          {goodsUnitOptions.map((unit) => (
-                            <option key={unit} value={unit}>
-                              {unit}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          aria-label={`Item ${index + 1} quantity`}
-                          inputMode="decimal"
-                          value={item.quantity}
-                          onChange={(event) => onUpdateLineItem(item.id, { quantity: event.target.value })}
-                        />
-                      </td>
-                      <td className="requirement-table-action-cell">
-                        <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete item ${index + 1}`} onClick={() => onRemoveLineItem(item.id)}>
-                          x
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5}>
-                      <div className="scope-empty goods-table-empty">No items added yet.</div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="requirement-table-actions goods-table-actions">
-            <label className="btn btn-secondary scope-add goods-import-control">
-              Import Excel
-              <input type="file" accept=".csv,.txt" onChange={(event) => importGoodsQuantitySchedule(event.target.files?.[0])} />
-            </label>
-            <button className="btn btn-secondary scope-add" type="button" onClick={downloadGoodsQuantityTemplate}>
-              Download Excel Template
-            </button>
-            <button className="btn btn-secondary scope-add" type="button" onClick={onAddLineItem}>
-              Add Item
-            </button>
-          </div>
-        </section>
-
-        <section className="planning-section wizard-section goods-requirements-section">
-          <div>
-            <h3>Product Specification Builder</h3>
-            <span className="form-hint">specification that suppliers must respond to.</span>
-          </div>
-          <div className="form-label">Product specification table</div>
-          <div className="product-spec-builder" data-product-spec-builder="productSpecificationTemplate">
-            <div className="product-spec-toolbar">
-              <label className="btn btn-secondary scope-add goods-import-control">
-                Import CSV
-                <input type="file" accept=".csv,.txt" onChange={(event) => importProductSpecifications(event.target.files?.[0])} />
-              </label>
-              <button className="btn btn-secondary scope-add" type="button" onClick={downloadProductSpecificationTemplate}>
-                Download CSV Template
-              </button>
-            </div>
-            <div className="product-spec-item-grid">
-              {draft.commercialItems.length ? (
-                draft.commercialItems.map((item, index) => {
-                  const itemRows = draft.productSpecifications.filter((row) => row.sourceItemId === item.id);
-                  return (
-                    <article key={item.id} className="product-spec-item-card">
-                      <div className="product-spec-item-header">
-                        <div>
-                          <span className="section-kicker">Quantity schedule item {index + 1}</span>
-                          <h4>{item.description || `Product item ${index + 1}`}</h4>
-                          <p>
-                            {item.quantity || 0} {item.unit || 'unit'}
-                            {Number(item.quantity) === 1 ? '' : 's'} required
-                          </p>
-                        </div>
-                        <button
-                          className="btn btn-secondary scope-add"
-                          type="button"
-                          onClick={() => setSpecModal({ sourceItemId: item.id, name: '', detail: '', error: '' })}
-                        >
-                          Add Specification
-                        </button>
-                      </div>
-                      <div className="product-spec-sheet-wrap">
-                        <table className="product-spec-sheet product-spec-item-sheet">
-                          <thead>
-                            <tr>
-                              <th>Specification <span className="required-dot">*</span></th>
-                              <th>Specific detail required</th>
-                              <th aria-label="Actions"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {itemRows.length ? (
-                              itemRows.map((row, rowIndex) => (
-                                <tr key={row.id}>
-                                  <td>
-                                    <input
-                                      className="form-input"
-                                      aria-label={`Specification name ${rowIndex + 1}`}
-                                      value={row.specificationName}
-                                      onChange={(event) => updateProductSpecification(row.id, { specificationName: event.target.value })}
-                                    />
-                                  </td>
-                                  <td>
-                                    <textarea
-                                      className="form-input"
-                                      rows={3}
-                                      aria-label={`Specific detail required ${rowIndex + 1}`}
-                                      value={row.acceptableRequirement}
-                                      onChange={(event) => updateProductSpecification(row.id, { acceptableRequirement: event.target.value })}
-                                    />
-                                  </td>
-                                  <td>
-                                    <button className="boq-row-action icon-delete-btn" type="button" aria-label="Delete specification" onClick={() => deleteProductSpecification(row.id)}>
-                                      x
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={3}>
-                                  <div className="scope-empty">No specifications added for this item yet.</div>
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </article>
-                  );
-                })
-              ) : (
-                <div className="scope-empty">Add goods items in the Quantity Schedule first. Each item will get its own specification table here.</div>
-              )}
-            </div>
-            <div className="product-spec-modal" role="dialog" aria-modal="true" aria-labelledby="product-spec-modal-title" hidden={!specModal}>
-              <div className="product-spec-modal-card">
-                <div className="product-spec-modal-heading">
-                  <div>
-                    <span className="section-kicker">Item specification</span>
-                    <h4 id="product-spec-modal-title">Add Specification</h4>
-                    <p>{draft.commercialItems.find((item) => item.id === specModal?.sourceItemId)?.description || 'Product item'}</p>
-                  </div>
-                  <button className="boq-row-action icon-delete-btn" type="button" aria-label="Cancel add specification" onClick={() => setSpecModal(null)}>
-                    x
-                  </button>
+            <div className="requirement-control-grid">
+              <div className="requirement-control requirement-control-wide">
+                <span className="form-label">Quantity lines</span>
+                <div className="requirement-table-wrap" data-requirement-table-wrap="quantityScheduleRows">
+                  <table className="requirement-table" data-requirement-table="quantityScheduleRows">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Description</th>
+                        <th>Unit</th>
+                        <th>Qty</th>
+                        <th>Unit price</th>
+                        <th>Total</th>
+                        <th aria-label="Actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody data-requirement-table-body="quantityScheduleRows">
+                      {draft.commercialItems.length ? (
+                        draft.commercialItems.map((item, index) => (
+                          <tr key={item.id} data-requirement-table-row={item.id} data-requirement-control="quantityScheduleRows" data-requirement-table-row-index={index}>
+                            <td><span className="requirement-auto-value">{index + 1}</span></td>
+                            <td>
+                              <input
+                                className="form-input"
+                                aria-label={`Item ${index + 1} description`}
+                                value={item.description}
+                                onChange={(event) => onUpdateLineItem(item.id, { description: event.target.value })}
+                              />
+                            </td>
+                            <td>
+                              <select className="form-input" aria-label={`Item ${index + 1} unit`} value={item.unit} onChange={(event) => onUpdateLineItem(item.id, { unit: event.target.value })}>
+                                <option value="">Select unit</option>
+                                {goodsUnitOptions.map((unit) => (
+                                  <option key={unit} value={unit}>
+                                    {unit}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                className="form-input"
+                                aria-label={`Item ${index + 1} quantity`}
+                                inputMode="decimal"
+                                value={item.quantity}
+                                onChange={(event) => onUpdateLineItem(item.id, { quantity: event.target.value })}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                className="form-input requirement-currency-input"
+                                aria-label={`Item ${index + 1} unit price`}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unitPrice ?? ''}
+                                onChange={(event) => onUpdateLineItem(item.id, { unitPrice: event.target.value })}
+                              />
+                            </td>
+                            <td>
+                              <span className="requirement-auto-value" data-requirement-calculated-field="totalPrice">{formatCalculatedMoney(multiplyNumericStrings(item.quantity, item.unitPrice))}</span>
+                            </td>
+                            <td className="requirement-table-action-cell">
+                              <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete item ${index + 1}`} onClick={() => onRemoveLineItem(item.id)}>
+                                x
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7}>
+                            <div className="scope-empty">No items added yet.</div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-                <label>
-                  <span className="form-label">Specification name</span>
-                  <input
-                    className="form-input"
-                    type="text"
-                    aria-label="Specification name"
-                    placeholder="Example: Brand, Processor, Warranty"
-                    value={specModal?.name ?? ''}
-                    onChange={(event) => specModal && setSpecModal({ ...specModal, name: event.target.value, error: '' })}
-                  />
-                </label>
-                <label>
-                  <span className="form-label">Specific detail required</span>
-                  <textarea
-                    className="form-input"
-                    rows={4}
-                    aria-label="Specific detail required"
-                    placeholder="Optional, e.g. HP/Dell/Lenovo or equivalent, Core i5 or above"
-                    value={specModal?.detail ?? ''}
-                    onChange={(event) => specModal && setSpecModal({ ...specModal, detail: event.target.value })}
-                  />
-                </label>
-                {specModal?.error ? <span className="form-hint error">{specModal.error}</span> : null}
-                <div className="product-spec-modal-actions">
-                  <button className="btn btn-secondary" type="button" onClick={() => setSpecModal(null)}>
-                    Cancel
+                <div className="requirement-table-actions">
+                  <label className="btn btn-secondary scope-add goods-import-control">
+                    Import Excel
+                    <input type="file" accept=".csv,.txt" onChange={(event) => importGoodsQuantitySchedule(event.target.files?.[0])} />
+                  </label>
+                  <button className="btn btn-secondary scope-add" type="button" onClick={downloadGoodsQuantityTemplate}>
+                    Download Excel Template
                   </button>
-                  <button className="btn btn-primary" type="button" onClick={saveProductSpecification}>
-                    Save Specification
+                  <button className="btn btn-secondary scope-add" type="button" onClick={onAddLineItem}>
+                    Add Item
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </article>
 
-        <section className="planning-section wizard-section goods-requirements-section">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Sample Requirements</h3>
-              <span className="form-hint">Enable samples only when buyers need physical samples before evaluation or award.</span>
-            </div>
+        <article className="requirement-block" id="requirement-section-technicalSpecifications">
+          <div>
+            <h4>Product Specification Builder</h4>
+            <span className="form-hint">specification that suppliers must respond to.</span>
           </div>
-          <div className="sample-requirement-choice-group" role="radiogroup" aria-label="Require Samples?">
-            <span className="form-label">Require Samples?</span>
-            <div className="sample-requirement-choice-row">
-              {(['Yes', 'No'] as const).map((option) => {
-                const checked = (draft.requirements.requireSamples ?? 'No') === option;
-                return (
-                  <label key={option} className={`sample-requirement-choice ${checked ? 'is-selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="requireSamples"
-                      value={option}
-                      checked={checked}
-                      onChange={() => onPatch({ requirements: { ...draft.requirements, requireSamples: option } })}
-                    />
-                    <span>{option}</span>
+          <div className="requirement-control-grid">
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Product specification table</span>
+              <div className="product-spec-builder" data-product-spec-builder="productSpecificationTemplate">
+                <div className="product-spec-toolbar">
+                  <label className="btn btn-secondary scope-add goods-import-control">
+                    Import CSV
+                    <input type="file" accept=".csv,.txt" onChange={(event) => importProductSpecifications(event.target.files?.[0])} />
                   </label>
-                );
-              })}
+                  <button className="btn btn-secondary scope-add" type="button" onClick={downloadProductSpecificationTemplate}>
+                    Download CSV Template
+                  </button>
+                </div>
+                <div className="product-spec-item-grid">
+                  {draft.commercialItems.length ? (
+                    draft.commercialItems.map((item, index) => {
+                      const itemRows = draft.productSpecifications.filter((row) => row.sourceItemId === item.id);
+                      return (
+                        <article key={item.id} className="product-spec-item-card">
+                          <div className="product-spec-item-header">
+                            <div>
+                              <span className="section-kicker">Quantity schedule item {index + 1}</span>
+                              <h4>{item.description || `Product item ${index + 1}`}</h4>
+                              <p>
+                                {item.quantity || 0} {item.unit || 'unit'}
+                                {Number(item.quantity) === 1 ? '' : 's'} required
+                              </p>
+                            </div>
+                            <button
+                              className="btn btn-secondary scope-add"
+                              type="button"
+                              onClick={() => setSpecModal({ sourceItemId: item.id, name: '', detail: '', error: '' })}
+                            >
+                              Add Specification
+                            </button>
+                          </div>
+                          <div className="product-spec-sheet-wrap">
+                            <table className="product-spec-sheet product-spec-item-sheet">
+                              <thead>
+                                <tr>
+                                  <th>Specification <span className="required-dot">*</span></th>
+                                  <th>Specific detail required</th>
+                                  <th aria-label="Actions"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {itemRows.length ? (
+                                  itemRows.map((row, rowIndex) => (
+                                    <tr key={row.id} data-product-spec-row={row.id} data-product-spec-control="productSpecificationTemplate">
+                                      <td>
+                                        <input
+                                          className="form-input"
+                                          aria-label={`Specification name ${rowIndex + 1}`}
+                                          value={row.specificationName}
+                                          onChange={(event) => updateProductSpecification(row.id, { specificationName: event.target.value })}
+                                        />
+                                      </td>
+                                      <td>
+                                        <textarea
+                                          className="form-input"
+                                          rows={3}
+                                          aria-label={`Specific detail required ${rowIndex + 1}`}
+                                          value={row.acceptableRequirement}
+                                          onChange={(event) => updateProductSpecification(row.id, { acceptableRequirement: event.target.value })}
+                                        />
+                                      </td>
+                                      <td>
+                                        <button className="boq-row-action icon-delete-btn" type="button" aria-label="Delete specification" onClick={() => deleteProductSpecification(row.id)}>
+                                          x
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <tr>
+                                    <td colSpan={3}>
+                                      <div className="scope-empty">No specifications added for this item yet.</div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="scope-empty">Add goods items in the Quantity Schedule first. Each item will get its own specification table here.</div>
+                  )}
+                </div>
+                <div className="product-spec-modal" role="dialog" aria-modal="true" aria-labelledby="product-spec-modal-title" hidden={!specModal}>
+                  <div className="product-spec-modal-card">
+                    <div className="product-spec-modal-heading">
+                      <div>
+                        <span className="section-kicker">Item specification</span>
+                        <h4 id="product-spec-modal-title">Add Specification</h4>
+                        <p>{draft.commercialItems.find((item) => item.id === specModal?.sourceItemId)?.description || 'Product item'}</p>
+                      </div>
+                      <button className="boq-row-action icon-delete-btn" type="button" aria-label="Cancel add specification" onClick={() => setSpecModal(null)}>
+                        x
+                      </button>
+                    </div>
+                    <label>
+                      <span className="form-label">Specification name</span>
+                      <input
+                        className="form-input"
+                        type="text"
+                        aria-label="Specification name"
+                        placeholder="Example: Brand, Processor, Warranty"
+                        value={specModal?.name ?? ''}
+                        onChange={(event) => specModal && setSpecModal({ ...specModal, name: event.target.value, error: '' })}
+                      />
+                    </label>
+                    <label>
+                      <span className="form-label">Specific detail required</span>
+                      <textarea
+                        className="form-input"
+                        rows={4}
+                        aria-label="Specific detail required"
+                        placeholder="Optional, e.g. HP/Dell/Lenovo or equivalent, Core i5 or above"
+                        value={specModal?.detail ?? ''}
+                        onChange={(event) => specModal && setSpecModal({ ...specModal, detail: event.target.value })}
+                      />
+                    </label>
+                    {specModal?.error ? <span className="form-hint error">{specModal.error}</span> : null}
+                    <div className="product-spec-modal-actions">
+                      <button className="btn btn-secondary" type="button" onClick={() => setSpecModal(null)}>
+                        Cancel
+                      </button>
+                      <button className="btn btn-primary" type="button" onClick={saveProductSpecification}>
+                        Save Specification
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          {draft.requirements.requireSamples === 'Yes' ? (
-            <>
-              <div className="form-label">Sample requirement design</div>
-              <div className="requirement-table-wrap">
-                <table className="requirement-table">
+        </article>
+
+        <article className="requirement-block" id="requirement-section-sampleRequirements">
+          <div>
+            <h4>Sample Requirements</h4>
+            <span className="form-hint">Enable samples only when buyers need physical samples before evaluation or award.</span>
+          </div>
+          <div className="requirement-control-grid">
+            <div className="requirement-control">
+              <span className="form-label">Require Samples?</span>
+              <div className="requirement-choice-group" role="radiogroup" aria-label="Require Samples?">
+                {(['Yes', 'No'] as const).map((option) => {
+                  const checked = (draft.requirements.requireSamples ?? 'No') === option;
+                  return (
+                    <label key={option} className="requirement-choice-option">
+                      <input
+                        type="radio"
+                        name="requireSamples"
+                        value={option}
+                        checked={checked}
+                        onChange={() => onPatch({ requirements: { ...draft.requirements, requireSamples: option } })}
+                      />
+                      <span>{option}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            {draft.requirements.requireSamples === 'Yes' ? (
+              <div className="requirement-control requirement-control-wide">
+                <span className="form-label">Sample requirement design</span>
+                <div className="requirement-table-wrap" data-requirement-table-wrap="sampleRequirementRows">
+                  <table className="requirement-table" data-requirement-table="sampleRequirementRows">
                     <thead>
                       <tr>
                         <th>Related BOQ Item</th>
@@ -1852,12 +1875,13 @@ function RequirementsStep({
                         <th aria-label="Actions"></th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-requirement-table-body="sampleRequirementRows">
                       {draft.sampleRequirements.length ? (
                         draft.sampleRequirements.map((row, index) => (
-                          <tr key={row.id}>
+                          <tr key={row.id} data-requirement-table-row={row.id} data-requirement-control="sampleRequirementRows" data-requirement-table-row-index={index}>
                             <td>
                               <select
+                                className="form-input"
                                 aria-label={`Related BOQ Item ${index + 1}`}
                                 value={row.relatedBoqItemId}
                                 onChange={(event) => updateSampleRequirement(row.id, { relatedBoqItemId: event.target.value })}
@@ -1882,6 +1906,7 @@ function RequirementsStep({
                             </td>
                             <td>
                               <input
+                                className="form-input"
                                 aria-label={`Number of Samples ${index + 1}`}
                                 inputMode="numeric"
                                 value={row.numberOfSamples}
@@ -1890,6 +1915,7 @@ function RequirementsStep({
                             </td>
                             <td>
                               <textarea
+                                className="form-input requirement-rich-input"
                                 aria-label={`Sample Description ${index + 1}`}
                                 value={row.sampleDescription}
                                 onChange={(event) => updateSampleRequirement(row.id, { sampleDescription: event.target.value })}
@@ -1897,6 +1923,7 @@ function RequirementsStep({
                             </td>
                             <td>
                               <input
+                                className="form-input"
                                 aria-label={`Delivery Location ${index + 1}`}
                                 value={row.deliveryLocation}
                                 onChange={(event) => updateSampleRequirement(row.id, { deliveryLocation: event.target.value })}
@@ -1904,6 +1931,7 @@ function RequirementsStep({
                             </td>
                             <td>
                               <input
+                                className="form-input"
                                 aria-label={`Delivery Deadline ${index + 1}`}
                                 type="date"
                                 value={row.deliveryDeadline}
@@ -1949,174 +1977,189 @@ function RequirementsStep({
                     </tbody>
                   </table>
                 </div>
-                {!draft.commercialItems.length ? <span className="sample-source-hint">Adding a sample requirement will create a blank quantity item for you to complete.</span> : null}
+                {!draft.commercialItems.length ? <span className="form-hint">Add at least one quantity item before adding sample requirements.</span> : null}
                 <div className="requirement-table-actions">
-                  <button className="btn btn-secondary scope-add" type="button" onClick={addSampleRequirement}>
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addSampleRequirement} disabled={!draft.commercialItems.length}>
                     Add Sample Requirement
                   </button>
                 </div>
-              </>
-          ) : null}
-        </section>
+              </div>
+            ) : null}
+          </div>
+        </article>
 
-        <section className="planning-section wizard-section goods-requirements-section">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Financial Capacity Requirements</h3>
-              <span className="form-hint">Structured financial rules used to verify whether bidders can sustain the contract.</span>
-            </div>
-            <button className="btn btn-secondary scope-add" type="button" onClick={addFinancialRequirement}>
-              Add Financial Requirement
-            </button>
+        <article className="requirement-block" id="requirement-section-financialCapacity">
+          <div>
+            <h4>Financial Capacity Requirements</h4>
+            <span className="form-hint">Structured financial rules used to verify whether bidders can sustain the contract.</span>
           </div>
-          <div className="requirement-table-wrap">
-            <table className="requirement-table">
-              <thead>
-                <tr>
-                  <th>Requirement type</th>
-                  <th>Minimum value</th>
-                  <th>Period</th>
-                  <th>Evidence required</th>
-                  <th>Mandatory</th>
-                  <th aria-label="Actions"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {draft.financialRequirements.length ? (
-                  draft.financialRequirements.map((row, index) => (
-                    <tr key={row.id}>
-                      <td>
-                        <select
-                          aria-label={`Requirement type ${index + 1}`}
-                          value={row.requirementType}
-                          onChange={(event) => updateFinancialRequirement(row.id, { requirementType: event.target.value })}
-                        >
-                          <option value="">Select</option>
-                          {financialRequirementTypes.map((type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          aria-label={`Minimum value ${index + 1}`}
-                          inputMode="decimal"
-                          value={row.minimumValue}
-                          onChange={(event) => updateFinancialRequirement(row.id, { minimumValue: event.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <select aria-label={`Period ${index + 1}`} value={row.period} onChange={(event) => updateFinancialRequirement(row.id, { period: event.target.value })}>
-                          <option value="">Select</option>
-                          {financialPeriods.map((period) => (
-                            <option key={period} value={period}>
-                              {period}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          aria-label={`Evidence required ${index + 1}`}
-                          value={row.evidenceRequired}
-                          onChange={(event) => updateFinancialRequirement(row.id, { evidenceRequired: event.target.value })}
-                        >
-                          <option value="">Select</option>
-                          {financialEvidence.map((evidence) => (
-                            <option key={evidence} value={evidence}>
-                              {evidence}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          aria-label={`Mandatory financial requirement ${index + 1}`}
-                          checked={row.mandatory}
-                          onChange={(event) => updateFinancialRequirement(row.id, { mandatory: event.target.checked })}
-                        />
-                      </td>
-                      <td>
-                        <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete financial requirement ${index + 1}`} onClick={() => deleteFinancialRequirement(row.id)}>
-                          x
-                        </button>
-                      </td>
+          <div className="requirement-control-grid">
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Financial requirements</span>
+              <div className="requirement-table-wrap" data-requirement-table-wrap="financialRequirementRows">
+                <table className="requirement-table" data-requirement-table="financialRequirementRows">
+                  <thead>
+                    <tr>
+                      <th>Requirement type</th>
+                      <th>Minimum value</th>
+                      <th>Period</th>
+                      <th>Evidence required</th>
+                      <th>Mandatory</th>
+                      <th aria-label="Actions"></th>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6}>
-                      <div className="scope-empty">No financial requirements added yet.</div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody data-requirement-table-body="financialRequirementRows">
+                    {draft.financialRequirements.length ? (
+                      draft.financialRequirements.map((row, index) => (
+                        <tr key={row.id} data-requirement-table-row={row.id} data-requirement-control="financialRequirementRows" data-requirement-table-row-index={index}>
+                          <td>
+                            <select
+                              className="form-input"
+                              aria-label={`Requirement type ${index + 1}`}
+                              value={row.requirementType}
+                              onChange={(event) => updateFinancialRequirement(row.id, { requirementType: event.target.value })}
+                            >
+                              <option value="">Select</option>
+                              {financialRequirementTypes.map((type) => (
+                                <option key={type} value={type}>
+                                  {type}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="form-input"
+                              aria-label={`Minimum value ${index + 1}`}
+                              inputMode="decimal"
+                              value={row.minimumValue}
+                              onChange={(event) => updateFinancialRequirement(row.id, { minimumValue: event.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <select className="form-input" aria-label={`Period ${index + 1}`} value={row.period} onChange={(event) => updateFinancialRequirement(row.id, { period: event.target.value })}>
+                              <option value="">Select</option>
+                              {financialPeriods.map((period) => (
+                                <option key={period} value={period}>
+                                  {period}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <select
+                              className="form-input"
+                              aria-label={`Evidence required ${index + 1}`}
+                              value={row.evidenceRequired}
+                              onChange={(event) => updateFinancialRequirement(row.id, { evidenceRequired: event.target.value })}
+                            >
+                              <option value="">Select</option>
+                              {financialEvidence.map((evidence) => (
+                                <option key={evidence} value={evidence}>
+                                  {evidence}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <label className="requirement-toggle" title="Mandatory">
+                              <input
+                                type="checkbox"
+                                aria-label={`Mandatory financial requirement ${index + 1}`}
+                                checked={row.mandatory}
+                                onChange={(event) => updateFinancialRequirement(row.id, { mandatory: event.target.checked })}
+                              />
+                              <span></span>
+                            </label>
+                          </td>
+                          <td className="requirement-table-action-cell">
+                            <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete financial requirement ${index + 1}`} onClick={() => deleteFinancialRequirement(row.id)}>
+                              x
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6}>
+                          <div className="scope-empty">No financial requirements added yet.</div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="requirement-table-actions">
+                <button className="btn btn-secondary scope-add" type="button" onClick={addFinancialRequirement}>
+                  Add Financial Requirement
+                </button>
+              </div>
+            </div>
           </div>
-        </section>
+        </article>
 
         {regulatoryLicensePanel}
 
-        <section className="planning-section wizard-section goods-requirements-section">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Other Eligibility Requirements</h3>
-              <span className="form-hint">Use add/remove requirement cards for supplier eligibility documents and notes.</span>
-            </div>
-            <button className="btn btn-secondary scope-add" type="button" onClick={() => addEligibilityRequirement()}>
-              Add Requirement
-            </button>
+        <article className="requirement-block" id="requirement-section-eligibilityRequirements">
+          <div>
+            <h4>Other Eligibility Requirements</h4>
+            <span className="form-hint">Use add/remove requirement cards for supplier eligibility documents and notes.</span>
           </div>
-          <div className="category-chip-row">
-            {eligibilityPresets.map((preset) => (
-              <button className="status-badge removable" type="button" key={preset} onClick={() => addEligibilityRequirement(preset)}>
-                {preset}
+          <div className="requirement-control-grid">
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Other requirements</span>
+              <div className="requirement-card-list" data-requirement-card-list="otherEligibilityRequirements">
+                {draft.eligibilityRequirements.length ? (
+                  draft.eligibilityRequirements.map((row, index) => (
+                    <article key={row.id} className="requirement-repeater-card" data-requirement-card-row={row.id} data-requirement-control="otherEligibilityRequirements">
+                      <div className="requirement-card-heading">
+                        <strong>{row.requirementName || `Other requirements ${index + 1}`}</strong>
+                        <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete eligibility requirement ${index + 1}`} onClick={() => deleteEligibilityRequirement(row.id)}>
+                          x
+                        </button>
+                      </div>
+                      <div className="requirement-card-grid">
+                        <label className="requirement-card-field">
+                          <span className="form-label">Requirement name</span>
+                          <input
+                            className="form-input"
+                            aria-label={`Requirement name ${index + 1}`}
+                            value={row.requirementName}
+                            onChange={(event) => updateEligibilityRequirement(row.id, { requirementName: event.target.value })}
+                          />
+                        </label>
+                        <label className="requirement-card-field requirement-control-wide">
+                          <span className="form-label">Notes</span>
+                          <textarea className="form-input requirement-rich-input" aria-label={`Eligibility notes ${index + 1}`} value={row.notes} onChange={(event) => updateEligibilityRequirement(row.id, { notes: event.target.value })} />
+                        </label>
+                        <label className="requirement-card-field">
+                          <span className="form-label">Mandatory</span>
+                          <label className="requirement-toggle">
+                            <input type="checkbox" checked={row.mandatory} onChange={(event) => updateEligibilityRequirement(row.id, { mandatory: event.target.checked })} aria-label={`Eligibility mandatory ${index + 1}`} />
+                            <span></span>
+                          </label>
+                        </label>
+                        <label className="requirement-card-field">
+                          <span className="form-label">Requires upload</span>
+                          <label className="requirement-toggle">
+                            <input type="checkbox" checked={row.requiresUpload} onChange={(event) => updateEligibilityRequirement(row.id, { requiresUpload: event.target.checked })} aria-label={`Eligibility requires upload ${index + 1}`} />
+                            <span></span>
+                          </label>
+                        </label>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="scope-empty">No other eligibility requirements added yet.</div>
+                )}
+              </div>
+              <button className="btn btn-secondary scope-add" type="button" onClick={() => addEligibilityRequirement()}>
+                Add Requirement
               </button>
-            ))}
-          </div>
-          {draft.eligibilityRequirements.length ? (
-            <div className="product-spec-item-grid">
-              {draft.eligibilityRequirements.map((row, index) => (
-                <article key={row.id} className="product-spec-item-card">
-                  <div className="product-spec-item-header">
-                    <div>
-                      <span className="section-kicker">Eligibility requirement {index + 1}</span>
-                      <h4>{row.requirementName || 'New requirement'}</h4>
-                    </div>
-                    <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete eligibility requirement ${index + 1}`} onClick={() => deleteEligibilityRequirement(row.id)}>
-                      x
-                    </button>
-                  </div>
-                  <div className="form-grid two">
-                    <label>
-                      Requirement name
-                      <input
-                        aria-label={`Requirement name ${index + 1}`}
-                        value={row.requirementName}
-                        onChange={(event) => updateEligibilityRequirement(row.id, { requirementName: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Notes
-                      <textarea aria-label={`Eligibility notes ${index + 1}`} value={row.notes} onChange={(event) => updateEligibilityRequirement(row.id, { notes: event.target.value })} />
-                    </label>
-                    <label>
-                      <input type="checkbox" checked={row.mandatory} onChange={(event) => updateEligibilityRequirement(row.id, { mandatory: event.target.checked })} /> Mandatory
-                    </label>
-                    <label>
-                      <input type="checkbox" checked={row.requiresUpload} onChange={(event) => updateEligibilityRequirement(row.id, { requiresUpload: event.target.checked })} /> Requires upload
-                    </label>
-                  </div>
-                </article>
-              ))}
             </div>
-          ) : (
-            <div className="scope-empty">No other eligibility requirements added yet.</div>
-          )}
-        </section>
+          </div>
+        </article>
+        </div>
       </div>
     );
   }
@@ -2260,12 +2303,20 @@ function ConsultancyRequirementsStep({
     patchConsultancy({ entityBackgroundCards: consultancy.entityBackgroundCards.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
   }
 
+  function deleteEntityBackground(rowId: string) {
+    patchConsultancy({ entityBackgroundCards: consultancy.entityBackgroundCards.filter((row) => row.id !== rowId) });
+  }
+
   function addSpecificObjective() {
     patchConsultancy({ specificObjectiveRows: [...consultancy.specificObjectiveRows, { id: createRowId('consultancy-objective'), objectiveTitle: '', objectiveDescription: '', priorityLevel: '' }] });
   }
 
   function updateSpecificObjective(rowId: string, patch: Partial<CreateTenderConsultancySpecificObjectiveRow>) {
     patchConsultancy({ specificObjectiveRows: consultancy.specificObjectiveRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function deleteSpecificObjective(rowId: string) {
+    patchConsultancy({ specificObjectiveRows: consultancy.specificObjectiveRows.filter((row) => row.id !== rowId) });
   }
 
   function addAssignmentActivity() {
@@ -2278,12 +2329,20 @@ function ConsultancyRequirementsStep({
     patchConsultancy({ assignmentActivityRows: consultancy.assignmentActivityRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
   }
 
+  function deleteAssignmentActivity(rowId: string) {
+    patchConsultancy({ assignmentActivityRows: consultancy.assignmentActivityRows.filter((row) => row.id !== rowId) });
+  }
+
   function addResponsibility(type: 'clientResponsibilityRows' | 'consultantResponsibilityRows') {
     patchConsultancy({ [type]: [...consultancy[type], { id: createRowId(type), title: '', description: '', supportType: '' }] } as Partial<CreateTenderConsultancyRequirements>);
   }
 
   function updateResponsibility(type: 'clientResponsibilityRows' | 'consultantResponsibilityRows', rowId: string, patch: Partial<CreateTenderConsultancyResponsibilityRow>) {
     patchConsultancy({ [type]: consultancy[type].map((row) => (row.id === rowId ? { ...row, ...patch } : row)) } as Partial<CreateTenderConsultancyRequirements>);
+  }
+
+  function deleteResponsibility(type: 'clientResponsibilityRows' | 'consultantResponsibilityRows', rowId: string) {
+    patchConsultancy({ [type]: consultancy[type].filter((row) => row.id !== rowId) } as Partial<CreateTenderConsultancyRequirements>);
   }
 
   function addConsultancyDeliverable() {
@@ -2299,6 +2358,10 @@ function ConsultancyRequirementsStep({
     patchConsultancy({ deliverableRows: consultancy.deliverableRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
   }
 
+  function deleteConsultancyDeliverable(rowId: string) {
+    patchConsultancy({ deliverableRows: consultancy.deliverableRows.filter((row) => row.id !== rowId) });
+  }
+
   function addReportingRequirement() {
     patchConsultancy({
       reportingRequirementRows: [...consultancy.reportingRequirementRows, { id: createRowId('consultancy-report'), reportType: '', frequency: '', submissionFormat: '', submissionChannel: '' }]
@@ -2307,6 +2370,10 @@ function ConsultancyRequirementsStep({
 
   function updateReportingRequirement(rowId: string, patch: Partial<CreateTenderConsultancyReportingRequirementRow>) {
     patchConsultancy({ reportingRequirementRows: consultancy.reportingRequirementRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function deleteReportingRequirement(rowId: string) {
+    patchConsultancy({ reportingRequirementRows: consultancy.reportingRequirementRows.filter((row) => row.id !== rowId) });
   }
 
   function addKeyExpert() {
@@ -2319,6 +2386,10 @@ function ConsultancyRequirementsStep({
     patchConsultancy({ keyExpertRows: consultancy.keyExpertRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
   }
 
+  function deleteKeyExpert(rowId: string) {
+    patchConsultancy({ keyExpertRows: consultancy.keyExpertRows.filter((row) => row.id !== rowId) });
+  }
+
   function addSupportingDocument() {
     patchConsultancy({ supportingDocumentRows: [...consultancy.supportingDocumentRows, { id: createRowId('consultancy-document'), documentTitle: '', category: '', uploadName: '', confidential: false }] });
   }
@@ -2327,12 +2398,20 @@ function ConsultancyRequirementsStep({
     patchConsultancy({ supportingDocumentRows: consultancy.supportingDocumentRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
   }
 
+  function deleteSupportingDocument(rowId: string) {
+    patchConsultancy({ supportingDocumentRows: consultancy.supportingDocumentRows.filter((row) => row.id !== rowId) });
+  }
+
   function addExternalReference() {
     patchConsultancy({ externalReferenceRows: [...consultancy.externalReferenceRows, { id: createRowId('consultancy-reference'), referenceName: '', url: '', description: '' }] });
   }
 
   function updateExternalReference(rowId: string, patch: Partial<CreateTenderConsultancyExternalReferenceRow>) {
     patchConsultancy({ externalReferenceRows: consultancy.externalReferenceRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
+  }
+
+  function deleteExternalReference(rowId: string) {
+    patchConsultancy({ externalReferenceRows: consultancy.externalReferenceRows.filter((row) => row.id !== rowId) });
   }
 
   function addStringItem(key: 'individualProfessionalCertifications' | 'firmSectorExperience' | 'communicationMethods') {
@@ -2388,16 +2467,15 @@ function ConsultancyRequirementsStep({
               </div>
               <div className="requirement-control-grid">
                 <div className="requirement-control requirement-control-wide">
-                  <div className="scope-list-heading">
-                    <span className="form-label">1.1 Procuring Entity Background</span>
-                    <button className="btn btn-secondary" type="button" onClick={addEntityBackground}>
-                      Add Entity Background
-                    </button>
-                  </div>
+                  <span className="form-label">1.1 Procuring Entity Background</span>
                   {consultancy.entityBackgroundCards.length ? (
                     <div className="requirement-card-list">
                       {consultancy.entityBackgroundCards.map((row, index) => (
                         <article key={row.id} className="requirement-repeater-card">
+                          <div className="requirement-card-heading">
+                            <strong>Procuring entity background</strong>
+                            <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove entity background ${index + 1}`} onClick={() => deleteEntityBackground(row.id)}>x</button>
+                          </div>
                           <label>
                             <span className="form-label">Organization Background</span>
                             <textarea className="form-input" value={row.organizationBackground} onChange={(event) => updateEntityBackground(row.id, { organizationBackground: event.target.value })} aria-label={`Organization Background ${index + 1}`} />
@@ -2419,11 +2497,12 @@ function ConsultancyRequirementsStep({
                   ) : (
                     <div className="scope-empty">No procuring entity background captured yet.</div>
                   )}
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addEntityBackground}>
+                    Add Entity Background
+                  </button>
                 </div>
                 <div className="requirement-control requirement-control-wide">
-                  <div className="scope-list-heading">
-                    <span className="form-label">1.2 Project Background</span>
-                  </div>
+                  <span className="form-label">1.2 Project Background</span>
                   <div className="requirement-accordion">
                     <details className="requirement-accordion-item" open>
                       <summary>Project Name</summary>
@@ -2448,9 +2527,7 @@ function ConsultancyRequirementsStep({
                   </div>
                 </div>
                 <div className="requirement-control requirement-control-wide">
-                  <div className="scope-list-heading">
-                    <span className="form-label">1.3 Problem Statement</span>
-                  </div>
+                  <span className="form-label">1.3 Problem Statement</span>
                   <div className="requirement-accordion">
                     <details className="requirement-accordion-item" open>
                       <summary>Main Problem Description</summary>
@@ -2476,16 +2553,15 @@ function ConsultancyRequirementsStep({
                   <textarea className="form-input" value={consultancy.generalObjective} onChange={(event) => patchConsultancy({ generalObjective: event.target.value })} aria-label="General Objective" />
                 </label>
                 <div className="requirement-control requirement-control-wide">
-                  <div className="scope-list-heading">
-                    <span className="form-label">2.2 Specific Objectives</span>
-                    <button className="btn btn-secondary" type="button" onClick={addSpecificObjective}>
-                      Add Objective
-                    </button>
-                  </div>
+                  <span className="form-label">2.2 Specific Objectives</span>
                   {consultancy.specificObjectiveRows.length ? (
                     <div className="requirement-card-list">
                       {consultancy.specificObjectiveRows.map((row, index) => (
                         <article key={row.id} className="requirement-repeater-card">
+                          <div className="requirement-card-heading">
+                            <strong>{row.objectiveTitle || `Specific Objectives ${index + 1}`}</strong>
+                            <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove objective ${index + 1}`} onClick={() => deleteSpecificObjective(row.id)}>x</button>
+                          </div>
                           <input className="form-input" placeholder="Objective Title" value={row.objectiveTitle} onChange={(event) => updateSpecificObjective(row.id, { objectiveTitle: event.target.value })} aria-label={`Objective Title ${index + 1}`} />
                           <textarea className="form-input" placeholder="Objective Description" value={row.objectiveDescription} onChange={(event) => updateSpecificObjective(row.id, { objectiveDescription: event.target.value })} aria-label={`Objective Description ${index + 1}`} />
                           <select className="form-input" value={row.priorityLevel} onChange={(event) => updateSpecificObjective(row.id, { priorityLevel: event.target.value })} aria-label={`Priority Level ${index + 1}`}>
@@ -2502,6 +2578,9 @@ function ConsultancyRequirementsStep({
                   ) : (
                     <div className="scope-empty">No specific objectives added yet.</div>
                   )}
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addSpecificObjective}>
+                    Add Objective
+                  </button>
                 </div>
               </div>
             </article>
@@ -2511,13 +2590,9 @@ function ConsultancyRequirementsStep({
                 <h4>3. Scope of Consultancy Services</h4>
                 <span className="form-hint">Defines assignment activities and assignment boundaries.</span>
               </div>
+              <div className="requirement-control-grid">
               <div className="requirement-control requirement-control-wide">
-                <div className="scope-list-heading">
-                  <span className="form-label">3.1 Assignment Activities</span>
-                  <button className="btn btn-secondary" type="button" onClick={addAssignmentActivity}>
-                    Add Activity
-                  </button>
-                </div>
+                <span className="form-label">3.1 Assignment Activities</span>
                 <div className="requirement-table-wrap">
                   <table className="requirement-table">
                     <thead>
@@ -2527,6 +2602,7 @@ function ConsultancyRequirementsStep({
                         <th>Expected Output</th>
                         <th>Location</th>
                         <th>Duration</th>
+                        <th aria-label="Actions"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2538,18 +2614,25 @@ function ConsultancyRequirementsStep({
                             <td><input className="form-input" value={row.expectedOutput} onChange={(event) => updateAssignmentActivity(row.id, { expectedOutput: event.target.value })} aria-label={`Expected Output ${index + 1}`} /></td>
                             <td><input className="form-input" value={row.location} onChange={(event) => updateAssignmentActivity(row.id, { location: event.target.value })} aria-label={`Activity Location ${index + 1}`} /></td>
                             <td><input className="form-input" type="number" value={row.duration} onChange={(event) => updateAssignmentActivity(row.id, { duration: event.target.value })} aria-label={`Activity Duration ${index + 1}`} /></td>
+                            <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove activity ${index + 1}`} onClick={() => deleteAssignmentActivity(row.id)}>x</button></td>
                           </tr>
                         ))
                       ) : (
-                        <tr><td colSpan={5}>No assignment activities added yet.</td></tr>
+                        <tr><td colSpan={6}><div className="scope-empty">No assignment activities added yet.</div></td></tr>
                       )}
                     </tbody>
                   </table>
+                </div>
+                <div className="requirement-table-actions">
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addAssignmentActivity}>
+                    Add Activity
+                  </button>
                 </div>
                 <label>
                   <span className="form-label">3.2 Assignment Boundaries - Out-of-Scope Activities</span>
                   <textarea className="form-input" value={consultancy.outOfScopeActivities} onChange={(event) => patchConsultancy({ outOfScopeActivities: event.target.value })} aria-label="Out-of-Scope Activities" />
                 </label>
+              </div>
               </div>
             </article>
 
@@ -2558,18 +2641,18 @@ function ConsultancyRequirementsStep({
                 <h4>4. Duties and Responsibilities of the Parties</h4>
                 <span className="form-hint">Defines obligations of the client and consultant.</span>
               </div>
+              <div className="requirement-control-grid">
               {(['clientResponsibilityRows', 'consultantResponsibilityRows'] as const).map((key) => (
                 <div key={key} className="requirement-control requirement-control-wide">
-                  <div className="scope-list-heading">
-                    <span className="form-label">{key === 'clientResponsibilityRows' ? '4.1 Client Responsibilities' : '4.2 Consultant Responsibilities'}</span>
-                    <button className="btn btn-secondary" type="button" onClick={() => addResponsibility(key)}>
-                      {key === 'clientResponsibilityRows' ? 'Add Client Responsibility' : 'Add Consultant Responsibility'}
-                    </button>
-                  </div>
+                  <span className="form-label">{key === 'clientResponsibilityRows' ? '4.1 Client Responsibilities' : '4.2 Consultant Responsibilities'}</span>
                   {consultancy[key].length ? (
                     <div className="requirement-card-list">
                       {consultancy[key].map((row, index) => (
                         <article key={row.id} className="requirement-repeater-card">
+                          <div className="requirement-card-heading">
+                            <strong>{row.title || (key === 'clientResponsibilityRows' ? `Client Responsibilities ${index + 1}` : `Consultant Responsibilities ${index + 1}`)}</strong>
+                            <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove ${key === 'clientResponsibilityRows' ? 'client' : 'consultant'} responsibility ${index + 1}`} onClick={() => deleteResponsibility(key, row.id)}>x</button>
+                          </div>
                           <input className="form-input" placeholder={key === 'clientResponsibilityRows' ? 'Responsibility Title' : 'Responsibility'} value={row.title} onChange={(event) => updateResponsibility(key, row.id, { title: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility ${index + 1}`} />
                           <textarea className="form-input" placeholder="Description" value={row.description} onChange={(event) => updateResponsibility(key, row.id, { description: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility Description ${index + 1}`} />
                           <select className="form-input" value={row.supportType} onChange={(event) => updateResponsibility(key, row.id, { supportType: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility Support Type ${index + 1}`}>
@@ -2586,8 +2669,12 @@ function ConsultancyRequirementsStep({
                   ) : (
                     <div className="scope-empty">No {key === 'clientResponsibilityRows' ? 'client' : 'consultant'} responsibilities added yet.</div>
                   )}
+                  <button className="btn btn-secondary scope-add" type="button" onClick={() => addResponsibility(key)}>
+                    {key === 'clientResponsibilityRows' ? 'Add Client Responsibility' : 'Add Consultant Responsibility'}
+                  </button>
                 </div>
               ))}
+              </div>
             </article>
 
             <article className="requirement-block" id="requirement-section-consultancyDeliverablesTimeline">
@@ -2595,13 +2682,9 @@ function ConsultancyRequirementsStep({
                 <h4>5. Deliverables and Timeline</h4>
                 <span className="form-hint">Defines expected outputs and reporting requirements.</span>
               </div>
+              <div className="requirement-control-grid">
               <div className="requirement-control requirement-control-wide">
-                <div className="scope-list-heading">
-                  <span className="form-label">5.1 Deliverables</span>
-                  <button className="btn btn-secondary" type="button" onClick={addConsultancyDeliverable}>
-                    Add Deliverable
-                  </button>
-                </div>
+                <span className="form-label">5.1 Deliverables</span>
                 <div className="requirement-table-wrap">
                   <table className="requirement-table">
                     <thead>
@@ -2612,6 +2695,7 @@ function ConsultancyRequirementsStep({
                         <th>Format Required</th>
                         <th>Reviewer</th>
                         <th>Mandatory</th>
+                        <th aria-label="Actions"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2623,26 +2707,32 @@ function ConsultancyRequirementsStep({
                             <td><input className="form-input" value={row.submissionTimeline} onChange={(event) => updateConsultancyDeliverable(row.id, { submissionTimeline: event.target.value })} aria-label={`Submission Timeline ${index + 1}`} /></td>
                             <td><select className="form-input" value={row.formatRequired} onChange={(event) => updateConsultancyDeliverable(row.id, { formatRequired: event.target.value })} aria-label={`Format Required ${index + 1}`}><option value="">Select</option>{consultancyFormats.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
                             <td><select className="form-input" value={row.reviewer} onChange={(event) => updateConsultancyDeliverable(row.id, { reviewer: event.target.value })} aria-label={`Reviewer ${index + 1}`}><option value="">Select</option>{consultancyReviewers.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
-                            <td><input type="checkbox" checked={row.mandatory} onChange={(event) => updateConsultancyDeliverable(row.id, { mandatory: event.target.checked })} aria-label={`Deliverable Mandatory ${index + 1}`} /></td>
+                            <td>
+                              <label className="requirement-toggle" title="Mandatory">
+                                <input type="checkbox" checked={row.mandatory} onChange={(event) => updateConsultancyDeliverable(row.id, { mandatory: event.target.checked })} aria-label={`Deliverable Mandatory ${index + 1}`} />
+                                <span></span>
+                              </label>
+                            </td>
+                            <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove deliverable ${index + 1}`} onClick={() => deleteConsultancyDeliverable(row.id)}>x</button></td>
                           </tr>
                         ))
                       ) : (
-                        <tr><td colSpan={6}>No deliverables added yet.</td></tr>
+                        <tr><td colSpan={7}><div className="scope-empty">No deliverables added yet.</div></td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
-              </div>
-              <div className="requirement-control requirement-control-wide">
-                <div className="scope-list-heading">
-                  <span className="form-label">5.2 Reporting Requirements</span>
-                  <button className="btn btn-secondary" type="button" onClick={addReportingRequirement}>
-                    Add Reporting Requirement
+                <div className="requirement-table-actions">
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addConsultancyDeliverable}>
+                    Add Deliverable
                   </button>
                 </div>
+              </div>
+              <div className="requirement-control requirement-control-wide">
+                <span className="form-label">5.2 Reporting Requirements</span>
                 <div className="requirement-table-wrap">
                   <table className="requirement-table">
-                    <thead><tr><th>Report Type</th><th>Frequency</th><th>Submission Format</th><th>Submission Channel</th></tr></thead>
+                    <thead><tr><th>Report Type</th><th>Frequency</th><th>Submission Format</th><th>Submission Channel</th><th aria-label="Actions"></th></tr></thead>
                     <tbody>
                       {consultancy.reportingRequirementRows.length ? (
                         consultancy.reportingRequirementRows.map((row, index) => (
@@ -2651,14 +2741,21 @@ function ConsultancyRequirementsStep({
                             <td><select className="form-input" value={row.frequency} onChange={(event) => updateReportingRequirement(row.id, { frequency: event.target.value })} aria-label={`Reporting Frequency ${index + 1}`}><option value="">Select</option>{consultancyFrequencyOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
                             <td><select className="form-input" value={row.submissionFormat} onChange={(event) => updateReportingRequirement(row.id, { submissionFormat: event.target.value })} aria-label={`Submission Format ${index + 1}`}><option value="">Select</option>{consultancyFormats.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
                             <td><input className="form-input" value={row.submissionChannel} onChange={(event) => updateReportingRequirement(row.id, { submissionChannel: event.target.value })} aria-label={`Submission Channel ${index + 1}`} /></td>
+                            <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove reporting requirement ${index + 1}`} onClick={() => deleteReportingRequirement(row.id)}>x</button></td>
                           </tr>
                         ))
                       ) : (
-                        <tr><td colSpan={4}>No reporting requirements added yet.</td></tr>
+                        <tr><td colSpan={5}><div className="scope-empty">No reporting requirements added yet.</div></td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
+                <div className="requirement-table-actions">
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addReportingRequirement}>
+                    Add Reporting Requirement
+                  </button>
+                </div>
+              </div>
               </div>
             </article>
 
@@ -2684,15 +2781,10 @@ function ConsultancyRequirementsStep({
                   <label><span className="form-label">Similar Assignments Evidence</span><select className="form-input" value={consultancy.firmRequiredEvidence} onChange={(event) => patchConsultancy({ firmRequiredEvidence: event.target.value })} aria-label="Firm Similar Assignments Evidence"><option>Required</option><option>Not required</option></select></label>
                 </article>
                 <div className="requirement-control requirement-control-wide">
-                  <div className="scope-list-heading">
-                    <span className="form-label">Consulting Firm - Key Personnel</span>
-                    <button className="btn btn-secondary" type="button" onClick={addKeyExpert}>
-                      Add Key Personnel
-                    </button>
-                  </div>
+                  <span className="form-label">Consulting Firm - Key Personnel</span>
                   <div className="requirement-table-wrap">
                     <table className="requirement-table">
-                      <thead><tr><th>Position Title</th><th>Minimum Qualification</th><th>Years</th><th>Certifications</th><th>Quantity</th><th>Mandatory</th></tr></thead>
+                      <thead><tr><th>Position Title</th><th>Minimum Qualification</th><th>Years</th><th>Certifications</th><th>Quantity</th><th>Mandatory</th><th aria-label="Actions"></th></tr></thead>
                       <tbody>
                         {consultancy.keyExpertRows.length ? (
                           consultancy.keyExpertRows.map((row, index) => (
@@ -2702,14 +2794,25 @@ function ConsultancyRequirementsStep({
                               <td><input className="form-input" type="number" value={row.yearsOfExperience} onChange={(event) => updateKeyExpert(row.id, { yearsOfExperience: event.target.value })} aria-label={`Key Personnel Years of Experience ${index + 1}`} /></td>
                               <td><input className="form-input" value={row.certifications} onChange={(event) => updateKeyExpert(row.id, { certifications: event.target.value })} aria-label={`Key Personnel Certifications ${index + 1}`} /></td>
                               <td><input className="form-input" type="number" value={row.quantityRequired} onChange={(event) => updateKeyExpert(row.id, { quantityRequired: event.target.value })} aria-label={`Key Personnel Quantity Required ${index + 1}`} /></td>
-                              <td><input type="checkbox" checked={row.mandatory} onChange={(event) => updateKeyExpert(row.id, { mandatory: event.target.checked })} aria-label={`Key Personnel Mandatory ${index + 1}`} /></td>
+                              <td>
+                                <label className="requirement-toggle" title="Mandatory">
+                                  <input type="checkbox" checked={row.mandatory} onChange={(event) => updateKeyExpert(row.id, { mandatory: event.target.checked })} aria-label={`Key Personnel Mandatory ${index + 1}`} />
+                                  <span></span>
+                                </label>
+                              </td>
+                              <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove key personnel ${index + 1}`} onClick={() => deleteKeyExpert(row.id)}>x</button></td>
                             </tr>
                           ))
                         ) : (
-                          <tr><td colSpan={6}>No key personnel added yet.</td></tr>
+                          <tr><td colSpan={7}><div className="scope-empty">No key personnel added yet.</div></td></tr>
                         )}
                       </tbody>
                     </table>
+                  </div>
+                  <div className="requirement-table-actions">
+                    <button className="btn btn-secondary scope-add" type="button" onClick={addKeyExpert}>
+                      Add Key Personnel
+                    </button>
                   </div>
                 </div>
                 <div className="requirement-control requirement-control-wide">{regulatoryLicensePanel}</div>
@@ -2717,35 +2820,45 @@ function ConsultancyRequirementsStep({
             </article>
 
             <article className="requirement-block" id="requirement-section-financialCapacity">
-              <div className="scope-list-heading">
-                <div>
-                  <h4>Financial Capacity</h4>
-                  <span className="form-hint">Add minimum financial evidence required for consultant eligibility.</span>
-                </div>
-                <button className="btn btn-secondary" type="button" onClick={onAddFinancialRequirement}>
-                  Add Financial Requirement
-                </button>
+              <div>
+                <h4>Financial Capacity</h4>
+                <span className="form-hint">Add minimum financial evidence required for consultant eligibility.</span>
               </div>
-              <div className="requirement-table-wrap">
-                <table className="requirement-table">
-                  <thead><tr><th>Requirement type</th><th>Minimum value</th><th>Period</th><th>Evidence</th><th>Mandatory</th><th></th></tr></thead>
-                  <tbody>
-                    {draft.financialRequirements.length ? (
-                      draft.financialRequirements.map((row, index) => (
-                        <tr key={row.id}>
-                          <td><select className="form-input" value={row.requirementType} onChange={(event) => onUpdateFinancialRequirement(row.id, { requirementType: event.target.value })} aria-label={`Consultancy requirement type ${index + 1}`}><option value="">Select</option>{financialRequirementTypes.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
-                          <td><input className="form-input" value={row.minimumValue} onChange={(event) => onUpdateFinancialRequirement(row.id, { minimumValue: event.target.value })} aria-label={`Consultancy minimum value ${index + 1}`} /></td>
-                          <td><select className="form-input" value={row.period} onChange={(event) => onUpdateFinancialRequirement(row.id, { period: event.target.value })} aria-label={`Consultancy financial period ${index + 1}`}><option value="">Select</option>{financialPeriods.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
-                          <td><select className="form-input" value={row.evidenceRequired} onChange={(event) => onUpdateFinancialRequirement(row.id, { evidenceRequired: event.target.value })} aria-label={`Consultancy evidence required ${index + 1}`}><option value="">Select</option>{financialEvidence.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
-                          <td><input type="checkbox" checked={row.mandatory} onChange={(event) => onUpdateFinancialRequirement(row.id, { mandatory: event.target.checked })} aria-label={`Consultancy financial mandatory ${index + 1}`} /></td>
-                          <td><button className="boq-row-action icon-delete-btn" type="button" onClick={() => onDeleteFinancialRequirement(row.id)} aria-label="Delete consultancy financial requirement">x</button></td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan={6}>No financial requirements added yet.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+              <div className="requirement-control-grid">
+                <div className="requirement-control requirement-control-wide">
+                  <span className="form-label">Financial requirements</span>
+                  <div className="requirement-table-wrap">
+                    <table className="requirement-table">
+                      <thead><tr><th>Requirement type</th><th>Minimum value</th><th>Period</th><th>Evidence required</th><th>Mandatory</th><th aria-label="Actions"></th></tr></thead>
+                      <tbody>
+                        {draft.financialRequirements.length ? (
+                          draft.financialRequirements.map((row, index) => (
+                            <tr key={row.id}>
+                              <td><select className="form-input" value={row.requirementType} onChange={(event) => onUpdateFinancialRequirement(row.id, { requirementType: event.target.value })} aria-label={`Consultancy requirement type ${index + 1}`}><option value="">Select</option>{financialRequirementTypes.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                              <td><input className="form-input" value={row.minimumValue} onChange={(event) => onUpdateFinancialRequirement(row.id, { minimumValue: event.target.value })} aria-label={`Consultancy minimum value ${index + 1}`} /></td>
+                              <td><select className="form-input" value={row.period} onChange={(event) => onUpdateFinancialRequirement(row.id, { period: event.target.value })} aria-label={`Consultancy financial period ${index + 1}`}><option value="">Select</option>{financialPeriods.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                              <td><select className="form-input" value={row.evidenceRequired} onChange={(event) => onUpdateFinancialRequirement(row.id, { evidenceRequired: event.target.value })} aria-label={`Consultancy evidence required ${index + 1}`}><option value="">Select</option>{financialEvidence.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                              <td>
+                                <label className="requirement-toggle" title="Mandatory">
+                                  <input type="checkbox" checked={row.mandatory} onChange={(event) => onUpdateFinancialRequirement(row.id, { mandatory: event.target.checked })} aria-label={`Consultancy financial mandatory ${index + 1}`} />
+                                  <span></span>
+                                </label>
+                              </td>
+                              <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" onClick={() => onDeleteFinancialRequirement(row.id)} aria-label="Delete consultancy financial requirement">x</button></td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan={6}><div className="scope-empty">No financial requirements added yet.</div></td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="requirement-table-actions">
+                    <button className="btn btn-secondary scope-add" type="button" onClick={onAddFinancialRequirement}>
+                      Add Financial Requirement
+                    </button>
+                  </div>
+                </div>
               </div>
             </article>
 
@@ -2772,16 +2885,12 @@ function ConsultancyRequirementsStep({
                 <h4>8. Attachments and Reference Documents</h4>
                 <span className="form-hint">Supports consultants with background materials, policy documents, studies, drawings, and external references.</span>
               </div>
+              <div className="requirement-control-grid">
               <div className="requirement-control requirement-control-wide">
-                <div className="scope-list-heading">
-                  <span className="form-label">8.1 Supporting Documents</span>
-                  <button className="btn btn-secondary" type="button" onClick={addSupportingDocument}>
-                    Add Supporting Document
-                  </button>
-                </div>
+                <span className="form-label">8.1 Supporting Documents</span>
                 <div className="requirement-table-wrap">
                   <table className="requirement-table">
-                    <thead><tr><th>Document Title</th><th>File Upload</th><th>Category</th><th>Confidential</th></tr></thead>
+                    <thead><tr><th>Document Title</th><th>File Upload</th><th>Category</th><th>Confidential</th><th aria-label="Actions"></th></tr></thead>
                     <tbody>
                       {consultancy.supportingDocumentRows.length ? (
                         consultancy.supportingDocumentRows.map((row, index) => (
@@ -2789,27 +2898,37 @@ function ConsultancyRequirementsStep({
                             <td><input className="form-input" value={row.documentTitle} onChange={(event) => updateSupportingDocument(row.id, { documentTitle: event.target.value })} aria-label={`Consultancy Document Title ${index + 1}`} /></td>
                             <td><input className="form-input" value={row.uploadName} onChange={(event) => updateSupportingDocument(row.id, { uploadName: event.target.value })} aria-label={`Consultancy File Upload ${index + 1}`} placeholder="Filename" /></td>
                             <td><select className="form-input" value={row.category} onChange={(event) => updateSupportingDocument(row.id, { category: event.target.value })} aria-label={`Consultancy Document Category ${index + 1}`}><option value="">Select</option>{consultancyDocumentCategories.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
-                            <td><input type="checkbox" checked={row.confidential} onChange={(event) => updateSupportingDocument(row.id, { confidential: event.target.checked })} aria-label={`Consultancy Document Confidential ${index + 1}`} /></td>
+                            <td>
+                              <label className="requirement-toggle" title="Confidential">
+                                <input type="checkbox" checked={row.confidential} onChange={(event) => updateSupportingDocument(row.id, { confidential: event.target.checked })} aria-label={`Consultancy Document Confidential ${index + 1}`} />
+                                <span></span>
+                              </label>
+                            </td>
+                            <td className="requirement-table-action-cell"><button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove supporting document ${index + 1}`} onClick={() => deleteSupportingDocument(row.id)}>x</button></td>
                           </tr>
                         ))
                       ) : (
-                        <tr><td colSpan={4}>No supporting documents added yet.</td></tr>
+                        <tr><td colSpan={5}><div className="scope-empty">No supporting documents added yet.</div></td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
-              </div>
-              <div className="requirement-control requirement-control-wide">
-                <div className="scope-list-heading">
-                  <span className="form-label">8.2 External References</span>
-                  <button className="btn btn-secondary" type="button" onClick={addExternalReference}>
-                    Add External Reference
+                <div className="requirement-table-actions">
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addSupportingDocument}>
+                    Add Supporting Document
                   </button>
                 </div>
+              </div>
+              <div className="requirement-control requirement-control-wide">
+                <span className="form-label">8.2 External References</span>
                 {consultancy.externalReferenceRows.length ? (
                   <div className="requirement-card-list">
                     {consultancy.externalReferenceRows.map((row, index) => (
                       <article key={row.id} className="requirement-repeater-card">
+                        <div className="requirement-card-heading">
+                          <strong>{row.referenceName || `External References ${index + 1}`}</strong>
+                          <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove external reference ${index + 1}`} onClick={() => deleteExternalReference(row.id)}>x</button>
+                        </div>
                         <input className="form-input" placeholder="Reference Name" value={row.referenceName} onChange={(event) => updateExternalReference(row.id, { referenceName: event.target.value })} aria-label={`External Reference Name ${index + 1}`} />
                         <input className="form-input" placeholder="URL" value={row.url} onChange={(event) => updateExternalReference(row.id, { url: event.target.value })} aria-label={`External Reference URL ${index + 1}`} />
                         <textarea className="form-input" placeholder="Description" value={row.description} onChange={(event) => updateExternalReference(row.id, { description: event.target.value })} aria-label={`External Reference Description ${index + 1}`} />
@@ -2819,6 +2938,10 @@ function ConsultancyRequirementsStep({
                 ) : (
                   <div className="scope-empty">No external references added yet.</div>
                 )}
+                <button className="btn btn-secondary scope-add" type="button" onClick={addExternalReference}>
+                  Add External Reference
+                </button>
+              </div>
               </div>
             </article>
           </div>
@@ -3618,10 +3741,11 @@ function WorksRequirementsStep({
             <h4>3. Technical Specifications</h4>
             <span className="form-hint">Detailed technical requirements and mandatory specification documents.</span>
           </div>
-          <div className="requirement-control requirement-control-wide">
-            <span className="form-label">Technical specification documents</span>
-            <div className="requirement-table-wrap">
-              <table className="requirement-table">
+          <div className="requirement-control-grid">
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Technical specification documents</span>
+              <div className="requirement-table-wrap" data-requirement-table-wrap="technicalSpecificationDocuments">
+                <table className="requirement-table" data-requirement-table="technicalSpecificationDocuments">
                 <thead>
                   <tr>
                     <th>Document title</th>
@@ -3664,10 +3788,11 @@ function WorksRequirementsStep({
                     </tr>
                   )}
                 </tbody>
-              </table>
-            </div>
-            <div className="requirement-table-actions">
-              <button className="btn btn-secondary scope-add" type="button" onClick={addSpecificationDocument}>Add Specification Document</button>
+                </table>
+              </div>
+              <div className="requirement-table-actions">
+                <button className="btn btn-secondary scope-add" type="button" onClick={addSpecificationDocument}>Add Specification Document</button>
+              </div>
             </div>
           </div>
         </article>
@@ -3677,10 +3802,11 @@ function WorksRequirementsStep({
             <h4>4. Drawings and Design Documents</h4>
             <span className="form-hint">Reference drawings, revisions, design consultants, and CAD/PDF uploads.</span>
           </div>
-          <div className="requirement-control requirement-control-wide">
-            <span className="form-label">Drawings and design documents</span>
-            <div className="requirement-table-wrap">
-              <table className="requirement-table">
+          <div className="requirement-control-grid">
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Drawings and design documents</span>
+              <div className="requirement-table-wrap" data-requirement-table-wrap="drawingDesignRows">
+                <table className="requirement-table" data-requirement-table="drawingDesignRows">
                 <thead>
                   <tr>
                     <th>Document type</th>
@@ -3728,10 +3854,11 @@ function WorksRequirementsStep({
                     </tr>
                   )}
                 </tbody>
-              </table>
-            </div>
-            <div className="requirement-table-actions">
-              <button className="btn btn-secondary scope-add" type="button" onClick={addDrawing}>Add Drawing</button>
+                </table>
+              </div>
+              <div className="requirement-table-actions">
+                <button className="btn btn-secondary scope-add" type="button" onClick={addDrawing}>Add Drawing</button>
+              </div>
             </div>
           </div>
         </article>
@@ -3741,15 +3868,17 @@ function WorksRequirementsStep({
             <h4>5. Bill of Quantities (BoQ) / Pricing Schedule</h4>
             <span className="form-hint">Commercial breakdown of works. Lump Sum uses summary pricing; Unit Price uses detailed measured items.</span>
           </div>
-          {works.contractType === 'Lump Sum Contract' ? (
-            <div className="requirement-control requirement-control-wide">
-              <span className="form-label">Summary pricing schedule</span>
-              <div className="requirement-table-wrap">
-                <table className="requirement-table">
+          <div className="requirement-control-grid">
+            {works.contractType === 'Lump Sum Contract' ? (
+              <div className="requirement-control requirement-control-wide">
+                <span className="form-label">Summary pricing schedule</span>
+                <div className="requirement-table-wrap" data-requirement-table-wrap="lumpSumPricingRows">
+                  <table className="requirement-table" data-requirement-table="lumpSumPricingRows">
                   <thead>
                     <tr>
                       <th>Section</th>
                       <th>Description</th>
+                      <th>Amount</th>
                       <th aria-label="Actions"></th>
                     </tr>
                   </thead>
@@ -3759,6 +3888,7 @@ function WorksRequirementsStep({
                         <tr key={row.id}>
                           <td><input className="form-input" value={row.section} onChange={(event) => updateLumpSumPricingRow(row.id, { section: event.target.value })} aria-label={`Section ${index + 1}`} /></td>
                           <td><textarea className="form-input" value={row.description} onChange={(event) => updateLumpSumPricingRow(row.id, { description: event.target.value })} aria-label={`Description ${index + 1}`} /></td>
+                          <td><input className="form-input" inputMode="decimal" value={row.amount} onChange={(event) => updateLumpSumPricingRow(row.id, { amount: event.target.value })} aria-label={`Amount ${index + 1}`} /></td>
                           <td className="requirement-table-action-cell">
                             <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove pricing section ${index + 1}`} onClick={() => patchWorks({ lumpSumPricingRows: works.lumpSumPricingRows.filter((item) => item.id !== row.id) })}>x</button>
                           </td>
@@ -3766,27 +3896,29 @@ function WorksRequirementsStep({
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={3}><div className="scope-empty">No summary pricing sections added yet.</div></td>
+                        <td colSpan={4}><div className="scope-empty">No summary pricing sections added yet.</div></td>
                       </tr>
                     )}
                   </tbody>
-                </table>
+                  </table>
+                </div>
+                <div className="requirement-table-actions">
+                  <button className="btn btn-secondary scope-add" type="button" onClick={addLumpSumPricingRow}>Add Pricing Section</button>
+                </div>
               </div>
-              <div className="requirement-table-actions">
-                <button className="btn btn-secondary scope-add" type="button" onClick={addLumpSumPricingRow}>Add Pricing Section</button>
-              </div>
-            </div>
-          ) : null}
-          <div className="requirement-control requirement-control-wide">
-            <span className="form-label">Bill of Quantities table</span>
-            <div className="requirement-table-wrap">
-              <table className="requirement-table">
+            ) : null}
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Bill of Quantities table</span>
+              <div className="requirement-table-wrap" data-requirement-table-wrap="boqRows">
+                <table className="requirement-table" data-requirement-table="boqRows">
                 <thead>
                   <tr>
                     <th>No.</th>
                     <th>Description</th>
                     <th>Unit</th>
                     <th>Quantity</th>
+                    <th>Rate</th>
+                    <th>Total amount</th>
                     <th aria-label="Actions"></th>
                   </tr>
                 </thead>
@@ -3803,6 +3935,8 @@ function WorksRequirementsStep({
                           </select>
                         </td>
                         <td><input className="form-input" inputMode="decimal" value={row.quantity} onChange={(event) => updateWorksBoqRow(row.id, { quantity: event.target.value })} aria-label={`BOQ quantity ${index + 1}`} /></td>
+                        <td><input className="form-input" inputMode="decimal" value={row.rate} onChange={(event) => updateWorksBoqRow(row.id, { rate: event.target.value })} aria-label={`BOQ rate ${index + 1}`} /></td>
+                        <td><span className="requirement-auto-value">{formatCalculatedMoney(multiplyNumericStrings(row.quantity, row.rate))}</span></td>
                         <td className="requirement-table-action-cell">
                           <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove BOQ line ${index + 1}`} onClick={() => patchWorks({ boqRows: works.boqRows.filter((item) => item.id !== row.id) })}>x</button>
                         </td>
@@ -3810,19 +3944,20 @@ function WorksRequirementsStep({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5}><div className="scope-empty">No BOQ lines added yet.</div></td>
+                      <td colSpan={7}><div className="scope-empty">No BOQ lines added yet.</div></td>
                     </tr>
                   )}
                 </tbody>
-              </table>
-            </div>
-            <div className="requirement-table-actions">
-              <label className="btn btn-secondary scope-add goods-import-control">
-                Import Excel
-                <input type="file" accept=".csv,.txt" aria-label="Import works BOQ" onChange={(event) => importWorksBoq(event.target.files?.[0])} />
-              </label>
-              <button className="btn btn-secondary scope-add" type="button" onClick={downloadWorksBoqTemplate}>Download Excel Template</button>
-              <button className="btn btn-secondary scope-add" type="button" onClick={addWorksBoqRow}>Add BOQ Line</button>
+                </table>
+              </div>
+              <div className="requirement-table-actions">
+                <label className="btn btn-secondary scope-add goods-import-control">
+                  Import Excel
+                  <input type="file" accept=".csv,.txt" aria-label="Import works BOQ" onChange={(event) => importWorksBoq(event.target.files?.[0])} />
+                </label>
+                <button className="btn btn-secondary scope-add" type="button" onClick={downloadWorksBoqTemplate}>Download Excel Template</button>
+                <button className="btn btn-secondary scope-add" type="button" onClick={addWorksBoqRow}>Add BOQ Line</button>
+              </div>
             </div>
           </div>
         </article>
@@ -3841,11 +3976,10 @@ function WorksRequirementsStep({
               <span className="form-label">Completion period</span>
               <input className="form-input" value={works.worksCompletionPeriod} onChange={(event) => patchWorks({ worksCompletionPeriod: event.target.value })} aria-label="Works completion period" />
             </label>
-          </div>
-          <div className="requirement-control requirement-control-wide">
-            <span className="form-label">Works milestones</span>
-            <div className="requirement-table-wrap">
-              <table className="requirement-table">
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Works milestones</span>
+              <div className="requirement-table-wrap" data-requirement-table-wrap="worksMilestoneRows">
+                <table className="requirement-table" data-requirement-table="worksMilestoneRows">
                 <thead>
                   <tr>
                     <th>Milestone</th>
@@ -3870,10 +4004,11 @@ function WorksRequirementsStep({
                     </tr>
                   )}
                 </tbody>
-              </table>
-            </div>
-            <div className="requirement-table-actions">
-              <button className="btn btn-secondary scope-add" type="button" onClick={addWorksMilestone}>Add Milestone</button>
+                </table>
+              </div>
+              <div className="requirement-table-actions">
+                <button className="btn btn-secondary scope-add" type="button" onClick={addWorksMilestone}>Add Milestone</button>
+              </div>
             </div>
           </div>
         </article>
@@ -3886,22 +4021,22 @@ function WorksRequirementsStep({
           <div className="requirement-control-grid">
             <div className="requirement-control">
               <span className="form-label">Site visit requirement</span>
-              <div className="sample-requirement-choice-row">
+              <div className="requirement-choice-group" role="radiogroup" aria-label="Site visit requirement">
                 {(['Mandatory', 'Not mandatory'] as const).map((option) => (
-                  <label key={option} className={`sample-requirement-choice ${works.siteVisitRequirement === option ? 'is-selected' : ''}`}>
+                  <label key={option} className="requirement-choice-option">
                     <input
                       type="radio"
                       name="siteVisitRequirement"
                       value={option}
                       checked={works.siteVisitRequirement === option}
-                      onChange={() => patchWorks(option === 'Mandatory' ? { siteVisitRequirement: option } : { siteVisitRequirement: option, siteSurveyUploadName: '' })}
+                      onChange={() => patchWorks(option === 'Not mandatory' ? { siteVisitRequirement: option } : { siteVisitRequirement: option, siteSurveyUploadName: '' })}
                     />
                     <span>{option}</span>
                   </label>
                 ))}
               </div>
             </div>
-            {works.siteVisitRequirement === 'Mandatory' ? (
+            {works.siteVisitRequirement === 'Not mandatory' ? (
               <div className="requirement-control">
                 <span className="form-label">Site survey</span>
                 <label className="btn btn-secondary scope-add goods-import-control">
@@ -3961,63 +4096,71 @@ function WorksRequirementsStep({
         </article>
 
         <article className="requirement-block" id="requirement-section-financialCapacity">
-          <div className="scope-list-heading">
-            <div>
-              <h4>Financial Capacity Requirements</h4>
-              <span className="form-hint">Structured financial rules used to verify whether bidders can sustain the contract.</span>
-            </div>
-            <button className="btn btn-secondary scope-add" type="button" onClick={onAddFinancialRequirement}>Add Financial Requirement</button>
+          <div>
+            <h4>Financial Capacity Requirements</h4>
+            <span className="form-hint">Structured financial rules used to verify whether bidders can sustain the contract.</span>
           </div>
-          <div className="requirement-table-wrap">
-            <table className="requirement-table">
-              <thead>
-                <tr>
-                  <th>Requirement type</th>
-                  <th>Minimum value</th>
-                  <th>Period</th>
-                  <th>Evidence required</th>
-                  <th>Mandatory</th>
-                  <th aria-label="Actions"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {draft.financialRequirements.length ? (
-                  draft.financialRequirements.map((row, index) => (
-                    <tr key={row.id}>
-                      <td>
-                        <select className="form-input" aria-label={`Requirement type ${index + 1}`} value={row.requirementType} onChange={(event) => onUpdateFinancialRequirement(row.id, { requirementType: event.target.value })}>
-                          <option value="">Select</option>
-                          {financialRequirementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                        </select>
-                      </td>
-                      <td><input className="form-input" aria-label={`Minimum value ${index + 1}`} inputMode="decimal" value={row.minimumValue} onChange={(event) => onUpdateFinancialRequirement(row.id, { minimumValue: event.target.value })} /></td>
-                      <td>
-                        <select className="form-input" aria-label={`Period ${index + 1}`} value={row.period} onChange={(event) => onUpdateFinancialRequirement(row.id, { period: event.target.value })}>
-                          <option value="">Select</option>
-                          {financialPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select className="form-input" aria-label={`Evidence required ${index + 1}`} value={row.evidenceRequired} onChange={(event) => onUpdateFinancialRequirement(row.id, { evidenceRequired: event.target.value })}>
-                          <option value="">Select</option>
-                          {financialEvidence.map((evidence) => <option key={evidence} value={evidence}>{evidence}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <input type="checkbox" aria-label={`Mandatory financial requirement ${index + 1}`} checked={row.mandatory} onChange={(event) => onUpdateFinancialRequirement(row.id, { mandatory: event.target.checked })} />
-                      </td>
-                      <td className="requirement-table-action-cell">
-                        <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete financial requirement ${index + 1}`} onClick={() => onDeleteFinancialRequirement(row.id)}>x</button>
-                      </td>
+          <div className="requirement-control-grid">
+            <div className="requirement-control requirement-control-wide">
+              <span className="form-label">Financial requirements</span>
+              <div className="requirement-table-wrap" data-requirement-table-wrap="financialRequirementRows">
+                <table className="requirement-table" data-requirement-table="financialRequirementRows">
+                  <thead>
+                    <tr>
+                      <th>Requirement type</th>
+                      <th>Minimum value</th>
+                      <th>Period</th>
+                      <th>Evidence required</th>
+                      <th>Mandatory</th>
+                      <th aria-label="Actions"></th>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6}><div className="scope-empty">No financial requirements added yet.</div></td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody data-requirement-table-body="financialRequirementRows">
+                    {draft.financialRequirements.length ? (
+                      draft.financialRequirements.map((row, index) => (
+                        <tr key={row.id} data-requirement-table-row={row.id} data-requirement-control="financialRequirementRows" data-requirement-table-row-index={index}>
+                          <td>
+                            <select className="form-input" aria-label={`Requirement type ${index + 1}`} value={row.requirementType} onChange={(event) => onUpdateFinancialRequirement(row.id, { requirementType: event.target.value })}>
+                              <option value="">Select</option>
+                              {financialRequirementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                          </td>
+                          <td><input className="form-input" aria-label={`Minimum value ${index + 1}`} inputMode="decimal" value={row.minimumValue} onChange={(event) => onUpdateFinancialRequirement(row.id, { minimumValue: event.target.value })} /></td>
+                          <td>
+                            <select className="form-input" aria-label={`Period ${index + 1}`} value={row.period} onChange={(event) => onUpdateFinancialRequirement(row.id, { period: event.target.value })}>
+                              <option value="">Select</option>
+                              {financialPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
+                            </select>
+                          </td>
+                          <td>
+                            <select className="form-input" aria-label={`Evidence required ${index + 1}`} value={row.evidenceRequired} onChange={(event) => onUpdateFinancialRequirement(row.id, { evidenceRequired: event.target.value })}>
+                              <option value="">Select</option>
+                              {financialEvidence.map((evidence) => <option key={evidence} value={evidence}>{evidence}</option>)}
+                            </select>
+                          </td>
+                          <td>
+                            <label className="requirement-toggle" title="Mandatory">
+                              <input type="checkbox" aria-label={`Mandatory financial requirement ${index + 1}`} checked={row.mandatory} onChange={(event) => onUpdateFinancialRequirement(row.id, { mandatory: event.target.checked })} />
+                              <span></span>
+                            </label>
+                          </td>
+                          <td className="requirement-table-action-cell">
+                            <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete financial requirement ${index + 1}`} onClick={() => onDeleteFinancialRequirement(row.id)}>x</button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6}><div className="scope-empty">No financial requirements added yet.</div></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="requirement-table-actions">
+                <button className="btn btn-secondary scope-add" type="button" onClick={onAddFinancialRequirement}>Add Financial Requirement</button>
+              </div>
+            </div>
           </div>
         </article>
         {regulatoryLicensePanel}
@@ -5520,6 +5663,12 @@ function multiplyNumericStrings(left: string | number | undefined, right: string
   const rightNumber = Number(String(right ?? '').replace(/,/g, '').trim());
   if (!Number.isFinite(leftNumber) || !Number.isFinite(rightNumber)) return '';
   return Math.round(leftNumber * rightNumber * 100) / 100;
+}
+
+function formatCalculatedMoney(value: string | number) {
+  if (value === '') return '';
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString('en-US') : '';
 }
 
 function normalizeFinancialRequirementRows(rows: CreateTenderFinancialRequirementRow[]) {

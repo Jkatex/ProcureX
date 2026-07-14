@@ -1022,6 +1022,46 @@ describe('procurement tender write service', () => {
     });
   });
 
+  it('deletes draft tenders for the authenticated owner organization', async () => {
+    const deletedTender = {
+      success: true,
+      message: 'Tender draft deleted successfully',
+      data: {
+        id: 'tender-1',
+        reference: 'PX-DRAFT-001',
+        title: 'Draft owned tender'
+      }
+    };
+    const repository = {
+      deleteTenderDraft: vi.fn().mockResolvedValue(deletedTender)
+    };
+    const identity = {
+      requireSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-1', organizationId: 'org-1' }
+      })
+    };
+    const service = new ModuleService(repository as any, identity as any);
+
+    await expect(service.deleteTenderDraft('tender-1', 'token-1')).resolves.toEqual(deletedTender);
+    expect(identity.requireSession).toHaveBeenCalledWith('token-1');
+    expect(repository.deleteTenderDraft).toHaveBeenCalledWith('tender-1', { organizationId: 'org-1', userId: 'user-1' });
+  });
+
+  it('requires organization context before tender draft deletion', async () => {
+    const repository = {
+      deleteTenderDraft: vi.fn()
+    };
+    const service = new ModuleService(repository as any, {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1' } })
+    } as any);
+
+    await expect(service.deleteTenderDraft('tender-1', 'token-1')).rejects.toMatchObject({
+      status: 409,
+      message: 'An organization profile is required.'
+    });
+    expect(repository.deleteTenderDraft).not.toHaveBeenCalled();
+  });
+
   it('updates buyer notices for the authenticated owner organization', async () => {
     const updatedNotice = {
       success: true,

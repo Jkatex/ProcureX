@@ -6,6 +6,7 @@ import type {
   CreateTenderDraft,
   CreateTenderPayload,
   CreateTenderResponse,
+  DeleteTenderDraftResponse,
   MarketplacePayload,
   MarketplaceTenderRow,
   MyTenderRow,
@@ -50,6 +51,10 @@ export const procurementApi = {
   },
   async updateTender(tenderId: string, payload: UpdateTenderPayload): Promise<UpdateTenderResponse> {
     const response = await apiClient.patch<UpdateTenderResponse>(`/api/procurement/tenders/${tenderId}`, payload);
+    return response.data;
+  },
+  async deleteTenderDraft(tenderId: string): Promise<DeleteTenderDraftResponse> {
+    const response = await apiClient.delete<DeleteTenderDraftResponse>(`/api/procurement/tenders/${tenderId}/draft`);
     return response.data;
   },
   async updateBuyerNotice(tenderId: string, buyerNotice: string): Promise<UpdateBuyerNoticeResponse> {

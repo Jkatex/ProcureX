@@ -22,6 +22,7 @@ import type {
   CloseTenderResponseDto,
   CreateTenderInput,
   CreateTenderResponseDto,
+  DeleteTenderDraftResponseDto,
   MarketplaceQuery,
   MarketplaceTenderRow,
   MyBidRow,
@@ -858,6 +859,40 @@ export class ModuleRepository {
         }
       });
       return toUpdateTenderResponseDto(tender);
+    });
+  }
+
+  async deleteTenderDraft(tenderId: string, context: { organizationId: string; userId: string }): Promise<DeleteTenderDraftResponseDto | null> {
+    return this.db.$transaction(async (tx) => {
+      const existing = await tx.tender.findUnique({
+        where: { id: tenderId },
+        select: {
+          id: true,
+          reference: true,
+          title: true,
+          buyerOrgId: true,
+          status: true
+        }
+      });
+      if (!existing) return null;
+      if (existing.buyerOrgId !== context.organizationId) {
+        throw requestError('Only the owner organization can delete this tender draft.', 403);
+      }
+      if (existing.status !== TenderStatus.DRAFT) {
+        throw requestError('Only draft tenders can be deleted.', 409);
+      }
+
+      await tx.tender.delete({ where: { id: tenderId } });
+
+      return {
+        success: true,
+        message: 'Tender draft deleted successfully',
+        data: {
+          id: existing.id,
+          reference: existing.reference,
+          title: existing.title
+        }
+      };
     });
   }
 

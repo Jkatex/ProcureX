@@ -21,6 +21,7 @@ export function createModuleRouter() {
   router.post('/admin/tender-review/:tenderId/fail', controller.failTenderReview);
   router.post('/tenders', controller.createTender);
   router.patch('/tenders/:tenderId', controller.updateTender);
+  router.delete('/tenders/:tenderId/draft', controller.deleteTenderDraft);
   router.patch('/tenders/:tenderId/buyer-notice', controller.updateTenderBuyerNotice);
   router.get('/saved-tenders', controller.savedTenders);
   router.get('/tenders/:tenderId/documents/:documentId/open', controller.openTenderDocument);

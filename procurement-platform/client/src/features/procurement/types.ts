@@ -533,6 +533,16 @@ export type UpdateTenderResponse = {
   validation?: TenderDraftValidation;
 };
 
+export type DeleteTenderDraftResponse = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+  };
+};
+
 export type UpdateBuyerNoticeResponse = {
   success: true;
   message: 'Buyer notice saved successfully';

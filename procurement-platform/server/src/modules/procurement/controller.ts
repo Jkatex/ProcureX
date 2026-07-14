@@ -251,6 +251,18 @@ export class ModuleController {
     }
   };
 
+  deleteTenderDraft: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const tender = await this.service.deleteTenderDraft(params.data.tenderId, bearerToken(req));
+      if (!tender) throw requestError('Tender draft was not found.', 404);
+      res.json(tender);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   updateTenderBuyerNotice: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderParamsSchema.safeParse(req.params);

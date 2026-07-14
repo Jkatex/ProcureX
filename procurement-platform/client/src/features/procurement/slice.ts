@@ -60,6 +60,12 @@ const procurementSlice = createSlice({
     selectCreateTenderDraft(state, action: { payload: string | null }) {
       state.selectedDraftId = action.payload;
     },
+    deleteCreateTenderDraft(state, action: { payload: string }) {
+      state.createTenderDrafts = state.createTenderDrafts.filter((item) => item.id !== action.payload);
+      state.publishedTenders = state.publishedTenders.filter((item) => item.id !== action.payload);
+      if (state.selectedDraftId === action.payload) state.selectedDraftId = null;
+      if (state.lastSubmittedTenderId === action.payload) state.lastSubmittedTenderId = null;
+    },
     resetCreateTenderDrafts(state) {
       state.createTenderDrafts = [];
       state.publishedTenders = [];
@@ -76,6 +82,7 @@ export const {
   submitCreateTenderForEvaluation,
   publishSimulatedTender,
   selectCreateTenderDraft,
+  deleteCreateTenderDraft,
   resetCreateTenderDrafts
 } = procurementSlice.actions;
 export default procurementSlice.reducer;
