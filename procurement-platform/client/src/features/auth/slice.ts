@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/tool
 import { apiErrorMessage } from '@/shared/api/errors';
 import { clearStoredAuthToken, getStoredAuthToken, storeAuthToken } from '@/shared/api/authToken';
 import type { SessionUser } from '@/shared/types/domain';
-import { authApi, type AuthSessionResponse } from './api';
+import { authApi, type AuthSessionResponse, type SessionResponse } from './api';
 
 type AuthState = {
   user: SessionUser | null;
@@ -15,6 +15,7 @@ type AuthState = {
 };
 
 const initialToken = getStoredAuthToken();
+const sessionHydrationTimeoutMs = 8000;
 
 const initialState: AuthState = {
   user: null,
@@ -37,7 +38,16 @@ export const signInWithCredentials = createAsyncThunk<AuthSessionResponse, { ema
   }
 );
 
-export const hydrateAuthSession = createAsyncThunk('auth/hydrateAuthSession', async () => authApi.getSession());
+export const hydrateAuthSession = createAsyncThunk<SessionResponse, void, { rejectValue: string }>(
+  'auth/hydrateAuthSession',
+  async (_input, { rejectWithValue }) => {
+    try {
+      return await withTimeout(authApi.getSession(), sessionHydrationTimeoutMs, 'Session restore timed out.');
+    } catch (error) {
+      return rejectWithValue(apiErrorMessage(error, 'Session could not be restored.'));
+    }
+  }
+);
 
 export const signOutSession = createAsyncThunk('auth/signOutSession', async () => {
   await authApi.signOut();
@@ -101,6 +111,7 @@ const authSlice = createSlice({
       .addCase(hydrateAuthSession.rejected, (state) => {
         state.sessionExpired = Boolean(state.token);
         state.status = 'idle';
+        state.error = 'Session could not be restored.';
         state.user = null;
         state.token = null;
         state.expiresAt = null;
@@ -118,6 +129,22 @@ const authSlice = createSlice({
       });
   }
 });
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
 
 export const { assumeUser, setSessionUser, signOut } = authSlice.actions;
 export default authSlice.reducer;

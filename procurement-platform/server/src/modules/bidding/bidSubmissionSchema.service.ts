@@ -126,9 +126,9 @@ function workflowSteps(
     const pricing = groups.financial.filter((field) => !financialCapacity.includes(field));
     return compactSteps([
       eligibility,
-      step('worksCapacity', 'Technical Capacity and Experience', 'TECHNICAL', uniqueFields([...capacity, ...financialCapacity])),
+      step('worksCapacity', 'Technical Capacity and Experience', 'TECHNICAL', capacity),
       step('worksTechnicalProposal', 'Technical Proposal and Work Program', 'TECHNICAL', proposal),
-      step('worksFinancial', 'Financial Proposal / BOQ Pricing', 'FINANCIAL', pricing),
+      step('worksFinancial', 'Financial Proposal / BOQ Pricing', 'FINANCIAL', uniqueFields([...pricing, ...financialCapacity])),
       step('worksReview', 'Review Submission', 'COMBINED', review),
       step('worksDeclaration', 'Declaration and Submission', 'COMBINED', groups.declarations)
     ]);

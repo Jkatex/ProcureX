@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { signOut } from '@/features/auth/slice';
@@ -8,6 +8,7 @@ import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseM
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
+import { downloadTenderSpreadsheetTemplate, readTenderSpreadsheetRows, type TenderSpreadsheetRow } from '../../tenderSpreadsheetImport';
 import { downloadTenderDocument } from '../../tenderDocumentActions';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
@@ -54,6 +55,7 @@ import type {
 import type { CommunicationRecipient } from '@/features/communication/types';
 
 const steps = ['Basic Information', 'Procurement Planning', 'Tender Requirements', 'Evaluation Criteria and Weights', 'Review Tender', 'Tender Review and Publication'];
+const tenderImportAccept = '.xlsx,.xls,.csv,.txt';
 
 const goodsUnitOptions = ['Pcs', 'Unit', 'Set', 'Lot', 'Kg', 'Litre', 'Meter', 'Sqm', 'Day', 'Month'];
 const evaluationTypes = [
@@ -169,52 +171,20 @@ function createRegulatoryLicenseRow(licenseName: string): CreateTenderRegulatory
 }
 
 function downloadGoodsQuantityTemplate() {
-  const csv = ['Item,Description,Unit,Qty', '1,,,'].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'goods-quantity-schedule-template.csv';
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadTenderSpreadsheetTemplate('goods-quantity-schedule-template.xlsx', [
+    ['Item', 'Description', 'Unit', 'Qty'],
+    ['1', '', '', '']
+  ]);
 }
 
 function downloadProductSpecificationTemplate() {
-  const csv = ['Item,Specification,Specific detail required', '1,Brand,HP/Dell/Lenovo or equivalent'].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'goods-product-specification-template.csv';
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadTenderSpreadsheetTemplate('goods-product-specification-template.xlsx', [
+    ['Item', 'Specification', 'Specific detail required'],
+    ['1', 'Brand', 'HP/Dell/Lenovo or equivalent']
+  ]);
 }
 
-function parseCsvLine(line: string) {
-  const cells: string[] = [];
-  let current = '';
-  let quoted = false;
-
-  for (const char of line) {
-    if (char === '"') {
-      quoted = !quoted;
-    } else if (char === ',' && !quoted) {
-      cells.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  cells.push(current.trim());
-  return cells.map((cell) => cell.replace(/^"|"$/g, ''));
-}
-
-function parseGoodsQuantityCsv(text: string): CreateTenderLineItem[] {
-  const rows = text
-    .split(/\r?\n/)
-    .map((line) => parseCsvLine(line))
-    .filter((row) => row.some(Boolean));
+function parseGoodsQuantityRows(rows: TenderSpreadsheetRow[]): CreateTenderLineItem[] {
   const dataRows = rows[0]?.join(' ').toLowerCase().includes('description') ? rows.slice(1) : rows;
 
   return dataRows.map((row, index) => ({
@@ -225,11 +195,7 @@ function parseGoodsQuantityCsv(text: string): CreateTenderLineItem[] {
   }));
 }
 
-function parseProductSpecificationCsv(text: string, items: CreateTenderLineItem[]): CreateTenderProductSpecificationRow[] {
-  const rows = text
-    .split(/\r?\n/)
-    .map((line) => parseCsvLine(line))
-    .filter((row) => row.some(Boolean));
+function parseProductSpecificationRows(rows: TenderSpreadsheetRow[], items: CreateTenderLineItem[]): CreateTenderProductSpecificationRow[] {
   const dataRows = rows[0]?.join(' ').toLowerCase().includes('specification') ? rows.slice(1) : rows;
 
   return dataRows
@@ -259,21 +225,13 @@ function getServiceBoqTotal(row: CreateTenderServiceBoqRow) {
 }
 
 function downloadWorksBoqTemplate() {
-  const csv = ['No.,Description,Unit,Quantity', '1,,,'].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'works-boq-template.csv';
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadTenderSpreadsheetTemplate('works-boq-template.xlsx', [
+    ['No.', 'Description', 'Unit', 'Quantity'],
+    ['1', '', '', '']
+  ]);
 }
 
-function parseWorksBoqCsv(text: string): CreateTenderWorksBoqRow[] {
-  const rows = text
-    .split(/\r?\n/)
-    .map((line) => parseCsvLine(line))
-    .filter((row) => row.some(Boolean));
+function parseWorksBoqRows(rows: TenderSpreadsheetRow[]): CreateTenderWorksBoqRow[] {
   const dataRows = rows[0]?.join(' ').toLowerCase().includes('description') ? rows.slice(1) : rows;
 
   return dataRows.map((row, index) => ({
@@ -285,11 +243,7 @@ function parseWorksBoqCsv(text: string): CreateTenderWorksBoqRow[] {
   }));
 }
 
-function parseServiceBoqCsv(text: string): CreateTenderServiceBoqRow[] {
-  const rows = text
-    .split(/\r?\n/)
-    .map((line) => parseCsvLine(line))
-    .filter((row) => row.some(Boolean));
+function parseServiceBoqRows(rows: TenderSpreadsheetRow[]): CreateTenderServiceBoqRow[] {
   const dataRows = rows[0]?.join(' ').toLowerCase().includes('description') ? rows.slice(1) : rows;
 
   return dataRows.map((row, index) => ({
@@ -299,6 +253,40 @@ function parseServiceBoqCsv(text: string): CreateTenderServiceBoqRow[] {
     quantity: row[3] || '',
     rate: row[4] || ''
   }));
+}
+
+type TenderImportNotifier = (title: string, message: string, options: { reason: string }) => void;
+
+async function handleTenderSpreadsheetImport<T>(
+  event: ChangeEvent<HTMLInputElement>,
+  label: string,
+  parseRows: (rows: TenderSpreadsheetRow[]) => T[],
+  applyRows: (rows: T[]) => void,
+  notifySuccess: TenderImportNotifier,
+  notifyWarning: TenderImportNotifier
+) {
+  const input = event.currentTarget;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const importedRows = parseRows(await readTenderSpreadsheetRows(file));
+    if (!importedRows.length) {
+      notifyWarning('Import not added', `${label} did not include usable rows.`, {
+        reason: 'Check that the first worksheet or CSV has the same columns as the downloaded template.'
+      });
+      return;
+    }
+    applyRows(importedRows);
+    notifySuccess('Import complete', `${label} imported ${importedRows.length} row${importedRows.length === 1 ? '' : 's'}.`, {
+      reason: 'The imported rows were added to the current tender draft.'
+    });
+  } catch (error) {
+    notifyWarning('Import not added', error instanceof Error ? error.message : `${label} could not be imported.`, {
+      reason: 'Use a supported .xlsx, .xls, .csv, or .txt file and try again.'
+    });
+  } finally {
+    input.value = '';
+  }
 }
 
 type PlanningBridge = {
@@ -1428,6 +1416,7 @@ function RequirementsStep({
   onAddDeliverable: () => void;
   onAddAttachment: () => void;
 }) {
+  const { notifySuccess, notifyWarning } = useNotifications();
   const [specModal, setSpecModal] = useState<{ sourceItemId: string; name: string; detail: string; error: string } | null>(null);
   const [licenseAddOpen, setLicenseAddOpen] = useState(false);
   const [licenseAddSearch, setLicenseAddSearch] = useState('');
@@ -1647,26 +1636,33 @@ function RequirementsStep({
   }
 
   if (draft.procurementTypeId === 'goods') {
-    function importGoodsQuantitySchedule(file: File | undefined) {
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const importedItems = parseGoodsQuantityCsv(String(reader.result || ''));
-        if (!importedItems.length) return;
-        onPatch({ commercialItems: [...draft.commercialItems, ...importedItems] });
-      };
-      reader.readAsText(file);
+    function importGoodsQuantitySchedule(event: ChangeEvent<HTMLInputElement>) {
+      void handleTenderSpreadsheetImport(
+        event,
+        'Goods quantity schedule',
+        parseGoodsQuantityRows,
+        (importedItems) => onPatch({ commercialItems: [...draft.commercialItems, ...importedItems] }),
+        notifySuccess,
+        notifyWarning
+      );
     }
 
-    function importProductSpecifications(file: File | undefined) {
-      if (!file || !draft.commercialItems.length) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const importedRows = parseProductSpecificationCsv(String(reader.result || ''), draft.commercialItems);
-        if (!importedRows.length) return;
-        onPatch({ productSpecifications: [...draft.productSpecifications, ...importedRows] });
-      };
-      reader.readAsText(file);
+    function importProductSpecifications(event: ChangeEvent<HTMLInputElement>) {
+      if (!draft.commercialItems.length) {
+        event.currentTarget.value = '';
+        notifyWarning('Import not added', 'Add at least one quantity schedule item before importing product specifications.', {
+          reason: 'Product specification rows must be matched to an existing BOQ item.'
+        });
+        return;
+      }
+      void handleTenderSpreadsheetImport(
+        event,
+        'Product specifications',
+        (rows) => parseProductSpecificationRows(rows, draft.commercialItems),
+        (importedRows) => onPatch({ productSpecifications: [...draft.productSpecifications, ...importedRows] }),
+        notifySuccess,
+        notifyWarning
+      );
     }
 
     return (
@@ -1766,8 +1762,8 @@ function RequirementsStep({
                 </div>
                 <div className="requirement-table-actions">
                   <label className="btn btn-secondary scope-add goods-import-control">
-                    Import Excel
-                    <input type="file" accept=".csv,.txt" onChange={(event) => importGoodsQuantitySchedule(event.target.files?.[0])} />
+                    Import Excel / CSV
+                    <input type="file" accept={tenderImportAccept} aria-label="Import goods quantity schedule" onChange={importGoodsQuantitySchedule} />
                   </label>
                   <button className="btn btn-secondary scope-add" type="button" onClick={downloadGoodsQuantityTemplate}>
                     Download Excel Template
@@ -1791,11 +1787,11 @@ function RequirementsStep({
               <div className="product-spec-builder" data-product-spec-builder="productSpecificationTemplate">
                 <div className="product-spec-toolbar">
                   <label className="btn btn-secondary scope-add goods-import-control">
-                    Import CSV
-                    <input type="file" accept=".csv,.txt" onChange={(event) => importProductSpecifications(event.target.files?.[0])} />
+                    Import Excel / CSV
+                    <input type="file" accept={tenderImportAccept} aria-label="Import product specifications" onChange={importProductSpecifications} />
                   </label>
                   <button className="btn btn-secondary scope-add" type="button" onClick={downloadProductSpecificationTemplate}>
-                    Download CSV Template
+                    Download Excel Template
                   </button>
                 </div>
                 <div className="product-spec-item-grid">
@@ -3060,6 +3056,7 @@ function ServicesRequirementsStep({
   onDeleteFinancialRequirement: (rowId: string) => void;
   regulatoryLicensePanel: ReactNode;
 }) {
+  const { notifySuccess, notifyWarning } = useNotifications();
   const services = draft.serviceRequirements ?? createEmptyServiceRequirements();
   const showDeliverables = ['IT Support', 'Training', 'Other'].includes(services.serviceCategory);
   const showItSupport = ['IT Support', 'Internet services'].includes(services.serviceCategory);
@@ -3091,14 +3088,15 @@ function ServicesRequirementsStep({
     patchServices({ serviceBoqRows: services.serviceBoqRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
   }
 
-  function importServiceBoq(file: File | undefined) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const importedRows = parseServiceBoqCsv(String(reader.result || ''));
-      if (importedRows.length) patchServices({ serviceBoqRows: [...services.serviceBoqRows, ...importedRows] });
-    };
-    reader.readAsText(file);
+  function importServiceBoq(event: ChangeEvent<HTMLInputElement>) {
+    void handleTenderSpreadsheetImport(
+      event,
+      'Service BOQ',
+      parseServiceBoqRows,
+      (importedRows) => patchServices({ serviceBoqRows: [...services.serviceBoqRows, ...importedRows] }),
+      notifySuccess,
+      notifyWarning
+    );
   }
 
   function addPersonnelRow() {
@@ -3267,8 +3265,8 @@ function ServicesRequirementsStep({
           </div>
           <div className="requirement-table-actions">
             <label className="btn btn-secondary scope-add goods-import-control">
-              Import Excel
-              <input type="file" accept=".csv,.txt" aria-label="Import service BOQ" onChange={(event) => importServiceBoq(event.target.files?.[0])} />
+              Import Excel / CSV
+              <input type="file" accept={tenderImportAccept} aria-label="Import service BOQ" onChange={importServiceBoq} />
             </label>
             <button className="btn btn-secondary scope-add" type="button" onClick={addServiceBoqRow}>Add BOQ Line</button>
           </div>
@@ -3630,6 +3628,7 @@ function WorksRequirementsStep({
   onDeleteFinancialRequirement: (rowId: string) => void;
   regulatoryLicensePanel: ReactNode;
 }) {
+  const { notifySuccess, notifyWarning } = useNotifications();
   const works = draft.worksRequirements ?? createEmptyWorksRequirements();
 
   function patchWorks(patch: Partial<CreateTenderWorksRequirements>) {
@@ -3694,15 +3693,15 @@ function WorksRequirementsStep({
     patchWorks({ boqRows: works.boqRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)) });
   }
 
-  function importWorksBoq(file: File | undefined) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const importedRows = parseWorksBoqCsv(String(reader.result || ''));
-      if (!importedRows.length) return;
-      patchWorks({ boqRows: [...works.boqRows, ...importedRows] });
-    };
-    reader.readAsText(file);
+  function importWorksBoq(event: ChangeEvent<HTMLInputElement>) {
+    void handleTenderSpreadsheetImport(
+      event,
+      'Works BOQ',
+      parseWorksBoqRows,
+      (importedRows) => patchWorks({ boqRows: [...works.boqRows, ...importedRows] }),
+      notifySuccess,
+      notifyWarning
+    );
   }
 
   function addWorksMilestone() {
@@ -4046,8 +4045,8 @@ function WorksRequirementsStep({
               </div>
               <div className="requirement-table-actions">
                 <label className="btn btn-secondary scope-add goods-import-control">
-                  Import Excel
-                  <input type="file" accept=".csv,.txt" aria-label="Import works BOQ" onChange={(event) => importWorksBoq(event.target.files?.[0])} />
+                  Import Excel / CSV
+                  <input type="file" accept={tenderImportAccept} aria-label="Import works BOQ" onChange={importWorksBoq} />
                 </label>
                 <button className="btn btn-secondary scope-add" type="button" onClick={downloadWorksBoqTemplate}>Download Excel Template</button>
                 <button className="btn btn-secondary scope-add" type="button" onClick={addWorksBoqRow}>Add BOQ Line</button>
