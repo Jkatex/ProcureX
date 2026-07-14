@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
+import { hasActiveMarketplaceDeadline, isTenderOpenForBidding, isUpcomingMarketplaceTender } from '../marketplaceTenderVisibility';
 import type { MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../types';
 
 export type MarketplaceTabId = 'recommended' | 'all-tenders' | 'invited-tenders' | 'my-workspace';
@@ -38,8 +39,8 @@ type TenderListPanelProps = {
   savingTenderIds?: Set<string>;
   onToggleSaved: (tender: MarketplaceTenderRow) => void;
   title?: string;
-  kicker?: string;
   empty?: string;
+  pagination?: ReactNode;
 };
 
 type TenderRowCardProps = {
@@ -53,7 +54,6 @@ export function MarketplaceHero({ organization, canCreateTender }: MarketplaceHe
   return (
     <section className="procurement-market-hero">
       <div>
-        <span className="section-kicker">Tender Marketplace</span>
         <h1>Marketplace</h1>
         <p>Search open tenders, manage tenders created by {organization}, and track bid drafts and submitted bid records.</p>
       </div>
@@ -183,10 +183,10 @@ export function MarketplaceCategoryGrid({
 }) {
   const typeFilters = [
     { id: '', label: 'All' },
+    { id: 'WORKS', label: 'Works' },
     { id: 'GOODS', label: 'Goods' },
     { id: 'SERVICE', label: 'Non Consultancy' },
-    { id: 'CONSULTANCY', label: 'Consultancy' },
-    { id: 'WORKS', label: 'Works' }
+    { id: 'CONSULTANCY', label: 'Consultancy' }
   ];
   const counts = tenders.reduce<Record<string, number>>((acc, tender) => {
     const type = normalizedTenderType(tender.type);
@@ -223,14 +223,13 @@ export function TenderListPanel({
   savingTenderIds = new Set(),
   onToggleSaved,
   title = 'Available tenders',
-  kicker = 'Tender list',
-  empty = 'No active marketplace tenders right now. Create a tender to start a compliant procurement.'
+  empty = 'No active marketplace tenders right now. Create a tender to start a compliant procurement.',
+  pagination
 }: TenderListPanelProps) {
   return (
     <section className="procurement-list-panel">
       <div className="panel-heading">
         <div>
-          <span className="section-kicker">{kicker}</span>
           <h2>{title}</h2>
         </div>
       </div>
@@ -249,19 +248,18 @@ export function TenderListPanel({
           <div className="scope-empty">{empty}</div>
         )}
       </div>
+      {pagination}
     </section>
   );
 }
 
 export function MarketplaceSection<T>({
   title,
-  kicker,
   rows,
   empty,
   renderRow
 }: {
   title: string;
-  kicker: string;
   rows: T[];
   empty: string;
   renderRow: (row: T) => ReactElement;
@@ -270,7 +268,6 @@ export function MarketplaceSection<T>({
     <section className="procurement-list-panel marketplace-work-section">
       <div className="panel-heading">
         <div>
-          <span className="section-kicker">{kicker}</span>
           <h2>{title}</h2>
         </div>
       </div>
@@ -287,13 +284,13 @@ export function MyTenderRowCard({ row }: { row: MyTenderRow }) {
     <article className="procurement-tender-row market-row is-owned">
       <div>
         <div className="tender-row-title">
-          <strong>{row.title}</strong>
+          <strong className="market-row-title-text">{row.title}</strong>
           <span className={`badge ${statusBadgeClass(row.status)}`}>{row.status}</span>
         </div>
-        <p>
+        <p className="market-row-detail-line">
           {formatTenderType(row.type)} / {tender?.organization || 'Owner organization'}
         </p>
-        <span>{tender?.description || 'Tender record owned by the current user.'}</span>
+        <span className="market-row-summary-text">{tender?.description || 'Tender record owned by the current user.'}</span>
         <div className="market-row-meta">
           <span>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</span>
           <span>Updated {formatDate(row.lastActivity)}</span>
@@ -322,14 +319,14 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
     <article className="procurement-tender-row market-row">
       <div>
         <div className="tender-row-title">
-          <strong>{row.title}</strong>
+          <strong className="market-row-title-text">{row.title}</strong>
           <span className={`badge ${row.section === 'submitted' ? 'badge-success' : 'badge-warning'}`}>{row.status}</span>
         </div>
-        <p>
+        <p className="market-row-detail-line">
           {row.tender.organization} / {formatTenderType(row.tender.type)}
           {row.amount ? ` / ${row.amount}` : ''}
         </p>
-        <span>{row.section === 'submitted' ? 'Submitted bid package is sealed and recorded.' : 'Draft bid submission saved for completion.'}</span>
+        <span className="market-row-summary-text">{row.section === 'submitted' ? 'Submitted bid package is sealed and recorded.' : 'Draft bid submission saved for completion.'}</span>
         <div className="market-row-meta">
           <span>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</span>
           <span>Updated {formatDate(row.lastActivity)}</span>
@@ -351,7 +348,12 @@ function TenderRowCard({
   onToggleSaved
 }: TenderRowCardProps) {
   const ownedByCurrentOrganization = Boolean(tender.ownedByCurrentOrganization ?? tender.createdByCurrentUser);
-  const canBid = isBiddableVisibility(tender.visibility) && !ownedByCurrentOrganization && Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !tender.hasSubmittedBid));
+  const canBid =
+    isBiddableVisibility(tender.visibility) &&
+    !ownedByCurrentOrganization &&
+    isTenderOpenForBidding(tender) &&
+    !tender.hasSubmittedBid &&
+    Boolean(tender.canBid ?? (isOpenStatus(tender.status) && !tender.hasSubmittedBid));
   const daysRemaining = getDaysRemaining(tender.closingDate);
   const detailUrl = ownedByCurrentOrganization ? `/procurement/tender-details?tenderId=${tender.id}` : `/procurement/supplier-tender-detail?tenderId=${tender.id}`;
   const bidUrl = `/bidding?tenderId=${tender.id}`;
@@ -363,13 +365,13 @@ function TenderRowCard({
     <article className={`procurement-tender-row market-row ${ownedByCurrentOrganization ? 'is-owned' : ''}`}>
       <div>
         <div className="tender-row-title">
-          <strong>{tender.title}</strong>
+          <strong className="market-row-title-text">{tender.title}</strong>
           <span className={`badge ${tag.className}`}>{tag.label}</span>
         </div>
-        <p>
+        <p className="market-row-detail-line">
           {tender.organization} / {formatTenderType(tender.type)} / Budget: {tender.currency} {tender.budget.toLocaleString()}
         </p>
-        <span>{tender.description}</span>
+        <span className="market-row-summary-text">{tender.description}</span>
         <div className="market-row-meta">
           <span>{tender.location}</span>
           <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
@@ -398,6 +400,42 @@ function TenderRowCard({
               </button>
             )}
           </>
+        )}
+      </div>
+    </article>
+  );
+}
+
+export function PublicTenderRowCard({ tender }: { tender: MarketplaceTenderRow }) {
+  const daysRemaining = getDaysRemaining(tender.closingDate);
+  const tag = marketplaceTenderTag(tender);
+  const canSignInToBid = isTenderOpenForBidding(tender);
+
+  return (
+    <article className="procurement-tender-row market-row guest-market-row">
+      <div>
+        <div className="tender-row-title">
+          <strong className="market-row-title-text">{tender.title}</strong>
+          <span className={`badge ${tag.className}`}>{tag.label}</span>
+        </div>
+        <p className="market-row-detail-line">
+          {tender.organization} / {formatTenderType(tender.type)} / Budget: {tender.currency} {tender.budget.toLocaleString()}
+        </p>
+        <span className="market-row-summary-text">{tender.description}</span>
+        <div className="market-row-meta">
+          <span>{tender.location}</span>
+          <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
+        </div>
+      </div>
+      <div className="tender-row-actions">
+        {canSignInToBid ? (
+          <Link className="btn btn-primary" to="/sign-in">
+            Sign In to Bid
+          </Link>
+        ) : (
+          <button className="btn btn-primary marketplace-disabled-action" type="button" disabled>
+            Bid
+          </button>
         )}
       </div>
     </article>
@@ -461,7 +499,9 @@ function statusBadgeClass(value: string) {
 }
 
 function marketplaceTenderTag(tender: MarketplaceTenderRow) {
-  if (tender.hasSubmittedBid) return { label: 'You already bid', className: 'badge-success' };
+  if (isUpcomingMarketplaceTender(tender)) return { label: 'Upcoming', className: 'badge-info' };
+  if (isTenderOpenForBidding(tender)) return { label: 'Open', className: 'badge-success' };
+  if (!hasActiveMarketplaceDeadline(tender)) return { label: 'Closed', className: 'badge-error' };
   return { label: formatStatus(tender.status), className: statusBadgeClass(tender.status) };
 }
 

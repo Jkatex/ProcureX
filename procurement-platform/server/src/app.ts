@@ -48,7 +48,7 @@ export function createApp() {
       }
     })
   );
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT ?? '160mb' }));
 
   app.get('/health', (_req, res) => {
     res.json({

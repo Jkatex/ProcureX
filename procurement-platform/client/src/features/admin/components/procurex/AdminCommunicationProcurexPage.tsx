@@ -111,8 +111,10 @@ export function AdminCommunicationProcurexPage() {
   const senderMailboxName = user?.organization || user?.displayName || 'Admin mailbox';
   const reviewDecision = searchParams.get('reviewDecision');
   const reviewTenderId = searchParams.get('reviewTenderId') || searchParams.get('tenderId') || '';
+  const hasRecipientDestination = Boolean(senderOrgId && compose.recipients.some((recipient) => recipient.id && recipient.id !== senderOrgId));
   const attachmentsReady = composeAttachmentsReady(compose.attachments);
-  const sendDisabled = saving || !attachmentsReady;
+  const loadingAttachmentCount = compose.attachments.filter((attachment) => attachment.status === 'loading').length;
+  const sendDisabled = saving || !hasRecipientDestination || !attachmentsReady;
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder = folder, nextPage = 1, nextSelectedId = '', nextSearch = submittedSearch) => {
@@ -640,6 +642,11 @@ export function AdminCommunicationProcurexPage() {
                       <input type="file" multiple onChange={addAttachments} hidden />
                     </label>
                   </div>
+                  {loadingAttachmentCount ? (
+                    <span className="communication-attachment-loading-note" role="status">
+                      Loading {loadingAttachmentCount} attachment{loadingAttachmentCount === 1 ? '' : 's'}. Send unlocks when every file is ready.
+                    </span>
+                  ) : null}
                   {compose.attachments.length ? (
                     <div className="communication-attachment-list" aria-label="Selected attachments">
                       {compose.attachments.map((attachment) => (

@@ -85,7 +85,6 @@ export const routes = [
   { path: '/identity/verification', element: protectedPage('identity-verification', { adminRedirectTo: '/admin/profile' }) },
   { path: '/identity/profile', element: protectedPage('account-profile', { adminRedirectTo: '/admin/profile' }) },
   { path: '/support', element: <ProtectedRoute>{lazyElement(SignedInHelpDeskProcurexPage)}</ProtectedRoute> },
-  { path: '/tender-planning', element: verifiedPage('tender-planning', { adminRedirectTo: '/admin' }) },
   { path: '/procurement/guide', element: verifiedPage('procurement-guide', { adminRedirectTo: '/admin' }) },
   { path: '/procurement/marketplace', element: verifiedPage('marketplace', { adminRedirectTo: '/admin/search' }) },
   { path: '/procurement/my-tenders', element: verifiedPage('marketplace', { adminRedirectTo: '/admin/search' }) },

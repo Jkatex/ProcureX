@@ -235,6 +235,7 @@ describe('CommunicationCenterProcurexPage', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
     const recipientSearch = await screen.findByLabelText('Find recipients');
+    expect(screen.getByRole('button', { name: 'Send Message' })).toBeDisabled();
     fireEvent.change(recipientSearch, { target: { value: 'Admin' } });
     expect(await screen.findByRole('button', { name: /^Admin$/i })).toBeInTheDocument();
     fireEvent.change(recipientSearch, { target: { value: 'Ministry' } });
@@ -247,11 +248,15 @@ describe('CommunicationCenterProcurexPage', () => {
     expect(screen.getByRole('button', { name: /Remove Tanzania Ports Authority/i })).toBeInTheDocument();
     await userEvent.upload(screen.getByLabelText('Add files'), [
       new File(['report'], 'report.pdf', { type: 'application/pdf' }),
+      new File(['word'], 'requirements.docx'),
+      new File(['sheet'], 'pricing.xls'),
       new File(['photo'], 'site-photo.png', { type: 'image/png' })
     ]);
     expect(screen.getByText('report.pdf')).toBeInTheDocument();
+    expect(screen.getByText('requirements.docx')).toBeInTheDocument();
+    expect(screen.getByText('pricing.xls')).toBeInTheDocument();
     expect(screen.getByText('site-photo.png')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getAllByText('Ready')).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText('Ready')).toHaveLength(4));
     expect(await screen.findByRole('option', { name: 'PX-2026-001' })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
@@ -274,6 +279,8 @@ describe('CommunicationCenterProcurexPage', () => {
         subject: 'Clarification request',
         attachmentUploads: expect.arrayContaining([
           expect.objectContaining({ name: 'report.pdf', mimeType: 'application/pdf' }),
+          expect.objectContaining({ name: 'requirements.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+          expect.objectContaining({ name: 'pricing.xls', mimeType: 'application/vnd.ms-excel' }),
           expect.objectContaining({ name: 'site-photo.png', mimeType: 'image/png' })
         ])
       })

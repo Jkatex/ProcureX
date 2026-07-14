@@ -19,7 +19,7 @@ import type {
   CommunicationRecipient,
   CommunicationTenderLink
 } from '@/features/communication/types';
-import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
+import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 
 type MailboxFolder = NonNullable<CommunicationMailboxQuery['folder']>;
@@ -38,7 +38,6 @@ type ComposeState = {
 
 const pageToRoute: Record<string, string> = {
   'account-profile': '/identity/profile',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'communication-center': '/communication',
   'bid-evaluation': '/evaluation',
@@ -117,8 +116,11 @@ export function CommunicationCenterProcurexPage() {
   const replyOpen = routeView === 'reply';
   const composeOpen = routeView === 'compose' || replyOpen;
   const messageView = routeView === 'message';
+  const senderOrgId = user?.organizationId ?? '';
+  const hasRecipientDestination = Boolean(senderOrgId && compose.recipients.some((recipient) => recipient.id && recipient.id !== senderOrgId));
   const attachmentsReady = composeAttachmentsReady(compose.attachments);
-  const sendDisabled = saving || !attachmentsReady;
+  const loadingAttachmentCount = compose.attachments.filter((attachment) => attachment.status === 'loading').length;
+  const sendDisabled = saving || !hasRecipientDestination || !attachmentsReady;
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder, nextPage = 1, nextSelectedId = '', nextSearch = '') => {
@@ -445,7 +447,6 @@ export function CommunicationCenterProcurexPage() {
 
   async function submitCompose(event: FormEvent) {
     event.preventDefault();
-    const senderOrgId = user?.organizationId ?? '';
     const recipientOrgIds = Array.from(new Set(compose.recipients.map((recipient) => recipient.id).filter((id) => id && id !== senderOrgId)));
     if (!senderOrgId || !recipientOrgIds.length || !compose.subject.trim() || !compose.body.trim()) {
       setError('Choose at least one recipient and write a subject and message.');
@@ -514,7 +515,7 @@ export function CommunicationCenterProcurexPage() {
 
   return (
     <>
-      <PlanningTopBar title="Communication Center" onNavigate={navigateToPage} />
+      <WorkspaceTopBar title="Communication Center" onNavigate={navigateToPage} />
       <div className="workspace-home">
         <div className="workspace-shell">
           <main className="communication-center-page">
@@ -633,6 +634,11 @@ export function CommunicationCenterProcurexPage() {
                           <input type="file" multiple onChange={addAttachments} hidden />
                         </label>
                       </div>
+                      {loadingAttachmentCount ? (
+                        <span className="communication-attachment-loading-note" role="status">
+                          Loading {loadingAttachmentCount} attachment{loadingAttachmentCount === 1 ? '' : 's'}. Send unlocks when every file is ready.
+                        </span>
+                      ) : null}
                       {compose.attachments.length ? (
                         <div className="communication-attachment-list" aria-label="Selected attachments">
                           {compose.attachments.map((attachment) => (

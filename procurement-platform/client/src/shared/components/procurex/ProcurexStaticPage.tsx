@@ -37,7 +37,6 @@ const pageToRoute: Record<string, string> = {
   'buyer-dashboard': '/dashboard',
   'supplier-dashboard': '/dashboard',
   'procurement-dashboard': '/dashboard',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'supplier-marketplace': '/procurement/marketplace',
   'my-tenders': '/procurement/my-tenders',
@@ -126,14 +125,6 @@ const appDrawerHtml = `
       </svg>
     </span>
     <span><strong>Registration and Verification</strong><em>Account and identity verification</em></span>
-  </button>
-  <button class="app-menu-card app-menu-procurement" type="button" data-navigate="tender-planning">
-    <span class="app-menu-icon">
-      <svg class="app-menu-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 4h16v16H4z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/>
-      </svg>
-    </span>
-    <span><strong>Procurement Planning</strong><em>APP, SPP, budgets, approvals</em></span>
   </button>
   <button class="app-menu-card app-menu-procurement" type="button" data-navigate="marketplace">
     <span class="app-menu-icon">
@@ -545,16 +536,6 @@ function activateAwardResponsePanel(root: HTMLElement, awardId: string) {
 
 function applyRouteSearchState(root: HTMLElement, pageKey: string, search: string) {
   const params = new URLSearchParams(search);
-
-  if (pageKey === 'tender-planning') {
-    const view = params.get('view') || 'front';
-    const planId = params.get('plan') || '';
-    if (view === 'detail' && planId) {
-      const button = root.querySelector<HTMLElement>(`[data-plan-details="${cssEscape(planId)}"]`);
-      if (button) setProcurementPlanningDetailFromButton(button, root);
-    }
-    setProcurementPlanningRoute(root, view);
-  }
 
   if (pageKey === 'awarding-contracts') {
     activateAwardingQueueTabByName(root, params.get('queue') || 'my-urgent-actions');
@@ -1705,7 +1686,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       event.preventDefault();
       setProcurementPlanningDetailFromButton(procurementPlanDetails, rootRef.current);
       setProcurementPlanningRoute(rootRef.current, 'detail');
-      navigate(`/tender-planning?view=detail&plan=${encodeURIComponent(procurementPlanDetails.getAttribute('data-plan-details') || '')}`);
+      navigate('/procurement/create-tender');
       return;
     }
 
@@ -1731,7 +1712,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
       event.preventDefault();
       setProcurementPlanningMode(procurementPlanningMode, rootRef.current);
       if (procurementPlanningMode.getAttribute('data-planning-mode') === 'create') {
-        navigate('/tender-planning?view=create');
+        navigate('/procurement/create-tender');
       }
       return;
     }
@@ -1760,7 +1741,7 @@ export function ProcurexStaticPage({ pageKey, html, onInitialize }: ProcurexStat
     if (procurementPlanningViewFull && rootRef.current) {
       event.preventDefault();
       setProcurementPlanningRoute(rootRef.current, 'full');
-      navigate('/tender-planning?view=full');
+      navigate('/procurement/create-tender');
       return;
     }
 

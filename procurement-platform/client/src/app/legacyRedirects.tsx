@@ -17,7 +17,6 @@ const pageRouteAliases: Record<string, string> = {
   'buyer-dashboard': '/dashboard',
   'supplier-dashboard': '/dashboard',
   'procurement-dashboard': '/dashboard',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'supplier-marketplace': '/procurement/marketplace',
   'my-tenders': '/procurement/my-tenders',

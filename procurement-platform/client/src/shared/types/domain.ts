@@ -53,6 +53,7 @@ export type Tender = {
   status: 'DRAFT' | 'PUBLISHED' | 'OPEN' | 'EVALUATION' | 'AWARDED' | 'CLOSED';
   budget: number;
   currency: string;
+  openingDate?: string;
   closingDate: string;
   location: string;
   description: string;

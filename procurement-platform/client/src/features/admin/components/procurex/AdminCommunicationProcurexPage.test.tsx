@@ -268,6 +268,7 @@ describe('AdminCommunicationProcurexPage', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
     const recipientSearch = screen.getByLabelText('Find recipients');
+    expect(screen.getByRole('button', { name: 'Send Message' })).toBeDisabled();
     fireEvent.change(recipientSearch, { target: { value: 'Ministry' } });
     await userEvent.click(await screen.findByRole('button', { name: /^Ministry of Health$/i }));
     expect(screen.getByRole('button', { name: /Remove Ministry of Health/i })).toBeInTheDocument();
@@ -276,9 +277,13 @@ describe('AdminCommunicationProcurexPage', () => {
     fireEvent.change(recipientSearch, { target: { value: 'Tanzania' } });
     await userEvent.click(await screen.findByRole('button', { name: /^Tanzania Ports Authority$/i }));
     expect(screen.getByRole('button', { name: /Remove Tanzania Ports Authority/i })).toBeInTheDocument();
-    await userEvent.upload(screen.getByLabelText('Add files'), new File(['report'], 'admin-report.pdf', { type: 'application/pdf' }));
+    await userEvent.upload(screen.getByLabelText('Add files'), [
+      new File(['report'], 'admin-report.pdf', { type: 'application/pdf' }),
+      new File(['sheet'], 'supplier-list.xlsx')
+    ]);
     expect(screen.getByText('admin-report.pdf')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Ready')).toBeInTheDocument());
+    expect(screen.getByText('supplier-list.xlsx')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Ready')).toHaveLength(2));
     fireEvent.change(screen.getByLabelText('Tender reference'), { target: { value: '22222222-2222-4222-8222-222222222222' } });
     expect(screen.getByLabelText('Tender title')).toHaveDisplayValue('Medical supplies');
     fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: '33333333-3333-4333-8333-333333333333' } });
@@ -299,7 +304,8 @@ describe('AdminCommunicationProcurexPage', () => {
         tenderId: '22222222-2222-4222-8222-222222222222',
         subject: 'Clarification follow-up',
         attachmentUploads: expect.arrayContaining([
-          expect.objectContaining({ name: 'admin-report.pdf', mimeType: 'application/pdf' })
+          expect.objectContaining({ name: 'admin-report.pdf', mimeType: 'application/pdf' }),
+          expect.objectContaining({ name: 'supplier-list.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
         ])
       })
     );

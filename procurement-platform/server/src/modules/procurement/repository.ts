@@ -1791,10 +1791,11 @@ function recommendedMarketplaceTenderRows({
         bidState: bidStates.get(tender.id)
       };
       const matchScore = marketplaceRecommendationMatchScore(tender, recommendationContext);
+      const locationBoost = matchScore > 0 ? marketplaceRecommendationLocationBoost(tender, recommendationContext.locationWeights) : 0;
       return {
         tender,
         matchScore,
-        score: matchScore + (recommendationContext.typeWeights.get(tender.type) ?? 0) * 2
+        score: matchScore + locationBoost + (recommendationContext.typeWeights.get(tender.type) ?? 0) * 2
       };
     })
     .filter((entry) => entry.matchScore > 0);
@@ -1829,9 +1830,6 @@ function addProfileRecommendationSignal(
 ) {
   if (!profile) return;
   const values = [
-    profile.registrySource,
-    profile.registryNumber,
-    profile.status,
     ...(profile.documents?.flatMap((item) => [item.document?.name, item.document?.documentType]) ?? []),
     ...profilePayloadSignalValues(profile.payload)
   ];
@@ -1857,7 +1855,12 @@ function marketplaceRecommendationMatchScore(
   if (context.bidState?.hasSubmittedBid) score += 12;
 
   for (const term of tenderRecommendationTerms(tender)) score += context.weightedTerms.get(term) ?? 0;
-  for (const term of recommendationTerms([tender.location])) score += context.locationWeights.get(term) ?? 0;
+  return score;
+}
+
+function marketplaceRecommendationLocationBoost(tender: MarketplaceTenderRecord, locationWeights: Map<string, number>) {
+  let score = 0;
+  for (const term of recommendationTerms([tender.location])) score += locationWeights.get(term) ?? 0;
   return score;
 }
 
@@ -1867,7 +1870,6 @@ function tenderRecommendationTerms(tender: MarketplaceTenderRecord) {
     tender.description,
     tender.reference,
     tender.buyerOrg.name,
-    tender.location,
     marketplaceCategory(tender),
     ...marketplaceCategoryValues(tender),
     ...marketplaceCategoryValues(tender).flatMap((category) => categorySearchTerms(category)),
@@ -1902,7 +1904,7 @@ function collectTenderPayloadValues(value: unknown, values: unknown[]) {
 
 function profilePayloadSignalValues(value: unknown): unknown[] {
   const values: unknown[] = [];
-  collectProfilePayloadValues(value, values);
+  collectProfilePayloadValues(value, values, (key) => /categor|classif|sector|industry|business|certif|compliance|license|document/i.test(key));
   return values;
 }
 
@@ -1912,21 +1914,20 @@ function profileLocationSignalValues(value: unknown): unknown[] {
   return values;
 }
 
-function collectProfilePayloadValues(value: unknown, values: unknown[], keyFilter?: (key: string) => boolean, key = '') {
+function collectProfilePayloadValues(value: unknown, values: unknown[], keyFilter: (key: string) => boolean, key = '', parentMatches = false) {
   if (value === null || value === undefined) return;
+  const currentMatches = parentMatches || (key ? keyFilter(key) : false);
   if (typeof value === 'string' || typeof value === 'number') {
-    if (!keyFilter || keyFilter(key)) values.push(value);
+    if (currentMatches) values.push(value);
     return;
   }
   if (Array.isArray(value)) {
-    for (const item of value) collectProfilePayloadValues(item, values, keyFilter, key);
+    for (const item of value) collectProfilePayloadValues(item, values, keyFilter, key, currentMatches);
     return;
   }
   if (typeof value === 'object') {
     for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) {
-      const isRelevantKey = /categor|classif|sector|industry|business|certif|compliance|license|document|region|district|location|country|city|ward|address/i.test(childKey);
-      if (!keyFilter && isRelevantKey) values.push(childKey);
-      collectProfilePayloadValues(childValue, values, keyFilter, childKey);
+      collectProfilePayloadValues(childValue, values, keyFilter, childKey, currentMatches || keyFilter(childKey));
     }
   }
 }
@@ -1970,6 +1971,16 @@ const recommendationStopWords = new Set([
   'service',
   'services',
   'consultancy',
+  'certificate',
+  'certificates',
+  'certification',
+  'compliance',
+  'document',
+  'documents',
+  'license',
+  'registration',
+  'supplier',
+  'business',
   'tanzania'
 ]);
 
@@ -1993,6 +2004,7 @@ function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, context: Market
     visibility: tender.visibility,
     reference: tender.reference,
     publishedAt: tender.publishedAt?.toISOString() ?? '',
+    openingDate: marketplaceOpeningDate(tender.metadata),
     closingDate: dateOnly(tender.closingDate),
     createdByCurrentUser,
     ownedByCurrentOrganization,
@@ -2369,6 +2381,7 @@ function toTenderDetailDto(
     contractType: tender.contractType,
     visibility: tender.visibility,
     publishedAt: tender.publishedAt?.toISOString() ?? '',
+    openingDate: marketplaceOpeningDate(tender.metadata),
     closingDate: dateOnly(tender.closingDate),
     requirements: objectPayload(tender.requirements),
     metadata: objectPayload(tender.metadata),
@@ -2530,6 +2543,7 @@ function canBidOnTender(tender: Pick<TenderDetailRecord, 'buyerOrgId' | 'status'
   if (tender.buyerOrgId === context.organizationId) return false;
   if (!isPublicOpenTender(tender) && !isInvitedTenderForContext(tender, context)) return false;
   if (hasSubmittedBid) return false;
+  if (!hasReachedOpeningDate(tender.metadata)) return false;
   return tender.closingDate ? tender.closingDate.getTime() > Date.now() : false;
 }
 
@@ -2908,6 +2922,21 @@ function dateInput(value: string | undefined) {
 
 function dateOnly(value: Date | null) {
   return value ? value.toISOString().slice(0, 10) : '';
+}
+
+function marketplaceOpeningDate(metadata: unknown) {
+  const publication = objectPayload(objectPayload(metadata).publication);
+  const value = stringPayload(publication.openingDate);
+  if (!value) return '';
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : value.slice(0, 10);
+}
+
+function hasReachedOpeningDate(metadata: unknown, now = Date.now()) {
+  const openingDate = marketplaceOpeningDate(metadata);
+  if (!openingDate) return true;
+  const openingTime = Date.parse(`${openingDate}T00:00:00.000`);
+  return !Number.isFinite(openingTime) || openingTime <= now;
 }
 
 function decimalToNumber(value: unknown) {

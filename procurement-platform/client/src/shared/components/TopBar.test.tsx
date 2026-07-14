@@ -121,7 +121,7 @@ describe('TopBar platform apps drawer', () => {
     expect(drawer).toHaveClass('open');
     expect(drawer).not.toBeNull();
     expect(within(drawer!).getByText('Registration and Verification')).toBeInTheDocument();
-    expect(within(drawer!).getByText('Procurement Planning')).toBeInTheDocument();
+    expect(within(drawer!).queryByText('Procurement Planning')).not.toBeInTheDocument();
     expect(within(drawer!).getByText('Procurement')).toBeInTheDocument();
     expect(within(drawer!).getByText('Communication Center')).toBeInTheDocument();
     expect(within(drawer!).getByText('Evaluation')).toBeInTheDocument();

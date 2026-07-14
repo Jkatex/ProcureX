@@ -8,18 +8,18 @@ import {
   type PlatformAppPageKey
 } from '@/shared/components/procurex/PlatformAppsDrawer';
 
-type PlanningTopBarProps = {
+type WorkspaceTopBarProps = {
   title?: string;
   onNavigate: (pageKey: string) => void;
 };
 
-export function PlanningTopBar({ title = 'Procurement Planning', onNavigate }: PlanningTopBarProps) {
+export function WorkspaceTopBar({ title = 'ProcureX', onNavigate }: WorkspaceTopBarProps) {
   const { t } = useTranslation();
   const user = useAppSelector((state) => state.auth.user);
   const [appsOpen, setAppsOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
   const organizationLabel = user?.organization || (user?.accountType === 'ADMIN' ? t('platformApps.adminTools') : t('platformApps.accountTools'));
-  const localizedTitle = title === 'Procurement Planning' ? t('pages.tenderPlanning.title') : t(`pages.${title.toLowerCase()}.title`, { defaultValue: title });
+  const localizedTitle = t(`pages.${title.toLowerCase()}.title`, { defaultValue: title });
 
   useEffect(() => {
     function handleDocumentClick(event: PointerEvent) {

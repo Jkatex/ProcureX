@@ -30,7 +30,6 @@ const routeByPage: Record<string, string> = {
   'account-profile': '/identity/profile',
   'communication-center': '/communication',
   'sign-in': '/sign-in',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'bid-evaluation': '/evaluation',
   'awarding-contracts': '/awards-contracts',

@@ -374,6 +374,7 @@ export type MarketplaceTenderRow = {
   visibility: string;
   reference: string;
   publishedAt: string;
+  openingDate: string;
   closingDate: string;
   createdByCurrentUser: boolean;
   ownedByCurrentOrganization: boolean;
@@ -670,6 +671,7 @@ export type TenderDetailDto = {
   contractType: string | null;
   visibility: string;
   publishedAt: string;
+  openingDate: string;
   closingDate: string;
   requirements: Record<string, unknown>;
   metadata: Record<string, unknown>;

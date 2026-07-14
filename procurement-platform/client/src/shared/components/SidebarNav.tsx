@@ -1,7 +1,6 @@
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
-import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import FolderRoundedIcon from '@mui/icons-material/FolderRounded';
@@ -15,7 +14,6 @@ import { useAppSelector } from '@/app/store';
 const userLinks = [
   { to: '/dashboard', labelKey: 'nav.dashboard', icon: DashboardRoundedIcon },
   { to: '/identity/profile', labelKey: 'nav.identity', icon: VerifiedUserRoundedIcon },
-  { to: '/tender-planning', labelKey: 'nav.tenderPlanning', icon: ChecklistRoundedIcon },
   { to: '/procurement/marketplace', labelKey: 'nav.procurement', icon: StoreRoundedIcon },
   { to: '/bidding', labelKey: 'nav.bidding', icon: AssignmentTurnedInRoundedIcon },
   { to: '/evaluation', labelKey: 'nav.evaluation', icon: AccountTreeRoundedIcon },

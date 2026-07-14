@@ -1,14 +1,13 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';
-import { AppMenuIcon } from '@/features/tenderPlanning/components/procurex/icons';
-import { PlanningTopBar } from '@/features/tenderPlanning/components/procurex/PlanningTopBar';
+import { AppMenuIcon } from '@/shared/components/procurex/PlatformAppsDrawer';
+import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 
-type AppIconKind = 'iam' | 'planning' | 'procurement' | 'communication' | 'evaluation' | 'awarding' | 'records';
+type AppIconKind = 'iam' | 'procurement' | 'communication' | 'evaluation' | 'awarding' | 'records';
 
 type AppRouteKey =
   | 'account-profile'
-  | 'tender-planning'
   | 'marketplace'
   | 'communication-center'
   | 'bid-evaluation'
@@ -109,7 +108,6 @@ export type FirstRunPageKey =
 
 const pageToRoute: Record<AppRouteKey, string> = {
   'account-profile': '/identity/profile',
-  'tender-planning': '/tender-planning',
   marketplace: '/procurement/marketplace',
   'communication-center': '/communication',
   'bid-evaluation': '/evaluation',
@@ -137,7 +135,6 @@ const pageToRoute: Record<AppRouteKey, string> = {
 
 const appNavItems: FirstRunNavItem[] = [
   { label: 'Dashboard', page: 'workspace-dashboard' },
-  { label: 'Procurement Planning', page: 'tender-planning' },
   { label: 'Marketplace', page: 'marketplace' },
   { label: 'Create Tender', page: 'create-tender' },
   { label: 'Bidding', page: 'bidding-workspace' },
@@ -169,13 +166,6 @@ const viewMarketplace: FirstRunCard = {
   description: 'Browse published opportunities once tenders exist in the system.',
   page: 'marketplace',
   icon: 'procurement'
-};
-
-const createPlan: FirstRunCard = {
-  title: 'Create plan',
-  description: 'Build or upload procurement plan lines before tender preparation.',
-  page: 'tender-planning',
-  icon: 'planning'
 };
 
 const openCommunication: FirstRunCard = {
@@ -210,7 +200,7 @@ const procurementSequence: FirstRunStep[] = [
   {
     label: '01',
     title: 'Create or publish a tender',
-    description: 'Use Create Tender after your plan is ready, then publish the opportunity.'
+    description: 'Use Create Tender to prepare the requirements, then publish the opportunity.'
   },
   {
     label: '02',
@@ -237,7 +227,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     visualTitle: 'Marketplace is ready',
     visualText: 'Create a tender to publish your first opportunity, or return here when public opportunities are available.',
     primaryAction: { label: 'Create tender', page: 'create-tender' },
-    secondaryAction: { label: 'Create plan', page: 'tender-planning', variant: 'secondary' },
+    secondaryAction: { label: 'View marketplace', page: 'marketplace', variant: 'secondary' },
     stats: [
       { label: 'Open tenders', value: '0', note: 'Published opportunities will appear here.' },
       { label: 'My tenders', value: '0', note: 'Tenders created by your organization.' },
@@ -249,7 +239,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     steps: procurementSequence,
     actionKicker: 'Start procurement',
     actionTitle: 'Useful next actions',
-    actions: [createTender, createPlan, openCommunication]
+    actions: [createTender, viewMarketplace, openCommunication]
   },
   'tender-publication': {
     title: 'Tender Publication',
@@ -273,7 +263,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     steps: procurementSequence,
     actionKicker: 'Continue',
     actionTitle: 'Start from the right place',
-    actions: [createTender, createPlan, viewMarketplace]
+    actions: [createTender, openCommunication, viewMarketplace]
   },
   'tender-details': {
     title: 'Tender Details',
@@ -309,7 +299,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     visualTitle: 'Document builder waiting',
     visualText: 'Complete a tender draft and the generated document pack will appear here.',
     primaryAction: { label: 'Create tender', page: 'create-tender' },
-    secondaryAction: { label: 'Create plan', page: 'tender-planning', variant: 'secondary' },
+    secondaryAction: { label: 'View marketplace', page: 'marketplace', variant: 'secondary' },
     stats: [
       { label: 'Generated packs', value: '0', note: 'Tender documents created from drafts.' },
       { label: 'Attachments', value: '0', note: 'Files uploaded to tender packages.' },
@@ -321,7 +311,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     steps: procurementSequence,
     actionKicker: 'Build',
     actionTitle: 'Prepare the source tender',
-    actions: [createTender, createPlan, viewMarketplace]
+    actions: [createTender, openCommunication, viewMarketplace]
   },
   'tender-detail': {
     title: 'Tender Detail',
@@ -560,7 +550,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     sidebarNote: 'Procurement archive',
     kicker: 'Procurement records',
     heading: 'No procurement records have been created yet.',
-    body: 'Records are generated from real platform activity: plans, tenders, bids, clarifications, evaluations, awards, contracts, and post-award events.',
+    body: 'Records are generated from real platform activity: tenders, bids, clarifications, evaluations, awards, contracts, and post-award events.',
     statusLabel: 'Archive empty',
     visualTitle: 'Records will build automatically',
     visualText: 'Use procurement apps normally; the archive will collect the evidence trail as work happens.',
@@ -577,7 +567,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     steps: procurementSequence,
     actionKicker: 'Start activity',
     actionTitle: 'Create the first record source',
-    actions: [createTender, viewMarketplace, createPlan]
+    actions: [createTender, viewMarketplace, openCommunication]
   },
   'admin-dashboard': {
     title: 'Platform Admin',
@@ -814,7 +804,7 @@ export function FirstRunAppPage({ page }: FirstRunAppPageProps) {
 
   return (
     <>
-      <PlanningTopBar title={config.title} onNavigate={navigateToPage} />
+      <WorkspaceTopBar title={config.title} onNavigate={navigateToPage} />
       <div className="main-layout dashboard-command-center dashboard-first-run-page">
         <aside className="sidebar dashboard-sidebar">
           <div className="sidebar-heading">

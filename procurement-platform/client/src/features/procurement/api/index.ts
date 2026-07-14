@@ -83,7 +83,7 @@ export const procurementApi = {
 function normalizeMarketplacePayload(payload: MarketplacePayload): MarketplacePayload {
   const normalizedTenders = (payload.tenders ?? []).map(normalizeMarketplaceTenderRow);
   const normalizedInvitedTenders = (payload.invitedTenders ?? normalizedTenders).map(normalizeMarketplaceTenderRow);
-  const normalizedRecommendedTenders = (payload.recommendedTenders ?? normalizedTenders).map(normalizeMarketplaceTenderRow);
+  const normalizedRecommendedTenders = (payload.recommendedTenders ?? []).map(normalizeMarketplaceTenderRow);
   return {
     ...payload,
     tenders: normalizedTenders.filter(isActiveMarketplaceTender),
@@ -130,6 +130,7 @@ function normalizeMarketplaceTenderRow<T extends MarketplaceTenderRow>(tender: T
     category,
     categories: normalizeCategoryList(tender.categories, category),
     currency: tender.currency || 'TZS',
+    openingDate: tender.openingDate || '',
     ownerOrganization: tender.ownerOrganization || tender.organization,
     visibility: tender.visibility || 'PUBLIC_MARKETPLACE',
     createdByCurrentUser: Boolean(tender.createdByCurrentUser),
@@ -176,12 +177,7 @@ export function mergeSessionMarketplaceData(
   return {
     ...payload,
     tenders: [...sessionTenderRows.filter(isActiveMarketplaceTender), ...payload.tenders.filter((row) => !existingTenderIds.has(row.id))],
-    recommendedTenders: payload.recommendedTenders
-      ? [
-          ...sessionTenderRows.filter(isActiveMarketplaceTender),
-          ...payload.recommendedTenders.filter((row) => !existingTenderIds.has(row.id))
-        ]
-      : payload.recommendedTenders,
+    recommendedTenders: payload.recommendedTenders ?? [],
     invitedTenders: payload.invitedTenders ?? [],
     myTenders: [...sessionMyTenderRows, ...payload.myTenders.filter((row) => !existingMyTenderIds.has(row.id))]
   };
@@ -201,6 +197,7 @@ function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization
     status: 'OPEN',
     budget: Number(draft.estimatedBudget || draft.requirements.estimated_budget || draft.commercialItems.length * 5000000 || 100000000),
     currency: draft.currency || 'TZS',
+    openingDate: draft.openingDate,
     closingDate: draft.submissionDate || new Date().toISOString().slice(0, 10),
     location: draft.location || 'Tanzania',
     description: summarizeDraft(draft),

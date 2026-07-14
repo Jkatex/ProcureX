@@ -26,7 +26,6 @@
     "contact": "Mawasiliano",
     "dashboard": "Dashibodi",
     "identity": "Usajili na Uthibitishaji",
-    "tenderPlanning": "Mipango ya Zabuni",
     "procurement": "Ununuzi",
     "bidding": "Uandaaji Zabuni",
     "evaluation": "Tathmini",
@@ -71,10 +70,6 @@
         "title": "Usajili na Uthibitishaji",
         "description": "Akaunti na uthibitishaji wa utambulisho"
       },
-      "tenderPlanning": {
-        "title": "Mipango ya Ununuzi",
-        "description": "APP, SPP, bajeti, idhini"
-      },
       "procurement": {
         "title": "Ununuzi",
         "description": "Soko, tengeneza zabuni, wasilisha zabuni"
@@ -115,9 +110,6 @@
     "apps": {
       "accountProfile": {
         "description": "Hakiki utambulisho, wasifu, na taarifa za shirika."
-      },
-      "tenderPlanning": {
-        "description": "Tengeneza mistari ya mpango kabla ya kuandaa zabuni."
       },
       "procurement": {
         "description": "Tazama fursa au tengeneza zabuni yako ya kwanza."
@@ -212,10 +204,6 @@
     "tryOtherApps": "Jaribu programu nyingine",
     "allWorkspaceApps": "Programu zote za eneo la kazi",
     "startActions": {
-      "plan": {
-        "title": "Tengeneza mpango wako wa kwanza wa ununuzi",
-        "description": "Sanidi mpango wa mwaka kabla ya zabuni kwenda kwenye uchapishaji."
-      },
       "message": {
         "title": "Tuma ujumbe wako wa kwanza wa jukwaa",
         "description": "Tumia kisanduku cha ujumbe kwa maswali ya ununuzi, ufafanuzi, na taarifa."
@@ -226,10 +214,6 @@
       }
     },
     "otherActions": {
-      "createPlan": {
-        "title": "Tengeneza mpango",
-        "description": "Jenga au pakia mistari ya mpango wa ununuzi."
-      },
       "createMessage": {
         "title": "Tengeneza ujumbe",
         "description": "Fungua mawasiliano, ufafanuzi, na taarifa."
@@ -304,10 +288,6 @@
     "dashboard": {
       "title": "Dashibodi ya Kazi",
       "subtitle": "Fuatilia zabuni hai, zabuni ulizowasilisha, mawasiliano, tathmini, tuzo, muda wa mwisho, na kumbukumbu."
-    },
-    "tenderPlanning": {
-      "title": "Mipango ya Zabuni",
-      "subtitle": "Simamia APP, SPP, uthibitisho wa bajeti, idhini, ripoti za mipango, na uhamishaji kwenda Tender/RFQ kabla ya tuzo na mkataba."
     },
     "procurementGuide": {
       "title": "Mwongozo wa Mchakato wa Ununuzi",
@@ -899,8 +879,7 @@
       "lockedUntilClosing": "Zilizofungwa Hadi Kufungwa"
     },
     "actions": {
-      "createTender": "Tengeneza Zabuni",
-      "viewTenderPlanning": "Tazama Mpango wa Zabuni"
+      "createTender": "Tengeneza Zabuni"
     },
     "records": {
       "kicker": "Rekodi za tathmini",
@@ -1143,8 +1122,7 @@
       "kicker": "Vyanzo vya kumbukumbu",
       "title": "Tengeneza chanzo cha kwanza cha kumbukumbu",
       "createTender": "Tengeneza Zabuni",
-      "viewMarketplace": "Tazama Soko",
-      "createPlan": "Tengeneza Mpango"
+      "viewMarketplace": "Tazama Soko"
     },
     "labels": {
       "notAvailable": "Haipatikani",

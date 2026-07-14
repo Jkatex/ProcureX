@@ -144,6 +144,7 @@ describe('procurement marketplace repository', () => {
         visibility: Visibility.PUBLIC_MARKETPLACE,
         reference: 'PX-2026-001',
         publishedAt: '2026-07-01T08:00:00.000Z',
+        openingDate: '',
         closingDate: '2026-08-30',
         createdByCurrentUser: false,
         ownedByCurrentOrganization: false,
@@ -166,6 +167,7 @@ describe('procurement marketplace repository', () => {
         'id',
         'isSaved',
         'location',
+        'openingDate',
         'organization',
         'ownedByCurrentOrganization',
         'ownerOrganization',
@@ -612,6 +614,60 @@ describe('procurement marketplace repository', () => {
     const payload = await repository.getMarketplaceData({ organizationId: supplierOrgId, userId: 'supplier-user-empty' }, query);
 
     expect(payload.tenders).toMatchObject([{ id: 'unmatched-public-tender' }]);
+    expect(payload.recommendedTenders).toEqual([]);
+  });
+
+  it('does not recommend tenders from profile location alone without category or document matches', async () => {
+    const supplierOrgId = 'supplier-org-location-only';
+    const sameRegionTender = tenderDetailRecord({
+      id: 'same-region-unrelated-tender',
+      reference: 'PX-LOCATION-001',
+      title: 'Office chair replacement package',
+      description: 'Supply ergonomic chairs and filing cabinets.',
+      type: TenderType.GOODS,
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      location: 'Dar es Salaam',
+      closingDate: new Date('2026-08-30T00:00:00.000Z'),
+      buyerOrg: { id: 'buyer-location', name: 'Facilities Authority' },
+      categories: [{ name: 'Office furniture' }]
+    });
+    const db = {
+      organization: {
+        findUnique: vi.fn().mockResolvedValue({ name: 'Regional Supplier Ltd' })
+      },
+      tender: {
+        findMany: vi.fn(({ where }) => {
+          if (where?.visibility === Visibility.INVITED) return Promise.resolve([]);
+          if (where?.buyerOrgId) return Promise.resolve([]);
+          return Promise.resolve([sameRegionTender]);
+        })
+      },
+      bid: {
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      savedTender: {
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      verificationProfile: {
+        findFirst: vi.fn().mockResolvedValue({
+          status: VerificationStatus.APPROVED,
+          registrySource: 'BRELA',
+          registryNumber: 'REG-LOCATION',
+          payload: {
+            region: 'Dar es Salaam',
+            district: 'Ilala'
+          },
+          documents: []
+        })
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+    const query = { search: '', category: '', type: '', budgetBand: '', status: '', includeClosed: false, visibility: '', sort: 'deadline', page: 1, limit: 20 } as const;
+
+    const payload = await repository.getMarketplaceData({ organizationId: supplierOrgId, userId: 'supplier-user-location' }, query);
+
+    expect(payload.tenders).toMatchObject([{ id: 'same-region-unrelated-tender' }]);
     expect(payload.recommendedTenders).toEqual([]);
   });
 
@@ -2041,6 +2097,7 @@ describe('procurement tender write repository', () => {
         'id',
         'isSaved',
         'location',
+        'openingDate',
         'organization',
         'ownedByCurrentOrganization',
         'ownerOrganization',
@@ -2118,6 +2175,7 @@ describe('procurement tender detail repository', () => {
         'metadata',
         'method',
         'milestones',
+        'openingDate',
         'organization',
         'ownedByCurrentOrganization',
         'ownerUserId',
@@ -2150,6 +2208,7 @@ describe('procurement tender detail repository', () => {
       contractType: null,
       visibility: Visibility.PUBLIC_MARKETPLACE,
       publishedAt: '2026-07-01T08:00:00.000Z',
+      openingDate: '',
       closingDate: '2026-08-30',
       requirements: { technical: ['ISO 13485 certification'] },
       documents: [{ id: 'doc-1', name: 'Medical equipment tender.pdf', documentType: 'PDF', label: 'Tender document' }],
