@@ -12,6 +12,8 @@ import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { riskLevelSummary, trustTierSummary } from '@/shared/trustRisk';
 import type { CreateNotificationInput, NotificationTone } from '@/shared/types/notifications';
 import { isValidTanzaniaLocation, type TanzaniaLocationSelection } from '@procurex/shared';
+import { ProfileImageCard } from './ProfileImageCard';
+import type { ProfileImageMetadata } from '@/features/identity/types';
 
 type EkycStep = 1 | 2 | 3 | 4;
 type SignatureVerificationState = 'idle' | 'checking' | 'valid' | 'invalid';
@@ -76,6 +78,15 @@ function stringValue(value: unknown) {
   return String(value);
 }
 
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function profileImageValue(value: unknown): ProfileImageMetadata | null {
+  const image = objectValue(value);
+  return typeof image.objectKey === 'string' && typeof image.fileName === 'string' ? (image as ProfileImageMetadata) : null;
+}
+
 function friendlyIdentityMessage(error: unknown, fallback: string) {
   const axiosError = error as { response?: { status?: number; data?: { message?: string } }; message?: string };
   const status = axiosError.response?.status;
@@ -118,6 +129,7 @@ export function IdentityVerificationProcurexPage() {
   const [signatureTitle, setSignatureTitle] = useState('');
   const [signatureConsent, setSignatureConsent] = useState(false);
   const [signatureStatus, setSignatureStatus] = useState<SigningCredentialStatus | null>(null);
+  const [profileImage, setProfileImage] = useState<ProfileImageMetadata | null>(null);
   const [requestKeyphrase, setRequestKeyphrase] = useState('');
   const [repeatKeyphrase, setRepeatKeyphrase] = useState('');
   const [signatureKeyphrase, setSignatureKeyphrase] = useState('');
@@ -153,6 +165,7 @@ export function IdentityVerificationProcurexPage() {
         const savedEntity = payload.entityType === 'company' || payload.entityType === 'business' || payload.entityType === 'individual' ? payload.entityType : undefined;
         const savedSource = payload.businessRegistrationSource === 'brela' || payload.businessRegistrationSource === 'tin' ? payload.businessRegistrationSource : undefined;
         const savedRecord = payload.registryRecord && typeof payload.registryRecord === 'object' ? (payload.registryRecord as RegistryRecord) : null;
+        const savedProfile = objectValue(payload.profile);
 
         if (savedEntity) setEntityType(savedEntity);
         if (savedSource) setBusinessRegistrationSource(savedSource);
@@ -161,6 +174,7 @@ export function IdentityVerificationProcurexPage() {
         if (typeof payload.signatureName === 'string') setSignatureName(payload.signatureName);
         if (typeof payload.signatureTitle === 'string') setSignatureTitle(payload.signatureTitle);
         if (typeof payload.signatureConsent === 'boolean') setSignatureConsent(payload.signatureConsent);
+        setProfileImage(profileImageValue(savedProfile.profileImage));
         if (isValidTanzaniaLocation(payload.location)) setLocation(payload.location);
         else if (isValidTanzaniaLocation(response.user.location)) setLocation(response.user.location);
         if (savedRecord?.id) setRegistryRecord(savedRecord);
@@ -325,7 +339,8 @@ export function IdentityVerificationProcurexPage() {
           displayName: registryRecord.name,
           country: 'Tanzania',
           location,
-          preferredLanguage: 'English'
+          preferredLanguage: 'English',
+          ...(profileImage ? { profileImage } : {})
         },
         documents: [
           {
@@ -376,7 +391,7 @@ export function IdentityVerificationProcurexPage() {
           </div>
 
           <ol className="ekyc-steps">
-            {['Applicant type', 'Registry lookup', 'Digital signature', 'Complete'].map((label, index) => {
+            {['Applicant type', 'Registry lookup', 'Digital signature and information', 'Complete'].map((label, index) => {
               const itemStep = (index + 1) as EkycStep;
               return (
                 <li className={`${step === itemStep ? 'active' : ''} ${step > itemStep ? 'completed' : ''}`} key={label}>
@@ -527,12 +542,21 @@ export function IdentityVerificationProcurexPage() {
               <div className="ekyc-section-heading">
                 <span className="ekyc-step-badge">3</span>
                 <div>
-                  <h2>Create digital signature</h2>
-                  <p>Create a private keyphrase once, then use it every time ProcureX signs documents for this account.</p>
+                  <h2>Digital signature and account information</h2>
+                  <p>Create a private keyphrase once, add the account image, then review signer information before submission.</p>
                 </div>
               </div>
 
               <div className="signature-panel">
+                <ProfileImageCard
+                  entityType={entityType}
+                  profileImage={profileImage}
+                  disabled={loading}
+                  onChange={(next) => {
+                    setProfileImage(next.profileImage);
+                  }}
+                />
+
                 {!signatureStatus?.hasCredential ? (
                   <div className="signature-card signature-card--setup">
                     <div className="signature-card-header">

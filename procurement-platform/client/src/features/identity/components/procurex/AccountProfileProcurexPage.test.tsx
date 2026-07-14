@@ -13,7 +13,10 @@ import { AccountProfileProcurexPage } from './AccountProfileProcurexPage';
 vi.mock('@/features/identity/api', () => ({
   identityApi: {
     getVerificationMe: vi.fn(),
-    updateProfile: vi.fn()
+    updateProfile: vi.fn(),
+    uploadProfileImage: vi.fn(),
+    getProfileImageBlob: vi.fn(),
+    deleteProfileImage: vi.fn()
   }
 }));
 
@@ -74,12 +77,25 @@ const verificationProfile = {
   updatedAt: '2026-06-18T00:00:00.000Z'
 };
 
-function renderPage() {
+const profileImage = {
+  objectKey: 'profile-images/user/logo.png',
+  fileName: 'logo.png',
+  mimeType: 'image/png',
+  size: 8,
+  checksum: 'image-checksum',
+  uploadedAt: '2026-06-18T00:00:00.000Z',
+  imageRole: 'logo'
+};
+
+function renderPage(profile = verificationProfile) {
   mockedIdentityApi.getVerificationMe.mockResolvedValue({
     user: demoUsers.user,
-    verification: verificationProfile
+    verification: profile
   });
-  mockedIdentityApi.updateProfile.mockResolvedValue(verificationProfile);
+  mockedIdentityApi.updateProfile.mockResolvedValue(profile);
+  mockedIdentityApi.uploadProfileImage.mockResolvedValue({ profile, profileImage });
+  mockedIdentityApi.getProfileImageBlob.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
+  mockedIdentityApi.deleteProfileImage.mockResolvedValue({ profile, profileImage: null });
   mockedApiGet.mockResolvedValue({
     data: {
       data: {
@@ -103,6 +119,14 @@ function renderPage() {
 
 async function openTab(name: string) {
   renderPage();
+  const user = userEvent.setup();
+  await screen.findByRole('button', { name });
+  await user.click(screen.getByRole('button', { name }));
+  return user;
+}
+
+async function openTabWithProfile(name: string, profile: typeof verificationProfile) {
+  renderPage(profile);
   const user = userEvent.setup();
   await screen.findByRole('button', { name });
   await user.click(screen.getByRole('button', { name }));
@@ -151,6 +175,42 @@ describe('AccountProfileProcurexPage', () => {
     expect(payload.profile).not.toHaveProperty('procurementRole');
     expect(payload.profile).not.toHaveProperty('canCreateTender');
   }, 10000);
+
+  it('shows the default avatar in account information when no image is uploaded', async () => {
+    const user = await openTab('Account');
+
+    expect(screen.getByText('Default person avatar')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit account image' }));
+    expect(screen.getByRole('menuitem', { name: 'Add image' })).toBeInTheDocument();
+
+    await user.upload(screen.getByLabelText('Logo or profile image'), new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'logo.png', { type: 'image/png' }));
+
+    await waitFor(() => expect(mockedIdentityApi.uploadProfileImage).toHaveBeenCalled());
+    expect(screen.getByText('Image saved.')).toBeInTheDocument();
+  });
+
+  it('loads uploaded image metadata and can remove the image from the account section', async () => {
+    const profileWithImage = {
+      ...verificationProfile,
+      payload: {
+        ...verificationProfile.payload,
+        profile: {
+          ...verificationProfile.payload.profile,
+          profileImage
+        }
+      }
+    };
+    const user = await openTabWithProfile('Account', profileWithImage);
+
+    expect(await screen.findByText('Image added')).toBeInTheDocument();
+    expect(screen.queryByText('logo.png')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit account image' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Remove image' }));
+
+    await waitFor(() => expect(mockedIdentityApi.deleteProfileImage).toHaveBeenCalled());
+    expect(screen.getByText('Image removed.')).toBeInTheDocument();
+  });
 
   it('uses the searchable selector for regions of operation', async () => {
     const user = await openTab('Classification');

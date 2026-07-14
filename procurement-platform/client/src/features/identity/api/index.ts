@@ -7,6 +7,7 @@ import type {
   SigningCredentialStatus,
   KeyphraseRecoveryHistoryItem,
   KeyphraseStatusResponse,
+  ProfileImageMutationResult,
   VerificationMe,
   VerificationProfile,
   VerificationSubmitResult
@@ -109,6 +110,23 @@ export const identityApi = {
   },
   async updateProfile(input: { profile: Record<string, unknown>; documents?: Record<string, unknown>[] }) {
     const response = await apiClient.put<VerificationProfile>('/api/identity/profile', input);
+    return response.data;
+  },
+  async uploadProfileImage(file: File, imageRole?: string) {
+    const formData = new FormData();
+    if (imageRole) formData.append('imageRole', imageRole);
+    formData.append('file', file);
+    const response = await apiClient.post<ProfileImageMutationResult>('/api/identity/profile/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+  async getProfileImageBlob() {
+    const response = await apiClient.get<Blob>('/api/identity/profile/image/content', { responseType: 'blob' });
+    return response.data;
+  },
+  async deleteProfileImage() {
+    const response = await apiClient.delete<ProfileImageMutationResult>('/api/identity/profile/image');
     return response.data;
   }
 };

@@ -11,6 +11,7 @@ import {
 import { isValidTanzaniaLocation, type PermissionName, type ScreeningStatus, type TanzaniaLocationSelection } from '@procurex/shared';
 import { assertPermission, computeAccessContext } from '../../security/accessPolicy.js';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 import { promisify } from 'node:util';
 import { ModuleRepository, type SessionWithUser, type UserWithDefaultOrg, type VerificationWithUser } from './repository.js';
 import { createIdentityNotifications, type DeliveryReceipt, type IdentityNotificationProvider } from './notifications.js';
@@ -45,6 +46,13 @@ import {
   signatureStatusDto,
   validateRepeatedKeyphrase
 } from './signing.js';
+import {
+  parseAndStoreProfileImage,
+  profileImageMetadata,
+  readStoredProfileImage,
+  removeStoredProfileImage,
+  type ProfileImageContent
+} from './profileImageStorage.js';
 
 const scrypt = promisify(scryptCallback);
 const phoneOtpPurpose = 'PHONE_OTP';
@@ -204,6 +212,13 @@ function metadataArray(value: unknown): Record<string, unknown>[] {
 
 function inputJson(value: Record<string, unknown>): Prisma.InputJsonObject {
   return value as Prisma.InputJsonObject;
+}
+
+export function mergeVerificationProfileInput(existingPayload: unknown, inputProfile: unknown): Record<string, unknown> {
+  return {
+    ...metadataObject(metadataObject(existingPayload).profile),
+    ...metadataObject(inputProfile)
+  };
 }
 
 function assertValidTanzaniaLocation(location: unknown, required: true): TanzaniaLocationSelection;
@@ -2400,6 +2415,108 @@ export class ModuleService {
     return toProfileDto(profile);
   }
 
+  async uploadProfileImage(token: string | undefined, req: IncomingMessage, audit?: AuthAuditContext) {
+    const { user } = await this.requireSession(token);
+    const existing = await this.repository.latestVerificationProfile(user.id);
+    const existingPayload = metadataObject(existing?.payload);
+    const existingProfile = metadataObject(existingPayload.profile);
+    const previousImage = profileImageMetadata(existingProfile.profileImage);
+    const image = await parseAndStoreProfileImage(req, user.id);
+    const payload = inputJson({
+      ...existingPayload,
+      profile: {
+        ...existingProfile,
+        profileImage: image
+      },
+      profileImageUpdatedAt: image.uploadedAt
+    });
+
+    try {
+      const profile = await this.repository.upsertVerificationProfile({
+        userId: user.id,
+        organizationId: user.organizationId,
+        status: existing?.status ?? VerificationStatus.DRAFT,
+        registrySource: existing?.registrySource,
+        registryNumber: existing?.registryNumber,
+        payload
+      });
+
+      await this.repository.createVerificationHistory({
+        verificationProfileId: profile.id,
+        userId: user.id,
+        organizationId: user.organizationId,
+        status: profile.status,
+        registrySource: profile.registrySource,
+        registryNumber: profile.registryNumber,
+        event: 'profile_image_uploaded',
+        payload
+      });
+      await this.recordAuthEvent('identity.verification.profile_image_uploaded', {
+        ...audit,
+        userId: user.id,
+        ownerOrgId: user.organizationId,
+        entityRef: profile.id,
+        details: { fileName: image.fileName, mimeType: image.mimeType, size: image.size, imageRole: image.imageRole }
+      });
+      if (previousImage?.objectKey && previousImage.objectKey !== image.objectKey) {
+        await removeStoredProfileImage(previousImage.objectKey).catch(() => undefined);
+      }
+      return { profile: toProfileDto(profile), profileImage: image };
+    } catch (error) {
+      await removeStoredProfileImage(image.objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async profileImageContent(token: string | undefined): Promise<ProfileImageContent> {
+    const { user } = await this.requireSession(token);
+    const existing = await this.repository.latestVerificationProfile(user.id);
+    const profile = metadataObject(metadataObject(existing?.payload).profile);
+    return readStoredProfileImage(profile.profileImage);
+  }
+
+  async deleteProfileImage(token: string | undefined, audit?: AuthAuditContext) {
+    const { user } = await this.requireSession(token);
+    const existing = await this.repository.latestVerificationProfile(user.id);
+    const existingPayload = metadataObject(existing?.payload);
+    const existingProfile = metadataObject(existingPayload.profile);
+    const previousImage = profileImageMetadata(existingProfile.profileImage);
+    const profileWithoutImage = { ...existingProfile };
+    delete profileWithoutImage.profileImage;
+    const payload = inputJson({
+      ...existingPayload,
+      profile: profileWithoutImage,
+      profileImageUpdatedAt: new Date().toISOString()
+    });
+    const profile = await this.repository.upsertVerificationProfile({
+      userId: user.id,
+      organizationId: user.organizationId,
+      status: existing?.status ?? VerificationStatus.DRAFT,
+      registrySource: existing?.registrySource,
+      registryNumber: existing?.registryNumber,
+      payload
+    });
+
+    await this.repository.createVerificationHistory({
+      verificationProfileId: profile.id,
+      userId: user.id,
+      organizationId: user.organizationId,
+      status: profile.status,
+      registrySource: profile.registrySource,
+      registryNumber: profile.registryNumber,
+      event: 'profile_image_deleted',
+      payload
+    });
+    await this.recordAuthEvent('identity.verification.profile_image_deleted', {
+      ...audit,
+      userId: user.id,
+      ownerOrgId: user.organizationId,
+      entityRef: profile.id
+    });
+    if (previousImage?.objectKey) await removeStoredProfileImage(previousImage.objectKey).catch(() => undefined);
+    return { profile: toProfileDto(profile), profileImage: null };
+  }
+
   async submitVerification(
     token: string | undefined,
     input: Required<Pick<VerificationPayloadInput, 'entityType' | 'registrySource' | 'registryNumber' | 'registryVerified' | 'registryRecordId' | 'signatureName' | 'signatureConsent'>> & VerificationPayloadInput,
@@ -2408,6 +2525,8 @@ export class ModuleService {
     const { user } = await this.requireSession(token);
     const fullUser = await this.repository.findUserById(user.id);
     if (!fullUser) throw requestError('Current user was not found.', 404);
+    const existing = await this.repository.latestVerificationProfile(user.id);
+    const existingProfile = metadataObject(metadataObject(existing?.payload).profile);
 
     const registry = await this.repository.findRegistryRecord(input.registrySource, input.registryNumber);
     if (!registry || registry.id !== input.registryRecordId) {
@@ -2455,9 +2574,11 @@ export class ModuleService {
         })
       : null;
 
-    const { signatureKeyphrase: _signatureKeyphrase, ...safeInput } = input;
+    const { signatureKeyphrase: _signatureKeyphrase, profile: inputProfile, ...safeInput } = input;
+    const mergedProfile = mergeVerificationProfileInput({ profile: existingProfile }, inputProfile);
     const basePayload = {
       ...safeInput,
+      profile: mergedProfile,
       location,
       registryRecord: registryPayload(registry),
       verifiedName: registry.name,

@@ -19,7 +19,10 @@ vi.mock('@/features/identity/api', () => ({
     submitVerification: vi.fn(),
     requestSignature: vi.fn(),
     testSignature: vi.fn(),
-    revokeSignature: vi.fn()
+    revokeSignature: vi.fn(),
+    uploadProfileImage: vi.fn(),
+    getProfileImageBlob: vi.fn(),
+    deleteProfileImage: vi.fn()
   }
 }));
 
@@ -68,6 +71,16 @@ const activeSignatureStatus: SigningCredentialStatus = {
   provider: 'procurex-keyphrase-ed25519-v1'
 };
 
+const profileImage = {
+  objectKey: 'profile-images/user/avatar.png',
+  fileName: 'avatar.png',
+  mimeType: 'image/png',
+  size: 8,
+  checksum: 'image-checksum',
+  uploadedAt: '2026-06-18T00:00:00.000Z',
+  imageRole: 'profile-photo'
+};
+
 function verificationMe() {
   return {
     user: demoUsers.user,
@@ -104,6 +117,15 @@ function renderPage(signatureStatus = inactiveSignatureStatus) {
     signatureHash: 'b'.repeat(64)
   });
   mockedIdentityApi.revokeSignature.mockResolvedValue(inactiveSignatureStatus);
+  mockedIdentityApi.uploadProfileImage.mockResolvedValue({
+    profile: verificationMe().verification,
+    profileImage
+  });
+  mockedIdentityApi.getProfileImageBlob.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
+  mockedIdentityApi.deleteProfileImage.mockResolvedValue({
+    profile: verificationMe().verification,
+    profileImage: null
+  });
   mockedIdentityApi.submitVerification.mockResolvedValue({
     user: { ...demoUsers.user, verificationStatus: 'APPROVED' },
     verification: verificationMe().verification,
@@ -126,7 +148,7 @@ async function openStep3() {
   await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
   await screen.findByText('Enter TIN number');
   await user.click(screen.getAllByRole('button', { name: 'Continue' })[1]);
-  await screen.findByText('Create digital signature');
+  await screen.findByText('Digital signature and account information');
   return user;
 }
 
@@ -182,6 +204,26 @@ describe('IdentityVerificationProcurexPage signature step', () => {
     await user.click(screen.getByLabelText(/Confirm digital signature consent/));
     expect(screen.getByRole('button', { name: 'Submit verification' })).toBeEnabled();
   });
+
+  it('uploads a profile image from the signature step and includes it in submit profile metadata', async () => {
+    renderPage(activeSignatureStatus);
+    const user = await openStep3();
+
+    await user.upload(screen.getByLabelText('Profile photo'), new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'avatar.png', { type: 'image/png' }));
+
+    await waitFor(() => expect(mockedIdentityApi.uploadProfileImage).toHaveBeenCalled());
+    expect(screen.getByText('Image saved.')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Signing keyphrase *'), 'Signing123');
+    await user.click(screen.getByRole('button', { name: 'Verify keyphrase' }));
+    await screen.findByText('Keyphrase verified. You can submit after consent is confirmed.');
+    await user.click(screen.getByLabelText(/Confirm digital signature consent/));
+    await user.click(screen.getByRole('button', { name: 'Submit verification' }));
+
+    await waitFor(() => expect(mockedIdentityApi.submitVerification).toHaveBeenCalled());
+    const payload = mockedIdentityApi.submitVerification.mock.calls[0][0];
+    expect(payload.profile).toEqual(expect.objectContaining({ profileImage }));
+  }, 10000);
 
   it('pre-fills the Tanzania location selector from the verification payload', async () => {
     renderPage(activeSignatureStatus);

@@ -27,6 +27,7 @@ import { useAppDispatch, useAppSelector } from '@/app/store';
 import { accountApi, type AccountActivityEvent } from '@/features/account/api';
 import { signOut, signOutSession, hydrateAuthSession } from '@/features/auth/slice';
 import { communicationApi } from '@/features/communication/api';
+import { useProfileImagePreview } from '@/features/identity/hooks/useProfileImagePreview';
 import i18n, { persistLanguage, supportedLanguages, type SupportedLanguage } from '@/i18n';
 
 type AccountMenuProps = {
@@ -42,6 +43,7 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const open = Boolean(anchorEl);
   const language = normalizeLanguage(user?.preferences?.preferredLanguage ?? i18n.language);
+  const { previewUrl: accountImageUrl } = useProfileImagePreview({ loadFromProfile: true, enabled: Boolean(user && user.accountType !== 'ADMIN') });
 
   useEffect(() => {
     if (!open || !user?.organizationId) return;
@@ -122,7 +124,7 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
           size="small"
         >
           <Badge badgeContent={unreadCount || null} color="error" overlap="circular">
-            <Avatar sx={{ width: 34, height: 34, fontSize: 13, bgcolor: '#244236' }}>{initials(user.displayName)}</Avatar>
+            <Avatar src={accountImageUrl ?? undefined} alt={user.displayName} sx={{ width: 34, height: 34, fontSize: 13, bgcolor: '#244236' }}>{initials(user.displayName)}</Avatar>
           </Badge>
         </IconButton>
       </Tooltip>
@@ -137,7 +139,7 @@ export function AccountMenu({ buttonClassName }: AccountMenuProps) {
       >
         <Box sx={{ px: 2, py: 1.5, minWidth: 280 }}>
           <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'center' }}>
-            <Avatar sx={{ width: 40, height: 40, fontSize: 14, bgcolor: '#244236' }}>{initials(user.displayName)}</Avatar>
+            <Avatar src={accountImageUrl ?? undefined} alt={user.displayName} sx={{ width: 40, height: 40, fontSize: 14, bgcolor: '#244236' }}>{initials(user.displayName)}</Avatar>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle2" noWrap>
                 {user.displayName}
