@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Consultancy Advisory mock logo</title>
+  <desc id="desc">A consultancy advisory logo with report and chart shapes.</desc>
+  <rect width="160" height="160" fill="#fdf7ed"/>
+  <path d="M30 26h74l26 26v82H30z" fill="#ffffff"/>
+  <path d="M104 26v28h26z" fill="#f59e0b"/>
+  <path d="M48 75h62v9H48zm0 20h28v9H48zm0 20h42v9H48z" fill="#7c2d12"/>
+  <path d="M101 93l14-18 11 10-20 28-13-13z" fill="#0f766e"/>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#7c2d12">ADV</text>
+</svg>

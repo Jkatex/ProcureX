@@ -3503,10 +3503,10 @@ function ServicesRequirementsStep({
                     </div>
                     <div className="requirement-multi-select" aria-label={`Equipment evidence required ${index + 1}`}>
                       {serviceEquipmentEvidence.map((evidence) => (
-                        <label key={evidence}><input type="checkbox" checked={row.evidenceRequired.includes(evidence)} onChange={() => toggleEquipmentEvidence(row, evidence)} /> {evidence}</label>
+                        <label className="requirement-check-option" key={evidence}><input type="checkbox" checked={row.evidenceRequired.includes(evidence)} onChange={() => toggleEquipmentEvidence(row, evidence)} /> <span>{evidence}</span></label>
                       ))}
                     </div>
-                    <label><input type="checkbox" checked={row.mandatory} onChange={(event) => updateEquipmentRow(row.id, { mandatory: event.target.checked })} /> Mandatory</label>
+                    <label className="requirement-check-option"><input type="checkbox" checked={row.mandatory} onChange={(event) => updateEquipmentRow(row.id, { mandatory: event.target.checked })} /> <span>Mandatory</span></label>
                   </article>
                 ))
               ) : (
@@ -3538,10 +3538,10 @@ function ServicesRequirementsStep({
                   </div>
                   <div className="requirement-multi-select" aria-label={`ES evidence required ${index + 1}`}>
                     {serviceEsEvidence.map((evidence) => (
-                      <label key={evidence}><input type="checkbox" checked={row.evidenceRequired.includes(evidence)} onChange={() => toggleEsEvidence(row, evidence)} /> {evidence}</label>
+                      <label className="requirement-check-option" key={evidence}><input type="checkbox" checked={row.evidenceRequired.includes(evidence)} onChange={() => toggleEsEvidence(row, evidence)} /> <span>{evidence}</span></label>
                     ))}
                   </div>
-                  <label><input type="checkbox" checked={row.mandatory} onChange={(event) => updateEsCard(row.id, { mandatory: event.target.checked })} /> Mandatory</label>
+                  <label className="requirement-check-option"><input type="checkbox" checked={row.mandatory} onChange={(event) => updateEsCard(row.id, { mandatory: event.target.checked })} /> <span>Mandatory</span></label>
                 </article>
               ))
             ) : (
@@ -3631,6 +3631,7 @@ function WorksRequirementsStep({
   regulatoryLicensePanel: ReactNode;
 }) {
   const works = draft.worksRequirements ?? createEmptyWorksRequirements();
+  const showOtherDrawingDocumentColumn = works.drawingDesignRows.some((row) => row.documentType === 'Other');
 
   function patchWorks(patch: Partial<CreateTenderWorksRequirements>) {
     onPatch({ worksRequirements: patch as CreateTenderWorksRequirements });
@@ -3904,7 +3905,7 @@ function WorksRequirementsStep({
                 <thead>
                   <tr>
                     <th>Document type</th>
-                    <th>Other document name</th>
+                    {showOtherDrawingDocumentColumn ? <th>Other document name</th> : null}
                     <th>CAD / PDF upload</th>
                     <th aria-label="Actions"></th>
                   </tr>
@@ -3921,19 +3922,20 @@ function WorksRequirementsStep({
                             ))}
                           </select>
                         </td>
+                        {showOtherDrawingDocumentColumn ? (
+                          <td className={row.documentType === 'Other' ? undefined : 'requirement-conditional-cell muted'}>
+                            {row.documentType === 'Other' ? (
+                              <input className="form-input" value={row.otherDocumentName} onChange={(event) => updateDrawing(row.id, { otherDocumentName: event.target.value })} aria-label={`Other document name ${index + 1}`} placeholder="Write document name" />
+                            ) : (
+                              <span className="requirement-auto-value">-</span>
+                            )}
+                          </td>
+                        ) : null}
                         <td>
-                          {row.documentType === 'Other' ? (
-                            <input className="form-input" value={row.otherDocumentName} onChange={(event) => updateDrawing(row.id, { otherDocumentName: event.target.value })} aria-label={`Other document name ${index + 1}`} placeholder="Write document name" />
-                          ) : (
-                            <span className="requirement-auto-value">-</span>
-                          )}
-                        </td>
-                        <td>
-                          <label className="btn btn-secondary scope-add goods-import-control">
-                            CAD / PDF upload
-                            <input type="file" accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" aria-label={`CAD / PDF upload ${index + 1}`} onChange={(event) => updateDrawing(row.id, { uploadName: event.target.files?.[0]?.name ?? '' })} />
-                          </label>
-                          {row.uploadName ? <span className="form-hint">{row.uploadName}</span> : null}
+                          <div className="requirement-file-field">
+                            <input className="form-input" type="file" accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" aria-label={`CAD / PDF upload ${index + 1}`} onChange={(event) => updateDrawing(row.id, { uploadName: event.target.files?.[0]?.name ?? '' })} />
+                            <span>{row.uploadName || 'No file selected'}</span>
+                          </div>
                         </td>
                         <td className="requirement-table-action-cell">
                           <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Remove drawing ${index + 1}`} onClick={() => patchWorks({ drawingDesignRows: works.drawingDesignRows.filter((item) => item.id !== row.id) })}>
@@ -3944,7 +3946,7 @@ function WorksRequirementsStep({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={4}><div className="scope-empty">No drawings or design documents added yet.</div></td>
+                      <td colSpan={showOtherDrawingDocumentColumn ? 4 : 3}><div className="scope-empty">No drawings or design documents added yet.</div></td>
                     </tr>
                   )}
                 </tbody>
@@ -5948,8 +5950,7 @@ function dateOnlyString(value: unknown) {
 function frontendTenderMethod(value: string | undefined) {
   const normalized = String(value ?? '').trim().replace(/[\s-]+/g, '_').toUpperCase();
   if (normalized === 'INVITED_TENDER') return 'Invited Tender';
-  if (normalized === 'RESTRICTED_TENDER') return 'Restricted Tender';
-  if (normalized === 'FRAMEWORK_CALL_OFF') return 'Framework Call-Off';
+  if (normalized === 'RESTRICTED_TENDER' || normalized === 'FRAMEWORK_CALL_OFF') return 'Invited Tender';
   return 'Open Tender';
 }
 

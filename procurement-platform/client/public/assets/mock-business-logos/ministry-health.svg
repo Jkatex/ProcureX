@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Ministry of Health mock logo</title>
+  <desc id="desc">A teal shield with a white medical cross and Ministry of Health initials.</desc>
+  <rect width="160" height="160" rx="26" fill="#e7f8f7"/>
+  <path d="M80 18l46 18v33c0 31-17 56-46 73-29-17-46-42-46-73V36l46-18z" fill="#008c8c"/>
+  <path d="M72 46h16v26h26v16H88v26H72V88H46V72h26V46z" fill="#fff"/>
+  <text x="80" y="135" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="800" fill="#005f60">MOH</text>
+</svg>

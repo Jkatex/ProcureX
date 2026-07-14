@@ -291,18 +291,23 @@ export function MyTenderRowCard({
 
   return (
     <article className="procurement-tender-row market-row is-owned">
-      <div>
-        <div className="tender-row-title">
-          <strong className="market-row-title-text">{row.title}</strong>
-          <span className={`badge ${statusBadgeClass(row.status)}`}>{row.status}</span>
-        </div>
-        <p className="market-row-detail-line">
-          {formatTenderType(row.type)} / {tender?.organization || 'Owner organization'}
-        </p>
-        <span className="market-row-summary-text">{tender?.description || 'Tender record owned by the current user.'}</span>
-        <div className="market-row-meta">
-          <span>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</span>
-          <span>Updated {formatDate(row.lastActivity)}</span>
+      <div className="market-row-main">
+        <BuyerLogoBlock organization={tender?.organization || 'Owner organization'} logoUrl={tender?.buyerLogoUrl} />
+        <div className="market-row-copy">
+          <div className="tender-row-title">
+            <strong className="market-row-title-text">{row.title}</strong>
+            <span className={`badge ${statusBadgeClass(row.status)}`}>{row.status}</span>
+          </div>
+          <p className="market-row-detail-line">
+            {tender?.organization || 'Owner organization'} / {formatTenderType(row.type)}
+            {tender ? ` / Budget: ${tender.currency} ${tender.budget.toLocaleString()}` : ''}
+          </p>
+          <span className="market-row-summary-text">{tender?.description || 'Tender record owned by the current user.'}</span>
+          <div className="market-row-meta">
+            <span>{tender?.location || 'Location not set'}</span>
+            <span>{tender?.closingDate ? `Closing ${formatDate(tender.closingDate)}` : 'No closing date set'}</span>
+            <span>Updated {formatDate(row.lastActivity)}</span>
+          </div>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -333,19 +338,23 @@ export function MyBidRowCard({ row }: { row: MyBidRow }) {
 
   return (
     <article className="procurement-tender-row market-row">
-      <div>
-        <div className="tender-row-title">
-          <strong className="market-row-title-text">{row.title}</strong>
-          <span className={`badge ${row.section === 'submitted' ? 'badge-success' : 'badge-warning'}`}>{row.status}</span>
-        </div>
-        <p className="market-row-detail-line">
-          {row.tender.organization} / {formatTenderType(row.tender.type)}
-          {row.amount ? ` / ${row.amount}` : ''}
-        </p>
-        <span className="market-row-summary-text">{row.section === 'submitted' ? 'Submitted bid package is sealed and recorded.' : 'Draft bid submission saved for completion.'}</span>
-        <div className="market-row-meta">
-          <span>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</span>
-          <span>Updated {formatDate(row.lastActivity)}</span>
+      <div className="market-row-main">
+        <BuyerLogoBlock organization={row.tender.organization} logoUrl={row.tender.buyerLogoUrl} />
+        <div className="market-row-copy">
+          <div className="tender-row-title">
+            <strong className="market-row-title-text">{row.title}</strong>
+            <span className={`badge ${row.section === 'submitted' ? 'badge-success' : 'badge-warning'}`}>{row.status}</span>
+          </div>
+          <p className="market-row-detail-line">
+            {row.tender.organization} / {formatTenderType(row.tender.type)} / Budget: {row.tender.currency} {row.tender.budget.toLocaleString()}
+            {row.amount ? ` / Bid: ${row.amount}` : ''}
+          </p>
+          <span className="market-row-summary-text">{row.section === 'submitted' ? 'Submitted bid package is sealed and recorded.' : 'Draft bid submission saved for completion.'}</span>
+          <div className="market-row-meta">
+            <span>{row.tender.location}</span>
+            <span>{row.tender.closingDate ? `Closing ${formatDate(row.tender.closingDate)}` : 'Deadline not set'}</span>
+            <span>Updated {formatDate(row.lastActivity)}</span>
+          </div>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -379,18 +388,21 @@ function TenderRowCard({
 
   return (
     <article className={`procurement-tender-row market-row ${ownedByCurrentOrganization ? 'is-owned' : ''}`}>
-      <div>
-        <div className="tender-row-title">
-          <strong className="market-row-title-text">{tender.title}</strong>
-          <span className={`badge ${tag.className}`}>{tag.label}</span>
-        </div>
-        <p className="market-row-detail-line">
-          {tender.organization} / {formatTenderType(tender.type)} / Budget: {tender.currency} {tender.budget.toLocaleString()}
-        </p>
-        <span className="market-row-summary-text">{tender.description}</span>
-        <div className="market-row-meta">
-          <span>{tender.location}</span>
-          <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
+      <div className="market-row-main">
+        <BuyerLogoBlock organization={tender.organization} logoUrl={tender.buyerLogoUrl} />
+        <div className="market-row-copy">
+          <div className="tender-row-title">
+            <strong className="market-row-title-text">{tender.title}</strong>
+            <span className={`badge ${tag.className}`}>{tag.label}</span>
+          </div>
+          <p className="market-row-detail-line">
+            {tender.organization} / {formatTenderType(tender.type)} / Budget: {tender.currency} {tender.budget.toLocaleString()}
+          </p>
+          <span className="market-row-summary-text">{tender.description}</span>
+          <div className="market-row-meta">
+            <span>{tender.location}</span>
+            <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
+          </div>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -429,18 +441,21 @@ export function PublicTenderRowCard({ tender }: { tender: MarketplaceTenderRow }
 
   return (
     <article className="procurement-tender-row market-row guest-market-row">
-      <div>
-        <div className="tender-row-title">
-          <strong className="market-row-title-text">{tender.title}</strong>
-          <span className={`badge ${tag.className}`}>{tag.label}</span>
-        </div>
-        <p className="market-row-detail-line">
-          {tender.organization} / {formatTenderType(tender.type)} / Budget: {tender.currency} {tender.budget.toLocaleString()}
-        </p>
-        <span className="market-row-summary-text">{tender.description}</span>
-        <div className="market-row-meta">
-          <span>{tender.location}</span>
-          <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
+      <div className="market-row-main">
+        <BuyerLogoBlock organization={tender.organization} logoUrl={tender.buyerLogoUrl} />
+        <div className="market-row-copy">
+          <div className="tender-row-title">
+            <strong className="market-row-title-text">{tender.title}</strong>
+            <span className={`badge ${tag.className}`}>{tag.label}</span>
+          </div>
+          <p className="market-row-detail-line">
+            {tender.organization} / {formatTenderType(tender.type)} / Budget: {tender.currency} {tender.budget.toLocaleString()}
+          </p>
+          <span className="market-row-summary-text">{tender.description}</span>
+          <div className="market-row-meta">
+            <span>{tender.location}</span>
+            <span>{daysRemaining === null ? 'Deadline not set' : daysRemaining < 0 ? 'Closed' : `${daysRemaining} days remaining`}</span>
+          </div>
         </div>
       </div>
       <div className="tender-row-actions">
@@ -455,6 +470,35 @@ export function PublicTenderRowCard({ tender }: { tender: MarketplaceTenderRow }
         )}
       </div>
     </article>
+  );
+}
+
+function BuyerLogoBlock({ organization, logoUrl }: { organization: string; logoUrl?: string }) {
+  const label = `${organization} logo`;
+  const initials = organizationInitials(organization);
+
+  return (
+    <div className="market-row-buyer-logo" aria-label={label}>
+      <span className="market-row-buyer-logo-mark">
+        {logoUrl ? (
+          <>
+            <img
+              src={logoUrl}
+              alt={label}
+              loading="lazy"
+              onError={(event) => {
+                event.currentTarget.hidden = true;
+                const fallback = event.currentTarget.nextElementSibling;
+                if (fallback instanceof HTMLElement) fallback.hidden = false;
+              }}
+            />
+            <span aria-hidden="true" hidden>{initials}</span>
+          </>
+        ) : (
+          <span aria-hidden="true">{initials}</span>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -487,6 +531,17 @@ export function searchableTenderText(tender: MarketplaceTenderRow) {
   return [tender.id, tender.reference, tender.title, tender.organization, tender.type, tender.categories.join(' '), tender.description, tender.location]
     .join(' ')
     .toLowerCase();
+}
+
+function organizationInitials(value: string) {
+  const initials = value
+    .split(/\s+/)
+    .map((part) => part.replace(/[^a-z0-9]/gi, '').charAt(0))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  return initials || 'PX';
 }
 
 export function formatTenderType(value: string) {

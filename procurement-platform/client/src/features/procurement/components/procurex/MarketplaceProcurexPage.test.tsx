@@ -11,6 +11,7 @@ import { demoUsers, tenders as fixtureTenders } from '@/shared/data/fixtures';
 import { procurexTheme } from '@/styles/mui-theme';
 import { procurementApi } from '../../api';
 import type { MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../../types';
+import { PublicTenderRowCard } from '../MarketplaceComponents';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 
 function LocationProbe() {
@@ -191,6 +192,43 @@ describe('MarketplaceProcurexPage', () => {
     expect(within(submittedRow!).getAllByText(/Open|You already bid|Draft bid saved/i)).toHaveLength(1);
     expect(within(draftRow!).queryByText('Draft bid saved')).not.toBeInTheDocument();
     expect(within(draftRow!).getAllByText(/Open|You already bid|Draft bid saved/i)).toHaveLength(1);
+  });
+
+  it('renders the buyer logo on marketplace tender cards', async () => {
+    const tender = marketplaceTender({
+      id: 'logo-tender',
+      title: 'Logo Tender',
+      organization: 'Company X Limited',
+      buyerLogoUrl: '/api/procurement/tenders/logo-tender/buyer-logo'
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [tender],
+      recommendedTenders: [tender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace();
+
+    const tenderRow = (await screen.findByText('Logo Tender')).closest('article');
+    expect(within(tenderRow!).getByRole('img', { name: 'Company X Limited logo' })).toHaveAttribute('src', '/api/procurement/tenders/logo-tender/buyer-logo');
+  });
+
+  it('renders the buyer logo on public browse tender cards', () => {
+    const tender = marketplaceTender({
+      id: 'public-logo-tender',
+      title: 'Public Logo Tender',
+      organization: 'Browse Buyer Limited',
+      buyerLogoUrl: '/api/procurement/tenders/public-logo-tender/buyer-logo'
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicTenderRowCard tender={tender} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('img', { name: 'Browse Buyer Limited logo' })).toHaveAttribute('src', '/api/procurement/tenders/public-logo-tender/buyer-logo');
   });
 
   it('orders All Tenders and Recommended by the closest deadline first', async () => {
@@ -581,6 +619,44 @@ describe('MarketplaceProcurexPage', () => {
     expect(within(bidRows[1]).getByText('Bid Later')).toBeInTheDocument();
     expect(within(ownedRows[0]).getByText('Owned Sooner')).toBeInTheDocument();
     expect(within(ownedRows[1]).getByText('Owned Later')).toBeInTheDocument();
+  });
+
+  it('renders buyer logos across all My Workspace tender sections', async () => {
+    const savedTender = marketplaceTender({
+      id: 'saved-logo-tender',
+      title: 'Saved Logo Tender',
+      organization: 'Saved Buyer',
+      buyerLogoUrl: '/assets/mock-business-logos/buyer-authority.svg',
+      isSaved: true
+    });
+    const bidTender = marketplaceTender({
+      id: 'bid-logo-tender',
+      title: 'Bid Logo Tender',
+      organization: 'Bid Buyer',
+      buyerLogoUrl: '/assets/mock-business-logos/medical-stores-department.svg'
+    });
+    const ownedTender = marketplaceTender({
+      id: 'owned-logo-tender',
+      title: 'Owned Logo Tender',
+      organization: 'Owned Buyer',
+      buyerLogoUrl: '/assets/mock-business-logos/verified-company-account.svg',
+      createdByCurrentUser: true,
+      ownedByCurrentOrganization: true,
+      canBid: false
+    });
+
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [savedTender, bidTender, ownedTender],
+      myTenders: [myTenderRow(ownedTender)],
+      myBids: [myBidRow(bidTender)]
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=my-workspace');
+
+    expect(await screen.findByText('Saved Logo Tender')).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: 'Saved' }).closest('section')!).getByRole('img', { name: 'Saved Buyer logo' })).toHaveAttribute('src', '/assets/mock-business-logos/buyer-authority.svg');
+    expect(within(screen.getByRole('heading', { name: 'My Bids' }).closest('section')!).getByRole('img', { name: 'Bid Buyer logo' })).toHaveAttribute('src', '/assets/mock-business-logos/medical-stores-department.svg');
+    expect(within(screen.getByRole('heading', { name: 'My Tenders' }).closest('section')!).getByRole('img', { name: 'Owned Buyer logo' })).toHaveAttribute('src', '/assets/mock-business-logos/verified-company-account.svg');
   });
 
   it('deduplicates My Workspace across saved, bid, and owned tender rows', async () => {

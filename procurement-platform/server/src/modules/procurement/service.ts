@@ -12,6 +12,7 @@ import { ModuleService as IdentityService } from '../identity/service.js';
 import { ModuleService as EvaluationService } from '../evaluation/service.js';
 import { prisma } from '../../db/prisma.js';
 import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
+import { readStoredProfileImage } from '../identity/profileImageStorage.js';
 import { isProductionRuntime } from '../../security/config.js';
 import {
   type CloseTenderResponseDto,
@@ -185,6 +186,12 @@ export class ModuleService {
   async recordTenderDocumentDownload(tenderId: string, documentId: string, token?: string): Promise<TenderDocumentDownloadResponseDto | null> {
     const context = await this.contextFromToken(token);
     return this.repository.recordTenderDocumentDownload(tenderId, documentId, context);
+  }
+
+  async tenderBuyerLogo(tenderId: string, token?: string) {
+    const context = await this.contextFromToken(token);
+    const image = await this.repository.getTenderBuyerLogo(tenderId, context);
+    return image ? readStoredProfileImage(image) : null;
   }
 
   async tenderDocumentStream(tenderId: string, documentId: string, disposition: TenderDocumentStreamDto['disposition'], token?: string) {

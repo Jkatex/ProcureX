@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Verified Company Account mock logo</title>
+  <desc id="desc">A gold and charcoal verified company mark with VCA initials.</desc>
+  <rect width="160" height="160" rx="26" fill="#fff7df"/>
+  <path d="M80 22l50 29v58l-50 29-50-29V51l50-29z" fill="#2f3742"/>
+  <path d="M58 81l14 14 32-36 11 10-43 48-25-25 11-11z" fill="#f3b72b"/>
+  <text x="80" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" font-weight="800" fill="#ffffff">VCA</text>
+</svg>

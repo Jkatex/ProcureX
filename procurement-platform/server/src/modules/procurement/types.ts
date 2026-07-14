@@ -365,6 +365,7 @@ export type MarketplaceTenderRow = {
   title: string;
   organization: string;
   ownerOrganization: string;
+  buyerLogoUrl?: string;
   type: string;
   category: string;
   description: string;
@@ -692,6 +693,7 @@ export type TenderDetailDto = {
   ownerUserId: string | null;
   organization: string;
   ownerOrganization: string;
+  buyerLogoUrl?: string;
   type: string;
   category: string;
   description: string;

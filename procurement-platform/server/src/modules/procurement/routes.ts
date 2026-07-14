@@ -24,6 +24,7 @@ export function createModuleRouter() {
   router.delete('/tenders/:tenderId/draft', controller.deleteTenderDraft);
   router.patch('/tenders/:tenderId/buyer-notice', controller.updateTenderBuyerNotice);
   router.get('/saved-tenders', controller.savedTenders);
+  router.get('/tenders/:tenderId/buyer-logo', controller.tenderBuyerLogo);
   router.get('/tenders/:tenderId/documents/:documentId/open', controller.openTenderDocument);
   router.get('/tenders/:tenderId/documents/:documentId/download', controller.downloadTenderDocument);
   router.post('/tenders/:tenderId/documents/:documentId/download', controller.recordTenderDocumentDownload);

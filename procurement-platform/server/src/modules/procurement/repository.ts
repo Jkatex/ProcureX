@@ -17,6 +17,7 @@ import {
 import { randomBytes, randomUUID } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
 import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
+import { profileImageMetadata, type ProfileImageMetadata } from '../identity/profileImageStorage.js';
 import { categorySearchTerms, standardizeCategoryName } from './category-taxonomy.js';
 import { tenderLanguageScannerVersion } from './design-language-scanner.js';
 import type {
@@ -71,7 +72,17 @@ const planInclude = {
 type ProcurementPlanRecord = Prisma.ProcurementPlanGetPayload<{ include: typeof planInclude }>;
 
 const marketplaceTenderInclude = {
-  buyerOrg: { select: { id: true, name: true } },
+  buyerOrg: {
+    select: {
+      id: true,
+      name: true,
+      verificationProfiles: {
+        select: { payload: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 1
+      }
+    }
+  },
   categories: { select: { name: true }, orderBy: { name: 'asc' } }
 } satisfies Prisma.TenderInclude;
 
@@ -419,6 +430,31 @@ export class ModuleRepository {
       success: true as const,
       message: 'Document download recorded' as const
     };
+  }
+
+  async getTenderBuyerLogo(tenderId: string, context: MarketplaceContext): Promise<ProfileImageMetadata | null> {
+    const marketplaceContext = await this.marketplaceContextWithOrganizationName(context);
+    const tender = await this.db.tender.findUnique({
+      where: { id: tenderId },
+      select: {
+        id: true,
+        buyerOrgId: true,
+        status: true,
+        visibility: true,
+        metadata: true,
+        buyerOrg: {
+          select: {
+            verificationProfiles: {
+              select: { payload: true },
+              orderBy: { updatedAt: 'desc' },
+              take: 1
+            }
+          }
+        }
+      }
+    });
+    if (!tender || !canViewTenderDetail(tender, marketplaceContext)) return null;
+    return buyerLogoMetadata(tender.buyerOrg.verificationProfiles[0]?.payload);
   }
 
   async getTenderDocumentForStream(
@@ -2094,11 +2130,13 @@ function toMarketplaceTenderRow(tender: MarketplaceTenderRecord, context: Market
   const createdByCurrentUser = Boolean(context.userId && tender.ownerUserId === context.userId);
   const hasDraftBid = Boolean(context.bidState?.hasDraftBid);
   const hasSubmittedBid = Boolean(context.bidState?.hasSubmittedBid);
+  const buyerLogo = buyerLogoMetadata(tender.buyerOrg.verificationProfiles?.[0]?.payload);
   return {
     id: tender.id,
     title: tender.title,
     organization: tender.buyerOrg.name,
     ownerOrganization: tender.buyerOrg.name,
+    ...(buyerLogo ? { buyerLogoUrl: tenderBuyerLogoUrl(tender.id) } : {}),
     type: frontendTenderType(tender.type),
     category,
     description: tender.description || '',
@@ -2450,6 +2488,7 @@ function toTenderDetailDto(
   const currentBid = currentOrgBids.find((bid) => bid.status !== BidStatus.WITHDRAWN) ?? currentOrgBids[0] ?? null;
   const hasDraftBid = currentOrgBids.some((bid) => bid.status === BidStatus.DRAFT);
   const hasSubmittedBid = currentOrgBids.some((bid) => isSubmittedBidStatus(bid.status));
+  const buyerLogo = buyerLogoMetadata(tender.buyerOrg.verificationProfiles?.[0]?.payload);
   const summary = {
     total: tender.bids.length,
     draft: tender.bids.filter((bid) => bid.status === BidStatus.DRAFT).length,
@@ -2474,6 +2513,7 @@ function toTenderDetailDto(
     ownerUserId: tender.ownerUserId,
     organization: tender.buyerOrg.name,
     ownerOrganization: tender.buyerOrg.name,
+    ...(buyerLogo ? { buyerLogoUrl: tenderBuyerLogoUrl(tender.id) } : {}),
     type: frontendTenderType(tender.type),
     category: marketplaceCategory(tender),
     description: tender.description || '',
@@ -2542,6 +2582,15 @@ function toTenderDetailDto(
 
 function tenderDocumentActionUrl(tenderId: string, documentId: string, action: 'open' | 'download') {
   return `/api/procurement/tenders/${tenderId}/documents/${documentId}/${action}`;
+}
+
+function tenderBuyerLogoUrl(tenderId: string) {
+  return `/api/procurement/tenders/${tenderId}/buyer-logo`;
+}
+
+function buyerLogoMetadata(profilePayload: unknown): ProfileImageMetadata | null {
+  const profile = objectPayload(objectPayload(profilePayload).profile);
+  return profileImageMetadata(profile.profileImage);
 }
 
 function toTenderClarificationInquiryDto(inquiry: TenderClarificationInquiryRecord) {

@@ -130,11 +130,13 @@ function normalizeTenderDetail(tender: TenderDetail): TenderDetail {
 
 function normalizeMarketplaceTenderRow<T extends MarketplaceTenderRow>(tender: T): T {
   const category = tender.category || categoryFromCategories(tender.categories) || String(tender.type || 'Tender');
+  const buyerLogoUrl = tender.buyerLogoUrl || mockBuyerLogoUrl(tender.organization);
   return {
     ...tender,
     category,
     categories: normalizeCategoryList(tender.categories, category),
     currency: tender.currency || 'TZS',
+    ...(buyerLogoUrl ? { buyerLogoUrl } : {}),
     openingDate: tender.openingDate || '',
     ownerOrganization: tender.ownerOrganization || tender.organization,
     visibility: tender.visibility || 'PUBLIC_MARKETPLACE',
@@ -155,6 +157,56 @@ function normalizeCategoryList(categories: string[] | undefined, fallback: strin
 
 function categoryFromCategories(categories: string[] | undefined) {
   return Array.isArray(categories) ? categories.find((category) => category.trim())?.trim() : undefined;
+}
+
+const mockBuyerLogoPath = '/assets/mock-business-logos/';
+
+const mockBuyerLogoPool = [
+  `${mockBuyerLogoPath}marketplace-authority.svg`,
+  `${mockBuyerLogoPath}municipal-buyer.svg`,
+  `${mockBuyerLogoPath}huui-buyer-authority.svg`,
+  `${mockBuyerLogoPath}ict-procurement.svg`,
+  `${mockBuyerLogoPath}works-infrastructure.svg`,
+  `${mockBuyerLogoPath}facilities-services.svg`,
+  `${mockBuyerLogoPath}consultancy-advisory.svg`,
+  `${mockBuyerLogoPath}public-procurement.svg`,
+  `${mockBuyerLogoPath}procurex-platform.svg`,
+  `${mockBuyerLogoPath}kilimanjaro-supplies.svg`,
+  `${mockBuyerLogoPath}ministry-works.svg`,
+  `${mockBuyerLogoPath}revenue-authority.svg`
+];
+
+function mockBuyerLogoUrl(organization: string | undefined) {
+  const normalized = String(organization ?? '').trim().toLowerCase();
+  const logos: Record<string, string> = {
+    'ministry of health': `${mockBuyerLogoPath}ministry-health.svg`,
+    'ministry of works': `${mockBuyerLogoPath}ministry-works.svg`,
+    'muhimbili national hospital': `${mockBuyerLogoPath}muhimbili-national-hospital.svg`,
+    'verified company account': `${mockBuyerLogoPath}verified-company-account.svg`,
+    'medical stores department': `${mockBuyerLogoPath}medical-stores-department.svg`,
+    'tanzania revenue authority': `${mockBuyerLogoPath}revenue-authority.svg`,
+    'procurex platform': `${mockBuyerLogoPath}procurex-platform.svg`,
+    'kilimanjaro supplies limited': `${mockBuyerLogoPath}kilimanjaro-supplies.svg`,
+    'buyer authority': `${mockBuyerLogoPath}buyer-authority.svg`,
+    'public buyer': `${mockBuyerLogoPath}public-procurement.svg`,
+    'invitation buyer': `${mockBuyerLogoPath}marketplace-authority.svg`,
+    'procurex marketplace test buyer authority': `${mockBuyerLogoPath}marketplace-authority.svg`,
+    'procurex marketplace municipal buyer': `${mockBuyerLogoPath}municipal-buyer.svg`,
+    'huui demo buyer authority': `${mockBuyerLogoPath}huui-buyer-authority.svg`,
+    'px demo external buyer authority': `${mockBuyerLogoPath}public-procurement.svg`,
+    'procurex award ready buyer authority': `${mockBuyerLogoPath}marketplace-authority.svg`
+  };
+  if (logos[normalized]) return logos[normalized];
+  if (!normalized) return `${mockBuyerLogoPath}public-procurement.svg`;
+  return mockBuyerLogoPool[mockLogoIndex(normalized)];
+}
+
+function mockLogoIndex(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash % mockBuyerLogoPool.length;
 }
 
 export function mergeSessionMarketplaceData(
@@ -193,11 +245,14 @@ function uniqueMarketplaceRows(rows: MarketplaceTenderRow[]) {
 }
 
 function createMarketplaceTenderFromDraft(draft: CreateTenderDraft, organization: string): MarketplaceTenderRow {
+  const procuringEntity = draft.procuringEntity || organization;
+  const buyerLogoUrl = mockBuyerLogoUrl(procuringEntity);
   return {
     id: draft.id,
     reference: draft.reference,
     title: draft.title || 'Untitled tender',
-    organization: draft.procuringEntity || organization,
+    organization: procuringEntity,
+    ...(buyerLogoUrl ? { buyerLogoUrl } : {}),
     type: toTenderType(draft.procurementTypeId),
     status: 'OPEN',
     budget: Number(draft.estimatedBudget || draft.requirements.estimated_budget || draft.commercialItems.length * 5000000 || 100000000),

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Facilities Services mock logo</title>
+  <desc id="desc">A facilities services logo for cleaning and security tenders.</desc>
+  <rect width="160" height="160" fill="#ecfdf5"/>
+  <path d="M0 0h160v44H0z" fill="#047857"/>
+  <circle cx="52" cy="85" r="28" fill="#10b981"/>
+  <path d="M43 82l8 8 20-23 8 8-28 31-17-17z" fill="#ffffff"/>
+  <path d="M99 58h28v69H99z" fill="#065f46"/>
+  <path d="M107 68h12v12h-12zm0 20h12v12h-12zm0 20h12v12h-12z" fill="#ffffff"/>
+  <text x="80" y="31" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#ffffff">FAC</text>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="#065f46">SERVICES</text>
+</svg>

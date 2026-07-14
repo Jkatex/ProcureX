@@ -301,6 +301,21 @@ export class ModuleController {
     }
   };
 
+  tenderBuyerLogo: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const image = await this.service.tenderBuyerLogo(params.data.tenderId, bearerToken(req));
+      if (!image) throw requestError('Buyer logo was not found.', 404);
+      res.setHeader('Content-Disposition', `inline; filename="${safeHeaderFilename(image.filename)}"`);
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.type(image.contentType).send(image.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   openTenderDocument: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderDocumentDownloadParamsSchema.safeParse(req.params);

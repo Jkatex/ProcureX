@@ -255,6 +255,9 @@ describe('CreateTenderProcurexPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Procurement Planning' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Basic Information' })).not.toBeInTheDocument();
+
+    const procurementMethod = screen.getByLabelText('Procurement method') as HTMLSelectElement;
+    expect(Array.from(procurementMethod.options).map((option) => option.textContent)).toEqual(['Open Tender', 'Invited Tender']);
   });
 
   it('renders prototype Basic Information contact grid and tender details', () => {

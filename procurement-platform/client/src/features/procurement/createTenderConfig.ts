@@ -318,7 +318,7 @@ export const createTenderSetup: CreateTenderSetup = {
   },
   fundingSources: ['Government budget', 'Development partner grant', 'Internally generated funds', 'Project loan', 'Corporate operating budget', 'Other'],
   currencies: ['TZS', 'USD', 'EUR', 'GBP'],
-  procurementMethods: ['Open Tender', 'Invited Tender', 'Restricted Tender', 'Framework Call-Off'],
+  procurementMethods: ['Open Tender', 'Invited Tender'],
   regulatoryLicenses: {
     goods: ['Manufacturer authorization', 'Product certification', 'Tax clearance', 'Business license'],
     works: ['Contractor registration', 'Site safety plan', 'Environmental compliance', 'Tax clearance'],

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Ministry of Works mock logo</title>
+  <desc id="desc">A roads and bridges logo for ministry works tenders.</desc>
+  <rect width="160" height="160" fill="#eef2f7"/>
+  <path d="M0 118h160v42H0z" fill="#475569"/>
+  <path d="M67 42h26l30 82H37z" fill="#334155"/>
+  <path d="M76 47h8l4 18H72zM70 75h20l5 23H65z" fill="#f8fafc"/>
+  <path d="M28 104h104v13H28z" fill="#fbbf24"/>
+  <path d="M20 126h22l-12 20H8zm38 0h22l-12 20H46zm38 0h22l-12 20H84z" fill="#fbbf24"/>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="#ffffff">MOW</text>
+</svg>

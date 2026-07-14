@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Municipal Buyer mock logo</title>
+  <desc id="desc">A shield-shaped municipal office logo for marketplace tender demos.</desc>
+  <path d="M80 13l58 20v48c0 36-22 57-58 70-36-13-58-34-58-70V33l58-20z" fill="#41566b"/>
+  <path d="M80 28l42 15v37c0 25-15 41-42 52-27-11-42-27-42-52V43l42-15z" fill="#f5f0e6"/>
+  <path d="M49 66h62v47H49z" fill="#d96b4a"/>
+  <path d="M57 75h12v12H57zm22 0h12v12H79zm22 0h12v12h-12zM57 96h12v12H57zm22 0h12v17H79zm22 0h12v12h-12z" fill="#ffffff"/>
+  <path d="M43 66h74L80 47 43 66z" fill="#33475b"/>
+  <text x="80" y="132" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#41566b">MB</text>
+</svg>
