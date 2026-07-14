@@ -501,6 +501,7 @@ model User {
   updatedDataStoreEntries   DataStoreEntry[]             @relation("DataStoreUpdatedByUser")
   deletedDataStoreEntries   DataStoreEntry[]             @relation("DataStoreDeletedByUser")
   dataStoreVersions         DataStoreEntryVersion[]      @relation("DataStoreVersionActor")
+  generatedOfficialDocuments OfficialDocumentVersion[]    @relation("OfficialDocumentGeneratedBy")
 
   @@map("users")
   @@schema("identity")
@@ -845,6 +846,7 @@ model Organization {
   communicationReceived     CommunicationItem[]          @relation("CommunicationRecipientOrg")
   supportTickets            SupportTicket[]              @relation("SupportTicketOwnerOrg")
   auditEvents               AuditEvent[]
+  officialDocumentVersions   OfficialDocumentVersion[]
   complianceCases           ComplianceCase[]
   complianceRules           ComplianceRule[]
   adminActions              AdminAction[]
@@ -2992,10 +2994,80 @@ model DocumentObject {
   contractMilestoneEvidence ContractMilestoneEvidence[]
   terminationEvidence       TerminationEvidence[]
   communicationAttachments  CommunicationAttachment[]
+  officialDocumentVersions   OfficialDocumentVersion[]
 
   @@index([ownerOrgId])
   @@index([uploadedByUserId])
   @@map("document_objects")
+  @@schema("documents")
+}
+
+model OfficialDocumentTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  name            String
+  description     String?
+  documentType    String   @map("document_type")
+  procurementType String?  @map("procurement_type")
+  jurisdiction    String   @default("TZ")
+  language        String   @default("en")
+  version         String   @default("1.0")
+  status          String   @default("ACTIVE")
+  sourceAuthority String   @default("PPRA") @map("source_authority")
+  sourceUrl       String?  @map("source_url")
+  sections        Json     @default("[]")
+  requiredFields  Json     @default("[]") @map("required_fields")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  versions        OfficialDocumentVersion[]
+
+  @@index([documentType, procurementType])
+  @@index([status])
+  @@map("official_document_templates")
+  @@schema("documents")
+}
+
+model OfficialDocumentVersion {
+  id                 String    @id @default(uuid()) @db.Uuid
+  templateId         String?   @map("template_id") @db.Uuid
+  documentObjectId   String?   @map("document_object_id") @db.Uuid
+  ownerOrgId         String?   @map("owner_org_id") @db.Uuid
+  generatedByUserId  String?   @map("generated_by_user_id") @db.Uuid
+  sourceModule       String    @map("source_module")
+  sourceEntityType   String    @map("source_entity_type")
+  sourceEntityId     String    @map("source_entity_id")
+  documentType       String    @map("document_type")
+  procurementType    String?   @map("procurement_type")
+  title              String
+  reference          String
+  versionNo          Int       @map("version_no")
+  templateVersion    String    @map("template_version")
+  status             String    @default("DRAFT")
+  contentHash        String    @map("content_hash")
+  pdfObjectKey       String    @map("pdf_object_key")
+  pdfContentType     String    @default("application/pdf") @map("pdf_content_type")
+  pdfSizeBytes       Int       @default(0) @map("pdf_size_bytes")
+  validationWarnings Json      @default("[]") @map("validation_warnings")
+  approvalMetadata   Json      @default("{}") @map("approval_metadata")
+  signatureMetadata  Json      @default("{}") @map("signature_metadata")
+  metadata           Json      @default("{}")
+  generatedAt        DateTime  @default(now()) @map("generated_at")
+  officialAt         DateTime? @map("official_at")
+  voidedAt           DateTime? @map("voided_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  template           OfficialDocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  documentObject     DocumentObject?           @relation(fields: [documentObjectId], references: [id], onDelete: SetNull)
+  ownerOrg           Organization?             @relation(fields: [ownerOrgId], references: [id], onDelete: SetNull)
+  generatedByUser    User?                     @relation("OfficialDocumentGeneratedBy", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceModule, sourceEntityType, sourceEntityId, documentType, versionNo])
+  @@index([templateId])
+  @@index([documentObjectId])
+  @@index([ownerOrgId, status])
+  @@index([sourceModule, sourceEntityType, sourceEntityId])
+  @@index([contentHash])
+  @@map("official_document_versions")
   @@schema("documents")
 }
 

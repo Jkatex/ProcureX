@@ -27,7 +27,7 @@ vi.mock('@/features/auth/api', () => ({
     getSession: vi.fn().mockResolvedValue({
       user: {
         id: 'user-1',
-        displayName: 'Demo Verified User',
+        displayName: 'Verified User',
         email: 'demo@procurex.test',
         accountType: 'USER',
         organization: 'Company account tools',
@@ -69,7 +69,7 @@ function renderTopBar(userOverride?: SessionUser) {
     assumeUser(
       userOverride ?? {
         id: 'user-1',
-        displayName: 'Demo Verified User',
+        displayName: 'Verified User',
         email: 'demo@procurex.test',
         accountType: 'USER',
         organization: 'Company account tools',
@@ -174,7 +174,7 @@ describe('TopBar platform apps drawer', () => {
     renderTopBar();
 
     await user.click(screen.getByRole('button', { name: 'Open account menu' }));
-    expect(await screen.findByText('Demo Verified User')).toBeInTheDocument();
+    expect(await screen.findByText('Verified User')).toBeInTheDocument();
     await waitFor(() => expect(listMailbox).toHaveBeenCalledWith({ organizationId: 'org-1', folder: 'unread', page: 1, pageSize: 1 }));
 
     await user.click(screen.getByText('Profile'));

@@ -6,6 +6,8 @@ import {
   type AwardApprovalRouteInput,
   type AwardApprovalStepInput,
   type AwardNotificationInput,
+  type AwardNoticeCancelInput,
+  type AwardNoticeReissueInput,
   type AwardNoticeResponseInput,
   type AwardSettlementInput,
   type AwardTieBreakerInput,
@@ -14,6 +16,7 @@ import {
   type ClauseInput,
   type ContractChangeRequestInput,
   type ContractCloseoutInput,
+  type AwardContractDocumentUploadInput,
   type ContractCommencementInput,
   type ContractManagementPlanInput,
   type ContractNonConformanceInput,
@@ -219,6 +222,18 @@ export class ModuleService {
     return recommendation;
   }
 
+  async cancelAwardNotice(id: string, input: AwardNoticeCancelInput, context: AwardContractRequestContext) {
+    const recommendation = await this.repository.cancelAwardNotice(id, input, context);
+    if (!recommendation) throw requestError('Award notice was not found after cancellation.', 404);
+    return recommendation;
+  }
+
+  async reissueAwardNotice(id: string, input: AwardNoticeReissueInput, context: AwardContractRequestContext) {
+    const recommendation = await this.repository.reissueAwardNotice(id, input, context);
+    if (!recommendation) throw requestError('Award notice was not found after reissue.', 404);
+    return recommendation;
+  }
+
   listContracts(query: ContractQuery, context: AwardContractRequestContext) {
     return this.repository.listContracts(query, context);
   }
@@ -233,6 +248,14 @@ export class ModuleService {
     const contract = await this.repository.getContract(id, context);
     if (!contract) throw requestError('Contract was not found.', 404);
     return contract;
+  }
+
+  contractDocuments(id: string, context: AwardContractRequestContext) {
+    return this.repository.contractDocuments(id, context);
+  }
+
+  uploadContractDocument(id: string, input: AwardContractDocumentUploadInput, context: AwardContractRequestContext) {
+    return this.repository.uploadContractDocument(id, input, context);
   }
 
   async createContractVersion(id: string, input: ContractVersionInput, context: AwardContractRequestContext) {

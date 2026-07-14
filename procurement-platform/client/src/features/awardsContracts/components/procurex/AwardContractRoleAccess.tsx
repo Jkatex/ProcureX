@@ -45,6 +45,8 @@ export function ownerLockedReason(access: WorkflowAccess, owner: WorkflowActionO
 export function inferActionOwner(title: string, badge?: string): WorkflowActionOwner {
   const text = `${title} ${badge ?? ''}`.toLowerCase();
   if (text.includes('supplier award response')) return 'SUPPLIER';
+  if (text.includes('accept negotiated draft') && text.includes('supplier')) return 'SUPPLIER';
+  if (text.includes('accept negotiated draft') && text.includes('buyer')) return 'BUYER';
   if (text.includes('signature request')) return 'BUYER';
   if (text.includes('sign buyer')) return 'BUYER';
   if (text.includes('sign supplier')) return 'SUPPLIER';

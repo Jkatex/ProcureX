@@ -1,4 +1,5 @@
 import { AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, RecommendationStatus, TenderStatus } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { computeAccessContext } from '../../security/accessPolicy.js';
 import { createEncryptedSigningCredential } from '../identity/signing.js';
@@ -9,6 +10,7 @@ import {
   awardRecommendationQuerySchema,
   acceptanceBodySchema,
   clauseBodySchema,
+  contractDocumentUploadBodySchema,
   contractPaymentBodySchema,
   deliverableBodySchema,
   goodsInspectionBodySchema,
@@ -131,8 +133,14 @@ function makeLifecycleNumberRepository() {
   return { repository, goodsInspectionUpserts, acceptanceCreates };
 }
 
-function makeAwardNoticeRepository(status: RecommendationStatus) {
+async function makeAwardNoticeRepository(status: RecommendationStatus) {
   const calls: string[] = [];
+  const credential = {
+    id: 'credential-1',
+    userId,
+    status: 'ACTIVE',
+    ...(await createEncryptedSigningCredential('Signing123'))
+  };
   const recommendation = {
     id: 'recommendation-1',
     status,
@@ -203,6 +211,15 @@ function makeAwardNoticeRepository(status: RecommendationStatus) {
     awardGroup: {
       update: async (input: any) => {
         calls.push('awardGroup.update');
+        return input;
+      }
+    },
+    signingCredential: {
+      findFirst: async () => credential
+    },
+    signedAction: {
+      create: async (input: any) => {
+        calls.push('signedAction.create');
         return input;
       }
     }
@@ -298,6 +315,68 @@ function makePreAwardGuardRepository() {
   return repository;
 }
 
+function makeSignatureReadinessRepository(overrides: Record<string, unknown> = {}) {
+  const signatureRequests: any[] = [];
+  const contractUpdates: any[] = [];
+  const contract = {
+    id: '44444444-4444-4444-8444-444444444444',
+    buyerOrgId: organizationId,
+    supplierOrgId: '55555555-5555-4555-8555-555555555555',
+    awardId: '66666666-6666-4666-8666-666666666666',
+    status: ContractStatus.NEGOTIATION,
+    negotiations: [],
+    acceptances: [],
+    approvalSteps: [],
+    ...overrides
+  };
+  const tx = {
+    contract: {
+      findUnique: async () => contract,
+      update: async (input: any) => {
+        contractUpdates.push(input);
+        return input;
+      }
+    },
+    contractSignature: {
+      upsert: async (input: any) => {
+        signatureRequests.push(input);
+        return input;
+      }
+    },
+    auditEvent: {
+      create: async (input: any) => input
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).getContract = async () => contract;
+  return { repository, signatureRequests, contractUpdates };
+}
+
+function postAwardContract(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '44444444-4444-4444-8444-444444444444',
+    reference: 'PX-C-1',
+    buyerOrgId: organizationId,
+    supplierOrgId: '55555555-5555-4555-8555-555555555555',
+    status: ContractStatus.ACTIVE,
+    ...overrides
+  };
+}
+
+function documentRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'doc-1',
+    name: 'Evidence.pdf',
+    documentType: 'application/pdf',
+    createdAt: new Date('2026-07-14T00:00:00.000Z'),
+    ownerOrgId: organizationId,
+    metadata: {},
+    ...overrides
+  };
+}
+
 describe('award-contract module', () => {
   it('normalizes award recommendation query defaults', () => {
     expect(awardRecommendationQuerySchema.parse({})).toEqual({
@@ -328,12 +407,14 @@ describe('award-contract module', () => {
       awardNoticeResponseBodySchema.parse({
         action: AwardResponseAction.ACCEPT,
         note: 'Accepted for contract preparation.',
-        payload: { acceptedBy: 'supplier' }
+        payload: { acceptedBy: 'supplier' },
+        signatureKeyphrase: 'Signing123'
       })
     ).toEqual({
       action: AwardResponseAction.ACCEPT,
       note: 'Accepted for contract preparation.',
-      payload: { acceptedBy: 'supplier' }
+      payload: { acceptedBy: 'supplier' },
+      signatureKeyphrase: 'Signing123'
     });
 
     expect(contractSignatureRequestBodySchema.parse({})).toEqual({
@@ -466,7 +547,7 @@ describe('award-contract module', () => {
   });
 
   it('requires award confirmation before sending award notices', async () => {
-    const { service } = makeAwardNoticeRepository(RecommendationStatus.RECOMMENDED);
+    const { service } = await makeAwardNoticeRepository(RecommendationStatus.RECOMMENDED);
 
     await expect(
       service.settleAwardGroup('recommendation-1', { note: 'Send notices', payload: {} }, contractContext)
@@ -477,10 +558,10 @@ describe('award-contract module', () => {
   });
 
   it('sends award notices without running contract clause or negotiation blockers', async () => {
-    const { service, calls } = makeAwardNoticeRepository(RecommendationStatus.APPROVED);
+    const { service, calls } = await makeAwardNoticeRepository(RecommendationStatus.APPROVED);
 
     await expect(
-      service.settleAwardGroup('recommendation-1', { note: 'Send notices', payload: {} }, contractContext)
+      service.settleAwardGroup('recommendation-1', { note: 'Send notices', payload: {}, signatureKeyphrase: 'Signing123' }, contractContext)
     ).resolves.toMatchObject({ id: 'recommendation-1', status: RecommendationStatus.APPROVED });
 
     expect(calls).toEqual(expect.arrayContaining(['awardNotice.upsert', 'awardWinner.update', 'awardGroup.update']));
@@ -550,6 +631,29 @@ describe('award-contract module', () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  it('requires final draft acceptance and outcome communication confirmation before signature requests', async () => {
+    const blocked = makeSignatureReadinessRepository();
+    await expect(
+      blocked.repository.createSignatureRequests('44444444-4444-4444-8444-444444444444', { roles: [ContractPartyRole.BUYER] }, contractContext)
+    ).rejects.toMatchObject({ status: 409 });
+
+    const ready = makeSignatureReadinessRepository({
+      acceptances: [
+        { status: ContractLifecycleItemStatus.APPROVED, payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'BUYER' } },
+        { status: ContractLifecycleItemStatus.APPROVED, payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'SUPPLIER' } }
+      ],
+      approvalSteps: [
+        { stepKey: 'outcome-communications', status: ContractLifecycleItemStatus.APPROVED }
+      ]
+    });
+
+    await expect(
+      ready.repository.createSignatureRequests('44444444-4444-4444-8444-444444444444', { roles: [ContractPartyRole.BUYER, ContractPartyRole.SUPPLIER] }, contractContext)
+    ).resolves.toMatchObject({ id: '44444444-4444-4444-8444-444444444444' });
+    expect(ready.signatureRequests).toHaveLength(2);
+    expect(ready.contractUpdates[0]).toMatchObject({ data: { status: ContractStatus.SIGNATURE_PENDING } });
+  });
+
   it('requires a signing keyphrase credential for pending contract signatures', async () => {
     const { service } = makeContractSigningService(null);
 
@@ -598,6 +702,159 @@ describe('award-contract module', () => {
     expect(updates[0].signatureHash).toMatch(/^[a-f0-9]{64}$/);
     expect(contractUpdates[0]).toMatchObject({ data: { status: ContractStatus.SIGNED } });
     expect(auditEvents[0].data.event).toBe('contract.signature.signed');
+  });
+
+  it('validates post-award contract document upload payloads', () => {
+    expect(contractDocumentUploadBodySchema.parse({
+      name: 'delivery-note.pdf',
+      documentType: 'delivery-note',
+      mimeType: 'application/pdf',
+      size: '42',
+      contentBase64: Buffer.from('proof').toString('base64')
+    })).toMatchObject({
+      name: 'delivery-note.pdf',
+      documentType: 'delivery-note',
+      mimeType: 'application/pdf',
+      size: 42
+    });
+
+    expect(() => contractDocumentUploadBodySchema.parse({ documentType: 'delivery-note' })).toThrow();
+  });
+
+  it('uploads post-award contract documents as scoped document objects', async () => {
+    const contract = postAwardContract();
+    const documentCreates: any[] = [];
+    const auditEvents: any[] = [];
+    const repository = new ModuleRepository({
+      documentObject: {
+        create: async (input: any) => {
+          documentCreates.push(input);
+          return documentRecord({
+            id: 'doc-uploaded',
+            name: input.data.name,
+            documentType: input.data.documentType,
+            createdAt: new Date('2026-07-14T10:00:00.000Z')
+          });
+        }
+      }
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async (...args: any[]) => {
+      auditEvents.push(args);
+    };
+    const contentBase64 = Buffer.from('proof').toString('base64');
+
+    await expect(repository.uploadContractDocument(contract.id, {
+      name: 'delivery note?.pdf',
+      documentType: 'application/pdf',
+      mimeType: 'application/pdf',
+      contentBase64
+    }, contractContext)).resolves.toMatchObject({
+      id: 'doc-uploaded',
+      name: 'delivery note?.pdf',
+      documentType: 'application/pdf',
+      contentUrl: '/api/documents/doc-uploaded/content',
+      sourceLabel: 'Uploaded evidence'
+    });
+
+    expect(documentCreates[0].data).toMatchObject({
+      ownerOrgId: organizationId,
+      uploadedByUserId: userId,
+      name: 'delivery note?.pdf',
+      documentType: 'application/pdf',
+      checksum: createHash('sha256').update(Buffer.from('proof')).digest('hex'),
+      metadata: expect.objectContaining({
+        sourceModule: 'award-contract',
+        contractId: contract.id,
+        contractReference: 'PX-C-1',
+        mimeType: 'application/pdf',
+        contentBase64
+      })
+    });
+    expect(documentCreates[0].data.objectKey).toMatch(/^award-contract\/44444444-4444-4444-8444-444444444444\/.+\/delivery-note-.pdf$/);
+    expect(auditEvents[0]).toEqual(expect.arrayContaining(['contract.document.uploaded', 'contract', contract.id]));
+  });
+
+  it('lists visible post-award contract documents with source labels', async () => {
+    const contract = postAwardContract();
+    const documentFindManyCalls: any[] = [];
+    const repository = new ModuleRepository({
+      contractVersion: { findMany: async () => [{ documentId: 'doc-version' }] },
+      contractMilestoneEvidence: { findMany: async () => [{ documentId: 'doc-milestone' }] },
+      paymentConfirmation: { findMany: async () => [] },
+      terminationEvidence: { findMany: async () => [] },
+      contractSecurity: { findMany: async () => [] },
+      contractRequiredDocument: { findMany: async () => [] },
+      documentObject: {
+        findMany: async (input: any) => {
+          documentFindManyCalls.push(input);
+          if (input.where?.id) {
+            return [
+              documentRecord({ id: 'doc-version', name: 'Signed contract.pdf', createdAt: new Date('2026-07-10T00:00:00.000Z') }),
+              documentRecord({ id: 'doc-milestone', name: 'Delivery proof.pdf', createdAt: new Date('2026-07-12T00:00:00.000Z') })
+            ];
+          }
+          return [
+            documentRecord({ id: 'doc-uploaded', name: 'Uploaded receipt.pdf', createdAt: new Date('2026-07-11T00:00:00.000Z') })
+          ];
+        }
+      }
+    } as any);
+    (repository as any).requireContract = async () => contract;
+
+    await expect(repository.contractDocuments(contract.id, contractContext)).resolves.toEqual([
+      expect.objectContaining({ id: 'doc-milestone', name: 'Delivery proof.pdf', sourceLabel: 'Milestone evidence' }),
+      expect.objectContaining({ id: 'doc-uploaded', name: 'Uploaded receipt.pdf', sourceLabel: 'Uploaded evidence' }),
+      expect.objectContaining({ id: 'doc-version', name: 'Signed contract.pdf', sourceLabel: 'Contract version' })
+    ]);
+    expect(documentFindManyCalls[0].where.AND).toEqual(expect.arrayContaining([
+      { metadata: { path: ['sourceModule'], equals: 'award-contract' } },
+      { metadata: { path: ['contractId'], equals: contract.id } },
+      { OR: [{ ownerOrgId: null }, { ownerOrgId: organizationId }] }
+    ]));
+    expect(documentFindManyCalls[1].where).toEqual({ id: { in: ['doc-version', 'doc-milestone', 'doc-uploaded'] } });
+  });
+
+  it('attaches visible uploaded documents to milestone evidence and rejects cross-organization documents', async () => {
+    const contract = postAwardContract();
+    const evidenceUpserts: any[] = [];
+    const tx = {
+      contractMilestone: {
+        findUnique: async () => ({
+          id: 'milestone-1',
+          contractId: contract.id,
+          contract
+        })
+      },
+      documentObject: {
+        findUnique: async ({ where }: any) => ({ ownerOrgId: where.id === 'doc-other-org' ? '99999999-9999-4999-8999-999999999999' : organizationId })
+      },
+      contractMilestoneEvidence: {
+        upsert: async (input: any) => {
+          evidenceUpserts.push(input);
+          return input.create;
+        }
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback(tx)
+    } as any);
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => ({ id: contract.id });
+
+    await expect(repository.addMilestoneEvidence(contract.id, 'milestone-1', { documentId: 'doc-visible', note: 'Delivered.' }, contractContext)).resolves.toMatchObject({ id: contract.id });
+    expect(evidenceUpserts[0].create).toMatchObject({
+      milestoneId: 'milestone-1',
+      documentId: 'doc-visible',
+      uploadedByUserId: userId,
+      uploaderOrgId: organizationId,
+      note: 'Delivered.'
+    });
+
+    await expect(repository.addMilestoneEvidence(contract.id, 'milestone-1', { documentId: 'doc-other-org', note: '' }, contractContext)).rejects.toMatchObject({
+      status: 403,
+      message: 'Document is not visible to this organization.'
+    });
   });
 
   it('generates goods inspection and acceptance numbers when omitted', async () => {

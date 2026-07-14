@@ -411,7 +411,8 @@
       "body": "ProcureX ni soko la kisasa la ununuzi mtandaoni lililojengwa kufanya ununuzi uwe rahisi, wa haki, salama, na unaopatikana kwa wote.",
       "support": "Tengeneza zabuni, gundua zabuni, na jenga kumbukumbu ya ununuzi leo.",
       "primaryCta": "Anza Sasa",
-      "secondaryCta": "Tazama Zabuni Zilizo Wazi"
+      "secondaryCta": "Tazama Zabuni Zilizo Wazi",
+      "demoCta": "Tazama Demo"
     },
     "preview": {
       "title": "Soko la ProcureX",
@@ -726,7 +727,7 @@
     "cookie": {
       "ariaLabel": "Taarifa ya vidakuzi",
       "message": "ProcureX hutumia hifadhi muhimu ya kivinjari kwa kuingia, lugha, ukaguzi wa usalama, na kutegemewa kwa huduma. Tazama",
-      "shortMessage": "ProcureX hutumia hifadhi ya ndani na vidakuzi muhimu ili kuweka vikao, mapendeleo, na mitiririko ya onyesho ikifanya kazi.",
+      "shortMessage": "ProcureX hutumia hifadhi ya kivinjari na vidakuzi muhimu ili kuweka vikao, mapendeleo, na mitiririko muhimu ikifanya kazi.",
       "accept": "Kubali"
     }
   },
@@ -784,7 +785,7 @@
       "missing": "Kamilisha ukaguzi wa usalama kabla ya kuendelea.",
       "missingSignIn": "Kamilisha ukaguzi wa usalama kabla ya kuingia.",
       "notConfigured": "Ukaguzi wa usalama haujasanidiwa.",
-      "localDevelopment": "Ukaguzi wa usalama wa mazingira ya ndani umewezeshwa.",
+      "localDevelopment": "Ukaguzi wa usalama umewezeshwa.",
       "ariaLabel": "Ukaguzi wa usalama"
     },
     "register": {
@@ -879,10 +880,10 @@
         "submit": "Ingia",
         "submitting": "Inaingia...",
         "demo": {
-          "title": "Akaunti ya onyesho",
-          "body": "Tumia mtumiaji aliyethibitishwa wa seed kwa majaribio ya ndani.",
-          "button": "Ingia kama mtumiaji wa onyesho",
-          "securityHint": "Fungua eneo la kazi la onyesho la ndani"
+          "title": "Akaunti ya majaribio",
+          "body": "Tumia akaunti iliyoandaliwa kwa majaribio ya ndani.",
+          "button": "Ingia kwa akaunti ya majaribio",
+          "securityHint": "Fungua eneo la kazi lililoandaliwa"
         },
         "note": ""
       },

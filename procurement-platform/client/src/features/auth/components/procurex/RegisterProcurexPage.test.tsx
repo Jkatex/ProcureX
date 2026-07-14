@@ -118,7 +118,7 @@ describe('RegisterProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await screen.findByRole('heading', { name: 'Verify Your Number' });
-    const phoneCodeToast = await screen.findByText('Temporary phone verification code: 123456');
+    const phoneCodeToast = await screen.findByText('Phone verification code: 123456');
     expect(phoneCodeToast.closest('.procurex-toast-host')).toBeInTheDocument();
     expect(document.querySelector<HTMLInputElement>('.otp-input-new')!).toHaveAttribute('autocomplete', 'one-time-code');
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
@@ -129,7 +129,7 @@ describe('RegisterProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
     await screen.findByRole('heading', { name: 'Activate Your Email' });
-    const emailCodeToast = await screen.findByText('Temporary email activation code: email-dev-code');
+    const emailCodeToast = await screen.findByText('Email activation code: email-dev-code');
     expect(emailCodeToast.closest('.procurex-toast-host')).toBeInTheDocument();
     expect(screen.getByLabelText('Activation Code *')).toHaveAttribute('autocomplete', 'one-time-code');
     fillVisibleInput('text', '87654321');

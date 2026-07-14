@@ -22,7 +22,7 @@
                             <div>
                                 <span class="badge badge-info">Rules and thresholds</span>
                                 <h1>Compliance Rules</h1>
-                                <p>Configure-looking controls for procurement method thresholds, checklist templates, standstill periods, and notification events. This prototype shows settings surfaces without changing platform policy.</p>
+                                <p>Manage procurement method thresholds, checklist templates, standstill periods, and notification events for platform compliance review.</p>
                             </div>
                             <div class="hero-action-stack">
                                 <button class="btn btn-secondary" type="button">Reset</button>
@@ -36,7 +36,7 @@
                                     <span class="section-kicker">Thresholds</span>
                                     <h2>Procurement method limits</h2>
                                 </div>
-                                <span class="badge badge-warning">Prototype settings</span>
+                                <span class="badge badge-warning">Rule settings</span>
                             </div>
                             ${window.ProcureXShared.renderDataTable(
                                 ['Method', 'Budget Ceiling', 'Minimum Bidding Period', 'Required Approvals'],

@@ -322,6 +322,13 @@ type PlanningBridge = {
   procurementType?: string;
 };
 
+type TenderReviewSubmissionBlocker = {
+  step: number;
+  title: string;
+  message: string;
+  reason: string;
+};
+
 export function CreateTenderProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -603,28 +610,14 @@ export function CreateTenderProcurexPage() {
   }
 
   async function submitTender(signatureKeyphrase?: string) {
-    if (!confirmationsComplete) {
-      setValidationMessage('Please review and tick each publication confirmation before submitting.');
-      notifyWarning('Tender cannot be submitted yet', 'Complete all publication confirmations before submitting.', {
-        reason: 'ProcureX blocks review submission until accuracy, compliance, evaluation, and publication confirmations are ticked.'
+    const blocker = getTenderReviewSubmissionBlocker(draft, criteriaTotal, confirmationsComplete);
+    if (blocker) {
+      setValidationMessage(blocker.message);
+      setActiveStep(blocker.step);
+      setShowSubmitSignature(false);
+      notifyWarning(blocker.title, blocker.message, {
+        reason: blocker.reason
       });
-      return;
-    }
-    if (draft.method === 'Invited Tender') {
-      const message = 'Invited Tender review submission is not available yet. Select Open Tender before submitting.';
-      setValidationMessage(message);
-      notifyWarning('Invited tender review unavailable', message, {
-        reason: 'This review path is currently limited to public marketplace tenders.'
-      });
-      return;
-    }
-    if (!parsePositiveNumber(draft.estimatedBudget)) {
-      const message = 'Add a positive estimated budget before submitting this tender for review.';
-      setValidationMessage(message);
-      notifyWarning('Tender budget required', message, {
-        reason: 'ProcureX requires a tender budget before a draft can be sent to admin review.'
-      });
-      setActiveStep(0);
       return;
     }
     if (isPersisting) return;
@@ -656,7 +649,7 @@ export function CreateTenderProcurexPage() {
       });
       navigate('/procurement/my-tenders');
     } catch (error) {
-      const message = getApiErrorMessage(error, 'Tender could not be submitted for review.');
+      const message = getPublishTenderErrorMessage(error, 'Tender could not be submitted for review.');
       setValidationMessage(message);
       notifyError('Tender not submitted', message, {
         reason: 'ProcureX could not send this tender to admin review.'
@@ -4734,7 +4727,7 @@ function PublicationStep({
               <button className="btn btn-secondary" type="button" onClick={onDownloadPdf} disabled={isGeneratingPdf || isPersisting}>
                 {isGeneratingPdf ? 'Generating PDF...' : 'Download Tender PDF'}
               </button>
-              <button className="btn btn-primary" type="button" onClick={onSubmitTender} disabled={!confirmationsComplete || isPersisting}>
+              <button className="btn btn-primary" type="button" onClick={() => void onSubmitTender()} disabled={!confirmationsComplete || isPersisting}>
                 {isPersisting ? 'Submitting...' : 'Submit Tender for Review'}
               </button>
             </div>
@@ -5483,6 +5476,21 @@ function getApiErrorMessage(_error: unknown, fallback: string) {
   return fallback;
 }
 
+function getPublishTenderErrorMessage(error: unknown, fallback: string) {
+  const body = apiErrorBody(error);
+  const issueMessages = Array.isArray(body?.errors)
+    ? body.errors
+        .map((issue) => (isRecordValue(issue) ? stringValue(issue.message) : ''))
+        .filter(Boolean)
+    : [];
+  if (issueMessages.length) return issueMessages.slice(0, 3).join(' ');
+  return fallback;
+}
+
+function apiErrorBody(error: unknown) {
+  return objectValue((error as { response?: { data?: unknown } })?.response?.data);
+}
+
 function parsePositiveNumber(value: string | number | undefined) {
   const number = Number(String(value ?? '').replace(/,/g, '').trim());
   return Number.isFinite(number) && number > 0 ? number : undefined;
@@ -5818,24 +5826,10 @@ function autoBalanceCriteria(criteria: CreateTenderEvaluationCriterion[], change
 function getCreateTenderResumeStep(draft: CreateTenderDraft) {
   if (!draft.title.trim() || !draft.fundingSource || !draft.submissionDate || !draft.openingDate || (!draft.contact.email.trim() && !draft.contact.phone.trim())) return 0;
   if (!draft.procurementTypeId || !draft.categories.length || !draft.method) return 1;
-  if (!hasTenderRequirementProgress(draft)) return 2;
+  if (validateTenderRequirements(draft)) return 2;
   if (!draft.evaluationCriteria.length || getEvaluationSummary(draft.evaluationCriteria).state !== 'balanced') return 3;
   if (!Object.values(draft.confirmations).every(Boolean)) return 4;
   return 5;
-}
-
-function hasTenderRequirementProgress(draft: CreateTenderDraft) {
-  return Boolean(
-    Object.values(draft.requirements).some(Boolean) ||
-      draft.commercialItems.length ||
-      draft.productSpecifications.length ||
-      draft.sampleRequirements.length ||
-      draft.financialRequirements.length ||
-      draft.eligibilityRequirements.length ||
-      draft.regulatoryLicenseRequirements.length ||
-      draft.deliverables.length ||
-      draft.attachments.length
-  );
 }
 
 function validateStep(step: number, draft: CreateTenderDraft, total: number) {
@@ -5844,7 +5838,86 @@ function validateStep(step: number, draft: CreateTenderDraft, total: number) {
   }
   if (step === 1 && (!draft.procurementTypeId || !draft.categories.length || !draft.method)) return 'Please choose a procurement type, method, and at least one category before continuing.';
   if (step === 1 && draft.method === 'Invited Tender' && draft.invitedSuppliers.length === 0) return 'Please add at least one supplier for this invited tender.';
+  if (step === 2) return validateTenderRequirements(draft);
   if (step === 3 && total !== 100) return 'Please adjust the evaluation weights so they add up to 100% before review.';
+  return '';
+}
+
+function getTenderReviewSubmissionBlocker(draft: CreateTenderDraft, total: number, confirmationsComplete: boolean): TenderReviewSubmissionBlocker | null {
+  if (!confirmationsComplete) {
+    return {
+      step: 5,
+      title: 'Tender cannot be submitted yet',
+      message: 'Please review and tick each publication confirmation before submitting.',
+      reason: 'ProcureX blocks review submission until accuracy, compliance, evaluation, and publication confirmations are ticked.'
+    };
+  }
+  if (draft.method === 'Invited Tender') {
+    return {
+      step: 1,
+      title: 'Invited tender review unavailable',
+      message: 'Invited Tender review submission is not available yet. Select Open Tender before submitting.',
+      reason: 'This review path is currently limited to public marketplace tenders.'
+    };
+  }
+  if (!parsePositiveNumber(draft.estimatedBudget)) {
+    return {
+      step: 0,
+      title: 'Tender budget required',
+      message: 'Add a positive estimated budget before submitting this tender for review.',
+      reason: 'ProcureX requires a tender budget before a draft can be sent to admin review.'
+    };
+  }
+
+  for (const step of [0, 1, 2, 3]) {
+    const message = validateStep(step, draft, total);
+    if (message) {
+      return {
+        step,
+        title: step === 2 ? 'Tender requirements incomplete' : 'Tender cannot be submitted yet',
+        message: message.replace('before continuing.', 'before submitting this tender for review.'),
+        reason: 'Review the highlighted tender step and complete the missing information before sending it to admin review.'
+      };
+    }
+  }
+
+  return null;
+}
+
+function validateTenderRequirements(draft: CreateTenderDraft) {
+  if (draft.procurementTypeId === 'goods') return validateGoodsTenderRequirements(draft);
+  if (draft.procurementTypeId === 'works') return validateWorksTenderRequirements(draft.worksRequirements);
+  if (draft.procurementTypeId === 'services') return validateServiceTenderRequirements(draft.serviceRequirements);
+  if (draft.procurementTypeId === 'consultancy') return validateConsultancyTenderRequirements(draft.consultancyRequirements);
+  return '';
+}
+
+function validateGoodsTenderRequirements(draft: CreateTenderDraft) {
+  if (!draft.commercialItems.length) return 'Add at least one goods quantity line before continuing.';
+  const incompleteQuantityRow = draft.commercialItems.find((item) => !item.description.trim() || !item.unit?.trim() || !parsePositiveNumber(item.quantity));
+  if (incompleteQuantityRow) return 'Complete every goods quantity line description, unit, and quantity before continuing.';
+  if (!draft.productSpecifications.length) return 'Add at least one product specification name before continuing.';
+  const incompleteSpecification = draft.productSpecifications.find((row) => !row.specificationName.trim());
+  if (incompleteSpecification) return 'Complete every product specification name before continuing.';
+  return '';
+}
+
+function validateWorksTenderRequirements(works: CreateTenderWorksRequirements) {
+  if (!works.projectName.trim() || !works.location.trim() || !works.contractType.trim() || !works.scopeSummary.trim()) {
+    return 'Complete the works project title, location, contract type, and scope summary before continuing.';
+  }
+  return '';
+}
+
+function validateServiceTenderRequirements(services: CreateTenderServiceRequirements) {
+  if (!services.serviceCategory.trim() || !services.scopeOfServices.trim()) {
+    return 'Complete the service category and scope of services before continuing.';
+  }
+  return '';
+}
+
+function validateConsultancyTenderRequirements(consultancy: CreateTenderConsultancyRequirements) {
+  if (!consultancy.generalObjective.trim()) return 'Add the consultancy general objective before continuing.';
   return '';
 }
 

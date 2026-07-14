@@ -12,13 +12,13 @@ import type {
 } from './types';
 
 export const awardQueueLabels: Record<AwardQueueId, string> = {
-  'sample-procurement': 'Sample Procurement',
-  'contract-preparation': 'Contract Preparation',
-  'awarding-in-progress': 'Awarding in Progress',
+  'sample-procurement': 'Samples',
+  'contract-preparation': 'Draft Contracts',
+  'awarding-in-progress': 'Award Decisions',
   'awards-received': 'Awards Received',
-  'contracts-in-progress': 'Contracts in Progress',
+  'contracts-in-progress': 'Contract Negotiation',
   'active-contracts': 'Active Contracts',
-  'closed-contracts': 'Closed Contracts'
+  'closed-contracts': 'Closed / Archived'
 };
 
 export const pendingAwards: PendingAward[] = [
@@ -69,7 +69,7 @@ export const summaryCards: SummaryCard[] = [
     queue: 'contracts-in-progress',
     label: 'Contracts in Progress',
     value: contractActions.length,
-    detail: 'Drafting, review, negotiation, approval, and signing actions',
+    detail: 'Draft review, amendment requests, final acceptance, and communication confirmation',
     trend: 'Due'
   },
   {
@@ -93,7 +93,7 @@ export const awardWorkflowSteps: AwardWorkflowStep[] = [
   { id: 'award-decision', title: 'Award Decision', shortTitle: 'Award Decision', status: 'Award Decision Pending' },
   { id: 'approval', title: 'Approval', shortTitle: 'Approval', status: 'Approval pending' },
   { id: 'award-notification', title: 'Notice Preparation', shortTitle: 'Notices', status: 'Required notices pending' },
-  { id: 'standstill-period', title: 'Standstill & Complaints', shortTitle: 'Standstill', status: 'Contract blocked' },
+  { id: 'standstill-period', title: 'Waiting / Complaint Period (standstill)', shortTitle: 'Waiting Period', status: 'Contract blocked' },
   { id: 'supplier-acceptance', title: 'Supplier Acceptance', shortTitle: 'Acceptance', status: 'Awaiting supplier response' },
   { id: 'pre-contract-documents', title: 'Pre-Contract Documents', shortTitle: 'Documents', status: 'Documents pending' },
   { id: 'draft-contract', title: 'Draft Contract', shortTitle: 'Draft Contract', status: 'Blocked' }

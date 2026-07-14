@@ -236,7 +236,7 @@ function renderAwardingContracts() {
         { label: 'My Urgent Actions', value: urgentRows.length, detail: 'All buyer and supplier actions needing attention', tab: 'my-urgent-actions', trend: '!' },
         { label: 'Awarding in Progress', value: pendingAwarding.length, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress', trend: 'Up' },
         { label: 'Awards Received', value: awardedToUs.length, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received', trend: 'Next' },
-        { label: 'Contracts in Progress', value: pendingActions.length, detail: 'Drafting, review, negotiation, confirmation, and signing actions', tab: 'contracts-in-progress', trend: 'Due' },
+        { label: 'Contract Negotiation', value: pendingActions.length, detail: 'Draft review, negotiation, final acceptance, and outcome notice actions', tab: 'contracts-in-progress', trend: 'Due' },
         { label: 'Active Contracts', value: activeContracts.length, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts', trend: 'Live' },
         { label: 'Closed Contracts', value: closedContracts.length, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts', trend: 'Done' }
     ];
@@ -244,7 +244,7 @@ function renderAwardingContracts() {
         { label: 'My Urgent Actions', value: urgentRows.length, detail: 'All buyer and supplier actions needing attention', tab: 'my-urgent-actions', trend: '!' },
         { label: 'Awarding in Progress', value: pendingAwarding.length, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress', trend: '↗' },
         { label: 'Awards Received', value: awardedToUs.length, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received', trend: '→' },
-        { label: 'Contracts in Progress', value: pendingActions.length, detail: 'Drafting, review, negotiation, confirmation, and signing actions', tab: 'contracts-in-progress', trend: '↘' },
+        { label: 'Contract Negotiation', value: pendingActions.length, detail: 'Draft review, negotiation, final acceptance, and outcome notice actions', tab: 'contracts-in-progress', trend: '↘' },
         { label: 'Active Contracts', value: activeContracts.length, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts', trend: '→' },
         { label: 'Closed Contracts', value: closedContracts.length, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts', trend: '→' }
     ];
@@ -260,7 +260,7 @@ function renderAwardingContracts() {
                     ${renderAwardingQueueNavItem('My Urgent Actions', 'my-urgent-actions', true)}
                     ${renderAwardingQueueNavItem('Awarding in Progress', 'awarding-in-progress')}
                     ${renderAwardingQueueNavItem('Awards Received', 'awards-received')}
-                    ${renderAwardingQueueNavItem('Contracts in Progress', 'contracts-in-progress')}
+                    ${renderAwardingQueueNavItem('Contract Negotiation', 'contracts-in-progress')}
                     ${renderAwardingQueueNavItem('Active Contracts', 'active-contracts')}
                     ${renderAwardingQueueNavItem('Closed Contracts', 'closed-contracts')}
                     <li><a href="#" data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
@@ -304,7 +304,7 @@ function renderAwardingContracts() {
                         <button class="supplier-detail-tab active" type="button" role="tab" aria-selected="true" data-tab="my-urgent-actions">My Urgent Actions</button>
                         <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="awarding-in-progress">Awarding in Progress</button>
                         <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="awards-received">Awards Received</button>
-                        <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="contracts-in-progress">Contracts in Progress</button>
+                        <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="contracts-in-progress">Contract Negotiation</button>
                         <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="active-contracts">Active Contracts</button>
                         <button class="supplier-detail-tab" type="button" role="tab" aria-selected="false" data-tab="closed-contracts">Closed Contracts</button>
                     </div>

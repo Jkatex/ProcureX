@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { prisma } from '../../db/prisma.js';
 import { AWARD_CONTRACT_DEMO_PREFIX, seedAwardContractDemo } from '../../../prisma/seed-award-contract-demo.js';
 import { ModuleRepository } from './repository.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const runDbSeedSmoke = process.env.RUN_AWARD_CONTRACT_DEMO_SEED_TEST === 'true';
 const describeDb = runDbSeedSmoke ? describe : describe.skip;
@@ -114,6 +119,12 @@ describeDb('award-contract demo seed', () => {
 });
 
 describe('award-contract demo seed metadata', () => {
+  it('is not invoked by the default Prisma seed', () => {
+    const defaultSeedSource = readFileSync(resolve(__dirname, '../../../prisma/seed.ts'), 'utf8');
+
+    expect(defaultSeedSource).not.toContain('seedAwardContractDemo');
+  });
+
   it('uses the deterministic ProcureX award-contract demo prefix', () => {
     expect(AWARD_CONTRACT_DEMO_PREFIX).toBe('PX-DEMO-AC');
   });

@@ -94,6 +94,18 @@ async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, cate
   await user.click(await screen.findByRole('button', { name: category }));
 }
 
+async function completeMinimumGoodsRequirements(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+  await user.click(screen.getByRole('button', { name: 'Add Item' }));
+  await user.type(screen.getByLabelText('Item 1 description'), 'Laptop computer');
+  await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+  await user.type(screen.getByLabelText('Item 1 quantity'), '5');
+  await user.click(screen.getByRole('button', { name: 'Add Specification' }));
+  await user.type(screen.getByLabelText('Specification name'), 'Processor');
+  await user.type(screen.getByLabelText('Specific detail required'), 'Core i5 or above');
+  await user.click(screen.getByRole('button', { name: 'Save Specification' }));
+}
+
 function emptyMarketplaceResponse() {
   return {
     tenders: [],
@@ -1412,6 +1424,27 @@ describe('CreateTenderProcurexPage', () => {
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
 
+  it('blocks review submission before backend calls when goods requirements are incomplete', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Missing Goods Requirements Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+
+    expect(await screen.findByText('Add at least one goods quantity line before submitting this tender for review.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Quantity Schedule / BOQ' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.updateTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
+  });
+
   it('submit requires confirmations, then saves and sends the tender to admin review', async () => {
     const user = userEvent.setup();
     const download = mockBrowserDownload();
@@ -1420,6 +1453,7 @@ describe('CreateTenderProcurexPage', () => {
     await fillBasicStep(user, 'Published React Tender');
     await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
     await addDefaultCategory(user);
+    await completeMinimumGoodsRequirements(user);
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
 
     expect(screen.getByText('Review submission')).toBeInTheDocument();
@@ -1447,14 +1481,18 @@ describe('CreateTenderProcurexPage', () => {
       await user.click(checkbox);
     }
 
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    expect(await screen.findByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
 
     await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
-    expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
+    expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', { signatureKeyphrase: 'Signing123' });
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Your tender was saved and sent to admin review.')).toBe(true);
   });
 
-  it('keeps backend review validation errors out of user feedback', async () => {
+  it('surfaces backend review validation errors in user feedback', async () => {
     procurementApiMock.publishTender.mockRejectedValueOnce({
       response: {
         data: {
@@ -1468,16 +1506,21 @@ describe('CreateTenderProcurexPage', () => {
     renderCreateTender();
 
     await fillBasicStep(user, 'Invalid Publish Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await completeMinimumGoodsRequirements(user);
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
     for (const checkbox of screen.getAllByRole('checkbox')) {
       await user.click(checkbox);
     }
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
 
-    expect(await screen.findByText('Tender could not be submitted for review.')).toBeInTheDocument();
-    expect(screen.queryByText('Tender requirements are required before publishing.')).not.toBeInTheDocument();
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender could not be submitted for review.')).toBe(true);
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(false);
+    expect(await screen.findByText('Tender requirements are required before publishing.')).toBeInTheDocument();
+    expect(screen.queryByText('Tender could not be submitted for review.')).not.toBeInTheDocument();
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
   });
 
   it('blocks invited tender review submission while that method is unavailable', async () => {

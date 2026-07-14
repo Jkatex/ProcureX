@@ -73,6 +73,23 @@ export type WorkflowAccess = {
   hideLockedActions?: boolean;
 };
 
+export type AwardContractDocumentDto = {
+  id: string;
+  name: string;
+  documentType: string;
+  createdAt: string;
+  contentUrl: string;
+  sourceLabel: string;
+};
+
+export type AwardContractDocumentUploadInput = {
+  name: string;
+  documentType?: string;
+  mimeType?: string;
+  size?: number;
+  contentBase64?: string;
+};
+
 export type PickerOption = {
   value: string;
   label: string;

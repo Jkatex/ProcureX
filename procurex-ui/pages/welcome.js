@@ -69,7 +69,6 @@ function renderWelcome() {
                     </nav>
                     <div class="welcome-nav-actions-v2">
                         <a href="#" data-navigate="sign-in">Sign In</a>
-                        <button class="btn btn-secondary" type="button" data-demo-launch>View Demo</button>
                         <button class="btn btn-primary" type="button" data-navigate="register">Get Started</button>
                     </div>
                 </div>
@@ -83,9 +82,9 @@ function renderWelcome() {
                         <p>ProcureX is a modern e-procurement marketplace built to make procurement simple, fair, secure, and accessible for everyone.</p>
                         <p>Create tenders, discover tenders, and build a procurement record today.</p>
                         <div class="hero-actions">
-                            <button class="btn btn-primary" type="button" data-demo-launch>View ProcureX Demo</button>
                             <button class="btn btn-primary" type="button" data-navigate="register">Get Started</button>
                             <button class="btn btn-secondary" type="button" data-navigate="guest-marketplace">Browse Open Tenders</button>
+                            <button class="btn btn-secondary" type="button" data-demo-launch>View Demo</button>
                         </div>
                         <div class="welcome-proof-v2" aria-label="Trusted business proof">
                             <span class="welcome-proof-avatars-v2" aria-hidden="true">
@@ -118,7 +117,7 @@ function renderWelcome() {
                                     <span>Verified Profile</span>
                                     <strong>98.4% Completion Rate</strong>
                                 </div>
-                                <button class="btn btn-primary" type="button" data-demo-launch>View Demo</button>
+                                <button class="btn btn-primary" type="button" data-navigate="register">Get Started</button>
                             </div>
                             <figure class="welcome-product-photo-v2">
                                 <img src="assets/welcome/procurement-meeting.webp" alt="Procurement team reviewing documents in a meeting" loading="eager">
@@ -213,8 +212,8 @@ function renderWelcome() {
                             <p>Start your procurement journey with one simple account. Create tenders, submit bids, and grow your business today.</p>
                         </div>
                         <div class="cta-actions">
-                            <button class="btn btn-secondary" type="button" data-demo-launch>Open Demo</button>
                             <button class="btn btn-primary" type="button" data-navigate="register">Get Started Now</button>
+                            <button class="btn btn-secondary" type="button" data-navigate="guest-marketplace">Browse Open Tenders</button>
                         </div>
                     </div>
                 </div>

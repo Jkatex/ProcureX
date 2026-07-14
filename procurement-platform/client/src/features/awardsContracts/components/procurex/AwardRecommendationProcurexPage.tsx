@@ -160,6 +160,27 @@ export function AwardRecommendationProcurexPage() {
     navigate(`/awards-contracts/negotiation?contract=${selectedContractId}`);
   }
 
+  async function cancelNotice(reason: string) {
+    if (!detail?.notice?.id) return;
+    try {
+      setDetail(await awardsContractsApi.cancelAwardNotice(detail.notice.id, reason, { source: 'award-recommendation-workspace' }));
+      notifyAward('success', 'Notice cancelled', 'The award notice was cancelled with a recorded reason.');
+    } catch (error) {
+      notifyAward('error', 'Notice not cancelled', apiErrorMessage(error, 'The award notice could not be cancelled.'));
+    }
+  }
+
+  async function reissueNotice(reason: string) {
+    if (!detail?.notice?.id) return;
+    try {
+      setDetail(await awardsContractsApi.reissueAwardNotice(detail.notice.id, reason, { source: 'award-recommendation-workspace' }));
+      notifyAward('success', 'Next supplier notified', 'A new award notice was prepared for the next ranked supplier.');
+      await loadRecommendations();
+    } catch (error) {
+      notifyAward('error', 'Notice not reissued', apiErrorMessage(error, 'A new award notice could not be prepared.'));
+    }
+  }
+
   return (
     <ProcurexAwardFrame pageKey="award-recommendation">
       <SignatureKeyphraseModal
@@ -297,6 +318,50 @@ export function AwardRecommendationProcurexPage() {
                       <td>{hasSupplierResponse ? detail?.notice?.responses?.[0]?.action ?? 'Response recorded' : 'Awaiting response'}</td>
                     </tr>
                   </SimpleTable>
+                  {detail?.notice?.responses?.length ? (
+                    <SimpleTable headers={['Action', 'Reason / message', 'Date']}>
+                      {detail.notice.responses.map((response) => (
+                        <tr key={response.id}>
+                          <td><StatusBadge value={response.action} /></td>
+                          <td>{response.note || 'No reason captured'}</td>
+                          <td>{new Date(response.createdAt).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </SimpleTable>
+                  ) : null}
+                  {detail?.notice?.status === 'DECLINED' ? (
+                    <div className="award-simple-form-stack">
+                      <div className="scope-empty">The supplier declined the notice. Select the next ranked supplier by default, or cancel this award path with a recorded reason.</div>
+                      <ActionFormPanel
+                        title="Select next ranked supplier"
+                        badge="Buyer"
+                        submitLabel="Send notice to next supplier"
+                        fields={[
+                          { name: 'reason', label: 'Reason for reissuing notice', kind: 'textarea', required: true, rows: 3 },
+                          { name: 'payload', label: 'Reissue record', kind: 'json', rows: 4, advanced: true }
+                        ]}
+                        initialValues={{
+                          reason: 'Previous supplier declined the award notice. Proceeding to the next ranked supplier from the evaluation result.',
+                          payload: JSON.stringify({ source: 'declined-award-next-ranked' }, null, 2)
+                        }}
+                        onSubmit={(payload) => reissueNotice(String(payload.reason ?? 'Proceed to next ranked supplier.'))}
+                      />
+                      <ActionFormPanel
+                        title="Cancel award notice"
+                        badge="Buyer"
+                        submitLabel="Cancel notice"
+                        fields={[
+                          { name: 'reason', label: 'Cancellation reason', kind: 'textarea', required: true, rows: 3 },
+                          { name: 'payload', label: 'Cancellation record', kind: 'json', rows: 4, advanced: true }
+                        ]}
+                        initialValues={{
+                          reason: 'Award notice declined. Buyer decided not to proceed with another supplier at this time.',
+                          payload: JSON.stringify({ source: 'declined-award-cancellation' }, null, 2)
+                        }}
+                        onSubmit={(payload) => cancelNotice(String(payload.reason ?? 'Award notice cancelled after supplier decline.'))}
+                      />
+                    </div>
+                  ) : null}
                 </ExpandableAwardDetails>
 
                 <ExpandableAwardDetails title="Required documents" summary="Add or update documents needed before signing">

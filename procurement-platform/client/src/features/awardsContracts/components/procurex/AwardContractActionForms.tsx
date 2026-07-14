@@ -27,7 +27,8 @@ export type AwardContractFieldKind =
   | 'currency'
   | 'json'
   | 'multi'
-  | 'picker';
+  | 'picker'
+  | 'document';
 
 export type AwardContractFieldConfig = {
   name: string;
@@ -47,6 +48,11 @@ export type AwardContractFieldConfig = {
   technical?: boolean;
   transform?: 'lineArray' | 'driverArray';
   picker?: boolean | { options?: PickerOption[]; emptyLabel?: string };
+  document?: {
+    options?: FieldOption[];
+    emptyLabel?: string;
+    onUpload?: (file: File) => Promise<FieldOption>;
+  };
 };
 
 type FormValue = string | boolean | string[];
@@ -235,6 +241,7 @@ function slug(value: string) {
 function fieldSection(field: AwardContractFieldConfig) {
   if (field.section) return field.section;
   if (field.kind === 'json' || field.advanced) return 'payload';
+  if (field.kind === 'document') return 'evidence';
   if (/document|evidence|certificate|proof/i.test(field.name)) return 'evidence';
   if (field.kind === 'uuid' && !field.options?.length && !field.picker) return 'payload';
   if (/id$/i.test(field.name) || field.kind === 'picker' || field.picker) return 'linked';
@@ -272,7 +279,7 @@ function formCounts(fields: AwardContractFieldConfig[]) {
 }
 
 function isTechnicalField(field: AwardContractFieldConfig) {
-  return Boolean(field.technical || field.advanced) || (field.kind === 'json' && field.name === 'payload');
+  return Boolean(field.technical || field.advanced) || (field.kind === 'json' && field.name === 'payload') || (field.kind === 'uuid' && !field.options?.length && !field.picker);
 }
 
 function reviewValue(field: AwardContractFieldConfig, value: FormValue | undefined) {
@@ -385,6 +392,8 @@ export function ActionFormPanel({
     () => Object.fromEntries(fields.map((field) => [field.name, initialValues?.[field.name] ?? defaultValue(field)])) as AwardContractFormValues,
     [fields, initialValues]
   );
+  const defaultsKey = useMemo(() => JSON.stringify(defaults), [defaults]);
+  const previousDefaultsKey = useRef(defaultsKey);
   const [values, setValues] = useState<AwardContractFormValues>(defaults);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -393,9 +402,11 @@ export function ActionFormPanel({
   useAwardContractFlowGuard(selected && isDirty);
 
   useEffect(() => {
+    if (previousDefaultsKey.current === defaultsKey) return;
+    previousDefaultsKey.current = defaultsKey;
     setValues(defaults);
     setMessage('');
-  }, [defaults]);
+  }, [defaults, defaultsKey]);
 
   useEffect(() => {
     dirtyRef.current = selected && isDirty;
@@ -404,14 +415,15 @@ export function ActionFormPanel({
   const built = buildAwardContractPayload(fields, values);
   const blocked = saving || built.errors.length > 0;
   const counts = formCounts(fields);
+  const showAdvancedFields = access.viewerRole === 'ADMIN';
   const fieldsBySection = useMemo(() => {
     const grouped = new Map<string, AwardContractFieldConfig[]>();
-    for (const field of fields.filter((entry) => !isTechnicalField(entry) || fieldSection(entry) === 'payload')) {
+    for (const field of fields.filter((entry) => !isTechnicalField(entry) || showAdvancedFields)) {
       const section = fieldSection(field);
       grouped.set(section, [...(grouped.get(section) ?? []), field]);
     }
     return grouped;
-  }, [fields]);
+  }, [fields, showAdvancedFields]);
 
   if (!allowed) {
     if (access.hideLockedActions) return null;
@@ -490,7 +502,7 @@ export function ActionFormPanel({
         </div>
         <div className="award-action-cell award-action-cell-select">
           <button className="btn btn-primary btn-sm" type="button" aria-expanded={selected} onClick={() => (selected ? closeInlineForm() : setSelected(true))}>
-            {selected ? 'Hide' : 'Select'}
+            {selected ? 'Hide form' : 'Open form'}
           </button>
         </div>
       </div>
@@ -566,12 +578,99 @@ function AwardContractField({
 }) {
   const id = `award-contract-${formKey}-${field.name}`;
   const [filter, setFilter] = useState('');
+  const [uploadedOptions, setUploadedOptions] = useState<FieldOption[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
   const label = (
     <>
       {field.label}
       {field.required ? <span aria-hidden="true"> *</span> : null}
     </>
   );
+
+  if (field.kind === 'document') {
+    const configuredOptions = field.document?.options ?? field.options ?? [];
+    const emptyOption = option('', field.document?.emptyLabel ?? 'No document selected');
+    const optionMap = new Map([emptyOption, ...configuredOptions, ...uploadedOptions].map((item) => [item.value, item]));
+    const options = Array.from(optionMap.values());
+    const selected = options.find((item) => item.value === String(value));
+    const filtered = options.filter((item) => `${item.label} ${item.description ?? ''} ${item.status ?? ''} ${item.value}`.toLowerCase().includes(filter.trim().toLowerCase()));
+
+    async function uploadDocument(file: File) {
+      if (!field.document?.onUpload) return;
+      setUploading(true);
+      setUploadMessage('');
+      try {
+        const uploaded = await field.document.onUpload(file);
+        setUploadedOptions((current) => [uploaded, ...current.filter((item) => item.value !== uploaded.value)]);
+        onChange(uploaded.value);
+        setFilter('');
+        setUploadMessage(`${uploaded.label} uploaded.`);
+      } catch (error) {
+        setUploadMessage(error instanceof Error ? error.message : 'Document could not be uploaded.');
+      } finally {
+        setUploading(false);
+      }
+    }
+
+    return (
+      <div className="award-form-field award-picker-field award-document-field">
+        <label htmlFor={`${id}-search`}>
+          <span>{label}</span>
+        </label>
+        <div className="award-document-actions">
+          <input
+            className="form-input"
+            id={`${id}-search`}
+            type="search"
+            value={filter}
+            placeholder={selected?.value ? selected.label : field.placeholder ?? 'Search evidence documents'}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+          {field.document?.onUpload ? (
+            <label className={`btn btn-secondary btn-sm${uploading ? ' disabled' : ''}`}>
+              {uploading ? 'Uploading...' : 'Upload file'}
+              <input
+                id={`${id}-file`}
+                type="file"
+                hidden
+                disabled={uploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void uploadDocument(file);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+          ) : null}
+        </div>
+        <div className="award-picker-list" role="listbox" aria-label={field.label}>
+          {filtered.length === 0 ? (
+            <button className="award-picker-option" type="button" disabled>No matching documents</button>
+          ) : filtered.map((item) => (
+            <button
+              className={`award-picker-option${item.value === String(value) ? ' selected' : ''}`}
+              type="button"
+              role="option"
+              aria-selected={item.value === String(value)}
+              onClick={() => {
+                onChange(item.value);
+                setFilter('');
+              }}
+              key={item.value}
+            >
+              <strong>{item.label}</strong>
+              <span>{item.description || (item.value ? 'Evidence document' : 'Upload or choose a document before submitting')}</span>
+              {item.status ? <StatusBadge value={item.status} /> : null}
+            </button>
+          ))}
+        </div>
+        {selected?.value ? <em>Selected: {selected.label}</em> : null}
+        {uploadMessage ? <em aria-live="polite">{uploadMessage}</em> : null}
+        {field.note ?? field.helpText ? <em>{field.note ?? field.helpText}</em> : null}
+      </div>
+    );
+  }
 
   if (field.kind === 'json') {
     return (

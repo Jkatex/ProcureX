@@ -3,10 +3,10 @@ import type { AdminMetric, Bid, MessageItem, RecordItem, SessionUser, Tender, Ti
 export const demoUsers: Record<'user' | 'admin', SessionUser> = {
   user: {
     id: 'demo-user-1',
-    displayName: 'Demo Verified User',
+    displayName: 'Verified User',
     email: 'demo@procurex.tz',
     accountType: 'USER',
-    organization: 'Kilimanjaro Supplies Limited',
+    organization: 'Verified Company Account',
     capabilities: ['BUYER', 'SUPPLIER'],
     verificationStatus: 'APPROVED',
     permissions: [
@@ -115,7 +115,7 @@ export const tenders: Tender[] = [
     id: 'tender-3',
     reference: 'PX-SVC-2026-022',
     title: 'Facilities Maintenance Services Framework',
-    organization: 'Kilimanjaro Supplies Limited',
+    organization: 'Verified Company Account',
     type: 'SERVICE',
     status: 'PUBLISHED',
     budget: 820000000,
@@ -129,7 +129,7 @@ export const tenders: Tender[] = [
 ];
 
 export const bids: Bid[] = [
-  { id: 'bid-1', tenderReference: 'PX-WRK-2026-001', supplier: 'Kilimanjaro Supplies Limited', status: 'SUBMITTED', amount: 6200000000, score: 86 },
+  { id: 'bid-1', tenderReference: 'PX-WRK-2026-001', supplier: 'Lake Builders Ltd', status: 'SUBMITTED', amount: 6200000000, score: 86 },
   { id: 'bid-2', tenderReference: 'PX-SVC-2026-022', supplier: 'Prime Facilities Tanzania', status: 'UNDER_EVALUATION', amount: 790000000, score: 79 },
   { id: 'bid-3', tenderReference: 'PX-GDS-2026-014', supplier: 'MedTech East Africa', status: 'DRAFT', amount: 2380000000, score: 0 }
 ];
@@ -158,8 +158,8 @@ export const messages: MessageItem[] = [
 
 export const records: RecordItem[] = [
   { id: 'rec-1', entityType: 'Tender', reference: 'PX-WRK-2026-001', title: 'Publication notice and annexes', status: 'Published', owner: 'Ministry of Health', date: '2026-05-18' },
-  { id: 'rec-2', entityType: 'Bid', reference: 'BID-PX-WRK-001-KSL', title: 'Submitted technical and financial bid', status: 'Submitted', owner: 'Kilimanjaro Supplies Limited', date: '2026-06-01' },
-  { id: 'rec-3', entityType: 'Contract', reference: 'CTR-PX-SVC-022', title: 'Facilities framework contract draft', status: 'Negotiation', owner: 'Kilimanjaro Supplies Limited', date: '2026-06-08' },
+  { id: 'rec-2', entityType: 'Bid', reference: 'BID-PX-WRK-001-LBL', title: 'Submitted technical and financial bid', status: 'Submitted', owner: 'Lake Builders Ltd', date: '2026-06-01' },
+  { id: 'rec-3', entityType: 'Contract', reference: 'CTR-PX-SVC-022', title: 'Facilities framework contract draft', status: 'Negotiation', owner: 'Prime Facilities Tanzania', date: '2026-06-08' },
   { id: 'rec-4', entityType: 'Audit', reference: 'AUD-2026-3481', title: 'Admin compliance review log', status: 'Complete', owner: 'ProcureX Platform', date: '2026-06-10' }
 ];
 

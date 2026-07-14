@@ -15,8 +15,6 @@ type NavigateButtonProps = {
   to: string;
 };
 
-const rawPrototypeDemoPath = '/procurex-ui/index.html?page=sign-in';
-
 function NavigateButton({ children, className, to }: NavigateButtonProps) {
   const navigate = useNavigate();
   return (
@@ -270,8 +268,8 @@ export function WelcomeProcurexPage() {
               <NavigateButton className="btn btn-secondary" to="/guest-marketplace">
                 {t('welcomeLanding.hero.secondaryCta')}
               </NavigateButton>
-              <a className="btn btn-secondary" href={rawPrototypeDemoPath}>
-                View demo
+              <a className="btn btn-secondary" href="/procurex-ui/index.html?demo=1">
+                {t('welcomeLanding.hero.demoCta')}
               </a>
             </div>
             <div className="welcome-proof-v2" aria-label={t('welcomeLanding.proofAria')}>
@@ -493,9 +491,6 @@ export function WelcomeProcurexPage() {
               <NavigateButton className="btn btn-secondary" to="/guest-marketplace">
                 {t('welcomeLanding.hero.secondaryCta')}
               </NavigateButton>
-              <a className="btn btn-secondary" href={rawPrototypeDemoPath}>
-                View demo
-              </a>
             </div>
           </div>
         </div>

@@ -606,6 +606,7 @@ function buildPayload(draft: BidDraftInput) {
     fileManifest: draft.fileManifest ?? {},
     envelopes: draft.envelopes ?? {},
     reviewReadiness: draft.reviewReadiness ?? {},
+    workspaceState: draft.workspaceState ?? {},
     completeness: draft.completeness,
     validationIssues: draft.validationIssues
   };
@@ -630,7 +631,7 @@ async function replaceDocuments(tx: Prisma.TransactionClient, bidId: string, own
 
 async function appendDocuments(tx: Prisma.TransactionClient, bidId: string, ownerOrgId: string, userId: string, documents: BidDocumentInput[]) {
   for (const document of documents) {
-    const object = await tx.documentObject.create({
+    const documentId = document.documentId || (await tx.documentObject.create({
       data: {
         ownerOrgId,
         uploadedByUserId: userId,
@@ -645,11 +646,12 @@ async function appendDocuments(tx: Prisma.TransactionClient, bidId: string, owne
           ...(document.mimeType ? { mimeType: document.mimeType } : {})
         } as Prisma.InputJsonObject
       }
-    });
+    })).id;
+    await tx.bidDocument.deleteMany({ where: { bidId, documentId } });
     await tx.bidDocument.create({
       data: {
         bidId,
-        documentId: object.id,
+        documentId,
         envelope: (document.envelope ?? 'COMBINED') as EnvelopeType
       }
     });

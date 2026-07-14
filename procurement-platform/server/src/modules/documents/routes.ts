@@ -6,6 +6,13 @@ export function createModuleRouter() {
   const controller = new ModuleController();
 
   router.get('/', controller.status);
+  router.get('/official/templates', controller.officialTemplates);
+  router.post('/official/generate', controller.generateOfficialDocument);
+  router.get('/official/:id/open', controller.openOfficialDocument);
+  router.get('/official/:id/download', controller.downloadOfficialDocument);
+  router.get('/official/:id/versions', controller.officialDocumentVersions);
+  router.post('/official/:id/approve', controller.approveOfficialDocument);
+  router.post('/official/:id/sign', controller.signOfficialDocument);
   router.get('/:id/content', controller.content);
 
   return router;

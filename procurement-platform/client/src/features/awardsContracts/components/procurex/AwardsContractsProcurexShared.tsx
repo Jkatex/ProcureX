@@ -64,7 +64,7 @@ const workflowStatusLabels: Record<string, string> = {
   PENDING_RESPONSE: 'Awaiting supplier response',
   REQUEST_CLARIFICATION: 'Clarification requested',
   CLARIFICATION_REQUESTED: 'Clarification requested',
-  CONTRACT_FORMATION: 'Contract formation',
+  CONTRACT_FORMATION: 'Contract setup and signing',
   NEGOTIATION: 'In negotiation',
   SIGNATURE_PENDING: 'Awaiting signatures',
   SIGNED: 'Signed',
@@ -271,7 +271,7 @@ export function ProcurexAwardFrame({ pageKey, children }: FrameProps) {
   );
 }
 
-export function AwardSidebar({ title, subtitle, activeQueue = 'sample-procurement', extraItems }: SidebarProps) {
+export function AwardSidebar({ title, subtitle, activeQueue = 'awarding-in-progress', extraItems }: SidebarProps) {
   return (
     <aside className="sidebar evaluation-sidebar award-floating-sidebar">
       <div className="evaluation-sidebar-head">

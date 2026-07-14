@@ -1,14 +1,8 @@
 // Sign-in page shown after account registration.
 
 function renderSignIn() {
-    const demoAccounts = mockData.mockAuth?.accounts || [];
-    const demoAccount = demoAccounts.find(account => account.email === 'demo@procurex.tz') || demoAccounts.find(account => account.accountType !== 'admin') || demoAccounts[0] || {};
-    const savedEmail = mockData.pendingAccount?.email || mockData.registrationDraft?.email || demoAccount.email || '';
-    const savedPassword = mockData.pendingAccount?.password || (!mockData.registrationDraft?.email ? demoAccount.password || '' : '');
-    const getAccountCondition = (account) => {
-        if (account.accountType === 'admin') return 'admin';
-        return account.isNewUser ? 'new user' : 'existing user';
-    };
+    const savedEmail = mockData.pendingAccount?.email || mockData.registrationDraft?.email || '';
+    const savedPassword = mockData.pendingAccount?.password || '';
 
     return `
         <div class="register-page-new auth-page">
@@ -68,20 +62,7 @@ function renderSignIn() {
                         </form>
 
                         <div class="auth-note">
-                            New users continue to identity verification. Existing users enter the platform. Admin opens the admin dashboard.
-                        </div>
-
-                        <div class="demo-credentials">
-                            <h3>Mock sign-in data</h3>
-                            ${demoAccounts.map(account => `
-                                <button type="button" class="demo-account" data-demo-email="${account.email}" data-demo-password="${account.password}">
-                                    <span>
-                                        <strong>${account.displayName}</strong>
-                                        <small>${getAccountCondition(account)}</small>
-                                    </span>
-                                    <code>${account.email}</code>
-                                </button>
-                            `).join('')}
+                            New users continue to identity verification. Existing users enter the platform.
                         </div>
                     </div>
                 </div>

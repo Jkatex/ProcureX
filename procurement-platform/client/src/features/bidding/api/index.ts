@@ -38,6 +38,10 @@ export const biddingApi = {
     });
     return response.data;
   },
+  async deleteDocument(bidId: string, documentId: string) {
+    const response = await apiClient.delete<{ bid: BidDto }>(`/api/bidding/${bidId}/documents/${documentId}`);
+    return response.data.bid;
+  },
   async listSamples(bidId: string) {
     const response = await apiClient.get<BidSampleDto[]>(`/api/bidding/${bidId}/samples`);
     return response.data;

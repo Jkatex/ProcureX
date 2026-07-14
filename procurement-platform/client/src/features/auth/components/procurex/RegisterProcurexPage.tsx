@@ -45,11 +45,11 @@ function formatCountdown(seconds: number) {
 const temporaryCodeAlertMs = 30_000;
 
 function temporaryPhoneCodeAlert(code?: string) {
-  return code ? authAlertText(`Temporary phone verification code: ${code}`, 'info', temporaryCodeAlertMs) : null;
+  return code ? authAlertText(`Phone verification code: ${code}`, 'info', temporaryCodeAlertMs) : null;
 }
 
 function temporaryEmailCodeAlert(code?: string) {
-  return code ? authAlertText(`Temporary email activation code: ${code}`, 'info', temporaryCodeAlertMs) : null;
+  return code ? authAlertText(`Email activation code: ${code}`, 'info', temporaryCodeAlertMs) : null;
 }
 
 export function RegisterProcurexPage() {

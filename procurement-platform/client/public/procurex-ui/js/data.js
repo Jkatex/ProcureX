@@ -36,8 +36,8 @@ const procurexSeedOwnerProfiles = {
     demo: {
         userId: 'usr-demo-platform',
         email: 'demo@procurex.tz',
-        displayName: 'Demo Verified User',
-        organization: 'Kilimanjaro Supplies Limited',
+        displayName: 'Verified User',
+        organization: 'Verified Company Account',
         entityType: 'company',
         canCreateTender: true
     }
@@ -276,8 +276,8 @@ const mockData = {
                 riskScore: 100,
                 bidLimit: 999999999999,
                 permissions: ['workspace:access', 'procurement:create', 'procurement:publish', 'bidding:submit', 'evaluation:manage', 'records:read', 'communication:manage'],
-                displayName: 'Demo Verified User',
-                organization: 'Kilimanjaro Supplies Limited'
+                displayName: 'Verified User',
+                organization: 'Verified Company Account'
             },
             {
                 email: 'admin@procurex.tz',
@@ -305,8 +305,8 @@ const mockData = {
             bidLimit: 5000000
         },
         current: {
-            name: 'Kilimanjaro Supplies Limited',
-            organization: 'Kilimanjaro Supplies Limited',
+            name: 'Verified Company Account',
+            organization: 'Verified Company Account',
             trustTier: 'Platinum',
             riskScore: 100,
             bidLimit: 999999999999
@@ -4838,260 +4838,40 @@ const mockData = {
     // Awarding and Contracts lifecycle workspace
     awardingContracts: {
         summary: [
-            { label: 'Awarding in Progress', value: 3, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress' },
-            { label: 'Awards Received', value: 3, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received' },
-            { label: 'Contracts in Progress', value: 4, detail: 'Drafting, review, negotiation, confirmation, and signing actions', tab: 'contracts-in-progress' },
-            { label: 'Active Contracts', value: 2, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts' },
-            { label: 'Closed Contracts', value: 2, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts' }
+            { label: 'Awarding in Progress', value: 0, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress' },
+            { label: 'Awards Received', value: 0, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received' },
+            { label: 'Contract Negotiation', value: 0, detail: 'Draft review, negotiation, final acceptance, and outcome notice actions', tab: 'contracts-in-progress' },
+            { label: 'Active Contracts', value: 0, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts' },
+            { label: 'Closed Contracts', value: 0, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts' }
         ],
-        pendingAwarding: [
-            {
-                tenderId: 'PX-WRK-2026-001',
-                title: 'Construction of Rural Health Centers',
-                reference: 'PX-TND-2026-014',
-                procurementType: 'Works',
-                evaluationStatus: 'Completed',
-                recommendedSupplier: 'ABC Construction Ltd',
-                awardStatus: 'Pending Award Decision',
-                contractStatus: 'Not Created',
-                action: 'Continue Award',
-                nav: 'award-recommendation'
-            },
-            {
-                tenderId: 'PX-GDS-2026-002',
-                title: 'Supply of Office Furniture',
-                reference: 'PX-TND-2026-021',
-                procurementType: 'Goods',
-                evaluationStatus: 'Completed',
-                recommendedSupplier: 'Kijani Office Supplies',
-                awardStatus: 'Award Confirmed',
-                contractStatus: 'Awaiting Contract Generation',
-                action: 'Generate Contract',
-                nav: 'contract-negotiation'
-            },
-            {
-                tenderId: 'PX-SVC-2026-003',
-                title: 'Cleaning Services Framework',
-                reference: 'PX-TND-2026-033',
-                procurementType: 'Non Consultancy',
-                evaluationStatus: 'Ready',
-                recommendedSupplier: 'Usafi Pro Services',
-                awardStatus: 'Notice Drafted',
-                contractStatus: 'Not Created',
-                action: 'Send Award',
-                nav: 'award-recommendation'
-            }
-        ],
-        awardedToUs: [
-            {
-                tenderId: 'supplier-award-1',
-                title: 'Supply of Laptops',
-                buyer: 'ABC University',
-                awardValue: 25000000,
-                currency: 'TZS',
-                awardStatus: 'Awaiting Acceptance',
-                contractStatus: 'Not Started',
-                requiredAction: 'Accept Award',
-                nav: 'award-response',
-                supplierResponse: { decision: '', message: '', reason: '', respondedAt: '', status: 'Awaiting Acceptance' }
-            },
-            {
-                tenderId: 'supplier-award-2',
-                title: 'Maintenance Services',
-                buyer: 'City Council',
-                awardValue: 8000000,
-                currency: 'TZS',
-                awardStatus: 'Award Accepted',
-                contractStatus: 'Contract Review',
-                requiredAction: 'Review Contract',
-                nav: 'award-response',
-                supplierResponse: { decision: 'accept', message: 'We accept the award and are reviewing the draft contract.', reason: '', respondedAt: '2026-07-02T09:00:00.000Z', status: 'Award Accepted' }
-            },
-            {
-                tenderId: 'supplier-award-3',
-                title: 'Consultancy Assignment',
-                buyer: 'Health Project',
-                awardValue: 15000000,
-                currency: 'TZS',
-                awardStatus: 'Terms Agreed',
-                contractStatus: 'Awaiting Your Signature',
-                requiredAction: 'Sign Contract',
-                nav: 'award-response',
-                supplierResponse: { decision: 'accept', message: 'Terms agreed. Signature pending.', reason: '', respondedAt: '2026-07-02T11:30:00.000Z', status: 'Terms Agreed' }
-            }
-        ],
-        pendingActions: [
-            { contract: 'Clinic Renovation Works', role: 'Buyer', otherParty: 'ABC Construction Ltd', status: 'Supplier Signed', requiredAction: 'Buyer Signature Required', dueDate: '2026-07-05', nav: 'contract-negotiation' },
-            { contract: 'Laptop Supply', role: 'Supplier', otherParty: 'ABC University', status: 'Contract Received', requiredAction: 'Review and Sign', dueDate: '2026-07-04', nav: 'contract-negotiation' },
-            { contract: 'Cleaning Services', role: 'Buyer', otherParty: 'Usafi Pro Services', status: 'Award Accepted', requiredAction: 'Generate Contract', dueDate: '2026-07-06', nav: 'contract-negotiation' },
-            { contract: 'Rural Health Centers', role: 'Buyer', otherParty: 'ABC Construction Ltd', status: 'Change Requested', requiredAction: 'Review Supplier Request', dueDate: '2026-07-03', nav: 'contract-negotiation' }
-        ],
-        activeContracts: [
-            { title: 'Rural Health Centers', role: 'Buyer', otherParty: 'ABC Construction Ltd', progress: 65, status: 'In Progress', nextMilestone: 'MEP installations inspection', paymentStatus: 'Invoice Review', nav: 'post-award-tracking' },
-            { title: 'ICT Equipment Supply', role: 'Supplier', otherParty: 'XYZ College', progress: 20, status: 'Delivery Pending', nextMilestone: 'First batch delivery', paymentStatus: 'Not Invoiced', nav: 'post-award-tracking' }
-        ],
-        closedContracts: [
-            { title: 'Office Stationery Supply', role: 'Buyer', otherParty: 'Tanzania Stationers', finalValue: 12300000, currency: 'TZS', completionDate: '2026-03-15', performanceRating: '4.5/5', status: 'Completed' },
-            { title: 'Network Cabling Works', role: 'Supplier', otherParty: 'North District Hospital', finalValue: 9100000, currency: 'TZS', completionDate: '2026-02-28', performanceRating: '4.2/5', status: 'Closed' }
-        ],
+        pendingAwarding: [],
+        awardedToUs: [],
+        pendingActions: [],
+        activeContracts: [],
+        closedContracts: [],
         award: {
-            tenderTitle: 'Construction of Rural Health Centers',
-            reference: 'PX-TND-2026-014',
-            buyer: 'Dodoma Regional Health Authority',
-            procurementType: 'Works',
-            closingDate: '2026-06-10',
-            noticeDate: '2026-07-01',
-            standstillStart: '2026-07-01',
-            standstillEnd: '2026-07-15',
-            complaintsReceived: 'None',
-            complaintsResolved: true,
-            evaluationStatus: 'Completed',
-            awardStatus: 'Awaiting Supplier Acceptance',
-            selectedSupplier: 'ABC Construction Ltd',
-            awardAmount: 4670000000,
-            currency: 'TZS',
-            reason: 'Best evaluated responsive bid with strong methodology, corrected price, and confirmed mobilization plan.',
-            confirmation: {
-                confirmedBy: 'Buyer authority',
-                date: '2026-06-30',
-                note: 'Award package confirmed against final evaluation report and conflict declaration.',
-                status: 'Confirmed'
-            },
-            notices: [
-                { type: 'Notice of Intention to Award', recipient: 'All bidders', status: 'Sent', deadline: '2026-07-14' },
-                { type: 'Unsuccessful Bidder Notice', recipient: '2 bidders', status: 'Ready', deadline: '2026-07-14' },
-                { type: 'Award Notification', recipient: 'ABC Construction Ltd', status: 'Awaiting Response', deadline: '2026-07-05' }
-            ],
-            supplierResponses: [
-                { action: 'Accept Award', status: 'Primary path', detail: 'Unlocks pre-contract documents and draft contract generation.' },
-                { action: 'Request Clarification', status: 'Allowed', detail: 'Buyer can clarify without changing evaluation result or bid substance.' },
-                { action: 'Decline Award', status: 'Fallback', detail: 'Buyer may award next ranked responsive bidder or cancel the award process.' }
-            ]
+            notices: [],
+            supplierResponses: []
         },
         contract: {
-            contractId: 'PX-2026-0892',
-            title: 'Construction of Rural Health Centers',
-            tenderReference: 'PX-TND-2026-014',
-            buyer: 'Dodoma Regional Health Authority',
-            supplier: 'ABC Construction Ltd',
-            value: 4670000000,
-            currency: 'TZS',
-            duration: '90 days',
-            startDate: '2026-07-15',
-            endDate: '2026-10-13',
-            status: 'Supplier Reviewing Counter-Proposal',
-            poMatched: true,
-            budgetVerified: true,
-            supplierConfirmedTerms: true,
-            buyerConfirmedTerms: false,
-            lockedForSignature: false,
-            clauses: [
-                { title: 'Awarded Supplier', text: 'ABC Construction Ltd is the awarded supplier selected through the completed evaluation.', category: 'Award Data', lock: 'Locked', status: 'Agreed', comments: 0, requestedChange: 'Not negotiable after award.' },
-                { title: 'Contract Price', text: 'Total contract value is TZS 4,670,000,000 based on the final evaluated bid price.', category: 'Price', lock: 'Locked', status: 'Agreed', comments: 1, requestedChange: 'Only formal arithmetic or tax clarification may be recorded.' },
-                { title: 'Scope of Works', text: 'Construct and hand over rural health centers according to the tender scope, drawings, BOQ, and accepted methodology.', category: 'Scope', lock: 'Locked', status: 'Agreed', comments: 1, requestedChange: 'Main scope cannot be materially changed.' },
-                { title: 'Delivery Schedule', text: 'Milestones run from mobilization to final handover over a 90 day period.', category: 'Delivery', lock: 'Negotiable', status: 'Countered', comments: 3, requestedChange: 'Supplier requested 21 days for first milestone; buyer countered 18 days.' },
-                { title: 'Payment Terms', text: 'Payment follows accepted milestones, interim certificates, inspection, and buyer payment review.', category: 'Payment', lock: 'Negotiable', status: 'Pending Buyer Review', comments: 2, requestedChange: 'Supplier requested 30% advance; buyer reviewing retention and security conditions.' },
-                { title: 'Inspection and Acceptance', text: 'Buyer inspection, completion certificates, and correction of defects are required before milestone acceptance.', category: 'Acceptance', lock: 'Negotiable', status: 'Agreed', comments: 1, requestedChange: 'Inspection notice period clarified to 3 business days.' },
-                { title: 'Performance Security', text: 'Buyer records the required security template, value, validity, and submission deadline before contract effectiveness.', category: 'Security', lock: 'Negotiable', status: 'Pending Buyer Document', comments: 1, requestedChange: 'Submission deadline requested within 7 days after signing.' },
-                { title: 'Dispute Resolution', text: 'Disputes are first handled through contract notices, then escalation and formal resolution.', category: 'Clause', lock: 'Negotiable', status: 'Agreed', comments: 0, requestedChange: 'Clause wording accepted.' }
-            ],
-            negotiationRequests: [
-                { clause: 'Delivery Schedule', requestBy: 'Supplier', request: 'Extend first milestone from 14 to 21 days due to imported equipment clearance.', status: 'Countered', buyerResponse: 'Counter-proposed 18 days to protect semester opening deadline.' },
-                { clause: 'Payment Terms', requestBy: 'Supplier', request: 'Add 30% advance payment against performance security.', status: 'Pending Buyer Review', buyerResponse: 'Buyer verification of retention, security, and budget conditions is in progress.' },
-                { clause: 'Inspection and Acceptance', requestBy: 'Supplier', request: 'Clarify inspection response time after milestone submission.', status: 'Accepted', buyerResponse: 'Inspection response set to 3 business days.' },
-                { clause: 'Warranty / Defects Liability', requestBy: 'Buyer', request: 'Defects liability must remain 12 months from completion certificate.', status: 'Accepted', buyerResponse: 'Supplier accepted without change.' }
-            ],
-            versions: [
-                { version: '1.0', changedBy: 'Buyer', date: '2026-07-01 09:00', summary: 'Initial draft contract generated from tender, bid, award, milestones, and payment rules.', previousClause: '-', newClause: 'Draft contract body created.', reason: 'Award accepted and contract drafting opened.' },
-                { version: '1.1', changedBy: 'Supplier', date: '2026-07-02 11:15', summary: 'Supplier requested schedule and advance payment changes.', previousClause: '14 day first milestone; no advance payment.', newClause: '21 day first milestone; 30% advance request.', reason: 'Mobilization and cash flow clarification.' },
-                { version: '1.2', changedBy: 'Buyer', date: '2026-07-02 14:20', summary: 'Buyer counter-proposed schedule and accepted inspection clarification.', previousClause: '21 day first milestone request.', newClause: '18 day first milestone counter-proposal.', reason: 'Project must complete before semester start.' },
-                { version: '2.0', changedBy: 'System', date: 'Pending', summary: 'Final agreed version after both parties confirm terms.', previousClause: 'Negotiable clauses open.', newClause: 'Contract locked for signature.', reason: 'Dual confirmation required.' }
-            ],
-            documents: [
-                { name: 'Draft Contract v1.2', type: 'Contract Draft', status: 'Current', owner: 'Buyer' },
-                { name: 'Performance Security Requirement', type: 'Pre-contract Document', status: 'Pending Buyer Upload', owner: 'Buyer' },
-                { name: 'Tax Compliance Record', type: 'Buyer Checklist', status: 'Verified', owner: 'Buyer' },
-                { name: 'Award Confirmation Record', type: 'Award Record', status: 'Locked', owner: 'Buyer' }
-            ],
-            signatures: [
-                { party: 'Supplier', representative: 'Managing Director', status: 'Ready after terms lock', timestamp: 'Pending' },
-                { party: 'Buyer', representative: 'Authorized Representative', status: 'Countersign after supplier', timestamp: 'Pending' }
-            ],
-            activityLog: [
-                { time: '2026-06-30 09:15', actor: 'Buyer', event: 'Award decision confirmed', status: 'Complete' },
-                { time: '2026-07-01 09:00', actor: 'Buyer', event: 'Draft contract generated', status: 'Complete' },
-                { time: '2026-07-02 11:15', actor: 'Supplier', event: 'Requested clause changes', status: 'Change Requested' },
-                { time: '2026-07-02 14:20', actor: 'Buyer', event: 'Counter-proposal sent', status: 'Counter-Proposal Sent' },
-                { time: 'Pending', actor: 'Both Parties', event: 'Confirm terms and lock for signing', status: 'Next' }
-            ],
-            messages: [
-                { from: 'buyer', message: 'Please review the payment terms in section 3.2.', timestamp: '2026-07-02 10:30' },
-                { from: 'supplier', message: 'We can accept the revised inspection timeline, but request schedule relief for imported items.', timestamp: '2026-07-02 11:15' },
-                { from: 'buyer', message: 'We counter-propose 18 days instead of 21 days for the first milestone.', timestamp: '2026-07-02 14:20' }
-            ]
+            clauses: [],
+            negotiationRequests: [],
+            versions: [],
+            documents: [],
+            signatures: [],
+            activityLog: [],
+            messages: []
         },
         execution: {
-            contractId: 'PX-2026-0892',
-            title: 'Construction of Rural Health Centers',
-            status: 'In Progress',
-            progress: 65,
-            contractValue: 4670000000,
-            currency: 'TZS',
-            startDate: '2026-07-15',
-            endDate: '2026-10-13',
-            supplier: 'ABC Construction Ltd',
-            buyer: 'Dodoma Regional Health Authority',
-            milestones: [
-                { name: 'Mobilization', description: 'Site handover, work program, and performance security verification.', scheduled: '2026-07-20', actual: '2026-07-18', status: 'Accepted', evidence: 'Site handover memo', paymentPercent: 10 },
-                { name: 'MEP Installations', description: 'Mechanical, electrical, and plumbing installations.', scheduled: '2026-08-20', actual: '2026-08-23', status: 'Under Review', evidence: 'Inspection request GRN-2026-002', paymentPercent: 40 },
-                { name: 'Final Handover', description: 'Finishing works, completion certificate, and defect list.', scheduled: '2026-09-30', actual: '-', status: 'Pending', evidence: 'Not submitted', paymentPercent: 50 }
-            ],
-            invoices: [
-                { invoice: 'INV-2026-001', milestone: 'Mobilization', amount: 467000000, status: 'Paid', match: 'PO, certificate, and invoice align.', matchStatus: { po: true, certificate: true, invoice: true } },
-                { invoice: 'INV-2026-002', milestone: 'MEP Installations', amount: 1868000000, status: 'Pending Buyer Review', match: 'Inspection accepted after original due date; buyer payment review required.', matchStatus: { po: true, certificate: false, invoice: true } },
-                { invoice: 'INV-2026-003', milestone: 'Final Handover', amount: 2335000000, status: 'Blocked', match: 'No completion certificate yet.', matchStatus: { po: true, certificate: false, invoice: false } }
-            ],
-            issues: [
-                { id: 'ISS-001', title: 'Delivery delay for Item #5', raisedBy: 'Buyer', priority: 'Medium', responsibleParty: 'Supplier', status: 'Resolved', requiredAction: 'Record accepted revised schedule.' },
-                { id: 'ISS-002', title: 'Missing updated insurance document', raisedBy: 'Buyer', priority: 'High', responsibleParty: 'Supplier', status: 'Action Required', requiredAction: 'Upload valid insurance certificate.' }
-            ],
-            variations: [
-                { title: 'Extension of Time for Imported Equipment', requestedBy: 'Supplier', priceImpact: 'None', timelineImpact: '4 days', status: 'Under Review', document: 'Courier notice and customs letter', requiredAction: 'Buyer decision required', awaitingApprovalFrom: 'Buyer' },
-                { title: 'Additional Drainage Works', requestedBy: 'Buyer', priceImpact: 'TZS 42,000,000', timelineImpact: '6 days', status: 'Draft Variation', document: 'Site instruction draft', requiredAction: 'Supplier review required', awaitingApprovalFrom: 'Supplier' }
-            ],
-            closureChecklist: [
-                { item: 'All deliverables completed', status: 'Pending', mandatory: true, complete: false },
-                { item: 'All inspections completed', status: 'In Progress', mandatory: true, complete: false },
-                { item: 'All invoices processed', status: 'Pending', mandatory: true, complete: false },
-                { item: 'All disputes resolved', status: 'In Progress', mandatory: true, complete: false },
-                { item: 'Performance security release recorded', status: 'Pending', mandatory: true, complete: false },
-                { item: 'Supplier performance rated', status: 'Pending', mandatory: true, complete: false }
-            ],
-            defectLiability: {
-                period: '12 months',
-                startDate: 'Pending completion certificate',
-                endDate: 'Pending',
-                status: 'Not Started',
-                retentionRelease: 'After defects liability clearance'
-            },
-            performance: [
-                { criteria: 'Delivery timeliness', rating: 4, notes: 'Mobilization finished early; MEP milestone needs closer monitoring.' },
-                { criteria: 'Quality of works', rating: 5, notes: 'Accepted work meets inspection standard.' },
-                { criteria: 'Communication', rating: 4, notes: 'Supplier responds within agreed window.' },
-                { criteria: 'Contract compliance', rating: 5, notes: 'Core contract obligations are on track.' },
-                { criteria: 'Issue handling', rating: 4, notes: 'Delay issue resolved with accepted evidence.' }
-            ],
-            history: [
-                { date: '2026-07-01', event: 'Contract signed and activated' },
-                { date: '2026-07-18', event: 'Mobilization accepted' },
-                { date: '2026-07-25', event: 'Mobilization payment released' },
-                { date: '2026-08-22', event: 'Delay issue resolved and schedule memory updated' }
-            ],
-            supplierHealth: {
-                trustScore: 82,
-                riskLevel: 'Low',
-                lastAudit: '2026-06-30'
-            }
+            milestones: [],
+            invoices: [],
+            issues: [],
+            variations: [],
+            closureChecklist: [],
+            defectLiability: {},
+            performance: [],
+            history: [],
+            supplierHealth: {}
         }
     },
 
@@ -5213,7 +4993,7 @@ const mockData = {
                 senderName: 'Lake Builders Ltd',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: 'PX-WRK-2026-001',
                 tenderReference: 'PX-WRK-2026-001',
                 tenderTitle: 'Construction of District Maternal Health Wing',
@@ -5431,7 +5211,7 @@ const mockData = {
                 senderName: 'DART Environmental Consultants',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: 'PX-CON-2026-002',
                 tenderReference: 'PX-CON-2026-002',
                 tenderTitle: 'Environmental and Social Impact Assessment for BRT Extension',
@@ -5461,7 +5241,7 @@ const mockData = {
                 senderName: 'DART Environmental Consultants',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: 'PX-CON-2026-002',
                 tenderReference: 'PX-CON-2026-002',
                 tenderTitle: 'Environmental and Social Impact Assessment for BRT Extension',
@@ -5494,7 +5274,7 @@ const mockData = {
                 senderName: 'DART Environmental Consultants',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: 'PX-CON-2026-002',
                 tenderReference: 'PX-CON-2026-002',
                 tenderTitle: 'Environmental and Social Impact Assessment for BRT Extension',
@@ -5524,7 +5304,7 @@ const mockData = {
                 senderName: 'DART Environmental Consultants',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: 'PX-CON-2026-002',
                 tenderReference: 'PX-CON-2026-002',
                 tenderTitle: 'Environmental and Social Impact Assessment for BRT Extension',
@@ -5638,7 +5418,7 @@ const mockData = {
                 senderName: 'Campus Meals Tanzania Ltd',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: 'PX-SVC-2026-003',
                 tenderReference: 'PX-SVC-2026-003',
                 tenderTitle: 'Regional Student Meal Catering Services',
@@ -5650,7 +5430,7 @@ const mockData = {
                 contextKey: 'conversation-gate-pass',
                 thread: [
                     { senderType: 'Supplier', senderName: 'Campus Meals Tanzania Ltd', body: 'Please share delivery gate pass details.', createdAt: '2026-05-23T08:10:00' },
-                    { senderType: 'Business', senderName: 'Kilimanjaro Supplies Limited', body: 'Gate pass details are attached and copied to site security.', createdAt: '2026-05-23T09:00:00' }
+                    { senderType: 'Business', senderName: 'Verified Company Account', body: 'Gate pass details are attached and copied to site security.', createdAt: '2026-05-23T09:00:00' }
                 ],
                 createdAt: '2026-05-23T09:15:00',
                 updatedAt: '2026-05-23T09:15:00',
@@ -5668,7 +5448,7 @@ const mockData = {
                 senderName: 'ProcureX Platform',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: '',
                 tenderReference: 'Not linked',
                 tenderTitle: 'No tender linked',
@@ -5689,7 +5469,7 @@ const mockData = {
                 body: 'We have submitted the consultancy inception report and supporting workplan for your review.',
                 senderId: 'user-001',
                 senderType: 'Business',
-                senderName: 'Kilimanjaro Supplies Limited',
+                senderName: 'Verified Company Account',
                 recipientId: 'business-dar-rapid-transit-agency',
                 recipientType: 'Buyer',
                 recipientName: 'Dar Rapid Transit Agency',
@@ -5722,7 +5502,7 @@ const mockData = {
                 senderName: 'ProcureX Platform',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: '',
                 tenderReference: 'Not linked',
                 tenderTitle: 'No tender linked',
@@ -5746,7 +5526,7 @@ const mockData = {
                 senderName: 'Campus Meals Tanzania Ltd',
                 recipientId: 'user-001',
                 recipientType: 'Business',
-                recipientName: 'Kilimanjaro Supplies Limited',
+                recipientName: 'Verified Company Account',
                 tenderId: 'PX-SVC-2026-003',
                 tenderReference: 'PX-SVC-2026-003',
                 tenderTitle: 'Regional Student Meal Catering Services',
@@ -5791,7 +5571,7 @@ const mockData = {
         quickActions: [
             { title: 'Review approvals', detail: 'Award and budget approvals waiting', nav: 'awarding-contracts', audience: ['buyer', 'all'], signal: 'approvals' },
             { title: 'Evaluate new bids', detail: 'Open technical and financial review', nav: 'bid-evaluation', audience: ['buyer', 'all'], signal: 'bids' },
-            { title: 'Sign contract', detail: 'Complete digital signature workflow', nav: 'awarding-contracts', audience: ['buyer', 'supplier', 'all'], signal: 'contracts' },
+            { title: 'Sign contract', detail: 'Sign after both parties accept the final draft', nav: 'awarding-contracts', audience: ['buyer', 'supplier', 'all'], signal: 'contracts' },
             { title: 'Reply to messages', detail: 'Clarifications, alerts, and tender workflow messages', nav: 'communication-center', audience: ['buyer', 'supplier', 'all'], signal: 'messages' },
             { title: 'Find tenders', detail: 'Open matching tenders and tenders near closing date', nav: 'marketplace', audience: ['supplier', 'all'], signal: 'tenders' },
             { title: 'Create tender', detail: 'Start a new buyer procurement', nav: 'create-tender', audience: ['buyer', 'all'], signal: 'drafts' }
@@ -5824,15 +5604,15 @@ const awardContractLegacyDraftStoragePrefix = 'procurex.awardContractDraft.v1.';
 const awardContractDraftMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 
 function getAwardContractTenderId(tender = {}) {
-    return String(tender.id || tender.reference || tender.tenderReference || mockData.awardingContracts?.contract?.tenderReference || 'demo-award-contract');
+    return String(tender.id || tender.reference || tender.tenderReference || mockData.awardingContracts?.contract?.tenderReference || 'award-contract-record');
 }
 
 function getAwardContractDraftKey(tenderId) {
-    return `${awardContractDraftStoragePrefix}${tenderId || 'demo-award-contract'}`;
+    return `${awardContractDraftStoragePrefix}${tenderId || 'award-contract-record'}`;
 }
 
 function getAwardContractLegacyDraftKey(tenderId) {
-    return `${awardContractLegacyDraftStoragePrefix}${tenderId || 'demo-award-contract'}`;
+    return `${awardContractLegacyDraftStoragePrefix}${tenderId || 'award-contract-record'}`;
 }
 
 function sanitizeAwardContractDraftValue(value) {

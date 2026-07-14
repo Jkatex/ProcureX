@@ -1,4 +1,5 @@
 import { apiClient } from '@/shared/api/http';
+import { documentsApi } from '@/features/documents/api';
 import { generateTenderPackPdfBlob, generatedTenderPackFilename } from './tenderPdfPack';
 import type { TenderDetail, TenderDetailDocument } from './types';
 
@@ -11,6 +12,12 @@ export async function downloadTenderDocument(tender: TenderDetail, document?: Te
     return;
   }
 
+  const official = await fetchOfficialTenderDocumentBlob(tender, 'download').catch(() => null);
+  if (official) {
+    triggerBrowserDownload(official.blob, official.filename || generatedTenderPackFilename(tender));
+    return;
+  }
+
   const blob = await generateTenderPackPdfBlob(tender);
   triggerBrowserDownload(blob, generatedTenderPackFilename(tender));
 }
@@ -19,6 +26,12 @@ export async function openTenderDocument(tender: TenderDetail, document?: Tender
   if (document) {
     const response = await fetchTenderDocumentBlob(tender, document, 'open');
     openBlobInNewTab(response.blob);
+    return;
+  }
+
+  const official = await fetchOfficialTenderDocumentBlob(tender, 'open').catch(() => null);
+  if (official) {
+    openBlobInNewTab(official.blob);
     return;
   }
 
@@ -39,6 +52,22 @@ async function fetchTenderDocumentBlob(tender: TenderDetail, document: TenderDet
   return {
     blob: response.data,
     filename: filenameFromDisposition(response.headers['content-disposition']) || document.name
+  };
+}
+
+async function fetchOfficialTenderDocumentBlob(tender: TenderDetail, action: BlobAction) {
+  const generated = await documentsApi.generateOfficialDocument({
+    documentType: 'TENDER_DOCUMENT',
+    procurementType: officialProcurementType(tender.type),
+    sourceModule: 'procurement',
+    sourceEntityType: 'tender',
+    sourceEntityId: tender.id
+  });
+  const url = action === 'download' ? generated.document.downloadUrl : generated.document.openUrl;
+  const response = await documentsApi.officialDocumentBlob(url);
+  return {
+    blob: response.data,
+    filename: filenameFromDisposition(response.headers['content-disposition']) || `${sanitizeFilename(generated.document.reference)}-official-tender-v${generated.document.versionNo}.pdf`
   };
 }
 
@@ -76,4 +105,12 @@ function filenameFromDisposition(disposition: string | undefined) {
 
 function sanitizeFilename(filename: string) {
   return filename.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim();
+}
+
+function officialProcurementType(value: unknown) {
+  if (value === 'GOODS') return 'GOODS';
+  if (value === 'WORKS') return 'WORKS';
+  if (value === 'CONSULTANCY') return 'CONSULTANCY';
+  if (value === 'SERVICE') return 'NON_CONSULTANCY';
+  return 'MIXED';
 }

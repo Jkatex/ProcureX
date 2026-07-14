@@ -46,10 +46,6 @@ function renderRegister() {
                                 <p>Create an account</p>
                             </div>
 
-                            <button type="button" class="mock-fill-btn" data-fill-signup>
-                                Use mock sign-up data
-                            </button>
-
                             <form class="screen-form-new" data-action="register-step1">
                                 <div class="form-group-new">
                                     <label class="form-label-new">Email Address *</label>

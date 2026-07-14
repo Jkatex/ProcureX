@@ -2293,10 +2293,10 @@ export async function cleanupAwardContractDemo() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const command = process.argv[2];
-  const action = command === 'cleanup' ? cleanupAwardContractDemo : seedAwardContractDemo;
+  const action = command === 'seed' ? seedAwardContractDemo : cleanupAwardContractDemo;
   action()
     .then(async () => {
-      console.log(command === 'cleanup' ? `Removed ${AWARD_CONTRACT_DEMO_DATASET} demo records.` : `Seeded ${AWARD_CONTRACT_DEMO_DATASET} demo records.`);
+      console.log(command === 'seed' ? `Seeded ${AWARD_CONTRACT_DEMO_DATASET} demo records.` : `Removed ${AWARD_CONTRACT_DEMO_DATASET} demo records.`);
       await prisma.$disconnect();
     })
     .catch(async (error) => {
