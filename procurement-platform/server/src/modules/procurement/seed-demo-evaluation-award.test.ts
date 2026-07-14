@@ -8,6 +8,8 @@ import {
   DEMO_EVALUATION_AWARD_KEYPHRASE,
   DEMO_EVALUATION_AWARD_TENDER_REF,
   DEMO_EVALUATION_AWARD_WINNER_EMAIL,
+  DEMO_EVALUATION_AWARD_WINNER_NAME,
+  seedHassanAwardDemo,
   seedDemoEvaluationAward
 } from '../../../prisma/seed-demo-evaluation-award.js';
 
@@ -25,7 +27,7 @@ describeDb('two-user demo evaluation award seed', () => {
       where: { reference: DEMO_EVALUATION_AWARD_TENDER_REF },
       include: {
         bids: { include: { supplierOrg: true, receipt: true, versions: true, documents: { include: { document: true } } }, orderBy: { reference: 'asc' } },
-        evaluation: { include: { criteria: true, scores: true, recommendations: { include: { bid: true, supplierOrg: true } } } }
+        evaluation: { include: { criteria: true, scores: true, recommendations: { include: { bid: { include: { supplierOrg: true } }, notice: true } } } }
       }
     });
     expect(tender?.status).toBe(TenderStatus.EVALUATION);
@@ -39,6 +41,10 @@ describeDb('two-user demo evaluation award seed', () => {
     const recommendation = tender!.evaluation!.recommendations[0]!;
     expect(recommendation.status).toBe(RecommendationStatus.RECOMMENDED);
     expect(recommendation.supplierOrgId).toBe(tender!.bids[0]!.supplierOrgId);
+    expect(recommendation.reason).toContain(DEMO_EVALUATION_AWARD_WINNER_NAME);
+    const recommendationPayload = recommendation.payload as any;
+    expect(recommendationPayload.awardDecisionDraft.selectedSupplier).toBe(DEMO_EVALUATION_AWARD_WINNER_NAME);
+    expect(recommendationPayload.rankings[0]).toMatchObject({ rank: 1, supplier: DEMO_EVALUATION_AWARD_WINNER_NAME });
 
     for (const bid of tender?.bids ?? []) {
       expect(bid.receipt).toBeTruthy();
@@ -57,10 +63,12 @@ describeDb('two-user demo evaluation award seed', () => {
     expect(buyerDashboard.queues['awarding-in-progress'].some((item) => item.awardId === recommendation.id)).toBe(true);
 
     const supplierDashboardBeforeNotice = await repository.dashboard(supplierContext);
-    expect(supplierDashboardBeforeNotice.queues['awards-received'].some((item) => item.awardId === recommendation.id)).toBe(false);
+    const pendingSupplierAward = supplierDashboardBeforeNotice.queues['awards-received'].find((item) => item.awardId === recommendation.id);
+    expect(pendingSupplierAward?.noticeId).toBeNull();
+    expect(recommendation.notice).toBeNull();
 
     await repository.approveRecommendation(recommendation.id, {
-      selectedSupplier: recommendation.supplierOrg.name,
+      selectedSupplier: recommendation.bid.supplierOrg.name,
       awardAmount: Number(recommendation.amount),
       currency: recommendation.currency,
       reason: 'Best evaluated responsive bidder.',
@@ -96,6 +104,8 @@ describe('two-user demo evaluation award seed metadata', () => {
     expect(DEMO_EVALUATION_AWARD_TENDER_REF).toBe('PX-DEMO-EVAL-AWARD-2026-001');
     expect(DEMO_EVALUATION_AWARD_BUYER_EMAIL).toBe('demo@procurex.tz');
     expect(DEMO_EVALUATION_AWARD_WINNER_EMAIL).toBe('josefmmbaga@gmail.com');
+    expect(DEMO_EVALUATION_AWARD_WINNER_NAME).toBe('Hassan Omari Mdee');
     expect(DEMO_EVALUATION_AWARD_KEYPHRASE).toBe('DemoAward123!');
+    expect(seedHassanAwardDemo).toBe(seedDemoEvaluationAward);
   });
 });

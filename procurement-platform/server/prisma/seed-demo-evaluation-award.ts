@@ -28,6 +28,7 @@ export const DEMO_EVALUATION_AWARD_DATASET = 'demo-evaluation-award-two-user';
 export const DEMO_EVALUATION_AWARD_TENDER_REF = 'PX-DEMO-EVAL-AWARD-2026-001';
 export const DEMO_EVALUATION_AWARD_BUYER_EMAIL = 'demo@procurex.tz';
 export const DEMO_EVALUATION_AWARD_WINNER_EMAIL = 'josefmmbaga@gmail.com';
+export const DEMO_EVALUATION_AWARD_WINNER_NAME = 'Hassan Omari Mdee';
 export const DEMO_EVALUATION_AWARD_KEYPHRASE = 'DemoAward123!';
 
 type AnyDb = Record<string, any>;
@@ -37,8 +38,8 @@ const bidSpecs = [
   {
     key: 'winner',
     email: DEMO_EVALUATION_AWARD_WINNER_EMAIL,
-    fallbackOrgName: 'Hassan Omari Mdee',
-    displayName: 'Josef Mmbaga',
+    fallbackOrgName: DEMO_EVALUATION_AWARD_WINNER_NAME,
+    displayName: DEMO_EVALUATION_AWARD_WINNER_NAME,
     amount: 187_500_000,
     technical: 93,
     financial: 90
@@ -432,7 +433,7 @@ async function createCompletedEvaluation(db: AnyDb, tender: any, buyer: Actor, b
       status: RecommendationStatus.RECOMMENDED,
       amount: winningBid.totalAmount,
       currency: winningBid.currency,
-      reason: `${bidSpecs[0].displayName} ranked first after administrative, technical, and financial evaluation.`,
+      reason: `${DEMO_EVALUATION_AWARD_WINNER_NAME} ranked first after administrative, technical, and financial evaluation.`,
       payload: demoPayload({
         awardDecisionDraft: {
           selectedSupplier: bidSpecs[0].fallbackOrgName,
@@ -489,10 +490,12 @@ export async function seedDemoEvaluationAward() {
   }, prisma);
 }
 
+export const seedHassanAwardDemo = seedDemoEvaluationAward;
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  seedDemoEvaluationAward()
+  seedHassanAwardDemo()
     .then(() => {
-      console.log(`Seeded ${DEMO_EVALUATION_AWARD_DATASET}. Buyer: ${DEMO_EVALUATION_AWARD_BUYER_EMAIL} / Demo123!. Winner: ${DEMO_EVALUATION_AWARD_WINNER_EMAIL} / Demo123!. Signing keyphrase: ${DEMO_EVALUATION_AWARD_KEYPHRASE}`);
+      console.log(`Seeded ${DEMO_EVALUATION_AWARD_DATASET}. Buyer: ${DEMO_EVALUATION_AWARD_BUYER_EMAIL} / Demo123!. Winner: ${DEMO_EVALUATION_AWARD_WINNER_NAME} (${DEMO_EVALUATION_AWARD_WINNER_EMAIL}) / Demo123!. Signing keyphrase: ${DEMO_EVALUATION_AWARD_KEYPHRASE}`);
     })
     .catch((error) => {
       console.error(error);

@@ -274,7 +274,7 @@ export function ContractDraftingProcurexPage() {
           <AwardHero
             kicker="Contract Drafting"
             title={contract?.title ?? 'No contract selected'}
-            copy="Build a clean final draft from the standard contract template, selected clauses, and buyer custom wording before sending it to supplier negotiation."
+            copy="Prepare the draft for supplier review."
             stats={[
               { value: String(contract?.clauses?.length ?? 0), label: 'Clauses' },
               { value: String(contract?.versions?.length ?? 0), label: 'Versions' },
@@ -286,14 +286,14 @@ export function ContractDraftingProcurexPage() {
             <RemoteStatePanel
               kicker="No contract"
               title="Open a draft contract"
-              message="Choose a record from Contract Drafting to start contract drafting."
+              message="Choose a draft contract."
               status="Ready"
               actionLabel="Back to Contract Drafting"
               onAction={() => navigate('/awards-contracts?queue=contract-preparation')}
             />
           ) : null}
 
-          {isLoading ? <RemoteStatePanel kicker="Loading" title="Loading contract draft" message="ProcureX is fetching the selected contract, clauses, and documents." status="Loading" /> : null}
+          {isLoading ? <RemoteStatePanel kicker="Loading" title="Loading contract draft" message="Loading contract details." status="Loading" /> : null}
           {loadError ? <RemoteStatePanel kicker="Service status" title="Contract draft could not be loaded" message={loadError} status="Error" actionLabel="Retry loading" onAction={() => void loadContract()} /> : null}
 
           {!isLoading && !loadError && contract ? (
@@ -302,7 +302,7 @@ export function ContractDraftingProcurexPage() {
                 <RemoteStatePanel
                   kicker="Buyer workspace"
                   title="Contract drafting is buyer-only"
-                  message="Suppliers review the draft in Contract Negotiation after the buyer sends it."
+                  message="Suppliers review drafts in Contract Negotiation."
                   status="Locked"
                   actionLabel="Open negotiation"
                   onAction={() => navigate(`/awards-contracts/negotiation?contract=${contract.id}`)}
@@ -330,7 +330,7 @@ export function ContractDraftingProcurexPage() {
                     </button>
                     <button className="btn btn-secondary" type="button" onClick={() => navigate('/awards-contracts?queue=contract-preparation')}>Back to drafts</button>
                   </div>
-                  {!latest ? <div className="scope-empty">Generate a draft document before sending this contract to negotiation.</div> : null}
+                  {!latest ? <div className="scope-empty">Generate a draft before negotiation.</div> : null}
                 </div>
               </section>
 

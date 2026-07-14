@@ -34,8 +34,8 @@ export function AwardResponseProcurexPage() {
   const [awardDetail, setAwardDetail] = useState<AwardRecommendationDetailDto | null>(null);
   const [detailError, setDetailError] = useState('');
   const [responseMessages, setResponseMessages] = useState<Record<string, string>>({});
-  const [acceptNote, setAcceptNote] = useState('We accept the award offer and request the buyer to prepare the contract draft.');
-  const [clarificationNote, setClarificationNote] = useState('Please clarify the award notice conditions before we submit a final response.');
+  const [acceptNote, setAcceptNote] = useState('We accept the award offer.');
+  const [clarificationNote, setClarificationNote] = useState('Please clarify the award notice.');
   const [declineReason, setDeclineReason] = useState('');
   const [pendingResponseSignature, setPendingResponseSignature] = useState<{ award: LifecycleAction; payload: Record<string, unknown> } | null>(null);
   const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
@@ -158,7 +158,7 @@ export function AwardResponseProcurexPage() {
           <AwardHero
             kicker="Supplier award response"
             title={activeAward?.title ?? 'Awards received by your organization'}
-            copy="Read the award offer, see the buyer reason, then accept, ask for clarification, or decline."
+            copy="Review the offer and respond."
             stats={[
               { value: awards.length, label: 'Awards received' },
               { value: activeAward?.status ?? 'None', label: 'Selected award status' },
@@ -170,7 +170,7 @@ export function AwardResponseProcurexPage() {
             <RemoteStatePanel
               kicker="Loading"
               title="Loading supplier award notices"
-              message="ProcureX is fetching awards received by your organization."
+              message="Loading awards received."
               status="Loading"
             />
           ) : null}
@@ -204,7 +204,7 @@ export function AwardResponseProcurexPage() {
                   <div><span className="section-kicker">Respond to award</span><h2>No award selected</h2></div>
                   <StatusBadge value="No records" />
                 </div>
-                <div className="scope-empty">Award response details will appear here after your organization receives an award.</div>
+                <div className="scope-empty">No award is ready yet.</div>
                 <div className="inline-actions">
                   <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=awards-received">Open awards received</button>
                 </div>
@@ -220,7 +220,7 @@ export function AwardResponseProcurexPage() {
                     <div>
                       <span className="section-kicker">Award offer notice</span>
                       <h2>{noticeReference}</h2>
-                      <p>Review the buyer's offer and respond with a clear business decision.</p>
+                      <p>Review and respond.</p>
                     </div>
                     <StatusBadge value={noticeStatus} />
                   </div>
@@ -258,7 +258,7 @@ export function AwardResponseProcurexPage() {
                   {accepted ? (
                     <div className="award-response-note-box">
                       <span>Award accepted</span>
-                      <p>{latestPersistedResponse?.note || 'You accepted the award. The buyer can now prepare the contract draft.'}</p>
+                      <p>{latestPersistedResponse?.note || 'Award accepted.'}</p>
                       <div className="inline-actions">
                         {contractHandoffId ? (
                           <button className="btn btn-primary" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${contractHandoffId}`)}>Open contract negotiation</button>
@@ -272,7 +272,7 @@ export function AwardResponseProcurexPage() {
                   {declined ? (
                     <div className="award-response-note-box">
                       <span>Award declined</span>
-                      <p>{latestPersistedResponse?.note || 'You declined the award offer. The buyer will review the response and decide the next award path.'}</p>
+                      <p>{latestPersistedResponse?.note || 'Award declined.'}</p>
                     </div>
                   ) : null}
 
@@ -281,8 +281,7 @@ export function AwardResponseProcurexPage() {
                       <article className="award-response-action-card">
                         <div>
                           <span className="section-kicker">Accept award</span>
-                          <h3>Accept and request contract draft</h3>
-                          <p>Use this when the notice is acceptable and you are ready for the buyer to prepare the contract draft.</p>
+                          <h3>Accept award</h3>
                         </div>
                         <label className="award-form-field">
                           <span>Message to buyer</span>
@@ -306,7 +305,7 @@ export function AwardResponseProcurexPage() {
                         <div>
                           <span className="section-kicker">Clarification</span>
                           <h3>Ask buyer for clarification</h3>
-                          <p>Use this when you need the buyer to explain the offer, conditions, timing, or documents.</p>
+                          <p>Ask the buyer a question.</p>
                         </div>
                         <label className="award-form-field">
                           <span>Clarification needed</span>
@@ -330,7 +329,7 @@ export function AwardResponseProcurexPage() {
                         <div>
                           <span className="section-kicker">Decline</span>
                           <h3>Decline award offer</h3>
-                          <p>Give a reason so the buyer can review your response and move to another supplier or cancel the award.</p>
+                          <p>Give a short reason.</p>
                         </div>
                         <label className="award-form-field">
                           <span>Decline reason</span>

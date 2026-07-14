@@ -415,15 +415,14 @@ export function ActionFormPanel({
   const built = buildAwardContractPayload(fields, values);
   const blocked = saving || built.errors.length > 0;
   const counts = formCounts(fields);
-  const showAdvancedFields = access.viewerRole === 'ADMIN';
   const fieldsBySection = useMemo(() => {
     const grouped = new Map<string, AwardContractFieldConfig[]>();
-    for (const field of fields.filter((entry) => !isTechnicalField(entry) || showAdvancedFields)) {
+    for (const field of fields.filter((entry) => !isTechnicalField(entry))) {
       const section = fieldSection(field);
       grouped.set(section, [...(grouped.get(section) ?? []), field]);
     }
     return grouped;
-  }, [fields, showAdvancedFields]);
+  }, [fields]);
 
   if (!allowed) {
     if (access.hideLockedActions) return null;
@@ -453,7 +452,7 @@ export function ActionFormPanel({
     try {
       const result = await onSubmit(next.payload, values);
       setMessage(`${title} saved.`);
-      notifyAward('success', `${title} saved`, 'Your changes were saved to the award and contract record.');
+      notifyAward('success', `${title} saved`, 'Saved.');
       onComplete?.(result);
       clearAwardContractDirtyWork();
       setValues((current) => {
@@ -486,7 +485,7 @@ export function ActionFormPanel({
         <div className="award-action-cell award-action-cell-main">
           {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
           <h2>{title}</h2>
-          <p>{actionDefinition?.group ?? 'Workflow action'}</p>
+          <p>{actionDefinition?.group ?? 'Action'}</p>
         </div>
         <div className="award-action-cell">
           <span>Owner</span>
@@ -512,7 +511,7 @@ export function ActionFormPanel({
             <div>
               {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
               <h2 id={formTitleId}>{title}</h2>
-              <p>{owner === 'ANY' ? 'Shared workflow action' : owner === 'BUYER' ? 'Buyer-owned workflow action' : owner === 'SUPPLIER' ? 'Supplier-owned workflow action' : 'Admin-owned workflow action'}</p>
+              <p>{owner === 'ANY' ? 'Shared action' : owner === 'BUYER' ? 'Buyer action' : owner === 'SUPPLIER' ? 'Supplier action' : 'Admin action'}</p>
             </div>
             <StatusBadge value={badge} />
           </div>
@@ -660,7 +659,7 @@ function AwardContractField({
               key={item.value}
             >
               <strong>{item.label}</strong>
-              <span>{item.description || (item.value ? 'Evidence document' : 'Upload or choose a document before submitting')}</span>
+              <span>{item.description || (item.value ? 'Evidence document' : 'Choose a document')}</span>
               {item.status ? <StatusBadge value={item.status} /> : null}
             </button>
           ))}

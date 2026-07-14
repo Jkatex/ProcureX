@@ -102,7 +102,7 @@ function SupplierRequestForm({ contract, onRefresh }: { contract: ContractDetail
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!values.subject.trim() || !values.position.trim()) {
-      notifyAward('warning', 'Request details required', 'Enter the section, question or requested amendment, and reason before sending.');
+      notifyAward('warning', 'Request details required', 'Enter the request and reason.');
       return;
     }
     setSaving(true);
@@ -300,7 +300,7 @@ export function ContractNegotiationProcurexPage() {
           <AwardHero
             kicker="Contract Negotiation"
             title={contract?.title ?? 'No contract selected'}
-            copy="Suppliers review the buyer draft, ask for clarification, request amendments, and confirm the final draft once all requests are resolved."
+            copy="Review the draft and resolve requests."
             stats={[
               { value: String(contract?.versions?.length ?? 0), label: 'Draft versions' },
               { value: String(openRequests.length), label: 'Open requests' },
@@ -312,14 +312,14 @@ export function ContractNegotiationProcurexPage() {
             <RemoteStatePanel
               kicker="No contract"
               title="Open a contract in negotiation"
-              message="Choose a contract from Contract Negotiation to review supplier requests or accept the final draft."
+              message="Choose a contract in negotiation."
               status="Ready"
               actionLabel="Back to negotiations"
               onAction={() => navigate('/awards-contracts?queue=contracts-in-progress')}
             />
           ) : null}
 
-          {isLoading ? <RemoteStatePanel kicker="Loading" title="Loading negotiation" message="ProcureX is fetching the contract draft, supplier requests, and linked documents." status="Loading" /> : null}
+          {isLoading ? <RemoteStatePanel kicker="Loading" title="Loading negotiation" message="Loading contract details." status="Loading" /> : null}
           {loadError ? <RemoteStatePanel kicker="Service status" title="Contract negotiation could not be loaded" message={loadError} status="Error" actionLabel="Retry loading" onAction={() => void loadContract()} /> : null}
 
           {!isLoading && !loadError && contract ? (
@@ -328,7 +328,7 @@ export function ContractNegotiationProcurexPage() {
                 <RemoteStatePanel
                   kicker="Redraft required"
                   title="Buyer accepted an amendment"
-                  message="Return to Contract Drafting, update the clauses, generate a new version, and send the revised draft back to the supplier."
+                  message="Update the draft and send it again."
                   status="Action required"
                   actionLabel="Open Contract Drafting"
                   onAction={() => navigate(`/awards-contracts/drafting?contract=${contract.id}`)}
@@ -351,7 +351,7 @@ export function ContractNegotiationProcurexPage() {
 
               <section className="procurement-panel evaluation-panel post-award-panel">
                 <div className="panel-heading">
-                  <div><span className="section-kicker">Clarifications and Amendments</span><h2>Supplier requests and buyer decisions</h2></div>
+                  <div><span className="section-kicker">Clarifications and Amendments</span><h2>Requests and decisions</h2></div>
                   <StatusBadge value={`${openRequests.length} open`} />
                 </div>
                 {(contract.negotiations ?? []).length ? (
@@ -364,7 +364,7 @@ export function ContractNegotiationProcurexPage() {
 
                 {supplier && !redraftRequired ? (
                   <>
-                    <h3>Send a clarification or amendment request</h3>
+                    <h3>Send a request</h3>
                     <SupplierRequestForm contract={contract} onRefresh={refreshContract} />
                   </>
                 ) : null}
@@ -379,7 +379,7 @@ export function ContractNegotiationProcurexPage() {
                   <tr><td><strong>Buyer</strong></td><td><StatusBadge value={buyerAcceptedFinalDraft ? 'Accepted' : 'Pending'} /></td></tr>
                   <tr><td><strong>Supplier</strong></td><td><StatusBadge value={supplierAcceptedFinalDraft ? 'Accepted' : 'Pending'} /></td></tr>
                 </SimpleTable>
-                {openRequests.length ? <div className="scope-empty">Resolve all clarification and amendment requests before final draft acceptance.</div> : null}
+                {openRequests.length ? <div className="scope-empty">Resolve open requests first.</div> : null}
                 <div className="award-simple-form-stack">
                   {!buyerAcceptedFinalDraft && buyer && openRequests.length === 0 && !redraftRequired ? (
                     <ActionFormPanel
@@ -422,7 +422,7 @@ export function ContractNegotiationProcurexPage() {
                   <StatusBadge value={finalDraftReady ? 'Ready' : 'Locked'} />
                 </div>
                 {!finalDraftReady ? (
-                  <div className="scope-empty">Both buyer and supplier must accept the final draft before outcome communications and signing.</div>
+                  <div className="scope-empty">Both sides must accept the final draft first.</div>
                 ) : outcomeCommunicationsConfirmed ? (
                   <div className="inline-actions">
                     <button className="btn btn-primary" type="button" onClick={() => navigate(`/awards-contracts/signing?contract=${contract.id}`)}>Open Contract Signing</button>

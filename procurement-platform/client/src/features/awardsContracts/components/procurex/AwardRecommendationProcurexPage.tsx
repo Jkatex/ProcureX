@@ -190,7 +190,7 @@ export function AwardRecommendationProcurexPage() {
   async function sendNotices(signatureKeyphrase?: string) {
     if (!activeRecommendationId) return;
     if (!isAwardConfirmed) {
-      notifyAward('warning', 'Approve award first', 'Approve the award before sending the offer notice.');
+      notifyAward('warning', 'Approve award first', 'Approve the award first.');
       return;
     }
     if (!signatureKeyphrase) {
@@ -257,7 +257,7 @@ export function AwardRecommendationProcurexPage() {
           <AwardHero
             kicker="Award recommendation"
             title={detail?.supplierName ? `Award offer for ${detail.supplierName}` : activeRecommendation?.otherParty ? `Award offer for ${activeRecommendation.otherParty}` : 'Award offer'}
-            copy="Approve the award, send the offer notice, review the supplier response, then open contract drafting."
+            copy="Approve the award and send the offer."
             stats={[
               { value: detail?.amount ?? activeRecommendation?.amount ?? 0, label: detail?.currency ?? activeRecommendation?.currency ?? 'TZS' },
               { value: detail?.status ?? activeRecommendation?.status ?? 'Draft', label: 'Award status' },
@@ -269,7 +269,7 @@ export function AwardRecommendationProcurexPage() {
             <RemoteStatePanel
               kicker="Loading"
               title="Loading award recommendation"
-              message="ProcureX is fetching the recommendation and linked award records."
+              message="Loading award records."
               status="Loading"
             />
           ) : null}
@@ -315,8 +315,7 @@ export function AwardRecommendationProcurexPage() {
                 <div className="panel-heading">
                   <div>
                     <span className="section-kicker">Award process</span>
-                    <h2>From decision to contract draft</h2>
-                    <p>Each step unlocks only after the previous step is completed.</p>
+                    <h2>Decision to contract draft</h2>
                   </div>
                   <StatusBadge value={supplierDeclined ? 'Declined' : supplierAccepted ? 'Accepted' : hasNotice ? 'Awaiting supplier response' : isAwardConfirmed ? 'Ready to notify' : 'Decision required'} />
                 </div>
@@ -351,7 +350,7 @@ export function AwardRecommendationProcurexPage() {
                         <div>
                           <span className="section-kicker">Send offer notice</span>
                           <h2>Offer the award to {detail?.supplierName ?? activeRecommendation.otherParty}</h2>
-                          <p>The supplier will see the notice, award reason, conditions, and value before accepting or declining.</p>
+                          <p>Send the offer to the supplier.</p>
                         </div>
                         <StatusBadge value="Ready" />
                       </div>
@@ -371,7 +370,7 @@ export function AwardRecommendationProcurexPage() {
                         <div>
                           <span className="section-kicker">Supplier response</span>
                           <h2>Waiting for supplier decision</h2>
-                          <p>The offer has been sent. The supplier can accept, request clarification, or decline.</p>
+                          <p>Waiting for the supplier.</p>
                         </div>
                         <StatusBadge value={detail?.notice?.status ?? activeRecommendation.status} />
                       </div>
@@ -389,7 +388,7 @@ export function AwardRecommendationProcurexPage() {
                         <div>
                           <span className="section-kicker">Supplier declined</span>
                           <h2>Review the decline response</h2>
-                          <p>Use the recorded reason to decide whether to offer the next ranked supplier or cancel this award path.</p>
+                          <p>Review the supplier reason.</p>
                         </div>
                         <StatusBadge value="Declined" />
                       </div>
@@ -436,7 +435,7 @@ export function AwardRecommendationProcurexPage() {
                         <div>
                           <span className="section-kicker">Contract draft</span>
                           <h2>Supplier accepted the award</h2>
-                          <p>Open the buyer drafting workspace, prepare the official draft, then send it to contract negotiation.</p>
+                          <p>Open drafting to prepare the contract.</p>
                         </div>
                         <StatusBadge value={selectedContractId ? 'Draft ready' : 'Contract pending'} />
                       </div>
@@ -484,11 +483,11 @@ export function AwardRecommendationProcurexPage() {
               </div>
 
               <section className="award-simple-details-stack" aria-label="Supporting award information">
-                <ExpandableAwardDetails title="Documents used for this award" summary="Tender document, bid documents, and evaluation report">
+                <ExpandableAwardDetails title="Award documents" summary="Tender, bid, and evaluation files">
                   <SourceDocumentsPanel documents={detail?.sourceDocuments ?? []} />
                 </ExpandableAwardDetails>
 
-                <ExpandableAwardDetails title="Waiting period" summary="Set the waiting period and complaint deadline">
+                <ExpandableAwardDetails title="Waiting period" summary="Dates and status">
                   <ActionFormPanel
                     title="Waiting period"
                     badge="Buyer"
@@ -511,7 +510,7 @@ export function AwardRecommendationProcurexPage() {
                   />
                 </ExpandableAwardDetails>
 
-                <ExpandableAwardDetails title="Supplier response history" summary="Track whether the supplier has accepted, clarified, or declined">
+                <ExpandableAwardDetails title="Supplier responses" summary="Response history">
                   <SimpleTable headers={['Notice', 'Status', 'Latest response']}>
                     <tr>
                       <td>{detail?.notice?.reference ?? 'No notice sent yet'}</td>
@@ -532,7 +531,7 @@ export function AwardRecommendationProcurexPage() {
                   ) : null}
                 </ExpandableAwardDetails>
 
-                <ExpandableAwardDetails title="Contract readiness" summary="Check what is still needed before contract preparation">
+                <ExpandableAwardDetails title="Contract readiness" summary="Required steps">
                   <ul className="award-simple-ready-list">
                     <li className={isAwardConfirmed ? 'complete' : 'blocked'}><span>{isAwardConfirmed ? 'OK' : '!'}</span><strong>Award confirmed</strong></li>
                     <li className={hasNotice ? 'complete' : 'blocked'}><span>{hasNotice ? 'OK' : '!'}</span><strong>Offer notice sent</strong></li>

@@ -135,7 +135,7 @@ export function SampleProcurementProcurexPage() {
           <AwardHero
             kicker="Awarding and Contracts"
             title="Sample Procurement"
-            copy="Manage submitted bid samples from receipt through verification, custody, evaluation, testing, disposition, and contract reference linkage."
+            copy="Track submitted samples."
             stats={[
               { value: allSamples.length, label: 'Samples' },
               { value: dashboard?.summary?.['overdue-sample-actions'] ?? 0, label: 'Overdue' },
@@ -146,7 +146,7 @@ export function SampleProcurementProcurexPage() {
           {isLoading ? (
             <RemoteStatePanel
               title="Loading sample procurement"
-              message="ProcureX is fetching sample actions owned by Awarding and Contracts."
+              message="Loading sample actions."
             />
           ) : null}
           {loadError ? (
@@ -226,7 +226,7 @@ export function SampleProcurementProcurexPage() {
 
                   <section className="procurement-panel evaluation-panel post-award-panel post-award-forms-panel">
                     <div className="panel-heading">
-                      <div><span className="section-kicker">{canManageSelectedSample ? 'Buyer actions' : 'Sample status'}</span><h2>{canManageSelectedSample ? 'Receipt, verification, custody, evaluation, testing, and disposition' : 'Read-only sample progress'}</h2></div>
+                      <div><span className="section-kicker">{canManageSelectedSample ? 'Buyer actions' : 'Sample status'}</span><h2>{canManageSelectedSample ? 'Manage sample' : 'Sample progress'}</h2></div>
                       <StatusBadge value={selectedSample.trackingStatus} />
                     </div>
                     {!canManageSelectedSample ? (

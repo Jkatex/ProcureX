@@ -159,7 +159,7 @@ export function PostAwardAppPage() {
             <strong>{contracts.length}</strong>
           </div>
           {loading ? <div className="post-award-empty">Loading contracts...</div> : null}
-          {!loading && contracts.length === 0 ? <div className="post-award-empty">No signed or active contracts are ready for Post Award.</div> : null}
+          {!loading && contracts.length === 0 ? <div className="post-award-empty">No contracts are ready for Post Award.</div> : null}
           <div className="post-award-contract-list">
             {contracts.map((contract) => (
               <button
@@ -182,7 +182,7 @@ export function PostAwardAppPage() {
           {!workspace && !workspaceLoading ? (
             <div className="post-award-empty post-award-empty-large">
               <strong>Select a contract</strong>
-              <span>Post Award opens around a signed or active contract. Choose one from the contract list.</span>
+              <span>Choose a contract from the list.</span>
             </div>
           ) : null}
           {workspace ? (
@@ -248,14 +248,14 @@ export function PostAwardAppPage() {
                       >
                         <span>{action.owner}</span>
                         <strong>{action.label}</strong>
-                        <em>{action.reason ?? `${action.priority} priority`}</em>
+                        <em>{action.reason ?? action.priority}</em>
                       </button>
                     ))}
                   </div>
                   {activeAction ? (
                     <PostAwardActionForm actionKey={activeAction} workspace={workspace} onSaved={applyWorkspace} />
                   ) : (
-                    <div className="post-award-empty">Open an enabled action to record work against this contract.</div>
+                    <div className="post-award-empty">Open an action to record work.</div>
                   )}
                 </aside>
               </div>

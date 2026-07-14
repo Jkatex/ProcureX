@@ -30,12 +30,12 @@ const emptyQueues: AwardContractDashboard['queues'] = {
 };
 
 const queueNotes: Record<AwardQueueId, string> = {
-  'sample-procurement': 'Manage required samples, including receipt, verification, custody, testing, return, disposal, and reference sample records.',
-  'contract-preparation': 'Draft the contract from a standard template, selected clauses, custom wording, and generated document versions.',
-  'awarding-in-progress': 'Review evaluation results, confirm award decisions, send notices, and hand work into contract setup.',
-  'awards-received': 'Respond to awards your supplier organization has received, including acceptance, clarification, or decline.',
-  'contracts-in-progress': 'Negotiate draft contracts, resolve amendment requests, confirm final acceptance, and prepare outcome notices.',
-  'contract-signing': 'Complete buyer and supplier digital signatures, then open or download the official contract document.'
+  'sample-procurement': 'Receive, verify, and track samples.',
+  'contract-preparation': 'Prepare draft contracts and clauses.',
+  'awarding-in-progress': 'Review awards and send notices.',
+  'awards-received': 'Accept, clarify, or decline awards.',
+  'contracts-in-progress': 'Review drafts and resolve requests.',
+  'contract-signing': 'Request signatures and sign contracts.'
 };
 
 function explicitQueueFromSearch(search: string): AwardQueueId | null {
@@ -141,8 +141,7 @@ function NextActionsPanel({ actions, onAction }: { actions: Array<{ queue: Award
       <div className="panel-heading">
         <div>
           <span className="section-kicker">Your next actions</span>
-          <h2>Start with the work that needs attention first</h2>
-          <p>ProcureX combines buyer and supplier responsibilities here so you do not have to inspect every queue.</p>
+          <h2>Start with the next action</h2>
         </div>
         <StatusBadge value={actions.length ? `${actions.length} ready` : 'No actions'} tone={actions.length ? 'success' : 'info'} />
       </div>
@@ -182,7 +181,7 @@ function NextActionsPanel({ actions, onAction }: { actions: Array<{ queue: Award
         </div>
       ) : (
         <div className="scope-empty award-card-empty">
-          <p>No award or contract action needs your attention right now. When evaluation, award notices, negotiation, final acceptance, signing, delivery, or close-out work becomes ready, it will appear here first.</p>
+          <p>No action needs your attention right now.</p>
         </div>
       )}
     </section>
@@ -305,8 +304,8 @@ export function AwardingContractsProcurexPage() {
         <main className="main-content procurement-content awarding-contracts-workspace">
           <AwardHero
             kicker="Awarding and Contracts"
-            title="Your awarding and contracts - in every role you play"
-            copy="Your company can be a buyer on tenders you created and a supplier on tenders you won. Both roles are shown below with clear next actions."
+            title="Your awards and contracts"
+            copy="Track awards, contracts, and next actions."
             stats={[
               { value: queues['sample-procurement'].length, label: 'Sample actions' },
               { value: summary.awardQueues, label: 'Awards' },
@@ -318,7 +317,7 @@ export function AwardingContractsProcurexPage() {
             <RemoteStatePanel
               kicker="Loading"
               title="Loading awarding and contract records"
-              message="ProcureX is fetching your role-aware award, contract, and post-award queues."
+              message="Loading your queues."
               status="Loading"
             />
           ) : null}
@@ -342,8 +341,7 @@ export function AwardingContractsProcurexPage() {
                 <div className="panel-heading">
                   <div>
                     <span className="section-kicker">Lifecycle queues</span>
-                    <h2>Choose a work area when you need the full queue</h2>
-                    <p>The dashboard keeps buyer and supplier responsibilities visible without forcing separate accounts. Official workflow terms stay in the row details.</p>
+                    <h2>Choose a work area</h2>
                   </div>
                 </div>
 

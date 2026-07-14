@@ -92,7 +92,10 @@ export function ContractSigningProcurexPage() {
     record.title === 'outcome-communications' && ['APPROVED', 'CLOSED'].includes(record.status)
   );
   const signatureReady = Boolean(contract?.awardId && contract.supplierOrgId) && unresolvedNegotiations.length === 0 && buyerAcceptedFinalDraft && supplierAcceptedFinalDraft && outcomeCommunicationsConfirmed;
+  const buyerSignature = (contract?.signatures ?? []).find((signature) => signature.role === 'BUYER');
+  const supplierSignature = (contract?.signatures ?? []).find((signature) => signature.role === 'SUPPLIER');
   const buyerSigned = (contract?.signatures ?? []).some((signature) => signature.role === 'BUYER' && signature.status === 'SIGNED');
+  const supplierSigned = (contract?.signatures ?? []).some((signature) => signature.role === 'SUPPLIER' && signature.status === 'SIGNED');
   const pendingSignatures = (contract?.signatures ?? []).filter((signature) => signature.status !== 'SIGNED');
   const signableSignatures = (contract?.signatures ?? []).filter((signature) => {
     if (signature.status === 'SIGNED') return false;
@@ -104,14 +107,28 @@ export function ContractSigningProcurexPage() {
   const officialDocument = latestVersionDocument(contract, documents);
   const allSigned = Boolean(contract?.signatures?.length) && pendingSignatures.length === 0;
   const signatureLockReason = !contract?.awardId || !contract.supplierOrgId
-    ? 'Evaluation results, award confirmation, supplier acceptance, negotiation, and final draft acceptance are required before signing.'
+    ? 'Complete award and negotiation steps first.'
     : unresolvedNegotiations.length > 0
-      ? 'Resolve all amendment and clarification requests before signing.'
+      ? 'Resolve open requests first.'
       : !buyerAcceptedFinalDraft || !supplierAcceptedFinalDraft
-        ? 'Buyer and supplier must both accept the negotiated draft before signing.'
+        ? 'Both sides must accept the draft first.'
         : !outcomeCommunicationsConfirmed
-          ? 'Confirm winner and non-winning supplier outcome communications before signing.'
+          ? 'Confirm outcome communications first.'
           : '';
+  const supplierSigningStatus = supplierSigned
+    ? 'Supplier signed'
+    : !supplierSignature
+      ? 'Request supplier signature'
+      : !buyerSigned
+        ? 'After buyer signs'
+        : viewerRole === 'SUPPLIER'
+          ? 'Open supplier form below'
+          : 'Supplier signs on this page';
+  const buyerSigningStatus = buyerSigned
+    ? 'Buyer signed'
+    : buyerSignature
+      ? viewerRole === 'BUYER' ? 'Open buyer form below' : 'Waiting for buyer'
+      : 'Request buyer signature';
 
   function refreshContract(result: unknown) {
     setContract(result as ContractDetailDto);
@@ -125,7 +142,7 @@ export function ContractSigningProcurexPage() {
           <AwardHero
             kicker="Contract Signing"
             title="Complete digital signatures"
-            copy="Review pending signature requests, sign in buyer-before-supplier order, and open the official contract document once signing is complete."
+            copy="Request signatures and sign the contract."
             stats={[
               { value: String(contract?.signatures?.length ?? 0), label: 'Signature records' },
               { value: String(pendingSignatures.length), label: 'Pending' },
@@ -137,7 +154,7 @@ export function ContractSigningProcurexPage() {
             <RemoteStatePanel
               kicker="No contract"
               title="Open a contract pending signature"
-              message="Choose a contract from the Contract Signing queue to complete digital signatures."
+              message="Choose a contract to sign."
               status="Ready"
               actionLabel="Back to contracts"
               onAction={() => navigate('/awards-contracts?queue=contract-signing')}
@@ -148,7 +165,7 @@ export function ContractSigningProcurexPage() {
             <RemoteStatePanel
               kicker="Loading"
               title="Loading contract signing"
-              message="ProcureX is fetching the selected contract, signatures, and linked contract documents."
+              message="Loading contract signing."
               status="Loading"
             />
           ) : null}
@@ -197,6 +214,10 @@ export function ContractSigningProcurexPage() {
                     </tr>
                   ))}
                 </SimpleTable>
+                <section className="contract-overview-grid" aria-label="Signing path">
+                  <article><span>Buyer signing</span><strong>{buyerSigningStatus}</strong></article>
+                  <article><span>Supplier signing</span><strong>{supplierSigningStatus}</strong></article>
+                </section>
 
                 {canRequestSignatures && !pendingSignatures.length && !allSigned ? (
                   <ActionFormPanel
@@ -227,7 +248,7 @@ export function ContractSigningProcurexPage() {
                     fields={[
                       { name: 'signerName', label: 'Signer name', kind: 'text', required: true },
                       { name: 'signerTitle', label: 'Signer title', kind: 'text' },
-                      { name: 'signatureKeyphrase', label: 'Signature keyphrase', kind: 'password', required: true, helpText: 'Enter the active signing keyphrase for this account. ProcureX sends it only to sign this contract action.' },
+                      { name: 'signatureKeyphrase', label: 'Signature keyphrase', kind: 'password', required: true, helpText: 'Used only for this signature.' },
                       { name: 'payload', label: 'Signature payload', kind: 'json', rows: 4 }
                     ]}
                     initialValues={{
@@ -253,7 +274,7 @@ export function ContractSigningProcurexPage() {
                   <StatusBadge value={allSigned ? 'Available after signing' : 'Waiting for signatures'} />
                 </div>
                 {!allSigned ? (
-                  <div className="scope-empty">The official contract document opens here after all required signatures are complete.</div>
+                  <div className="scope-empty">Available after signing.</div>
                 ) : officialDocument ? (
                   <SimpleTable headers={['Document', 'Type', 'Action']}>
                     <tr>

@@ -168,7 +168,7 @@ export function ContractClausesProcurexPage() {
           <AwardHero
             kicker="Contract Clauses"
             title={contract?.title ?? 'No contract selected'}
-            copy="Edit the wording that will appear in the contract draft. Add custom clauses here, then return to the draft document for review and PDF generation."
+            copy="Edit clauses for the draft."
             stats={[
               { value: String(contract?.clauses?.length ?? 0), label: 'Clauses' },
               { value: contract?.status ?? 'Draft', label: 'Status' },
@@ -180,14 +180,14 @@ export function ContractClausesProcurexPage() {
             <RemoteStatePanel
               kicker="No contract"
               title="Open contract clauses"
-              message="Choose a contract draft before editing clauses."
+              message="Choose a draft contract."
               status="Ready"
               actionLabel="Back to Contract Drafting"
               onAction={() => navigate('/awards-contracts?queue=contract-preparation')}
             />
           ) : null}
 
-          {isLoading ? <RemoteStatePanel kicker="Loading" title="Loading contract clauses" message="ProcureX is fetching the contract and saved clauses." status="Loading" /> : null}
+          {isLoading ? <RemoteStatePanel kicker="Loading" title="Loading contract clauses" message="Loading clauses." status="Loading" /> : null}
           {loadError ? <RemoteStatePanel kicker="Service status" title="Contract clauses could not be loaded" message={loadError} status="Error" actionLabel="Retry loading" onAction={() => void loadContract()} /> : null}
 
           {!isLoading && !loadError && contract ? (
@@ -196,7 +196,7 @@ export function ContractClausesProcurexPage() {
                 <RemoteStatePanel
                   kicker="Buyer workspace"
                   title="Contract clause editing is buyer-only"
-                  message="Suppliers review the draft in Contract Negotiation after the buyer sends it."
+                  message="Suppliers review drafts in Contract Negotiation."
                   status="Locked"
                   actionLabel="Back to draft review"
                   onAction={() => navigate(`/awards-contracts/drafting?contract=${contract.id}`)}
@@ -237,7 +237,7 @@ export function ContractClausesProcurexPage() {
                         ))}
                       </SimpleTable>
                     ) : (
-                      <div className="scope-empty">No clauses are saved yet. Add a custom clause to include it in the draft document.</div>
+                      <div className="scope-empty">No clauses are saved yet.</div>
                     )}
                     <div className="inline-actions">
                       <button className="btn btn-secondary" type="button" onClick={startCustomClause}>New custom clause</button>

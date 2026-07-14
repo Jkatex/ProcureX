@@ -32,42 +32,42 @@ export const summaryCards: SummaryCard[] = [
     queue: 'sample-procurement',
     label: 'Sample Procurement',
     value: 0,
-    detail: 'Receipt, verification, custody, evaluation, testing, return, disposal, and reference samples',
+    detail: 'Sample receipt and review',
     trend: 'Samples'
   },
   {
     queue: 'contract-preparation',
     label: 'Contract Preparation',
     value: 0,
-    detail: 'Buyer-owned contract drafts prepared after tender publication and before award',
+    detail: 'Draft contracts',
     trend: 'Draft'
   },
   {
     queue: 'awarding-in-progress',
     label: 'Awarding in Progress',
     value: pendingAwards.length,
-    detail: 'Buyer-side tenders moving from evaluation results to draft contract',
+    detail: 'Award decisions',
     trend: 'Up'
   },
   {
     queue: 'awards-received',
     label: 'Awards Received',
     value: supplierAwards.length,
-    detail: 'Supplier-side awards awaiting response, review, or signature',
+    detail: 'Supplier responses',
     trend: 'Next'
   },
   {
     queue: 'contracts-in-progress',
     label: 'Contracts in Progress',
     value: contractActions.length,
-    detail: 'Draft review, amendment requests, final acceptance, and communication confirmation',
+    detail: 'Draft review and requests',
     trend: 'Due'
   },
   {
     queue: 'contract-signing',
     label: 'Contract Signing',
     value: 0,
-    detail: 'Contracts pending buyer or supplier digital signature',
+    detail: 'Pending signatures',
     trend: 'Sign'
   }
 ];

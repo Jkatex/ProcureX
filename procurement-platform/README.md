@@ -77,6 +77,17 @@ npm run db:seed:award-ready-demo
 
 The award-ready seed is idempotent and only recreates records marked as the `award-ready-evaluation-demo` dataset. Sign in as `award-ready-buyer@procurex.tz` with password `AwardReady123!`, then open Awarding and Contracts to continue from the prepared recommendation.
 
+To load a Hassan Omari Mdee award demo for the verified demo buyer:
+
+```powershell
+npm run infra:up
+npm run db:migrate
+npm run db:seed
+npm run db:seed:hassan-award-demo
+```
+
+The Hassan award seed is idempotent and only recreates records marked as the `demo-evaluation-award-two-user` dataset. Sign in as `demo@procurex.tz` with password `Demo123!`, then open Awarding and Contracts. Hassan Omari Mdee is the recommended winner, and the signing keyphrase is `DemoAward123!`.
+
 To load optional marketplace demo tenders that supplier users can bid:
 
 ```powershell
