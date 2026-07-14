@@ -117,6 +117,55 @@ describe('procurementApi runtime data access', () => {
     expect(result.recommendedTenders).toEqual([]);
   });
 
+  it('adds mock buyer logos to no-logo marketplace rows while preserving uploaded logos', async () => {
+    vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
+      data: {
+        tenders: [
+          {
+            id: 'mock-logo-tender',
+            reference: 'PX-LOGO-001',
+            title: 'Supply of demo materials',
+            organization: 'Kilimanjaro Supplies Limited',
+            ownerOrganization: 'Kilimanjaro Supplies Limited',
+            type: 'Goods',
+            category: 'Supplies',
+            status: 'Open',
+            budget: 45000000,
+            closingDate: '2026-08-30',
+            location: 'Moshi',
+            description: 'Demo tender without an uploaded buyer logo',
+            createdByCurrentUser: false
+          },
+          {
+            id: 'uploaded-logo-tender',
+            reference: 'PX-LOGO-002',
+            title: 'Uploaded logo tender',
+            organization: 'Uploaded Buyer Limited',
+            ownerOrganization: 'Uploaded Buyer Limited',
+            buyerLogoUrl: '/api/procurement/tenders/uploaded-logo-tender/buyer-logo',
+            type: 'Service',
+            category: 'Support',
+            status: 'Open',
+            budget: 60000000,
+            closingDate: '2026-08-30',
+            location: 'Dar es Salaam',
+            description: 'Demo tender with an uploaded buyer logo',
+            createdByCurrentUser: false
+          }
+        ],
+        myTenders: [],
+        myBids: [],
+        summary: {},
+        pagination: { page: 1, limit: 20, matching: 2, totalPages: 1, hasNextPage: false, hasPreviousPage: false }
+      }
+    });
+
+    const result = await procurementApi.getMarketplace();
+
+    expect(result.tenders[0].buyerLogoUrl).toBe('/assets/mock-business-logos/kilimanjaro-supplies.svg');
+    expect(result.tenders[1].buyerLogoUrl).toBe('/api/procurement/tenders/uploaded-logo-tender/buyer-logo');
+  });
+
   it('normalizes backend tender detail category before detail pages render it', async () => {
     vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
       data: {

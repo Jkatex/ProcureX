@@ -365,6 +365,7 @@ export type MarketplaceTenderRow = {
   title: string;
   organization: string;
   ownerOrganization: string;
+  buyerLogoUrl?: string;
   type: string;
   category: string;
   description: string;
@@ -515,6 +516,16 @@ export type UpdateTenderResponseDto = {
     updatedAt: string;
   };
   validation?: TenderDraftValidationDto;
+};
+
+export type DeleteTenderDraftResponseDto = {
+  success: true;
+  message: 'Tender draft deleted successfully';
+  data: {
+    id: string;
+    reference: string;
+    title: string;
+  };
 };
 
 export type UpdateBuyerNoticeResponseDto = {
@@ -682,6 +693,7 @@ export type TenderDetailDto = {
   ownerUserId: string | null;
   organization: string;
   ownerOrganization: string;
+  buyerLogoUrl?: string;
   type: string;
   category: string;
   description: string;

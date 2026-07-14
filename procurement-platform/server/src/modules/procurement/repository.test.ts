@@ -269,6 +269,50 @@ describe('procurement marketplace repository', () => {
     );
   });
 
+  it('includes buyer logo urls from uploaded account profile images', async () => {
+    const tender = tenderDetailRecord({
+      id: 'tender-logo',
+      reference: 'PX-LOGO-001',
+      buyerOrgId: 'buyer-logo-org',
+      title: 'Logo Buyer Tender',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      publishedAt: new Date('2026-07-01T08:00:00.000Z'),
+      closingDate: new Date('2026-08-30T00:00:00.000Z'),
+      buyerOrg: {
+        id: 'buyer-logo-org',
+        name: 'Logo Buyer Limited',
+        verificationProfiles: [{ payload: verificationProfilePayload(uploadedLogo()) }]
+      },
+      categories: [{ name: 'Goods' }]
+    });
+    const db = {
+      tender: {
+        findMany: vi.fn().mockResolvedValue([tender])
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    const payload = await repository.getMarketplaceData({}, {
+      search: '',
+      category: '',
+      type: '',
+      budgetBand: '',
+      status: '',
+      includeClosed: false,
+      visibility: '',
+      sort: 'deadline',
+      page: 1,
+      limit: 20
+    });
+
+    expect(payload.tenders[0]).toMatchObject({
+      id: 'tender-logo',
+      organization: 'Logo Buyer Limited',
+      buyerLogoUrl: '/api/procurement/tenders/tender-logo/buyer-logo'
+    });
+  });
+
   it('lists passed-review public open tenders for all users and in the creator workspace only for the owner organization', async () => {
     const ownerOrgId = 'buyer-org-1';
     const supplierOrgId = 'supplier-org-1';
@@ -2146,7 +2190,13 @@ describe('procurement tender write repository', () => {
       include: {
         tender: {
           include: expect.objectContaining({
-            buyerOrg: { select: { id: true, name: true } },
+            buyerOrg: {
+              select: expect.objectContaining({
+                id: true,
+                name: true,
+                verificationProfiles: expect.any(Object)
+              })
+            },
             categories: { select: { name: true }, orderBy: { name: 'asc' } }
           })
         }
@@ -2221,7 +2271,13 @@ describe('procurement tender detail repository', () => {
     expect(db.tender.findUnique).toHaveBeenCalledWith({
       where: { id: 'tender-public' },
       include: expect.objectContaining({
-        buyerOrg: { select: { id: true, name: true } },
+        buyerOrg: {
+          select: expect.objectContaining({
+            id: true,
+            name: true,
+            verificationProfiles: expect.any(Object)
+          })
+        },
         categories: { select: { name: true }, orderBy: { name: 'asc' } },
         bids: expect.objectContaining({
           select: expect.objectContaining({ id: true, supplierOrgId: true, status: true })
@@ -2670,6 +2726,34 @@ describe('procurement tender detail repository', () => {
     await expect(repository.recordTenderDocumentDownload('tender-public', 'missing-doc', { organizationId: 'supplier-org-1' })).resolves.toBeNull();
   });
 
+  it('returns buyer logo metadata only for visible tenders', async () => {
+    const logo = uploadedLogo();
+    const visibleTender = {
+      id: 'tender-public',
+      buyerOrgId: 'buyer-org-1',
+      status: TenderStatus.OPEN,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      metadata: {},
+      buyerOrg: {
+        verificationProfiles: [{ payload: verificationProfilePayload(logo) }]
+      }
+    };
+    const hiddenTender = {
+      ...visibleTender,
+      id: 'tender-draft',
+      status: TenderStatus.DRAFT
+    };
+    const db = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValueOnce(visibleTender).mockResolvedValueOnce(hiddenTender)
+      }
+    };
+    const repository = new ModuleRepository(db as any);
+
+    await expect(repository.getTenderBuyerLogo('tender-public', {})).resolves.toEqual(logo);
+    await expect(repository.getTenderBuyerLogo('tender-draft', { organizationId: 'supplier-org-1' })).resolves.toBeNull();
+  });
+
   it('returns document stream metadata and records audit for attachment downloads', async () => {
     const db = {
       tender: {
@@ -2868,6 +2952,28 @@ describe('procurement tender detail repository', () => {
     );
   });
 });
+
+function uploadedLogo(overrides: Record<string, unknown> = {}) {
+  return {
+    objectKey: 'profile-images/user-1/logo.png',
+    fileName: 'logo.png',
+    mimeType: 'image/png',
+    size: 16,
+    checksum: 'logo-checksum',
+    uploadedAt: '2026-07-01T08:00:00.000Z',
+    imageRole: 'logo',
+    storage: 'local-dev',
+    ...overrides
+  };
+}
+
+function verificationProfilePayload(profileImage: Record<string, unknown>) {
+  return {
+    profile: {
+      profileImage
+    }
+  };
+}
 
 function tenderDetailRecord(overrides: Record<string, unknown> = {}) {
   return {

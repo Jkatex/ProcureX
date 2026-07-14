@@ -12,6 +12,7 @@ import { ModuleService as IdentityService } from '../identity/service.js';
 import { ModuleService as EvaluationService } from '../evaluation/service.js';
 import { prisma } from '../../db/prisma.js';
 import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
+import { readStoredProfileImage } from '../identity/profileImageStorage.js';
 import { isProductionRuntime } from '../../security/config.js';
 import {
   type CloseTenderResponseDto,
@@ -19,6 +20,7 @@ import {
   type CategoryStandardizationResponseDto,
   type CreateTenderInput,
   type CreateTenderResponseDto,
+  type DeleteTenderDraftResponseDto,
   type DesignFormSchemaListResponseDto,
   type DesignFormSchemaResponseDto,
   type MasterDataGroupResponseDto,
@@ -186,6 +188,12 @@ export class ModuleService {
     return this.repository.recordTenderDocumentDownload(tenderId, documentId, context);
   }
 
+  async tenderBuyerLogo(tenderId: string, token?: string) {
+    const context = await this.contextFromToken(token);
+    const image = await this.repository.getTenderBuyerLogo(tenderId, context);
+    return image ? readStoredProfileImage(image) : null;
+  }
+
   async tenderDocumentStream(tenderId: string, documentId: string, disposition: TenderDocumentStreamDto['disposition'], token?: string) {
     const context = await this.contextFromToken(token);
     const document = await this.repository.getTenderDocumentForStream(tenderId, documentId, context, disposition);
@@ -323,6 +331,12 @@ export class ModuleService {
       { organizationId, userId: session.user.id }
     );
     return tender ? { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) } : null;
+  }
+
+  async deleteTenderDraft(tenderId: string, token: string | undefined): Promise<DeleteTenderDraftResponseDto | null> {
+    const session = await this.identity.requireSession(token);
+    const organizationId = requireOrganization(session.user.organizationId);
+    return this.repository.deleteTenderDraft(tenderId, { organizationId, userId: session.user.id });
   }
 
   async updateTenderBuyerNotice(tenderId: string, token: string | undefined, input: UpdateBuyerNoticeInput): Promise<UpdateBuyerNoticeResponseDto | null> {

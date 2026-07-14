@@ -7,10 +7,15 @@ const validTenderId = '11111111-1111-4111-8111-111111111111';
 function mockResponse() {
   const res = {
     status: vi.fn(),
-    json: vi.fn()
+    json: vi.fn(),
+    setHeader: vi.fn(),
+    type: vi.fn(),
+    send: vi.fn()
   };
   res.status.mockReturnValue(res);
   res.json.mockReturnValue(res);
+  res.type.mockReturnValue(res);
+  res.send.mockReturnValue(res);
   return res;
 }
 
@@ -251,6 +256,118 @@ describe('procurement controller validation responses', () => {
 
     expectValidationResponse(res, next);
     expect(service.updateTender).not.toHaveBeenCalled();
+  });
+
+  it('returns structured validation errors for invalid tender draft delete params', async () => {
+    const service = { deleteTenderDraft: vi.fn() };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.deleteTenderDraft(
+      mockRequest({
+        params: { tenderId: 'not-a-valid-id' }
+      }) as any,
+      res as any,
+      next
+    );
+
+    expectValidationResponse(res, next);
+    expect(service.deleteTenderDraft).not.toHaveBeenCalled();
+  });
+
+  it('deletes draft tenders through the service', async () => {
+    const payload = {
+      success: true,
+      message: 'Tender draft deleted successfully',
+      data: {
+        id: validTenderId,
+        reference: 'PX-DRAFT-001',
+        title: 'Draft tender'
+      }
+    };
+    const service = { deleteTenderDraft: vi.fn().mockResolvedValue(payload) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.deleteTenderDraft(
+      mockRequest({
+        params: { tenderId: validTenderId },
+        token: 'token-1'
+      }) as any,
+      res as any,
+      next
+    );
+
+    expect(service.deleteTenderDraft).toHaveBeenCalledWith(validTenderId, 'token-1');
+    expect(res.json).toHaveBeenCalledWith(payload);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns structured validation errors for invalid buyer logo tender params', async () => {
+    const service = { tenderBuyerLogo: vi.fn() };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.tenderBuyerLogo(
+      mockRequest({
+        params: { tenderId: 'not-a-valid-id' }
+      }) as any,
+      res as any,
+      next
+    );
+
+    expectValidationResponse(res, next);
+    expect(service.tenderBuyerLogo).not.toHaveBeenCalled();
+  });
+
+  it('streams buyer logos through the service', async () => {
+    const image = {
+      filename: 'buyer-logo.png',
+      contentType: 'image/png',
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    };
+    const service = { tenderBuyerLogo: vi.fn().mockResolvedValue(image) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.tenderBuyerLogo(
+      mockRequest({
+        params: { tenderId: validTenderId },
+        token: 'token-1'
+      }) as any,
+      res as any,
+      next
+    );
+
+    expect(service.tenderBuyerLogo).toHaveBeenCalledWith(validTenderId, 'token-1');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'inline; filename="buyer-logo.png"');
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=300');
+    expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+    expect(res.type).toHaveBeenCalledWith('image/png');
+    expect(res.send).toHaveBeenCalledWith(image.body);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns not found when a buyer logo is unavailable', async () => {
+    const service = { tenderBuyerLogo: vi.fn().mockResolvedValue(null) };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.tenderBuyerLogo(
+      mockRequest({
+        params: { tenderId: validTenderId }
+      }) as any,
+      res as any,
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 404, message: 'Buyer logo was not found.' }));
+    expect(res.send).not.toHaveBeenCalled();
   });
 
   it('returns structured validation errors for invalid buyer notice payloads', async () => {

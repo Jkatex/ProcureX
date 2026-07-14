@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Medical Stores Department mock logo</title>
+  <desc id="desc">A blue medicine box logo with Medical Stores Department initials.</desc>
+  <rect width="160" height="160" rx="26" fill="#eef6ff"/>
+  <rect x="34" y="48" width="92" height="70" rx="16" fill="#246bba"/>
+  <path d="M65 35h30a10 10 0 0110 10v10H95v-8a3 3 0 00-3-3H68a3 3 0 00-3 3v8H55V45a10 10 0 0110-10z" fill="#17324d"/>
+  <path d="M73 65h14v18h18v14H87v18H73V97H55V83h18V65z" fill="#ffffff"/>
+  <text x="80" y="142" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" font-weight="800" fill="#17324d">MSD</text>
+</svg>

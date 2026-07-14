@@ -251,6 +251,18 @@ export class ModuleController {
     }
   };
 
+  deleteTenderDraft: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const tender = await this.service.deleteTenderDraft(params.data.tenderId, bearerToken(req));
+      if (!tender) throw requestError('Tender draft was not found.', 404);
+      res.json(tender);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   updateTenderBuyerNotice: RequestHandler = async (req, res, next) => {
     try {
       const params = tenderParamsSchema.safeParse(req.params);
@@ -284,6 +296,21 @@ export class ModuleController {
       const result = await this.service.recordTenderDocumentDownload(params.data.tenderId, params.data.documentId, bearerToken(req));
       if (!result) throw requestError('Tender document was not found.', 404);
       res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  tenderBuyerLogo: RequestHandler = async (req, res, next) => {
+    try {
+      const params = tenderParamsSchema.safeParse(req.params);
+      if (!params.success) return validationResponse(res, params.error);
+      const image = await this.service.tenderBuyerLogo(params.data.tenderId, bearerToken(req));
+      if (!image) throw requestError('Buyer logo was not found.', 404);
+      res.setHeader('Content-Disposition', `inline; filename="${safeHeaderFilename(image.filename)}"`);
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.type(image.contentType).send(image.body);
     } catch (error) {
       next(error);
     }

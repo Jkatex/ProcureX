@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAppSelector } from '@/app/store';
+import { useAppDispatch, useAppSelector } from '@/app/store';
 import { demoUsers } from '@/shared/data/fixtures';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import { procurementApi } from '../../api';
 import { useMarketplaceData } from '../../hooks';
 import { hasActiveMarketplaceDeadline, isActiveInvitedTender, isActiveMarketplaceTender } from '../../marketplaceTenderVisibility';
+import { deleteCreateTenderDraft } from '../../slice';
 import type { MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../../types';
 import {
   MarketplaceCategoryGrid,
@@ -49,6 +50,7 @@ const marketplacePageSize = 20;
 export function MarketplaceProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
   const { data, isLoading, isError } = useMarketplaceData();
   const [filters, setFilters] = useState<MarketplaceFiltersState>(emptyFilters);
@@ -57,6 +59,9 @@ export function MarketplaceProcurexPage() {
   const [savedTenderIds, setSavedTenderIds] = useState<Set<string>>(() => new Set());
   const [savingTenderIds, setSavingTenderIds] = useState<Set<string>>(() => new Set());
   const [saveError, setSaveError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deletedTenderIds, setDeletedTenderIds] = useState<Set<string>>(() => new Set());
+  const [deletingTenderIds, setDeletingTenderIds] = useState<Set<string>>(() => new Set());
   const [deadlineNow, setDeadlineNow] = useState(() => Date.now());
   const [recommendedPage, setRecommendedPage] = useState(1);
   const [allTendersPage, setAllTendersPage] = useState(1);
@@ -93,11 +98,11 @@ export function MarketplaceProcurexPage() {
     return buildWorkspaceSections({
       tenders: activeMarketplaceTenders,
       myBids: data?.myBids ?? [],
-      myTenders: data?.myTenders ?? [],
+      myTenders: (data?.myTenders ?? []).filter((row) => !deletedTenderIds.has(row.id)),
       savedTenderIds,
       now: deadlineNow
     });
-  }, [activeMarketplaceTenders, data?.myBids, data?.myTenders, deadlineNow, savedTenderIds]);
+  }, [activeMarketplaceTenders, data?.myBids, data?.myTenders, deadlineNow, deletedTenderIds, savedTenderIds]);
 
   function selectTab(tab: MarketplaceTabId) {
     navigate(tabRoutes[tab]);
@@ -177,6 +182,35 @@ export function MarketplaceProcurexPage() {
     }
   }
 
+  async function deleteTenderDraft(row: MyTenderRow) {
+    const tenderId = row.tender?.id || row.id;
+    if (!window.confirm('Delete this tender draft completely? This cannot be undone.')) return;
+
+    setDeleteError('');
+    setDeletingTenderIds((current) => new Set(current).add(row.id));
+
+    try {
+      if (isUuid(tenderId)) {
+        await procurementApi.deleteTenderDraft(tenderId);
+      }
+      dispatch(deleteCreateTenderDraft(row.id));
+      setDeletedTenderIds((current) => {
+        const next = new Set(current);
+        next.add(row.id);
+        next.add(tenderId);
+        return next;
+      });
+    } catch {
+      setDeleteError('Tender draft could not be deleted. Try again.');
+    } finally {
+      setDeletingTenderIds((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  }
+
   return (
     <ProcurexWorkspaceChrome title="Procurement">
       <div className="procurement-app-page" data-marketplace-root>
@@ -186,6 +220,7 @@ export function MarketplaceProcurexPage() {
           {isLoading ? <div className="scope-empty">Loading marketplace...</div> : null}
           {isError ? <div className="scope-empty">Marketplace data could not be loaded. Try refreshing the page.</div> : null}
           {saveError ? <div className="scope-empty">{saveError}</div> : null}
+          {deleteError ? <div className="scope-empty">{deleteError}</div> : null}
 
           {data ? (
             <section className="supplier-detail-tabbed-view marketplace-tabbed-view">
@@ -280,7 +315,7 @@ export function MarketplaceProcurexPage() {
                       title="My Tenders"
                       rows={workspace.myTenders}
                       empty="No active created tenders, drafts, review items, or failed-review tenders for this account."
-                      renderRow={(row) => <MyTenderRowCard key={row.id} row={row} />}
+                      renderRow={(row) => <MyTenderRowCard key={row.id} row={row} isDeleting={deletingTenderIds.has(row.id)} onDeleteDraft={deleteTenderDraft} />}
                     />
                   </section>
                 ) : null}
@@ -336,6 +371,10 @@ function getActiveTab(pathname: string, search = ''): MarketplaceTabId {
   if (view === 'invited-tenders') return 'invited-tenders';
   if (view === 'my-workspace') return 'my-workspace';
   return 'recommended';
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function filterTenders(tenders: MarketplaceTenderRow[], filters: MarketplaceFiltersState, now = Date.now()) {

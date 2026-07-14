@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">ICT Procurement mock logo</title>
+  <desc id="desc">A technology procurement logo with circuit details.</desc>
+  <rect width="160" height="160" fill="#111827"/>
+  <rect x="28" y="42" width="104" height="74" rx="10" fill="#38bdf8"/>
+  <rect x="39" y="53" width="82" height="52" rx="5" fill="#0f172a"/>
+  <path d="M59 70h42v9H59zm0 18h28v9H59z" fill="#38bdf8"/>
+  <circle cx="111" cy="75" r="5" fill="#f59e0b"/>
+  <path d="M56 124h48v10H56zM72 112h16v16H72z" fill="#e5e7eb"/>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#ffffff">ICT</text>
+</svg>

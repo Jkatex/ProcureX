@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Huui Buyer Authority mock logo</title>
+  <desc id="desc">A hexagonal blue and gold authority logo for Huui demo tenders.</desc>
+  <path d="M80 9l61 35v72l-61 35-61-35V44L80 9z" fill="#102a43"/>
+  <path d="M80 25l47 27v56l-47 27-47-27V52l47-27z" fill="#2f80ed"/>
+  <circle cx="80" cy="78" r="31" fill="#f3c969"/>
+  <path d="M80 36l12 28 31 3-24 20 7 30-26-16-26 16 7-30-24-20 31-3 12-28z" fill="#ffffff"/>
+  <text x="80" y="145" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="#102a43">HBA</text>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Marketplace Authority mock logo</title>
+  <desc id="desc">A circular teal public procurement authority logo.</desc>
+  <circle cx="80" cy="80" r="70" fill="#0c5b5f"/>
+  <circle cx="80" cy="80" r="56" fill="#b7f0e7"/>
+  <path d="M80 39l42 24H38l42-24z" fill="#05383d"/>
+  <path d="M45 70h70v9H45V70zm9 16h11v30H54V86zm21 0h11v30H75V86zm21 0h11v30H96V86zM43 122h74v10H43v-10z" fill="#05383d"/>
+  <circle cx="116" cy="45" r="13" fill="#f0b84d"/>
+  <text x="80" y="107" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#0c5b5f">PMA</text>
+</svg>

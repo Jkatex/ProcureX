@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Buyer Authority mock logo</title>
+  <desc id="desc">A navy civic building logo for demo buyer authority organizations.</desc>
+  <rect width="160" height="160" rx="26" fill="#edf3f7"/>
+  <path d="M80 28l52 28H28l52-28z" fill="#1f3f5b"/>
+  <path d="M40 63h80v12H40V63zm8 18h14v34H48V81zm25 0h14v34H73V81zm25 0h14v34H98V81zM38 121h84v13H38v-13z" fill="#2f6f92"/>
+  <text x="80" y="153" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#1f3f5b">BA</text>
+</svg>

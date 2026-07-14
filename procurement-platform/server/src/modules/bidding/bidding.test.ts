@@ -338,6 +338,8 @@ describe('bid submission schema builder', () => {
             fields: {
               boqRows: [{ id: 'boq-1', itemDescription: 'Partition works', quantity: 1, unitOfMeasure: 'Lot' }],
               similarCompletedProjectsRequired: true,
+              bankStatementsRequired: true,
+              bankStatementPeriod: 'Last 6 months',
               personnelRequirementRows: [{ id: 'personnel-1', role: 'Site engineer', mandatory: true }],
               equipmentRequirementRows: [{ id: 'equipment-1', equipmentName: 'Concrete mixer', mandatory: true }],
               supportingDocumentRows: [{ id: 'doc-1', documentName: 'Contractor registration', mandatory: true }]
@@ -350,6 +352,7 @@ describe('bid submission schema builder', () => {
     expect(schema.tenderType).toBe('WORKS');
     expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'worksCapacity', 'worksTechnicalProposal', 'worksFinancial', 'worksReview', 'worksDeclaration']);
     expect(stepFields(schema, 'technical').map((field) => field.label)).toEqual(expect.arrayContaining(['Similar completed project evidence', 'Site engineer', 'Concrete mixer']));
+    expect(stepFields(schema, 'worksCapacity').map((field) => field.requirementKey)).not.toContain('works.financialCapacityEvidence');
     const worksTechnicalFields = stepFields(schema, 'worksTechnicalProposal');
     expect(worksTechnicalFields).toEqual(
       expect.arrayContaining([
@@ -368,8 +371,10 @@ describe('bid submission schema builder', () => {
       }),
       expect.objectContaining({ requirementKey: 'works.commercial.bidValidity', label: 'Bid Validity Period (days)' }),
       expect.objectContaining({ requirementKey: 'works.commercial.currency', label: 'Currency' }),
+      expect.objectContaining({ requirementKey: 'works.financialCapacityEvidence', label: 'Financial capacity and bank statement evidence', type: 'file', envelope: 'FINANCIAL' }),
       expect.objectContaining({ requirementKey: 'works.commercial.bidSecurityDocument', label: 'Bid security document', type: 'file' })
     ]));
+    expect(stepFields(schema, 'worksFinancial').map((field) => field.requirementKey)).toContain('works.financialCapacityEvidence');
     const worksDeclarationFields = stepFields(schema, 'worksDeclaration');
     expect(worksDeclarationFields).toEqual(
       expect.arrayContaining([

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">ProcureX Platform mock logo</title>
+  <desc id="desc">A ProcureX platform logo for demo marketplace tenders.</desc>
+  <rect width="160" height="160" fill="#041f2f"/>
+  <path d="M0 0h160v160H0z" fill="#062f43"/>
+  <path d="M32 35h96v22H32z" fill="#00a7a7"/>
+  <path d="M32 70h62v22H32z" fill="#ffffff"/>
+  <path d="M66 105h62v22H66z" fill="#f0b84d"/>
+  <path d="M104 70l24 22-24 22V70z" fill="#00a7a7"/>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#ffffff">PX</text>
+</svg>

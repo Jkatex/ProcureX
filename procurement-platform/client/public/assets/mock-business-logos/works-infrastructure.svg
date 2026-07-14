@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Works Infrastructure mock logo</title>
+  <desc id="desc">A construction and infrastructure logo for works tenders.</desc>
+  <rect width="160" height="160" fill="#f4f1ea"/>
+  <path d="M0 112h160v48H0z" fill="#2f3a45"/>
+  <path d="M24 104h112v16H24z" fill="#e0a11b"/>
+  <path d="M36 104l20-50h48l20 50z" fill="#73808c"/>
+  <path d="M64 54h32v50H64z" fill="#f7c948"/>
+  <path d="M70 64h20v40H70z" fill="#ffffff"/>
+  <path d="M37 122h18l-12 20H25zm34 0h18l-12 20H59zm34 0h18l-12 20H93z" fill="#f7c948"/>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="#ffffff">WORKS</text>
+</svg>

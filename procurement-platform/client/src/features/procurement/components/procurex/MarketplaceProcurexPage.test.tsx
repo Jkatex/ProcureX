@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@mui/material';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { demoUsers, tenders as fixtureTenders } from '@/shared/data/fixtures';
 import { procurexTheme } from '@/styles/mui-theme';
 import { procurementApi } from '../../api';
 import type { MarketplacePayload, MarketplaceTenderRow, MyBidRow, MyTenderRow } from '../../types';
+import { PublicTenderRowCard } from '../MarketplaceComponents';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 
 function LocationProbe() {
@@ -39,6 +40,15 @@ describe('MarketplaceProcurexPage', () => {
     vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValue(defaultMarketplacePayload());
     vi.spyOn(procurementApi, 'saveTender').mockResolvedValue({ success: true, message: 'Tender saved successfully' });
     vi.spyOn(procurementApi, 'unsaveTender').mockResolvedValue({ success: true, message: 'Tender removed from saved tenders' });
+    vi.spyOn(procurementApi, 'deleteTenderDraft').mockResolvedValue({
+      success: true,
+      message: 'Tender draft deleted successfully',
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        reference: 'PX-DRAFT-001',
+        title: 'Draft Owned Tender'
+      }
+    });
   });
 
   it('opens the top-right ProcureX apps drawer and navigates to an app', async () => {
@@ -182,6 +192,43 @@ describe('MarketplaceProcurexPage', () => {
     expect(within(submittedRow!).getAllByText(/Open|You already bid|Draft bid saved/i)).toHaveLength(1);
     expect(within(draftRow!).queryByText('Draft bid saved')).not.toBeInTheDocument();
     expect(within(draftRow!).getAllByText(/Open|You already bid|Draft bid saved/i)).toHaveLength(1);
+  });
+
+  it('renders the buyer logo on marketplace tender cards', async () => {
+    const tender = marketplaceTender({
+      id: 'logo-tender',
+      title: 'Logo Tender',
+      organization: 'Company X Limited',
+      buyerLogoUrl: '/api/procurement/tenders/logo-tender/buyer-logo'
+    });
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [tender],
+      recommendedTenders: [tender],
+      myTenders: [],
+      myBids: []
+    } satisfies MarketplacePayload);
+
+    renderMarketplace();
+
+    const tenderRow = (await screen.findByText('Logo Tender')).closest('article');
+    expect(within(tenderRow!).getByRole('img', { name: 'Company X Limited logo' })).toHaveAttribute('src', '/api/procurement/tenders/logo-tender/buyer-logo');
+  });
+
+  it('renders the buyer logo on public browse tender cards', () => {
+    const tender = marketplaceTender({
+      id: 'public-logo-tender',
+      title: 'Public Logo Tender',
+      organization: 'Browse Buyer Limited',
+      buyerLogoUrl: '/api/procurement/tenders/public-logo-tender/buyer-logo'
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicTenderRowCard tender={tender} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('img', { name: 'Browse Buyer Limited logo' })).toHaveAttribute('src', '/api/procurement/tenders/public-logo-tender/buyer-logo');
   });
 
   it('orders All Tenders and Recommended by the closest deadline first', async () => {
@@ -574,6 +621,44 @@ describe('MarketplaceProcurexPage', () => {
     expect(within(ownedRows[1]).getByText('Owned Later')).toBeInTheDocument();
   });
 
+  it('renders buyer logos across all My Workspace tender sections', async () => {
+    const savedTender = marketplaceTender({
+      id: 'saved-logo-tender',
+      title: 'Saved Logo Tender',
+      organization: 'Saved Buyer',
+      buyerLogoUrl: '/assets/mock-business-logos/buyer-authority.svg',
+      isSaved: true
+    });
+    const bidTender = marketplaceTender({
+      id: 'bid-logo-tender',
+      title: 'Bid Logo Tender',
+      organization: 'Bid Buyer',
+      buyerLogoUrl: '/assets/mock-business-logos/medical-stores-department.svg'
+    });
+    const ownedTender = marketplaceTender({
+      id: 'owned-logo-tender',
+      title: 'Owned Logo Tender',
+      organization: 'Owned Buyer',
+      buyerLogoUrl: '/assets/mock-business-logos/verified-company-account.svg',
+      createdByCurrentUser: true,
+      ownedByCurrentOrganization: true,
+      canBid: false
+    });
+
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [savedTender, bidTender, ownedTender],
+      myTenders: [myTenderRow(ownedTender)],
+      myBids: [myBidRow(bidTender)]
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=my-workspace');
+
+    expect(await screen.findByText('Saved Logo Tender')).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: 'Saved' }).closest('section')!).getByRole('img', { name: 'Saved Buyer logo' })).toHaveAttribute('src', '/assets/mock-business-logos/buyer-authority.svg');
+    expect(within(screen.getByRole('heading', { name: 'My Bids' }).closest('section')!).getByRole('img', { name: 'Bid Buyer logo' })).toHaveAttribute('src', '/assets/mock-business-logos/medical-stores-department.svg');
+    expect(within(screen.getByRole('heading', { name: 'My Tenders' }).closest('section')!).getByRole('img', { name: 'Owned Buyer logo' })).toHaveAttribute('src', '/assets/mock-business-logos/verified-company-account.svg');
+  });
+
   it('deduplicates My Workspace across saved, bid, and owned tender rows', async () => {
     const sharedTender = marketplaceTender({
       id: 'shared-tender',
@@ -684,10 +769,63 @@ describe('MarketplaceProcurexPage', () => {
 
     expect(await screen.findByText('Draft Owned Tender')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue creating' })).toHaveAttribute('href', '/procurement/create-tender?draftId=draft-tender');
+    expect(screen.getByRole('button', { name: 'Delete Tender' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Awaiting review' })).toBeDisabled();
     expect(screen.queryByRole('link', { name: 'Awaiting review' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Amend tender' })).toHaveAttribute('href', '/procurement/create-tender?tenderId=failed-tender');
     expect(screen.getByRole('link', { name: 'View tender' })).toHaveAttribute('href', '/procurement/tender-details?tenderId=published-tender');
+    expect(screen.getAllByRole('button', { name: 'Delete Tender' })).toHaveLength(1);
+  });
+
+  it('deletes draft tenders from My Workspace after confirmation', async () => {
+    const user = userEvent.setup();
+    const tenderId = '11111111-1111-4111-8111-111111111111';
+    const draftTender = marketplaceTender({
+      id: tenderId,
+      reference: 'PX-DRAFT-001',
+      title: 'Draft Owned Tender',
+      status: 'DRAFT' as MarketplaceTenderRow['status'],
+      createdByCurrentUser: true,
+      ownedByCurrentOrganization: true
+    });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const deleteTenderDraft = vi.spyOn(procurementApi, 'deleteTenderDraft').mockResolvedValueOnce({
+      success: true,
+      message: 'Tender draft deleted successfully',
+      data: {
+        id: tenderId,
+        reference: 'PX-DRAFT-001',
+        title: 'Draft Owned Tender'
+      }
+    });
+
+    vi.spyOn(procurementApi, 'getMarketplace').mockResolvedValueOnce({
+      tenders: [],
+      myBids: [],
+      myTenders: [
+        {
+          id: tenderId,
+          title: 'Draft Owned Tender',
+          section: 'draft',
+          status: 'Draft',
+          type: 'GOODS',
+          tender: draftTender,
+          lastActivity: new Date().toISOString(),
+          actionLabel: 'Continue creating',
+          nav: `/procurement/create-tender?draftId=${tenderId}`
+        }
+      ]
+    } satisfies MarketplacePayload);
+
+    renderMarketplace('/procurement/marketplace?view=my-workspace');
+
+    expect(await screen.findByText('Draft Owned Tender')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Delete Tender' }));
+
+    expect(confirm).toHaveBeenCalledWith('Delete this tender draft completely? This cannot be undone.');
+    await waitFor(() => expect(deleteTenderDraft).toHaveBeenCalledWith(tenderId));
+    await waitFor(() => expect(screen.queryByText('Draft Owned Tender')).not.toBeInTheDocument());
   });
 
   it('does not render marketplace summary KPI cards', async () => {

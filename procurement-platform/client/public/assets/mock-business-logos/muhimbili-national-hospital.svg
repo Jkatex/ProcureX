@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Muhimbili National Hospital mock logo</title>
+  <desc id="desc">A red and navy hospital mark with Muhimbili National Hospital initials.</desc>
+  <rect width="160" height="160" rx="26" fill="#fff3f2"/>
+  <circle cx="80" cy="72" r="48" fill="#d94b45"/>
+  <path d="M58 46h44v18H88v50H72V64H58V46z" fill="#fff"/>
+  <path d="M50 114h60v12H50z" fill="#17324d"/>
+  <text x="80" y="145" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#17324d">MNH</text>
+</svg>

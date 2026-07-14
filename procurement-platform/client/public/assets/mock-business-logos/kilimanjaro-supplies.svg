@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Kilimanjaro Supplies mock logo</title>
+  <desc id="desc">A circular mountain and supply box logo for Kilimanjaro Supplies Limited.</desc>
+  <circle cx="80" cy="80" r="70" fill="#22543d"/>
+  <circle cx="80" cy="80" r="57" fill="#eaf7f0"/>
+  <path d="M25 107l35-58 25 39 18-28 32 47z" fill="#4a7c59"/>
+  <path d="M60 49l12 19-14-5-10 17zM103 60l11 17-12-4-8 13z" fill="#ffffff"/>
+  <rect x="52" y="91" width="56" height="37" rx="7" fill="#d69e2e"/>
+  <path d="M52 102h56v8H52zM75 91h10v37H75z" fill="#fff7db"/>
+  <text x="80" y="143" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="#ffffff">KSL</text>
+</svg>

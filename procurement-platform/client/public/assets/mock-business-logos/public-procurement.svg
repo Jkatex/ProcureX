@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Public Procurement mock logo</title>
+  <desc id="desc">A general public procurement logo for demo buyer organizations.</desc>
+  <rect width="160" height="160" fill="#f8fafc"/>
+  <path d="M0 0h160v160H0z" fill="#1e3a8a"/>
+  <circle cx="80" cy="70" r="44" fill="#ffffff"/>
+  <path d="M80 31l36 24v43H44V55z" fill="#bfdbfe"/>
+  <path d="M61 64h38v11H61zm0 18h38v11H61z" fill="#1e3a8a"/>
+  <path d="M38 119h84v13H38z" fill="#f59e0b"/>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#ffffff">PP</text>
+</svg>

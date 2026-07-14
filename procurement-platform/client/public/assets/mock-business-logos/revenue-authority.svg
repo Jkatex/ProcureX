@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+  <title id="title">Revenue Authority mock logo</title>
+  <desc id="desc">A revenue authority logo for marketplace demo buyers.</desc>
+  <rect width="160" height="160" fill="#fff7ed"/>
+  <path d="M0 0h160v42H0z" fill="#9a3412"/>
+  <circle cx="80" cy="87" r="43" fill="#fdba74"/>
+  <path d="M80 48l34 22-34 22-34-22z" fill="#ffffff"/>
+  <path d="M51 81l29 20 29-20v26l-29 19-29-19z" fill="#c2410c"/>
+  <text x="80" y="28" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" font-weight="800" fill="#ffffff">TRA</text>
+  <text x="80" y="151" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="#9a3412">REVENUE</text>
+</svg>

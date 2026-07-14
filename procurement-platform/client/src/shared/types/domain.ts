@@ -49,6 +49,7 @@ export type Tender = {
   reference: string;
   title: string;
   organization: string;
+  buyerLogoUrl?: string;
   type: 'GOODS' | 'WORKS' | 'SERVICE' | 'CONSULTANCY';
   status: 'DRAFT' | 'PUBLISHED' | 'OPEN' | 'EVALUATION' | 'AWARDED' | 'CLOSED';
   budget: number;
