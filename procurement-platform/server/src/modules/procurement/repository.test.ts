@@ -1,4 +1,4 @@
-import { BidStatus, CommunicationKind, CommunicationStatus, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
+import { BidStatus, CommunicationKind, CommunicationStatus, ProcurementMethod, RiskLevel, TenderAmendmentStatus, TenderStatus, TenderType, Visibility, VerificationStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleRepository } from './repository.js';
 
@@ -1173,6 +1173,48 @@ describe('procurement tender write repository', () => {
     });
   });
 
+  it('persists invited tender method from create metadata', async () => {
+    const createdTender = tenderDetailRecord({
+      id: 'tender-invited',
+      method: ProcurementMethod.INVITED_TENDER,
+      visibility: Visibility.PRIVATE,
+      metadata: { method: 'Invited Tender' }
+    });
+    const tx = {
+      tender: {
+        create: vi.fn().mockResolvedValue(createdTender)
+      },
+      tenderCategory: {
+        createMany: vi.fn()
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: vi.fn((callback) => callback(tx))
+    } as any);
+
+    await repository.createTender(
+      {
+        title: 'Invited supplier equipment tender',
+        type: TenderType.GOODS,
+        description: 'Supply and delivery of invited supplier equipment.',
+        currency: 'TZS',
+        location: 'Dodoma',
+        categories: [],
+        requirements: {},
+        metadata: { method: 'Invited Tender', invitedOrganizationIds: ['supplier-org-1'] }
+      },
+      { organizationId: 'org-1', userId: 'user-1' }
+    );
+
+    expect(tx.tender.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        method: ProcurementMethod.INVITED_TENDER,
+        visibility: Visibility.PRIVATE,
+        metadata: { method: 'Invited Tender', invitedOrganizationIds: ['supplier-org-1'] }
+      })
+    });
+  });
+
   it('rejects duplicate provided tender references with a conflict', async () => {
     const repository = new ModuleRepository({
       $transaction: vi.fn().mockRejectedValue({ code: 'P2002' })
@@ -1311,6 +1353,42 @@ describe('procurement tender write repository', () => {
         updatedAt: '2026-06-26T08:45:00.000Z'
       }
     });
+  });
+
+  it('updates editable tenders when metadata changes the procurement method', async () => {
+    const updatedTender = tenderDetailRecord({
+      id: 'tender-1',
+      method: ProcurementMethod.INVITED_TENDER,
+      updatedAt: new Date('2026-06-26T08:55:00.000Z')
+    });
+    const tx = {
+      tender: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'tender-1', buyerOrgId: 'org-1', status: TenderStatus.DRAFT }),
+        update: vi.fn().mockResolvedValue(updatedTender)
+      },
+      tenderCategory: {
+        deleteMany: vi.fn(),
+        createMany: vi.fn()
+      }
+    };
+    const repository = new ModuleRepository({
+      $transaction: vi.fn((callback) => callback(tx))
+    } as any);
+
+    await repository.updateTender(
+      'tender-1',
+      { metadata: { method: 'Invited Tender', invitedOrganizationIds: ['supplier-org-1'] } },
+      { organizationId: 'org-1', userId: 'user-1' }
+    );
+
+    expect(tx.tender.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          method: ProcurementMethod.INVITED_TENDER,
+          metadata: { method: 'Invited Tender', invitedOrganizationIds: ['supplier-org-1'] }
+        })
+      })
+    );
   });
 
   it('returns null for missing update targets', async () => {

@@ -21,6 +21,10 @@ const procurementApiMock = vi.hoisted(() => ({
   unsaveTender: vi.fn()
 }));
 
+const communicationApiMock = vi.hoisted(() => ({
+  listRecipients: vi.fn()
+}));
+
 const html2PdfMock = vi.hoisted(() => {
   const worker = {
     set: vi.fn(),
@@ -43,6 +47,10 @@ vi.mock('../../api', async (importOriginal) => {
     }
   };
 });
+
+vi.mock('@/features/communication/api', () => ({
+  communicationApi: communicationApiMock
+}));
 
 vi.mock('html2pdf.js', () => ({
   default: html2PdfMock.factory
@@ -171,6 +179,9 @@ beforeEach(() => {
     validation: { warnings: [], scannerIssues: [], standardizedCategories: ['Medical equipment'] }
   });
   procurementApiMock.getMarketplace.mockResolvedValue(emptyMarketplaceResponse());
+  communicationApiMock.listRecipients.mockResolvedValue([
+    { id: '22222222-2222-4222-8222-222222222222', name: 'Kilimanjaro Supplies Limited', kind: 'COMPANY', country: 'TZ', capabilities: ['SUPPLIER'] }
+  ]);
 });
 
 function pdfSourceText() {
@@ -929,7 +940,9 @@ describe('CreateTenderProcurexPage', () => {
     await user.selectOptions(screen.getByLabelText('Procurement method'), 'Invited Tender');
 
     expect(screen.getByRole('heading', { name: 'Invited suppliers' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Supplier name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Supplier organization')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Kilimanjaro Supplies Limited/ })).toBeInTheDocument();
+    expect(communicationApiMock.listRecipients).toHaveBeenCalledWith(expect.objectContaining({ capability: 'SUPPLIER' }));
   });
 
   it('planning handoff pre-fills values and starts on the requested step', () => {
@@ -1606,7 +1619,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
 
-  it('blocks invited tender review submission while that method is unavailable', async () => {
+  it('blocks invited tender review submission until a registered supplier is selected', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
@@ -1614,14 +1627,56 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
     await addDefaultCategory(user);
     await user.selectOptions(screen.getByLabelText('Procurement method'), 'Invited Tender');
+    await completeMinimumGoodsRequirements(user);
     await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
     for (const checkbox of screen.getAllByRole('checkbox')) {
       await user.click(checkbox);
     }
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
 
-    expect(await screen.findByText('Invited Tender review submission is not available yet. Select Open Tender before submitting.')).toBeInTheDocument();
+    expect(await screen.findByText('Please select at least one registered supplier organization for this invited tender.')).toBeInTheDocument();
     expect(procurementApiMock.createTender).not.toHaveBeenCalled();
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
   });
+
+  it('submits invited tenders with selected supplier organization metadata', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Invited Registered Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await user.selectOptions(screen.getByLabelText('Procurement method'), 'Invited Tender');
+    await user.click(await screen.findByRole('button', { name: /Kilimanjaro Supplies Limited/ }));
+    expect(screen.getByText('Kilimanjaro Supplies Limited')).toBeInTheDocument();
+    await completeMinimumGoodsRequirements(user);
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
+
+    await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
+    expect(procurementApiMock.createTender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          method: 'Invited Tender',
+          invitedSuppliers: ['Kilimanjaro Supplies Limited'],
+          invitedSupplierNames: ['Kilimanjaro Supplies Limited'],
+          invitedOrganizationIds: ['22222222-2222-4222-8222-222222222222'],
+          invitedSupplierOrganizations: [
+            expect.objectContaining({
+              id: '22222222-2222-4222-8222-222222222222',
+              name: 'Kilimanjaro Supplies Limited',
+              capabilities: ['SUPPLIER']
+            })
+          ]
+        })
+      })
+    );
+    expect(procurementApiMock.publishTender).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111', { signatureKeyphrase: 'Signing123' });
+  }, 15000);
 });
