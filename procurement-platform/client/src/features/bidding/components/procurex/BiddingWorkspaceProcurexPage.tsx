@@ -34,6 +34,13 @@ type WorksBoqValue = {
   unitRate?: number;
 };
 
+type GoodsOfferValue = {
+  status: string;
+  unitPrice: number;
+  taxIncluded: string;
+  discount: string;
+};
+
 type BidFormState = {
   administrative: Record<string, unknown>;
   technical: Record<string, unknown>;
@@ -815,6 +822,14 @@ export function BiddingWorkspaceProcurexPage() {
           />
         );
       }
+      if (workflow === 'goods' && currentSchemaStep.id === 'goodsFinancial') {
+        return (
+          <>
+            <WorkflowStepContext tender={loadedTender} workflow={workflow} step={currentSchemaStep} />
+            <GoodsFinancialResponsePanel step={currentSchemaStep} responses={schemaResponses} documents={documents} currency={loadedTender.currency} disabled={saving || uploading || isSubmitted || Boolean(receipt)} uploadingKey={uploadingKey} onPatch={patchSchemaResponse} onFiles={addFiles} />
+          </>
+        );
+      }
       if (workflow === 'works' && currentSchemaStep.id === 'worksCapacity') {
         return (
           <>
@@ -1170,7 +1185,7 @@ function AdministrativeGateSchemaPanel({
         <strong>Eligibility and document requirements</strong>
         <span>Upload administrative eligibility documents and complete required confirmations before moving forward. Technical uploads are completed in the technical response steps, and financial capacity uploads are completed in the financial offer.</span>
       </div>
-      <AdministrativeLicenseEvidenceSection fields={groups.licenseFields} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+      <AdministrativeLicenseEvidenceSection fields={groups.licenseFields} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
       {hasSubmissionSection ? (
         <AdministrativeDocumentGroup
           index={2}
@@ -1225,15 +1240,19 @@ function AdministrativeGateSchemaPanel({
 
 function AdministrativeLicenseEvidenceSection({
   fields,
+  responses,
   documents,
   disabled,
   uploadingKey,
+  onPatch,
   onFiles
 }: {
   fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
   documents: BidDocumentState[];
   disabled: boolean;
   uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
   onFiles: UploadHandler;
 }) {
   const mandatoryCount = fields.filter((field) => field.required).length;
@@ -1255,34 +1274,58 @@ function AdministrativeLicenseEvidenceSection({
               <tr>
                 <th>Permit / license</th>
                 <th>Status</th>
+                <th>Expiry / validity</th>
                 <th>Evidence</th>
               </tr>
             </thead>
             <tbody>
-              {fields.map((field) => (
-                <tr key={field.id} data-bid-review-source-id={field.id}>
-                  <td>
-                    <div className="license-permit-cell">
-                      <strong>{field.label}</strong>
-                      <small>
-                        <span>Issuing body</span>
-                        {administrativeFieldDetail(field)}
-                      </small>
-                    </div>
-                  </td>
-                  <td>
-                    <select className="form-input" defaultValue="" disabled={disabled} aria-label={`${field.label} status`}>
-                      <option value="">Select</option>
-                      <option value="Valid">Valid</option>
-                      <option value="Renewal in progress">Renewal in progress</option>
-                      <option value="Not applicable">Not applicable</option>
-                    </select>
-                  </td>
-                  <td>
-                    <AdministrativeUploadField field={field} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
-                  </td>
-                </tr>
-              ))}
+              {fields.map((field) => {
+                const value = structuredValue(schemaFieldValue(field, responses));
+                return (
+                  <tr key={field.id} data-bid-review-source-id={field.id}>
+                    <td>
+                      <div className="license-permit-cell">
+                        <strong>{field.label}</strong>
+                        <small>
+                          <span>Issuing body</span>
+                          {administrativeFieldDetail(field)}
+                        </small>
+                      </div>
+                    </td>
+                    <td>
+                      <select
+                        className="form-input"
+                        value={String(value.status ?? '')}
+                        disabled={disabled}
+                        aria-label={`${field.label} status`}
+                        onChange={(event) => patchGoodsStructuredField(field, value, 'status', event.target.value, onPatch)}
+                      >
+                        <option value="">Select</option>
+                        <option value="Valid">Valid</option>
+                        <option value="Renewal in progress">Renewal in progress</option>
+                        <option value="Not applicable">Not applicable</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="form-input"
+                        value={String(value.expiryDate ?? '')}
+                        disabled={disabled}
+                        aria-label={`${field.label} expiry or validity`}
+                        placeholder="Expiry date or validity note"
+                        onChange={(event) => patchGoodsStructuredField(field, value, 'expiryDate', event.target.value, onPatch)}
+                      />
+                    </td>
+                    <td>
+                      {isGoodsRegulatoryLicenseField(field) ? (
+                        <TechnicalEvidenceUpload field={field} slot={goodsRegulatoryLicenseEvidenceSlot(field)} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+                      ) : (
+                        <AdministrativeUploadField field={field} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1409,7 +1452,8 @@ function AdministrativeUploadField({
         requirementKey={field.requirementKey}
         disabled={disabled}
         isUploading={uploadingKey === field.requirementKey}
-        onFiles={(files, envelope, documentType, requirementKey) => onFiles(files, envelope, documentType, requirementKey, field.label)}
+        metadata={{ fieldId: field.id }}
+        onFiles={(files, envelope, documentType, requirementKey, requirementLabel, metadata) => onFiles(files, envelope, documentType, requirementKey, requirementLabel || field.label, metadata)}
       />
       {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : hint ? <span className="form-hint">{hint}</span> : null}
     </div>
@@ -1419,11 +1463,13 @@ function AdministrativeUploadField({
 function administrativeGateGroups(step: BidSubmissionSchemaStepDto) {
   const fields = step.fields.filter((field) => field.section === 'administrative');
   const documentFields = fields.filter(isAdministrativeAttachmentField);
-  const licenseFields = documentFields.filter(isAdministrativeLicenseField);
+  const structuredLicenseFields = fields.filter(isGoodsRegulatoryLicenseField);
+  const licenseFields = [...structuredLicenseFields, ...documentFields.filter(isAdministrativeLicenseField)];
   const remainingDocumentFields = documentFields.filter((field) => !licenseFields.includes(field));
   const submissionFields = remainingDocumentFields.filter(isAdministrativeSubmissionDocumentField);
   const otherDocumentFields = remainingDocumentFields.filter((field) => !submissionFields.includes(field));
-  const declarationFields = fields.filter((field) => !isAdministrativeAttachmentField(field));
+  const licenseSet = new Set(licenseFields);
+  const declarationFields = fields.filter((field) => !isAdministrativeAttachmentField(field) && !licenseSet.has(field));
 
   return {
     licenseFields,
@@ -1440,6 +1486,10 @@ function isAdministrativeAttachmentField(field: BidSubmissionSchemaFieldDto) {
 function isAdministrativeLicenseField(field: BidSubmissionSchemaFieldDto) {
   const text = administrativeFieldSearchText(field);
   return /license|certificate|registration|permit|regulatory|crb|osha|statutory|tax clearance|vat registration|manufacturer authorization|authorization/i.test(text);
+}
+
+function isGoodsRegulatoryLicenseField(field: BidSubmissionSchemaFieldDto) {
+  return (field.type === 'table' || field.responseType === 'structured') && String(field.validation.control ?? '') === 'goodsRegulatoryLicense';
 }
 
 function isAdministrativeSubmissionDocumentField(field: BidSubmissionSchemaFieldDto) {
@@ -2295,6 +2345,8 @@ function GoodsTechnicalResponsePanel({
 
       <GoodsProductSpecificationResponse fields={groups.productSpecifications} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
 
+      <GoodsProductDetailResponse fields={groups.productDetails} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+
       {groups.remaining.length ? (
         <section className="bid-dynamic-group goods-additional-technical-response">
           <div className="bid-dynamic-group-heading">
@@ -2464,6 +2516,300 @@ function GoodsItemEvidenceUpload({ field, documents, disabled, uploadingKey, onF
   return <TechnicalEvidenceUpload field={field} slot={slot} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />;
 }
 
+function GoodsProductDetailResponse({
+  fields,
+  responses,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: UploadHandler;
+}) {
+  if (!fields.length) return null;
+  return (
+    <section className="bid-dynamic-group goods-product-detail-response">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Offered product details</h3>
+          <p>Provide the supplier product identity and delivery details for each requested goods line before pricing.</p>
+        </div>
+        <span className="badge badge-warning">{`${fields.length} product detail${fields.length === 1 ? '' : 's'}`}</span>
+      </div>
+      <div className="bid-requirement-list">
+        {fields.map((field, index) => {
+          const value = structuredValue(schemaFieldValue(field, responses));
+          const details = goodsProductLineDetails(field, index);
+          return (
+            <article className="bid-requirement-card goods-product-detail-card" data-bid-review-source-id={field.id} key={field.id}>
+              <div className="bid-response-card-heading">
+                <div>
+                  <span className="section-kicker">{`Requested goods line ${details.itemNo}`}</span>
+                  <h3>{details.requestedProduct}</h3>
+                  <p>{details.quantityLabel}</p>
+                </div>
+                <em className={`badge ${field.required ? 'badge-warning' : 'badge-info'}`}>{field.required ? 'Technical details required' : 'Optional details'}</em>
+              </div>
+              <div className="goods-line-detail-grid">
+                <GoodsStructuredInput field={field} value={value} fieldKey="supplierProduct" label={`${field.label} Supplier Product`} visibleLabel="Supplier Product" disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredInput field={field} value={value} fieldKey="brand" label={`${field.label} Brand`} visibleLabel="Brand" disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredInput field={field} value={value} fieldKey="modelNumber" label={`${field.label} Model Number`} visibleLabel="Model Number" disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredInput field={field} value={value} fieldKey="countryOfOrigin" label={`${field.label} Country of Origin`} visibleLabel="Country of Origin" placeholder="Country" disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredInput field={field} value={value} fieldKey="quantityOffered" label={`${field.label} Quantity Offered`} visibleLabel="Quantity Offered" type="number" fallbackValue={details.quantityValue} disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredInput field={field} value={value} fieldKey="deliveryTime" label={`${field.label} Delivery Time`} visibleLabel="Delivery Time" placeholder="e.g. 30 days" disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredInput field={field} value={value} fieldKey="warrantyPeriod" label={`${field.label} Warranty Period`} visibleLabel="Warranty Period" placeholder="e.g. 24 months" disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredTextArea className="wide" field={field} value={value} fieldKey="deviations" label={`${field.label} Deviations / Comments`} visibleLabel="Deviations / Comments" rows={2} disabled={disabled} onPatch={onPatch} />
+                <div className="form-group">
+                  <label className="form-label">Attach Brochure</label>
+                  <TechnicalEvidenceUpload field={field} slot={goodsProductBrochureSlot(field)} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function GoodsFinancialResponsePanel({
+  step,
+  responses,
+  documents,
+  currency,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  step: BidSubmissionSchemaStepDto;
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  currency: string;
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: UploadHandler;
+}) {
+  const pricingFields = step.fields.filter(isSchemaBoqPricingField);
+  const financialRequirements = step.fields.filter(isGoodsFinancialRequirementField);
+  const grouped = new Set([...pricingFields, ...financialRequirements]);
+  const commercialFields = step.fields.filter((field) => !grouped.has(field) && String(field.validation.control ?? '') === 'goodsCommercialTerms');
+  commercialFields.forEach((field) => grouped.add(field));
+  const attachments = step.fields.filter((field) => !grouped.has(field) && isSchemaAttachmentField(field));
+  attachments.forEach((field) => grouped.add(field));
+  const remaining = step.fields.filter((field) => !grouped.has(field));
+  const grandTotal = pricingFields.reduce((sum, field) => sum + schemaFinancialFieldTotal(field, responses), 0);
+  return (
+    <div className="goods-financial-response-workspace">
+      <section className="bid-financial-boq goods-offer-table" aria-label="Goods financial offer">
+        <div className="bid-financial-boq-heading">
+          <div>
+            <h3>Goods offer rows</h3>
+            <span>{`${pricingFields.length} quantity schedule item${pricingFields.length === 1 ? '' : 's'} ready for pricing`}</span>
+          </div>
+          <div className="bid-financial-boq-total">
+            <span>Bid total</span>
+            <strong>{formatMoney(grandTotal, currency)}</strong>
+          </div>
+        </div>
+        <div className="bid-financial-boq-scroll">
+          <table className="bid-financial-boq-table financial-review-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Description</th>
+                <th>Qty</th>
+                <th>Unit</th>
+                <th>Status</th>
+                <th>Unit Price</th>
+                <th>Tax Included</th>
+                <th>Discount</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pricingFields.length ? (
+                pricingFields.map((field, index) => <GoodsOfferRow field={field} responses={responses} currency={currency} disabled={disabled} index={index} onPatch={onPatch} key={field.id} />)
+              ) : (
+                <tr><td colSpan={9}>No quantity schedule configured.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <GoodsCommercialTermsSection fields={commercialFields} responses={responses} currency={currency} disabled={disabled} onPatch={onPatch} />
+      <GoodsFinancialRequirementSection fields={financialRequirements} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+
+      {attachments.length ? (
+        <section className="bid-dynamic-group goods-financial-upload-section">
+          <div className="bid-dynamic-group-heading">
+            <div>
+              <h3>Financial evidence uploads</h3>
+              <p>Upload buyer-requested financial offer or capacity documents.</p>
+            </div>
+            <span className="badge badge-info">{`${attachments.length} upload${attachments.length === 1 ? '' : 's'}`}</span>
+          </div>
+          <div className="bid-requirement-list">
+            {attachments.map((field) => (
+              <article className="bid-requirement-card" data-bid-review-source-id={field.id} key={field.id}>
+                <div className="bid-response-card-heading">
+                  <div>
+                    <span className="section-kicker">Financial evidence</span>
+                    <h3>{field.label}</h3>
+                    <p>{goodsCleanRequirementText(field.validation.prompt) || 'Attach the financial document requested by the buyer.'}</p>
+                  </div>
+                  <em className={`badge ${field.required ? 'badge-warning' : 'badge-info'}`}>{field.required ? 'Mandatory' : 'Optional'}</em>
+                </div>
+                <WorksSchemaUpload field={field} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {remaining.length ? (
+        <section className="bid-dynamic-group goods-additional-financial-response">
+          <div className="bid-dynamic-group-heading">
+            <div>
+              <h3>Additional financial responses</h3>
+              <p>Complete remaining buyer-configured financial requirements.</p>
+            </div>
+            <span className="badge badge-info">{`${remaining.length} response${remaining.length === 1 ? '' : 's'}`}</span>
+          </div>
+          <div className="form-grid two">
+            {remaining.map((field) => (
+              <SchemaFieldControl key={field.id} field={field} value={schemaFieldValue(field, responses)} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function GoodsOfferRow({ field, responses, currency, disabled, index, onPatch }: { field: BidSubmissionSchemaFieldDto; responses: SchemaResponseState; currency: string; disabled: boolean; index: number; onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void }) {
+  const value = goodsOfferValue(schemaFieldValue(field, responses));
+  const row = schemaFinancialRow(field, responses, index);
+  function patch(next: Partial<GoodsOfferValue>) {
+    onPatch(field, { ...value, ...next });
+  }
+  return (
+    <tr className="goods-offer-row" data-bid-review-source-id={field.id}>
+      <td className="bid-boq-item-no">{row.itemNo}</td>
+      <td className="bid-boq-description"><strong>{row.description}</strong><small>{`${row.quantity} ${row.unit} requested`}</small></td>
+      <td className="bid-boq-number" data-bid-line-qty>{String(row.quantity)}</td>
+      <td>{row.unit}</td>
+      <td>
+        <select className="form-input" aria-label={`Bid status for goods item ${index + 1}`} value={value.status} disabled={disabled} onChange={(event) => patch({ status: event.target.value })}>
+          <option value="">Select</option>
+          <option value="Bid">Bid</option>
+          <option value="Not Bid">Not Bid</option>
+        </select>
+      </td>
+      <td>
+        <div className="bid-boq-rate-field">
+          <span>{currency}</span>
+          <input className="form-input" type="number" min={Number(field.validation.min ?? 0)} value={String(value.unitPrice || '')} disabled={disabled || value.status === 'Not Bid'} aria-label={`Unit price for ${row.description}`} onChange={(event) => patch({ unitPrice: Number(event.target.value) || 0 })} />
+        </div>
+      </td>
+      <td>
+        <select className="form-input" aria-label={`Tax included for goods item ${index + 1}`} value={value.taxIncluded} disabled={disabled || value.status === 'Not Bid'} onChange={(event) => patch({ taxIncluded: event.target.value })}>
+          <option value="">Select</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </td>
+      <td><input className="form-input" aria-label={`Discount for goods item ${index + 1}`} value={value.discount} disabled={disabled || value.status === 'Not Bid'} placeholder="Amount or %" onChange={(event) => patch({ discount: event.target.value })} /></td>
+      <td className="bid-boq-total" data-bid-line-amount>{formatMoney(row.total ?? 0, currency)}</td>
+    </tr>
+  );
+}
+
+function GoodsCommercialTermsSection({ fields, responses, currency, disabled, onPatch }: { fields: BidSubmissionSchemaFieldDto[]; responses: SchemaResponseState; currency: string; disabled: boolean; onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void }) {
+  if (!fields.length) return null;
+  return (
+    <section className="bid-dynamic-group">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Commercial terms response</h3>
+          <p>Confirm bid validity, currency, and delivery terms acceptance for this goods offer.</p>
+        </div>
+        <span className="badge badge-warning">Response required</span>
+      </div>
+      <div className="goods-commercial-terms">
+        <div className="form-grid two">
+          <WorksSchemaInput field={schemaFieldByRequirement(fields, 'goods.commercial.bidValidity')} responses={responses} disabled={disabled} type="number" fallbackValue="90" onPatch={onPatch} />
+          <WorksSchemaSelect field={schemaFieldByRequirement(fields, 'goods.commercial.currency')} responses={responses} disabled={disabled} fallbackValue={currency || 'TZS'} onPatch={onPatch} />
+          <WorksSchemaCheck className="wide" field={schemaFieldByRequirement(fields, 'goods.commercial.deliveryTermsAccepted')} responses={responses} disabled={disabled} onPatch={onPatch} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GoodsFinancialRequirementSection({
+  fields,
+  responses,
+  documents,
+  disabled,
+  uploadingKey,
+  onPatch,
+  onFiles
+}: {
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  documents: BidDocumentState[];
+  disabled: boolean;
+  uploadingKey: string | null;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  onFiles: UploadHandler;
+}) {
+  if (!fields.length) return null;
+  return (
+    <section className="bid-dynamic-group goods-financial-requirement-response">
+      <div className="bid-dynamic-group-heading">
+        <div>
+          <h3>Financial capacity requirements</h3>
+          <p>Respond to buyer financial capacity requirements and attach supporting evidence.</p>
+        </div>
+        <span className="badge badge-warning">{`${fields.length} requirement${fields.length === 1 ? '' : 's'}`}</span>
+      </div>
+      <div className="bid-requirement-list">
+        {fields.map((field) => {
+          const value = structuredValue(schemaFieldValue(field, responses));
+          return (
+            <article className="bid-requirement-card" data-bid-review-source-id={field.id} key={field.id}>
+              <div className="bid-response-card-heading">
+                <div>
+                  <span className="section-kicker">Financial capacity</span>
+                  <h3>{field.label}</h3>
+                  <p>{goodsCleanRequirementText(field.validation.prompt) || 'Provide your response and supporting evidence for this financial requirement.'}</p>
+                </div>
+                <em className={`badge ${field.required ? 'badge-warning' : 'badge-info'}`}>{field.required ? 'Mandatory' : 'Optional'}</em>
+              </div>
+              <div className="form-grid two">
+                <GoodsStructuredTextArea className="wide" field={field} value={value} fieldKey="responseValue" label={`${field.label} Response / value`} visibleLabel="Response / value" rows={3} disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredTextArea className="wide" field={field} value={value} fieldKey="notes" label={`${field.label} Notes`} visibleLabel="Notes" rows={2} disabled={disabled} onPatch={onPatch} />
+                <GoodsStructuredInput field={field} value={value} fieldKey="evidenceReference" label={`${field.label} Evidence reference`} visibleLabel="Evidence reference" disabled={disabled} onPatch={onPatch} />
+                <TechnicalEvidenceUpload field={field} slot={goodsFinancialRequirementEvidenceSlot(field)} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onFiles={onFiles} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function GoodsTechnicalUploadSection({
   fields,
   documents,
@@ -2532,15 +2878,24 @@ function isGoodsTechnicalStep(step: BidSubmissionSchemaStepDto | { id: string; f
 function goodsTechnicalGroups(step: BidSubmissionSchemaStepDto) {
   const fields = step.fields.filter((field) => field.section !== 'receipt' && field.section !== 'review' && field.section !== 'samples');
   const productSpecifications = fields.filter(isGoodsProductSpecificationField);
-  const productSet = new Set(productSpecifications);
+  const productDetails = fields.filter(isGoodsProductDetailsField);
+  const productSet = new Set([...productSpecifications, ...productDetails]);
   const attachments = fields.filter((field) => !productSet.has(field) && isSchemaAttachmentField(field));
   const attachmentSet = new Set(attachments);
   const remaining = fields.filter((field) => !productSet.has(field) && !attachmentSet.has(field));
-  return { productSpecifications, attachments, remaining };
+  return { productSpecifications, productDetails, attachments, remaining };
 }
 
 function isGoodsProductSpecificationField(field: BidSubmissionSchemaFieldDto) {
   return (field.type === 'table' || field.responseType === 'structured') && String(field.validation.control ?? '') === 'goodsProductSpecification';
+}
+
+function isGoodsProductDetailsField(field: BidSubmissionSchemaFieldDto) {
+  return (field.type === 'table' || field.responseType === 'structured') && String(field.validation.control ?? '') === 'goodsProductDetails';
+}
+
+function isGoodsFinancialRequirementField(field: BidSubmissionSchemaFieldDto) {
+  return (field.type === 'table' || field.responseType === 'structured') && String(field.validation.control ?? '') === 'goodsFinancialRequirement';
 }
 
 function isSchemaAttachmentField(field: BidSubmissionSchemaFieldDto) {
@@ -2553,6 +2908,75 @@ function goodsProductSpecificationStats(fields: BidSubmissionSchemaFieldDto[]) {
 
 function patchGoodsStructuredField(field: BidSubmissionSchemaFieldDto, value: Record<string, unknown>, key: string, nextValue: unknown, onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void) {
   onPatch(field, { ...value, [key]: nextValue });
+}
+
+function GoodsStructuredInput({
+  field,
+  value,
+  fieldKey,
+  label,
+  visibleLabel,
+  type = 'text',
+  fallbackValue = '',
+  placeholder,
+  disabled,
+  onPatch
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: Record<string, unknown>;
+  fieldKey: string;
+  label: string;
+  visibleLabel: string;
+  type?: 'text' | 'number';
+  fallbackValue?: string | number;
+  placeholder?: string;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <div className="form-group">
+      <label className="form-label">{visibleLabel}</label>
+      <input
+        className="form-input"
+        type={type}
+        min={type === 'number' ? 0 : undefined}
+        aria-label={label}
+        value={String(value[fieldKey] ?? fallbackValue)}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(event) => patchGoodsStructuredField(field, value, fieldKey, type === 'number' ? Number(event.target.value) || 0 : event.target.value, onPatch)}
+      />
+    </div>
+  );
+}
+
+function GoodsStructuredTextArea({
+  field,
+  value,
+  fieldKey,
+  label,
+  visibleLabel,
+  rows = 3,
+  className = '',
+  disabled,
+  onPatch
+}: {
+  field: BidSubmissionSchemaFieldDto;
+  value: Record<string, unknown>;
+  fieldKey: string;
+  label: string;
+  visibleLabel: string;
+  rows?: number;
+  className?: string;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  return (
+    <div className={`form-group ${className}`.trim()}>
+      <label className="form-label">{visibleLabel}</label>
+      <textarea className="form-input" aria-label={label} rows={rows} value={String(value[fieldKey] ?? '')} disabled={disabled} onChange={(event) => patchGoodsStructuredField(field, value, fieldKey, event.target.value, onPatch)} />
+    </div>
+  );
 }
 
 function goodsProductDetails(field: BidSubmissionSchemaFieldDto, index: number) {
@@ -2572,6 +2996,16 @@ function goodsProductDetails(field: BidSubmissionSchemaFieldDto, index: number) 
   return { itemNo, requestedProduct, quantityLabel, buyerSpecification };
 }
 
+function goodsProductLineDetails(field: BidSubmissionSchemaFieldDto, index: number) {
+  const itemNo = goodsText(field.validation.itemNo) || String(index + 1);
+  const requestedProduct = goodsText(field.validation.requestedProduct) || field.label.replace(/^Offered product details\s*-\s*/i, '').trim() || `Goods item ${index + 1}`;
+  const quantity = Number(field.validation.quantity);
+  const unit = goodsText(field.validation.unit) || 'Unit';
+  const quantityValue = Number.isFinite(quantity) && quantity > 0 ? quantity : '';
+  const quantityLabel = Number.isFinite(quantity) && quantity > 0 ? `${quantity} ${unit}${quantity === 1 || /s$/i.test(unit) ? '' : 's'} requested. Confirm the exact offered product and supporting details.` : 'Confirm the exact offered product and supporting details.';
+  return { itemNo, requestedProduct, quantityValue, quantityLabel };
+}
+
 function goodsUploadDetail(field: BidSubmissionSchemaFieldDto) {
   const description = goodsCleanRequirementText(field.validation.prompt) || goodsCleanRequirementText(field.validation.description) || goodsCleanRequirementText(field.validation.requirementDescription) || 'Attach or describe the evidence required for this bid.';
   const category = goodsText(field.validation.category) || goodsText(field.validation.group) || humanize(String(field.source || 'Technical evidence'));
@@ -2584,6 +3018,33 @@ function goodsItemEvidenceSlot(field: BidSubmissionSchemaFieldDto): EvidenceUplo
     label: 'Attach item evidence',
     requirementKey: evidenceRequirementKey(field, 'evidenceReference'),
     documentType: evidenceDocumentType(field, { key: 'evidenceReference', label: 'Item evidence' })
+  };
+}
+
+function goodsProductBrochureSlot(field: BidSubmissionSchemaFieldDto): EvidenceUploadSlot {
+  return {
+    key: 'brochureEvidence',
+    label: 'Attach brochure',
+    requirementKey: evidenceRequirementKey(field, 'brochureEvidence'),
+    documentType: evidenceDocumentType(field, { key: 'brochureEvidence', label: 'Brochure evidence' })
+  };
+}
+
+function goodsRegulatoryLicenseEvidenceSlot(field: BidSubmissionSchemaFieldDto): EvidenceUploadSlot {
+  return {
+    key: 'licenseEvidence',
+    label: 'Upload license evidence',
+    requirementKey: evidenceRequirementKey(field, 'licenseEvidence'),
+    documentType: evidenceDocumentType(field, { key: 'licenseEvidence', label: 'License evidence' })
+  };
+}
+
+function goodsFinancialRequirementEvidenceSlot(field: BidSubmissionSchemaFieldDto): EvidenceUploadSlot {
+  return {
+    key: 'evidenceUpload',
+    label: 'Upload financial evidence',
+    requirementKey: evidenceRequirementKey(field, 'evidenceUpload'),
+    documentType: evidenceDocumentType(field, { key: 'evidenceUpload', label: 'Financial evidence' })
   };
 }
 
@@ -2600,6 +3061,7 @@ function goodsCleanRequirementText(value: unknown) {
 function goodsLooksLikeRawMetadata(text: string) {
   const uuidMatches = text.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)?.length ?? 0;
   if (uuidMatches > 0) return true;
+  if (/\b(product-spec|item|line)-\d{8,}[-\w]*\b/i.test(text)) return true;
   return /^[\w-]{8,}\s+\d+\s+.+\s+\d+\s+\w+\s+(true|false)$/i.test(text.trim());
 }
 
@@ -3024,6 +3486,7 @@ function evidenceUploadSlotsForField(field: BidSubmissionSchemaFieldDto): Eviden
   if (field.type !== 'table' && field.responseType !== 'structured') return [];
   const control = String(field.validation.control ?? '');
   if (control === 'goodsProductSpecification') return [];
+  if (control === 'goodsProductDetails' && !goodsEvidenceRequired(field)) return [];
   const configured = explicitEvidenceRows(control);
   const rows = configured.length ? configured : structuredControlRows(control, field).filter(isEvidenceStructuredRow);
   return rows.map((row) => ({
@@ -3034,7 +3497,14 @@ function evidenceUploadSlotsForField(field: BidSubmissionSchemaFieldDto): Eviden
   }));
 }
 
+function goodsEvidenceRequired(field: BidSubmissionSchemaFieldDto) {
+  return [field.validation.evidenceRequired, field.validation.requiresUpload, field.validation.brochureRequired, field.validation.documentRequired].some((value) => value === true || /^(yes|true|required|mandatory|1)$/i.test(String(value ?? '')));
+}
+
 function explicitEvidenceRows(control: string): StructuredControlRow[] {
+  if (control === 'goodsProductDetails') return [{ key: 'brochureEvidence', label: 'Brochure evidence' }];
+  if (control === 'goodsFinancialRequirement') return [{ key: 'evidenceUpload', label: 'Financial evidence' }];
+  if (control === 'goodsRegulatoryLicense') return [{ key: 'licenseEvidence', label: 'License evidence' }];
   if (control === 'worksSimilarProject') return [{ key: 'referenceEvidence', label: 'Similar project document' }];
   if (control === 'worksPersonnel' || control === 'serviceStaffing' || control === 'consultancyKeyExpert') return [{ key: 'cvEvidence', label: 'CV upload' }];
   if (control === 'worksEquipment' || control === 'serviceEquipment') return [{ key: 'evidenceReference', label: 'Lease / access agreement' }];
@@ -3069,6 +3539,34 @@ function structuredControlRows(control: string, field: BidSubmissionSchemaFieldD
       { key: 'offeredSpecification', label: 'Supplier offered specification', long: true },
       { key: 'evidenceReference', label: 'Evidence / attachment reference' },
       { key: 'deviations', label: 'Deviations / comments', long: true }
+    ];
+  }
+  if (control === 'goodsProductDetails') {
+    return [
+      { key: 'supplierProduct', label: 'Supplier product' },
+      { key: 'brand', label: 'Brand' },
+      { key: 'modelNumber', label: 'Model number' },
+      { key: 'countryOfOrigin', label: 'Country of origin' },
+      { key: 'quantityOffered', label: 'Quantity offered', kind: 'number' },
+      { key: 'deliveryTime', label: 'Delivery time' },
+      { key: 'warrantyPeriod', label: 'Warranty period' },
+      { key: 'deviations', label: 'Deviations / comments', long: true },
+      { key: 'brochureEvidence', label: 'Brochure evidence' }
+    ];
+  }
+  if (control === 'goodsFinancialRequirement') {
+    return [
+      { key: 'responseValue', label: 'Response / value', long: true },
+      { key: 'notes', label: 'Notes', long: true },
+      { key: 'evidenceReference', label: 'Evidence reference' },
+      { key: 'evidenceUpload', label: 'Financial evidence' }
+    ];
+  }
+  if (control === 'goodsRegulatoryLicense') {
+    return [
+      { key: 'status', label: 'License status', kind: 'select', options: ['Valid', 'Renewal in progress', 'Not applicable'] },
+      { key: 'expiryDate', label: 'Expiry / validity' },
+      { key: 'licenseEvidence', label: 'License evidence' }
     ];
   }
   if (control === 'worksSimilarProject') {
@@ -3129,6 +3627,9 @@ function structuredControlRows(control: string, field: BidSubmissionSchemaFieldD
 function structuredControlTitle(control: string, fallback: string) {
   const labels: Record<string, string> = {
     goodsProductSpecification: 'Product specification compliance response',
+    goodsProductDetails: 'Offered product details',
+    goodsFinancialRequirement: 'Financial capacity requirement',
+    goodsRegulatoryLicense: 'Regulatory license response',
     goodsDeliveryPlan: 'Delivery and logistics response',
     goodsWarranty: 'Warranty and after-sales response',
     worksSiteVisit: 'Site visit response',
@@ -4122,6 +4623,7 @@ function schemaFieldComplete(field: BidSubmissionSchemaFieldDto, responses: Sche
   if (field.section === 'samples') return samples.some((sample) => sampleMatchesField(sample, field));
   const value = schemaFieldValue(field, responses);
   if (field.type === 'boolean' || field.responseType === 'boolean' || field.responseType === 'declaration' || field.responseType === 'acknowledgement') return value === true;
+  if (isSchemaBoqPricingField(field) && goodsOfferResponseValue(value)) return goodsOfferValue(value).status === 'Not Bid' || schemaFinancialFieldTotal(field, responses) > 0;
   if (isSchemaBoqPricingField(field) && worksBoqResponseValue(value)) return worksBoqValue(value).status === 'Not Bid' || schemaFinancialFieldTotal(field, responses) > 0;
   if (field.responseType === 'money' || field.responseType === 'pricing') return Number(value) > 0;
   if (field.type === 'table' || field.responseType === 'structured') {
@@ -4180,7 +4682,13 @@ function schemaFinancialRows(schema: BidSubmissionSchemaDto, responses: SchemaRe
 function schemaFinancialRow(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState, index: number): PriceRow & { total: number } {
   const value = schemaFieldValue(field, responses);
   const quantity = Number(field.validation.quantity ?? 1) || 1;
-  const rate = worksBoqResponseValue(value) ? (worksBoqValue(value).status === 'Not Bid' ? 0 : worksBoqUnitRate(worksBoqValue(value), quantity)) : Number(value ?? 0);
+  const goodsValue = goodsOfferValue(value);
+  const rate = goodsOfferResponseValue(value)
+    ? (goodsValue.status === 'Not Bid' ? 0 : goodsValue.unitPrice)
+    : worksBoqResponseValue(value)
+      ? (worksBoqValue(value).status === 'Not Bid' ? 0 : worksBoqUnitRate(worksBoqValue(value), quantity))
+      : Number(value ?? 0);
+  const discount = goodsOfferResponseValue(value) && goodsValue.status !== 'Not Bid' ? goodsDiscountValue(goodsValue.discount, rate * quantity) : 0;
   return withTotal({
     id: String(field.validation.itemId ?? field.id),
     itemNo: String(field.validation.itemNo ?? index + 1),
@@ -4189,7 +4697,7 @@ function schemaFinancialRow(field: BidSubmissionSchemaFieldDto, responses: Schem
     unit: String(field.validation.unit ?? 'Lot'),
     rate,
     taxIncluded: true,
-    discount: 0
+    discount
   }) as PriceRow & { total: number };
 }
 
@@ -4281,6 +4789,29 @@ function worksSiteVisitMandatory(tender: TenderDetail) {
 
 function worksBoqResponseValue(value: unknown) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && ('labor' in value || 'material' in value || 'equipment' in value || 'unitRate' in value || 'status' in value));
+}
+
+function goodsOfferResponseValue(value: unknown) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && ('unitPrice' in value || 'taxIncluded' in value || 'discount' in value));
+}
+
+function goodsOfferValue(value: unknown): GoodsOfferValue {
+  if (typeof value === 'number') return { status: value > 0 ? 'Bid' : '', unitPrice: Math.max(0, value), taxIncluded: '', discount: '' };
+  const payload = objectPayload(value);
+  return {
+    status: String(payload.status ?? ''),
+    unitPrice: Number(payload.unitPrice ?? payload.unitRate ?? 0) || 0,
+    taxIncluded: String(payload.taxIncluded ?? ''),
+    discount: String(payload.discount ?? '')
+  };
+}
+
+function goodsDiscountValue(value: string, lineTotal: number) {
+  const text = value.trim();
+  if (!text) return 0;
+  const numeric = Number(text.replace('%', ''));
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  return text.includes('%') ? Math.min(lineTotal, (lineTotal * numeric) / 100) : Math.min(lineTotal, numeric);
 }
 
 function worksBoqValue(value: unknown): WorksBoqValue {

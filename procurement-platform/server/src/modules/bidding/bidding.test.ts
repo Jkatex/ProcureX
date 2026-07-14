@@ -266,16 +266,20 @@ describe('bidding route registration smoke', () => {
 });
 
 describe('bid submission schema builder', () => {
-  it('derives a goods schema from normalized items and tender JSON requirements', () => {
+  it('derives a ProcureX goods schema from Create Tender-shaped requirements', () => {
     const schema = buildBidSubmissionSchema(
       schemaTender({
         type: 'GOODS',
         requirements: {
           goods: {
             fields: {
-              productSpecificationTemplate: { rows: [{ id: 'spec-1', specificationName: 'Mattress size', mandatory: true }] },
+              quantityScheduleRows: [{ id: 'item-1', itemNumber: 1, itemDescription: 'Hospital bed', quantity: '10', unitOfMeasure: 'Each', unitPrice: '100' }],
+              productSpecificationTemplate: [{ id: 'spec-1', sourceItemId: 'item-1', itemNo: '1', productName: 'Hospital bed', specificationName: 'Mattress size', specificDetail: 'Adjustable ICU bed with side rails', quantity: 10, unit: 'Each', mandatory: true }],
               supportingDocumentRows: [{ id: 'doc-1', documentName: 'Manufacturer authorization', mandatory: true }],
-              sampleRequirementRows: [{ id: 'sample-1', sampleDescription: 'Hospital bed sample', relatedBoqItemId: 'item-1', numberOfSamples: '2', deliveryLocation: 'PMU office', mandatory: true }]
+              sampleRequirementRows: [{ id: 'sample-1', sampleDescription: 'Hospital bed sample', relatedBoqItemId: 'item-1', numberOfSamples: '2', deliveryLocation: 'PMU office', mandatory: true }],
+              financialRequirementRows: [{ id: 'fin-1', requirementName: 'Average annual turnover', minimumValue: 'TZS 500M', evidenceRequired: 'Audited accounts', mandatory: true }],
+              eligibilityRequirementCards: [{ id: 'elig-1', documentName: 'Business registration certificate', mandatory: true, requiresUpload: true }],
+              regulatoryLicenseRequirementRows: [{ id: 'lic-1', license: 'Medical devices dealer license', issuingAuthority: 'TMDA', evidenceRequired: 'Valid license certificate', mandatory: true, requiresUpload: true }]
             }
           },
           sampleRequirements: [{ id: 'sample-top', sampleName: 'Top-level sample', quantity: 1 }],
@@ -298,18 +302,31 @@ describe('bid submission schema builder', () => {
     });
     expect(schema.steps.map((step) => step.id)).toEqual(['administrative', 'goodsTechnical', 'goodsFinancial', 'goodsSamples', 'goodsReview', 'goodsDeclaration']);
     expect(stepFields(schema, 'administrative')).toEqual(
-      expect.arrayContaining([expect.objectContaining({ label: 'Manufacturer authorization', type: 'file', envelope: 'ADMINISTRATIVE', required: true })])
-    );
-    expect(stepFields(schema, 'technical')).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ label: 'Mattress size', envelope: 'TECHNICAL', responseType: 'text' }),
+        expect.objectContaining({ label: 'Medical devices dealer license', responseType: 'structured', envelope: 'ADMINISTRATIVE', required: true, validation: expect.objectContaining({ control: 'goodsRegulatoryLicense', issuingAuthority: 'TMDA' }) }),
+        expect.objectContaining({ label: 'Manufacturer authorization', type: 'file', envelope: 'ADMINISTRATIVE', required: true }),
+        expect.objectContaining({ label: 'Business registration certificate', type: 'file', envelope: 'ADMINISTRATIVE', required: true })
+      ])
+    );
+    const technicalFields = stepFields(schema, 'goodsTechnical');
+    expect(technicalFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requirementKey: 'goods.productSpecification.spec-1', label: 'Product specification response - Hospital bed', responseType: 'structured', validation: expect.objectContaining({ control: 'goodsProductSpecification', buyerSpecification: 'Adjustable ICU bed with side rails' }) }),
+        expect.objectContaining({ requirementKey: 'goods.productDetails.item-1', label: 'Offered product details - Hospital bed', responseType: 'structured', validation: expect.objectContaining({ control: 'goodsProductDetails', requestedProduct: 'Hospital bed' }) }),
         expect.objectContaining({ requirementKey: 'evaluationCriteria.criteria-1', label: 'Response for Technical compliance' })
       ])
     );
-    expect(stepFields(schema, 'financial')).toEqual([
-      expect.objectContaining({ requirementKey: 'commercialItems.item-1.unitRate', label: 'Unit rate for Hospital bed', responseType: 'money' })
-    ]);
-    expect(stepFields(schema, 'samples')).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Top-level sample', required: true })]));
+    expect(technicalFields.map((field) => `${field.id} ${field.label} ${field.validation.prompt ?? ''}`)).not.toEqual(expect.arrayContaining([expect.stringMatching(/[0-9a-f]{8}-[0-9a-f]{4}/i)]));
+    expect(stepFields(schema, 'goodsFinancial')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requirementKey: 'commercialItems.item-1.unitRate', label: 'Unit rate for Hospital bed', responseType: 'money' }),
+        expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1', label: 'Average annual turnover', responseType: 'structured', validation: expect.objectContaining({ control: 'goodsFinancialRequirement', evidenceRequired: 'Audited accounts' }) }),
+        expect.objectContaining({ requirementKey: 'goods.commercial.bidValidity', label: 'Bid Validity Period (days)' }),
+        expect.objectContaining({ requirementKey: 'goods.commercial.currency', label: 'Currency' }),
+        expect.objectContaining({ requirementKey: 'goods.commercial.deliveryTermsAccepted', label: 'I accept the delivery terms defined in the tender.' })
+      ])
+    );
+    expect(stepFields(schema, 'goodsSamples')).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Top-level sample', required: true })]));
   });
 
   it('derives works capacity, technical, BOQ, and document fields', () => {
@@ -463,13 +480,13 @@ describe('bid submission schema builder', () => {
       })
     );
 
-    expect(stepFields(schema, 'financial')).toEqual([
+    expect(stepFields(schema, 'financial')).toEqual(expect.arrayContaining([
       expect.objectContaining({
         requirementKey: 'commercialItems.json-line-1.unitRate',
         label: 'Unit rate for Desktop computer',
         validation: expect.objectContaining({ quantity: 5, unit: 'Each' })
       })
-    ]);
+    ]));
   });
 
   it('sweeps dynamic tender requirement fields into the supplier submission schema', () => {
@@ -712,13 +729,14 @@ describe('bidding service rules', () => {
         schemaVersion: 'bid-submission-schema-v1',
         missingRequiredFields: expect.arrayContaining([
           expect.objectContaining({ section: 'samples', label: 'Laptop sample', requirementKey: 'sampleRequirements.sample-1' }),
-          expect.objectContaining({ section: 'technical', label: 'Processor speed' })
+          expect.objectContaining({ section: 'technical', label: 'Product specification response - Processor speed' }),
+          expect.objectContaining({ section: 'technical', label: 'Offered product details - Line item' })
         ])
       }
     });
     expect(result.validation?.issues).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ section: 'technical', field: 'productSpecificationTemplate.spec-1', severity: 'warning' }),
+        expect.objectContaining({ section: 'technical', field: 'goods.productSpecification.spec-1', severity: 'warning' }),
         expect.objectContaining({ section: 'samples', field: 'sampleRequirements.sample-1', severity: 'warning' }),
         expect.objectContaining({ section: 'declarations', field: 'declarations.noConflict', severity: 'warning' })
       ])
@@ -727,7 +745,7 @@ describe('bidding service rules', () => {
       expect.objectContaining({
         draft: expect.objectContaining({
           totalAmount: 20,
-          validationIssues: expect.arrayContaining([expect.stringContaining('warning:technical.productSpecificationTemplate.spec-1')])
+          validationIssues: expect.arrayContaining([expect.stringContaining('warning:technical.goods.productSpecification.spec-1')])
         })
       })
     );
@@ -909,7 +927,11 @@ describe('bidding service rules', () => {
     const presentCriterion = validateBidDraft({
       draft: {
         ...pricedDraft,
-        responses: [...pricedDraft.responses, { requirementKey: 'evaluationCriteria.financial', response: { value: 85 } }]
+        responses: [
+          ...pricedDraft.responses,
+          { requirementKey: 'goods.productDetails.item-1', response: { value: { supplierProduct: 'Medical equipment', brand: 'Acme', modelNumber: 'ME-1' } } },
+          { requirementKey: 'evaluationCriteria.financial', response: { value: 85 } }
+        ]
       },
       tender,
       mode: 'submit'
@@ -1658,6 +1680,18 @@ describe('bidding repository rules', () => {
         })
       })
     );
+    expect(tx.signedAction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          organizationId: 'supplier-org-1',
+          moduleKey: 'bidding',
+          actionKey: 'bid.submit',
+          entityType: 'bid',
+          entityRef: 'bid-1'
+        })
+      })
+    );
     expect(tx.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -2117,7 +2151,11 @@ function evaluationTenderRecord(currentStage: EvaluationStage) {
     status: TenderStatus.EVALUATION,
     closingDate: new Date('2026-06-01T08:00:00.000Z'),
     currency: 'TZS',
+    requirements: {},
+    metadata: {},
     buyerOrg: { id: 'buyer-org-1', name: 'Buyer Org' },
+    requirementRows: [],
+    commercialItems: [],
     evaluation: {
       id: 'workspace-1',
       status: 'IN_PROGRESS',
@@ -2184,7 +2222,7 @@ function biddingRouterApp() {
   return app;
 }
 
-function repositorySubmitFixture(options: { bid?: ReturnType<typeof bidRecord> } = {}) {
+function repositorySubmitFixture(options: { bid?: ReturnType<typeof bidRecord>; signingCredential?: Record<string, unknown> | null } = {}) {
   const tx = transactionMock();
   const db = {
     $transaction: vi.fn((callback) => callback(tx))
@@ -2204,6 +2242,7 @@ function repositorySubmitFixture(options: { bid?: ReturnType<typeof bidRecord> }
   tx.bid.findUniqueOrThrow.mockResolvedValue(submittedBid);
   tx.bid.findFirst.mockResolvedValue(null);
   tx.bidVersion.count.mockResolvedValue(0);
+  tx.signingCredential.findFirst.mockResolvedValue(options.signingCredential ?? null);
   return {
     tx,
     db,
@@ -2274,7 +2313,7 @@ function transactionMock() {
       findFirst: vi.fn().mockResolvedValue(null)
     },
     signedAction: {
-      create: vi.fn()
+      create: vi.fn().mockResolvedValue({ id: 'signed-action-1' })
     }
   };
 }

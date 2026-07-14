@@ -86,6 +86,10 @@
         "title": "Tuzo na Mkataba",
         "description": "Tuzo, majadiliano, saini"
       },
+      "postAward": {
+        "title": "Baada ya Tuzo",
+        "description": "Utoaji, ankara, malipo, kufunga"
+      },
       "records": {
         "title": "Kumbukumbu na Historia",
         "description": "Zabuni, mawasilisho, na tuzo zilizopita"
@@ -105,6 +109,7 @@
       "marketplace": "Soko",
       "messages": "Ujumbe",
       "later": "Baadaye",
+      "execution": "Utekelezaji",
       "archive": "Jalada"
     },
     "apps": {
@@ -122,6 +127,9 @@
       },
       "awarding": {
         "description": "Shughulikia tuzo, mikataba, na ufuatiliaji baada ya tuzo."
+      },
+      "postAward": {
+        "description": "Simamia utekelezaji wa mikataba iliyosainiwa, ushahidi, ukaguzi, ankara, malipo, na kufunga."
       },
       "records": {
         "description": "Hakiki kumbukumbu zilizotengenezwa shughuli zikianza."

@@ -4,6 +4,7 @@ export const appIconAssetPaths = {
   communication: '/assets/app-icons/communication-center.png',
   evaluation: '/assets/app-icons/evaluation.png',
   awarding: '/assets/app-icons/award-contract.png',
+  postAward: '/assets/app-icons/post-award.svg',
   records: '/assets/app-icons/records-history.png'
 } as const;
 

@@ -9,6 +9,7 @@ import { assumeUser, signOut } from '@/features/auth/slice';
 import { accountApi } from '@/features/account/api';
 import { authApi } from '@/features/auth/api';
 import { communicationApi } from '@/features/communication/api';
+import { identityApi } from '@/features/identity/api';
 import i18n from '@/i18n';
 import { TopBar } from './TopBar';
 import { demoUsers } from '@/shared/data/fixtures';
@@ -53,10 +54,34 @@ vi.mock('@/features/communication/api', () => ({
   }
 }));
 
+vi.mock('@/features/identity/api', () => ({
+  identityApi: {
+    getVerificationMe: vi.fn(),
+    getProfileImageBlob: vi.fn()
+  }
+}));
+
 const recordActivity = vi.mocked(accountApi.recordActivity);
 const updatePreferences = vi.mocked(accountApi.updatePreferences);
 const authSignOut = vi.mocked(authApi.signOut);
 const listMailbox = vi.mocked(communicationApi.listMailbox);
+const getVerificationMe = vi.mocked(identityApi.getVerificationMe);
+const getProfileImageBlob = vi.mocked(identityApi.getProfileImageBlob);
+const createObjectUrl = vi.fn(() => 'blob:procurex-profile-image');
+const revokeObjectUrl = vi.fn();
+
+Object.defineProperty(URL, 'createObjectURL', { value: createObjectUrl, configurable: true });
+Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectUrl, configurable: true });
+
+const profileImage = {
+  objectKey: 'profile-images/user/logo.png',
+  fileName: 'logo.png',
+  mimeType: 'image/png',
+  size: 8,
+  checksum: 'image-checksum',
+  uploadedAt: '2026-06-18T00:00:00.000Z',
+  imageRole: 'logo'
+};
 
 function LocationProbe() {
   const location = useLocation();
@@ -64,6 +89,11 @@ function LocationProbe() {
 }
 
 function renderTopBar(userOverride?: SessionUser) {
+  getVerificationMe.mockResolvedValue({
+    user: demoUsers.user,
+    verification: null
+  });
+  getProfileImageBlob.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
   store.dispatch(signOut());
   store.dispatch(
     assumeUser(
@@ -111,6 +141,10 @@ describe('TopBar platform apps drawer', () => {
     updatePreferences.mockClear();
     authSignOut.mockClear();
     listMailbox.mockClear();
+    getVerificationMe.mockClear();
+    getProfileImageBlob.mockClear();
+    createObjectUrl.mockClear();
+    revokeObjectUrl.mockClear();
   });
 
   it('opens the platform apps drawer from the 9-dot button', () => {
@@ -181,6 +215,37 @@ describe('TopBar platform apps drawer', () => {
 
     expect(recordActivity).toHaveBeenCalledWith('identity.profile.opened');
     expect(screen.getByTestId('location')).toHaveTextContent('/identity/profile');
+  });
+
+  it('shows uploaded account image in the account menu and refetches after image updates', async () => {
+    const user = userEvent.setup();
+    getVerificationMe.mockResolvedValueOnce({
+      user: demoUsers.user,
+      verification: {
+        id: 'verification-1',
+        status: 'APPROVED',
+        registrySource: 'TRA',
+        registryNumber: '100-200-300',
+        payload: {
+          profile: {
+            profileImage
+          }
+        },
+        createdAt: '2026-06-18T00:00:00.000Z',
+        updatedAt: '2026-06-18T00:00:00.000Z'
+      }
+    });
+    renderTopBar();
+
+    await waitFor(() => expect(getProfileImageBlob).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Open account menu' }).querySelector('img')).toHaveAttribute('src', 'blob:procurex-profile-image');
+
+    await user.click(screen.getByRole('button', { name: 'Open account menu' }));
+    expect(await screen.findAllByRole('img', { name: 'Verified User' })).not.toHaveLength(0);
+
+    window.dispatchEvent(new CustomEvent('procurex:profile-image-updated', { detail: { profileImage: { ...profileImage, checksum: 'image-checksum-next' } } }));
+
+    await waitFor(() => expect(getProfileImageBlob).toHaveBeenCalledTimes(2));
   });
 
   it('opens Help Centre from the account menu', async () => {

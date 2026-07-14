@@ -431,6 +431,32 @@ export class ModuleController {
     }
   };
 
+  uploadProfileImage: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.uploadProfileImage(bearerToken(req), req, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  profileImageContent: RequestHandler = async (req, res, next) => {
+    try {
+      const image = await this.service.profileImageContent(bearerToken(req));
+      res.setHeader('Content-Disposition', `inline; filename="${image.filename.replace(/"/g, '')}"`);
+      res.type(image.contentType).send(image.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteProfileImage: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.deleteProfileImage(bearerToken(req), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   listAdminVerifications: RequestHandler = async (req, res, next) => {
     try {
       const query = adminVerificationListQuerySchema.parse(req.query);

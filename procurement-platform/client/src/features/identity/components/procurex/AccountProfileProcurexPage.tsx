@@ -21,6 +21,8 @@ import {
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import type { CreateNotificationInput } from '@/shared/types/notifications';
 import { getTanzaniaRegions, isValidTanzaniaLocation, type TanzaniaLocationSelection } from '@procurex/shared';
+import { ProfileImageCard } from './ProfileImageCard';
+import type { ProfileImageMetadata } from '@/features/identity/types';
 
 type ProfileTab = 'overview' | 'account' | 'entity' | 'classification' | 'documents' | 'security';
 
@@ -42,6 +44,7 @@ type ProfileForm = {
   bankName: string;
   accountName: string;
   accountNumber: string;
+  profileImage: ProfileImageMetadata | null;
 };
 
 type ProfileDocumentRow = {
@@ -117,7 +120,8 @@ const defaultProfile: ProfileForm = {
   regionsOfOperation: ['Nationwide'],
   bankName: '',
   accountName: '',
-  accountNumber: ''
+  accountNumber: '',
+  profileImage: null
 };
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -130,6 +134,11 @@ function stringValue(value: unknown, fallback = '') {
 
 function stringArrayValue(value: unknown, fallback: string[]) {
   return Array.isArray(value) ? uniqueStrings(value.map(String)) : fallback;
+}
+
+function profileImageValue(value: unknown): ProfileImageMetadata | null {
+  const image = objectValue(value);
+  return typeof image.objectKey === 'string' && typeof image.fileName === 'string' ? (image as ProfileImageMetadata) : null;
 }
 
 function statusBadge(status?: string) {
@@ -252,6 +261,7 @@ export function AccountProfileProcurexPage() {
 
   const payload = useMemo(() => objectValue(verification?.payload), [verification]);
   const registryRecord = objectValue(payload.registryRecord);
+  const entityType = stringValue(payload.entityType, 'individual');
   const reasons = reviewReasons(verification);
   const trustRisk = user?.trustRisk;
   const eKycApproved = user?.verificationStatus === 'APPROVED' || verification?.status === 'APPROVED';
@@ -303,7 +313,8 @@ export function AccountProfileProcurexPage() {
           regionsOfOperation: stringArrayValue(savedProfile.regionsOfOperation, defaultProfile.regionsOfOperation),
           bankName: stringValue(savedProfile.bankName),
           accountName: stringValue(savedProfile.accountName),
-          accountNumber: stringValue(savedProfile.accountNumber)
+          accountNumber: stringValue(savedProfile.accountNumber),
+          profileImage: profileImageValue(savedProfile.profileImage)
         });
         setDocuments(savedDocuments.map((document, index) => createDocumentRow(objectValue(document), index)).filter((document) => document.name || document.fileName));
         if (response.user.verificationStatus === 'APPROVED' || response.verification?.status === 'APPROVED') {
@@ -569,6 +580,16 @@ export function AccountProfileProcurexPage() {
                 </div>
                 <span className="badge badge-info">Editable</span>
               </div>
+              <ProfileImageCard
+                entityType={entityType}
+                profileImage={profile.profileImage}
+                disabled={loading}
+                compact
+                onChange={(next) => {
+                  setVerification(next.profile);
+                  updateProfileField('profileImage', next.profileImage);
+                }}
+              />
               <div className="iam-form-grid">
                 <label className="form-group iam-profile-field">
                   <span className="form-label">Full Name *</span>

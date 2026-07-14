@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
+import { signOut } from '@/features/auth/slice';
 import { useNotifications } from '@/features/notifications/hooks';
+import { communicationApi } from '@/features/communication/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
@@ -15,6 +17,7 @@ import type {
   CreateTenderConsultancyDeliverableRow,
   CreateTenderDraft,
   CreateTenderDraftStatus,
+  CreateTenderInvitedSupplier,
   CreateTenderPayload,
   CreateTenderEligibilityRequirementRow,
   CreateTenderEvaluationCriterion,
@@ -48,6 +51,7 @@ import type {
   TenderDetail,
   TenderDraftValidation
 } from '../../types';
+import type { CommunicationRecipient } from '@/features/communication/types';
 
 const steps = ['Basic Information', 'Procurement Planning', 'Tender Requirements', 'Evaluation Criteria and Weights', 'Review Tender', 'Tender Review and Publication'];
 
@@ -331,6 +335,7 @@ type TenderReviewSubmissionBlocker = {
 export function CreateTenderProcurexPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { notifyError, notifySuccess, notifyWarning } = useNotifications();
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
@@ -342,6 +347,9 @@ export function CreateTenderProcurexPage() {
   const [loadedTenderId, setLoadedTenderId] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
+  const [supplierResults, setSupplierResults] = useState<CommunicationRecipient[]>([]);
+  const [supplierLookupLoading, setSupplierLookupLoading] = useState(false);
+  const [supplierLookupError, setSupplierLookupError] = useState('');
   const [newDeliverable, setNewDeliverable] = useState('');
   const [newAttachment, setNewAttachment] = useState('');
   const [planWarningFields, setPlanWarningFields] = useState<string[]>([]);
@@ -442,6 +450,40 @@ export function CreateTenderProcurexPage() {
     };
   }, [dispatch, editTenderId, loadedTenderId, notifyError]);
 
+  useEffect(() => {
+    if (draft.method !== 'Invited Tender') {
+      setSupplierResults([]);
+      setSupplierLookupError('');
+      setSupplierLookupLoading(false);
+      return;
+    }
+
+    let active = true;
+    const search = newSupplier.trim();
+    setSupplierLookupLoading(true);
+    setSupplierLookupError('');
+
+    async function loadSupplierRecipients() {
+      try {
+        const recipients = await communicationApi.listRecipients({ search: search || undefined, capability: 'SUPPLIER', pageSize: 20 });
+        if (!active) return;
+        const selectedIds = new Set((draft.invitedSupplierOrganizations ?? []).map((supplier) => supplier.id));
+        setSupplierResults(recipients.filter((recipient) => !selectedIds.has(recipient.id)));
+      } catch (error) {
+        if (!active) return;
+        setSupplierResults([]);
+        setSupplierLookupError(getApiErrorMessage(error, 'Supplier lookup is unavailable.'));
+      } finally {
+        if (active) setSupplierLookupLoading(false);
+      }
+    }
+
+    void loadSupplierRecipients();
+    return () => {
+      active = false;
+    };
+  }, [draft.invitedSupplierOrganizations, draft.method, newSupplier]);
+
   function patchDraft(patch: Partial<CreateTenderDraft>) {
     setDraft((current) => ({
       ...current,
@@ -481,11 +523,28 @@ export function CreateTenderProcurexPage() {
     patchDraft({ categories: draft.categories.filter((item) => item !== category) });
   }
 
-  function addSupplier() {
-    const supplier = newSupplier.trim();
-    if (!supplier || draft.invitedSuppliers.includes(supplier)) return;
-    patchDraft({ invitedSuppliers: [...draft.invitedSuppliers, supplier] });
+  function addSupplier(supplier: CommunicationRecipient) {
+    if (!supplier.id || (draft.invitedSupplierOrganizations ?? []).some((item) => item.id === supplier.id)) return;
+    const nextSupplier: CreateTenderInvitedSupplier = {
+      id: supplier.id,
+      name: supplier.name,
+      country: supplier.country,
+      capabilities: supplier.capabilities
+    };
+    const invitedSupplierOrganizations = [...(draft.invitedSupplierOrganizations ?? []), nextSupplier];
+    patchDraft({
+      invitedSupplierOrganizations,
+      invitedSuppliers: invitedSupplierOrganizations.map((item) => item.name)
+    });
     setNewSupplier('');
+  }
+
+  function removeSupplier(supplierId: string) {
+    const invitedSupplierOrganizations = (draft.invitedSupplierOrganizations ?? []).filter((supplier) => supplier.id !== supplierId);
+    patchDraft({
+      invitedSupplierOrganizations,
+      invitedSuppliers: invitedSupplierOrganizations.map((supplier) => supplier.name)
+    });
   }
 
   function addLineItem() {
@@ -653,6 +712,11 @@ export function CreateTenderProcurexPage() {
       notifyError('Tender not submitted', message, {
         reason: 'ProcureX could not send this tender to admin review.'
       });
+      if (isUnauthorizedApiError(error)) {
+        setShowSubmitSignature(false);
+        dispatch(signOut());
+        navigate('/sign-in', { replace: true, state: { from: { pathname: `${location.pathname}${location.search}` } } });
+      }
     } finally {
       setIsPersisting(false);
     }
@@ -762,6 +826,9 @@ export function CreateTenderProcurexPage() {
                     availableCategories={availableCategories}
                     categorySearch={newCategory}
                     newSupplier={newSupplier}
+                    supplierResults={supplierResults}
+                    supplierLookupLoading={supplierLookupLoading}
+                    supplierLookupError={supplierLookupError}
                     onTypeChange={changeType}
                     onPatch={patchPlanAware}
                     onCategorySearch={setNewCategory}
@@ -769,6 +836,7 @@ export function CreateTenderProcurexPage() {
                     onRemoveCategory={removeCategory}
                     onNewSupplier={setNewSupplier}
                     onAddSupplier={addSupplier}
+                    onRemoveSupplier={removeSupplier}
                   />
                 ) : null}
                 {activeStep === 2 ? (
@@ -1018,26 +1086,34 @@ function PlanningStep({
   availableCategories,
   categorySearch,
   newSupplier,
+  supplierResults,
+  supplierLookupLoading,
+  supplierLookupError,
   onTypeChange,
   onPatch,
   onCategorySearch,
   onAddCategory,
   onRemoveCategory,
   onNewSupplier,
-  onAddSupplier
+  onAddSupplier,
+  onRemoveSupplier
 }: {
   draft: CreateTenderDraft;
   selectedType: { id: CreateTenderProcurementTypeId; label: string; description: string };
   availableCategories: string[];
   categorySearch: string;
   newSupplier: string;
+  supplierResults: CommunicationRecipient[];
+  supplierLookupLoading: boolean;
+  supplierLookupError: string;
   onTypeChange: (typeId: CreateTenderProcurementTypeId) => void;
   onPatch: (field: keyof CreateTenderDraft, value: CreateTenderDraft[keyof CreateTenderDraft]) => void;
   onCategorySearch: (value: string) => void;
   onAddCategory: (value: string) => void;
   onRemoveCategory: (category: string) => void;
   onNewSupplier: (value: string) => void;
-  onAddSupplier: () => void;
+  onAddSupplier: (supplier: CommunicationRecipient) => void;
+  onRemoveSupplier: (supplierId: string) => void;
 }) {
   const normalizedSearch = categorySearch.trim().toLowerCase();
   const availableResults = availableCategories
@@ -1137,17 +1213,35 @@ function PlanningStep({
           </div>
           <div className="planning-control-grid">
             <label>
-              Supplier name
-              <input placeholder="Search or type supplier name" value={newSupplier} onChange={(event) => onNewSupplier(event.target.value)} />
+              Supplier organization
+              <input placeholder="Search registered supplier organizations" value={newSupplier} onChange={(event) => onNewSupplier(event.target.value)} />
             </label>
-            <button className="btn btn-secondary" type="button" onClick={onAddSupplier}>
-              Add Supplier
-            </button>
+          </div>
+          <div className="category-results open" role="listbox" aria-label="Registered supplier organizations">
+            {supplierLookupLoading ? <span className="category-result-empty">Loading supplier organizations...</span> : null}
+            {!supplierLookupLoading && supplierLookupError ? <span className="category-result-empty">{supplierLookupError}</span> : null}
+            {!supplierLookupLoading && !supplierLookupError && supplierResults.length ? (
+              supplierResults.map((supplier) => (
+                <button className="category-result-option" type="button" key={supplier.id} onClick={() => onAddSupplier(supplier)}>
+                  {supplier.name}
+                  {supplier.country ? <span>{supplier.country}</span> : null}
+                </button>
+              ))
+            ) : null}
+            {!supplierLookupLoading && !supplierLookupError && !supplierResults.length ? (
+              <span className="category-result-empty">{newSupplier.trim() ? 'No registered supplier organizations match this search.' : 'Search and select registered supplier organizations.'}</span>
+            ) : null}
           </div>
           <ul className="wizard-compact-list">
-            {draft.invitedSuppliers.map((supplier) => (
-              <li key={supplier}>{supplier}</li>
+            {(draft.invitedSupplierOrganizations ?? []).map((supplier) => (
+              <li key={supplier.id}>
+                <span>{supplier.name}</span>
+                <button className="selected-category-remove" type="button" onClick={() => onRemoveSupplier(supplier.id)} aria-label={`Remove ${supplier.name}`}>
+                  Remove
+                </button>
+              </li>
             ))}
+            {!(draft.invitedSupplierOrganizations ?? []).length ? <li>No registered suppliers selected.</li> : null}
           </ul>
         </section>
       ) : null}
@@ -5283,6 +5377,8 @@ function isBackendTenderId(id: string) {
 function createTenderPersistencePayload(draft: CreateTenderDraft): CreateTenderPayload {
   const budget = parsePositiveNumber(draft.estimatedBudget);
   const type = toBackendTenderType(draft.procurementTypeId);
+  const invitedSupplierOrganizations = normalizeInvitedSupplierOrganizations(draft.invitedSupplierOrganizations);
+  const invitedSupplierNames = invitedSupplierOrganizations.map((supplier) => supplier.name);
   const metadata = removeUndefinedValues({
     frontendSource: 'react-create-tender',
     frontendDraftId: isBackendTenderId(draft.id) ? undefined : draft.id,
@@ -5291,7 +5387,10 @@ function createTenderPersistencePayload(draft: CreateTenderDraft): CreateTenderP
     procuringEntity: draft.procuringEntity,
     fundingSource: draft.fundingSource === 'Other' ? draft.customFundingSource : draft.fundingSource,
     contact: draft.contact,
-    invitedSuppliers: draft.invitedSuppliers,
+    invitedSuppliers: invitedSupplierNames,
+    invitedSupplierNames,
+    invitedOrganizationIds: invitedSupplierOrganizations.map((supplier) => supplier.id),
+    invitedSupplierOrganizations,
     evaluationCriteria: draft.evaluationCriteria,
     milestones: draft.milestones,
     publication: {
@@ -5631,6 +5730,8 @@ function getApiValidationErrorMessage(error: unknown, fallback: string) {
         .filter(Boolean)
     : [];
   if (issueMessages.length) return issueMessages.slice(0, 3).join(' ');
+  const message = stringValue(body?.message || body?.error);
+  if (message) return message;
   return fallback;
 }
 
@@ -5646,6 +5747,10 @@ function friendlyApiValidationMessage(issue: Record<string, unknown>) {
 
 function apiErrorBody(error: unknown) {
   return objectValue((error as { response?: { data?: unknown } })?.response?.data);
+}
+
+function isUnauthorizedApiError(error: unknown) {
+  return Number((error as { response?: { status?: unknown } })?.response?.status) === 401;
 }
 
 function parsePositiveNumber(value: string | number | undefined) {
@@ -5708,6 +5813,36 @@ function isRecordValue(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
+function normalizeInvitedSupplierOrganizations(value: unknown): CreateTenderInvitedSupplier[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value
+    .map((item) => {
+      const record = objectValue(item);
+      const id = stringValue(record.id);
+      const name = stringValue(record.name);
+      if (!id || !name || seen.has(id)) return null;
+      seen.add(id);
+      return {
+        id,
+        name,
+        country: stringValue(record.country),
+        capabilities: stringArray(record.capabilities)
+      };
+    })
+    .filter((item): item is CreateTenderInvitedSupplier => Boolean(item));
+}
+
+function invitedSupplierOrganizationsFromMetadata(metadata: Record<string, unknown>): CreateTenderInvitedSupplier[] {
+  const stored = normalizeInvitedSupplierOrganizations(metadata.invitedSupplierOrganizations);
+  if (stored.length) return stored;
+  const ids = stringArray(metadata.invitedOrganizationIds);
+  const names = stringArray(metadata.invitedSupplierNames).length ? stringArray(metadata.invitedSupplierNames) : stringArray(metadata.invitedSuppliers);
+  return ids
+    .map((id, index) => ({ id, name: names[index] ?? id, country: '', capabilities: ['SUPPLIER'] }))
+    .filter((supplier) => supplier.id && supplier.name);
+}
+
 function draftFromTenderDetail(tender: TenderDetail): CreateTenderDraft {
   const metadata = objectValue(tender.metadata);
   const requirements = objectValue(tender.requirements);
@@ -5718,6 +5853,7 @@ function draftFromTenderDetail(tender: TenderDetail): CreateTenderDraft {
     .filter((category) => categoryOptions.includes(category));
   const fundingSource = stringValue(metadata.fundingSource);
   const base = createEmptyTenderDraft();
+  const invitedSupplierOrganizations = invitedSupplierOrganizationsFromMetadata(metadata);
   const draft: CreateTenderDraft = {
     ...base,
     id: tender.id,
@@ -5742,7 +5878,8 @@ function draftFromTenderDetail(tender: TenderDetail): CreateTenderDraft {
     procurementTypeId: typeId,
     categories: categories.length ? categories : categoryOptions.slice(0, 1),
     method: frontendTenderMethod(stringValue(metadata.method) || tender.method),
-    invitedSuppliers: stringArray(metadata.invitedSuppliers),
+    invitedSuppliers: invitedSupplierOrganizations.length ? invitedSupplierOrganizations.map((supplier) => supplier.name) : stringArray(metadata.invitedSuppliers),
+    invitedSupplierOrganizations,
     requirements: stringMap(objectValue(requirements.summary)),
     selectedLicenses: stringArray(metadata.selectedLicenses),
     commercialItems: arrayValue<CreateTenderLineItem>(requirements.commercialItems, base.commercialItems),
@@ -5998,7 +6135,7 @@ function getCreateTenderResumeStep(draft: CreateTenderDraft) {
 function validateStep(step: number, draft: CreateTenderDraft, total: number) {
   if (step === 0) return validateBasicTenderInformation(draft);
   if (step === 1 && (!draft.procurementTypeId || !draft.categories.length || !draft.method)) return 'Please choose a procurement type, method, and at least one category before continuing.';
-  if (step === 1 && draft.method === 'Invited Tender' && draft.invitedSuppliers.length === 0) return 'Please add at least one supplier for this invited tender.';
+  if (step === 1 && draft.method === 'Invited Tender' && normalizeInvitedSupplierOrganizations(draft.invitedSupplierOrganizations).length === 0) return 'Please select at least one registered supplier organization for this invited tender.';
   if (step === 2) return validateTenderRequirements(draft);
   if (step === 3 && total !== 100) return 'Please adjust the evaluation weights so they add up to 100% before review.';
   return '';
@@ -6011,14 +6148,6 @@ function getTenderReviewSubmissionBlocker(draft: CreateTenderDraft, total: numbe
       title: 'Tender cannot be submitted yet',
       message: 'Please review and tick each publication confirmation before submitting.',
       reason: 'ProcureX blocks review submission until accuracy, compliance, evaluation, and publication confirmations are ticked.'
-    };
-  }
-  if (draft.method === 'Invited Tender') {
-    return {
-      step: 1,
-      title: 'Invited tender review unavailable',
-      message: 'Invited Tender review submission is not available yet. Select Open Tender before submitting.',
-      reason: 'This review path is currently limited to public marketplace tenders.'
     };
   }
   if (!parsePositiveNumber(draft.estimatedBudget)) {

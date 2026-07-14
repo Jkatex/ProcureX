@@ -115,7 +115,7 @@ const pageToRoute: Record<AppRouteKey, string> = {
   'award-recommendation': '/awards-contracts/recommendation',
   'award-response': '/awards-contracts/award-response',
   'contract-negotiation': '/awards-contracts/negotiation',
-  'post-award-tracking': '/awards-contracts/post-award',
+  'post-award-tracking': '/post-award',
   'records-history': '/records',
   'create-tender': '/procurement/create-tender',
   'tender-publication': '/procurement/tender-publication',

@@ -11,6 +11,7 @@ type LauncherRouteKey =
   | 'communication-center'
   | 'bid-evaluation'
   | 'awarding-contracts'
+  | 'post-award'
   | 'records-history'
   | 'workspace-dashboard'
   | 'sign-in';
@@ -21,6 +22,7 @@ const pageToRoute: Record<LauncherRouteKey, string> = {
   'communication-center': '/communication',
   'bid-evaluation': '/evaluation',
   'awarding-contracts': '/awards-contracts',
+  'post-award': '/post-award',
   'records-history': '/records',
   'workspace-dashboard': '/dashboard',
   'sign-in': '/sign-in'
@@ -66,6 +68,14 @@ const apps = [
     badgeKey: 'launcher.badges.later',
     titleKey: 'platformApps.items.awarding.title',
     descriptionKey: 'launcher.apps.awarding.description'
+  },
+  {
+    className: 'app-tone-post-award',
+    page: 'post-award',
+    icon: 'postAward',
+    badgeKey: 'launcher.badges.execution',
+    titleKey: 'platformApps.items.postAward.title',
+    descriptionKey: 'launcher.apps.postAward.description'
   },
   {
     className: 'app-tone-contracts',

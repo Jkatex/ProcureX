@@ -4,6 +4,7 @@ import {
   CommunicationPriority,
   CommunicationStatus,
   OrganizationKind,
+  ProcurementMethod,
   RiskLevel,
   TenderAmendmentStatus,
   TenderStatus,
@@ -772,6 +773,7 @@ export class ModuleRepository {
               description: input.description,
               type: input.type,
               status: TenderStatus.DRAFT,
+              method: tenderMethodFromMetadata(input.metadata) ?? ProcurementMethod.OPEN_TENDER,
               visibility: Visibility.PRIVATE,
               budget: input.budget ?? null,
               currency: input.currency,
@@ -3021,10 +3023,12 @@ function decimalOrNull(value: string | number | null | undefined) {
 }
 
 function tenderUpdateInput(input: UpdateTenderInput): Prisma.TenderUpdateInput {
+  const method = input.metadata !== undefined ? tenderMethodFromMetadata(input.metadata) : undefined;
   return {
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.type !== undefined ? { type: input.type } : {}),
+    ...(method !== undefined ? { method } : {}),
     ...(input.budget !== undefined ? { budget: input.budget } : {}),
     ...(input.currency !== undefined ? { currency: input.currency } : {}),
     ...(input.location !== undefined ? { location: input.location } : {}),
@@ -3032,6 +3036,14 @@ function tenderUpdateInput(input: UpdateTenderInput): Prisma.TenderUpdateInput {
     ...(input.requirements !== undefined ? { requirements: input.requirements as Prisma.InputJsonObject } : {}),
     ...(input.metadata !== undefined ? { metadata: input.metadata as Prisma.InputJsonObject } : {})
   };
+}
+
+function tenderMethodFromMetadata(metadata: Record<string, unknown> | undefined): ProcurementMethod | undefined {
+  const rawMethod = typeof metadata?.method === 'string' ? metadata.method : '';
+  const normalized = rawMethod.trim().replace(/[\s-]+/g, '_').toUpperCase();
+  if (normalized === 'INVITED_TENDER') return ProcurementMethod.INVITED_TENDER;
+  if (normalized === 'OPEN_TENDER') return ProcurementMethod.OPEN_TENDER;
+  return undefined;
 }
 
 function isEditableTenderStatus(status: TenderStatus) {

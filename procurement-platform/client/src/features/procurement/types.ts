@@ -376,6 +376,13 @@ export type CreateTenderMilestone = {
   dueDate: string;
 };
 
+export type CreateTenderInvitedSupplier = {
+  id: string;
+  name: string;
+  country: string;
+  capabilities: string[];
+};
+
 export type CreateTenderConfirmationId = 'accuracy' | 'compliance' | 'evaluation' | 'publication';
 
 export type CreateTenderDraft = {
@@ -399,6 +406,7 @@ export type CreateTenderDraft = {
   categories: string[];
   method: string;
   invitedSuppliers: string[];
+  invitedSupplierOrganizations: CreateTenderInvitedSupplier[];
   requirements: Record<string, string>;
   selectedLicenses: string[];
   commercialItems: CreateTenderLineItem[];

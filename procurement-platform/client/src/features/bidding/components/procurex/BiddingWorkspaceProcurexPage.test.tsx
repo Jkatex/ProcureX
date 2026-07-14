@@ -532,7 +532,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(biddingApi.submitBid).not.toHaveBeenCalled();
   });
 
-  it('renders BOQ rows in the financial offer and saves entered rates by requirement key', async () => {
+  it('renders ProcureX goods offer rows and saves structured pricing by requirement key', async () => {
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
 
     render(
@@ -550,18 +550,22 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.getByRole('heading', { name: 'Quantity Schedule / Financial Offer' })).toBeInTheDocument();
     const boqTable = screen.getByRole('table');
     expect(boqTable).toHaveClass('bid-financial-boq-table');
-    expect(screen.getByText('BOQ pricing schedule')).toBeInTheDocument();
+    expect(screen.getByText('Goods offer rows')).toBeInTheDocument();
     expect(within(boqTable).getByText('Laptop')).toBeInTheDocument();
     expect(within(boqTable).getByText('Each')).toBeInTheDocument();
+    expect(boqTable.querySelector('.goods-offer-row')).toBeInTheDocument();
     expect(within(boqTable).queryByText('Response for Financial')).not.toBeInTheDocument();
     const standaloneFinancialInput = screen.getByText('Response for Financial').closest('label')?.querySelector('input') as HTMLInputElement | null;
     expect(standaloneFinancialInput).toBeInTheDocument();
     expect(screen.queryByText('Quoted unit price')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Rate for Laptop'), { target: { value: '2500000' } });
+    fireEvent.change(screen.getByLabelText('Bid status for goods item 1'), { target: { value: 'Bid' } });
+    fireEvent.change(screen.getByLabelText('Unit price for Laptop'), { target: { value: '2500000' } });
+    fireEvent.change(screen.getByLabelText('Tax included for goods item 1'), { target: { value: 'Yes' } });
+    fireEvent.change(screen.getByLabelText('Discount for goods item 1'), { target: { value: '500000' } });
     fireEvent.change(standaloneFinancialInput!, { target: { value: '85' } });
 
-    expect(screen.getAllByText('TZS 2,500,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('TZS 2,000,000').length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
 
     await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
@@ -570,7 +574,14 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       expect.arrayContaining([
         expect.objectContaining({
           requirementKey: 'unitRate',
-          response: { value: 2500000 }
+          response: {
+            value: expect.objectContaining({
+              status: 'Bid',
+              unitPrice: 2500000,
+              taxIncluded: 'Yes',
+              discount: '500000'
+            })
+          }
         }),
         expect.objectContaining({
           requirementKey: 'evaluationCriteria.financial',
@@ -579,7 +590,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       ])
     );
     expect(savedPayload.financial.items).toEqual([
-      expect.objectContaining({ id: 'line-1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000, total: 2500000 })
+      expect.objectContaining({ id: 'line-1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000, total: 2000000 })
     ]);
   });
 
@@ -743,6 +754,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(bidDto());
     vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(bidDto());
 
     render(
@@ -776,6 +788,132 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
         fieldId: 'technical.productBrochure'
       }
     });
+  });
+
+  it('renders newly created goods schema controls and saves license, product detail, financial, and upload metadata', async () => {
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible'),
+            field('administrative.taxCompliant', 'Confirm tax and statutory compliance', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'taxCompliant'),
+            field('administrative.documentsConfirmed', 'Confirm mandatory documents are attached', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'documentsConfirmed'),
+            field('administrative.license.tmda', 'Medical devices dealer license', 'table', 'administrative', 'structured', 'ADMINISTRATIVE', false, 'goods.regulatoryLicense.lic-1', {
+              control: 'goodsRegulatoryLicense',
+              issuingAuthority: 'TMDA',
+              prompt: 'Valid license certificate'
+            })
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [
+            field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
+              control: 'goodsProductSpecification',
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              buyerSpecification: 'Core i7 laptop',
+              quantity: 1,
+              unit: 'Each'
+            }),
+            field('technical.productDetails.line1', 'Offered product details - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productDetails.line-1', {
+              control: 'goodsProductDetails',
+              itemNo: '1',
+              requestedProduct: 'Laptop',
+              quantity: 1,
+              unit: 'Each'
+            })
+          ]),
+          step('goodsFinancial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
+            field('financial.unitRate', 'Unit rate for Laptop', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'commercialItems.line-1.unitRate', {
+              itemId: 'line-1',
+              itemNo: '1',
+              description: 'Laptop',
+              quantity: 1,
+              unit: 'Each',
+              min: 0
+            }),
+            field('financial.turnover', 'Annual turnover', 'table', 'financial', 'structured', 'FINANCIAL', false, 'goods.financialRequirement.fin-1', {
+              control: 'goodsFinancialRequirement',
+              prompt: 'Audited accounts for the last two years'
+            }),
+            field('goods.commercial.bidValidity', 'Bid Validity Period (days)', 'number', 'financial', 'number', 'FINANCIAL', true, 'goods.commercial.bidValidity', { control: 'goodsCommercialTerms' }),
+            field('goods.commercial.currency', 'Currency', 'select', 'financial', 'text', 'FINANCIAL', true, 'goods.commercial.currency', { control: 'goodsCommercialTerms', options: ['TZS', 'USD'] }),
+            field('goods.commercial.deliveryTermsAccepted', 'I accept the delivery terms defined in the tender.', 'boolean', 'financial', 'boolean', 'FINANCIAL', true, 'goods.commercial.deliveryTermsAccepted', { control: 'goodsCommercialTerms' })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(bidDto());
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Medical devices dealer license')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Medical devices dealer license status'), { target: { value: 'Valid' } });
+    fireEvent.change(screen.getByLabelText('Medical devices dealer license expiry or validity'), { target: { value: '2027-12-31' } });
+    const licenseUpload = screen.getByText('Upload license evidence').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    const licenseFile = new File(['license'], 'tmda-license.pdf', { type: 'application/pdf' });
+    fireEvent.change(licenseUpload!, { target: { files: [licenseFile] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
+
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(container.querySelector('.goods-compliance-card')).toBeInTheDocument();
+    expect(container.querySelector('.goods-product-detail-card')).toBeInTheDocument();
+    expect(container.querySelector('.premium-response-matrix')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Compliant' } });
+    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Supplier offered specification'), { target: { value: 'Core i7, 16GB RAM' } });
+    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Supplier Product'), { target: { value: 'ThinkPad T14' } });
+    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Brand'), { target: { value: 'Lenovo' } });
+    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Model Number'), { target: { value: 'T14-G6' } });
+    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Country of Origin'), { target: { value: 'China' } });
+    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Delivery Time'), { target: { value: '30 days' } });
+    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Warranty Period'), { target: { value: '24 months' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText('Goods offer rows')).toBeInTheDocument();
+    expect(container.querySelector('.goods-offer-row')).toBeInTheDocument();
+    expect(screen.getByText('Financial capacity requirements')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Bid status for goods item 1'), { target: { value: 'Bid' } });
+    fireEvent.change(screen.getByLabelText('Unit price for Laptop'), { target: { value: '2500000' } });
+    fireEvent.change(screen.getByLabelText('Tax included for goods item 1'), { target: { value: 'Yes' } });
+    fireEvent.change(screen.getByLabelText('Bid Validity Period (days)'), { target: { value: '120' } });
+    fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'TZS' } });
+    fireEvent.click(screen.getByLabelText('I accept the delivery terms defined in the tender.'));
+    fireEvent.change(screen.getByLabelText('Annual turnover Response / value'), { target: { value: 'TZS 900M average annual turnover' } });
+    const financialUpload = screen.getByText('Upload financial evidence').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    const financialFile = new File(['accounts'], 'audited-accounts.pdf', { type: 'application/pdf' });
+    fireEvent.change(financialUpload!, { target: { files: [financialFile] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
+
+    const updateCallsBeforeFinal = vi.mocked(biddingApi.updateBid).mock.calls.length;
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
+    await waitFor(() => expect(vi.mocked(biddingApi.updateBid).mock.calls.length).toBeGreaterThan(updateCallsBeforeFinal));
+    const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
+    expect(savedPayload?.responses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requirementKey: 'goods.regulatoryLicense.lic-1', response: { value: expect.objectContaining({ status: 'Valid', expiryDate: '2027-12-31' }) } }),
+        expect.objectContaining({ requirementKey: 'goods.productDetails.line-1', response: { value: expect.objectContaining({ supplierProduct: 'ThinkPad T14', brand: 'Lenovo', modelNumber: 'T14-G6', countryOfOrigin: 'China' }) } }),
+        expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1', response: { value: expect.objectContaining({ responseValue: 'TZS 900M average annual turnover' }) } }),
+        expect.objectContaining({ requirementKey: 'commercialItems.line-1.unitRate', response: { value: expect.objectContaining({ status: 'Bid', unitPrice: 2500000, taxIncluded: 'Yes' }) } }),
+        expect.objectContaining({ requirementKey: 'goods.commercial.bidValidity', response: { value: 120 } }),
+        expect.objectContaining({ requirementKey: 'goods.commercial.currency', response: { value: 'TZS' } }),
+        expect.objectContaining({ requirementKey: 'goods.commercial.deliveryTermsAccepted', response: { value: true } })
+      ])
+    );
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(1, 'bid-1', expect.objectContaining({
+      envelope: 'ADMINISTRATIVE',
+      metadata: expect.objectContaining({ parentRequirementKey: 'goods.regulatoryLicense.lic-1', fieldId: 'administrative.license.tmda', evidenceKey: 'licenseEvidence' })
+    }));
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(2, 'bid-1', expect.objectContaining({
+      envelope: 'FINANCIAL',
+      metadata: expect.objectContaining({ parentRequirementKey: 'goods.financialRequirement.fin-1', fieldId: 'financial.turnover', evidenceKey: 'evidenceUpload' })
+    }));
   });
 
   it('renders works technical capacity with the procurex-ui workbook layout and saves structured responses', async () => {

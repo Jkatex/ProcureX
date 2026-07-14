@@ -44,6 +44,9 @@ export function createModuleRouter() {
   router.post('/keyphrase/recovery/complete', publicAuthLimit, controller.completeKeyphraseRecovery);
   router.get('/keyphrase/recovery-history', controller.keyphraseRecoveryHistory);
   router.put('/profile', controller.updateProfile);
+  router.post('/profile/image', controller.uploadProfileImage);
+  router.get('/profile/image/content', controller.profileImageContent);
+  router.delete('/profile/image', controller.deleteProfileImage);
 
   router.get('/admin/verifications', controller.listAdminVerifications);
   router.post('/admin/verifications/:id/decision', controller.decideAdminVerification);

@@ -25,9 +25,25 @@ export type VerificationProfile = {
   updatedAt: string;
 };
 
+export type ProfileImageMetadata = {
+  objectKey: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  checksum: string;
+  uploadedAt: string;
+  imageRole: 'logo' | 'profile-photo' | 'profile-image' | string;
+  storage?: string;
+};
+
 export type VerificationMe = {
   user: SessionUser;
   verification: VerificationProfile | null;
+};
+
+export type ProfileImageMutationResult = {
+  profile: VerificationProfile;
+  profileImage: ProfileImageMetadata | null;
 };
 
 export type VerificationSubmitResult = {

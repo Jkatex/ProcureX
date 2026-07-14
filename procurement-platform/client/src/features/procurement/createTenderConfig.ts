@@ -849,6 +849,7 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
     categories: [],
     method: 'Open Tender',
     invitedSuppliers: [],
+    invitedSupplierOrganizations: [],
     requirements: {},
     selectedLicenses: [],
     commercialItems: [],
