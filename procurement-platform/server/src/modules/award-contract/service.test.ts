@@ -1,4 +1,4 @@
-import { AwardNoticeStatus, AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, RecommendationStatus, TenderStatus } from '@prisma/client';
+import { AwardNoticeStatus, AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, InvoiceStatus, RecommendationStatus, TenderStatus } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { computeAccessContext } from '../../security/accessPolicy.js';
@@ -9,12 +9,17 @@ import {
   awardNoticeResponseBodySchema,
   awardRecommendationQuerySchema,
   acceptanceBodySchema,
+  boqMeasurementBodySchema,
+  boqMeasurementReviewBodySchema,
   clauseBodySchema,
+  contractDefectActionBodySchema,
   contractNegotiationDecisionBodySchema,
   contractDocumentUploadBodySchema,
   contractPaymentBodySchema,
   deliverableBodySchema,
   goodsInspectionBodySchema,
+  interimPaymentCertificateBodySchema,
+  interimPaymentCertificateCertifyBodySchema,
   contractMilestonePatchBodySchema,
   contractSignatureRequestBodySchema,
   contractStatusPatchBodySchema,
@@ -22,9 +27,15 @@ import {
   paymentScheduleBodySchema,
   requiredDocumentBodySchema,
   riskBodySchema,
+  serviceCreditReviewBodySchema,
+  serviceIncidentActionBodySchema,
+  serviceIncidentBodySchema,
+  serviceReportReviewBodySchema,
   supplierRiskProfileBodySchema,
   terminationBodySchema,
   warrantyBodySchema,
+  worksCompletionCertificateBodySchema,
+  worksProgressReviewBodySchema,
   workflowApprovalBodySchema
 } from './validators.js';
 
@@ -117,6 +128,15 @@ function makeLifecycleNumberRepository() {
         goodsInspectionUpserts.push(input);
         return input.create;
       }
+    },
+    contractGoodsReceipt: {
+      findFirst: async () => ({
+        id: 'receipt-1',
+        contractId: contract.id,
+        status: ContractLifecycleItemStatus.APPROVED,
+        payload: { acceptedValue: 1000 },
+        lines: [{ acceptedQuantity: 10, payload: {} }]
+      })
     },
     contractAcceptance: {
       create: async (input: any) => {
@@ -1070,10 +1090,43 @@ describe('award-contract module', () => {
     expect(goodsInspectionUpserts[0].create.inspectionNo).toBe(goodsInspectionUpserts[0].where.contractId_inspectionNo.inspectionNo);
 
     await expect(
-      repository.createAcceptance('44444444-4444-4444-8444-444444444444', { acceptedValue: 1000, currency: 'TZS', payload: {} }, contractContext)
+      repository.createAcceptance('44444444-4444-4444-8444-444444444444', { goodsReceiptId: 'receipt-1', acceptedValue: 1000, currency: 'TZS', payload: {} }, contractContext)
     ).resolves.toMatchObject({ id: '44444444-4444-4444-8444-444444444444' });
 
     expect(acceptanceCreates[0].data.certificateNo).toMatch(/^PX-ACPT-\d{4}-[A-F0-9]{8}$/);
+    expect(acceptanceCreates[0].data.goodsReceiptId).toBe('receipt-1');
+  });
+
+  it('blocks supplier service reports without an open service period', async () => {
+    const contract = postAwardContract();
+    const reportCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractServicePeriod: {
+          findFirst: async () => null
+        },
+        contractServiceReport: {
+          create: async (input: any) => {
+            reportCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createServiceReport(contract.id, {
+      reportReference: 'SR-001',
+      summary: 'Monthly services completed.',
+      status: 'SUBMITTED',
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Service report requires an open service period.'
+    });
+    expect(reportCreates).toHaveLength(0);
   });
 
   it('rejects submitted invoices without an accepted execution reference', async () => {
@@ -1156,6 +1209,206 @@ describe('award-contract module', () => {
     expect(auditEvents[0]).toEqual(expect.arrayContaining(['contract.invoice.created', 'contract', contract.id]));
   });
 
+  it('blocks supplier dispatch notices without a delivery schedule', async () => {
+    const contract = postAwardContract();
+    const dispatchCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractDispatchNotice: {
+          create: async (input: any) => {
+            dispatchCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createDispatchNotice(contract.id, {
+      dispatchReference: 'DN-NO-SCHEDULE',
+      dispatchedQuantity: 10,
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Dispatch notice requires an approved delivery schedule.'
+    });
+    expect(dispatchCreates).toHaveLength(0);
+  });
+
+  it('blocks BOQ measurement until works progress is approved', async () => {
+    const contract = postAwardContract({ title: 'Road works contract', payload: { procurementType: 'WORKS' } });
+    const measurementCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractWorksProgressReport: {
+          findFirst: async () => null
+        },
+        contractBoqMeasurement: {
+          create: async (input: any) => {
+            measurementCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createBoqMeasurement(contract.id, {
+      boqItemReference: 'BOQ-1',
+      currentQuantity: 20,
+      unitRate: 1000,
+      payload: {}
+    }, contractContext)).rejects.toMatchObject({
+      status: 409,
+      message: 'BOQ measurement requires an approved works progress report.'
+    });
+    expect(measurementCreates).toHaveLength(0);
+  });
+
+  it('blocks supplier invoices above remaining accepted goods value', async () => {
+    const contract = postAwardContract();
+    const invoiceCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractGoodsReceipt: {
+          findFirst: async () => ({
+            id: 'receipt-1',
+            contractId: contract.id,
+            status: ContractLifecycleItemStatus.APPROVED,
+            payload: { acceptedValue: 1000 },
+            lines: []
+          })
+        },
+        invoice: {
+          aggregate: async () => ({ _sum: { amount: 800 } }),
+          create: async (input: any) => {
+            invoiceCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createInvoice(contract.id, {
+      reference: 'INV-OVER',
+      amount: 250,
+      currency: 'TZS',
+      status: InvoiceStatus.SUBMITTED,
+      executionReferenceType: 'goods_receipt',
+      executionReferenceId: 'receipt-1',
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Invoice amount exceeds the remaining accepted value for this execution item.'
+    });
+    expect(invoiceCreates).toHaveLength(0);
+  });
+
+  it('records three-way match mismatches and keeps invoices in review', async () => {
+    const contract = postAwardContract();
+    const matchUpserts: any[] = [];
+    const invoiceUpdates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        invoice: {
+          findUnique: async () => ({
+            id: 'invoice-1',
+            contractId: contract.id,
+            executionReferenceType: 'goods_receipt',
+            executionReferenceId: 'receipt-1',
+            status: InvoiceStatus.SUBMITTED,
+            amount: 1000
+          }),
+          update: async (input: any) => {
+            invoiceUpdates.push(input);
+            return input.data;
+          }
+        },
+        contractGoodsReceipt: {
+          findFirst: async () => ({
+            id: 'receipt-1',
+            contractId: contract.id,
+            status: ContractLifecycleItemStatus.APPROVED,
+            lines: [{ acceptedQuantity: 10 }]
+          })
+        },
+        threeWayMatchResult: {
+          upsert: async (input: any) => {
+            matchUpserts.push(input);
+            return input.create;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.upsertThreeWayMatch(contract.id, {
+      invoiceId: 'invoice-1',
+      poMatched: true,
+      receiptMatched: false,
+      invoiceMatched: true,
+      currency: 'TZS',
+      payload: {}
+    }, contractContext)).resolves.toMatchObject({ id: contract.id });
+
+    expect(matchUpserts[0].create).toMatchObject({
+      invoiceId: 'invoice-1',
+      goodsReceiptId: 'receipt-1',
+      status: InvoiceStatus.REVIEW,
+      mismatchType: 'QUANTITY_OR_RECEIPT_MISMATCH'
+    });
+    expect(invoiceUpdates[0]).toMatchObject({ where: { id: 'invoice-1' }, data: { status: InvoiceStatus.REVIEW } });
+  });
+
+  it('blocks payment approval until the invoice is matched', async () => {
+    const contract = postAwardContract();
+    const paymentApprovalCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        invoice: {
+          findUnique: async () => ({
+            id: 'invoice-1',
+            contractId: contract.id,
+            status: InvoiceStatus.SUBMITTED,
+            amount: 1000
+          })
+        },
+        paymentApproval: {
+          create: async (input: any) => {
+            paymentApprovalCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createPaymentApproval(contract.id, {
+      invoiceId: 'invoice-1',
+      stepKey: 'payment-approval',
+      role: 'BUYER',
+      amountApproved: 1000,
+      currency: 'TZS',
+      payload: {},
+      signatureKeyphrase: 'Approve123'
+    }, contractContext)).rejects.toMatchObject({
+      status: 409,
+      message: 'Invoice must be matched before payment approval.'
+    });
+    expect(paymentApprovalCreates).toHaveLength(0);
+  });
+
   it('validates lifecycle risk and termination payloads', () => {
     expect(
       riskBodySchema.parse({
@@ -1218,6 +1471,81 @@ describe('award-contract module', () => {
 
     expect(goodsInspectionBodySchema.parse({ goodsDescription: 'Laptop delivery' })).toMatchObject({
       goodsDescription: 'Laptop delivery',
+      payload: {}
+    });
+
+    expect(worksProgressReviewBodySchema.parse({ status: 'APPROVED', progressPercent: 45 })).toMatchObject({
+      status: 'APPROVED',
+      progressPercent: 45,
+      payload: {}
+    });
+
+    expect(boqMeasurementBodySchema.parse({ boqItemReference: 'BOQ-1', currentQuantity: 10, unitRate: 5000, certifiedQuantity: 9 })).toMatchObject({
+      boqItemReference: 'BOQ-1',
+      currentQuantity: 10,
+      unitRate: 5000,
+      certifiedQuantity: 9,
+      visibilityScope: 'SHARED',
+      payload: {}
+    });
+
+    expect(boqMeasurementReviewBodySchema.parse({ status: 'CERTIFIED', certifiedAmount: 45000 })).toMatchObject({
+      status: 'CERTIFIED',
+      certifiedAmount: 45000,
+      payload: {}
+    });
+
+    expect(interimPaymentCertificateBodySchema.parse({ certificateNumber: 'IPC-1', grossAmount: 100000, retentionAmount: 5000 })).toMatchObject({
+      certificateNumber: 'IPC-1',
+      grossAmount: 100000,
+      retentionAmount: 5000,
+      certificateType: 'INTERIM',
+      payload: {}
+    });
+
+    expect(interimPaymentCertificateCertifyBodySchema.parse({ status: 'CERTIFIED', netAmount: 95000 })).toMatchObject({
+      status: 'CERTIFIED',
+      netAmount: 95000,
+      payload: {}
+    });
+
+    expect(worksCompletionCertificateBodySchema.parse({ certificateType: 'FINAL_ACCOUNT', finalAccountAmount: 100000 })).toMatchObject({
+      certificateType: 'FINAL_ACCOUNT',
+      finalAccountAmount: 100000,
+      status: 'ISSUED',
+      payload: {}
+    });
+
+    expect(contractDefectActionBodySchema.parse({ status: ContractLifecycleItemStatus.SUBMITTED, response: 'Corrected' })).toMatchObject({
+      status: ContractLifecycleItemStatus.SUBMITTED,
+      response: 'Corrected',
+      payload: {}
+    });
+
+    expect(serviceReportReviewBodySchema.parse({ status: 'APPROVED', verifiedSlaResult: 'MET', acceptedAmount: 180000 })).toMatchObject({
+      status: 'APPROVED',
+      verifiedSlaResult: 'MET',
+      acceptedAmount: 180000,
+      payload: {}
+    });
+
+    expect(serviceIncidentBodySchema.parse({ title: 'Missed response target', severity: 'MAJOR', responseDueDate: '2026-07-20' })).toMatchObject({
+      title: 'Missed response target',
+      severity: 'MAJOR',
+      status: ContractLifecycleItemStatus.OPEN,
+      payload: {}
+    });
+
+    expect(serviceIncidentActionBodySchema.parse({ status: ContractLifecycleItemStatus.SUBMITTED, response: 'Corrective crew assigned' })).toMatchObject({
+      status: ContractLifecycleItemStatus.SUBMITTED,
+      response: 'Corrective crew assigned',
+      payload: {}
+    });
+
+    expect(serviceCreditReviewBodySchema.parse({ status: 'APPROVED', decision: 'APPLIED', invoiceImpactAmount: 15000 })).toMatchObject({
+      status: 'APPROVED',
+      decision: 'APPLIED',
+      invoiceImpactAmount: 15000,
       payload: {}
     });
 
