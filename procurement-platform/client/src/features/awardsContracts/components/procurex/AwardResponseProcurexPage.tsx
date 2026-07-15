@@ -38,6 +38,7 @@ export function AwardResponseProcurexPage() {
   const [clarificationNote, setClarificationNote] = useState('Please clarify the award notice.');
   const [declineReason, setDeclineReason] = useState('');
   const [pendingResponseSignature, setPendingResponseSignature] = useState<{ award: LifecycleAction; payload: Record<string, unknown> } | null>(null);
+  const [signatureError, setSignatureError] = useState('');
   const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -124,6 +125,7 @@ export function AwardResponseProcurexPage() {
     }
     const responseAction = String(payload.action) as 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE';
     if ((responseAction === 'ACCEPT' || responseAction === 'DECLINE') && !signatureKeyphrase) {
+      setSignatureError('');
       setPendingResponseSignature({ award, payload });
       return;
     }
@@ -131,11 +133,14 @@ export function AwardResponseProcurexPage() {
     try {
       await awardsContractsApi.respondToNotice(award.noticeId, responseAction, String(payload.note ?? ''), payload.payload as Record<string, unknown>, signatureKeyphrase);
       setPendingResponseSignature(null);
+      setSignatureError('');
       setResponseMessages((current) => ({ ...current, [award.id]: `Supplier response submitted: ${responseAction}` }));
       notifyAward('success', 'Supplier response sent', `Response submitted: ${responseAction}.`);
       await refreshAwards(recommendationIdForAward(award));
     } catch (error) {
-      notifyAward('error', 'Supplier response not sent', apiErrorMessage(error, 'The response could not be submitted.'));
+      const message = apiErrorMessage(error, 'The response could not be submitted.');
+      setSignatureError(message);
+      notifyAward('error', 'Supplier response not sent', message);
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -148,7 +153,11 @@ export function AwardResponseProcurexPage() {
         title="Submit award response"
         actionLabel="Sign and submit"
         isSubmitting={isSubmittingResponse}
-        onCancel={() => setPendingResponseSignature(null)}
+        error={signatureError}
+        onCancel={() => {
+          setPendingResponseSignature(null);
+          setSignatureError('');
+        }}
         onConfirm={(signatureKeyphrase) => {
           if (pendingResponseSignature) void recordResponse(pendingResponseSignature.award, pendingResponseSignature.payload, signatureKeyphrase);
         }}

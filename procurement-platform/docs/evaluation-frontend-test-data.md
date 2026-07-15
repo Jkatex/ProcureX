@@ -23,6 +23,8 @@ Sign in with the seeded buyer:
 
 ```text
 Email: evaluation-buyer@procurex.tz
+Full name: Sirilli Ammi
+Phone: 0693683731
 Password: Demo123!
 Signature keyphrase: Signing123
 ```
@@ -49,7 +51,22 @@ Each tender includes:
 - Tender requirements and required tender documents.
 - Commercial, BOQ, or price schedule rows.
 - Evaluation workspace criteria.
-- A buyer signing credential for final submission.
+- Buyer and supplier signing credentials for final submission, award responses, and contract signing.
+
+## Seeded Supplier Accounts
+
+All seeded suppliers use password `Demo123!` and signing keyphrase `SupplierSigning123!`.
+
+| Tender | Supplier | Email | Phone | Password | Keyphrase |
+| --- | --- | --- | --- | --- | --- |
+| Supply of Emergency Medical Consumables | Afya Medical Supplies Ltd | `afya-medical-supplies-ltd@evaluation-demo.procurex.tz` | `0693683741` | `Demo123!` | `SupplierSigning123!` |
+| Supply of Emergency Medical Consumables | Kisasa Health Logistics | `kisasa-health-logistics@evaluation-demo.procurex.tz` | `0693683742` | `Demo123!` | `SupplierSigning123!` |
+| Rehabilitation of Municipal Stormwater Drains | Ujenzi Bora Contractors Ltd | `ujenzi-bora-contractors-ltd@evaluation-demo.procurex.tz` | `0693683743` | `Demo123!` | `SupplierSigning123!` |
+| Rehabilitation of Municipal Stormwater Drains | Prime Civil Works Ltd | `prime-civil-works-ltd@evaluation-demo.procurex.tz` | `0693683744` | `Demo123!` | `SupplierSigning123!` |
+| Provision of Hospital Cleaning and Waste Handling Services | SafiCare Services Ltd | `saficare-services-ltd@evaluation-demo.procurex.tz` | `0693683745` | `Demo123!` | `SupplierSigning123!` |
+| Provision of Hospital Cleaning and Waste Handling Services | GreenClean Tanzania Ltd | `greenclean-tanzania-ltd@evaluation-demo.procurex.tz` | `0693683746` | `Demo123!` | `SupplierSigning123!` |
+| Consultancy for Water Utility Revenue Improvement | Maji Advisory Partners Ltd | `maji-advisory-partners-ltd@evaluation-demo.procurex.tz` | `0693683747` | `Demo123!` | `SupplierSigning123!` |
+| Consultancy for Water Utility Revenue Improvement | Nile Basin Consulting Ltd | `nile-basin-consulting-ltd@evaluation-demo.procurex.tz` | `0693683748` | `Demo123!` | `SupplierSigning123!` |
 
 ## Manual Frontend Checks
 

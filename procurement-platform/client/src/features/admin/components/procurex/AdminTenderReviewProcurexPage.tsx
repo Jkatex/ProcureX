@@ -4,6 +4,7 @@ import { SupplierProcurementDetails } from '@/features/procurement/components/pr
 import { downloadTenderDocument, openTenderDocument } from '@/features/procurement/tenderDocumentActions';
 import { procurementApi } from '@/features/procurement/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
+import { apiErrorMessage } from '@/shared/api/errors';
 import type { TenderDetailDocument, TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AdminError, AdminHero, AdminPanel, AdminShell, badgeClass, displayLabel, formatDate } from './AdminShared';
@@ -172,6 +173,7 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [showPassSignature, setShowPassSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
@@ -193,6 +195,7 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
   async function passTender(signatureKeyphrase?: string) {
     if (!detail) return;
     if (!signatureKeyphrase) {
+      setSignatureError('');
       setShowPassSignature(true);
       return;
     }
@@ -201,8 +204,10 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
     try {
       const response = await procurementApi.passTenderReview(detail.id, { signatureKeyphrase });
       setShowPassSignature(false);
+      setSignatureError('');
       navigate(`/admin/tender-review?reviewNotice=${encodeURIComponent(response.message)}`, { replace: true });
     } catch (caught) {
+      setSignatureError(apiErrorMessage(caught, 'Tender review could not be completed.'));
       setError(caught);
     } finally {
       setSaving(false);
@@ -235,7 +240,11 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
         title="Publish tender to marketplace"
         actionLabel="Pass review"
         isSubmitting={saving}
-        onCancel={() => setShowPassSignature(false)}
+        error={signatureError}
+        onCancel={() => {
+          setShowPassSignature(false);
+          setSignatureError('');
+        }}
         onConfirm={(signatureKeyphrase) => void passTender(signatureKeyphrase)}
       />
       <AdminHero

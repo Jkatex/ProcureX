@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
@@ -134,6 +135,7 @@ export function BiddingWorkspaceProcurexPage() {
   const [schemaResponses, setSchemaResponses] = useState<SchemaResponseState>({});
   const [reviewEditTarget, setReviewEditTarget] = useState<string | null>(null);
   const [pendingSignatureAction, setPendingSignatureAction] = useState<'submit' | 'withdraw' | null>(null);
+  const [signatureError, setSignatureError] = useState('');
 
   const workflow = useMemo(() => workflowFromTender(tender), [tender]);
   const sampleRequirements = useMemo(() => schemaSampleRequirements(schema, tender), [schema, tender]);
@@ -386,6 +388,7 @@ export function BiddingWorkspaceProcurexPage() {
       return;
     }
     if (!signatureKeyphrase) {
+      setSignatureError('');
       setPendingSignatureAction('submit');
       return;
     }
@@ -398,11 +401,14 @@ export function BiddingWorkspaceProcurexPage() {
       const submitted = await biddingApi.submitBid(saved.id, { signatureKeyphrase });
       syncBidState(submitted.bid);
       setPendingSignatureAction(null);
+      setSignatureError('');
       setReceipt(submitted);
       setActiveStep(receiptStepIndex(steps, workflow));
       showBidNotice('success', 'Notice', workflow === 'consultancy' ? 'Technical and financial envelopes sealed. Receipt generated.' : 'Bid package sealed. Receipt generated.');
     } catch (error) {
-      showBidNotice('error', 'Notice', errorMessage(error, 'Bid could not be submitted.'));
+      const message = errorMessage(error, 'Bid could not be submitted.');
+      setSignatureError(message);
+      showBidNotice('error', 'Notice', message);
     } finally {
       setSaving(false);
     }
@@ -411,6 +417,7 @@ export function BiddingWorkspaceProcurexPage() {
   async function withdrawBid(signatureKeyphrase?: string) {
     if (!bid) return;
     if (!signatureKeyphrase) {
+      setSignatureError('');
       setPendingSignatureAction('withdraw');
       return;
     }
@@ -420,10 +427,13 @@ export function BiddingWorkspaceProcurexPage() {
       const withdrawn = await biddingApi.withdrawBid(bid.id, { signatureKeyphrase });
       syncBidState(withdrawn);
       setPendingSignatureAction(null);
+      setSignatureError('');
       showBidNotice('success', 'Notice', 'Bid withdrawn. A new active bid package can be prepared before closing.');
       setActiveStep(0);
     } catch (error) {
-      showBidNotice('error', 'Notice', errorMessage(error, 'Bid could not be withdrawn.'));
+      const message = errorMessage(error, 'Bid could not be withdrawn.');
+      setSignatureError(message);
+      showBidNotice('error', 'Notice', message);
     } finally {
       setSaving(false);
     }
@@ -661,7 +671,11 @@ export function BiddingWorkspaceProcurexPage() {
           title={pendingSignatureAction === 'withdraw' ? 'Withdraw submitted bid' : 'Submit sealed bid'}
           actionLabel={pendingSignatureAction === 'withdraw' ? 'Withdraw bid' : 'Submit bid'}
           isSubmitting={saving}
-          onCancel={() => setPendingSignatureAction(null)}
+          error={signatureError}
+          onCancel={() => {
+            setPendingSignatureAction(null);
+            setSignatureError('');
+          }}
           onConfirm={(signatureKeyphrase) => {
             if (pendingSignatureAction === 'withdraw') void withdrawBid(signatureKeyphrase);
             else void submitBid(signatureKeyphrase);
@@ -5892,8 +5906,8 @@ function humanize(value: string) {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function errorMessage(_error: unknown, fallback: string) {
-  return fallback;
+function errorMessage(error: unknown, fallback: string) {
+  return apiErrorMessage(error, fallback);
 }
 
 function formatMoney(value: number, currency: string) {

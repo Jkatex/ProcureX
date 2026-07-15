@@ -7520,11 +7520,13 @@ export class ModuleRepository {
   async createAcceptance(contractId: string, input: AcceptanceInput, context: AwardContractRequestContext) {
     await this.db.$transaction(async (tx) => {
       const acceptancePayload = objectPayload(input.payload);
-      const isSupplierFinalDraftAcceptance = acceptancePayload.acceptanceType === 'NEGOTIATED_DRAFT' && String(acceptancePayload.role ?? '').toUpperCase() === 'SUPPLIER';
-      const contract = await this.requireContract(tx, contractId, context, !isSupplierFinalDraftAcceptance);
-      if (isSupplierFinalDraftAcceptance) assertContractSupplier(contract, context);
+      const finalDraftRole = acceptancePayload.acceptanceType === 'NEGOTIATED_DRAFT' ? String(acceptancePayload.role ?? '').toUpperCase() : '';
+      const isFinalDraftAcceptance = finalDraftRole === 'BUYER' || finalDraftRole === 'SUPPLIER';
+      const contract = await this.requireContract(tx, contractId, context, !isFinalDraftAcceptance);
+      if (finalDraftRole === 'BUYER') assertContractManager(contract, context);
+      if (finalDraftRole === 'SUPPLIER') assertContractSupplier(contract, context);
       const hasExecutionLink = Boolean(input.deliverableId || input.inspectionId || input.goodsReceiptId || input.goodsInspectionId);
-      if (!isSupplierFinalDraftAcceptance && !hasExecutionLink) {
+      if (!isFinalDraftAcceptance && !hasExecutionLink) {
         throw requestError('Acceptance requires linked deliverable, inspection, goods receipt, or goods inspection evidence.', 409);
       }
       const status = input.status ?? ContractLifecycleItemStatus.APPROVED;

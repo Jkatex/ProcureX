@@ -154,6 +154,33 @@ function makeLifecycleNumberRepository() {
   return { repository, goodsInspectionUpserts, acceptanceCreates };
 }
 
+function makeFinalDraftAcceptanceRepository() {
+  const acceptanceCreates: any[] = [];
+  const contract = {
+    id: '44444444-4444-4444-8444-444444444444',
+    buyerOrgId: organizationId,
+    supplierOrgId: '55555555-5555-4555-8555-555555555555',
+    status: ContractStatus.NEGOTIATION
+  };
+  const tx = {
+    contract: {
+      findUnique: async ({ where }: any) => where.id === contract.id ? contract : null
+    },
+    contractAcceptance: {
+      create: async (input: any) => {
+        acceptanceCreates.push(input);
+        return input.data;
+      }
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).audit = async () => undefined;
+  (repository as any).getContract = async () => ({ id: contract.id });
+  return { repository, contract, acceptanceCreates };
+}
+
 async function makeAwardNoticeRepository(status: RecommendationStatus) {
   const calls: string[] = [];
   const credential = {
@@ -1095,6 +1122,55 @@ describe('award-contract module', () => {
 
     expect(acceptanceCreates[0].data.certificateNo).toMatch(/^PX-ACPT-\d{4}-[A-F0-9]{8}$/);
     expect(acceptanceCreates[0].data.goodsReceiptId).toBe('receipt-1');
+  });
+
+  it('creates buyer and supplier final draft acceptances without execution evidence', async () => {
+    const { repository, contract, acceptanceCreates } = makeFinalDraftAcceptanceRepository();
+    const supplierContext = { ...contractContext, organizationId: contract.supplierOrgId };
+
+    await expect(repository.createAcceptance(contract.id, {
+      status: ContractLifecycleItemStatus.APPROVED,
+      currency: 'TZS',
+      note: 'Buyer accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'BUYER' }
+    }, contractContext)).resolves.toMatchObject({ id: contract.id });
+
+    await expect(repository.createAcceptance(contract.id, {
+      status: ContractLifecycleItemStatus.APPROVED,
+      currency: 'TZS',
+      note: 'Supplier accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'SUPPLIER' }
+    }, supplierContext)).resolves.toMatchObject({ id: contract.id });
+
+    expect(acceptanceCreates).toHaveLength(2);
+    expect(acceptanceCreates[0].data).toMatchObject({
+      contractId: contract.id,
+      deliverableId: undefined,
+      inspectionId: undefined,
+      goodsReceiptId: undefined,
+      goodsInspectionId: undefined,
+      note: 'Buyer accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'BUYER' }
+    });
+    expect(acceptanceCreates[1].data).toMatchObject({
+      contractId: contract.id,
+      note: 'Supplier accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'SUPPLIER' }
+    });
+  });
+
+  it('still rejects ordinary acceptances without execution evidence', async () => {
+    const { repository } = makeFinalDraftAcceptanceRepository();
+
+    await expect(repository.createAcceptance('44444444-4444-4444-8444-444444444444', {
+      status: ContractLifecycleItemStatus.APPROVED,
+      currency: 'TZS',
+      note: 'Generic acceptance without linked execution evidence.',
+      payload: {}
+    }, contractContext)).rejects.toMatchObject({
+      status: 409,
+      message: 'Acceptance requires linked deliverable, inspection, goods receipt, or goods inspection evidence.'
+    });
   });
 
   it('blocks supplier service reports without an open service period', async () => {

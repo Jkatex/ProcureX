@@ -31,6 +31,10 @@ export const EVALUATION_INTAKE_TENDER_REFS = ['PX-GDS-2026-001', 'PX-WRK-2026-00
 export const EVALUATION_INTAKE_BUYER_EMAIL = 'evaluation-buyer@procurex.tz';
 export const EVALUATION_INTAKE_BUYER_PASSWORD = 'Demo123!';
 export const EVALUATION_INTAKE_BUYER_SIGNATURE_KEYPHRASE = 'Signing123';
+export const EVALUATION_INTAKE_BUYER_FULL_NAME = 'Sirilli Ammi';
+export const EVALUATION_INTAKE_BUYER_PHONE = '0693683731';
+export const EVALUATION_INTAKE_SUPPLIER_PASSWORD = 'Demo123!';
+export const EVALUATION_INTAKE_SUPPLIER_SIGNATURE_KEYPHRASE = 'SupplierSigning123!';
 
 const scrypt = promisify(scryptCallback);
 
@@ -140,6 +144,17 @@ const DEMO_TENDERS = [
     ]
   }
 ] as const;
+
+const EVALUATION_INTAKE_SUPPLIER_PHONES: Record<string, string> = {
+  'Afya Medical Supplies Ltd': '0693683741',
+  'Kisasa Health Logistics': '0693683742',
+  'Ujenzi Bora Contractors Ltd': '0693683743',
+  'Prime Civil Works Ltd': '0693683744',
+  'SafiCare Services Ltd': '0693683745',
+  'GreenClean Tanzania Ltd': '0693683746',
+  'Maji Advisory Partners Ltd': '0693683747',
+  'Nile Basin Consulting Ltd': '0693683748'
+};
 
 function assertSafeEnvironment() {
   const environment = process.env.NODE_ENV || 'development';
@@ -392,22 +407,30 @@ async function upsertOrganization(db: AnyDb, name: string, capability: Organizat
 }
 
 async function upsertUser(db: AnyDb, org: any, name: string, capability: OrganizationCapabilityName) {
-  const email = capability === OrganizationCapabilityName.BUYER ? EVALUATION_INTAKE_BUYER_EMAIL : supplierEmail(name);
+  const isBuyer = capability === OrganizationCapabilityName.BUYER;
+  const isSupplier = capability === OrganizationCapabilityName.SUPPLIER;
+  const email = isBuyer ? EVALUATION_INTAKE_BUYER_EMAIL : supplierEmail(name);
+  const displayName = isBuyer ? EVALUATION_INTAKE_BUYER_FULL_NAME : `${name} Demo User`;
+  const phone = isBuyer ? EVALUATION_INTAKE_BUYER_PHONE : isSupplier ? EVALUATION_INTAKE_SUPPLIER_PHONES[name] : undefined;
+  const contact = phone ? { phone } : {};
+  const password = isBuyer ? EVALUATION_INTAKE_BUYER_PASSWORD : EVALUATION_INTAKE_SUPPLIER_PASSWORD;
   const user = await db.user.upsert({
     where: { email },
     update: {
-      displayName: `${name} Demo User`,
+      displayName,
+      ...contact,
       accountType: AccountType.USER,
       verificationStatus: VerificationStatus.APPROVED,
-      passwordHash: await hashSeedPassword(EVALUATION_INTAKE_BUYER_PASSWORD),
+      passwordHash: await hashSeedPassword(password),
       metadata: demoPayload({ phoneVerified: true, emailVerified: true, organizationName: name })
     },
     create: {
       email,
-      displayName: `${name} Demo User`,
+      displayName,
+      ...contact,
       accountType: AccountType.USER,
       verificationStatus: VerificationStatus.APPROVED,
-      passwordHash: await hashSeedPassword(EVALUATION_INTAKE_BUYER_PASSWORD),
+      passwordHash: await hashSeedPassword(password),
       metadata: demoPayload({ phoneVerified: true, emailVerified: true, organizationName: name })
     }
   });
@@ -433,13 +456,13 @@ async function upsertUser(db: AnyDb, org: any, name: string, capability: Organiz
   return user;
 }
 
-async function ensureEvaluationBuyerSigningCredential(db: AnyDb, user: any, org: any) {
+async function ensureEvaluationSigningCredential(db: AnyDb, user: any, org: any, keyphrase: string, mode: string) {
   await db.signingCredential.updateMany({
     where: { userId: user.id, status: 'ACTIVE' },
     data: { status: 'REVOKED', revokedAt: new Date() }
   });
 
-  const encrypted = await createEncryptedSigningCredential(EVALUATION_INTAKE_BUYER_SIGNATURE_KEYPHRASE);
+  const encrypted = await createEncryptedSigningCredential(keyphrase);
   const credential = await db.signingCredential.create({
     data: {
       userId: user.id,
@@ -465,9 +488,17 @@ async function ensureEvaluationBuyerSigningCredential(db: AnyDb, user: any, org:
       completedAt: new Date(),
       newKeyFingerprint: credential.keyFingerprint,
       requestMetadata: demoPayload({ source: EVALUATION_INTAKE_DEMO_DATASET }),
-      payload: demoPayload({ mode: 'evaluation_e2e_keyphrase', credentialId: credential.id })
+      payload: demoPayload({ mode, credentialId: credential.id })
     }
   });
+}
+
+async function ensureEvaluationBuyerSigningCredential(db: AnyDb, user: any, org: any) {
+  await ensureEvaluationSigningCredential(db, user, org, EVALUATION_INTAKE_BUYER_SIGNATURE_KEYPHRASE, 'evaluation_e2e_keyphrase');
+}
+
+async function ensureEvaluationSupplierSigningCredential(db: AnyDb, user: any, org: any) {
+  await ensureEvaluationSigningCredential(db, user, org, EVALUATION_INTAKE_SUPPLIER_SIGNATURE_KEYPHRASE, 'evaluation_supplier_award_keyphrase');
 }
 
 async function upsertTender(db: AnyDb, item: DemoTender, buyerOrg: any, buyerUser: any) {
@@ -625,6 +656,7 @@ async function createBidDocument(db: AnyDb, bid: any, supplierOrg: any, submitte
 async function upsertBid(db: AnyDb, tender: any, item: DemoTender, demoBid: DemoBid, index: number) {
   const supplierOrg = await upsertOrganization(db, demoBid.supplier, OrganizationCapabilityName.SUPPLIER);
   const supplierUser = await upsertUser(db, supplierOrg, demoBid.supplier, OrganizationCapabilityName.SUPPLIER);
+  await ensureEvaluationSupplierSigningCredential(db, supplierUser, supplierOrg);
   const reference = bidReference(item, demoBid, index);
   const submitted = submittedAt(item, index);
   const bidData = {

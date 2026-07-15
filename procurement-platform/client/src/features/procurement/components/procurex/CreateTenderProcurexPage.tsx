@@ -5,6 +5,7 @@ import { signOut } from '@/features/auth/slice';
 import { useNotifications } from '@/features/notifications/hooks';
 import { communicationApi } from '@/features/communication/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
@@ -352,6 +353,7 @@ export function CreateTenderProcurexPage() {
   const [isPersisting, setIsPersisting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showSubmitSignature, setShowSubmitSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
   const [loadedTenderId, setLoadedTenderId] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
@@ -716,7 +718,7 @@ export function CreateTenderProcurexPage() {
   }
 
   function addLineItem() {
-    const item: CreateTenderLineItem = { id: createRowId('item'), description: '', quantity: '', unit: '', unitPrice: '' };
+    const item: CreateTenderLineItem = { id: createRowId('item'), description: '', quantity: '', unit: '' };
     patchDraft({ commercialItems: [...draft.commercialItems, item] });
   }
 
@@ -841,6 +843,7 @@ export function CreateTenderProcurexPage() {
       setValidationMessage(blocker.message);
       setActiveStep(blocker.step);
       setShowSubmitSignature(false);
+      setSignatureError('');
       notifyWarning(blocker.title, blocker.message, {
         reason: blocker.reason
       });
@@ -848,6 +851,7 @@ export function CreateTenderProcurexPage() {
     }
     if (isPersisting) return;
     if (!signatureKeyphrase) {
+      setSignatureError('');
       setShowSubmitSignature(true);
       return;
     }
@@ -857,6 +861,7 @@ export function CreateTenderProcurexPage() {
       const { saved } = await persistTenderDraft();
       const reviewResponse = await procurementApi.publishTender(saved.id, { signatureKeyphrase });
       setShowSubmitSignature(false);
+      setSignatureError('');
       const now = new Date().toISOString();
       const submitted: CreateTenderDraft = {
         ...saved,
@@ -876,12 +881,14 @@ export function CreateTenderProcurexPage() {
       navigate('/procurement/my-tenders');
     } catch (error) {
       const message = getPublishTenderErrorMessage(error, 'Tender could not be submitted for review.');
+      setSignatureError(message);
       setValidationMessage(message);
       notifyError('Tender not submitted', message, {
         reason: 'ProcureX could not send this tender to admin review.'
       });
       if (isUnauthorizedApiError(error)) {
         setShowSubmitSignature(false);
+        setSignatureError('');
         dispatch(signOut());
         navigate('/sign-in', { replace: true, state: { from: { pathname: `${location.pathname}${location.search}` } } });
       }
@@ -913,7 +920,11 @@ export function CreateTenderProcurexPage() {
           title="Submit tender for review"
           actionLabel="Submit tender"
           isSubmitting={isPersisting}
-          onCancel={() => setShowSubmitSignature(false)}
+          error={signatureError}
+          onCancel={() => {
+            setShowSubmitSignature(false);
+            setSignatureError('');
+          }}
           onConfirm={(signatureKeyphrase) => void submitTender(signatureKeyphrase)}
         />
         <section className="journey-hero compact">
@@ -1911,7 +1922,7 @@ function RequirementsStep({
           <article className="requirement-block" id="requirement-section-quantitySchedule">
             <div>
               <h4>Quantity Schedule / BOQ</h4>
-              <span className="form-hint">Editable table with row numbering and calculated totals.</span>
+              <span className="form-hint">Unpriced quantity schedule bidders will price during submission.</span>
             </div>
             <div className="requirement-control-grid">
               <div className="requirement-control requirement-control-wide">
@@ -1924,8 +1935,6 @@ function RequirementsStep({
                         <th>Description</th>
                         <th>Unit</th>
                         <th>Qty</th>
-                        <th>Unit price</th>
-                        <th>Total</th>
                         <th aria-label="Actions"></th>
                       </tr>
                     </thead>
@@ -1961,20 +1970,6 @@ function RequirementsStep({
                                 onChange={(event) => onUpdateLineItem(item.id, { quantity: event.target.value })}
                               />
                             </td>
-                            <td>
-                              <input
-                                className="form-input requirement-currency-input"
-                                aria-label={`Item ${index + 1} unit price`}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.unitPrice ?? ''}
-                                onChange={(event) => onUpdateLineItem(item.id, { unitPrice: event.target.value })}
-                              />
-                            </td>
-                            <td>
-                              <span className="requirement-auto-value" data-requirement-calculated-field="totalPrice">{formatCalculatedMoney(multiplyNumericStrings(item.quantity, item.unitPrice))}</span>
-                            </td>
                             <td className="requirement-table-action-cell">
                               <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete item ${index + 1}`} onClick={() => onRemoveLineItem(item.id)}>
                                 x
@@ -1984,7 +1979,7 @@ function RequirementsStep({
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7}>
+                          <td colSpan={5}>
                             <div className="scope-empty">No items added yet.</div>
                           </td>
                         </tr>
@@ -5739,13 +5734,13 @@ function draftCommercialItems(draft: CreateTenderDraft): TenderDetail['commercia
     ];
   }
 
-  return draft.commercialItems.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, row.unitPrice));
+  return draft.commercialItems.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, null));
 }
 
-function commercialItemFromValues(id: string, index: number, description: string, quantityValue: string | number, unit: string | null, rateValue: string | number | undefined, payload: Record<string, unknown> = {}) {
+function commercialItemFromValues(id: string, index: number, description: string, quantityValue: string | number, unit: string | null, rateValue: string | number | null | undefined, payload: Record<string, unknown> = {}) {
   const quantity = parsePdfNumber(quantityValue) || 1;
-  const rate = parsePdfNumber(rateValue) || 0;
-  const total = rate ? Math.round(quantity * rate * 100) / 100 : 0;
+  const rate = rateValue === null ? null : parsePdfNumber(rateValue) || 0;
+  const total = rate === null ? null : rate ? Math.round(quantity * rate * 100) / 100 : 0;
 
   return {
     id,
@@ -5853,9 +5848,7 @@ function buildGoodsRequirementFields(draft: CreateTenderDraft): Record<string, u
       itemNumber: index + 1,
       itemDescription: item.description,
       unitOfMeasure: normalizeBackendUnit(item.unit),
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: multiplyNumericStrings(item.quantity, item.unitPrice)
+      quantity: item.quantity
     })),
     productSpecificationTemplate: draft.productSpecifications,
     sampleRequirementRows: draft.sampleRequirements,
@@ -5956,6 +5949,8 @@ function getPublishTenderErrorMessage(error: unknown, fallback: string) {
 }
 
 function getApiValidationErrorMessage(error: unknown, fallback: string) {
+  const sharedMessage = apiErrorMessage(error, '');
+  if (sharedMessage) return sharedMessage;
   const body = apiErrorBody(error);
   const issueMessages = Array.isArray(body?.errors)
     ? body.errors

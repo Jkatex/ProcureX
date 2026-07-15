@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { evaluationApi } from '@/features/evaluation/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
+import { apiErrorMessage } from '@/shared/api/errors';
 import type {
   EvaluationDashboard,
   EvaluationDecisionStatus,
@@ -116,6 +117,7 @@ export function BidEvaluationProcurexPage() {
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
   const [showCompletionSignature, setShowCompletionSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
   const reportPreviewRequestedRef = useRef(false);
 
   useBodyPageMetadata('bid-evaluation');
@@ -366,6 +368,7 @@ export function BidEvaluationProcurexPage() {
       return;
     }
     if (complete && !signatureKeyphrase) {
+      setSignatureError('');
       setShowCompletionSignature(true);
       return;
     }
@@ -398,6 +401,7 @@ export function BidEvaluationProcurexPage() {
         ...(complete && signatureKeyphrase ? { signatureKeyphrase } : {})
       });
       setShowCompletionSignature(false);
+      setSignatureError('');
       setWorkspace(saved);
       setScoreDrafts(createScoreDrafts(saved));
       setDecisionDrafts(createDecisionDrafts(saved));
@@ -407,7 +411,9 @@ export function BidEvaluationProcurexPage() {
         reason: complete ? 'Scores, decisions, ranking, and recommendation data were saved.' : 'Your current evaluation entries were saved as progress.'
       });
     } catch (error) {
-      setWorkspaceError(evaluationSaveErrorMessage(error, t('evaluationApp.p5.errors.save')));
+      const message = evaluationSaveErrorMessage(error, t('evaluationApp.p5.errors.save'));
+      setSignatureError(message);
+      setWorkspaceError(message);
     } finally {
       setWorkspaceSaving(false);
     }
@@ -432,7 +438,11 @@ export function BidEvaluationProcurexPage() {
         title="Complete evaluation"
         actionLabel="Complete evaluation"
         isSubmitting={workspaceSaving}
-        onCancel={() => setShowCompletionSignature(false)}
+        error={signatureError}
+        onCancel={() => {
+          setShowCompletionSignature(false);
+          setSignatureError('');
+        }}
         onConfirm={(signatureKeyphrase) => void saveWorkspace(true, signatureKeyphrase)}
       />
       <WorkspaceTopBar title="Evaluation" onNavigate={navigateToPage} />
@@ -2049,6 +2059,8 @@ function validateScoreDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreD
 }
 
 function evaluationSaveErrorMessage(error: unknown, fallback: string) {
+  const sharedMessage = apiErrorMessage(error, '');
+  if (sharedMessage) return sharedMessage;
   const response = (error as { response?: { data?: { message?: unknown; error?: unknown } }; message?: unknown }).response;
   const serverMessage = response?.data?.message ?? response?.data?.error;
   if (typeof serverMessage === 'string' && serverMessage.trim()) return serverMessage.trim();

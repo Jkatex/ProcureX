@@ -93,6 +93,7 @@ export function AwardRecommendationProcurexPage() {
   const [loadError, setLoadError] = useState('');
   const [detailError, setDetailError] = useState('');
   const [pendingSignature, setPendingSignature] = useState<{ action: 'confirm' | 'settle'; payload?: AwardDecisionDraftInput } | null>(null);
+  const [signatureError, setSignatureError] = useState('');
 
   const loadRecommendations = useCallback(async () => {
     setIsLoading(true);
@@ -171,6 +172,7 @@ export function AwardRecommendationProcurexPage() {
   async function confirmDecision(payload: AwardDecisionDraftInput, signatureKeyphrase?: string) {
     if (!activeRecommendationId) return;
     if (!signatureKeyphrase) {
+      setSignatureError('');
       setPendingSignature({ action: 'confirm', payload });
       return;
     }
@@ -178,10 +180,13 @@ export function AwardRecommendationProcurexPage() {
     try {
       setDetail(await awardsContractsApi.approveRecommendation(activeRecommendationId, payload.note, payload, signatureKeyphrase));
       setPendingSignature(null);
+      setSignatureError('');
       await loadRecommendations();
       notifyAward('success', 'Award confirmed', 'The award decision has been confirmed.');
     } catch (error) {
-      notifyAward('error', 'Award not confirmed', apiErrorMessage(error, 'The award could not be confirmed.'));
+      const message = apiErrorMessage(error, 'The award could not be confirmed.');
+      setSignatureError(message);
+      notifyAward('error', 'Award not confirmed', message);
     } finally {
       setIsSaving(false);
     }
@@ -194,6 +199,7 @@ export function AwardRecommendationProcurexPage() {
       return;
     }
     if (!signatureKeyphrase) {
+      setSignatureError('');
       setPendingSignature({ action: 'settle' });
       return;
     }
@@ -201,10 +207,12 @@ export function AwardRecommendationProcurexPage() {
       const note = String(recommendationDraft(detail).reason ?? detail?.reason ?? 'Award terms settled and notices sent.');
       setDetail(await awardsContractsApi.settleAwardGroup(activeRecommendationId, note, { source: 'award-offer-notice-workspace' }, signatureKeyphrase));
       setPendingSignature(null);
+      setSignatureError('');
       await loadRecommendations();
       notifyAward('success', 'Award offer sent', 'The award offer notice was sent to the selected supplier.');
     } catch (error) {
       const message = apiErrorMessage(error, 'Award offer could not be sent.');
+      setSignatureError(message);
       notifyAward('error', 'Offer not sent', /open clauses|negotiation points/i.test(message) ? 'Award offer could not be sent. Please try again.' : message);
     }
   }
@@ -246,7 +254,11 @@ export function AwardRecommendationProcurexPage() {
         title={pendingSignature?.action === 'settle' ? 'Send award offer notice' : 'Approve award recommendation'}
         actionLabel={pendingSignature?.action === 'settle' ? 'Send award offer notice' : 'Approve award'}
         isSubmitting={isSaving}
-        onCancel={() => setPendingSignature(null)}
+        error={signatureError}
+        onCancel={() => {
+          setPendingSignature(null);
+          setSignatureError('');
+        }}
         onConfirm={(signatureKeyphrase) => {
           if (pendingSignature?.action === 'settle') void sendNotices(signatureKeyphrase);
           else if (pendingSignature?.payload) void confirmDecision(pendingSignature.payload, signatureKeyphrase);

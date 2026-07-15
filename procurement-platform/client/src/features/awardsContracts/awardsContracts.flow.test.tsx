@@ -375,7 +375,10 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(screen.getByText('After buyer signs')).toBeInTheDocument();
 
     await user.click(screen.getAllByRole('button', { name: 'Open form' }).at(-1)!);
-    expect(screen.getByLabelText(/Signature keyphrase/i)).toHaveAttribute('type', 'password');
+    const keyphraseInput = screen.getByLabelText(/Signature keyphrase/i);
+    expect(keyphraseInput).toHaveAttribute('type', 'password');
+    await user.type(keyphraseInput, 'Secret123!');
+    expect(screen.queryByText('Secret123!')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Signature payload/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced payload')).not.toBeInTheDocument();
   });
@@ -428,7 +431,10 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(screen.getByText('Sign SUPPLIER')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Open form' }));
-    expect(screen.getByLabelText(/Signature keyphrase/i)).toHaveAttribute('type', 'password');
+    const keyphraseInput = screen.getByLabelText(/Signature keyphrase/i);
+    expect(keyphraseInput).toHaveAttribute('type', 'password');
+    await user.type(keyphraseInput, 'SupplierSecret123!');
+    expect(screen.queryByText('SupplierSecret123!')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Signature payload/i)).not.toBeInTheDocument();
   });
 

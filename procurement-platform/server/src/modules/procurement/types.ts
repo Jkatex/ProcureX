@@ -744,10 +744,10 @@ export type TenderDetailDto = {
     id: string;
     itemNo: string | null;
     description: string;
-    quantity: number;
+    quantity: number | null;
     unit: string | null;
-    rate: number;
-    total: number;
+    rate: number | null;
+    total: number | null;
     payload: Record<string, unknown>;
   }>;
   documents: Array<{ id: string; name: string; documentType: string; label: string | null; openUrl: string; downloadUrl: string }>;

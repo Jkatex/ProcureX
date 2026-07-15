@@ -69,7 +69,6 @@ export type CreateTenderLineItem = {
   description: string;
   quantity: string;
   unit: string;
-  unitPrice?: string;
 };
 
 export type CreateTenderProductSpecificationRow = {
@@ -642,10 +641,10 @@ export type TenderDetail = MarketplaceTenderRow & {
     id: string;
     itemNo: string | null;
     description: string;
-    quantity: number;
+    quantity: number | null;
     unit: string | null;
-    rate: number;
-    total: number;
+    rate: number | null;
+    total: number | null;
     payload: Record<string, unknown>;
   }>;
   documents?: TenderDetailDocument[];

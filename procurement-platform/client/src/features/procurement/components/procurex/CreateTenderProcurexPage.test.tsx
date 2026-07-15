@@ -803,8 +803,8 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByRole('columnheader', { name: /description/i })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /^unit$/i })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /qty/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /unit price/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /^total$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /unit price/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^total$/i })).not.toBeInTheDocument();
     expect(screen.getAllByText('Import Excel / CSV')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Download Excel Template' })).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Sample Requirements' })).toBeInTheDocument();
@@ -818,9 +818,8 @@ describe('CreateTenderProcurexPage', () => {
     await user.type(screen.getByLabelText('Item 1 description'), 'Solar panel kit');
     await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
     await user.type(screen.getByLabelText('Item 1 quantity'), '2');
-    await user.type(screen.getByLabelText('Item 1 unit price'), '12500');
 
-    expect(screen.getByText('25,000')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Item 1 unit price')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Solar panel kit' })).toBeInTheDocument();
     expect(screen.getByText('No specifications added for this item yet.')).toBeInTheDocument();
   });
@@ -1584,17 +1583,14 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Save Draft' }));
 
     await waitFor(() => expect(procurementApiMock.createTender).toHaveBeenCalledTimes(1));
-    expect(procurementApiMock.createTender).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requirements: expect.objectContaining({
-          goods: {
-            fields: expect.objectContaining({
-              quantityScheduleRows: [expect.objectContaining({ unitOfMeasure: 'Piece' })]
-            })
-          }
-        })
-      })
-    );
+    const payload = procurementApiMock.createTender.mock.calls[0][0];
+    const quantityRow = payload.requirements.goods.fields.quantityScheduleRows[0];
+    expect(quantityRow).toEqual(expect.objectContaining({ itemDescription: 'Laptop computer', unitOfMeasure: 'Piece', quantity: '12' }));
+    expect(quantityRow).not.toHaveProperty('unitPrice');
+    expect(quantityRow).not.toHaveProperty('totalPrice');
+    expect(payload.commercialItems).toEqual([
+      expect.objectContaining({ description: 'Laptop computer', quantity: 12, rate: null, total: null })
+    ]);
   });
 
   it('normalizes financial evidence into tag arrays before saving to the backend', async () => {

@@ -213,6 +213,25 @@ describe('ProcureX notification cards', () => {
     });
   });
 
+  it('maps keyphrase API errors to clear retry guidance', () => {
+    expect(notificationFromApiError({ response: { status: 403, data: { message: 'Invalid keyphrase.' } } })).toMatchObject({
+      tone: 'error',
+      title: 'Wrong keyphrase',
+      message: 'Wrong or mismatched keyphrase. Check the keyphrase and try again.',
+      reason: 'The keyphrase entered does not match the signing credential for this account.',
+      action: { label: 'Try again' }
+    });
+    expect(apiErrorMessage({ response: { status: 403, data: { message: 'Key phrase and repeated key phrase do not match.' } } }, 'Fallback.')).toBe(
+      'Wrong or mismatched keyphrase. Check the keyphrase and try again.'
+    );
+    expect(notificationFromApiError({ response: { status: 403, data: { message: 'Access denied.' } } })).toMatchObject({
+      tone: 'error',
+      title: 'Action blocked',
+      message: 'Request failed.',
+      reason: 'Your account, permission, or security check does not allow this action right now.'
+    });
+  });
+
   it('keeps backend error text out of user-facing API messages', () => {
     const error = { response: { status: 400, data: { message: 'Raw backend validation detail.' } } };
 

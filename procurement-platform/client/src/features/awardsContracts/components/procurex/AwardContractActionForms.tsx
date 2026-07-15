@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { editableTrustTierValues } from '@/shared/trustRisk';
 import type { AwardContractActionDefinition, CrossPartyVisibility, PickerOption, WorkflowActionOwner } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
@@ -294,9 +295,13 @@ function reviewValue(field: AwardContractFieldConfig, value: FormValue | undefin
   return selected?.label ?? (text.length > 80 ? `${text.slice(0, 77)}...` : text);
 }
 
+function isSensitiveField(field: AwardContractFieldConfig) {
+  return field.kind === 'password' || /keyphrase|password|secret|token/i.test(field.name);
+}
+
 function ActionReviewSummary({ fields, values }: { fields: AwardContractFieldConfig[]; values: AwardContractFormValues }) {
   const visibleFields = fields
-    .filter((field) => field.kind !== 'json' && !field.advanced && !isTechnicalField(field))
+    .filter((field) => field.kind !== 'json' && !field.advanced && !isTechnicalField(field) && !isSensitiveField(field))
     .slice(0, 6);
 
   if (visibleFields.length === 0) return null;
@@ -490,7 +495,7 @@ export function ActionFormPanel({
       });
       setSelected(false);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : `${title} could not be saved.`;
+      const errorMessage = apiErrorMessage(error, `${title} could not be saved.`);
       setMessage(errorMessage);
       notifyAward('error', `${title} could not be saved`, errorMessage);
     } finally {

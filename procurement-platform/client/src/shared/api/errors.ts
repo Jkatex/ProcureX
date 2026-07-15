@@ -4,7 +4,12 @@ import type { CreateNotificationInput, UserNotification } from '@/shared/types/n
 type ApiErrorBody = {
   message?: string;
   error?: string;
+  errors?: Array<string | { message?: unknown }>;
 };
+
+export const keyphraseErrorMessage = 'Wrong or mismatched keyphrase. Check the keyphrase and try again.';
+const keyphraseErrorTitle = 'Wrong keyphrase';
+const keyphraseErrorReason = 'The keyphrase entered does not match the signing credential for this account.';
 
 export type ApiErrorNotificationContext = {
   title?: string;
@@ -19,22 +24,39 @@ function apiStatus(error: unknown) {
 function rawApiMessage(error: unknown) {
   if (typeof error === 'string') return error;
   const axiosError = error as AxiosError<ApiErrorBody>;
-  return axiosError.response?.data?.message || axiosError.response?.data?.error || axiosError.message || '';
+  const data = axiosError.response?.data;
+  const issueMessages = Array.isArray(data?.errors)
+    ? data.errors
+        .map((issue) => (typeof issue === 'string' ? issue : typeof issue.message === 'string' ? issue.message : ''))
+        .filter(Boolean)
+        .join(' ')
+    : '';
+  return data?.message || data?.error || issueMessages || axiosError.message || '';
 }
 
 function isNetworkUnavailable(message: string) {
   return /network|timeout|failed to fetch|load failed|ECONN|ENOTFOUND|ERR_NETWORK|can't reach/i.test(message);
 }
 
-export function apiErrorMessage(_error: unknown, fallback = 'Request failed.') {
+function isKeyphraseErrorMessage(message: string) {
+  return /invalid keyphrase|key\s*phrase.*do not match|keyphrases? do not match|keyphrases? must|key\s*phrase.*must/i.test(message);
+}
+
+export function isKeyphraseApiError(error: unknown) {
+  return isKeyphraseErrorMessage(rawApiMessage(error));
+}
+
+export function apiErrorMessage(error: unknown, fallback = 'Request failed.') {
+  if (isKeyphraseApiError(error)) return keyphraseErrorMessage;
   return fallback;
 }
 
 export function notificationFromApiError(error: unknown, context: ApiErrorNotificationContext = {}): CreateNotificationInput {
   const status = apiStatus(error);
   const rawMessage = rawApiMessage(error);
-  const message = context.fallback ?? 'Request failed.';
-  const title = context.title ?? titleForStatus(status, rawMessage);
+  const isKeyphraseError = isKeyphraseErrorMessage(rawMessage);
+  const message = isKeyphraseError ? keyphraseErrorMessage : context.fallback ?? 'Request failed.';
+  const title = isKeyphraseError ? keyphraseErrorTitle : context.title ?? titleForStatus(status, rawMessage);
   const mapped = errorGuidance(status, rawMessage);
 
   return {
@@ -80,6 +102,15 @@ function errorGuidance(status: number | undefined, message: string): Pick<Create
     return {
       tone: 'error',
       reason: 'ProcureX could not reach the service needed for this action.'
+    };
+  }
+
+  if (isKeyphraseErrorMessage(message)) {
+    return {
+      tone: 'error',
+      reason: keyphraseErrorReason,
+      actionLabel: 'Try again',
+      action: { label: 'Try again' }
     };
   }
 

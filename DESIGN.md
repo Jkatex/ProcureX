@@ -1,4 +1,23 @@
 ---
+
+revert the awards which were awarded to supplier by evaluation-buyer@procurex.tz to be as it was in start of evaluation as they were never evaluated ...
+
+if have any question you can ask
+
+Password: Demo123!
+Signing keyphrase: SupplierSigning123!
+
+| Supplier | Email | Phone |
+| --- | --- | --- |
+| Afya Medical Supplies Ltd | `afya-medical-supplies-ltd@evaluation-demo.procurex.tz` | `0693683741` |
+| Kisasa Health Logistics | `kisasa-health-logistics@evaluation-demo.procurex.tz` | `0693683742` |
+| Ujenzi Bora Contractors Ltd | `ujenzi-bora-contractors-ltd@evaluation-demo.procurex.tz` | `0693683743` |
+| Prime Civil Works Ltd | `prime-civil-works-ltd@evaluation-demo.procurex.tz` | `0693683744` |
+| SafiCare Services Ltd | `saficare-services-ltd@evaluation-demo.procurex.tz` | `0693683745` |
+| GreenClean Tanzania Ltd | `greenclean-tanzania-ltd@evaluation-demo.procurex.tz` | `0693683746` |
+| Maji Advisory Partners Ltd | `maji-advisory-partners-ltd@evaluation-demo.procurex.tz` | `0693683747` |
+| Nile Basin Consulting Ltd | `nile-basin-consulting-ltd@evaluation-demo.procurex.tz` | `0693683748` |
+
 version: alpha
 name: Apple
 description: A photography-first interface that turns marketing into a museum gallery. Edge-to-edge product tiles alternate light and dark canvases, framed by SF Pro Display headlines with negative letter-spacing and a single Action Blue (#0066cc) interactive color. UI chrome recedes so the product can speak — no decorative gradients, no shadows on chrome, only the one signature drop-shadow under product imagery resting on a surface.

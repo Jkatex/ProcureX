@@ -90,7 +90,7 @@ const schemaSections: Record<FormSchemaType, Omit<DesignFormSchemaDto, 'schemaVe
       {
         id: 'quantitySchedule',
         title: 'Quantity Schedule / BOQ',
-        hint: 'Editable table with row numbering and calculated totals.',
+        hint: 'Unpriced quantity schedule bidders will price during submission.',
         controls: [
           {
             id: 'quantityScheduleRows',
@@ -104,9 +104,7 @@ const schemaSections: Record<FormSchemaType, Omit<DesignFormSchemaDto, 'schemaVe
               { id: 'itemNumber', label: 'Item', type: 'index' },
               { id: 'itemDescription', label: 'Description', type: 'text', required: true },
               { id: 'unitOfMeasure', label: 'Unit', type: 'select', required: true, ...masterOptions('units') },
-              { id: 'quantity', label: 'Qty', type: 'number', required: true },
-              { id: 'unitPrice', label: 'Unit price', type: 'currency' },
-              { id: 'totalPrice', label: 'Total', type: 'calculated', formula: 'quantity*unitPrice' }
+              { id: 'quantity', label: 'Qty', type: 'number', required: true }
             ]
           }
         ]
