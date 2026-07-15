@@ -96,9 +96,31 @@ const detail = {
   visibility: 'PRIVATE',
   publishedAt: null,
   requirements: {
-    delivery: 'Supply, install, and test oxygen equipment before acceptance.'
+    summary: { requireSamples: 'Yes' },
+    delivery: 'Supply, install, and test oxygen equipment before acceptance.',
+    commercialItems: [{ id: 'item-1', description: 'Oxygen cylinder', quantity: '20', unit: 'unit' }],
+    productSpecifications: [{ id: 'spec-1', sourceItemId: 'item-1', specificationName: 'Cylinder capacity', acceptableRequirement: '50 litres' }],
+    sampleRequirements: [{
+      id: 'sample-1',
+      relatedBoqItemId: 'item-1',
+      sampleRequired: true,
+      numberOfSamples: '1',
+      sampleDescription: 'Sample cylinder with regulator',
+      deliveryLocation: 'Dodoma regional hospital',
+      deliveryDeadline: '2026-08-01',
+      mandatory: true,
+      returnableSample: false
+    }],
+    financialRequirements: [{ id: 'fin-1', requirementType: 'Access to Credit', minimumValue: '50000000', period: 'Last 12 months', evidenceRequired: 'Bank letter', mandatory: true }],
+    eligibilityRequirements: [{ id: 'elig-1', requirementName: 'Tax clearance certificate', mandatory: true, requiresUpload: true, notes: 'Supplier must be tax compliant.' }],
+    regulatoryLicenseRequirements: [{ id: 'lic-1', license: 'Medical Devices Registration Permit', body: 'Tanzania Medicines and Medical Devices Authority (TMDA)', mandatory: true, expiryRequired: true }]
   },
-  metadata: {},
+  metadata: {
+    fundingSource: 'Government budget',
+    contact: { name: 'Procurement Officer' },
+    publication: { openingDate: '2026-08-21' },
+    evaluationCriteria: [{ id: 'criteria-1', label: 'Technical Compliance', weight: 70, notes: '', suggestedFor: ['goods'], subcriteria: ['Conformity to technical specifications'] }]
+  },
   requirementRows: [{ id: 'req-1', section: 'Technical', payload: { title: 'Valid medical equipment authorization.' } }],
   milestones: [],
   commercialItems: [{ id: 'item-1', itemNo: '1', description: 'Oxygen cylinder', quantity: 20, unit: 'unit', rate: 1000000, total: 20000000, payload: {} }],
@@ -163,6 +185,10 @@ function renderPage(initialEntries = ['/admin/tender-review']) {
 
 describe('AdminTenderReviewProcurexPage', () => {
   beforeEach(() => {
+    apps.mockReset();
+    listTenderReviews.mockReset();
+    getTenderReview.mockReset();
+    passTenderReview.mockReset();
     apps.mockResolvedValue({ items: [], generatedAt: now });
     listTenderReviews.mockResolvedValue(queue([queueItem, laterQueueItem]));
     getTenderReview.mockResolvedValue(detail);
@@ -202,10 +228,20 @@ describe('AdminTenderReviewProcurexPage', () => {
     await waitFor(() => expect(getTenderReview).toHaveBeenCalledWith(tenderId));
     expect((await screen.findAllByRole('heading', { name: 'Supply hospital oxygen' })).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Procurement of medical oxygen cylinders and associated regulators for regional facilities.').length).toBeGreaterThan(0);
-    expect(screen.getByRole('heading', { name: 'Customer Information' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Purchase Information' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Tender Documentation' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Documents' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Goods tender summary')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'List of Goods and Product Specifications' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sample Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Financial Capacity Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Eligibility Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Evaluation Criteria' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Customer Information' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Oxygen cylinder').length).toBeGreaterThan(0);
+    expect(screen.getByText('20 unit')).toBeInTheDocument();
+    expect(screen.getByText('Cylinder capacity')).toBeInTheDocument();
+    expect(screen.getByText('50 litres')).toBeInTheDocument();
+    expect(screen.getByText('Access to Credit')).toBeInTheDocument();
+    expect(screen.getByText('Tax clearance certificate')).toBeInTheDocument();
+    expect(screen.getByText('Technical Compliance')).toBeInTheDocument();
     expect(screen.queryByText('Owner')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pass' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fail' })).toBeInTheDocument();
@@ -217,8 +253,10 @@ describe('AdminTenderReviewProcurexPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /PX-GDS-2026-001/i }));
     await userEvent.click(await screen.findByRole('button', { name: 'Pass' }));
+    await userEvent.type(await screen.findByLabelText('Signature keyphrase'), 'review-keyphrase');
+    await userEvent.click(screen.getByRole('button', { name: 'Pass review' }));
 
-    await waitFor(() => expect(passTenderReview).toHaveBeenCalledWith(tenderId));
+    await waitFor(() => expect(passTenderReview).toHaveBeenCalledWith(tenderId, { signatureKeyphrase: 'review-keyphrase' }));
     expect(await screen.findByText('Tender review passed. The tender is now published to the marketplace.')).toBeInTheDocument();
     expect(await screen.findByText('No tenders are awaiting review.')).toBeInTheDocument();
   });

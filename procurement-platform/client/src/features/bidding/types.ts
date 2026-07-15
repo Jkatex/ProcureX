@@ -82,6 +82,7 @@ export type BidSubmissionSection = 'administrative' | 'technical' | 'financial' 
 
 export type BidSubmissionStepId =
   | BidSubmissionSection
+  | 'goodsBidInformation'
   | 'goodsTechnical'
   | 'goodsFinancial'
   | 'goodsSamples'

@@ -3,6 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';
 import { useTenderDetail } from '../../hooks';
 import type { TenderDetail, TenderDetailDocument } from '../../types';
+import { ConsultancyTenderReviewDocument, isConsultancyTenderType } from './ConsultancyTenderReviewDocument';
+import { GoodsTenderReviewDocument, isGoodsTenderType } from './GoodsTenderReviewDocument';
+import { WorksTenderReviewDocument, isWorksTenderType } from './WorksTenderReviewDocument';
 import {
   CommercialTable,
   DetailBadges,
@@ -133,6 +136,18 @@ export function SupplierProcurementDetails({
   onOpenDocument: (document: TenderDetailDocument) => void;
   onDownloadDocument: (document: TenderDetailDocument) => void;
 }) {
+  if (isGoodsTenderType(tender.type)) {
+    return <GoodsTenderReviewDocument tender={tender} />;
+  }
+
+  if (isConsultancyTenderType(tender.type)) {
+    return <ConsultancyTenderReviewDocument tender={tender} onOpenDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />;
+  }
+
+  if (isWorksTenderType(tender.type)) {
+    return <WorksTenderReviewDocument tender={tender} onOpenDocument={onOpenDocument} onDownloadDocument={onDownloadDocument} />;
+  }
+
   return (
     <div className="supplier-detail-procurement-document">
       <section className="tender-document-view supplier-procurement-full-document">

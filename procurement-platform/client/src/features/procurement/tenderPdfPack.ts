@@ -1,4 +1,14 @@
 import html2pdf from 'html2pdf.js';
+import {
+  consultancyTenderDocumentModelFromTender,
+  isConsultancyTenderType
+} from './consultancyTenderDocumentModel';
+import { buildConsultancyTenderDocumentPdfHtml } from './consultancyTenderDocumentPdfHtml';
+import {
+  goodsTenderDocumentModelFromTender,
+  isGoodsTenderType
+} from './goodsTenderDocumentModel';
+import { buildGoodsTenderDocumentPdfHtml } from './goodsTenderDocumentPdfHtml';
 import type { TenderDetail } from './types';
 
 const pdfOptions = {
@@ -7,6 +17,12 @@ const pdfOptions = {
   html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
   jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
   pagebreak: { mode: ['css', 'legacy'] }
+};
+
+const goodsPdfOptions = {
+  ...pdfOptions,
+  margin: [16, 18, 16, 18] as [number, number, number, number],
+  pagebreak: { mode: ['css', 'legacy', 'avoid-all'] }
 };
 
 const privateOrRuntimeKeys = new Set([
@@ -55,7 +71,7 @@ export async function generateTenderPackPdfBlob(tender: TenderDetail) {
 
   try {
     const result = await html2pdf()
-      .set({ ...pdfOptions, filename: generatedTenderPackFilename(tender) })
+      .set({ ...(isGoodsTenderType(tender.type) ? goodsPdfOptions : pdfOptions), filename: generatedTenderPackFilename(tender) })
       .from(container.firstElementChild as HTMLElement)
       .outputPdf('blob');
 
@@ -74,6 +90,14 @@ export function createTenderPackContainer(tender: TenderDetail) {
 }
 
 export function buildTenderPackPdfHtml(tender: TenderDetail) {
+  if (isGoodsTenderType(tender.type)) {
+    return buildGoodsTenderDocumentPdfHtml(goodsTenderDocumentModelFromTender(tender));
+  }
+
+  if (isConsultancyTenderType(tender.type)) {
+    return buildConsultancyTenderDocumentPdfHtml(consultancyTenderDocumentModelFromTender(tender));
+  }
+
   const generatedAt = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -139,6 +163,12 @@ export function buildTenderPackPdfHtml(tender: TenderDetail) {
 }
 
 export function generatedTenderPackFilename(tender: TenderDetail) {
+  if (isGoodsTenderType(tender.type)) {
+    return `Tender_${sanitizeFilename(tender.reference || tender.title || tender.id || 'Tender')}_Goods.pdf`;
+  }
+  if (isConsultancyTenderType(tender.type)) {
+    return `Tender_${sanitizeFilename(tender.reference || tender.title || tender.id || 'Tender')}_Consultancy.pdf`;
+  }
   return `${sanitizeFilename(tender.reference || tender.title || tender.id || 'tender')}-tender-pack.pdf`;
 }
 

@@ -132,7 +132,7 @@ describe('PostAwardAppPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/post-award?contract=contract-1&stage=delivery'));
     expect(await screen.findByRole('heading', { name: 'Clinic delivery contract' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Post Award stages' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Post-award stages' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Submit deliverable/i })).toBeEnabled();
     expect(screen.getByText('Secondary tools and registers')).toBeInTheDocument();
   });

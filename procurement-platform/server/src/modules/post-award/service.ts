@@ -40,7 +40,7 @@ export class ModuleService {
   async workspace(contractId: string, context: PostAwardRequestContext): Promise<PostAwardWorkspaceDto> {
     const contract = await this.awardContracts.contract(contractId, context);
     if (!activeStatuses.has(String(contract.status))) {
-      throw requestError('Post Award starts after the contract is signed or active.', 409);
+      throw requestError('Post-award starts after the contract is signed or active.', 409);
     }
     return workspaceDto(contract);
   }

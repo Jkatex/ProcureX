@@ -85,7 +85,7 @@ export function PostAwardAppPage() {
           navigate(`/post-award?contract=${encodeURIComponent(rows[0].id)}&stage=delivery`, { replace: true });
         }
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, 'Post Award contracts could not be loaded.'));
+        if (!cancelled) setError(apiErrorMessage(err, 'Post-award contracts could not be loaded.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -113,7 +113,7 @@ export function PostAwardAppPage() {
           if (nextStage && stageOrder.includes(nextStage)) setActiveStage(nextStage);
         }
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, 'Post Award workspace could not be loaded.'));
+        if (!cancelled) setError(apiErrorMessage(err, 'Post-award workspace could not be loaded.'));
       } finally {
         if (!cancelled) setWorkspaceLoading(false);
       }
@@ -151,15 +151,15 @@ export function PostAwardAppPage() {
 
   return (
     <>
-      <WorkspaceTopBar title="Post Award" onNavigate={(pageKey) => navigate(routeFor(pageKey))} />
+      <WorkspaceTopBar title="Post-award" onNavigate={(pageKey) => navigate(routeFor(pageKey))} />
       <main className="post-award-app" data-post-award-app>
-        <aside className="post-award-contracts" aria-label="Post Award contracts">
+        <aside className="post-award-contracts" aria-label="Post-award contracts">
           <div className="post-award-pane-head">
             <span>Contract workspace</span>
             <strong>{contracts.length}</strong>
           </div>
           {loading ? <div className="post-award-empty">Loading contracts...</div> : null}
-          {!loading && contracts.length === 0 ? <div className="post-award-empty">No signed or active contracts are ready for Post Award.</div> : null}
+          {!loading && contracts.length === 0 ? <div className="post-award-empty">No signed or active contracts are ready for Post-award.</div> : null}
           <div className="post-award-contract-list">
             {contracts.map((contract) => (
               <button
@@ -182,7 +182,7 @@ export function PostAwardAppPage() {
           {!workspace && !workspaceLoading ? (
             <div className="post-award-empty post-award-empty-large">
               <strong>Select a contract</strong>
-              <span>Post Award opens around a signed or active contract. Choose one from the contract list.</span>
+              <span>Post-award opens around a signed or active contract. Choose one from the contract list.</span>
             </div>
           ) : null}
           {workspace ? (
@@ -200,7 +200,7 @@ export function PostAwardAppPage() {
                 </div>
               </header>
 
-              <section className="post-award-metrics" aria-label="Post Award metrics">
+              <section className="post-award-metrics" aria-label="Post-award metrics">
                 {workspace.metrics.map((metric) => (
                   <article key={metric.label}>
                     <span>{metric.label}</span>
@@ -210,7 +210,7 @@ export function PostAwardAppPage() {
               </section>
 
               <div className="post-award-console">
-                <nav className="post-award-stages" aria-label="Post Award stages">
+                <nav className="post-award-stages" aria-label="Post-award stages">
                   {workspace.stages.map((stage) => (
                     <button className={stage.id === activeStage ? 'active' : ''} type="button" onClick={() => selectStage(stage.id)} key={stage.id}>
                       <span>{stage.label}</span>
@@ -231,7 +231,7 @@ export function PostAwardAppPage() {
                   <SecondaryRegisters workspace={workspace} />
                 </section>
 
-                <aside className="post-award-actions" aria-label="Recommended Post Award actions">
+                <aside className="post-award-actions" aria-label="Recommended Post-award actions">
                   <div className="post-award-pane-head">
                     <span>Action queue</span>
                     <strong>{filteredActions.length}</strong>
@@ -334,7 +334,7 @@ function PostAwardActionForm({ actionKey, workspace, onSaved }: { actionKey: str
       const next = await saveAction(actionKey, contractId, payload, workspace);
       onSaved(next);
     } catch (error) {
-      setMessage(apiErrorMessage(error, 'Post Award action could not be saved.'));
+      setMessage(apiErrorMessage(error, 'Post-award action could not be saved.'));
     } finally {
       setSaving(false);
     }
@@ -503,7 +503,7 @@ async function saveAction(actionKey: string, contractId: string, payload: Record
     const document = await postAwardApi.uploadDocument(contractId, {
       name: payload.documentName,
       documentType: payload.documentType,
-      contentBase64: btoa(`Post Award evidence placeholder for ${payload.documentName}`)
+      contentBase64: btoa(`Post-award evidence placeholder for ${payload.documentName}`)
     });
     return postAwardApi.addMilestoneEvidence(contractId, String(payload.milestoneId), { documentId: document.id, note: payload.note ?? '' });
   }

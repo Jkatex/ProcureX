@@ -2685,29 +2685,27 @@ function renderCreateTenderProductSpecificationBuilder(control, value, profileId
                     `;
                 }).join('') : `<div class="scope-empty">Add goods items in the Quantity Schedule first. Each item will get its own specification table here.</div>`}
             </div>
-            <div class="product-spec-modal" data-product-spec-modal="${escapeCreateTenderHtml(control.id)}" role="dialog" aria-modal="true" aria-labelledby="product-spec-modal-title-${escapeCreateTenderHtml(control.id)}" hidden>
+            <div class="product-spec-modal goods-product-spec-modal" data-product-spec-modal="${escapeCreateTenderHtml(control.id)}" role="dialog" aria-modal="true" aria-label="Add Specification" hidden>
                 <div class="product-spec-modal-card">
                     <div class="product-spec-modal-heading">
                         <div>
-                            <span class="section-kicker">Item specification</span>
-                            <h4 id="product-spec-modal-title-${escapeCreateTenderHtml(control.id)}">Add Specification</h4>
-                            <p data-product-spec-modal-item></p>
+                            <h4 data-product-spec-modal-item>Product item</h4>
                         </div>
-                        <button class="boq-row-action icon-delete-btn" type="button" data-product-spec-modal-cancel aria-label="Cancel add specification" title="Cancel">x</button>
                     </div>
-                    <label>
+                    <label class="product-spec-modal-field">
                         <span class="form-label">Specification name</span>
-                        <input class="form-input" type="text" data-product-spec-modal-name placeholder="Example: Brand, Processor, Warranty">
+                        <input class="form-input" type="text" data-product-spec-modal-name placeholder="Example: Feature, Packaging, Brand, Processor, Warranty">
                     </label>
-                    <label>
+                    <label class="product-spec-modal-field">
                         <span class="form-label">Specific detail required</span>
-                        <textarea class="form-input" rows="4" data-product-spec-modal-detail placeholder="Optional, e.g. HP/Dell/Lenovo or equivalent, Core i5 or above"></textarea>
+                        <textarea class="form-input" rows="4" data-product-spec-modal-detail placeholder="Describe the required specification or acceptable value"></textarea>
                     </label>
                     <span class="form-hint" data-product-spec-modal-error hidden>Specification name is required.</span>
                     <div class="product-spec-modal-actions">
                         <button class="btn btn-secondary" type="button" data-product-spec-modal-cancel>Cancel</button>
                         <button class="btn btn-primary" type="button" data-product-spec-modal-save>Save Specification</button>
                     </div>
+                    <button class="boq-row-action icon-delete-btn product-spec-modal-close" type="button" data-product-spec-modal-cancel aria-label="Cancel add specification" title="Cancel">x</button>
                 </div>
             </div>
         </div>
@@ -6257,7 +6255,7 @@ function initializeCreateTenderWizard() {
 
         modal.dataset.productSpecControl = controlId;
         modal.dataset.productSpecSource = source.sourceRowId;
-        modal.querySelector('[data-product-spec-modal-item]').textContent = `${source.values.itemNo}. ${source.values.productName}`;
+        modal.querySelector('[data-product-spec-modal-item]').textContent = source.values.productName || 'Product item';
         modal.querySelector('[data-product-spec-modal-name]').value = '';
         modal.querySelector('[data-product-spec-modal-detail]').value = '';
         modal.querySelector('[data-product-spec-modal-error]')?.setAttribute('hidden', '');

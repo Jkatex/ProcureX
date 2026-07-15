@@ -2,7 +2,7 @@ import type { ContractStatus } from '@prisma/client';
 
 export const moduleDefinition = {
   key: 'post-award',
-  name: 'Post Award',
+  name: 'Post-award',
   description: 'Standalone contract execution workspace for delivery, acceptance, finance, issues, variations, close-out, and history.'
 } as const;
 

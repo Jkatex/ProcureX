@@ -26,6 +26,11 @@ const communicationApiMock = vi.hoisted(() => ({
   listRecipients: vi.fn()
 }));
 
+const identityApiMock = vi.hoisted(() => ({
+  getVerificationMe: vi.fn(),
+  getProfileImageBlob: vi.fn()
+}));
+
 const html2PdfMock = vi.hoisted(() => {
   const worker = {
     set: vi.fn(),
@@ -51,6 +56,10 @@ vi.mock('../../api', async (importOriginal) => {
 
 vi.mock('@/features/communication/api', () => ({
   communicationApi: communicationApiMock
+}));
+
+vi.mock('@/features/identity/api', () => ({
+  identityApi: identityApiMock
 }));
 
 vi.mock('html2pdf.js', () => ({
@@ -111,11 +120,19 @@ async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, cate
   await user.click(await screen.findByRole('button', { name: category }));
 }
 
+function expectReviewText(text: string | RegExp) {
+  expect(screen.getAllByText(text).length).toBeGreaterThan(0);
+}
+
+function formatReviewDate(value: string) {
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(Date.parse(value));
+}
+
 async function completeMinimumGoodsRequirements(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
   await user.click(screen.getByRole('button', { name: 'Add Item' }));
-  await user.type(screen.getByLabelText('Item 1 description'), 'Laptop computer');
-  await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+  await user.type(screen.getByLabelText('Item 1 name'), 'Laptop computer');
+  await user.type(screen.getByLabelText('Item 1 unit'), 'Pcs');
   await user.type(screen.getByLabelText('Item 1 quantity'), '5');
   await user.click(screen.getByRole('button', { name: 'Add Specification' }));
   await user.type(screen.getByLabelText('Specification name'), 'Processor');
@@ -180,6 +197,8 @@ beforeEach(() => {
     validation: { warnings: [], scannerIssues: [], standardizedCategories: ['Medical equipment'] }
   });
   procurementApiMock.getMarketplace.mockResolvedValue(emptyMarketplaceResponse());
+  identityApiMock.getVerificationMe.mockResolvedValue({ verification: { payload: { profile: {} } } });
+  identityApiMock.getProfileImageBlob.mockResolvedValue(new Blob(['logo'], { type: 'image/png' }));
   communicationApiMock.listRecipients.mockResolvedValue([
     { id: '22222222-2222-4222-8222-222222222222', name: 'Kilimanjaro Supplies Limited', kind: 'COMPANY', country: 'TZ', capabilities: ['SUPPLIER'] }
   ]);
@@ -232,6 +251,15 @@ function spreadsheetFile(rows: unknown[][], fileName = 'import.xlsx') {
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
   const data = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   return new File([data], fileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+function blobToArrayBuffer(blob: Blob) {
+  return new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.readAsArrayBuffer(blob);
+  });
 }
 
 afterEach(() => {
@@ -406,13 +434,16 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Service definition' })).toBeInTheDocument();
-    expect(screen.getByText('Head office')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Service Commercial Schedule' })).toBeInTheDocument();
-    expect(screen.getByText('Security guard services')).toBeInTheDocument();
-    expect(screen.getByText(/Security supervisor - Diploma - 5 years/)).toBeInTheDocument();
-    expect(screen.getByText(/Access to Credit - minimum 50000000/)).toBeInTheDocument();
-    expect(screen.getByText(/Valid service provider license/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Customer Information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Purchase Information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender Documentation' })).toBeInTheDocument();
+    expectReviewText('Head office');
+    expectReviewText('Security guard services');
+    expectReviewText('Security supervisor');
+    expectReviewText('Personnel Requirement Rows');
+    expectReviewText('Access to Credit');
+    expectReviewText('50000000');
+    expectReviewText(/Valid service provider license/);
   }, 10000);
 
   it('adds regulatory license requirements at the bottom of Non Consultancy tender requirements', async () => {
@@ -462,9 +493,9 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
-    expect(screen.getByText('Environmental Compliance Certificate')).toBeInTheDocument();
-    expect(screen.getByText('National Environment Management Council (NEMC)')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tender Documentation' })).toBeInTheDocument();
+    expectReviewText('Environmental Compliance Certificate');
+    expectReviewText('National Environment Management Council (NEMC)');
   }, 10000);
 
   it('renders and manages Consultancy TOR requirements like the ProcureX reference', async () => {
@@ -523,6 +554,7 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add Deliverable' }));
     fireEvent.change(screen.getByLabelText('Deliverable Name 1'), { target: { value: 'Inception report' } });
     fireEvent.change(screen.getByLabelText('Submission Timeline 1'), { target: { value: '2 weeks' } });
+    await user.selectOptions(screen.getByLabelText('Submission Channel 1'), 'Procurement portal');
 
     await user.click(screen.getByRole('button', { name: 'Add Key Personnel' }));
     fireEvent.change(screen.getByLabelText('Key Personnel Position Title 1'), { target: { value: 'Procurement specialist' } });
@@ -539,14 +571,29 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Consultancy TOR introduction' })).toBeInTheDocument();
-    expect(screen.getByText('Improve regional procurement performance.')).toBeInTheDocument();
-    expect(screen.getByText(/Assess current workflows/)).toBeInTheDocument();
-    expect(screen.getByText(/Stakeholder interviews/)).toBeInTheDocument();
-    expect(screen.getByText(/Inception report/)).toBeInTheDocument();
-    expect(screen.getByText(/Procurement specialist/)).toBeInTheDocument();
-    expect(screen.getByText(/Existing procurement manual/)).toBeInTheDocument();
-    expect(screen.getByText(/Audited Financial Statements - minimum 3 years/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Consultancy tender summary')).toBeInTheDocument();
+    expect(screen.getByText('TERMS OF REFERENCE')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Introduction' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Objectives of the Consultancy' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Scope of Consultancy Services' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Duties and Responsibilities of the Parties' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Deliverables and Timeline' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Required Qualifications and Experience' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Institutional and Organizational Arrangements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Attachments and Reference Documents' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Evaluation Criteria' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'External References', level: 2 })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Amendments' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Tender Documentation' })).not.toBeInTheDocument();
+    expectReviewText('Improve regional procurement performance.');
+    expectReviewText(/Assess current workflows/);
+    expectReviewText(/Stakeholder interviews/);
+    expectReviewText(/Inception report/);
+    expectReviewText(/Procurement portal/);
+    expectReviewText(/Procurement specialist/);
+    expectReviewText(/Existing procurement manual/);
+    expectReviewText(/Audited Financial Statements/);
+    expectReviewText(/3 years/);
   }, 10000);
 
   it('renders and manages works tender requirements like the ProcureX reference', async () => {
@@ -689,12 +736,25 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add Specification Document' }));
     await user.selectOptions(screen.getByLabelText('Document title 1'), 'Material specifications');
     await user.upload(screen.getByLabelText('Upload document 1'), new File(['spec'], 'materials.pdf', { type: 'application/pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Add Drawing' }));
+    await user.selectOptions(screen.getByLabelText('Document type 1'), 'Architectural drawings');
+    await user.upload(screen.getByLabelText('CAD / PDF upload 1'), new File(['drawing'], 'market-plan.pdf', { type: 'application/pdf' }));
     await user.click(screen.getByRole('button', { name: 'Add BOQ Line' }));
     fireEvent.change(screen.getByLabelText('BOQ description 1'), { target: { value: 'Drain channel' } });
     await user.selectOptions(screen.getByLabelText('BOQ unit 1'), 'Meter');
     fireEvent.change(screen.getByLabelText('BOQ quantity 1'), { target: { value: '20' } });
     fireEvent.change(screen.getByLabelText('BOQ rate 1'), { target: { value: '5000' } });
     expect(screen.getByText('100,000')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Commencement date'), { target: { value: '2099-08-01' } });
+    fireEvent.change(screen.getByLabelText('Works completion period'), { target: { value: '120 days' } });
+    await user.click(screen.getByRole('button', { name: 'Add Milestone' }));
+    fireEvent.change(screen.getByLabelText('Works milestone 1'), { target: { value: 'Drainage completion' } });
+    fireEvent.change(screen.getByLabelText('Target date 1'), { target: { value: '2099-09-15' } });
+    await user.upload(screen.getByLabelText('Upload Site survey'), new File(['survey'], 'site-survey.pdf', { type: 'application/pdf' }));
+    await user.click(screen.getByLabelText('Similar completed projects'));
+    await user.click(screen.getByLabelText('Key personnel CVs'));
+    await user.click(screen.getByLabelText('Bank statements'));
+    fireEvent.change(screen.getByLabelText('Bank statement period'), { target: { value: 'last 6 months' } });
     await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
     await user.selectOptions(screen.getByLabelText('Requirement type 1'), 'Access to Credit');
     fireEvent.change(screen.getByLabelText('Minimum value 1'), { target: { value: '250000000' } });
@@ -704,19 +764,41 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Tender requirements' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Project overview' })).toBeInTheDocument();
-    expect(screen.getByText('District market rehabilitation')).toBeInTheDocument();
-    expect(screen.getByText('Municipal Council')).toBeInTheDocument();
-    expect(screen.getByText('Morogoro')).toBeInTheDocument();
-    expect(screen.getByText('Drainage works')).toBeInTheDocument();
-    expect(screen.getByText('Material specifications - materials.pdf')).toBeInTheDocument();
+    expect(screen.getByLabelText('Works tender summary')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Scope of Work' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Main Activities' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Technical Specifications' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Drawings and Design Documents' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Bill of Quantities' })).toBeInTheDocument();
-    expect(screen.getByText('Unpriced schedule')).toBeInTheDocument();
-    expect(screen.getByText('Drain channel')).toBeInTheDocument();
-    expect(screen.getByText(/Access to Credit - minimum 250000000/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
-    expect(screen.getByText('Building Permit')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Time Schedule and Milestones' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Site Visit' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Technical Capacity' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Financial Capacity Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Regulatory License Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Evaluation Criteria' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Customer Information' })).not.toBeInTheDocument();
+    expectReviewText('District market rehabilitation');
+    expectReviewText('Municipal Council');
+    expectReviewText('Morogoro');
+    expectReviewText('Drainage works');
+    expectReviewText('Material specifications');
+    expectReviewText('materials.pdf');
+    expectReviewText('Architectural drawings');
+    expectReviewText('market-plan.pdf');
+    expectReviewText('Drain channel');
+    expectReviewText('100,000');
+    expectReviewText('120 days');
+    expectReviewText('Drainage completion');
+    expectReviewText('site-survey.pdf');
+    expectReviewText('Similar completed projects');
+    expectReviewText('Key personnel CVs');
+    expectReviewText('Bank statement');
+    expectReviewText(/last 6 months/);
+    expectReviewText('Access to Credit');
+    expectReviewText('250000000');
+    expectReviewText('Building Permit');
+    expect(screen.getAllByRole('button', { name: 'Open' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Download' }).length).toBeGreaterThan(0);
   }, 10000);
 
   it('renders goods tender requirements with a BOQ table and product specification builder', async () => {
@@ -729,14 +811,16 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByRole('heading', { name: 'Quantity Schedule / BOQ' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Product Specification Builder' })).toBeInTheDocument();
     expect(screen.getByText('No items added yet.')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /item/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /description/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /^unit$/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /qty/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /unit price/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /^total$/i })).toBeInTheDocument();
-    expect(screen.getAllByText('Import Excel / CSV')).toHaveLength(2);
-    expect(screen.getAllByRole('button', { name: 'Download Excel Template' })).toHaveLength(2);
+    expect(screen.getByRole('columnheader', { name: 'Id' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Item name' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Quantity' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Unit' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /unit price/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^total$/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Import Excel')).toBeInTheDocument();
+    expect(screen.queryByText('Import Excel / CSV')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Download Excel Template' })).toHaveLength(1);
+    expect(screen.queryByLabelText('Import product specifications')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sample Requirements' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Financial Capacity Requirements' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
@@ -745,53 +829,80 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.queryByRole('button', { name: 'Add Sample Requirement' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    await user.type(screen.getByLabelText('Item 1 description'), 'Solar panel kit');
-    await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+    await user.type(screen.getByLabelText('Item 1 name'), 'Solar panel kit');
+    await user.type(screen.getByLabelText('Item 1 unit'), 'Pcs');
     await user.type(screen.getByLabelText('Item 1 quantity'), '2');
-    await user.type(screen.getByLabelText('Item 1 unit price'), '12500');
 
-    expect(screen.getByText('25,000')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Item 1 unit price')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Solar panel kit' })).toBeInTheDocument();
     expect(screen.getByText('No specifications added for this item yet.')).toBeInTheDocument();
   });
 
-  it('imports goods BOQ rows from CSV and allows the same file to be selected again', async () => {
+  it('imports goods BOQ rows from Excel and allows the same file to be selected again', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
 
     const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
-    const file = new File(['Item,Description,Unit,Qty\n1,Solar inverter,Pcs,3'], 'goods-boq.csv', { type: 'text/csv' });
+    const file = spreadsheetFile([
+      ['Id', 'Item name', 'Quantity', 'Unit'],
+      ['99', 'Solar inverter', '3', 'Pcs']
+    ], 'goods-boq.xlsx');
 
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByDisplayValue('Solar inverter')).toBeInTheDocument();
     expect(screen.getByLabelText('Item 1 unit')).toHaveValue('Pcs');
     expect(screen.getByLabelText('Item 1 quantity')).toHaveValue('3');
+    let quantityRows = Array.from(document.querySelectorAll<HTMLElement>('[data-requirement-table="quantityScheduleRows"] [data-requirement-table-row]'));
+    expect(within(quantityRows[0]).getByText('1')).toBeInTheDocument();
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Goods quantity schedule imported 1 row.')).toBe(true);
     expect(input).toHaveValue('');
 
     fireEvent.change(input, { target: { files: [file] } });
     await waitFor(() => expect(screen.getAllByDisplayValue('Solar inverter')).toHaveLength(2));
+    quantityRows = Array.from(document.querySelectorAll<HTMLElement>('[data-requirement-table="quantityScheduleRows"] [data-requirement-table-row]'));
+    expect(within(quantityRows[0]).getByText('1')).toBeInTheDocument();
+    expect(within(quantityRows[1]).getByText('2')).toBeInTheDocument();
     expect(input).toHaveValue('');
   });
 
-  it('imports goods product specification rows from CSV and maps them to existing goods items', async () => {
+  it('downloads the goods BOQ Excel template with exactly four columns', async () => {
+    const user = userEvent.setup();
+    const download = mockBrowserDownload();
+    renderCreateTender();
+
+    await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
+    await user.click(screen.getByRole('button', { name: 'Download Excel Template' }));
+
+    expect(download.downloads.at(-1)).toBe('goods-quantity-schedule-template.xlsx');
+    expect(download.click).toHaveBeenCalled();
+    const workbook = XLSX.read(await blobToArrayBuffer(download.blobs[0]), { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
+    expect(rows[0]).toEqual(['Id', 'Item name', 'Quantity', 'Unit']);
+    expect(rows[0]).toHaveLength(4);
+  });
+
+  it('keeps goods product specifications as manual-only rows', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
     await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    await user.type(screen.getByLabelText('Item 1 description'), 'Solar inverter');
+    await user.type(screen.getByLabelText('Item 1 name'), 'Solar inverter');
+    await user.type(screen.getByLabelText('Item 1 quantity'), '2');
+    await user.type(screen.getByLabelText('Item 1 unit'), 'Box');
 
-    const input = screen.getByLabelText('Import product specifications') as HTMLInputElement;
-    const file = new File(['Item,Specification,Specific detail required\n1,Battery backup,4 hours minimum'], 'product-specs.csv', { type: 'text/csv' });
+    expect(screen.queryByLabelText('Import product specifications')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Download Excel Template' })).toHaveLength(1);
+    expect(screen.queryByText(/Quantity schedule item/i)).not.toBeInTheDocument();
+    expect(screen.getByText('2 Box required')).toBeInTheDocument();
+    expect(screen.queryByText('2 Boxs required')).not.toBeInTheDocument();
 
-    fireEvent.change(input, { target: { files: [file] } });
-
-    expect(await screen.findByDisplayValue('Battery backup')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('4 hours minimum')).toBeInTheDocument();
-    expect(store.getState().notifications.items.some((notification) => notification.message === 'Product specifications imported 1 row.')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Add Specification' }));
+    expect(screen.getByPlaceholderText('Example: Feature, Packaging, Brand, Processor, Warranty')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Describe the required specification or acceptable value')).toBeInTheDocument();
   });
 
   it('imports service BOQ rows from CSV', async () => {
@@ -840,35 +951,39 @@ describe('CreateTenderProcurexPage', () => {
 
     const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
     const file = spreadsheetFile([
-      ['Item', 'Description', 'Unit', 'Qty'],
-      ['1', 'Water pump', 'Pcs', '4']
+      ['Id', 'Item name', 'Quantity', 'Unit'],
+      ['1', 'Water pump', '4', 'Pcs']
     ]);
 
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(await screen.findByDisplayValue('Water pump')).toBeInTheDocument();
     expect(screen.getByLabelText('Item 1 quantity')).toHaveValue('4');
+    expect(screen.getByLabelText('Item 1 unit')).toHaveValue('Pcs');
   });
 
-  it('warns on empty spreadsheets and unsupported import files without mutating goods rows', async () => {
+  it('warns on invalid goods BOQ import files without mutating goods rows', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
 
     const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [spreadsheetFile([], 'empty.xlsx')] } });
+    fireEvent.change(input, { target: { files: [spreadsheetFile([
+      ['Item', 'Description', 'Unit', 'Qty'],
+      ['1', 'Water pump', 'Pcs', '4']
+    ], 'old-format.xlsx')] } });
 
     await waitFor(() =>
-      expect(store.getState().notifications.items.some((notification) => notification.message === 'Goods quantity schedule did not include usable rows.')).toBe(true)
+      expect(store.getState().notifications.items.some((notification) => notification.message === 'The Excel format is not correct. Download Excel Template and use exactly four columns: Id, Item name, Quantity, Unit.')).toBe(true)
     );
-    expect(screen.queryByLabelText('Item 1 description')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Item 1 name')).not.toBeInTheDocument();
     expect(input).toHaveValue('');
 
-    fireEvent.change(input, { target: { files: [new File(['%PDF-1.4'], 'goods.pdf', { type: 'application/pdf' })] } });
+    fireEvent.change(input, { target: { files: [new File(['Id,Item name,Quantity,Unit\n1,Water pump,4,Pcs'], 'goods.csv', { type: 'text/csv' })] } });
 
-    await waitFor(() => expect(store.getState().notifications.items.some((notification) => notification.message === 'Use an Excel or CSV file for this import.')).toBe(true));
-    expect(screen.queryByLabelText('Item 1 description')).not.toBeInTheDocument();
+    await waitFor(() => expect(store.getState().notifications.items.some((notification) => notification.message === 'The Excel format is not correct. Download Excel Template and use exactly four columns: Id, Item name, Quantity, Unit.')).toBe(true));
+    expect(screen.queryByLabelText('Item 1 name')).not.toBeInTheDocument();
     expect(input).toHaveValue('');
   });
 
@@ -895,10 +1010,31 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
     await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    await user.type(screen.getByLabelText('Item 1 description'), 'Laptop computer');
+    await user.type(screen.getByLabelText('Item 1 name'), 'Laptop computer');
 
     await user.click(screen.getByRole('button', { name: 'Add Specification' }));
-    expect(screen.getByRole('dialog', { name: 'Add Specification' })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Add Specification' });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveClass('goods-product-spec-modal');
+    const card = dialog.querySelector('.product-spec-modal-card');
+    expect(card).not.toBeNull();
+    const modalCard = card as HTMLElement;
+    const itemName = within(dialog).getByRole('heading', { name: 'Laptop computer' });
+    const specificationName = within(dialog).getByText('Specification name');
+    const specificDetail = within(dialog).getByText('Specific detail required');
+    const specificationField = specificationName.closest('label');
+    const detailField = specificDetail.closest('label');
+    const closeButton = within(dialog).getByRole('button', { name: 'Cancel add specification' });
+    expect(specificationField).toHaveClass('product-spec-modal-field');
+    expect(detailField).toHaveClass('product-spec-modal-field');
+    expect(closeButton).toHaveClass('product-spec-modal-close');
+    expect(closeButton.parentElement).toBe(modalCard);
+    const cardFlowChildren = Array.from(modalCard.children).filter((child) => !child.classList.contains('product-spec-modal-close'));
+    expect(cardFlowChildren[0]).toHaveClass('product-spec-modal-heading');
+    expect(cardFlowChildren[1]).toBe(specificationField);
+    expect(cardFlowChildren[2]).toBe(detailField);
+    expect(Boolean(itemName.compareDocumentPosition(specificationName) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(specificationName.compareDocumentPosition(specificDetail) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Save Specification' }));
     expect(screen.getByText('Specification name is required.')).toBeInTheDocument();
 
@@ -928,12 +1064,12 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('Add at least one quantity item before adding sample requirements.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    fireEvent.change(screen.getByLabelText('Item 1 description'), { target: { value: 'Solar panel kit' } });
+    fireEvent.change(screen.getByLabelText('Item 1 name'), { target: { value: 'Solar panel kit' } });
     expect(screen.getByRole('button', { name: 'Add Sample Requirement' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Add Sample Requirement' }));
-    expect(screen.getByLabelText('Sample Required 1')).toBeChecked();
+    expect(screen.queryByLabelText('Sample Required 1')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Related BOQ Item 1')).toHaveDisplayValue('Solar panel kit');
-    fireEvent.change(screen.getByLabelText('Number of Samples 1'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Sample Size 1'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('Sample Description 1'), { target: { value: 'One sealed sample and one working sample' } });
 
     await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
@@ -945,6 +1081,7 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add Requirement' }));
     fireEvent.change(screen.getByLabelText('Requirement name 1'), { target: { value: 'Manufacturer authorization' } });
     fireEvent.change(screen.getByLabelText('Eligibility notes 1'), { target: { value: 'Must be current' } });
+    expect(screen.queryByLabelText('Eligibility requires upload 1')).not.toBeInTheDocument();
   }, 10000);
 
   it('manages regulatory license requirements with the prototype picker', async () => {
@@ -955,18 +1092,30 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByText('No regulatory license requirements added yet.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add License Requirement' }));
+    expect(screen.getByLabelText('Search all regulatory licenses')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByLabelText('Search all regulatory licenses')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Add License Requirement' }));
     await user.type(screen.getByLabelText('Search all regulatory licenses'), 'Food Business');
     await user.click(screen.getByRole('option', { name: /Food Business Permit/ }));
 
     expect(screen.getAllByText('Food Business Permit / Food Handling License').length).toBeGreaterThan(0);
     expect(screen.getByText('Tanzania Medicines and Medical Devices Authority (TMDA)')).toBeInTheDocument();
     expect(screen.getByLabelText('Food Business Permit / Food Handling License Mandatory')).toBeChecked();
-    expect(screen.getByLabelText('Food Business Permit / Food Handling License Expiry required')).toBeChecked();
+    expect(screen.queryByLabelText('Food Business Permit / Food Handling License Expiry required')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add License Requirement' }));
     await user.type(screen.getByLabelText('Search all regulatory licenses'), 'Food Business Permit');
     expect(screen.queryByRole('option', { name: /Food Business Permit/ })).not.toBeInTheDocument();
     expect(screen.getByText('No matching license')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await user.click(screen.getByRole('button', { name: 'Change' }));
+    expect(screen.getByLabelText('Search regulatory license')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByLabelText('Search regulatory license')).not.toBeInTheDocument();
+    expect(screen.getByText('Food Business Permit / Food Handling License')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Change' }));
     await user.type(screen.getByLabelText('Search regulatory license'), 'Petroleum Retail');
@@ -987,8 +1136,8 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
     await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    await user.type(screen.getByLabelText('Item 1 description'), 'Laptop computer');
-    await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+    await user.type(screen.getByLabelText('Item 1 name'), 'Laptop computer');
+    await user.type(screen.getByLabelText('Item 1 unit'), 'Pcs');
     await user.type(screen.getByLabelText('Item 1 quantity'), '5');
 
     await user.click(screen.getByRole('button', { name: 'Add Specification' }));
@@ -998,7 +1147,7 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Yes' }));
     await user.click(screen.getByRole('button', { name: 'Add Sample Requirement' }));
-    await user.type(screen.getByLabelText('Number of Samples 1'), '1');
+    await user.type(screen.getByLabelText('Sample Size 1'), '1');
 
     await user.click(screen.getByRole('button', { name: 'Add Financial Requirement' }));
     await user.selectOptions(screen.getByLabelText('Requirement type 1'), 'Access to Credit');
@@ -1012,24 +1161,26 @@ describe('CreateTenderProcurexPage', () => {
     fireEvent.change(screen.getByLabelText('Requirement name 1'), { target: { value: 'Tax clearance certificate' } });
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Tender information' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Tender requirements' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Product specifications' })).toBeInTheDocument();
-    expect(screen.getByText('Laptop computer - Processor: Core i5 or above')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Sample requirements' })).toBeInTheDocument();
-    expect(screen.getByText(/Laptop computer - 1/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Financial capacity' })).toBeInTheDocument();
-    expect(screen.getByText(/Access to Credit - minimum 20000000/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Regulatory license requirements' })).toBeInTheDocument();
-    expect(screen.getByText('Food Business Permit / Food Handling License')).toBeInTheDocument();
-    expect(screen.getByText('Tanzania Medicines and Medical Devices Authority (TMDA)')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Other eligibility' })).toBeInTheDocument();
-    expect(screen.getByText(/Tax clearance certificate/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Deliverables and attachments' })).toBeInTheDocument();
-    expect(screen.getByText('Unpriced schedule')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Evaluation criteria and timeline' })).toBeInTheDocument();
-    expect(screen.getByText('Technical Compliance')).toBeInTheDocument();
-    expect(screen.getByText('Conformity to technical specifications')).toBeInTheDocument();
+    expect(screen.getByLabelText('Goods tender summary')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Goods Details' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Product Specifications' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sample Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Financial Capacity Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Eligibility Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Evaluation Criteria' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Customer Information' })).not.toBeInTheDocument();
+    expectReviewText('Laptop computer');
+    expectReviewText('5 Pcs');
+    expectReviewText('Processor');
+    expectReviewText('Core i5 or above');
+    expectReviewText('1');
+    expectReviewText('Access to Credit');
+    expectReviewText('20000000');
+    expectReviewText('Food Business Permit / Food Handling License');
+    expectReviewText(/Tanzania Medicines and Medical Devices Authority \(TMDA\)/);
+    expectReviewText(/Tax clearance certificate/);
+    expectReviewText('Technical Compliance');
+    expectReviewText(/Conformity to technical specifications/);
   }, 10000);
 
   it('category selection searches, auto-adds, prevents duplicates, and supports removing categories', async () => {
@@ -1426,7 +1577,7 @@ describe('CreateTenderProcurexPage', () => {
     await addDefaultCategory(user);
     await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
     await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    fireEvent.change(screen.getByLabelText('Item 1 description'), {
+    fireEvent.change(screen.getByLabelText('Item 1 name'), {
       target: { value: 'Solar panel kit' }
     });
     fireEvent.change(screen.getByLabelText('Item 1 unit'), {
@@ -1441,16 +1592,18 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Save Specification' }));
     await user.click(screen.getAllByRole('button', { name: /Review Tender/ })[0]);
 
-    expect(screen.getByRole('heading', { name: 'Tender information' })).toBeInTheDocument();
-    expect(screen.getByText('Supply of Solar Equipment')).toBeInTheDocument();
-    expect(screen.getByText(/Procurement Officer/)).toBeInTheDocument();
-    expect(screen.getByText('Dodoma')).toBeInTheDocument();
-    expect(screen.getByText(defaultSubmissionDeadline)).toBeInTheDocument();
-    expect(screen.getByText(defaultOpeningDate)).toBeInTheDocument();
-    expect(screen.getByText(/Solar panels, inverters, mounting kits/)).toBeInTheDocument();
-    expect(screen.getByText('Solar panel kit')).toBeInTheDocument();
-    expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByText('Pcs')).toBeInTheDocument();
+    expect(screen.getByLabelText('Goods tender summary')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Goods Details' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Product Specifications' })).toBeInTheDocument();
+    expectReviewText('Supply of Solar Equipment');
+    expectReviewText('Dodoma');
+    expectReviewText('Government budget');
+    expectReviewText(formatReviewDate(defaultOpeningDate));
+    expectReviewText(formatReviewDate(defaultSubmissionDeadline));
+    expectReviewText(/Solar panels, inverters, mounting kits/);
+    expectReviewText('Solar panel kit');
+    expectReviewText('12 Pcs');
+    expect(screen.queryByRole('heading', { name: 'Sample Requirements' })).not.toBeInTheDocument();
     expect(screen.queryByText('Installed pilot system')).not.toBeInTheDocument();
   }, 10000);
 
@@ -1504,10 +1657,12 @@ describe('CreateTenderProcurexPage', () => {
     await fillBasicStep(user, 'Backend Unit Normalization Tender');
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
     await user.click(screen.getByRole('button', { name: 'Add Item' }));
-    fireEvent.change(screen.getByLabelText('Item 1 description'), {
+    fireEvent.change(screen.getByLabelText('Item 1 name'), {
       target: { value: 'Laptop computer' }
     });
-    await user.selectOptions(screen.getByLabelText('Item 1 unit'), 'Pcs');
+    fireEvent.change(screen.getByLabelText('Item 1 unit'), {
+      target: { value: 'Pcs' }
+    });
     fireEvent.change(screen.getByLabelText('Item 1 quantity'), {
       target: { value: '12' }
     });
@@ -1659,12 +1814,12 @@ describe('CreateTenderProcurexPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Download Tender PDF' }));
     await waitFor(() => expect(html2PdfMock.worker.outputPdf).toHaveBeenCalledWith('blob'));
-    expect(html2PdfMock.worker.set).toHaveBeenCalledWith(expect.objectContaining({ filename: expect.stringMatching(/^PX-DRAFT-\d{4}-\d+-tender-pack\.pdf$/) }));
+    expect(html2PdfMock.worker.set).toHaveBeenCalledWith(expect.objectContaining({ filename: expect.stringMatching(/^Tender_PX-DRAFT-\d{4}-\d+_Goods\.pdf$/) }));
     expect(pdfSourceText()).toContain('Published React Tender');
     expect(pdfSourceText()).toContain('Dodoma');
     expect(pdfSourceText()).toContain('Government budget');
-    expect(pdfSourceText()).toContain('250,000,000');
-    expect(download.downloads.at(-1)).toMatch(/^PX-DRAFT-\d{4}-\d+-tender-pack\.pdf$/);
+    expect(pdfSourceText()).toContain('Goods Details');
+    expect(download.downloads.at(-1)).toMatch(/^Tender_PX-DRAFT-\d{4}-\d+_Goods\.pdf$/);
     expect(download.blobs.at(-1)?.type).toBe('application/pdf');
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender PDF generator is not available in this frontend yet.')).toBe(false);
 
