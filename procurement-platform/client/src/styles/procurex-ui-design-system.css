@@ -23605,6 +23605,43 @@ body:not([data-page="iam-verification"]) .communication-shell {
     line-height: 1.5;
 }
 
+.evaluation-finish-content {
+    min-width: 0;
+}
+
+.evaluation-blocking-summary {
+    display: grid;
+    gap: 6px;
+    max-width: 720px;
+    margin-top: 12px;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    border-radius: 8px;
+    background: #fffaf0;
+    padding: 10px 12px;
+    color: var(--text-primary);
+}
+
+.evaluation-blocking-summary strong {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.evaluation-blocking-summary ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+[data-evaluation-report-panel]:focus {
+    outline: 3px solid rgba(0, 128, 128, 0.22);
+    outline-offset: 4px;
+}
+
 .evaluation-step-grid {
     display: grid;
     grid-template-columns: minmax(220px, 0.32fr) minmax(0, 1fr);
