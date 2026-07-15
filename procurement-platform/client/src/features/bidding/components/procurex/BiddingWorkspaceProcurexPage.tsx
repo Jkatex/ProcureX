@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
+import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
@@ -107,6 +108,10 @@ type SampleItemOption = {
 type SchemaResponseState = Record<string, unknown>;
 
 const WORKFLOW_VERSION = 'procurex-v1';
+
+function BiddingWorkspaceChrome({ children }: { children: ReactNode }) {
+  return <ProcurexWorkspaceChrome title="Bidding">{children}</ProcurexWorkspaceChrome>;
+}
 
 export function BiddingWorkspaceProcurexPage() {
   const [params] = useSearchParams();
@@ -604,11 +609,41 @@ export function BiddingWorkspaceProcurexPage() {
     return true;
   }
 
-  if (!tenderId) return <WorkspaceEmpty message="Open a tender from the marketplace to start or continue a bid." />;
-  if (tenderLoading) return <WorkspaceEmpty message="Loading tender..." />;
-  if (isError || !tender) return <WorkspaceEmpty message="Tender could not be loaded. Return to the marketplace and try again." />;
-  if (schemaLoading) return <WorkspaceEmpty message="Loading bid response fields from the tender requirements..." />;
-  if (!schema) return <WorkspaceEmpty message="Bid response fields could not be loaded from the tender requirements." />;
+  if (!tenderId) {
+    return (
+      <BiddingWorkspaceChrome>
+        <WorkspaceEmpty message="Open a tender from the marketplace to start or continue a bid." />
+      </BiddingWorkspaceChrome>
+    );
+  }
+  if (tenderLoading) {
+    return (
+      <BiddingWorkspaceChrome>
+        <WorkspaceEmpty message="Loading tender..." />
+      </BiddingWorkspaceChrome>
+    );
+  }
+  if (isError || !tender) {
+    return (
+      <BiddingWorkspaceChrome>
+        <WorkspaceEmpty message="Tender could not be loaded. Return to the marketplace and try again." />
+      </BiddingWorkspaceChrome>
+    );
+  }
+  if (schemaLoading) {
+    return (
+      <BiddingWorkspaceChrome>
+        <WorkspaceEmpty message="Loading bid response fields from the tender requirements..." />
+      </BiddingWorkspaceChrome>
+    );
+  }
+  if (!schema) {
+    return (
+      <BiddingWorkspaceChrome>
+        <WorkspaceEmpty message="Bid response fields could not be loaded from the tender requirements." />
+      </BiddingWorkspaceChrome>
+    );
+  }
 
   const loadedTender = tender;
   const loadedSchema = schema;
@@ -619,20 +654,21 @@ export function BiddingWorkspaceProcurexPage() {
   const receiptVisible = Boolean(receipt && currentStep && isReceiptPanelStep(workflow, currentStep.id));
 
   return (
-    <div className="procurement-app-page">
-      <SignatureKeyphraseModal
-        open={pendingSignatureAction !== null}
-        title={pendingSignatureAction === 'withdraw' ? 'Withdraw submitted bid' : 'Submit sealed bid'}
-        actionLabel={pendingSignatureAction === 'withdraw' ? 'Withdraw bid' : 'Submit bid'}
-        isSubmitting={saving}
-        onCancel={() => setPendingSignatureAction(null)}
-        onConfirm={(signatureKeyphrase) => {
-          if (pendingSignatureAction === 'withdraw') void withdrawBid(signatureKeyphrase);
-          else void submitBid(signatureKeyphrase);
-        }}
-      />
-      <main className="procurement-market-shell">
-        <div className="journey-page tender-wizard-page bid-flow-page" data-bid-total={totalAmount} data-bid-workflow={workflow}>
+    <BiddingWorkspaceChrome>
+      <div className="procurement-app-page">
+        <SignatureKeyphraseModal
+          open={pendingSignatureAction !== null}
+          title={pendingSignatureAction === 'withdraw' ? 'Withdraw submitted bid' : 'Submit sealed bid'}
+          actionLabel={pendingSignatureAction === 'withdraw' ? 'Withdraw bid' : 'Submit bid'}
+          isSubmitting={saving}
+          onCancel={() => setPendingSignatureAction(null)}
+          onConfirm={(signatureKeyphrase) => {
+            if (pendingSignatureAction === 'withdraw') void withdrawBid(signatureKeyphrase);
+            else void submitBid(signatureKeyphrase);
+          }}
+        />
+        <main className="procurement-market-shell">
+          <div className="journey-page tender-wizard-page bid-flow-page" data-bid-total={totalAmount} data-bid-workflow={workflow}>
         <section className="journey-hero compact">
           <div>
             <span className="section-kicker">{workflowLabel(workflow)} bid</span>
@@ -699,9 +735,10 @@ export function BiddingWorkspaceProcurexPage() {
             </div>
           </main>
         </section>
-        </div>
-      </main>
-    </div>
+          </div>
+        </main>
+      </div>
+    </BiddingWorkspaceChrome>
   );
 
   function renderStep(stepId: string) {
