@@ -21,6 +21,7 @@ From `procurement-platform/`:
 npm run dev:client:example
 npm run build:client
 npm run test:client
+npm run test:e2e:evaluation
 npm run lint:client
 npm run generate:client:procurex-pages
 ```
@@ -28,6 +29,24 @@ npm run generate:client:procurex-pages
 Use `npm run dev:client:example` for normal local development. It loads `client/.env.example`, including `VITE_API_BASE_URL`, and starts Vite at `http://localhost:5173`.
 
 Use `client/.env` only when you need local overrides that differ from the tracked example values.
+
+## Evaluation Frontend Test Data
+
+The evaluation app has a real backend demo dataset and an end-to-end browser workflow. From the monorepo root, seed the data with:
+
+```powershell
+npm run db:seed:evaluation-intake-demo
+```
+
+Then start the app and sign in as `evaluation-buyer@procurex.tz` with password `Demo123!`. Use `Signing123` when the evaluation completion modal asks for the signature keyphrase.
+
+Run the automated browser check with:
+
+```powershell
+npm run test:e2e:evaluation
+```
+
+The full manual checklist and seeded tender references are documented in [Evaluation Frontend Test Data](../docs/evaluation-frontend-test-data.md).
 
 ## Source Layout
 

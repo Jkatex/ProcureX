@@ -99,6 +99,17 @@ npm run db:seed:marketplace-demo
 
 The marketplace demo seed creates separate buyer and supplier organizations so ownership and bidding rules are realistic. Sign in as `market-buyer@procurex.tz` or `market-buyer2@procurex.tz` with `Market123!` to inspect buyer-owned tenders. Sign in as `huui@gmail.com` with `55566677` to inspect Huui-owned demo tenders for evaluation and award recommendation review. Sign in as `ict-supplier@procurex.tz`, `works-supplier@procurex.tz`, or `services-supplier@procurex.tz` with `Supplier123!` to save public tenders, prepare draft bids, and submit bids on tenders owned by other organizations. `My Tenders` shows only tenders created by the exact logged-in user; another user in the same organization should not see that tender as their own.
 
+To test the evaluation frontend with realistic seeded tender, bid, criteria, document, draft, and signature data:
+
+```powershell
+npm run infra:up
+npm run db:migrate
+npm run db:seed:evaluation-intake-demo
+npm run dev
+```
+
+Sign in as `evaluation-buyer@procurex.tz` with password `Demo123!`, then open Evaluation. The final submission signing keyphrase is `Signing123`. The automated Playwright workflow completes the demo tenders, so reseed with `npm run db:seed:evaluation-intake-demo` before manual testing again. See [Evaluation Frontend Test Data](docs/evaluation-frontend-test-data.md) for the manual checklist and the automated Playwright workflow.
+
 ## Local Testing Data
 
 Registration code delivery can stay local during development. With `IDENTITY_EMAIL_PROVIDER=dev-console` and `IDENTITY_PHONE_PROVIDER=dev-console`, the registration phone code and email activation code are shown in the UI and logged by the server. For Gmail SMTP testing, set `IDENTITY_EMAIL_PROVIDER=smtp`, `SMTP_USER` to the Gmail account, and `SMTP_PASS` to a Gmail app password in `server/.env`; the tracked env example intentionally keeps these blank. Production delivery uses Resend for email and Beem Africa for SMS or WhatsApp.

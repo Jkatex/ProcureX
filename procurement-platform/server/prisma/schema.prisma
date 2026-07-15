@@ -1776,18 +1776,24 @@ model Contract {
   worksProgressReports       ContractWorksProgressReport[]
   boqMeasurements            ContractBoqMeasurement[]
   interimPaymentCertificates ContractInterimPaymentCertificate[]
+  worksCompletionCertificates ContractWorksCompletionCertificate[]
   defects                    ContractDefect[]
   serviceLevels              ContractServiceLevel[]
   servicePeriods             ContractServicePeriod[]
   serviceReports             ContractServiceReport[]
   serviceCredits             ContractServiceCredit[]
+  serviceIncidents           ContractServiceIncident[]
   consultancyDeliverables    ContractConsultancyDeliverable[]
   deliverableVersions        ContractDeliverableVersion[]
   deliverableReviews         ContractDeliverableReview[]
+  consultancyFinalReports    ContractConsultancyFinalReport[]
   claims                     ContractClaim[]
   claimResponses             ContractClaimResponse[]
   extensionRequests          ContractExtensionRequest[]
   amendments                 ContractAmendment[]
+  notices                    ContractNotice[]
+  meetings                   ContractMeeting[]
+  meetingActions             ContractMeetingAction[]
   approvalSteps              ContractWorkflowApproval[]
   urgentActions              UrgentAction[]
   notifications              Notification[]
@@ -1977,6 +1983,8 @@ model ContractAcceptance {
   contractId    String                      @map("contract_id") @db.Uuid
   deliverableId String?                     @map("deliverable_id") @db.Uuid
   inspectionId  String?                     @map("inspection_id") @db.Uuid
+  goodsReceiptId String?                    @map("goods_receipt_id") @db.Uuid
+  goodsInspectionId String?                 @map("goods_inspection_id") @db.Uuid
   certificateNo String?                     @map("certificate_no")
   status        ContractLifecycleItemStatus @default(OPEN)
   acceptedValue Decimal?                    @map("accepted_value") @db.Decimal(18, 2)
@@ -1990,6 +1998,8 @@ model ContractAcceptance {
 
   @@index([contractId, status])
   @@index([deliverableId])
+  @@index([goodsReceiptId])
+  @@index([goodsInspectionId])
   @@map("contract_acceptances")
   @@schema("contract")
 }
@@ -2300,6 +2310,91 @@ model ContractCloseout {
   contract              Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@map("contract_closeouts")
+  @@schema("contract")
+}
+
+model ContractNotice {
+  id                String    @id @default(uuid()) @db.Uuid
+  contractId        String    @map("contract_id") @db.Uuid
+  noticeType        String    @default("ORDINARY_MESSAGE") @map("notice_type")
+  title             String
+  body              String?
+  status            String    @default("DRAFT")
+  senderRole        String?   @map("sender_role")
+  recipientRole     String?   @map("recipient_role")
+  sentAt            DateTime? @map("sent_at")
+  receivedAt        DateTime? @map("received_at")
+  acknowledgedAt    DateTime? @map("acknowledged_at")
+  respondedAt       DateTime? @map("responded_at")
+  closedAt          DateTime? @map("closed_at")
+  dueDate           DateTime? @map("due_date")
+  relatedRecordType String?   @map("related_record_type")
+  relatedRecordId   String?   @map("related_record_id") @db.Uuid
+  visibilityScope   String    @default("SHARED") @map("visibility_scope")
+  response          String?
+  note              String?
+  payload           Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  contract          Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([contractId, noticeType])
+  @@index([dueDate])
+  @@map("contract_notices")
+  @@schema("contract")
+}
+
+model ContractMeeting {
+  id              String                  @id @default(uuid()) @db.Uuid
+  contractId      String                  @map("contract_id") @db.Uuid
+  meetingType     String                  @default("PROGRESS_MEETING") @map("meeting_type")
+  title           String
+  status          ContractLifecycleItemStatus @default(OPEN)
+  meetingDate     DateTime?               @map("meeting_date")
+  participants    Json                    @default("[]")
+  agenda          String?
+  minutes         String?
+  decisions       String?
+  visibilityScope String                  @default("SHARED") @map("visibility_scope")
+  note            String?
+  payload         Json                    @default("{}")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+  contract        Contract                @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  actions         ContractMeetingAction[]
+
+  @@index([contractId, status])
+  @@index([meetingDate])
+  @@map("contract_meetings")
+  @@schema("contract")
+}
+
+model ContractMeetingAction {
+  id              String                      @id @default(uuid()) @db.Uuid
+  contractId      String                      @map("contract_id") @db.Uuid
+  meetingId       String                      @map("meeting_id") @db.Uuid
+  title           String
+  ownerRole       String                      @default("SHARED") @map("owner_role")
+  status          ContractLifecycleItemStatus @default(OPEN)
+  dueDate         DateTime?                   @map("due_date")
+  completedAt     DateTime?                   @map("completed_at")
+  verifiedAt      DateTime?                   @map("verified_at")
+  closedAt        DateTime?                   @map("closed_at")
+  response        String?
+  verificationNote String?                    @map("verification_note")
+  visibilityScope String                      @default("SHARED") @map("visibility_scope")
+  note            String?
+  payload         Json                        @default("{}")
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
+  contract        Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  meeting         ContractMeeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([meetingId])
+  @@index([dueDate])
+  @@map("contract_meeting_actions")
   @@schema("contract")
 }
 
@@ -2712,9 +2807,13 @@ model ContractWorksProgressReport {
   periodStart      DateTime? @map("period_start")
   periodEnd        DateTime? @map("period_end")
   progressPercent  Decimal? @map("progress_percent") @db.Decimal(5, 2)
+  programmeReference String? @map("programme_reference")
   narrative        String?
   submittedByOrgId String?  @map("submitted_by_org_id") @db.Uuid
   status           String   @default("SUBMITTED")
+  reviewedByUserId String?  @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt       DateTime? @map("reviewed_at")
+  visibilityScope  String   @default("SHARED") @map("visibility_scope")
   payload          Json     @default("{}")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
@@ -2730,6 +2829,7 @@ model ContractBoqMeasurement {
   id                 String   @id @default(uuid()) @db.Uuid
   contractId         String   @map("contract_id") @db.Uuid
   reportId           String?  @map("report_id") @db.Uuid
+  measurementReference String? @map("measurement_reference")
   boqItemReference   String   @map("boq_item_reference")
   description        String?
   previousQuantity   Decimal? @map("previous_quantity") @db.Decimal(18, 4)
@@ -2737,7 +2837,12 @@ model ContractBoqMeasurement {
   cumulativeQuantity Decimal? @map("cumulative_quantity") @db.Decimal(18, 4)
   unitRate           Decimal? @map("unit_rate") @db.Decimal(18, 4)
   amount             Decimal? @db.Decimal(18, 2)
+  certifiedQuantity  Decimal? @map("certified_quantity") @db.Decimal(18, 4)
+  certifiedAmount    Decimal? @map("certified_amount") @db.Decimal(18, 2)
   status             String   @default("MEASURED")
+  reviewedByUserId   String?  @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime? @map("reviewed_at")
+  visibilityScope    String   @default("SHARED") @map("visibility_scope")
   payload            Json     @default("{}")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -2752,15 +2857,26 @@ model ContractBoqMeasurement {
 model ContractInterimPaymentCertificate {
   id                 String   @id @default(uuid()) @db.Uuid
   contractId         String   @map("contract_id") @db.Uuid
+  measurementId      String?  @map("measurement_id") @db.Uuid
   certificateNumber  String   @map("certificate_number")
+  certificateType    String   @default("INTERIM") @map("certificate_type")
   periodStart        DateTime? @map("period_start")
   periodEnd          DateTime? @map("period_end")
   grossAmount        Decimal? @map("gross_amount") @db.Decimal(18, 2)
   deductionsAmount   Decimal? @map("deductions_amount") @db.Decimal(18, 2)
+  retentionAmount    Decimal? @map("retention_amount") @db.Decimal(18, 2)
+  advanceRecoveryAmount Decimal? @map("advance_recovery_amount") @db.Decimal(18, 2)
+  liquidatedDamagesAmount Decimal? @map("liquidated_damages_amount") @db.Decimal(18, 2)
+  taxWithholdingAmount Decimal? @map("tax_withholding_amount") @db.Decimal(18, 2)
+  otherDeductionsAmount Decimal? @map("other_deductions_amount") @db.Decimal(18, 2)
+  certifiedAmount    Decimal? @map("certified_amount") @db.Decimal(18, 2)
   netAmount          Decimal? @map("net_amount") @db.Decimal(18, 2)
   currency           String   @default("TZS")
   status             String   @default("DRAFT")
   approvedAt         DateTime? @map("approved_at")
+  reviewedByUserId   String?  @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime? @map("reviewed_at")
+  visibilityScope    String   @default("SHARED") @map("visibility_scope")
   payload            Json     @default("{}")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -2768,7 +2884,41 @@ model ContractInterimPaymentCertificate {
 
   @@unique([contractId, certificateNumber])
   @@index([contractId, status])
+  @@index([measurementId])
+  @@index([contractId, certificateType])
   @@map("contract_interim_payment_certificates")
+  @@schema("contract")
+}
+
+model ContractWorksCompletionCertificate {
+  id                     String   @id @default(uuid()) @db.Uuid
+  contractId             String   @map("contract_id") @db.Uuid
+  certificateNumber      String   @map("certificate_number")
+  certificateType        String   @default("PRACTICAL_COMPLETION") @map("certificate_type")
+  status                 String   @default("DRAFT")
+  progressReportId       String?  @map("progress_report_id") @db.Uuid
+  ipcId                  String?  @map("ipc_id") @db.Uuid
+  completionDate         DateTime? @map("completion_date")
+  defectsSummary         String?  @map("defects_summary")
+  outstandingWorks       String?  @map("outstanding_works")
+  finalAccountAmount     Decimal? @map("final_account_amount") @db.Decimal(18, 2)
+  retentionReleaseAmount Decimal? @map("retention_release_amount") @db.Decimal(18, 2)
+  currency               String   @default("TZS")
+  issuedByUserId         String?  @map("issued_by_user_id") @db.Uuid
+  issuedAt               DateTime? @map("issued_at")
+  note                   String?
+  visibilityScope        String   @default("SHARED") @map("visibility_scope")
+  payload                Json     @default("{}")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+  contract               Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, certificateNumber])
+  @@index([contractId, certificateType])
+  @@index([contractId, status])
+  @@index([progressReportId])
+  @@index([ipcId])
+  @@map("contract_works_completion_certificates")
   @@schema("contract")
 }
 
@@ -2783,6 +2933,14 @@ model ContractDefect {
   dueDate         DateTime?                   @map("due_date")
   status          ContractLifecycleItemStatus @default(OPEN)
   closedAt        DateTime?                   @map("closed_at")
+  sourceRecordType String?                    @map("source_record_type")
+  sourceRecordId   String?                    @map("source_record_id") @db.Uuid
+  responsibleRole  String?                    @map("responsible_role")
+  responseDueDate  DateTime?                  @map("response_due_date")
+  respondedAt      DateTime?                  @map("responded_at")
+  verifiedByUserId String?                    @map("verified_by_user_id") @db.Uuid
+  verifiedAt       DateTime?                  @map("verified_at")
+  visibilityScope  String                     @default("SHARED") @map("visibility_scope")
   payload         Json                        @default("{}")
   createdAt       DateTime                    @default(now()) @map("created_at")
   updatedAt       DateTime                    @updatedAt @map("updated_at")
@@ -2790,6 +2948,8 @@ model ContractDefect {
 
   @@index([contractId, status])
   @@index([dueDate])
+  @@index([sourceRecordType, sourceRecordId])
+  @@index([responsibleRole, status])
   @@map("contract_defects")
   @@schema("contract")
 }
@@ -2840,6 +3000,13 @@ model ContractServiceReport {
   submittedByOrgId String?  @map("submitted_by_org_id") @db.Uuid
   submittedAt      DateTime @default(now()) @map("submitted_at")
   status           String   @default("SUBMITTED")
+  reviewedByUserId String?  @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt       DateTime? @map("reviewed_at")
+  verifiedSlaResult String? @map("verified_sla_result")
+  acceptedAmount   Decimal? @map("accepted_amount") @db.Decimal(18, 2)
+  correctionDueDate DateTime? @map("correction_due_date")
+  correctedAt      DateTime? @map("corrected_at")
+  visibilityScope  String   @default("SHARED") @map("visibility_scope")
   summary          String?
   payload          Json     @default("{}")
   createdAt        DateTime @default(now()) @map("created_at")
@@ -2857,10 +3024,16 @@ model ContractServiceCredit {
   contractId     String   @map("contract_id") @db.Uuid
   serviceLevelId String?  @map("service_level_id") @db.Uuid
   periodId       String?  @map("period_id") @db.Uuid
+  serviceReportId String? @map("service_report_id") @db.Uuid
   creditType     String   @default("SERVICE_CREDIT") @map("credit_type")
   amount         Decimal? @db.Decimal(18, 2)
+  invoiceImpactAmount Decimal? @map("invoice_impact_amount") @db.Decimal(18, 2)
   currency       String   @default("TZS")
   status         String   @default("DRAFT")
+  decision       String?  @map("decision")
+  reviewedByUserId String? @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt     DateTime? @map("reviewed_at")
+  visibilityScope String  @default("SHARED") @map("visibility_scope")
   reason         String?
   payload        Json     @default("{}")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -2869,7 +3042,43 @@ model ContractServiceCredit {
 
   @@index([contractId, status])
   @@index([periodId])
+  @@index([serviceReportId])
   @@map("contract_service_credits")
+  @@schema("contract")
+}
+
+model ContractServiceIncident {
+  id               String                      @id @default(uuid()) @db.Uuid
+  contractId       String                      @map("contract_id") @db.Uuid
+  incidentReference String                     @map("incident_reference")
+  incidentType     String                      @default("INCIDENT") @map("incident_type")
+  title            String
+  description      String?
+  severity         String                      @default("MINOR")
+  serviceLevelId   String?                     @map("service_level_id") @db.Uuid
+  periodId         String?                     @map("period_id") @db.Uuid
+  serviceReportId  String?                     @map("service_report_id") @db.Uuid
+  occurredAt       DateTime                    @default(now()) @map("occurred_at")
+  dueDate          DateTime?                   @map("due_date")
+  status           ContractLifecycleItemStatus @default(OPEN)
+  responsibleRole  String?                     @map("responsible_role")
+  responseDueDate  DateTime?                   @map("response_due_date")
+  respondedAt      DateTime?                   @map("responded_at")
+  verifiedByUserId String?                     @map("verified_by_user_id") @db.Uuid
+  verifiedAt       DateTime?                   @map("verified_at")
+  closedAt         DateTime?                   @map("closed_at")
+  visibilityScope  String                      @default("SHARED") @map("visibility_scope")
+  payload          Json                        @default("{}")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+  contract         Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, incidentReference])
+  @@index([contractId, status])
+  @@index([periodId])
+  @@index([serviceReportId])
+  @@index([responsibleRole, status])
+  @@map("contract_service_incidents")
   @@schema("contract")
 }
 
@@ -2881,6 +3090,12 @@ model ContractConsultancyDeliverable {
   description        String?
   dueDate            DateTime?                   @map("due_date")
   paymentEligible    Boolean                     @default(false) @map("payment_eligible")
+  acceptedAmount     Decimal?                    @map("accepted_amount") @db.Decimal(18, 2)
+  reviewedByUserId   String?                     @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime?                   @map("reviewed_at")
+  approvalStatus     String?                     @map("approval_status")
+  isFinalReport      Boolean                     @default(false) @map("is_final_report")
+  visibilityScope    String                      @default("SHARED") @map("visibility_scope")
   status             ContractLifecycleItemStatus @default(OPEN)
   payload            Json                        @default("{}")
   createdAt          DateTime                    @default(now()) @map("created_at")
@@ -2898,12 +3113,17 @@ model ContractDeliverableVersion {
   id               String                         @id @default(uuid()) @db.Uuid
   contractId       String                         @map("contract_id") @db.Uuid
   deliverableId    String?                        @map("deliverable_id") @db.Uuid
+  previousVersionId String?                       @map("previous_version_id") @db.Uuid
   versionNo        Int                            @default(1) @map("version_no")
   documentId       String?                        @map("document_id") @db.Uuid
   submittedByOrgId String?                        @map("submitted_by_org_id") @db.Uuid
   submittedAt      DateTime                       @default(now()) @map("submitted_at")
   status           String                         @default("SUBMITTED")
   note             String?
+  revisionReason   String?                        @map("revision_reason")
+  correctionDueDate DateTime?                     @map("correction_due_date")
+  correctedAt      DateTime?                      @map("corrected_at")
+  visibilityScope  String                         @default("SHARED") @map("visibility_scope")
   payload          Json                           @default("{}")
   createdAt        DateTime                       @default(now()) @map("created_at")
   updatedAt        DateTime                       @updatedAt @map("updated_at")
@@ -2913,6 +3133,7 @@ model ContractDeliverableVersion {
 
   @@unique([deliverableId, versionNo])
   @@index([contractId, status])
+  @@index([previousVersionId])
   @@map("contract_deliverable_versions")
   @@schema("contract")
 }
@@ -2925,6 +3146,12 @@ model ContractDeliverableReview {
   reviewerUserId  String?                    @map("reviewer_user_id") @db.Uuid
   reviewedAt      DateTime                   @default(now()) @map("reviewed_at")
   comments        String?
+  commentSummary  String?                    @map("comment_summary")
+  buyerPrivateNotes String?                  @map("buyer_private_notes")
+  paymentEligible Boolean                    @default(false) @map("payment_eligible")
+  acceptedAmount  Decimal?                   @map("accepted_amount") @db.Decimal(18, 2)
+  revisionDueDate DateTime?                  @map("revision_due_date")
+  visibilityScope String                     @default("SHARED") @map("visibility_scope")
   payload         Json                       @default("{}")
   createdAt       DateTime                   @default(now()) @map("created_at")
   updatedAt       DateTime                   @updatedAt @map("updated_at")
@@ -2934,6 +3161,35 @@ model ContractDeliverableReview {
   @@index([contractId, decision])
   @@index([versionId])
   @@map("contract_deliverable_reviews")
+  @@schema("contract")
+}
+
+model ContractConsultancyFinalReport {
+  id              String                      @id @default(uuid()) @db.Uuid
+  contractId      String                      @map("contract_id") @db.Uuid
+  reportReference String                      @map("report_reference")
+  deliverableId   String?                     @map("deliverable_id") @db.Uuid
+  versionId       String?                     @map("version_id") @db.Uuid
+  documentId      String?                     @map("document_id") @db.Uuid
+  submittedByOrgId String?                    @map("submitted_by_org_id") @db.Uuid
+  submittedAt     DateTime?                   @map("submitted_at")
+  status          ContractLifecycleItemStatus @default(SUBMITTED)
+  summary         String?
+  acceptedAmount  Decimal?                    @map("accepted_amount") @db.Decimal(18, 2)
+  paymentEligible Boolean                     @default(false) @map("payment_eligible")
+  reviewedByUserId String?                    @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt      DateTime?                   @map("reviewed_at")
+  visibilityScope String                      @default("SHARED") @map("visibility_scope")
+  payload         Json                        @default("{}")
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
+  contract        Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, reportReference])
+  @@index([contractId, status])
+  @@index([deliverableId])
+  @@index([versionId])
+  @@map("contract_consultancy_final_reports")
   @@schema("contract")
 }
 
@@ -3444,6 +3700,9 @@ model Invoice {
   contractId      String?        @map("contract_id") @db.Uuid
   buyerOrgId      String         @map("buyer_org_id") @db.Uuid
   supplierOrgId   String?        @map("supplier_org_id") @db.Uuid
+  executionReferenceType String? @map("execution_reference_type")
+  executionReferenceId   String? @map("execution_reference_id") @db.Uuid
+  visibilityScope        String  @default("SHARED") @map("visibility_scope")
   status          InvoiceStatus  @default(DRAFT)
   amount          Decimal        @db.Decimal(18, 2)
   currency        String         @default("TZS")
@@ -3456,6 +3715,7 @@ model Invoice {
 
   @@index([buyerOrgId, status])
   @@index([supplierOrgId])
+  @@index([contractId, executionReferenceType, executionReferenceId])
   @@map("invoices")
   @@schema("financial")
 }
@@ -3492,12 +3752,16 @@ model ThreeWayMatchResult {
   invoiceId       String        @map("invoice_id") @db.Uuid
   purchaseOrderId String?       @map("purchase_order_id") @db.Uuid
   acceptanceId    String?       @map("acceptance_id") @db.Uuid
+  goodsReceiptId  String?       @map("goods_receipt_id") @db.Uuid
+  goodsInspectionId String?     @map("goods_inspection_id") @db.Uuid
+  scheduleId      String?       @map("schedule_id") @db.Uuid
   status          InvoiceStatus @default(REVIEW)
   poMatched       Boolean       @default(false) @map("po_matched")
   receiptMatched  Boolean       @default(false) @map("receipt_matched")
   invoiceMatched  Boolean       @default(false) @map("invoice_matched")
   varianceAmount  Decimal?      @map("variance_amount") @db.Decimal(18, 2)
   currency        String        @default("TZS")
+  mismatchType    String?       @map("mismatch_type")
   reviewerUserId  String?       @map("reviewer_user_id") @db.Uuid
   reviewedAt      DateTime?     @map("reviewed_at")
   note            String?
@@ -3507,6 +3771,10 @@ model ThreeWayMatchResult {
 
   @@unique([invoiceId])
   @@index([contractId, status])
+  @@index([acceptanceId])
+  @@index([goodsReceiptId])
+  @@index([goodsInspectionId])
+  @@index([scheduleId])
   @@map("three_way_match_results")
   @@schema("financial")
 }

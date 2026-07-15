@@ -363,7 +363,13 @@ async function evaluateTender(page, tender) {
   summary.sections.push('Ranking & Recommendation');
   summary.calculations.push('Ranking table rendered with preliminary, technical, evaluated price, financial and total fields.');
 
-  await clickStage(page, 'Evaluation Report');
+  await page.getByRole('button', { name: 'Preview Report' }).click();
+  const reportPanel = page.locator('[data-evaluation-report-panel]');
+  await reportPanel.waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => {
+    const panel = document.querySelector('[data-evaluation-report-panel]');
+    return panel && document.activeElement === panel;
+  }, null, { timeout: 5000 });
   await assertHealthyPage(page, `${tender.reference} report`, [tender.reference, 'Evaluation Report']);
   summary.sections.push('Evaluation Report');
 

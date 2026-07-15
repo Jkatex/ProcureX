@@ -20,6 +20,7 @@
     "build:client": "npm --workspace shared run build && npm --workspace client run build",
     "test": "npm --workspace server test && npm --workspace client test",
     "test:client": "npm --workspace client run test",
+    "test:e2e:evaluation": "npm --workspace client run test:e2e:evaluation",
     "lint:client": "npm --workspace client run lint",
     "generate:client:procurex-pages": "npm --workspace client run generate:procurex-pages",
     "infra:up": "docker compose up -d",

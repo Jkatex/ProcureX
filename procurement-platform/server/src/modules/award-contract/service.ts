@@ -15,32 +15,50 @@ import {
   type BudgetCommitmentInput,
   type ClauseInput,
   type ContractChangeRequestInput,
+  type ControlWorkflowActionInput,
+  type FinanceWorkflowActionInput,
   type ContractCloseoutInput,
   type ContractActivateInput,
   type ContractActivationItemReviewInput,
   type ContractActivationItemSubmitInput,
   type ContractAmendmentInput,
   type ContractBoqMeasurementInput,
+  type BoqMeasurementReviewInput,
   type ContractClaimInput,
   type ContractClaimResponseInput,
   type AwardContractDocumentUploadInput,
   type ContractCommencementInput,
   type ContractConsultancyDeliverableInput,
+  type ConsultancyDeliverableReviewInput,
+  type ConsultancyFinalReportInput,
+  type ConsultancyFinalReportReviewInput,
+  type ContractDefectActionInput,
   type ContractDefectInput,
   type ContractDeliverableReviewInput,
   type ContractDeliverableVersionInput,
+  type DeliverableReviewPaymentEligibilityInput,
   type ContractDeliveryScheduleInput,
   type ContractDispatchNoticeInput,
   type ContractEvidenceRequirementInput,
   type ContractExtensionRequestInput,
   type ContractGoodsReceiptInput,
   type ContractInterimPaymentCertificateInput,
+  type InterimPaymentCertificateCertifyInput,
+  type ContractManagementPlanDraftInput,
   type ContractManagementPlanInput,
+  type ContractMeetingActionInput,
+  type ContractMeetingActionPatchInput,
+  type ContractMeetingInput,
   type ContractNonConformanceInput,
+  type ContractNoticeActionInput,
+  type ContractNoticeInput,
   type ContractPaymentInput,
   type ContractPenaltyInput,
   type ContractReferenceSampleInput,
+  type ContractSecurityActionInput,
   type ContractSecurityInput,
+  type ContractServiceIncidentInput,
+  type ServiceIncidentActionInput,
   type AwardRecommendationQuery,
   type DeliverableInput,
   type DeliveryFeasibilityInput,
@@ -51,11 +69,15 @@ import {
   type ContractMilestonePatchInput,
   type ContractObligationInput,
   type ContractServiceCreditInput,
+  type ServiceCreditReviewInput,
   type ContractServiceLevelInput,
   type ContractServicePeriodInput,
   type ContractServiceReportInput,
+  type ServiceReportReviewInput,
   type ContractSiteHandoverInput,
   type ContractWorksProgressReportInput,
+  type WorksCompletionCertificateInput,
+  type WorksProgressReviewInput,
   type ContractQuery,
   type InspectionInput,
   type InvoiceStatusPatchInput,
@@ -377,16 +399,44 @@ export class ModuleService {
     return this.repository.createWorksProgressReport(contractId, input, context);
   }
 
+  reviewWorksProgressReport(contractId: string, reportId: string, input: WorksProgressReviewInput, context: AwardContractRequestContext) {
+    return this.repository.reviewWorksProgressReport(contractId, reportId, input, context);
+  }
+
   createBoqMeasurement(contractId: string, input: ContractBoqMeasurementInput, context: AwardContractRequestContext) {
     return this.repository.createBoqMeasurement(contractId, input, context);
+  }
+
+  reviewBoqMeasurement(contractId: string, measurementId: string, input: BoqMeasurementReviewInput, context: AwardContractRequestContext) {
+    return this.repository.reviewBoqMeasurement(contractId, measurementId, input, context);
   }
 
   createInterimPaymentCertificate(contractId: string, input: ContractInterimPaymentCertificateInput, context: AwardContractRequestContext) {
     return this.repository.createInterimPaymentCertificate(contractId, input, context);
   }
 
+  certifyInterimPaymentCertificate(contractId: string, certificateId: string, input: InterimPaymentCertificateCertifyInput, context: AwardContractRequestContext) {
+    return this.repository.certifyInterimPaymentCertificate(contractId, certificateId, input, context);
+  }
+
+  createWorksCompletionCertificate(contractId: string, input: WorksCompletionCertificateInput, context: AwardContractRequestContext) {
+    return this.repository.createWorksCompletionCertificate(contractId, input, context);
+  }
+
   createContractDefect(contractId: string, input: ContractDefectInput, context: AwardContractRequestContext) {
     return this.repository.createContractDefect(contractId, input, context);
+  }
+
+  respondToContractDefect(contractId: string, defectId: string, input: ContractDefectActionInput, context: AwardContractRequestContext) {
+    return this.repository.respondToContractDefect(contractId, defectId, input, context);
+  }
+
+  verifyContractDefect(contractId: string, defectId: string, input: ContractDefectActionInput, context: AwardContractRequestContext) {
+    return this.repository.verifyContractDefect(contractId, defectId, input, context);
+  }
+
+  closeContractDefect(contractId: string, defectId: string, input: ContractDefectActionInput, context: AwardContractRequestContext) {
+    return this.repository.closeContractDefect(contractId, defectId, input, context);
   }
 
   createServiceLevel(contractId: string, input: ContractServiceLevelInput, context: AwardContractRequestContext) {
@@ -401,20 +451,64 @@ export class ModuleService {
     return this.repository.createServiceReport(contractId, input, context);
   }
 
+  reviewServiceReport(contractId: string, reportId: string, input: ServiceReportReviewInput, context: AwardContractRequestContext) {
+    return this.repository.reviewServiceReport(contractId, reportId, input, context);
+  }
+
   createServiceCredit(contractId: string, input: ContractServiceCreditInput, context: AwardContractRequestContext) {
     return this.repository.createServiceCredit(contractId, input, context);
+  }
+
+  reviewServiceCredit(contractId: string, creditId: string, input: ServiceCreditReviewInput, context: AwardContractRequestContext) {
+    return this.repository.reviewServiceCredit(contractId, creditId, input, context);
+  }
+
+  createServiceIncident(contractId: string, input: ContractServiceIncidentInput, context: AwardContractRequestContext) {
+    return this.repository.createServiceIncident(contractId, input, context);
+  }
+
+  respondToServiceIncident(contractId: string, incidentId: string, input: ServiceIncidentActionInput, context: AwardContractRequestContext) {
+    return this.repository.respondToServiceIncident(contractId, incidentId, input, context);
+  }
+
+  verifyServiceIncident(contractId: string, incidentId: string, input: ServiceIncidentActionInput, context: AwardContractRequestContext) {
+    return this.repository.verifyServiceIncident(contractId, incidentId, input, context);
+  }
+
+  closeServiceIncident(contractId: string, incidentId: string, input: ServiceIncidentActionInput, context: AwardContractRequestContext) {
+    return this.repository.closeServiceIncident(contractId, incidentId, input, context);
   }
 
   createConsultancyDeliverable(contractId: string, input: ContractConsultancyDeliverableInput, context: AwardContractRequestContext) {
     return this.repository.createConsultancyDeliverable(contractId, input, context);
   }
 
+  reviewConsultancyDeliverable(contractId: string, deliverableId: string, input: ConsultancyDeliverableReviewInput, context: AwardContractRequestContext) {
+    return this.repository.reviewConsultancyDeliverable(contractId, deliverableId, input, context);
+  }
+
   createDeliverableVersion(contractId: string, input: ContractDeliverableVersionInput, context: AwardContractRequestContext) {
     return this.repository.createDeliverableVersion(contractId, input, context);
   }
 
+  reviewDeliverableVersion(contractId: string, versionId: string, input: ContractDeliverableReviewInput, context: AwardContractRequestContext) {
+    return this.repository.reviewDeliverableVersion(contractId, versionId, input, context);
+  }
+
   createDeliverableReview(contractId: string, input: ContractDeliverableReviewInput, context: AwardContractRequestContext) {
     return this.repository.createDeliverableReview(contractId, input, context);
+  }
+
+  confirmDeliverableReviewPaymentEligibility(contractId: string, reviewId: string, input: DeliverableReviewPaymentEligibilityInput, context: AwardContractRequestContext) {
+    return this.repository.confirmDeliverableReviewPaymentEligibility(contractId, reviewId, input, context);
+  }
+
+  upsertConsultancyFinalReport(contractId: string, input: ConsultancyFinalReportInput, context: AwardContractRequestContext) {
+    return this.repository.upsertConsultancyFinalReport(contractId, input, context);
+  }
+
+  reviewConsultancyFinalReport(contractId: string, reportId: string, input: ConsultancyFinalReportReviewInput, context: AwardContractRequestContext) {
+    return this.repository.reviewConsultancyFinalReport(contractId, reportId, input, context);
   }
 
   createClaim(contractId: string, input: ContractClaimInput, context: AwardContractRequestContext) {
@@ -437,6 +531,10 @@ export class ModuleService {
     return this.repository.upsertManagementPlan(contractId, input, context);
   }
 
+  generateManagementPlanDraft(contractId: string, input: ContractManagementPlanDraftInput, context: AwardContractRequestContext) {
+    return this.repository.generateManagementPlanDraft(contractId, input, context);
+  }
+
   upsertCommencement(contractId: string, input: ContractCommencementInput, context: AwardContractRequestContext) {
     return this.repository.upsertCommencement(contractId, input, context);
   }
@@ -449,12 +547,48 @@ export class ModuleService {
     return this.repository.createContractSecurity(contractId, input, context);
   }
 
+  controlContractSecurity(contractId: string, securityId: string, action: 'review' | 'extend' | 'release' | 'claim' | 'waive', input: ContractSecurityActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlContractSecurity(contractId, securityId, action, input, context);
+  }
+
   createContractPenalty(contractId: string, input: ContractPenaltyInput, context: AwardContractRequestContext) {
     return this.repository.createContractPenalty(contractId, input, context);
   }
 
   createContractChangeRequest(contractId: string, input: ContractChangeRequestInput, context: AwardContractRequestContext) {
     return this.repository.createContractChangeRequest(contractId, input, context);
+  }
+
+  controlChangeRequest(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlChangeRequest(contractId, itemId, action, input, context);
+  }
+
+  controlVariation(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlVariation(contractId, itemId, action, input, context);
+  }
+
+  controlExtensionRequest(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlExtensionRequest(contractId, itemId, action, input, context);
+  }
+
+  controlClaim(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlClaim(contractId, itemId, action, input, context);
+  }
+
+  controlNonConformance(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlNonConformance(contractId, itemId, action, input, context);
+  }
+
+  controlRisk(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlRisk(contractId, itemId, action, input, context);
+  }
+
+  controlIssue(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlIssue(contractId, itemId, action, input, context);
+  }
+
+  controlDispute(contractId: string, itemId: string, action: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlDispute(contractId, itemId, action, input, context);
   }
 
   updateMobilizationItem(contractId: string, itemId: string, input: LifecycleItemPatchInput, context: AwardContractRequestContext) {
@@ -479,6 +613,26 @@ export class ModuleService {
 
   createPaymentApproval(contractId: string, input: PaymentApprovalInput, context: AwardContractRequestContext) {
     return this.repository.createPaymentApproval(contractId, input, context);
+  }
+
+  verifyInvoiceFinance(contractId: string, invoiceId: string, action: 'verify' | 'return' | 'reject', input: FinanceWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.verifyInvoiceFinance(contractId, invoiceId, action, input, context);
+  }
+
+  correctInvoiceFinance(contractId: string, invoiceId: string, input: FinanceWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.correctInvoiceFinance(contractId, invoiceId, input, context);
+  }
+
+  createPaymentRecommendation(contractId: string, input: FinanceWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.createPaymentRecommendation(contractId, input, context);
+  }
+
+  reviewPaymentApproval(contractId: string, approvalId: string, action: 'review' | 'approve' | 'reject', input: FinanceWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.reviewPaymentApproval(contractId, approvalId, action, input, context);
+  }
+
+  controlPayment(contractId: string, paymentId: string, action: 'initiate' | 'complete', input: FinanceWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlPayment(contractId, paymentId, action, input, context);
   }
 
   createPaymentConfirmation(contractId: string, input: PaymentConfirmationInput, context: AwardContractRequestContext) {
@@ -561,6 +715,10 @@ export class ModuleService {
     return this.repository.upsertCloseout(contractId, input, context);
   }
 
+  updateCloseoutStep(contractId: string, stepId: string, input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.updateCloseoutStep(contractId, stepId, input, context);
+  }
+
   upsertSupplierPerformance(contractId: string, input: SupplierPerformanceInput, context: AwardContractRequestContext) {
     return this.repository.upsertSupplierPerformance(contractId, input, context);
   }
@@ -603,6 +761,34 @@ export class ModuleService {
 
   upsertWarranty(contractId: string, input: WarrantyInput, context: AwardContractRequestContext) {
     return this.repository.upsertWarranty(contractId, input, context);
+  }
+
+  controlWarranty(contractId: string, warrantyId: string, action: 'respond' | 'verify' | 'close', input: ControlWorkflowActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlWarranty(contractId, warrantyId, action, input, context);
+  }
+
+  createContractNotice(contractId: string, input: ContractNoticeInput, context: AwardContractRequestContext) {
+    return this.repository.createContractNotice(contractId, input, context);
+  }
+
+  controlContractNotice(contractId: string, noticeId: string, action: 'acknowledge' | 'respond' | 'close', input: ContractNoticeActionInput, context: AwardContractRequestContext) {
+    return this.repository.controlContractNotice(contractId, noticeId, action, input, context);
+  }
+
+  createContractMeeting(contractId: string, input: ContractMeetingInput, context: AwardContractRequestContext) {
+    return this.repository.createContractMeeting(contractId, input, context);
+  }
+
+  createContractMeetingAction(contractId: string, meetingId: string, input: ContractMeetingActionInput, context: AwardContractRequestContext) {
+    return this.repository.createContractMeetingAction(contractId, meetingId, input, context);
+  }
+
+  controlContractMeetingAction(contractId: string, actionId: string, action: 'complete' | 'verify' | 'close', input: ContractMeetingActionPatchInput, context: AwardContractRequestContext) {
+    return this.repository.controlContractMeetingAction(contractId, actionId, action, input, context);
+  }
+
+  recalculateUrgentActions(contractId: string, context: AwardContractRequestContext) {
+    return this.repository.recalculateUrgentActions(contractId, context);
   }
 
   upsertRequiredDocument(contractId: string, input: RequiredDocumentInput, context: AwardContractRequestContext) {
