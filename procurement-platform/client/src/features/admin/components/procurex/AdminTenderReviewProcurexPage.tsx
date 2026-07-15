@@ -4,7 +4,7 @@ import { SupplierProcurementDetails } from '@/features/procurement/components/pr
 import { downloadTenderDocument, openTenderDocument } from '@/features/procurement/tenderDocumentActions';
 import { procurementApi } from '@/features/procurement/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import type { TenderDetailDocument, TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { AdminError, AdminHero, AdminPanel, AdminShell, badgeClass, displayLabel, formatDate } from './AdminShared';
@@ -207,7 +207,7 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
       setSignatureError('');
       navigate(`/admin/tender-review?reviewNotice=${encodeURIComponent(response.message)}`, { replace: true });
     } catch (caught) {
-      setSignatureError(apiErrorMessage(caught, 'Tender review could not be completed.'));
+      setSignatureError(isKeyphraseApiError(caught) ? apiErrorMessage(caught, 'Tender review could not be completed.') : '');
       setError(caught);
     } finally {
       setSaving(false);

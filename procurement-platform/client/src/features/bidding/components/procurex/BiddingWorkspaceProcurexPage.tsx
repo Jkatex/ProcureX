@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
@@ -407,7 +407,7 @@ export function BiddingWorkspaceProcurexPage() {
       showBidNotice('success', 'Notice', workflow === 'consultancy' ? 'Technical and financial envelopes sealed. Receipt generated.' : 'Bid package sealed. Receipt generated.');
     } catch (error) {
       const message = errorMessage(error, 'Bid could not be submitted.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       showBidNotice('error', 'Notice', message);
     } finally {
       setSaving(false);
@@ -432,7 +432,7 @@ export function BiddingWorkspaceProcurexPage() {
       setActiveStep(0);
     } catch (error) {
       const message = errorMessage(error, 'Bid could not be withdrawn.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       showBidNotice('error', 'Notice', message);
     } finally {
       setSaving(false);

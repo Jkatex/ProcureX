@@ -595,7 +595,7 @@ export class ModuleRepository {
   async publishTenderAmendment(
     tenderId: string,
     amendmentId: string,
-    context: { organizationId: string; userId: string; signatureKeyphrase?: string }
+    context: { organizationId: string; userId: string; signatureKeyphrase: string }
   ): Promise<TenderAmendmentResponseDto | null> {
     const published = await this.db.$transaction(async (tx) => {
       const amendment = await tx.tenderAmendment.findUnique({
@@ -979,7 +979,7 @@ export class ModuleRepository {
   async submitTenderForReview(
     tenderId: string,
     organizationId: string,
-    context: { userId: string; signatureKeyphrase?: string }
+    context: { userId: string; signatureKeyphrase: string }
   ): Promise<PublishTenderResponseDto | null> {
     const submittedAt = new Date();
     const updated = await this.db.$transaction(async (tx) => {
@@ -1159,7 +1159,7 @@ export class ModuleRepository {
 
   async passTenderReview(
     tenderId: string,
-    context: { adminOrgId: string; adminUserId: string; signatureKeyphrase?: string },
+    context: { adminOrgId: string; adminUserId: string; signatureKeyphrase: string },
     visibility: Visibility
   ): Promise<TenderReviewDecisionResponseDto | null> {
     const decidedAt = new Date();

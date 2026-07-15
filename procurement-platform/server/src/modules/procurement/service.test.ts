@@ -816,8 +816,18 @@ describe('procurement tender write service', () => {
     expect(() => updateTenderBodySchema.parse({ bidSummary: {} })).toThrow();
   });
 
-  it('validates publish payloads as empty objects only', () => {
-    expect(publishTenderBodySchema.parse({})).toEqual({});
+  it('validates signed publish payloads with a required keyphrase', () => {
+    expect(publishTenderBodySchema.parse({ signatureKeyphrase: 'Signing123' })).toEqual({ signatureKeyphrase: 'Signing123' });
+    const missingKeyphrase = publishTenderBodySchema.safeParse({});
+    expect(missingKeyphrase.success).toBe(false);
+    if (!missingKeyphrase.success) {
+      expect(missingKeyphrase.error.issues[0]?.message).toBe('Digital signature keyphrase is required.');
+    }
+    const shortKeyphrase = publishTenderBodySchema.safeParse({ signatureKeyphrase: '123' });
+    expect(shortKeyphrase.success).toBe(false);
+    if (!shortKeyphrase.success) {
+      expect(shortKeyphrase.error.issues[0]?.message).toBe('Digital signature keyphrase must contain at least 6 characters.');
+    }
     expect(() => publishTenderBodySchema.parse({ status: 'OPEN' })).toThrow();
     expect(() => publishTenderBodySchema.parse({ publishedAt: '2099-09-30T00:00:00.000Z' })).toThrow();
   });
@@ -1303,7 +1313,7 @@ describe('procurement tender write service', () => {
     };
     const service = new ModuleService(repository as any, identity as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).resolves.toMatchObject({
       ...submittedTender,
       validation: {
         warnings: [],
@@ -1333,7 +1343,28 @@ describe('procurement tender write service', () => {
         })
       })
     );
-    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1' });
+    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1', signatureKeyphrase: 'Signing123' });
+  });
+
+  it('rejects tender review submission without a valid signing keyphrase before repository signing', async () => {
+    const repository = {
+      getTenderForPublication: vi.fn(),
+      submitTenderForReview: vi.fn()
+    };
+    const service = new ModuleService(repository as any, {
+      requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: '' })).rejects.toMatchObject({
+      status: 400,
+      message: 'Digital signature keyphrase is required.'
+    });
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: '123' })).rejects.toMatchObject({
+      status: 400,
+      message: 'Digital signature keyphrase must contain at least 6 characters.'
+    });
+    expect(repository.getTenderForPublication).not.toHaveBeenCalled();
+    expect(repository.submitTenderForReview).not.toHaveBeenCalled();
   });
 
   it('allows medium-risk tender language during review submission and returns scan warnings', async () => {
@@ -1374,7 +1405,7 @@ describe('procurement tender write service', () => {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
     } as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).resolves.toMatchObject({
       validation: {
         warnings: [expect.stringContaining('local-only-restriction')],
         scannerIssues: [expect.objectContaining({ type: 'local-only-restriction' })],
@@ -1392,7 +1423,7 @@ describe('procurement tender write service', () => {
         categoryStandardization: expect.objectContaining({ standardCategories: ['ICT Equipment'] })
       })
     );
-    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1' });
+    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1', signatureKeyphrase: 'Signing123' });
   });
 
   it('submits invited tenders for review while keeping them private', async () => {
@@ -1433,11 +1464,11 @@ describe('procurement tender write service', () => {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
     } as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).resolves.toMatchObject({
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).resolves.toMatchObject({
       data: { status: 'Under Review', visibility: Visibility.PRIVATE },
       validation: { standardizedCategories: ['ICT Equipment'] }
     });
-    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1' });
+    expect(repository.submitTenderForReview).toHaveBeenCalledWith('tender-1', 'org-1', { userId: 'user-1', signatureKeyphrase: 'Signing123' });
   });
 
   it('blocks high-risk tender language during publish after persisting the scan', async () => {
@@ -1465,7 +1496,7 @@ describe('procurement tender write service', () => {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
     } as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).rejects.toMatchObject({
       status: 409,
       message: 'Tender cannot be published',
       code: 'PUBLISH_VALIDATION_FAILED',
@@ -1503,7 +1534,7 @@ describe('procurement tender write service', () => {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
     } as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({ status: 403 });
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).rejects.toMatchObject({ status: 403 });
     expect(repository.publishTender).not.toHaveBeenCalled();
   });
 
@@ -1526,7 +1557,7 @@ describe('procurement tender write service', () => {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
     } as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).rejects.toMatchObject({
       status: 400,
       message: 'Tender cannot be published',
       code: 'PUBLISH_VALIDATION_FAILED',
@@ -1565,7 +1596,7 @@ describe('procurement tender write service', () => {
       requirePermission: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
     } as any);
 
-    await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({
+    await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).rejects.toMatchObject({
       status: 400,
       code: 'PUBLISH_VALIDATION_FAILED',
       errors: [expect.objectContaining({ step: 'evaluation-criteria', field: 'metadata.evaluationCriteria' })]
@@ -1614,8 +1645,96 @@ describe('procurement tender write service', () => {
         identity as any
       );
 
-      await expect(service.publishTender('tender-1', 'token-1')).rejects.toMatchObject({ status: expect.any(Number) });
+      await expect(service.publishTender('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).rejects.toMatchObject({ status: expect.any(Number) });
     }
+  });
+
+  it('passes the signing keyphrase through admin tender review approval', async () => {
+    const reviewResult = {
+      success: true,
+      message: 'Tender review passed',
+      data: {
+        id: 'tender-1',
+        status: 'Open',
+        visibility: Visibility.PUBLIC_MARKETPLACE
+      }
+    };
+    const repository = {
+      getTenderForPublication: vi.fn().mockResolvedValue({
+        id: 'tender-1',
+        buyerOrgId: 'org-1',
+        title: 'Supply of laboratory equipment',
+        type: TenderType.GOODS,
+        method: ProcurementMethod.OPEN_TENDER,
+        description: 'Supply and delivery of diagnostic laboratory equipment.',
+        budget: 250000000,
+        status: TenderStatus.REVIEW,
+        location: 'Dar es Salaam',
+        closingDate: new Date('2099-08-30T00:00:00.000Z'),
+        requirements: completeGoodsRequirements,
+        metadata: {},
+        categories: [{ name: 'laptops' }]
+      }),
+      applyTenderCategoryStandardization: vi.fn().mockResolvedValue(undefined),
+      recordTenderLanguageScan: vi.fn().mockResolvedValue(undefined),
+      resolvePlatformOrganizationId: vi.fn().mockResolvedValue('platform-org-1'),
+      passTenderReview: vi.fn().mockResolvedValue(reviewResult)
+    };
+    const service = new ModuleService(repository as any, {
+      requireAdmin: vi.fn().mockResolvedValue({ user: { id: 'admin-user-1', organizationId: 'admin-org-1' } })
+    } as any);
+
+    await expect(service.passTenderReview('tender-1', 'token-1', { signatureKeyphrase: 'Signing123' })).resolves.toBe(reviewResult);
+    expect(repository.passTenderReview).toHaveBeenCalledWith(
+      'tender-1',
+      { adminOrgId: 'platform-org-1', adminUserId: 'admin-user-1', signatureKeyphrase: 'Signing123' },
+      Visibility.PUBLIC_MARKETPLACE
+    );
+  });
+
+  it('requires a signing keyphrase before admin tender review approval repository calls', async () => {
+    const repository = {
+      getTenderForPublication: vi.fn(),
+      passTenderReview: vi.fn()
+    };
+    const service = new ModuleService(repository as any, {
+      requireAdmin: vi.fn().mockResolvedValue({ user: { id: 'admin-user-1', organizationId: 'admin-org-1' } })
+    } as any);
+
+    await expect(service.passTenderReview('tender-1', 'token-1', { signatureKeyphrase: '' })).rejects.toMatchObject({
+      status: 400,
+      message: 'Digital signature keyphrase is required.'
+    });
+    expect(repository.getTenderForPublication).not.toHaveBeenCalled();
+    expect(repository.passTenderReview).not.toHaveBeenCalled();
+  });
+
+  it('requires and passes the signing keyphrase when publishing tender amendments', async () => {
+    const amendmentResult = {
+      success: true,
+      message: 'Tender amendment published',
+      data: { id: 'amendment-1', tenderId: 'tender-1', status: 'PUBLISHED' }
+    };
+    const repository = {
+      publishTenderAmendment: vi.fn().mockResolvedValue(amendmentResult)
+    };
+    const service = new ModuleService(repository as any, {
+      requireSession: vi.fn().mockResolvedValue({ user: { id: 'user-1', organizationId: 'org-1' } })
+    } as any);
+
+    await expect(service.publishTenderAmendment('tender-1', 'amendment-1', 'token-1', { signatureKeyphrase: 'Signing123' })).resolves.toBe(amendmentResult);
+    expect(repository.publishTenderAmendment).toHaveBeenCalledWith('tender-1', 'amendment-1', {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      signatureKeyphrase: 'Signing123'
+    });
+
+    repository.publishTenderAmendment.mockClear();
+    await expect(service.publishTenderAmendment('tender-1', 'amendment-1', 'token-1', { signatureKeyphrase: '' })).rejects.toMatchObject({
+      status: 400,
+      message: 'Digital signature keyphrase is required.'
+    });
+    expect(repository.publishTenderAmendment).not.toHaveBeenCalled();
   });
 
   it('closes open tenders for the authenticated owner organization', async () => {

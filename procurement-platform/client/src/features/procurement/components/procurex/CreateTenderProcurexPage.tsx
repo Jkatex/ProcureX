@@ -5,7 +5,7 @@ import { signOut } from '@/features/auth/slice';
 import { useNotifications } from '@/features/notifications/hooks';
 import { communicationApi } from '@/features/communication/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
@@ -837,7 +837,7 @@ export function CreateTenderProcurexPage() {
     }
   }
 
-  async function submitTender(signatureKeyphrase?: string) {
+  function requestSubmitTenderSignature() {
     const blocker = getTenderReviewSubmissionBlocker(draft, criteriaTotal, confirmationsComplete);
     if (blocker) {
       setValidationMessage(blocker.message);
@@ -850,8 +850,14 @@ export function CreateTenderProcurexPage() {
       return;
     }
     if (isPersisting) return;
-    if (!signatureKeyphrase) {
-      setSignatureError('');
+    setSignatureError('');
+    setShowSubmitSignature(true);
+  }
+
+  async function submitTenderWithSignature(signatureKeyphrase: string) {
+    if (isPersisting) return;
+    if (!signatureKeyphrase.trim()) {
+      setSignatureError('Digital signature keyphrase is required before submission.');
       setShowSubmitSignature(true);
       return;
     }
@@ -881,7 +887,7 @@ export function CreateTenderProcurexPage() {
       navigate('/procurement/my-tenders');
     } catch (error) {
       const message = getPublishTenderErrorMessage(error, 'Tender could not be submitted for review.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       setValidationMessage(message);
       notifyError('Tender not submitted', message, {
         reason: 'ProcureX could not send this tender to admin review.'
@@ -925,7 +931,7 @@ export function CreateTenderProcurexPage() {
             setShowSubmitSignature(false);
             setSignatureError('');
           }}
-          onConfirm={(signatureKeyphrase) => void submitTender(signatureKeyphrase)}
+          onConfirm={(signatureKeyphrase) => void submitTenderWithSignature(signatureKeyphrase)}
         />
         <section className="journey-hero compact">
           <div>
@@ -1064,7 +1070,7 @@ export function CreateTenderProcurexPage() {
                     isPersisting={isPersisting}
                     isGeneratingPdf={isGeneratingPdf}
                     onDownloadPdf={downloadTenderPdf}
-                    onSubmitTender={submitTender}
+                    onRequestSubmitSignature={requestSubmitTenderSignature}
                   />
                 ) : null}
               </div>
@@ -5124,7 +5130,7 @@ function PublicationStep({
   isPersisting,
   isGeneratingPdf,
   onDownloadPdf,
-  onSubmitTender
+  onRequestSubmitSignature
 }: {
   draft: CreateTenderDraft;
   onPatch: (patch: Partial<CreateTenderDraft>) => void;
@@ -5132,7 +5138,7 @@ function PublicationStep({
   isPersisting: boolean;
   isGeneratingPdf: boolean;
   onDownloadPdf: () => void | Promise<void>;
-  onSubmitTender: () => void | Promise<void>;
+  onRequestSubmitSignature: () => void;
 }) {
   const setConfirmationGroup = (patch: Partial<Record<CreateTenderConfirmationId, boolean>>) => {
     onPatch({ confirmations: { ...draft.confirmations, ...patch } });
@@ -5186,13 +5192,13 @@ function PublicationStep({
           <div className="submit-strip buyer-review-submit system-evaluation-publish">
             <div>
               <strong>Actions</strong>
-              <span data-system-publish-note>Submit the tender for admin review. The creation wizard will close after submission.</span>
+              <span data-system-publish-note>Submit the tender for admin review. Digital signature keyphrase required before submission.</span>
             </div>
             <div className="system-evaluation-action-buttons">
               <button className="btn btn-secondary" type="button" onClick={onDownloadPdf} disabled={isGeneratingPdf || isPersisting}>
                 {isGeneratingPdf ? 'Generating PDF...' : 'Download Tender PDF'}
               </button>
-              <button className="btn btn-primary" type="button" onClick={() => void onSubmitTender()} disabled={!confirmationsComplete || isPersisting}>
+              <button className="btn btn-primary" type="button" onClick={onRequestSubmitSignature} disabled={!confirmationsComplete || isPersisting}>
                 {isPersisting ? 'Submitting...' : 'Submit Tender for Review'}
               </button>
             </div>

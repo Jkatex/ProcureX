@@ -80,6 +80,16 @@ function requestError(message: string, status = 400) {
   return error;
 }
 
+type SignatureKeyphraseInput = { signatureKeyphrase: string };
+
+function requireSignatureKeyphraseInput(input: { signatureKeyphrase?: string } | undefined) {
+  const signatureKeyphrase = input?.signatureKeyphrase;
+  if (!signatureKeyphrase?.trim()) throw requestError('Digital signature keyphrase is required.', 400);
+  if (signatureKeyphrase.length < 6) throw requestError('Digital signature keyphrase must contain at least 6 characters.', 400);
+  if (signatureKeyphrase.length > 128) throw requestError('Digital signature keyphrase must be 128 characters or fewer.', 400);
+  return signatureKeyphrase;
+}
+
 function marketplaceUnavailableError() {
   const error = requestError(MARKETPLACE_UNAVAILABLE_MESSAGE, 503) as Error & { code?: string };
   error.code = MARKETPLACE_UNAVAILABLE_CODE;
@@ -232,14 +242,15 @@ export class ModuleService {
     tenderId: string,
     amendmentId: string,
     token: string | undefined,
-    input: { signatureKeyphrase?: string }
+    input: SignatureKeyphraseInput
   ): Promise<TenderAmendmentResponseDto | null> {
     const session = await this.identity.requireSession(token);
     const organizationId = requireOrganization(session.user.organizationId);
+    const signatureKeyphrase = requireSignatureKeyphraseInput(input);
     return this.repository.publishTenderAmendment(tenderId, amendmentId, {
       organizationId,
       userId: session.user.id,
-      signatureKeyphrase: input.signatureKeyphrase
+      signatureKeyphrase
     });
   }
 
@@ -249,9 +260,10 @@ export class ModuleService {
     return this.repository.cancelTenderAmendment(tenderId, amendmentId, { organizationId, userId: session.user.id });
   }
 
-  async openEvaluation(tenderId: string, token: string | undefined, input: { signatureKeyphrase?: string } = {}): Promise<OpenEvaluationResponseDto> {
+  async openEvaluation(tenderId: string, token: string | undefined, input: SignatureKeyphraseInput): Promise<OpenEvaluationResponseDto> {
     const session = await this.identity.requirePermission(token, 'evaluation.manage');
     const organizationId = requireOrganization(session.user.organizationId);
+    const signatureKeyphrase = requireSignatureKeyphraseInput(input);
     const tender = await this.repository.getTenderForEvaluationOpen(tenderId);
     if (!tender) throw requestError('Tender was not found.', 404);
     if (tender.buyerOrgId !== organizationId) throw requestError('Only the owner organization can open evaluation for this tender.', 403);
@@ -259,11 +271,10 @@ export class ModuleService {
     if (!workspace.availability.isReady) {
       throw requestError(workspace.availability.reason ?? 'Tender is not ready for evaluation.', 409);
     }
-    if (!input.signatureKeyphrase) throw requestError('Digital signature keyphrase is required to open evaluation.', 400);
     await signSensitiveAction(prisma, {
       userId: session.user.id,
       organizationId,
-      signatureKeyphrase: input.signatureKeyphrase,
+      signatureKeyphrase,
       moduleKey: 'evaluation',
       actionKey: 'bid_opening.open',
       entityType: 'tender',
@@ -357,9 +368,10 @@ export class ModuleService {
     return this.repository.updateTenderBuyerNotice(tenderId, input, { organizationId, userId: session.user.id });
   }
 
-  async publishTender(tenderId: string, token: string | undefined, input: { signatureKeyphrase?: string } = {}): Promise<PublishTenderResponseDto> {
+  async publishTender(tenderId: string, token: string | undefined, input: SignatureKeyphraseInput): Promise<PublishTenderResponseDto> {
     const session = await this.identity.requirePermission(token, 'procurement.publish');
     const organizationId = requireOrganization(session.user.organizationId);
+    const signatureKeyphrase = requireSignatureKeyphraseInput(input);
     const tender = await this.repository.getTenderForPublication(tenderId);
     if (!tender) throw requestError('Tender was not found.', 404);
 
@@ -412,7 +424,7 @@ export class ModuleService {
 
     const published = await this.repository.submitTenderForReview(tenderId, organizationId, {
       userId: session.user.id,
-      signatureKeyphrase: input.signatureKeyphrase
+      signatureKeyphrase
     });
     if (!published) throw requestError('Tender was not found.', 404);
     return {
@@ -436,8 +448,9 @@ export class ModuleService {
     return this.repository.getTenderReview(tenderId);
   }
 
-  async passTenderReview(tenderId: string, token: string | undefined, input: { signatureKeyphrase?: string } = {}): Promise<TenderReviewDecisionResponseDto> {
+  async passTenderReview(tenderId: string, token: string | undefined, input: SignatureKeyphraseInput): Promise<TenderReviewDecisionResponseDto> {
     const session = await this.identity.requireAdmin(token);
+    const signatureKeyphrase = requireSignatureKeyphraseInput(input);
     const tender = await this.repository.getTenderForPublication(tenderId);
     if (!tender) throw requestError('Tender was not found.', 404);
     if (tender.status !== TenderStatus.REVIEW) {
@@ -494,7 +507,7 @@ export class ModuleService {
     const adminOrgId = await this.repository.resolvePlatformOrganizationId(session.user.organizationId);
     const result = await this.repository.passTenderReview(
       tenderId,
-      { adminOrgId, adminUserId: session.user.id, signatureKeyphrase: input.signatureKeyphrase },
+      { adminOrgId, adminUserId: session.user.id, signatureKeyphrase },
       visibility
     );
     if (!result) throw requestError('Tender review item was not found.', 404);

@@ -1741,6 +1741,8 @@ describe('CreateTenderProcurexPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
     expect(await screen.findByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
     await user.click(screen.getByRole('button', { name: 'Submit tender' }));
 
@@ -1778,6 +1780,39 @@ describe('CreateTenderProcurexPage', () => {
     expect(await screen.findByText('Tender requirements are required before publishing.')).toBeInTheDocument();
     expect(screen.queryByText('Tender could not be submitted for review.')).not.toBeInTheDocument();
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
+  }, 15000);
+
+  it('keeps the submit signature prompt open with friendly feedback when the keyphrase is wrong', async () => {
+    procurementApiMock.publishTender.mockRejectedValueOnce({
+      response: {
+        status: 403,
+        data: {
+          message: 'Invalid keyphrase.'
+        }
+      }
+    });
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Wrong Keyphrase Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await completeMinimumGoodsRequirements(user);
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    expect(await screen.findByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Wrong123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
+
+    expect(await screen.findAllByText('Wrong or mismatched keyphrase. Check the keyphrase and try again.')).not.toHaveLength(0);
+    expect(screen.getByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Wrong or mismatched keyphrase. Check the keyphrase and try again.')).toBe(true);
   }, 15000);
 
   it('formats backend draft validation errors before showing submission feedback', async () => {

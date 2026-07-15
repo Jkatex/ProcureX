@@ -73,7 +73,7 @@ export const procurementApi = {
     const response = await apiClient.patch<UpdateBuyerNoticeResponse>(`/api/procurement/tenders/${tenderId}/buyer-notice`, { buyerNotice });
     return response.data;
   },
-  async publishTender(tenderId: string, input: { signatureKeyphrase?: string } = {}): Promise<PublishTenderResponse> {
+  async publishTender(tenderId: string, input: { signatureKeyphrase: string }): Promise<PublishTenderResponse> {
     const response = await apiClient.post<PublishTenderResponse>(`/api/procurement/tenders/${tenderId}/publish`, input);
     return response.data;
   },
@@ -87,7 +87,7 @@ export const procurementApi = {
     const response = await apiClient.get<TenderReviewDetail>(`/api/procurement/admin/tender-review/${tenderId}`);
     return response.data;
   },
-  async passTenderReview(tenderId: string, input: { signatureKeyphrase?: string } = {}): Promise<TenderReviewDecisionResponse> {
+  async passTenderReview(tenderId: string, input: { signatureKeyphrase: string }): Promise<TenderReviewDecisionResponse> {
     const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/pass`, input);
     return response.data;
   },
