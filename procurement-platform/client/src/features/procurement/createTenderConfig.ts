@@ -839,7 +839,7 @@ export function createEmptyTenderDraft(now = new Date()): CreateTenderDraft {
     customFundingSource: '',
     currency: 'TZS',
     estimatedBudget: '',
-    contact: { name: '', role: '', department: '', email: '', phone: '', verifiedEmail: false, verifiedPhone: false },
+    contact: { name: '', role: '', department: '', email: '', phone: '', verifiedEmail: false, verifiedPhone: false, verifiedEmailTarget: '', verifiedPhoneTarget: '' },
     submissionDate: '',
     openingDate: '',
     clarificationDeadline: '',

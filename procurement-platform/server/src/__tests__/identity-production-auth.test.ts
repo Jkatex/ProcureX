@@ -456,6 +456,7 @@ class FakeIdentityRepository {
 class FakeIdentityNotifications {
   phoneOtps: Array<{ to: string; code: string }> = [];
   activations: Array<{ to: string; code: string; actionUrl?: string }> = [];
+  tenderContactVerifications: Array<{ to: string; code: string; actionUrl?: string }> = [];
   resets: Array<{ to: string; code: string; actionUrl?: string }> = [];
   keyphraseRecoveries: Array<{ to: string; code: string; actionUrl?: string }> = [];
   keyphraseRecoveryCompletions: Array<{ to: string }> = [];
@@ -477,6 +478,12 @@ class FakeIdentityNotifications {
     this.maybeFail();
     this.activations.push(input);
     return Promise.resolve({ provider: 'fake-email', messageId: `activation-${this.activations.length}` });
+  }
+
+  sendTenderContactVerification(input: { to: string; code: string; actionUrl?: string }) {
+    this.maybeFail();
+    this.tenderContactVerifications.push(input);
+    return Promise.resolve({ provider: 'fake-email', messageId: `tender-contact-${this.tenderContactVerifications.length}` });
   }
 
   sendPasswordReset(input: { to: string; code: string; actionUrl?: string }) {

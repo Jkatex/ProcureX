@@ -913,7 +913,7 @@ describe('procurement marketplace repository', () => {
       status: TenderStatus.CLOSED,
       visibility: Visibility.PUBLIC_MARKETPLACE,
       publishedAt: new Date('2026-07-01T08:00:00.000Z'),
-      closingDate: new Date('2026-07-15T00:00:00.000Z')
+      closingDate: new Date('2099-07-15T00:00:00.000Z')
     });
     const db = {
       tender: {

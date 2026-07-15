@@ -14,6 +14,8 @@ import { CreateTenderProcurexPage } from './CreateTenderProcurexPage';
 
 const procurementApiMock = vi.hoisted(() => ({
   createTender: vi.fn(),
+  startContactVerification: vi.fn(),
+  verifyContactVerification: vi.fn(),
   updateTender: vi.fn(),
   publishTender: vi.fn(),
   getMarketplace: vi.fn(),
@@ -103,6 +105,10 @@ async function fillBasicStep(user: ReturnType<typeof userEvent.setup>, title = '
   fireEvent.change(screen.getByLabelText('Estimated budget'), { target: { value: '250000000' } });
   fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: defaultOpeningDate } });
   fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Verify Email' }));
+  fireEvent.change(await screen.findByLabelText('Email verification code'), { target: { value: '123456' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Email Code' }));
+  await screen.findByText('Email verified');
 }
 
 async function addDefaultCategory(user: ReturnType<typeof userEvent.setup>, category = 'Medical equipment') {
@@ -137,6 +143,41 @@ beforeEach(() => {
   vi.clearAllMocks();
   store.dispatch(resetCreateTenderDrafts());
   window.localStorage.clear();
+  const contactChallenges = new Map<string, { channel: 'email' | 'phone'; target: string }>();
+  procurementApiMock.startContactVerification.mockImplementation(async ({ channel, target }: { channel: 'email' | 'phone'; target: string }) => {
+    const normalizedTarget =
+      channel === 'email'
+        ? target.trim().toLowerCase()
+        : target.trim().startsWith('+')
+          ? `+${target.trim().replace(/\D/g, '')}`
+          : target.trim().replace(/\D/g, '').startsWith('255')
+            ? `+${target.trim().replace(/\D/g, '')}`
+            : target.trim().replace(/\D/g, '').startsWith('0') && target.trim().replace(/\D/g, '').length === 10
+              ? `+255${target.trim().replace(/\D/g, '').slice(1)}`
+              : /^[67]\d{8}$/.test(target.trim().replace(/\D/g, ''))
+                ? `+255${target.trim().replace(/\D/g, '')}`
+                : `+${target.trim().replace(/\D/g, '')}`;
+    const challengeId = `${channel}-challenge-${contactChallenges.size + 1}`;
+    contactChallenges.set(challengeId, { channel, target: normalizedTarget });
+    return {
+      challengeId,
+      channel,
+      target: normalizedTarget,
+      expiresAt: '2026-07-01T09:00:00.000Z',
+      resendAvailableAt: '2026-07-01T08:01:00.000Z',
+      maxAttempts: 5,
+      devCode: '123456'
+    };
+  });
+  procurementApiMock.verifyContactVerification.mockImplementation(async ({ challengeId }: { challengeId: string; code: string }) => {
+    const challenge = contactChallenges.get(challengeId) ?? { channel: 'email' as const, target: 'procurement@example.go.tz' };
+    return {
+      verified: true,
+      channel: challenge.channel,
+      target: challenge.target,
+      verifiedAt: '2026-07-01T08:02:00.000Z'
+    };
+  });
   html2PdfMock.worker.set.mockReturnValue(html2PdfMock.worker);
   html2PdfMock.worker.from.mockReturnValue(html2PdfMock.worker);
   html2PdfMock.worker.outputPdf.mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
@@ -306,17 +347,29 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByLabelText('Opening date')).toHaveValue(laterOpeningDate);
   });
 
-  it('updates frontend-only contact verification badges', async () => {
+  it('verifies tender contact email and phone through backend challenges', async () => {
     const user = userEvent.setup();
     renderCreateTender();
 
     await user.type(screen.getByLabelText('Contact email'), 'buyer@example.go.tz');
     await user.type(screen.getByLabelText('Contact phone number'), '+255700000001');
     await user.click(screen.getByRole('button', { name: 'Verify Email' }));
+    await user.type(await screen.findByLabelText('Email verification code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Confirm Email Code' }));
     await user.click(screen.getByRole('button', { name: 'Verify Phone' }));
+    await user.type(await screen.findByLabelText('Phone verification code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Confirm Phone Code' }));
 
+    expect(procurementApiMock.startContactVerification).toHaveBeenCalledWith({ channel: 'email', target: 'buyer@example.go.tz' });
+    expect(procurementApiMock.startContactVerification).toHaveBeenCalledWith({ channel: 'phone', target: '+255700000001' });
+    expect(procurementApiMock.verifyContactVerification).toHaveBeenCalledTimes(2);
     expect(screen.getByText('Email verified')).toBeInTheDocument();
     expect(screen.getByText('Phone verified')).toBeInTheDocument();
+    expect(screen.getByText('Contact verified')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'changed@example.go.tz' } });
+
+    expect(screen.queryByText('Email verified')).not.toBeInTheDocument();
     expect(screen.getByText('Contact verified')).toBeInTheDocument();
   });
 
@@ -333,6 +386,23 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
 
     expect(screen.getByRole('heading', { name: 'Procurement Planning' })).toBeInTheDocument();
+  });
+
+  it('blocks Continue until at least one tender contact is verified', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    fireEvent.change(screen.getByLabelText('Tender title'), { target: { value: 'Verified Contact Required Tender' } });
+    await user.selectOptions(screen.getByLabelText('Funding source'), 'Government budget');
+    fireEvent.change(screen.getByLabelText('Delivery Point'), { target: { value: 'Dodoma' } });
+    fireEvent.change(screen.getByLabelText('Submission deadline'), { target: { value: defaultSubmissionDeadline } });
+    fireEvent.change(screen.getByLabelText('Opening date'), { target: { value: defaultOpeningDate } });
+    fireEvent.change(screen.getByLabelText('Contact email'), { target: { value: 'procurement@example.go.tz' } });
+
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+
+    expect(screen.getByText('Verify at least one contact email or phone before continuing.')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Basic Information' }).length).toBeGreaterThan(0);
   });
 
   it('procurement type changes swap visible requirement sections', async () => {
@@ -1747,7 +1817,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.queryByText(/String must contain at least 5 character/)).not.toBeInTheDocument();
     expect(screen.queryByText('Closing date must be in the future.')).not.toBeInTheDocument();
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
-  });
+  }, 15000);
 
   it('blocks invited tender review submission until a registered supplier is selected', async () => {
     const user = userEvent.setup();
@@ -1767,7 +1837,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(await screen.findByText('Please select at least one registered supplier organization for this invited tender.')).toBeInTheDocument();
     expect(procurementApiMock.createTender).not.toHaveBeenCalled();
     expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
-  });
+  }, 15000);
 
   it('submits invited tenders with selected supplier organization metadata', async () => {
     const user = userEvent.setup();

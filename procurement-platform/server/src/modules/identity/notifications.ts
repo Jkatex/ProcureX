@@ -63,6 +63,7 @@ export type BeemWhatsAppSessionInput = DeliveryInput & {
 export type IdentityNotificationProvider = {
   sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt>;
   sendEmailActivation(input: EmailCodeInput): Promise<DeliveryReceipt>;
+  sendTenderContactVerification(input: EmailCodeInput): Promise<DeliveryReceipt>;
   sendPasswordReset(input: EmailCodeInput): Promise<DeliveryReceipt>;
   sendKeyphraseRecovery(input: EmailCodeInput): Promise<DeliveryReceipt>;
   sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput): Promise<DeliveryReceipt>;
@@ -172,6 +173,14 @@ function activationEmailContent(input: EmailCodeInput) {
   };
 }
 
+function tenderContactVerificationEmailContent(input: EmailCodeInput) {
+  return {
+    subject: 'Verify your ProcureX tender contact email',
+    text: `Your ProcureX tender contact verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`,
+    html: `<p>Your ProcureX tender contact verification code is <strong>${input.code}</strong>.</p><p>It expires in ${input.expiresInMinutes} minutes.</p>`
+  };
+}
+
 function passwordResetEmailContent(input: EmailCodeInput) {
   const actionText = input.actionUrl ? `\n\nOpen this link to reset your password: ${input.actionUrl}` : '';
   const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Reset your password</a></p>` : '';
@@ -268,6 +277,15 @@ export class ResendEmailProvider {
     });
   }
 
+  sendTenderContactVerification(input: EmailCodeInput) {
+    return this.send({
+      to: input.to,
+      ...tenderContactVerificationEmailContent(input),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'procurement_tender_contact_verification', ...(input.metadata ?? {}) }
+    });
+  }
+
   sendPasswordReset(input: EmailCodeInput) {
     return this.send({
       to: input.to,
@@ -352,6 +370,15 @@ export class SmtpEmailProvider {
       ...activationEmailContent(input),
       idempotencyKey: input.idempotencyKey,
       metadata: { category: 'identity_activation', ...(input.metadata ?? {}) }
+    });
+  }
+
+  sendTenderContactVerification(input: EmailCodeInput) {
+    return this.send({
+      to: input.to,
+      ...tenderContactVerificationEmailContent(input),
+      idempotencyKey: input.idempotencyKey,
+      metadata: { category: 'procurement_tender_contact_verification', ...(input.metadata ?? {}) }
     });
   }
 
@@ -689,6 +716,11 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
     return this.email.sendActivation(input);
   }
 
+  sendTenderContactVerification(input: EmailCodeInput) {
+    this.email ??= new ResendEmailProvider(this.config);
+    return this.email.sendTenderContactVerification(input);
+  }
+
   sendPasswordReset(input: EmailCodeInput) {
     this.email ??= new ResendEmailProvider(this.config);
     return this.email.sendPasswordReset(input);
@@ -750,6 +782,16 @@ export class RoutedIdentityNotifications implements IdentityNotificationProvider
     return this.production.sendEmailActivation(input);
   }
 
+  sendTenderContactVerification(input: EmailCodeInput) {
+    if (this.emailProvider === 'dev-console') return this.devConsole!.sendTenderContactVerification(input);
+    if (this.emailProvider === 'smtp') {
+      this.smtpEmail ??= new SmtpEmailProvider(this.config);
+      return this.smtpEmail.sendTenderContactVerification(input);
+    }
+    if (this.emailProvider !== 'resend') throw deliveryConfigError(`Unsupported identity email provider: ${this.emailProvider}.`);
+    return this.production.sendTenderContactVerification(input);
+  }
+
   sendPasswordReset(input: EmailCodeInput) {
     if (this.emailProvider === 'dev-console') return this.devConsole!.sendPasswordReset(input);
     if (this.emailProvider === 'smtp') {
@@ -803,6 +845,11 @@ export class DevConsoleIdentityNotifications implements IdentityNotificationProv
 
   async sendEmailActivation(input: EmailCodeInput): Promise<DeliveryReceipt> {
     console.info(`[identity:dev-console] email activation for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)${input.actionUrl ? ` ${input.actionUrl}` : ''}`);
+    return { provider: 'dev-console' };
+  }
+
+  async sendTenderContactVerification(input: EmailCodeInput): Promise<DeliveryReceipt> {
+    console.info(`[identity:dev-console] tender contact email verification for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)`);
     return { provider: 'dev-console' };
   }
 

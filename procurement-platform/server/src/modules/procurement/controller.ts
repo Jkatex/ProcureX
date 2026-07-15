@@ -3,6 +3,8 @@ import type { ZodError } from 'zod';
 import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService, PUBLISH_VALIDATION_FAILED_CODE } from './service.js';
 import {
   buyerNoticeBodySchema,
+  contactVerificationStartBodySchema,
+  contactVerificationVerifyBodySchema,
   createTenderBodySchema,
   designFormSchemaParamsSchema,
   designFormSchemasQuerySchema,
@@ -222,6 +224,26 @@ export class ModuleController {
       const body = failTenderReviewBodySchema.safeParse(req.body ?? {});
       if (!body.success) return validationResponse(res, body.error);
       res.json(await this.service.failTenderReview(params.data.tenderId, bearerToken(req), body.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  startContactVerification: RequestHandler = async (req, res, next) => {
+    try {
+      const body = contactVerificationStartBodySchema.safeParse(req.body);
+      if (!body.success) return validationResponse(res, body.error);
+      res.status(201).json(await this.service.startContactVerification(bearerToken(req), body.data));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyContactVerification: RequestHandler = async (req, res, next) => {
+    try {
+      const body = contactVerificationVerifyBodySchema.safeParse(req.body);
+      if (!body.success) return validationResponse(res, body.error);
+      res.json(await this.service.verifyContactVerification(bearerToken(req), body.data));
     } catch (error) {
       next(error);
     }

@@ -21,6 +21,41 @@ describe('procurementApi runtime data access', () => {
     await expect(procurementApi.getMarketplace()).rejects.toThrow('offline');
   });
 
+  it('starts and verifies tender contact verification challenges', async () => {
+    const post = vi.spyOn(apiClient, 'post');
+    post.mockResolvedValueOnce({
+      data: {
+        challengeId: 'email-challenge',
+        channel: 'email',
+        target: 'buyer@example.go.tz',
+        expiresAt: '2026-07-01T09:00:00.000Z',
+        resendAvailableAt: '2026-07-01T08:01:00.000Z',
+        maxAttempts: 5,
+        devCode: '123456'
+      }
+    });
+    post.mockResolvedValueOnce({
+      data: {
+        verified: true,
+        channel: 'email',
+        target: 'buyer@example.go.tz',
+        verifiedAt: '2026-07-01T08:02:00.000Z'
+      }
+    });
+
+    await expect(procurementApi.startContactVerification({ channel: 'email', target: 'buyer@example.go.tz' })).resolves.toMatchObject({
+      challengeId: 'email-challenge',
+      devCode: '123456'
+    });
+    await expect(procurementApi.verifyContactVerification({ challengeId: 'email-challenge', code: '123456' })).resolves.toMatchObject({
+      verified: true,
+      target: 'buyer@example.go.tz'
+    });
+
+    expect(post).toHaveBeenNthCalledWith(1, '/api/procurement/contact-verifications', { channel: 'email', target: 'buyer@example.go.tz' });
+    expect(post).toHaveBeenNthCalledWith(2, '/api/procurement/contact-verifications/verify', { challengeId: 'email-challenge', code: '123456' });
+  });
+
   it('normalizes backend marketplace rows with singular category for the React UI', async () => {
     vi.spyOn(apiClient, 'get').mockResolvedValueOnce({
       data: {

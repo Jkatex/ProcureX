@@ -18,6 +18,10 @@ import {
   type CloseTenderResponseDto,
   type CategoryStandardizationResultDto,
   type CategoryStandardizationResponseDto,
+  type ContactVerificationStartInput,
+  type ContactVerificationStartResponseDto,
+  type ContactVerificationVerifyInput,
+  type ContactVerificationVerifyResponseDto,
   type CreateTenderInput,
   type CreateTenderResponseDto,
   type DeleteTenderDraftResponseDto,
@@ -294,6 +298,14 @@ export class ModuleService {
       { organizationId, userId: session.user.id }
     );
     return { ...tender, message: 'Tender draft saved successfully', validation: responseValidation(validation) };
+  }
+
+  async startContactVerification(token: string | undefined, input: ContactVerificationStartInput): Promise<ContactVerificationStartResponseDto> {
+    return this.identity.startTenderContactVerification(token, input);
+  }
+
+  async verifyContactVerification(token: string | undefined, input: ContactVerificationVerifyInput): Promise<ContactVerificationVerifyResponseDto> {
+    return this.identity.verifyTenderContact(token, input.challengeId, input.code);
   }
 
   async updateTender(tenderId: string, token: string | undefined, input: UpdateTenderInput): Promise<UpdateTenderResponseDto | null> {

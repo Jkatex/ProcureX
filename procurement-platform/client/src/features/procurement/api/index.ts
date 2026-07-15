@@ -11,13 +11,17 @@ import type {
   MarketplaceTenderRow,
   MyTenderRow,
   PublishTenderResponse,
+  StartContactVerificationPayload,
+  StartContactVerificationResponse,
   TenderReviewDecisionResponse,
   TenderReviewDetail,
   TenderReviewListResponse,
   TenderDetail,
   UpdateBuyerNoticeResponse,
   UpdateTenderPayload,
-  UpdateTenderResponse
+  UpdateTenderResponse,
+  VerifyContactVerificationPayload,
+  VerifyContactVerificationResponse
 } from '../types';
 
 export const procurementApi = {
@@ -47,6 +51,14 @@ export const procurementApi = {
   },
   async createTender(payload: CreateTenderPayload): Promise<CreateTenderResponse> {
     const response = await apiClient.post<CreateTenderResponse>('/api/procurement/tenders', payload);
+    return response.data;
+  },
+  async startContactVerification(payload: StartContactVerificationPayload): Promise<StartContactVerificationResponse> {
+    const response = await apiClient.post<StartContactVerificationResponse>('/api/procurement/contact-verifications', payload);
+    return response.data;
+  },
+  async verifyContactVerification(payload: VerifyContactVerificationPayload): Promise<VerifyContactVerificationResponse> {
+    const response = await apiClient.post<VerifyContactVerificationResponse>('/api/procurement/contact-verifications/verify', payload);
     return response.data;
   },
   async updateTender(tenderId: string, payload: UpdateTenderPayload): Promise<UpdateTenderResponse> {

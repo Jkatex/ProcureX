@@ -1,7 +1,11 @@
 import { ProcurementMethod, TenderStatus, TenderType, Visibility } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
+import { ModuleService as IdentityModuleService } from '../identity/service.js';
 import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService } from './service.js';
 import {
+  contactVerificationStartBodySchema,
+  contactVerificationVerifyBodySchema,
   createTenderBodySchema,
   marketplaceQuerySchema,
   planLineBodySchema,
@@ -19,6 +23,10 @@ function createServiceWithRepository(repositoryData: any) {
     health: async () => ({ ready: true }),
     getWelcomeData: async () => repositoryData
   } as any);
+}
+
+function sha256(value: string) {
+  return createHash('sha256').update(value).digest('hex');
 }
 
 describe('procurement public welcome service', () => {
@@ -559,6 +567,108 @@ describe('procurement planning service', () => {
   });
 });
 
+describe('procurement contact verification identity challenge service', () => {
+  const session = { user: { id: 'user-1', organizationId: 'org-1' } };
+  const createdAt = new Date('2099-07-01T08:00:00.000Z');
+  const expiresAt = new Date('2099-07-01T09:00:00.000Z');
+
+  function createIdentityService(repositoryOverrides: Record<string, unknown> = {}, notificationOverrides: Record<string, unknown> = {}) {
+    const repository = {
+      replacePendingChallenges: vi.fn().mockResolvedValue({ count: 0 }),
+      createChallenge: vi.fn().mockResolvedValue({
+        id: 'challenge-1',
+        createdAt,
+        expiresAt,
+        metadata: {}
+      }),
+      updateChallenge: vi.fn().mockImplementation((id: string, data: any) => Promise.resolve({ id, createdAt, expiresAt, ...data })),
+      findChallenge: vi.fn(),
+      incrementChallengeAttempts: vi.fn().mockResolvedValue({}),
+      consumeChallenge: vi.fn().mockResolvedValue({ consumedAt: new Date('2099-07-01T08:02:00.000Z') }),
+      createAuditEvent: vi.fn().mockResolvedValue({}),
+      ...repositoryOverrides
+    };
+    const notifications = {
+      sendPhoneOtp: vi.fn().mockResolvedValue({ provider: 'dev-console' }),
+      sendTenderContactVerification: vi.fn().mockResolvedValue({ provider: 'dev-console' }),
+      ...notificationOverrides
+    };
+    const service = new IdentityModuleService(repository as any, notifications as any);
+    vi.spyOn(service, 'requirePermission').mockResolvedValue(session as any);
+    return { service, repository, notifications };
+  }
+
+  it('starts email and phone tender contact challenges', async () => {
+    const { service, repository, notifications } = createIdentityService();
+
+    await expect(service.startTenderContactVerification('token-1', { channel: 'email', target: ' Buyer@Example.GO.TZ ' })).resolves.toMatchObject({
+      challengeId: 'challenge-1',
+      channel: 'email',
+      target: 'buyer@example.go.tz',
+      devCode: expect.any(String)
+    });
+    await expect(service.startTenderContactVerification('token-1', { channel: 'phone', target: '0700000001' })).resolves.toMatchObject({
+      channel: 'phone',
+      target: '+255700000001',
+      devCode: expect.any(String)
+    });
+
+    expect(service.requirePermission).toHaveBeenCalledWith('token-1', 'procurement.create');
+    expect(repository.replacePendingChallenges).toHaveBeenCalledWith({ userId: 'user-1', purpose: 'TENDER_CONTACT_EMAIL_CODE', target: 'buyer@example.go.tz' });
+    expect(repository.replacePendingChallenges).toHaveBeenCalledWith({ userId: 'user-1', purpose: 'TENDER_CONTACT_PHONE_OTP', target: '+255700000001' });
+    expect(notifications.sendTenderContactVerification).toHaveBeenCalledWith(expect.objectContaining({ to: 'buyer@example.go.tz' }));
+    expect(notifications.sendPhoneOtp).toHaveBeenCalledWith(expect.objectContaining({ to: '+255700000001' }));
+  });
+
+  it('verifies tender contact codes and consumes the challenge', async () => {
+    const { service, repository } = createIdentityService({
+      findChallenge: vi.fn().mockResolvedValue({
+        id: 'challenge-1',
+        userId: 'user-1',
+        purpose: 'TENDER_CONTACT_PHONE_OTP',
+        target: '+255700000001',
+        status: 'PENDING',
+        attempts: 0,
+        expiresAt,
+        codeHash: sha256('123456')
+      })
+    });
+
+    await expect(service.verifyTenderContact('token-1', 'challenge-1', '123456')).resolves.toEqual({
+      verified: true,
+      channel: 'phone',
+      target: '+255700000001',
+      verifiedAt: '2099-07-01T08:02:00.000Z'
+    });
+    expect(repository.consumeChallenge).toHaveBeenCalledWith('challenge-1');
+  });
+
+  it('rejects wrong, expired, unauthorized, and over-attempt contact codes', async () => {
+    const baseChallenge = {
+      id: 'challenge-1',
+      userId: 'user-1',
+      purpose: 'TENDER_CONTACT_EMAIL_CODE',
+      target: 'buyer@example.go.tz',
+      status: 'PENDING',
+      attempts: 0,
+      expiresAt,
+      codeHash: sha256('123456')
+    };
+    const wrong = createIdentityService({ findChallenge: vi.fn().mockResolvedValue(baseChallenge) });
+    await expect(wrong.service.verifyTenderContact('token-1', 'challenge-1', '000000')).rejects.toThrow('Contact verification code is incorrect.');
+    expect(wrong.repository.incrementChallengeAttempts).toHaveBeenCalledWith('challenge-1');
+
+    const expired = createIdentityService({ findChallenge: vi.fn().mockResolvedValue({ ...baseChallenge, expiresAt: new Date('2020-01-01T00:00:00.000Z') }) });
+    await expect(expired.service.verifyTenderContact('token-1', 'challenge-1', '123456')).rejects.toThrow('Contact verification code is no longer valid.');
+
+    const tooMany = createIdentityService({ findChallenge: vi.fn().mockResolvedValue({ ...baseChallenge, attempts: 5 }) });
+    await expect(tooMany.service.verifyTenderContact('token-1', 'challenge-1', '123456')).rejects.toThrow('Too many contact verification attempts.');
+
+    const unauthorized = createIdentityService({ findChallenge: vi.fn().mockResolvedValue({ ...baseChallenge, userId: 'other-user' }) });
+    await expect(unauthorized.service.verifyTenderContact('token-1', 'challenge-1', '123456')).rejects.toThrow('Contact verification code was not found.');
+  });
+});
+
 function findControl(sections: Array<{ controls: DesignFormControlDto[] }>, id: string): DesignFormControlDto | undefined {
   const queue = sections.flatMap((section) => section.controls);
   while (queue.length > 0) {
@@ -641,6 +751,27 @@ describe('procurement tender write service', () => {
     expect(() => createTenderBodySchema.parse({ ...createInput, ownerUserId: 'user-2' })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, status: 'OPEN' })).toThrow();
     expect(() => createTenderBodySchema.parse({ ...createInput, visibility: 'PUBLIC_MARKETPLACE' })).toThrow();
+  });
+
+  it('validates tender contact verification payloads', () => {
+    expect(contactVerificationStartBodySchema.parse({ channel: 'email', target: 'buyer@example.go.tz' })).toEqual({
+      channel: 'email',
+      target: 'buyer@example.go.tz'
+    });
+    expect(contactVerificationStartBodySchema.parse({ channel: 'phone', target: '+255700000001' })).toEqual({
+      channel: 'phone',
+      target: '+255700000001'
+    });
+    expect(contactVerificationVerifyBodySchema.parse({ challengeId: '11111111-1111-4111-8111-111111111111', code: '123456' })).toEqual({
+      challengeId: '11111111-1111-4111-8111-111111111111',
+      code: '123456'
+    });
+
+    expect(() => contactVerificationStartBodySchema.parse({ channel: 'email', target: 'not-email' })).toThrow();
+    expect(() => contactVerificationStartBodySchema.parse({ channel: 'phone', target: '123' })).toThrow();
+    expect(() => contactVerificationStartBodySchema.parse({ channel: 'fax', target: '+255700000001' })).toThrow();
+    expect(() => contactVerificationVerifyBodySchema.parse({ challengeId: 'not-a-uuid', code: '123456' })).toThrow();
+    expect(() => contactVerificationVerifyBodySchema.parse({ challengeId: '11111111-1111-4111-8111-111111111111', code: '123' })).toThrow();
   });
 
   it('validates draft tender update payloads', () => {
@@ -753,6 +884,45 @@ describe('procurement tender write service', () => {
       },
       { organizationId: 'org-1', userId: 'user-1' }
     );
+  });
+
+  it('starts tender contact verification through the identity challenge service', async () => {
+    const identity = {
+      startTenderContactVerification: vi.fn().mockResolvedValue({
+        challengeId: 'email-challenge',
+        channel: 'email',
+        target: 'buyer@example.go.tz',
+        expiresAt: '2026-07-01T09:00:00.000Z',
+        resendAvailableAt: '2026-07-01T08:01:00.000Z',
+        maxAttempts: 5,
+        devCode: '123456'
+      })
+    };
+    const service = new ModuleService({} as any, identity as any);
+
+    await expect(service.startContactVerification('token-1', { channel: 'email', target: 'buyer@example.go.tz' })).resolves.toMatchObject({
+      challengeId: 'email-challenge',
+      devCode: '123456'
+    });
+    expect(identity.startTenderContactVerification).toHaveBeenCalledWith('token-1', { channel: 'email', target: 'buyer@example.go.tz' });
+  });
+
+  it('verifies tender contact codes through the identity challenge service', async () => {
+    const identity = {
+      verifyTenderContact: vi.fn().mockResolvedValue({
+        verified: true,
+        channel: 'phone',
+        target: '+255700000001',
+        verifiedAt: '2026-07-01T08:02:00.000Z'
+      })
+    };
+    const service = new ModuleService({} as any, identity as any);
+
+    await expect(service.verifyContactVerification('token-1', { challengeId: '11111111-1111-4111-8111-111111111111', code: '123456' })).resolves.toMatchObject({
+      verified: true,
+      target: '+255700000001'
+    });
+    expect(identity.verifyTenderContact).toHaveBeenCalledWith('token-1', '11111111-1111-4111-8111-111111111111', '123456');
   });
 
   it('standardizes Others during draft tender creation', async () => {
