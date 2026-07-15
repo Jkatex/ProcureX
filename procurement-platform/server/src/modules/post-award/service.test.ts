@@ -130,10 +130,11 @@ describe('post-award ModuleService', () => {
     const workspace = await service.workspace('contract-1', supplierContext);
 
     expect(workspace.contract.reference).toBe('PX-C-001');
-    expect(workspace.stages.map((stage) => stage.id)).toEqual(['setup', 'delivery', 'acceptance', 'finance', 'issues', 'variations', 'closeout', 'history']);
+    expect(workspace.stages.map((stage) => stage.id)).toEqual(['setup', 'delivery', 'inspections', 'finance', 'risk', 'changes', 'claims', 'documents', 'closeout', 'performance', 'history']);
     expect(workspace.stages.find((stage) => stage.id === 'delivery')?.records[0]).toMatchObject({ type: 'milestone', title: 'First delivery' });
     expect(workspace.stages.find((stage) => stage.id === 'finance')?.records[0]).toMatchObject({ type: 'invoice', title: 'INV-001' });
-    expect(workspace.secondary.map((register) => register.id)).toEqual(['termination', 'documents', 'performance', 'securities', 'audit']);
+    expect(workspace.secondary.map((register) => register.id)).toEqual(['termination', 'securities', 'audit']);
+    expect(workspace.actions.find((action) => action.key === 'activate-contract')).toMatchObject({ owner: 'BUYER' });
     expect(workspace.actions.find((action) => action.key === 'deliverable')).toMatchObject({ enabled: true, owner: 'SUPPLIER' });
     expect(workspace.actions.find((action) => action.key === 'inspection')).toMatchObject({ enabled: false, owner: 'BUYER' });
   });
@@ -154,5 +155,36 @@ describe('post-award ModuleService', () => {
     expect(workspace.stages.find((stage) => stage.id === 'delivery')?.records).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: 'deliverable', title: 'Batch one', status: 'SUBMITTED' })])
     );
+  });
+
+  it('allows supplier dispatch notices and returns them in the delivery stage', async () => {
+    const createDispatchNotice = vi.fn().mockResolvedValue(contract({
+      dispatchNotices: [{ id: 'dispatch-1', dispatchReference: 'DN-001', status: 'DISPATCHED' }]
+    }));
+    const service = serviceWithAwardContract({ createDispatchNotice });
+
+    const workspace = await service.createDispatchNotice('contract-1', {
+      dispatchReference: 'DN-001',
+      dispatchedQuantity: 10,
+      payload: {}
+    }, supplierContext);
+
+    expect(createDispatchNotice).toHaveBeenCalledWith('contract-1', expect.objectContaining({ dispatchReference: 'DN-001' }), supplierContext);
+    expect(workspace.stages.find((stage) => stage.id === 'delivery')?.records).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'dispatch_notice', title: 'DN-001', status: 'DISPATCHED' })])
+    );
+  });
+
+  it('blocks supplier users from buyer-only goods receipt actions', async () => {
+    const createGoodsReceipt = vi.fn();
+    const service = serviceWithAwardContract({ createGoodsReceipt });
+
+    await expect(service.createGoodsReceipt('contract-1', {
+      receiptReference: 'GRN-001',
+      status: 'APPROVED',
+      lines: [{ description: 'Received goods', receivedQuantity: 10, acceptedQuantity: 10 }],
+      payload: {}
+    }, supplierContext)).rejects.toMatchObject({ status: 403 });
+    expect(createGoodsReceipt).not.toHaveBeenCalled();
   });
 });

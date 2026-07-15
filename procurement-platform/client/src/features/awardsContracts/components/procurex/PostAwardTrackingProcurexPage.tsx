@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';
+import { postAwardApi } from '@/features/postAward/api';
+import type { PostAwardContractRow } from '@/features/postAward/types';
 import { awardsContractsApi } from '../../api';
 import type {
-  AwardContractDashboard,
   AwardContractDocumentDto,
   AwardContractDocumentUploadInput,
   ContractDetailDto,
@@ -26,8 +27,7 @@ import {
   terminationTypeOptions
 } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
-import { LockedFlowStepPanel, flowStepFromSearch, searchWithFlowStep } from './AwardContractFlow';
-import { ExpandableAwardDetails } from './AwardContractSimpleShared';
+import { LockedFlowStepPanel, flowStepFromSearch } from './AwardContractFlow';
 import {
   AwardHero,
   ProcurexAwardFrame,
@@ -46,6 +46,87 @@ type PostAwardGroupId = 'cmp' | 'delivery' | 'inspections' | 'payments' | 'risk'
 const postAwardFlowStepIds = ['cmp', 'delivery', 'inspections', 'payments', 'risk', 'changes', 'termination', 'warranty', 'closeout', 'performance', 'registers'] as const;
 type PostAwardSectionId = typeof postAwardFlowStepIds[number];
 type PostAwardWorkGroupId = 'setup' | 'delivery' | 'finance' | 'risk-changes' | 'closeout-performance';
+type ContractExecutionType = 'GOODS' | 'WORKS' | 'SERVICES' | 'CONSULTANCY' | 'GENERAL';
+
+const sectionSlugByStep: Record<PostAwardSectionId, string> = {
+  cmp: 'setup',
+  delivery: 'delivery',
+  inspections: 'inspections',
+  payments: 'finance',
+  risk: 'risk',
+  changes: 'changes',
+  termination: 'termination',
+  warranty: 'documents',
+  closeout: 'closeout',
+  performance: 'performance',
+  registers: 'history'
+};
+
+const stepBySectionSlug: Record<string, PostAwardSectionId> = {
+  ...(Object.fromEntries(
+    Object.entries(sectionSlugByStep).map(([step, slug]) => [slug, step])
+  ) as Record<string, PostAwardSectionId>),
+  claims: 'changes'
+};
+
+const legacyStageToStep: Record<string, PostAwardSectionId> = {
+  setup: 'cmp',
+  delivery: 'delivery',
+  acceptance: 'inspections',
+  finance: 'payments',
+  issues: 'changes',
+  variations: 'changes',
+  closeout: 'closeout',
+  history: 'registers'
+};
+
+function postAwardPagePath(step: PostAwardSectionId) {
+  return `/post-award/${sectionSlugByStep[step]}`;
+}
+
+function postAwardSearch(search: string) {
+  const params = new URLSearchParams(search);
+  params.delete('stage');
+  params.delete('step');
+  const next = params.toString();
+  return next ? `?${next}` : '';
+}
+
+function activeStepFromLocation(sectionSlug: string | undefined, search: string): PostAwardSectionId {
+  const routeStep = sectionSlug ? stepBySectionSlug[sectionSlug] : undefined;
+  if (routeStep) return routeStep;
+  const params = new URLSearchParams(search);
+  const legacyStage = params.get('stage');
+  if (legacyStage && legacyStageToStep[legacyStage]) return legacyStageToStep[legacyStage];
+  return flowStepFromSearch(search, postAwardFlowStepIds, 'cmp');
+}
+
+function legacyPostAwardTarget(sectionSlug: string | undefined, search: string) {
+  if (sectionSlug && stepBySectionSlug[sectionSlug]) return '';
+  const params = new URLSearchParams(search);
+  const legacyStage = params.get('stage');
+  const legacyStep = params.get('step');
+  const step = legacyStage ? legacyStageToStep[legacyStage] : legacyStep && postAwardFlowStepIds.includes(legacyStep as PostAwardSectionId) ? legacyStep as PostAwardSectionId : null;
+  if (step) return `${postAwardPagePath(step)}${postAwardSearch(search)}`;
+  if (params.has('contract')) return `${postAwardPagePath('cmp')}${postAwardSearch(search)}`;
+  return '';
+}
+
+function postAwardSectionFromPath(pathname: string) {
+  const match = pathname.match(/\/post-award\/([^/?#]+)/);
+  return match?.[1] ?? '';
+}
+
+function postAwardRouteFromPath(pathname: string) {
+  const [, tail = ''] = pathname.split('/post-award/');
+  const [sectionSlug = '', registerSlug = '', recordId = ''] = tail.split('/').filter(Boolean);
+  return { sectionSlug, registerSlug, recordId };
+}
+
+function postAwardDeepPath(step: PostAwardSectionId, registerSlug: string, search: string, recordId?: string) {
+  const base = `${postAwardPagePath(step)}/${registerSlug}${recordId ? `/${encodeURIComponent(recordId)}` : ''}`;
+  return `${base}${postAwardSearch(search)}`;
+}
 
 const postAwardWorkGroups: Array<{
   id: PostAwardWorkGroupId;
@@ -60,8 +141,191 @@ const postAwardWorkGroups: Array<{
   { id: 'closeout-performance', label: 'Close-out & Performance', description: 'Close-out, performance, and history.', sectionIds: ['closeout', 'performance', 'registers'] }
 ];
 
+const executionWorkflowConfig: Record<ContractExecutionType, {
+  label: string;
+  summary: string;
+  deliveryForms: string[];
+  inspectionForms: string[];
+  financeForms: string[];
+  deliveryRegisters: string[];
+  inspectionRegisters: string[];
+  financeRegisters: string[];
+  recommended: Array<{ step: PostAwardSectionId; title: string; detail: string; priority: string }>;
+}> = {
+  GOODS: {
+    label: 'Goods execution',
+    summary: 'Schedule, dispatch, receive, inspect, accept, invoice, and pay delivered goods.',
+    deliveryForms: ['Milestone progress', 'Milestone evidence', 'Deliverable', 'Goods delivery schedule', 'Dispatch notice', 'Goods receipt'],
+    inspectionForms: ['Inspection', 'Goods inspection', 'Acceptance certificate'],
+    financeForms: ['Payment schedule', 'Invoice submission', 'Three-way match', 'Payment review', 'Invoice status', 'Payment approval', 'Payment confirmation', 'Penalty or deduction'],
+    deliveryRegisters: ['Mobilization', 'Milestones', 'Deliverables', 'Delivery schedules', 'Dispatch notices', 'Goods receipts'],
+    inspectionRegisters: ['Inspections', 'Goods inspections', 'Acceptance'],
+    financeRegisters: ['Payment schedule', 'Purchase orders', 'Invoices', 'Payments', 'Three-way matches', 'Penalties and deductions', 'Payment approvals', 'Payment confirmations'],
+    recommended: [
+      { step: 'delivery', title: 'Record dispatch or receipt', detail: 'Capture supplier dispatch and buyer receipt before inspection.', priority: 'High' },
+      { step: 'inspections', title: 'Inspect received goods', detail: 'Approve, reject, or record defects before invoicing.', priority: 'High' },
+      { step: 'payments', title: 'Match invoice to accepted goods', detail: 'Use acceptance and receipt records for payment control.', priority: 'Medium' }
+    ]
+  },
+  WORKS: {
+    label: 'Works execution',
+    summary: 'Handover the site, track progress, measure BOQ items, certify IPCs, and manage defects.',
+    deliveryForms: ['Milestone progress', 'Milestone evidence', 'Deliverable', 'Site handover', 'Works progress report', 'BOQ measurement', 'Interim payment certificate'],
+    inspectionForms: ['Inspection', 'Acceptance certificate', 'Works defect'],
+    financeForms: ['Payment schedule', 'Invoice submission', 'Three-way match', 'Payment review', 'Invoice status', 'Payment approval', 'Payment confirmation', 'Penalty or deduction'],
+    deliveryRegisters: ['Mobilization', 'Milestones', 'Deliverables', 'Site handovers', 'Progress reports', 'BOQ measurements', 'Interim payment certificates'],
+    inspectionRegisters: ['Inspections', 'Acceptance', 'Defects'],
+    financeRegisters: ['Payment schedule', 'Purchase orders', 'Invoices', 'Payments', 'Three-way matches', 'Penalties and deductions', 'Payment approvals', 'Payment confirmations'],
+    recommended: [
+      { step: 'delivery', title: 'Update works progress', detail: 'Record progress, BOQ measurements, or IPC certification.', priority: 'High' },
+      { step: 'inspections', title: 'Track defects', detail: 'Log defects and closure obligations after inspection.', priority: 'Medium' },
+      { step: 'payments', title: 'Approve certified payment', detail: 'Connect IPCs to invoices and payment approvals.', priority: 'Medium' }
+    ]
+  },
+  SERVICES: {
+    label: 'Services execution',
+    summary: 'Define service levels, track periods and reports, verify performance, apply credits, and pay eligible work.',
+    deliveryForms: ['Milestone progress', 'Milestone evidence', 'Deliverable', 'Service level', 'Service period', 'Service report'],
+    inspectionForms: ['Inspection', 'Acceptance certificate'],
+    financeForms: ['Payment schedule', 'Invoice submission', 'Payment review', 'Invoice status', 'Payment approval', 'Payment confirmation', 'Penalty or deduction', 'Service credit'],
+    deliveryRegisters: ['Mobilization', 'Milestones', 'Deliverables', 'Service levels', 'Service periods', 'Service reports'],
+    inspectionRegisters: ['Inspections', 'Acceptance'],
+    financeRegisters: ['Payment schedule', 'Purchase orders', 'Invoices', 'Payments', 'Penalties and deductions', 'Payment approvals', 'Payment confirmations', 'Service credits'],
+    recommended: [
+      { step: 'delivery', title: 'Submit service report', detail: 'Capture the reporting period and service result.', priority: 'High' },
+      { step: 'payments', title: 'Review SLA credits', detail: 'Apply service credits or deductions before payment.', priority: 'Medium' },
+      { step: 'inspections', title: 'Verify service period', detail: 'Accept the report before invoice approval.', priority: 'Medium' }
+    ]
+  },
+  CONSULTANCY: {
+    label: 'Consultancy execution',
+    summary: 'Manage deliverables, versions, reviews, revisions, approvals, and payment eligibility.',
+    deliveryForms: ['Milestone progress', 'Milestone evidence', 'Deliverable', 'Consultancy deliverable', 'Consultancy deliverable version'],
+    inspectionForms: ['Inspection', 'Acceptance certificate', 'Consultancy review'],
+    financeForms: ['Payment schedule', 'Invoice submission', 'Payment review', 'Invoice status', 'Payment approval', 'Payment confirmation', 'Penalty or deduction'],
+    deliveryRegisters: ['Mobilization', 'Milestones', 'Deliverables', 'Consultancy deliverables', 'Deliverable versions'],
+    inspectionRegisters: ['Inspections', 'Acceptance', 'Deliverable reviews'],
+    financeRegisters: ['Payment schedule', 'Purchase orders', 'Invoices', 'Payments', 'Payment approvals', 'Payment confirmations', 'Penalties and deductions'],
+    recommended: [
+      { step: 'delivery', title: 'Submit deliverable version', detail: 'Upload the next consultancy deliverable version for review.', priority: 'High' },
+      { step: 'inspections', title: 'Review submitted version', detail: 'Approve, reject, or request revision from the consultant.', priority: 'High' },
+      { step: 'payments', title: 'Invoice approved deliverables', detail: 'Only pay after accepted deliverable records exist.', priority: 'Medium' }
+    ]
+  },
+  GENERAL: {
+    label: 'General execution',
+    summary: 'Track milestones, evidence, acceptance, risk, finance, and close-out.',
+    deliveryForms: ['Milestone progress', 'Milestone evidence', 'Deliverable'],
+    inspectionForms: ['Inspection', 'Acceptance certificate'],
+    financeForms: ['Payment schedule', 'Invoice submission', 'Three-way match', 'Payment review', 'Invoice status', 'Payment approval', 'Payment confirmation', 'Penalty or deduction'],
+    deliveryRegisters: ['Mobilization', 'Milestones', 'Deliverables'],
+    inspectionRegisters: ['Inspections', 'Acceptance'],
+    financeRegisters: ['Payment schedule', 'Purchase orders', 'Invoices', 'Payments', 'Three-way matches', 'Penalties and deductions', 'Payment approvals', 'Payment confirmations'],
+    recommended: [
+      { step: 'delivery', title: 'Update milestone evidence', detail: 'Add delivery evidence against the next milestone.', priority: 'High' },
+      { step: 'inspections', title: 'Accept completed work', detail: 'Record inspection and acceptance before invoicing.', priority: 'Medium' },
+      { step: 'payments', title: 'Process eligible invoice', detail: 'Connect invoice to accepted execution records.', priority: 'Medium' }
+    ]
+  }
+};
+
 function asRecords(items: Array<Record<string, unknown>> | ContractLifecycleItemDto[] | undefined) {
   return (items ?? []) as Array<Record<string, unknown>>;
+}
+
+function textValue(value: unknown) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
+function payloadText(contract: ContractDetailDto | null | undefined, ...keys: string[]) {
+  if (!contract?.payload) return '';
+  for (const key of keys) {
+    const value = contract.payload[key];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value);
+  }
+  return '';
+}
+
+function contractExecutionType(contract: ContractDetailDto | null | undefined): ContractExecutionType {
+  if (!contract) return 'GENERAL';
+  const source = [
+    payloadText(contract, 'procurementType', 'tenderType', 'contractType', 'category'),
+    contract.title,
+    contract.tenderReference
+  ].join(' ').toUpperCase();
+  if (/CONSULT/.test(source) || (contract.consultancyDeliverables?.length ?? 0) > 0 || (contract.deliverableVersions?.length ?? 0) > 0) return 'CONSULTANCY';
+  if (/WORK|BOQ|CONSTRUCTION|SITE/.test(source) || (contract.siteHandovers?.length ?? 0) > 0 || (contract.boqMeasurements?.length ?? 0) > 0 || (contract.interimPaymentCertificates?.length ?? 0) > 0) return 'WORKS';
+  if (/SERVICE|NON.?CONSULT/.test(source) || (contract.serviceReports?.length ?? 0) > 0 || (contract.serviceLevels?.length ?? 0) > 0) return 'SERVICES';
+  if (/GOOD|SUPPL|DELIVER|EQUIPMENT|MATERIAL/.test(source) || (contract.deliverySchedules?.length ?? 0) > 0 || (contract.goodsReceipts?.length ?? 0) > 0 || (contract.goodsInspections?.length ?? 0) > 0) return 'GOODS';
+  return 'GENERAL';
+}
+
+function shouldShowWorkflowItem(config: { deliveryForms: string[]; inspectionForms: string[]; financeForms: string[]; deliveryRegisters: string[]; inspectionRegisters: string[]; financeRegisters: string[] }, group: 'deliveryForms' | 'inspectionForms' | 'financeForms' | 'deliveryRegisters' | 'inspectionRegisters' | 'financeRegisters', title: string) {
+  return config[group].includes(title);
+}
+
+function recordCount(contract: ContractDetailDto, key: keyof ContractDetailDto) {
+  const value = contract[key];
+  return Array.isArray(value) ? value.length : value ? 1 : 0;
+}
+
+function executionMetrics(contract: ContractDetailDto, type: ContractExecutionType) {
+  if (type === 'GOODS') {
+    return [
+      { label: 'Schedules', value: recordCount(contract, 'deliverySchedules') },
+      { label: 'Dispatches', value: recordCount(contract, 'dispatchNotices') },
+      { label: 'Receipts', value: recordCount(contract, 'goodsReceipts') },
+      { label: 'Accepted', value: recordCount(contract, 'acceptances') }
+    ];
+  }
+  if (type === 'WORKS') {
+    return [
+      { label: 'Handovers', value: recordCount(contract, 'siteHandovers') },
+      { label: 'Progress reports', value: recordCount(contract, 'worksProgressReports') },
+      { label: 'BOQ records', value: recordCount(contract, 'boqMeasurements') },
+      { label: 'IPCs', value: recordCount(contract, 'interimPaymentCertificates') }
+    ];
+  }
+  if (type === 'SERVICES') {
+    return [
+      { label: 'SLAs', value: recordCount(contract, 'serviceLevels') },
+      { label: 'Periods', value: recordCount(contract, 'servicePeriods') },
+      { label: 'Reports', value: recordCount(contract, 'serviceReports') },
+      { label: 'Credits', value: recordCount(contract, 'serviceCredits') }
+    ];
+  }
+  if (type === 'CONSULTANCY') {
+    return [
+      { label: 'Deliverables', value: recordCount(contract, 'consultancyDeliverables') },
+      { label: 'Versions', value: recordCount(contract, 'deliverableVersions') },
+      { label: 'Reviews', value: recordCount(contract, 'deliverableReviews') },
+      { label: 'Accepted', value: recordCount(contract, 'acceptances') }
+    ];
+  }
+  return [
+    { label: 'Milestones', value: contract.milestones.length },
+    { label: 'Evidence', value: contract.milestones.reduce((count, milestone) => count + (milestone.evidence?.length ?? 0), 0) },
+    { label: 'Acceptance', value: recordCount(contract, 'acceptances') },
+    { label: 'Invoices', value: recordCount(contract, 'invoices') }
+  ];
+}
+
+function workflowRecordTotal(contract: ContractDetailDto, step: PostAwardSectionId, type: ContractExecutionType) {
+  const metrics = executionMetrics(contract, type);
+  if (step === 'delivery') return metrics.reduce((sum, metric) => sum + metric.value, 0) + contract.milestones.length + (contract.deliverables?.length ?? 0);
+  if (step === 'inspections') return (contract.inspections.length ?? 0) + (contract.acceptances?.length ?? 0) + (contract.goodsInspections?.length ?? 0) + (contract.defects?.length ?? 0) + (contract.deliverableReviews?.length ?? 0);
+  if (step === 'payments') return (contract.invoices?.length ?? 0) + (contract.payments?.length ?? 0) + (contract.paymentApprovals?.length ?? 0) + (contract.serviceCredits?.length ?? 0);
+  if (step === 'changes') return (contract.variations.length ?? 0) + (contract.changeRequests?.length ?? 0) + (contract.claims?.length ?? 0) + (contract.extensionRequests?.length ?? 0) + (contract.amendments?.length ?? 0);
+  return 1;
+}
+
+function emptyStateForStep(step: PostAwardSectionId, type: ContractExecutionType) {
+  const config = executionWorkflowConfig[type];
+  if (step === 'delivery') return { title: `Start ${config.label.toLowerCase()}`, detail: 'Add a delivery record.', actionLabel: 'Use first delivery form' };
+  if (step === 'inspections') return { title: 'No inspection yet', detail: 'Add an inspection record.', actionLabel: 'Use inspection form' };
+  if (step === 'payments') return { title: 'No finance record yet', detail: 'Add a finance record.', actionLabel: 'Use finance form' };
+  if (step === 'changes') return { title: 'No change record yet', detail: 'Add a change record.', actionLabel: 'Use changes form' };
+  return { title: 'No records yet', detail: 'Add a record.', actionLabel: 'Review forms' };
 }
 
 function workGroupForSection(sectionId: PostAwardSectionId) {
@@ -122,11 +386,51 @@ function fileToBase64(file: File) {
   });
 }
 
-function contractChooserRows(dashboard: AwardContractDashboard | null) {
-  const postAwardStatuses = new Set(['SIGNED', 'MOBILIZATION', 'ACTIVE', 'AT_RISK', 'COMPLETED', 'WARRANTY_DEFECTS', 'TERMINATION_REVIEW', 'TERMINATED', 'CLOSED']);
-  return Object.values(dashboard?.queues ?? {})
-    .flat()
-    .filter((row) => row.contractId && postAwardStatuses.has(String(row.status)));
+function riskLevel(value: string): LifecycleAction['riskLevel'] {
+  if (value === 'Critical' || value === 'High' || value === 'Medium' || value === 'Low') return value;
+  return 'Low';
+}
+
+function roleContext(value: PostAwardContractRow['viewerRole']): LifecycleAction['roleContext'] {
+  return value === 'SUPPLIER' ? 'SUPPLIER' : 'BUYER';
+}
+
+function contractChooserRows(rows: PostAwardContractRow[]): LifecycleAction[] {
+  return rows.map((row) => {
+    const role = roleContext(row.viewerRole);
+    const nextRoute = `/post-award/setup?contract=${encodeURIComponent(row.id)}`;
+    return {
+      id: `post-award-${row.id}`,
+      roleContext: role,
+      sourceType: 'CONTRACT_ACTIVE',
+      tenderId: null,
+      awardId: null,
+      noticeId: null,
+      contractId: row.id,
+      reference: row.reference,
+      noticeReference: null,
+      title: row.title,
+      otherParty: role === 'BUYER' ? row.supplierName ?? 'Supplier pending' : row.buyerName,
+      currentStage: row.stage,
+      requiredAction: row.nextAction,
+      dueDate: row.dueDate,
+      riskLevel: riskLevel(row.riskLevel),
+      status: row.status,
+      amount: row.amount,
+      currency: row.currency,
+      nextRoute,
+      nextAction: {
+        key: 'post-award',
+        label: 'Open tracking',
+        url: nextRoute,
+        method: 'GET',
+        canAct: true,
+        disabledReason: null,
+        requiredRole: 'ANY',
+        requiredEvidence: []
+      }
+    };
+  });
 }
 
 function recommendedPostAwardActions(contract: ContractDetailDto, sections: Array<WorkflowSection<PostAwardSectionId>>) {
@@ -147,6 +451,471 @@ function recommendedPostAwardActions(contract: ContractDetailDto, sections: Arra
   return actions.slice(0, 4);
 }
 
+function GuidedExecutionHeader({
+  contract,
+  executionType,
+  activeSection,
+  activeWorkGroup,
+  nextAction
+}: {
+  contract: ContractDetailDto;
+  executionType: ContractExecutionType;
+  activeSection: WorkflowSection<PostAwardSectionId> | undefined;
+  activeWorkGroup: typeof postAwardWorkGroups[number];
+  nextAction: { title: string; detail: string; priority: string };
+}) {
+  const config = executionWorkflowConfig[executionType];
+  const role = contract.access?.viewerRole ?? 'NONE';
+  const roleLabel = role === 'SUPPLIER' ? 'Supplier workspace' : role === 'BUYER' ? 'Buyer workspace' : role === 'ADMIN' ? 'Admin workspace' : 'Read-only workspace';
+  return (
+    <section className="post-award-compact-header">
+      <div className="post-award-compact-title">
+        <div>
+          <span className="section-kicker">{config.label}</span>
+          <h1>{activeSection ? sectionDisplayTitle(activeSection) : 'Post-award workspace'}</h1>
+          <p>{contract.title}</p>
+        </div>
+        <div className="post-award-compact-badges">
+          <StatusBadge value={activeWorkGroup.label} />
+          <StatusBadge value={contract.status} />
+        </div>
+      </div>
+      <section className="post-award-command-grid" aria-label="Contract execution summary">
+        <article>
+          <span>Role</span>
+          <strong>{roleLabel}</strong>
+          <em>{contract.access?.readOnlyReason || 'Actions are filtered to your role.'}</em>
+        </article>
+        <article>
+          <span>Status</span>
+          <strong>{contract.status}</strong>
+          <em>{contract.reference}</em>
+        </article>
+        <article>
+          <span>Next action</span>
+          <strong>{nextAction.title}</strong>
+          <em>{nextAction.detail}</em>
+        </article>
+        <article>
+          <span>Health</span>
+          <strong>{contract.risks.length > 0 ? 'Watch risks' : contract.status === 'AT_RISK' ? 'At risk' : 'On track'}</strong>
+          <em>{contract.risks.length} risk record{contract.risks.length === 1 ? '' : 's'}</em>
+        </article>
+      </section>
+      <section className="post-award-health-grid post-award-compact-metrics" aria-label="Execution metrics">
+        {executionMetrics(contract, executionType).map((metric) => (
+          <article key={metric.label}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </article>
+        ))}
+      </section>
+    </section>
+  );
+}
+
+function GuidedEmptyState({
+  title,
+  detail,
+  actionLabel,
+  onAction
+}: {
+  title: string;
+  detail: string;
+  actionLabel: string;
+  onAction?: () => void;
+}) {
+  return (
+    <section className="post-award-guided-empty" aria-label={title}>
+      <div>
+        <span className="section-kicker">Next step</span>
+        <strong>{title}</strong>
+        <p>{detail}</p>
+      </div>
+      {onAction ? <button className="btn btn-primary btn-sm" type="button" onClick={onAction}>{actionLabel}</button> : null}
+    </section>
+  );
+}
+
+function GuidedTaskQueue({
+  actions,
+  onSelect
+}: {
+  actions: Array<{ step: PostAwardSectionId; title: string; detail: string; priority: string }>;
+  onSelect: (step: PostAwardSectionId) => void;
+}) {
+  return (
+    <section className="post-award-action-queue post-award-guided-queue" aria-label="My work queue">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">My actions</span>
+          <h2>My actions</h2>
+        </div>
+      </div>
+      <div className="post-award-action-table" role="table" aria-label="Priority post-award actions">
+        {actions.map((action) => (
+          <button className="post-award-action-row" type="button" onClick={() => onSelect(action.step)} key={`${action.step}-${action.title}`}>
+            <span>{action.priority}</span>
+            <strong>{action.title}</strong>
+            <b>{sectionSlugByStep[action.step]}</b>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WorkflowRegisterCard({
+  allowed,
+  kicker,
+  title,
+  records,
+  countLabel
+}: {
+  allowed: string[];
+  kicker: string;
+  title: string;
+  records: Array<Record<string, unknown>>;
+  countLabel?: string;
+}) {
+  if (!allowed.includes(title)) return null;
+  return <RegisterCard kicker={kicker} title={title} records={records} countLabel={countLabel} />;
+}
+
+type WorkflowRegisterGroup = 'deliveryRegisters' | 'inspectionRegisters' | 'financeRegisters';
+
+type PostAwardRegisterConfig = {
+  slug: string;
+  section: PostAwardSectionId;
+  title: string;
+  kicker: string;
+  description: string;
+  workflowGroup?: WorkflowRegisterGroup;
+  records: (contract: ContractDetailDto) => Array<Record<string, unknown>>;
+};
+
+const postAwardRegisterConfigs: PostAwardRegisterConfig[] = [
+  { slug: 'activation-checklist', section: 'cmp', kicker: 'Activation', title: 'Activation checklist', description: 'Activation checklist items, evidence, review, and waiver status.', records: (contract) => asRecords(contract.activationItems) },
+  { slug: 'baselines', section: 'cmp', kicker: 'Activation', title: 'Contract baselines', description: 'Original and current baselines used for execution control.', records: (contract) => asRecords(contract.baselines) },
+  { slug: 'obligations', section: 'cmp', kicker: 'Obligations', title: 'Contract obligations', description: 'Buyer and supplier obligations linked to milestones and acceptance.', records: (contract) => asRecords(contract.obligations) },
+  { slug: 'evidence-requirements', section: 'cmp', kicker: 'Evidence', title: 'Evidence requirements', description: 'Required documents and proof needed before review or payment.', records: (contract) => asRecords(contract.evidenceRequirements) },
+  { slug: 'commencement', section: 'cmp', kicker: 'Commencement', title: 'Commencement notices', description: 'Start, effective, and commencement control records.', records: (contract) => asRecords(contract.commencements) },
+  { slug: 'mobilization', section: 'delivery', kicker: 'Delivery', title: 'Mobilization', description: 'Mobilization requirements and readiness confirmations.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.mobilizationItems) },
+  { slug: 'milestones', section: 'delivery', kicker: 'Delivery', title: 'Milestones', description: 'Milestone dates, amounts, progress, and evidence status.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.milestones as ContractLifecycleItemDto[]) },
+  { slug: 'deliverables', section: 'delivery', kicker: 'Delivery', title: 'Deliverables', description: 'Supplier deliverables submitted for review or acceptance.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.deliverables as ContractLifecycleItemDto[] | undefined) },
+  { slug: 'schedules', section: 'delivery', kicker: 'Goods', title: 'Delivery schedules', description: 'Goods delivery schedule and planned quantities.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.deliverySchedules) },
+  { slug: 'dispatch', section: 'delivery', kicker: 'Goods', title: 'Dispatch notices', description: 'Supplier dispatch notices and shipment details.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.dispatchNotices) },
+  { slug: 'receipts', section: 'delivery', kicker: 'Goods', title: 'Goods receipts', description: 'Buyer goods receipt and reconciliation records.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.goodsReceipts) },
+  { slug: 'site-handovers', section: 'delivery', kicker: 'Works', title: 'Site handovers', description: 'Works site handover and access records.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.siteHandovers) },
+  { slug: 'progress-reports', section: 'delivery', kicker: 'Works', title: 'Progress reports', description: 'Works progress reporting and site updates.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.worksProgressReports) },
+  { slug: 'boq-measurements', section: 'delivery', kicker: 'Works', title: 'BOQ measurements', description: 'Measured BOQ quantities and valuation records.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.boqMeasurements) },
+  { slug: 'interim-payment-certificates', section: 'delivery', kicker: 'Works', title: 'Interim payment certificates', description: 'IPC certification records for works payments.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.interimPaymentCertificates) },
+  { slug: 'service-levels', section: 'delivery', kicker: 'Services', title: 'Service levels', description: 'SLA requirements and target service levels.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.serviceLevels) },
+  { slug: 'service-periods', section: 'delivery', kicker: 'Services', title: 'Service periods', description: 'Service periods and reporting windows.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.servicePeriods) },
+  { slug: 'service-reports', section: 'delivery', kicker: 'Services', title: 'Service reports', description: 'Submitted service reports and verification status.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.serviceReports) },
+  { slug: 'consultancy-deliverables', section: 'delivery', kicker: 'Consultancy', title: 'Consultancy deliverables', description: 'Consultancy deliverables and expected outputs.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.consultancyDeliverables) },
+  { slug: 'deliverable-versions', section: 'delivery', kicker: 'Consultancy', title: 'Deliverable versions', description: 'Submitted versions, revisions, and approval state.', workflowGroup: 'deliveryRegisters', records: (contract) => asRecords(contract.deliverableVersions) },
+  { slug: 'inspections', section: 'inspections', kicker: 'Inspections', title: 'Inspections', description: 'Inspection records and inspection decisions.', workflowGroup: 'inspectionRegisters', records: (contract) => asRecords(contract.inspections) },
+  { slug: 'goods-inspections', section: 'inspections', kicker: 'Inspections', title: 'Goods inspections', description: 'Goods inspection details, defects, and decisions.', workflowGroup: 'inspectionRegisters', records: (contract) => asRecords(contract.goodsInspections) },
+  { slug: 'acceptance', section: 'inspections', kicker: 'Inspections', title: 'Acceptance', description: 'Acceptance certificates and payment eligibility.', workflowGroup: 'inspectionRegisters', records: (contract) => asRecords(contract.acceptances as ContractLifecycleItemDto[] | undefined) },
+  { slug: 'defects', section: 'inspections', kicker: 'Works', title: 'Defects', description: 'Works defect records and rectification tracking.', workflowGroup: 'inspectionRegisters', records: (contract) => asRecords(contract.defects) },
+  { slug: 'deliverable-reviews', section: 'inspections', kicker: 'Consultancy', title: 'Deliverable reviews', description: 'Consultancy review comments, revision, and approval history.', workflowGroup: 'inspectionRegisters', records: (contract) => asRecords(contract.deliverableReviews) },
+  { slug: 'payment-schedule', section: 'payments', kicker: 'Payments', title: 'Payment schedule', description: 'Planned payments, retention, and schedule status.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.paymentSchedules as ContractLifecycleItemDto[] | undefined) },
+  { slug: 'purchase-orders', section: 'payments', kicker: 'Payments', title: 'Purchase orders', description: 'Purchase order references and committed amounts.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.purchaseOrders) },
+  { slug: 'invoices', section: 'payments', kicker: 'Payments', title: 'Invoices', description: 'Supplier invoices and review status.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.invoices) },
+  { slug: 'payments', section: 'payments', kicker: 'Payments', title: 'Payments', description: 'Payment records and disbursement confirmation.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.payments) },
+  { slug: 'three-way-matches', section: 'payments', kicker: 'Payments', title: 'Three-way matches', description: 'Invoice, acceptance, and payment matching records.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.threeWayMatches) },
+  { slug: 'penalties', section: 'payments', kicker: 'Payments', title: 'Penalties and deductions', description: 'Deductions, penalties, retention, and recoveries.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.penalties) },
+  { slug: 'payment-approvals', section: 'payments', kicker: 'Payments', title: 'Payment approvals', description: 'Payment approval workflow and decisions.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.paymentApprovals) },
+  { slug: 'payment-confirmations', section: 'payments', kicker: 'Payments', title: 'Payment confirmations', description: 'Supplier receipt and buyer payment confirmation.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.paymentConfirmations) },
+  { slug: 'service-credits', section: 'payments', kicker: 'Payments', title: 'Service credits', description: 'SLA credits and service deductions.', workflowGroup: 'financeRegisters', records: (contract) => asRecords(contract.serviceCredits) },
+  { slug: 'risks', section: 'risk', kicker: 'Risk', title: 'Risks', description: 'Risk records, ownership, mitigation, and status.', records: (contract) => asRecords(contract.risks as ContractLifecycleItemDto[]) },
+  { slug: 'risk-forecasts', section: 'risk', kicker: 'Risk', title: 'Risk forecasts', description: 'Forecasted risk trends and drivers.', records: (contract) => asRecords(contract.riskForecasts) },
+  { slug: 'non-conformance', section: 'risk', kicker: 'Risk', title: 'Non-conformance', description: 'Non-conformance and corrective action records.', records: (contract) => asRecords(contract.nonConformances) },
+  { slug: 'variations', section: 'changes', kicker: 'Changes', title: 'Variations', description: 'Variation records and commercial impact.', records: (contract) => asRecords(contract.variations as ContractLifecycleItemDto[]) },
+  { slug: 'change-requests', section: 'changes', kicker: 'Changes', title: 'Change requests and amendments', description: 'Change request records before amendment completion.', records: (contract) => asRecords(contract.changeRequests) },
+  { slug: 'extension-requests', section: 'changes', kicker: 'Changes', title: 'Extension requests', description: 'Time extension requests and decisions.', records: (contract) => asRecords(contract.extensionRequests) },
+  { slug: 'amendments', section: 'changes', kicker: 'Changes', title: 'Amendments', description: 'Signed or pending contract amendment records.', records: (contract) => asRecords(contract.amendments) },
+  { slug: 'claims', section: 'changes', kicker: 'Claims', title: 'Claims', description: 'Supplier or buyer claims and claim status.', records: (contract) => asRecords(contract.claims) },
+  { slug: 'claim-responses', section: 'changes', kicker: 'Claims', title: 'Claim responses', description: 'Formal responses to submitted claims.', records: (contract) => asRecords(contract.claimResponses) },
+  { slug: 'issues', section: 'changes', kicker: 'Changes', title: 'Issues', description: 'Execution issues and resolution status.', records: (contract) => asRecords(contract.issues) },
+  { slug: 'disputes', section: 'changes', kicker: 'Changes', title: 'Disputes', description: 'Disputes, escalation, and settlement records.', records: (contract) => asRecords(contract.disputes) },
+  { slug: 'termination', section: 'termination', kicker: 'Termination', title: 'Termination', description: 'Termination notices, cure periods, and close decisions.', records: (contract) => asRecords(contract.terminations as ContractLifecycleItemDto[]) },
+  { slug: 'securities', section: 'warranty', kicker: 'Securities', title: 'Securities and guarantees', description: 'Performance securities, guarantees, and expiry tracking.', records: (contract) => asRecords(contract.securities) },
+  { slug: 'warranty', section: 'warranty', kicker: 'Warranty', title: 'Warranty and defects', description: 'Warranty obligations and defect liability records.', records: (contract) => asRecords(contract.warranties as ContractLifecycleItemDto[] | undefined) },
+  { slug: 'required-documents', section: 'warranty', kicker: 'Warranty', title: 'Required documents', description: 'Required document submissions and status.', records: (contract) => asRecords(contract.requiredDocuments) },
+  { slug: 'reference-samples', section: 'warranty', kicker: 'Samples', title: 'Reference samples', description: 'Reference sample submissions and inspections.', records: (contract) => asRecords(contract.referenceSamples) },
+  { slug: 'closeout', section: 'closeout', kicker: 'Close-out', title: 'Close-out', description: 'Completion certificate, final account, warranty, and lessons learned.', records: (contract) => contract.closeout ? [contract.closeout as Record<string, unknown>] : [] },
+  { slug: 'audit-events', section: 'closeout', kicker: 'Audit', title: 'Audit events', description: 'Audit events linked to this contract.', records: (contract) => asRecords(contract.audit) },
+  { slug: 'supplier-performance', section: 'performance', kicker: 'Performance', title: 'Supplier performance', description: 'Supplier performance records and assessment notes.', records: (contract) => asRecords(contract.supplierPerformanceRecords) },
+  { slug: 'performance-scores', section: 'performance', kicker: 'Performance', title: 'Performance scores', description: 'Performance scorecards and scoring decisions.', records: (contract) => asRecords(contract.performanceScores) },
+  { slug: 'supplier-risk-profile', section: 'performance', kicker: 'Risk', title: 'Supplier risk profile', description: 'Supplier risk profile and trust indicators.', records: (contract) => contract.supplierRiskProfile ? [contract.supplierRiskProfile as Record<string, unknown>] : [] }
+];
+
+function registerRecordKey(record: Record<string, unknown>, index: number) {
+  return textValue(record.id || record.reference || record.noticeReference || record.invoiceNo || record.paymentNo || `row-${index + 1}`);
+}
+
+function recordField(record: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value);
+  }
+  return '';
+}
+
+function recordTitle(record: Record<string, unknown>, fallback = 'Record') {
+  return recordField(record, 'title', 'name', 'subject', 'reference', 'noticeReference', 'invoiceNo', 'paymentNo', 'certificateNo', 'inspectionNo') || fallback;
+}
+
+function recordDetail(record: Record<string, unknown>) {
+  return recordField(record, 'note', 'summary', 'description', 'detail', 'reason', 'decisionReason', 'amount', 'paidAmount', 'score', 'probability') || '-';
+}
+
+function visibleRegisterConfigs(contract: ContractDetailDto, step: PostAwardSectionId, workflowConfig: (typeof executionWorkflowConfig)[ContractExecutionType], routeSectionSlug = '') {
+  const hiddenForSupplier = new Set(['risk-forecasts', 'supplier-risk-profile', 'audit-events']);
+  const viewerRole = contract.access?.viewerRole;
+  const byStep = step === 'registers'
+    ? postAwardRegisterConfigs
+    : postAwardRegisterConfigs.filter((config) => config.section === step);
+  const byRoute = routeSectionSlug === 'claims'
+    ? byStep.filter((config) => ['claims', 'claim-responses'].includes(config.slug))
+    : byStep;
+  return byRoute.filter((config) => viewerRole !== 'SUPPLIER' || !hiddenForSupplier.has(config.slug)).filter((config) => {
+    if (!config.workflowGroup) return true;
+    return shouldShowWorkflowItem(workflowConfig, config.workflowGroup, config.title);
+  }).map((config) => ({ ...config, count: config.records(contract).length }));
+}
+
+function findRegisterConfig(slug: string, configs: Array<PostAwardRegisterConfig & { count?: number }>) {
+  return configs.find((config) => config.slug === slug) ?? null;
+}
+
+function PostAwardPageNav({
+  sections,
+  activeGroup,
+  routeSectionSlug,
+  search,
+  onOpen
+}: {
+  sections: Array<WorkflowSection<PostAwardSectionId>>;
+  activeGroup: PostAwardSectionId;
+  routeSectionSlug: string;
+  search: string;
+  onOpen: (path: string) => void;
+}) {
+  const countFor = (id: PostAwardSectionId) => sections.find((section) => section.id === id)?.count ?? 0;
+  const navItems: Array<{ label: string; step: PostAwardSectionId; slug?: string; count: number }> = [
+    { label: 'Setup', step: 'cmp', count: countFor('cmp') },
+    { label: 'Delivery', step: 'delivery', count: countFor('delivery') },
+    { label: 'Inspections', step: 'inspections', count: countFor('inspections') },
+    { label: 'Finance', step: 'payments', count: countFor('payments') },
+    { label: 'Risk', step: 'risk', count: countFor('risk') },
+    { label: 'Changes', step: 'changes', count: countFor('changes') },
+    { label: 'Claims', step: 'changes', slug: 'claims', count: countFor('changes') },
+    { label: 'Termination', step: 'termination', count: countFor('termination') },
+    { label: 'Documents', step: 'warranty', count: countFor('warranty') },
+    { label: 'Close-out', step: 'closeout', count: countFor('closeout') },
+    { label: 'Performance', step: 'performance', count: countFor('performance') },
+    { label: 'History', step: 'registers', count: countFor('registers') }
+  ];
+  return (
+    <nav className="post-award-page-nav" aria-label="Post-award pages">
+      {navItems.map((item) => {
+        const slug = item.slug ?? sectionSlugByStep[item.step];
+        const active = routeSectionSlug === slug || (!item.slug && activeGroup === item.step && routeSectionSlug !== 'claims');
+        return (
+          <button
+            className={active ? 'active' : ''}
+            type="button"
+            aria-current={active ? 'page' : undefined}
+            onClick={() => onOpen(`/post-award/${slug}${postAwardSearch(search)}`)}
+            key={`${item.step}-${slug}`}
+          >
+            <span>{item.label}</span>
+            <em>{item.count}</em>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function PostAwardRegisterOverview({
+  configs,
+  search,
+  onOpen
+}: {
+  configs: Array<PostAwardRegisterConfig & { count?: number }>;
+  search: string;
+  onOpen: (path: string) => void;
+}) {
+  return (
+    <section className="post-award-register-overview" aria-label="Section registers">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">Tables</span>
+          <h2>Tables</h2>
+        </div>
+      </div>
+      <SimpleTable headers={['Table', 'Records', 'Action']} className="post-award-full-table">
+        {configs.length === 0 ? (
+          <tr><td colSpan={3}><div className="scope-empty">No tables available.</div></td></tr>
+        ) : configs.map((config) => (
+          <tr key={config.slug}>
+            <td>
+              <div className="award-record-title">
+                <strong>{config.title}</strong>
+                <span>{config.kicker}</span>
+              </div>
+            </td>
+            <td><StatusBadge value={`${config.count ?? 0} records`} /></td>
+            <td>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpen(postAwardDeepPath(config.section, config.slug, search))}>
+                Open table
+              </button>
+            </td>
+          </tr>
+        ))}
+      </SimpleTable>
+    </section>
+  );
+}
+
+function PostAwardRegisterDataTable({
+  config,
+  contract,
+  search,
+  onOpen,
+  onBack
+}: {
+  config: PostAwardRegisterConfig & { count?: number };
+  contract: ContractDetailDto;
+  search: string;
+  onOpen: (path: string) => void;
+  onBack: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const records = config.records(contract);
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return records;
+    return records.filter((record) => JSON.stringify(record).toLowerCase().includes(normalized));
+  }, [query, records]);
+  return (
+    <section className="procurement-panel evaluation-panel post-award-panel post-award-deep-page">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">{config.kicker}</span>
+          <h2>{config.title}</h2>
+        </div>
+        <StatusBadge value={`${records.length} records`} />
+      </div>
+      <div className="post-award-table-toolbar">
+        <label>
+          Search
+          <input
+            className="form-input"
+            type="search"
+            placeholder="Search records"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <div className="inline-actions">
+          <button className="btn btn-secondary btn-sm" type="button" onClick={onBack}>Back to section</button>
+          <button className="btn btn-primary btn-sm" type="button" onClick={onBack}>Add or update records</button>
+        </div>
+      </div>
+      <SimpleTable headers={['Record', 'Status', 'Owner / role', 'Date', 'Detail', 'Action']} className="post-award-full-table post-award-register-table">
+        {records.length === 0 ? (
+          <tr><td colSpan={6}><div className="scope-empty">No records yet.</div></td></tr>
+        ) : filtered.length === 0 ? (
+          <tr><td colSpan={6}><div className="scope-empty">No matching records.</div></td></tr>
+        ) : filtered.map((record, index) => {
+          const key = registerRecordKey(record, index);
+          return (
+            <tr key={key}>
+              <td>
+                <div className="award-record-title">
+                  <strong>{recordTitle(record, `${config.title} record`)}</strong>
+                  <span>{recordField(record, 'reference', 'noticeReference', 'invoiceNo', 'paymentNo', 'id') || key}</span>
+                </div>
+              </td>
+              <td><StatusBadge value={recordField(record, 'status', 'riskLevel', 'decision', 'Recorded') || 'Recorded'} /></td>
+              <td>{recordField(record, 'ownerRole', 'owner', 'ownerName', 'submittedBy', 'createdByUserId') || '-'}</td>
+              <td>{dateLabel(recordField(record, 'dueDate', 'createdAt', 'updatedAt'))}</td>
+              <td>{recordDetail(record)}</td>
+              <td>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpen(postAwardDeepPath(config.section, config.slug, search, key))}>
+                  View
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </SimpleTable>
+    </section>
+  );
+}
+
+function PostAwardRecordDetailPage({
+  config,
+  contract,
+  recordId,
+  onBack
+}: {
+  config: PostAwardRegisterConfig & { count?: number };
+  contract: ContractDetailDto;
+  recordId: string;
+  onBack: () => void;
+}) {
+  const records = config.records(contract);
+  const found = records.find((record, index) => registerRecordKey(record, index) === recordId);
+  const visibleEntries = found
+    ? Object.entries(found).filter(([key, value]) => value !== null && value !== undefined && key !== 'payload' && key !== 'metadata')
+    : [];
+  return (
+    <section className="procurement-panel evaluation-panel post-award-panel post-award-record-page">
+      <div className="panel-heading">
+        <div>
+          <span className="section-kicker">{config.title}</span>
+          <h2>{found ? recordTitle(found, 'Record detail') : 'Record not found'}</h2>
+        </div>
+        <div className="inline-actions">
+          <button className="btn btn-secondary btn-sm" type="button" onClick={onBack}>Back to table</button>
+        </div>
+      </div>
+      {!found ? (
+        <div className="scope-empty">This record could not be found in the current contract workspace.</div>
+      ) : (
+        <>
+          <section className="post-award-record-summary">
+            <article><span>Status</span><strong>{recordField(found, 'status', 'riskLevel', 'decision', 'Recorded') || 'Recorded'}</strong></article>
+            <article><span>Owner</span><strong>{recordField(found, 'ownerRole', 'owner', 'ownerName', 'submittedBy') || 'Not recorded'}</strong></article>
+            <article><span>Date</span><strong>{dateLabel(recordField(found, 'dueDate', 'createdAt', 'updatedAt'))}</strong></article>
+            <article><span>Detail</span><strong>{recordDetail(found)}</strong></article>
+          </section>
+          <SimpleTable headers={['Field', 'Value']} className="post-award-full-table">
+            {visibleEntries.map(([key, value]) => (
+              <tr key={key}>
+                <td><strong>{key.replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ')}</strong></td>
+                <td>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</td>
+              </tr>
+            ))}
+          </SimpleTable>
+          {'payload' in found || 'metadata' in found ? (
+            <details className="post-award-record-advanced">
+              <summary>Advanced system data</summary>
+              <pre>{JSON.stringify({ payload: found.payload, metadata: found.metadata }, null, 2)}</pre>
+            </details>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
 function PostAwardContractChooser({
   rows,
   isLoading,
@@ -159,16 +928,15 @@ function PostAwardContractChooser({
   isLoading: boolean;
   error: string;
   onRetry: () => void;
-  onOpen: (row: LifecycleAction) => void;
+  onOpen: (row: LifecycleAction, step?: PostAwardSectionId) => void;
   onBack: () => void;
 }) {
   return (
     <section className="procurement-panel evaluation-panel post-award-panel post-award-contract-chooser">
       <div className="panel-heading">
         <div>
-          <span className="section-kicker">Choose contract</span>
-          <h2>Open an active or closed contract to continue post-award tracking</h2>
-          <p>Choose a signed or active contract.</p>
+          <span className="section-kicker">Post-award dashboard</span>
+          <h2>Choose a contract</h2>
         </div>
         <StatusBadge value={rows.length ? `${rows.length} contracts` : 'No contract selected'} />
       </div>
@@ -188,8 +956,9 @@ function PostAwardContractChooser({
                 <th>Role</th>
                 <th>Other party</th>
                 <th>Status</th>
+                <th>Risk</th>
                 <th>Due / stage</th>
-                <th>Open</th>
+                <th>Quick pages</th>
               </tr>
             </thead>
             <tbody>
@@ -202,8 +971,15 @@ function PostAwardContractChooser({
                   <td><StatusBadge value={row.roleContext === 'BUYER' ? 'Buyer' : 'Supplier'} tone="info" /></td>
                   <td>{row.otherParty}</td>
                   <td><StatusBadge value={row.status} /></td>
+                  <td><StatusBadge value={row.riskLevel || 'Normal'} /></td>
                   <td>{row.dueDate ? dateLabel(row.dueDate) : row.currentStage}</td>
-                  <td><button className="btn btn-primary btn-sm" type="button" onClick={() => onOpen(row)}>Open tracking</button></td>
+                  <td>
+                    <div className="inline-actions post-award-dashboard-actions">
+                      <button className="btn btn-primary btn-sm" type="button" onClick={() => onOpen(row, 'cmp')}>Setup</button>
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpen(row, 'delivery')}>Delivery</button>
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpen(row, 'payments')}>Finance</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -211,7 +987,7 @@ function PostAwardContractChooser({
         </div>
       ) : (
         <div className="scope-empty award-card-empty">
-          <p>No active or closed contracts are ready for post-award tracking yet. Complete award response, contract negotiation, signatures, and activation first.</p>
+          <p>No contracts ready yet. Finish award, contract, and signing first.</p>
           <button className="btn btn-secondary btn-sm" type="button" onClick={onBack}>Back to Awards and Contracts</button>
         </div>
       )}
@@ -222,15 +998,23 @@ function PostAwardContractChooser({
 export function PostAwardTrackingProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { section } = useParams();
+  const route = useMemo(() => postAwardRouteFromPath(location.pathname), [location.pathname]);
+  const routeSection = section ?? route.sectionSlug ?? postAwardSectionFromPath(location.pathname);
   const contractId = useMemo(() => getContractId(location.search), [location.search]);
   const [contract, setContract] = useState<ContractDetailDto | null>(null);
   const [contractDocuments, setContractDocuments] = useState<AwardContractDocumentDto[]>([]);
-  const [dashboard, setDashboard] = useState<AwardContractDashboard | null>(null);
+  const [postAwardContracts, setPostAwardContracts] = useState<PostAwardContractRow[]>([]);
   const [isDashboardLoading, setIsDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const activeGroup = useMemo(() => flowStepFromSearch(location.search, postAwardFlowStepIds, 'cmp'), [location.search]);
+  const activeGroup = useMemo(() => activeStepFromLocation(routeSection, location.search), [location.search, routeSection]);
+
+  useEffect(() => {
+    const target = legacyPostAwardTarget(routeSection, location.search);
+    if (target) navigate(target, { replace: true });
+  }, [location.search, navigate, routeSection]);
 
   const loadContract = useCallback(async () => {
     if (!contractId) {
@@ -263,9 +1047,9 @@ export function PostAwardTrackingProcurexPage() {
     setIsDashboardLoading(true);
     setDashboardError('');
     try {
-      setDashboard(await awardsContractsApi.dashboard());
+      setPostAwardContracts(await postAwardApi.contracts());
     } catch (error) {
-      setDashboard(null);
+      setPostAwardContracts([]);
       setDashboardError(apiErrorMessage(error, 'Active and closed contracts could not be loaded.'));
     } finally {
       setIsDashboardLoading(false);
@@ -285,12 +1069,12 @@ export function PostAwardTrackingProcurexPage() {
   }
 
   function selectFlowStep(step: PostAwardGroupId) {
-    navigate({ pathname: '/post-award', search: searchWithFlowStep(location.search, step) });
+    navigate({ pathname: postAwardPagePath(step), search: postAwardSearch(location.search) });
   }
 
-  function openContractTracking(row: LifecycleAction) {
+  function openContractTracking(row: LifecycleAction, step: PostAwardSectionId = 'cmp') {
     if (!row.contractId) return;
-    navigate(`/post-award?contract=${encodeURIComponent(row.contractId)}&step=cmp`);
+    navigate(`${postAwardPagePath(step)}?contract=${encodeURIComponent(row.contractId)}`);
   }
 
   function refreshContractAndAdvance(step: PostAwardGroupId) {
@@ -320,12 +1104,25 @@ export function PostAwardTrackingProcurexPage() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const isSupplierViewer = contract?.access?.viewerRole === 'SUPPLIER';
   const invoices = contract?.invoices ?? [];
   const payments = contract?.payments ?? [];
   const purchaseOrders = contract?.purchaseOrders ?? [];
   const invoiceOptions = recordPickerOptions(invoices, 'Select invoice');
   const paymentOptions = recordPickerOptions(payments, 'Select payment');
   const purchaseOrderOptions = recordPickerOptions(purchaseOrders, 'No linked purchase order');
+  const executionReferenceOptions = [
+    option('', 'Select accepted execution record'),
+    ...recordPickerOptions(contract?.acceptances ?? [], 'Accepted certificates').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | acceptance`.trim(), status: 'acceptance' })),
+    ...recordPickerOptions(contract?.goodsReceipts ?? [], 'Goods receipts').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | goods_receipt`.trim(), status: 'goods_receipt' })),
+    ...recordPickerOptions(contract?.goodsInspections ?? [], 'Goods inspections').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | goods_inspection`.trim(), status: 'goods_inspection' })),
+    ...recordPickerOptions(contract?.interimPaymentCertificates ?? [], 'Interim payment certificates').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | interim_payment_certificate`.trim(), status: 'interim_payment_certificate' })),
+    ...recordPickerOptions(contract?.serviceReports ?? [], 'Service reports').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | service_report`.trim(), status: 'service_report' })),
+    ...recordPickerOptions(contract?.consultancyDeliverables ?? [], 'Consultancy deliverables').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | consultancy_deliverable`.trim(), status: 'consultancy_deliverable' })),
+    ...recordPickerOptions(contract?.deliverableVersions ?? [], 'Deliverable versions').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | deliverable_version`.trim(), status: 'deliverable_version' })),
+    ...itemOptions((contract?.milestones as ContractLifecycleItemDto[] | undefined) ?? [], 'Milestones').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | milestone`.trim(), status: 'milestone' })),
+    ...itemOptions((contract?.deliverables as ContractLifecycleItemDto[] | undefined) ?? [], 'Deliverables').slice(1).map((item) => ({ ...item, description: `${item.description ?? ''} | deliverable`.trim(), status: 'deliverable' }))
+  ];
   const evidenceDocumentOptions = documentOptions(contractDocuments);
   const contractManagerOptions = [
     option('', contract?.managementPlan?.contractManagerId ? 'Keep current manager' : 'Assign later from user administration'),
@@ -343,12 +1140,12 @@ export function PostAwardTrackingProcurexPage() {
   const workflowRoleOptions = [option('Buyer'), option('Supplier'), option('Contract Manager'), option('Inspector'), option('Finance'), option('Legal'), option('Technical')];
   const documentOwnerOptions = [option('Supplier Representative'), option('Buyer Representative'), option('Contract Manager'), option('Inspector'), option('Finance')];
   const sections: Array<WorkflowSection<PostAwardSectionId>> = [
-    { id: 'cmp', label: 'Contract management plan (CMP)', description: 'Plan and status.', count: (contract?.managementPlan ? 1 : 0) + (contract?.commencements?.length ?? 0) },
-    { id: 'delivery', label: 'Delivery', description: 'Milestones and deliverables.', count: (contract?.mobilizationItems.length ?? 0) + (contract?.milestones.length ?? 0) + (contract?.deliverables?.length ?? 0) },
-    { id: 'inspections', label: 'Inspections and acceptance', description: 'Inspections and acceptance.', count: (contract?.inspections.length ?? 0) + (contract?.goodsInspections?.length ?? 0) + (contract?.acceptances?.length ?? 0) },
-    { id: 'payments', label: 'Finance records', description: 'Invoices and payments.', count: invoices.length + payments.length + (contract?.paymentApprovals?.length ?? 0) + (contract?.penalties?.length ?? 0) },
-    { id: 'risk', label: 'Risks and non-conformance', description: 'Risks and non-conformance.', count: (contract?.risks.length ?? 0) + (contract?.riskForecasts?.length ?? 0) + (contract?.nonConformances?.length ?? 0) },
-    { id: 'changes', label: 'Changes, issues, and disputes', description: 'Changes and disputes.', count: (contract?.variations.length ?? 0) + (contract?.changeRequests?.length ?? 0) + (contract?.issues.length ?? 0) + (contract?.disputes.length ?? 0) },
+    { id: 'cmp', label: 'Contract management plan (CMP)', description: 'Plan and status.', count: (contract?.managementPlan ? 1 : 0) + (contract?.commencements?.length ?? 0) + (contract?.activationItems?.length ?? 0) + (contract?.baselines?.length ?? 0) + (contract?.obligations?.length ?? 0) + (contract?.evidenceRequirements?.length ?? 0) },
+    { id: 'delivery', label: 'Delivery', description: 'Milestones and deliverables.', count: (contract?.mobilizationItems.length ?? 0) + (contract?.milestones.length ?? 0) + (contract?.deliverables?.length ?? 0) + (contract?.deliverySchedules?.length ?? 0) + (contract?.dispatchNotices?.length ?? 0) + (contract?.goodsReceipts?.length ?? 0) + (contract?.siteHandovers?.length ?? 0) + (contract?.worksProgressReports?.length ?? 0) + (contract?.boqMeasurements?.length ?? 0) + (contract?.interimPaymentCertificates?.length ?? 0) + (contract?.serviceReports?.length ?? 0) + (contract?.consultancyDeliverables?.length ?? 0) + (contract?.deliverableVersions?.length ?? 0) },
+    { id: 'inspections', label: 'Inspections and acceptance', description: 'Inspections and acceptance.', count: (contract?.inspections.length ?? 0) + (contract?.goodsInspections?.length ?? 0) + (contract?.acceptances?.length ?? 0) + (contract?.defects?.length ?? 0) + (contract?.deliverableReviews?.length ?? 0) },
+    { id: 'payments', label: 'Finance records', description: 'Invoices and payments.', count: invoices.length + payments.length + (contract?.paymentApprovals?.length ?? 0) + (contract?.penalties?.length ?? 0) + (contract?.serviceCredits?.length ?? 0) },
+    { id: 'risk', label: 'Risks and non-conformance', description: 'Risks and non-conformance.', count: (contract?.risks.length ?? 0) + (isSupplierViewer ? 0 : (contract?.riskForecasts?.length ?? 0)) + (contract?.nonConformances?.length ?? 0) },
+    { id: 'changes', label: 'Changes, issues, and disputes', description: 'Changes and disputes.', count: (contract?.variations.length ?? 0) + (contract?.changeRequests?.length ?? 0) + (contract?.extensionRequests?.length ?? 0) + (contract?.amendments?.length ?? 0) + (contract?.claims?.length ?? 0) + (contract?.claimResponses?.length ?? 0) + (contract?.issues.length ?? 0) + (contract?.disputes.length ?? 0) },
     { id: 'termination', label: 'Termination', description: 'Termination records.', count: contract?.terminations.length ?? 0 },
     { id: 'warranty', label: 'Documents, securities, and warranty', description: 'Documents and warranty.', count: (contract?.securities?.length ?? 0) + (contract?.warranties?.length ?? 0) + (contract?.requiredDocuments?.length ?? 0) + (contract?.referenceSamples?.length ?? 0) },
     { id: 'closeout', label: 'Close-out', description: 'Close-out records.', count: contract?.closeout ? 1 : 0 },
@@ -365,23 +1162,43 @@ export function PostAwardTrackingProcurexPage() {
   }, [activeGroup, contract, contractId, formationLocked]);
   const activeSection = sections.find((section) => section.id === activeGroup);
   const activeWorkGroup = workGroupForSection(activeGroup);
-  const chooserRows = contractChooserRows(dashboard);
-  const recommendedActions = contract ? recommendedPostAwardActions(contract, sections) : [];
+  const chooserRows = contractChooserRows(postAwardContracts);
+  const executionType = contractExecutionType(contract);
+  const workflowConfig = executionWorkflowConfig[executionType];
+  const recommendedActions = contract ? [...recommendedPostAwardActions(contract, sections), ...workflowConfig.recommended].slice(0, 5) : [];
+  const primaryRecommendedAction = recommendedActions[0] ?? workflowConfig.recommended[0] ?? { title: 'Review saved history', detail: 'Open the register and inspect contract activity.', priority: 'Info', step: 'registers' as PostAwardSectionId };
+  const showDeliveryForm = (title: string) => shouldShowWorkflowItem(workflowConfig, 'deliveryForms', title);
+  const showInspectionForm = (title: string) => shouldShowWorkflowItem(workflowConfig, 'inspectionForms', title);
+  const showFinanceForm = (title: string) => shouldShowWorkflowItem(workflowConfig, 'financeForms', title);
+  const activeRecordTotal = contract ? workflowRecordTotal(contract, activeGroup, executionType) : 0;
+  const activeEmptyState = emptyStateForStep(activeGroup, executionType);
+  const activeRegisterConfigs = contract ? visibleRegisterConfigs(contract, activeGroup, workflowConfig, route.sectionSlug) : [];
+  const activeRegisterConfig = route.registerSlug ? findRegisterConfig(route.registerSlug, activeRegisterConfigs) : null;
+  const isDeepRegisterPage = Boolean(activeRegisterConfig && route.registerSlug && !route.recordId);
+  const isRecordPage = Boolean(activeRegisterConfig && route.recordId);
+  const openPostAwardPath = (path: string) => navigate(path);
+  const backToSection = () => navigate({ pathname: postAwardPagePath(activeGroup), search: postAwardSearch(location.search) });
+  const backToRegister = () => {
+    if (!activeRegisterConfig) return backToSection();
+    navigate(postAwardDeepPath(activeRegisterConfig.section, activeRegisterConfig.slug, location.search));
+  };
 
   return (
     <ProcurexAwardFrame pageKey="post-award-tracking">
       <div className="main-layout procurement-layout evaluation-app-layout post-award-page award-simple-page" data-award-contract-workspace>
         <main className="main-content procurement-content post-award-workspace">
-          <AwardHero
-            kicker="Contract execution and monitoring"
-            title={contract?.title ?? 'No active or closed contract selected'}
-            copy="Track contract execution by work area."
-            stats={[
-              { value: contract?.milestones.length ?? 0, label: 'Milestones' },
-              { value: contract?.risks.length ?? 0, label: 'Open risk records' },
-              { value: contract?.supplierPerformanceRecords.length ?? 0, label: 'Performance records' }
-            ]}
-          />
+          {!contractId ? (
+            <AwardHero
+              kicker="Contracts"
+              title="Post-award"
+              copy="Manage active contracts."
+              stats={[
+                { value: postAwardContracts.length, label: 'Eligible contracts' },
+                { value: postAwardContracts.filter((row) => row.viewerRole === 'BUYER').length, label: 'Buyer workspaces' },
+                { value: postAwardContracts.filter((row) => row.viewerRole === 'SUPPLIER').length, label: 'Supplier workspaces' }
+              ]}
+            />
+          ) : null}
 
           {isLoading ? (
             <RemoteStatePanel
@@ -413,84 +1230,42 @@ export function PostAwardTrackingProcurexPage() {
               onBack={() => navigate('/post-award')}
             />
           ) : !isLoading && !loadError && contract ? (
-            <AwardContractAccessProvider access={contract.access ? { ...contract.access, hideLockedActions: true } : undefined}>
-          <section className="procurement-panel evaluation-panel post-award-panel post-award-cmp-panel">
-            <div className="panel-heading">
-              <div>
-                <span className="section-kicker">Track delivery</span>
-                <h2>Choose the work area you need</h2>
-                <p>Pick a work area.</p>
-              </div>
-              <StatusBadge value={activeWorkGroup.label} />
-            </div>
-            <section className="contract-overview-grid">
-              <article><span>Status</span><strong>{contract.status}</strong></article>
-              <article><span>Buyer</span><strong>{contract.buyerName}</strong></article>
-              <article><span>Supplier</span><strong>{contract.supplierName ?? 'Supplier pending'}</strong></article>
-              <article><span>Reference</span><strong>{contract.reference}</strong></article>
-            </section>
-            <section className="post-award-next-actions" aria-label="Recommended next actions">
-              <div className="panel-heading">
-                <div>
-                  <span className="section-kicker">Recommended next actions</span>
-                  <h2>Next records to update</h2>
-                </div>
-              </div>
-              <div className="post-award-action-list">
-                {recommendedActions.map((action) => (
-                  <button className="post-award-action-card" type="button" onClick={() => selectFlowStep(action.step)} key={`${action.step}-${action.title}`}>
-                    <span>{action.priority}</span>
-                    <strong>{action.title}</strong>
-                    <em>{action.detail}</em>
-                  </button>
-                ))}
-              </div>
-            </section>
-            <div className="award-simple-details-stack post-award-work-chooser" aria-label="Post-award work areas">
-              {postAwardWorkGroups.map((group) => {
-                const groupSections = group.sectionIds.map((id) => sections.find((section) => section.id === id)).filter(Boolean) as Array<WorkflowSection<PostAwardSectionId>>;
-                const groupCount = groupSections.reduce((sum, section) => sum + (section.count ?? 0), 0);
-                const lockedByFormation = formationLocked && !group.sectionIds.some((id) => id === 'cmp' || id === 'registers');
-                return (
-                  <ExpandableAwardDetails
-                    title={group.label}
-                    summary={lockedByFormation ? 'Locked until contract is signed' : `${groupCount} record${groupCount === 1 ? '' : 's'}`}
-                    open={activeWorkGroup.id === group.id}
-                    key={group.id}
-                  >
-                    <div className="award-simple-detail-action">
-                      <p>{group.description}</p>
-                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => selectFlowStep(group.sectionIds[0])}>
-                        Open {group.label.toLowerCase()}
-                      </button>
-                    </div>
-                  </ExpandableAwardDetails>
-                );
-              })}
-            </div>
-            <div className="post-award-subnav" role="tablist" aria-label={`${activeWorkGroup.label} records`}>
-              {activeWorkGroup.sectionIds.map((sectionId) => {
-                const section = sections.find((item) => item.id === sectionId);
-                if (!section) return null;
-                return (
-                  <button
-                    className={`btn btn-secondary btn-sm${activeGroup === sectionId ? ' active' : ''}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeGroup === sectionId}
-                    onClick={() => selectFlowStep(sectionId)}
-                    key={sectionId}
-                  >
-                    {sectionDisplayTitle(section)}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+            <AwardContractAccessProvider access={contract.access ? { ...contract.access, hideLockedActions: false } : undefined}>
+          <GuidedExecutionHeader
+            contract={contract}
+            executionType={executionType}
+            activeSection={activeSection}
+            activeWorkGroup={activeWorkGroup}
+            nextAction={primaryRecommendedAction}
+          />
+          <PostAwardPageNav
+            sections={sections}
+            activeGroup={activeGroup}
+            routeSectionSlug={route.sectionSlug}
+            search={location.search}
+            onOpen={openPostAwardPath}
+          />
+          {!isDeepRegisterPage && !isRecordPage ? <GuidedTaskQueue actions={recommendedActions} onSelect={selectFlowStep} /> : null}
           {activeFlowLock ? (
             <LockedFlowStepPanel title={`${activeSection ? sectionDisplayTitle(activeSection) : 'Work area'} is locked`} reason={activeFlowLock} />
           ) : null}
           {!activeFlowLock ? (
+          isRecordPage && activeRegisterConfig ? (
+            <PostAwardRecordDetailPage
+              config={activeRegisterConfig}
+              contract={contract}
+              recordId={decodeURIComponent(route.recordId)}
+              onBack={backToRegister}
+            />
+          ) : isDeepRegisterPage && activeRegisterConfig ? (
+            <PostAwardRegisterDataTable
+              config={activeRegisterConfig}
+              contract={contract}
+              search={location.search}
+              onOpen={openPostAwardPath}
+              onBack={backToSection}
+            />
+          ) : (
           <div className="post-award-grouped" data-post-award-active-group={activeGroup}>
           {activeGroup === 'cmp' ? (
           <section className="procurement-panel evaluation-panel post-award-panel post-award-forms-panel">
@@ -539,6 +1314,96 @@ export function PostAwardTrackingProcurexPage() {
                 ]}
                 initialValues={{ status: contract.status, note: '' }}
                 onSubmit={(payload) => awardsContractsApi.updateContractStatus(contract.id, String(payload.status), String(payload.note ?? ''))}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Activation item submission"
+                badge={`${contract.activationItems?.length ?? 0} items`}
+                submitLabel="Submit Item"
+                fields={[
+                  { name: 'itemId', label: 'Activation item', kind: 'select', required: true, options: itemOptions(contract.activationItems ?? [], 'Select activation item') },
+                  { name: 'documentId', label: 'Evidence document', kind: 'select', options: documentOptions(contractDocuments) },
+                  { name: 'note', label: 'Submission note', kind: 'textarea' },
+                  { name: 'payload', label: 'Submission payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ itemId: contract.activationItems?.[0]?.id ?? '', documentId: '', note: '', payload: '{}' }}
+                onSubmit={(payload) => {
+                  const { itemId, ...body } = payload;
+                  return postAwardApi.submitActivationItem(contract.id, String(itemId), body);
+                }}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Activation review"
+                badge="Buyer review"
+                submitLabel="Review Item"
+                fields={[
+                  { name: 'itemId', label: 'Activation item', kind: 'select', required: true, options: itemOptions(contract.activationItems ?? [], 'Select activation item') },
+                  { name: 'status', label: 'Decision', kind: 'select', required: true, options: lifecycleStatusOptions },
+                  { name: 'note', label: 'Review note', kind: 'textarea' },
+                  { name: 'payload', label: 'Review payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ itemId: contract.activationItems?.[0]?.id ?? '', status: 'APPROVED', note: '', payload: '{}' }}
+                onSubmit={(payload) => {
+                  const { itemId, ...body } = payload;
+                  return postAwardApi.reviewActivationItem(contract.id, String(itemId), body);
+                }}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Activate contract"
+                badge={contract.status === 'ACTIVE' ? 'Active' : 'Gate'}
+                submitLabel="Activate"
+                fields={[
+                  { name: 'note', label: 'Activation note', kind: 'textarea' },
+                  { name: 'payload', label: 'Activation payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ note: 'Activation requirements reviewed and approved.', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.activateContract(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Contract obligation"
+                badge="Obligation"
+                submitLabel="Create Obligation"
+                fields={[
+                  { name: 'title', label: 'Title', kind: 'text', required: true },
+                  { name: 'obligationType', label: 'Type', kind: 'text' },
+                  { name: 'description', label: 'Description', kind: 'textarea' },
+                  { name: 'ownerRole', label: 'Owner role', kind: 'text', required: true },
+                  { name: 'relatedMilestoneId', label: 'Related milestone', kind: 'select', options: itemOptions(contract.milestones as ContractLifecycleItemDto[], 'No linked milestone') },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'dueDate', label: 'Due date', kind: 'date' },
+                  { name: 'amount', label: 'Amount', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'currency', label: 'Currency', kind: 'currency' },
+                  { name: 'acceptanceMethod', label: 'Acceptance method', kind: 'text' },
+                  { name: 'acceptanceCriteria', label: 'Acceptance criteria', kind: 'textarea' },
+                  { name: 'paymentEligible', label: 'Payment eligible', kind: 'checkbox' },
+                  { name: 'payload', label: 'Obligation payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ title: 'Execution obligation', obligationType: 'DELIVERY', ownerRole: 'supplier', status: 'OPEN', dueDate: today, currency: contract.currency, paymentEligible: false, payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createObligation(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Evidence requirement"
+                badge="Evidence"
+                submitLabel="Create Requirement"
+                fields={[
+                  { name: 'title', label: 'Title', kind: 'text', required: true },
+                  { name: 'obligationId', label: 'Obligation', kind: 'select', options: itemOptions(contract.obligations ?? [], 'No linked obligation') },
+                  { name: 'milestoneId', label: 'Milestone', kind: 'select', options: itemOptions(contract.milestones as ContractLifecycleItemDto[], 'No linked milestone') },
+                  { name: 'evidenceType', label: 'Evidence type', kind: 'text' },
+                  { name: 'ownerRole', label: 'Owner role', kind: 'text', required: true },
+                  { name: 'mandatory', label: 'Mandatory', kind: 'checkbox' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'dueDate', label: 'Due date', kind: 'date' },
+                  { name: 'documentId', label: 'Evidence document', kind: 'select', options: documentOptions(contractDocuments) },
+                  { name: 'note', label: 'Note', kind: 'textarea' },
+                  { name: 'payload', label: 'Requirement payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ title: 'Delivery evidence', evidenceType: 'DOCUMENT', ownerRole: 'supplier', mandatory: true, status: 'OPEN', dueDate: today, documentId: '', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createEvidenceRequirement(contract.id, payload)}
                 onComplete={refreshContract}
               />
               <ActionFormPanel
@@ -599,7 +1464,12 @@ export function PostAwardTrackingProcurexPage() {
               <tr><td><strong>Reporting</strong></td><td>{contract.managementPlan?.reportingPlan || 'Pending'}</td></tr>
               <tr><td><strong>Communication</strong></td><td>{contract.managementPlan?.communicationPlan || 'Pending'}</td></tr>
             </SimpleTable>
+            <PostAwardRegisterOverview configs={activeRegisterConfigs} search={location.search} onOpen={openPostAwardPath} />
             <div className="post-award-register-grid">
+              <RegisterCard kicker="Activation" title="Activation checklist" records={asRecords(contract.activationItems)} />
+              <RegisterCard kicker="Activation" title="Contract baselines" records={asRecords(contract.baselines)} />
+              <RegisterCard kicker="Obligations" title="Contract obligations" records={asRecords(contract.obligations)} />
+              <RegisterCard kicker="Evidence" title="Evidence requirements" records={asRecords(contract.evidenceRequirements)} />
               <RegisterCard kicker="Commencement" title="Commencement notices" records={asRecords(contract.commencements)} />
             </div>
           </section>
@@ -607,9 +1477,20 @@ export function PostAwardTrackingProcurexPage() {
           {activeGroup !== 'cmp' && activeGroup !== 'registers' ? (
           <section className="procurement-panel evaluation-panel post-award-panel post-award-register-panel">
             <div className="panel-heading">
-              <div><span className="section-kicker">Action forms</span><h2>{sections.find((section) => section.id === activeGroup)?.description ?? 'Record activity.'}</h2></div>
+              <div><span className="section-kicker">My action forms</span><h2>{sections.find((section) => section.id === activeGroup)?.description ?? 'Record activity.'}</h2></div>
               <StatusBadge value={sections.find((section) => section.id === activeGroup)?.label ?? 'Forms'} />
             </div>
+            {activeRecordTotal === 0 ? (
+              <GuidedEmptyState
+                title={activeEmptyState.title}
+                detail={activeEmptyState.detail}
+                actionLabel={activeEmptyState.actionLabel}
+                onAction={() => {
+                  const firstButton = document.querySelector<HTMLElement>('.post-award-register-panel [data-award-contract-form] .btn-primary');
+                  firstButton?.focus();
+                }}
+              />
+            ) : null}
             <div className="award-control-grid">
               {activeGroup === 'delivery' ? (
               <>
@@ -689,6 +1570,231 @@ export function PostAwardTrackingProcurexPage() {
                 onSubmit={(payload) => awardsContractsApi.createDeliverable(contract.id, payload)}
                 onComplete={refreshContract}
               />
+              {showDeliveryForm('Goods delivery schedule') ? (
+              <ActionFormPanel
+                title="Goods delivery schedule"
+                badge="Goods"
+                fields={[
+                  { name: 'obligationId', label: 'Obligation', kind: 'select', options: itemOptions(contract.obligations ?? [], 'No linked obligation') },
+                  { name: 'lineReference', label: 'Line reference', kind: 'text' },
+                  { name: 'description', label: 'Description', kind: 'textarea', required: true },
+                  { name: 'plannedQuantity', label: 'Planned quantity', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'unit', label: 'Unit', kind: 'text' },
+                  { name: 'deliveryLocation', label: 'Delivery location', kind: 'text' },
+                  { name: 'plannedDeliveryDate', label: 'Planned delivery date', kind: 'date' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'payload', label: 'Schedule payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ description: 'Scheduled goods delivery', unit: 'each', plannedDeliveryDate: today, status: 'OPEN', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createDeliverySchedule(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Dispatch notice') ? (
+              <ActionFormPanel
+                title="Dispatch notice"
+                badge="Goods"
+                fields={[
+                  { name: 'scheduleId', label: 'Schedule', kind: 'select', options: recordPickerOptions(contract.deliverySchedules ?? [], 'No linked schedule') },
+                  { name: 'dispatchReference', label: 'Dispatch reference', kind: 'text' },
+                  { name: 'carrier', label: 'Carrier', kind: 'text' },
+                  { name: 'trackingReference', label: 'Tracking reference', kind: 'text' },
+                  { name: 'dispatchedQuantity', label: 'Dispatched quantity', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'expectedArrivalDate', label: 'Expected arrival date', kind: 'date' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'payload', label: 'Dispatch payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ status: 'DISPATCHED', expectedArrivalDate: today, payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createDispatchNotice(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Goods receipt') ? (
+              <ActionFormPanel
+                title="Goods receipt"
+                badge="GRN"
+                fields={[
+                  { name: 'dispatchNoticeId', label: 'Dispatch notice', kind: 'select', options: recordPickerOptions(contract.dispatchNotices ?? [], 'No linked dispatch notice') },
+                  { name: 'receiptReference', label: 'Receipt reference', kind: 'text' },
+                  { name: 'receivedAt', label: 'Received at', kind: 'datetime' },
+                  { name: 'location', label: 'Receipt location', kind: 'text' },
+                  { name: 'conditionAtReceipt', label: 'Condition at receipt', kind: 'textarea' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'note', label: 'Receipt note', kind: 'textarea' },
+                  { name: 'lines', label: 'Receipt lines', kind: 'json', rows: 5, helpText: 'JSON array with description and quantities.' },
+                  { name: 'payload', label: 'Receipt payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ receivedAt: new Date().toISOString(), status: 'APPROVED', lines: '[{"description":"Received item","receivedQuantity":1,"acceptedQuantity":1,"unit":"each"}]', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createGoodsReceipt(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Site handover') ? (
+              <ActionFormPanel
+                title="Site handover"
+                badge="Works"
+                fields={[
+                  { name: 'handoverReference', label: 'Handover reference', kind: 'text' },
+                  { name: 'handoverDate', label: 'Handover date', kind: 'date' },
+                  { name: 'location', label: 'Location', kind: 'text' },
+                  { name: 'handedOverBy', label: 'Handed over by', kind: 'text' },
+                  { name: 'receivedBy', label: 'Received by', kind: 'text' },
+                  { name: 'constraints', label: 'Constraints', kind: 'textarea' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'payload', label: 'Handover payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ handoverDate: today, status: 'HANDED_OVER', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createSiteHandover(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Works progress report') ? (
+              <ActionFormPanel
+                title="Works progress report"
+                badge="Works"
+                fields={[
+                  { name: 'reportReference', label: 'Report reference', kind: 'text' },
+                  { name: 'periodStart', label: 'Period start', kind: 'date' },
+                  { name: 'periodEnd', label: 'Period end', kind: 'date' },
+                  { name: 'progressPercent', label: 'Progress percent', kind: 'number', min: 0, max: 100, step: '0.01' },
+                  { name: 'narrative', label: 'Narrative', kind: 'textarea' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'payload', label: 'Progress payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ periodStart: today, periodEnd: today, progressPercent: '50', status: 'SUBMITTED', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createWorksProgressReport(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('BOQ measurement') ? (
+              <ActionFormPanel
+                title="BOQ measurement"
+                badge="Works"
+                fields={[
+                  { name: 'reportId', label: 'Progress report', kind: 'select', options: recordPickerOptions(contract.worksProgressReports ?? [], 'No linked report') },
+                  { name: 'boqItemReference', label: 'BOQ item reference', kind: 'text', required: true },
+                  { name: 'description', label: 'Description', kind: 'textarea' },
+                  { name: 'previousQuantity', label: 'Previous quantity', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'currentQuantity', label: 'Current quantity', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'cumulativeQuantity', label: 'Cumulative quantity', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'unitRate', label: 'Unit rate', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'amount', label: 'Amount', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'payload', label: 'Measurement payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ boqItemReference: 'BOQ-001', currentQuantity: '1', cumulativeQuantity: '1', status: 'APPROVED', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createBoqMeasurement(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Interim payment certificate') ? (
+              <ActionFormPanel
+                title="Interim payment certificate"
+                badge="IPC"
+                fields={[
+                  { name: 'certificateNumber', label: 'Certificate number', kind: 'text' },
+                  { name: 'periodStart', label: 'Period start', kind: 'date' },
+                  { name: 'periodEnd', label: 'Period end', kind: 'date' },
+                  { name: 'grossAmount', label: 'Gross amount', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'deductionsAmount', label: 'Deductions', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'netAmount', label: 'Net amount', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'currency', label: 'Currency', kind: 'currency' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'approvedAt', label: 'Approved at', kind: 'datetime' },
+                  { name: 'payload', label: 'IPC payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ periodStart: today, periodEnd: today, grossAmount: contract.amount === null ? '' : String(contract.amount), netAmount: contract.amount === null ? '' : String(contract.amount), currency: contract.currency, status: 'APPROVED', approvedAt: new Date().toISOString(), payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createInterimPaymentCertificate(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Service level') ? (
+              <ActionFormPanel
+                title="Service level"
+                badge="Services"
+                fields={[
+                  { name: 'metricKey', label: 'Metric key', kind: 'text', required: true },
+                  { name: 'title', label: 'Title', kind: 'text', required: true },
+                  { name: 'targetValue', label: 'Target value', kind: 'text' },
+                  { name: 'measurementUnit', label: 'Unit', kind: 'text' },
+                  { name: 'creditRule', label: 'Credit rule', kind: 'textarea' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'payload', label: 'SLA payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ metricKey: 'availability', title: 'Service availability', targetValue: '95%', status: 'ACTIVE', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createServiceLevel(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Service period') ? (
+              <ActionFormPanel
+                title="Service period"
+                badge="Services"
+                fields={[
+                  { name: 'periodKey', label: 'Period key', kind: 'text', required: true },
+                  { name: 'startDate', label: 'Start date', kind: 'date', required: true },
+                  { name: 'endDate', label: 'End date', kind: 'date', required: true },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'payload', label: 'Period payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ periodKey: `PER-${today}`, startDate: today, endDate: today, status: 'OPEN', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createServicePeriod(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Service report') ? (
+              <ActionFormPanel
+                title="Service report"
+                badge="Services"
+                fields={[
+                  { name: 'periodId', label: 'Service period', kind: 'select', options: recordPickerOptions(contract.servicePeriods ?? [], 'No linked period') },
+                  { name: 'reportReference', label: 'Report reference', kind: 'text' },
+                  { name: 'submittedAt', label: 'Submitted at', kind: 'datetime' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'summary', label: 'Summary', kind: 'textarea' },
+                  { name: 'payload', label: 'Report payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ submittedAt: new Date().toISOString(), status: 'APPROVED', summary: 'Service period delivered and verified.', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createServiceReport(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Consultancy deliverable') ? (
+              <ActionFormPanel
+                title="Consultancy deliverable"
+                badge="Consultancy"
+                fields={[
+                  { name: 'deliverableCode', label: 'Deliverable code', kind: 'text', required: true },
+                  { name: 'title', label: 'Title', kind: 'text', required: true },
+                  { name: 'description', label: 'Description', kind: 'textarea' },
+                  { name: 'dueDate', label: 'Due date', kind: 'date' },
+                  { name: 'paymentEligible', label: 'Payment eligible', kind: 'checkbox' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'payload', label: 'Deliverable payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ deliverableCode: 'CONS-001', title: 'Consultancy deliverable', dueDate: today, paymentEligible: true, status: 'OPEN', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createConsultancyDeliverable(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showDeliveryForm('Consultancy deliverable version') ? (
+              <ActionFormPanel
+                title="Consultancy deliverable version"
+                badge="Consultancy"
+                fields={[
+                  { name: 'deliverableId', label: 'Deliverable', kind: 'select', options: recordPickerOptions(contract.consultancyDeliverables ?? [], 'No linked consultancy deliverable') },
+                  { name: 'versionNo', label: 'Version number', kind: 'number', min: 1 },
+                  { name: 'documentId', label: 'Document', kind: 'document', document: { options: evidenceDocumentOptions, onUpload: uploadEvidenceDocument } },
+                  { name: 'submittedAt', label: 'Submitted at', kind: 'datetime' },
+                  { name: 'status', label: 'Status', kind: 'text' },
+                  { name: 'note', label: 'Note', kind: 'textarea' },
+                  { name: 'payload', label: 'Version payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ versionNo: '1', submittedAt: new Date().toISOString(), status: 'SUBMITTED', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createDeliverableVersion(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
               </>
               ) : null}
               {activeGroup === 'inspections' ? (
@@ -713,6 +1819,7 @@ export function PostAwardTrackingProcurexPage() {
                 onSubmit={(payload) => awardsContractsApi.createInspection(contract.id, payload)}
                 onComplete={refreshContract}
               />
+              {showInspectionForm('Goods inspection') ? (
               <ActionFormPanel
                 title="Goods inspection"
                 badge="Goods"
@@ -751,6 +1858,7 @@ export function PostAwardTrackingProcurexPage() {
                 }}
                 onComplete={refreshContract}
               />
+              ) : null}
               <ActionFormPanel
                 title="Acceptance certificate"
                 badge="Acceptance"
@@ -769,6 +1877,44 @@ export function PostAwardTrackingProcurexPage() {
                 onSubmit={(payload) => awardsContractsApi.createAcceptance(contract.id, payload)}
                 onComplete={refreshContract}
               />
+              {showInspectionForm('Works defect') ? (
+              <ActionFormPanel
+                title="Works defect"
+                badge="Defect"
+                fields={[
+                  { name: 'reportId', label: 'Progress report', kind: 'select', options: recordPickerOptions(contract.worksProgressReports ?? [], 'No linked report') },
+                  { name: 'defectReference', label: 'Defect reference', kind: 'text' },
+                  { name: 'description', label: 'Description', kind: 'textarea', required: true },
+                  { name: 'severity', label: 'Severity', kind: 'select', options: [option('MINOR'), option('MAJOR'), option('CRITICAL')] },
+                  { name: 'reportedAt', label: 'Reported at', kind: 'datetime' },
+                  { name: 'dueDate', label: 'Correction due date', kind: 'date' },
+                  { name: 'closedAt', label: 'Closed at', kind: 'datetime' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'payload', label: 'Defect payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ description: 'Workmanship or completion defect', severity: 'MAJOR', reportedAt: new Date().toISOString(), dueDate: today, status: 'OPEN', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createContractDefect(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
+              {showInspectionForm('Consultancy review') ? (
+              <ActionFormPanel
+                title="Consultancy review"
+                badge="Review"
+                fields={[
+                  { name: 'versionId', label: 'Deliverable version', kind: 'select', required: true, options: recordPickerOptions(contract.deliverableVersions ?? [], 'Select submitted version') },
+                  { name: 'reviewRound', label: 'Review round', kind: 'number', min: 1 },
+                  { name: 'reviewerRole', label: 'Reviewer role', kind: 'select', options: [option('TECHNICAL'), option('CONTRACT_MANAGER'), option('USER_DEPARTMENT'), option('LEGAL')] },
+                  { name: 'decision', label: 'Decision', kind: 'select', options: [option('APPROVED'), option('REVISE'), option('REJECTED'), option('ACCEPTED')] },
+                  { name: 'comments', label: 'Comments', kind: 'textarea' },
+                  { name: 'reviewedAt', label: 'Reviewed at', kind: 'datetime' },
+                  { name: 'payload', label: 'Review payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ versionId: recordPickerOptions(contract.deliverableVersions ?? [], 'Select submitted version')[1]?.value ?? '', reviewRound: '1', reviewerRole: 'TECHNICAL', decision: 'APPROVED', reviewedAt: new Date().toISOString(), payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createDeliverableReview(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
               </>
               ) : null}
               {activeGroup === 'payments' ? (
@@ -796,15 +1942,20 @@ export function PostAwardTrackingProcurexPage() {
                   { name: 'reference', label: 'Invoice reference', kind: 'text' },
                   { name: 'purchaseOrderId', label: 'Purchase order', kind: 'select', options: purchaseOrderOptions },
                   { name: 'supplierOrgId', label: 'Supplier organization', kind: 'select', options: supplierOrgOptions, helpText: 'Optional.' },
+                  { name: 'executionReferenceId', label: 'Accepted execution record', kind: 'select', required: true, options: executionReferenceOptions },
                   { name: 'amount', label: 'Amount', kind: 'number', min: 0, step: '0.01', required: true },
                   { name: 'currency', label: 'Currency', kind: 'currency' },
                   { name: 'status', label: 'Status', kind: 'select', options: invoiceStatusOptions },
                   { name: 'payload', label: 'Invoice payload', kind: 'json', rows: 4 }
                 ]}
                 initialValues={{ amount: contract.amount === null ? '' : String(contract.amount), currency: contract.currency, status: contract.status === 'TERMINATION_REVIEW' ? 'BLOCKED' : 'SUBMITTED', payload: '{}' }}
-                onSubmit={(payload) => awardsContractsApi.createInvoice(contract.id, payload)}
+                onSubmit={(payload) => {
+                  const selectedReference = executionReferenceOptions.find((item) => item.value === payload.executionReferenceId);
+                  return awardsContractsApi.createInvoice(contract.id, { ...payload, executionReferenceType: selectedReference?.status ?? '' });
+                }}
                 onComplete={refreshContract}
               />
+              {showFinanceForm('Three-way match') ? (
               <ActionFormPanel
                 title="Three-way match"
                 badge="3-way"
@@ -825,6 +1976,7 @@ export function PostAwardTrackingProcurexPage() {
                 onSubmit={(payload) => awardsContractsApi.upsertThreeWayMatch(contract.id, payload)}
                 onComplete={refreshContract}
               />
+              ) : null}
               <ActionFormPanel
                 title="Payment review"
                 badge="Payment"
@@ -918,6 +2070,25 @@ export function PostAwardTrackingProcurexPage() {
                 onSubmit={(payload) => awardsContractsApi.createContractPenalty(contract.id, payload)}
                 onComplete={refreshContract}
               />
+              {showFinanceForm('Service credit') ? (
+              <ActionFormPanel
+                title="Service credit"
+                badge="SLA"
+                fields={[
+                  { name: 'periodId', label: 'Service period', kind: 'select', options: recordPickerOptions(contract.servicePeriods ?? [], 'No linked period') },
+                  { name: 'levelId', label: 'Service level', kind: 'select', options: recordPickerOptions(contract.serviceLevels ?? [], 'No linked SLA') },
+                  { name: 'creditType', label: 'Credit type', kind: 'text', required: true },
+                  { name: 'basis', label: 'Basis', kind: 'textarea' },
+                  { name: 'amount', label: 'Amount', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'currency', label: 'Currency', kind: 'currency' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'payload', label: 'Service credit payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ creditType: 'Service level credit', amount: '0', currency: contract.currency, status: 'OPEN', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createServiceCredit(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              ) : null}
               </>
               ) : null}
               {activeGroup === 'risk' ? (
@@ -1133,6 +2304,79 @@ export function PostAwardTrackingProcurexPage() {
                   const { itemId, ...body } = payload;
                   return awardsContractsApi.updateDispute(contract.id, String(itemId), body);
                 }}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Claim"
+                badge="Claim"
+                fields={[
+                  { name: 'claimReference', label: 'Claim reference', kind: 'text' },
+                  { name: 'claimType', label: 'Claim type', kind: 'text', required: true },
+                  { name: 'title', label: 'Title', kind: 'text', required: true },
+                  { name: 'description', label: 'Description', kind: 'textarea' },
+                  { name: 'amountClaimed', label: 'Amount claimed', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'currency', label: 'Currency', kind: 'currency' },
+                  { name: 'timeImpactDays', label: 'Time impact days', kind: 'number' },
+                  { name: 'submittedAt', label: 'Submitted at', kind: 'datetime' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'payload', label: 'Claim payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ claimType: 'time-cost', title: 'Contract claim', currency: contract.currency, submittedAt: new Date().toISOString(), status: 'SUBMITTED', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createClaim(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Claim response"
+                badge="Response"
+                fields={[
+                  { name: 'claimId', label: 'Claim', kind: 'select', required: true, options: recordPickerOptions(contract.claims ?? [], 'Select claim') },
+                  { name: 'decision', label: 'Decision', kind: 'select', options: [option('APPROVED'), option('PARTIALLY_APPROVED'), option('REJECTED'), option('NEEDS_INFORMATION')] },
+                  { name: 'approvedAmount', label: 'Approved amount', kind: 'number', min: 0, step: '0.01' },
+                  { name: 'approvedTimeDays', label: 'Approved time days', kind: 'number' },
+                  { name: 'responseText', label: 'Response text', kind: 'textarea' },
+                  { name: 'respondedAt', label: 'Responded at', kind: 'datetime' },
+                  { name: 'payload', label: 'Response payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ claimId: recordPickerOptions(contract.claims ?? [], 'Select claim')[1]?.value ?? '', decision: 'APPROVED', respondedAt: new Date().toISOString(), payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createClaimResponse(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Extension request"
+                badge="EOT"
+                fields={[
+                  { name: 'requestReference', label: 'Request reference', kind: 'text' },
+                  { name: 'reason', label: 'Reason', kind: 'textarea', required: true },
+                  { name: 'requestedDays', label: 'Requested days', kind: 'number', min: 1 },
+                  { name: 'newCompletionDate', label: 'New completion date', kind: 'date' },
+                  { name: 'submittedAt', label: 'Submitted at', kind: 'datetime' },
+                  { name: 'decision', label: 'Decision', kind: 'select', options: [option('PENDING'), option('APPROVED'), option('PARTIALLY_APPROVED'), option('REJECTED')] },
+                  { name: 'decidedAt', label: 'Decided at', kind: 'datetime' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'payload', label: 'Extension payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ reason: 'Supplier requested extension of time', requestedDays: '7', newCompletionDate: today, submittedAt: new Date().toISOString(), decision: 'PENDING', status: 'OPEN', payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createExtensionRequest(contract.id, payload)}
+                onComplete={refreshContract}
+              />
+              <ActionFormPanel
+                title="Contract amendment"
+                badge="Baseline"
+                fields={[
+                  { name: 'amendmentReference', label: 'Amendment reference', kind: 'text' },
+                  { name: 'amendmentType', label: 'Amendment type', kind: 'text', required: true },
+                  { name: 'title', label: 'Title', kind: 'text', required: true },
+                  { name: 'description', label: 'Description', kind: 'textarea' },
+                  { name: 'valueChange', label: 'Value change', kind: 'number', step: '0.01' },
+                  { name: 'currency', label: 'Currency', kind: 'currency' },
+                  { name: 'timeChangeDays', label: 'Time change days', kind: 'number' },
+                  { name: 'approvedAt', label: 'Approved at', kind: 'datetime' },
+                  { name: 'signedAt', label: 'Signed at', kind: 'datetime' },
+                  { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
+                  { name: 'payload', label: 'Amendment payload', kind: 'json', rows: 4 }
+                ]}
+                initialValues={{ amendmentType: 'scope-time-cost', title: 'Contract amendment', currency: contract.currency, status: 'APPROVED', approvedAt: new Date().toISOString(), payload: '{}' }}
+                onSubmit={(payload) => postAwardApi.createAmendment(contract.id, payload)}
                 onComplete={refreshContract}
               />
               </>
@@ -1438,36 +2682,52 @@ export function PostAwardTrackingProcurexPage() {
               </>
               ) : null}
             </div>
+            <PostAwardRegisterOverview configs={activeRegisterConfigs} search={location.search} onOpen={openPostAwardPath} />
             {activeGroup === 'delivery' ? (
               <div className="post-award-register-grid">
-                <RegisterCard kicker="Delivery" title="Mobilization" records={asRecords(contract.mobilizationItems)} />
-                <RegisterCard kicker="Delivery" title="Milestones" records={asRecords(contract.milestones as ContractLifecycleItemDto[])} />
-                <RegisterCard kicker="Delivery" title="Deliverables" records={asRecords(contract.deliverables as ContractLifecycleItemDto[] | undefined)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Delivery" title="Mobilization" records={asRecords(contract.mobilizationItems)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Delivery" title="Milestones" records={asRecords(contract.milestones as ContractLifecycleItemDto[])} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Delivery" title="Deliverables" records={asRecords(contract.deliverables as ContractLifecycleItemDto[] | undefined)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Goods" title="Delivery schedules" records={asRecords(contract.deliverySchedules)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Goods" title="Dispatch notices" records={asRecords(contract.dispatchNotices)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Goods" title="Goods receipts" records={asRecords(contract.goodsReceipts)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Works" title="Site handovers" records={asRecords(contract.siteHandovers)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Works" title="Progress reports" records={asRecords(contract.worksProgressReports)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Works" title="BOQ measurements" records={asRecords(contract.boqMeasurements)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Works" title="Interim payment certificates" records={asRecords(contract.interimPaymentCertificates)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Services" title="Service levels" records={asRecords(contract.serviceLevels)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Services" title="Service periods" records={asRecords(contract.servicePeriods)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Services" title="Service reports" records={asRecords(contract.serviceReports)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Consultancy" title="Consultancy deliverables" records={asRecords(contract.consultancyDeliverables)} />
+                <WorkflowRegisterCard allowed={workflowConfig.deliveryRegisters} kicker="Consultancy" title="Deliverable versions" records={asRecords(contract.deliverableVersions)} />
               </div>
             ) : null}
             {activeGroup === 'inspections' ? (
               <div className="post-award-register-grid">
-                <RegisterCard kicker="Inspections" title="Inspections" records={asRecords(contract.inspections)} />
-                <RegisterCard kicker="Inspections" title="Goods inspections" records={asRecords(contract.goodsInspections)} />
-                <RegisterCard kicker="Inspections" title="Acceptance" records={asRecords(contract.acceptances as ContractLifecycleItemDto[] | undefined)} />
+                <WorkflowRegisterCard allowed={workflowConfig.inspectionRegisters} kicker="Inspections" title="Inspections" records={asRecords(contract.inspections)} />
+                <WorkflowRegisterCard allowed={workflowConfig.inspectionRegisters} kicker="Inspections" title="Goods inspections" records={asRecords(contract.goodsInspections)} />
+                <WorkflowRegisterCard allowed={workflowConfig.inspectionRegisters} kicker="Inspections" title="Acceptance" records={asRecords(contract.acceptances as ContractLifecycleItemDto[] | undefined)} />
+                <WorkflowRegisterCard allowed={workflowConfig.inspectionRegisters} kicker="Works" title="Defects" records={asRecords(contract.defects)} />
+                <WorkflowRegisterCard allowed={workflowConfig.inspectionRegisters} kicker="Consultancy" title="Deliverable reviews" records={asRecords(contract.deliverableReviews)} />
               </div>
             ) : null}
             {activeGroup === 'payments' ? (
               <div className="post-award-register-grid">
-                <RegisterCard kicker="Payments" title="Payment schedule" records={asRecords(contract.paymentSchedules as ContractLifecycleItemDto[] | undefined)} />
-                <RegisterCard kicker="Payments" title="Purchase orders" records={asRecords(contract.purchaseOrders)} />
-                <RegisterCard kicker="Payments" title="Invoices" records={asRecords(contract.invoices)} />
-                <RegisterCard kicker="Payments" title="Payments" records={asRecords(contract.payments)} />
-                <RegisterCard kicker="Payments" title="Three-way matches" records={asRecords(contract.threeWayMatches)} />
-                <RegisterCard kicker="Payments" title="Penalties and deductions" records={asRecords(contract.penalties)} />
-                <RegisterCard kicker="Payments" title="Payment approvals" records={asRecords(contract.paymentApprovals)} />
-                <RegisterCard kicker="Payments" title="Payment confirmations" records={asRecords(contract.paymentConfirmations)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Payment schedule" records={asRecords(contract.paymentSchedules as ContractLifecycleItemDto[] | undefined)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Purchase orders" records={asRecords(contract.purchaseOrders)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Invoices" records={asRecords(contract.invoices)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Payments" records={asRecords(contract.payments)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Three-way matches" records={asRecords(contract.threeWayMatches)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Penalties and deductions" records={asRecords(contract.penalties)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Payment approvals" records={asRecords(contract.paymentApprovals)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Payment confirmations" records={asRecords(contract.paymentConfirmations)} />
+                <WorkflowRegisterCard allowed={workflowConfig.financeRegisters} kicker="Payments" title="Service credits" records={asRecords(contract.serviceCredits)} />
               </div>
             ) : null}
             {activeGroup === 'risk' ? (
               <div className="post-award-register-grid">
                 <RegisterCard kicker="Risk" title="Risks" records={asRecords(contract.risks as ContractLifecycleItemDto[])} />
-                <RegisterCard kicker="Risk" title="Risk forecasts" records={asRecords(contract.riskForecasts)} />
+                {!isSupplierViewer ? <RegisterCard kicker="Risk" title="Risk forecasts" records={asRecords(contract.riskForecasts)} /> : null}
                 <RegisterCard kicker="Risk" title="Non-conformance" records={asRecords(contract.nonConformances)} />
               </div>
             ) : null}
@@ -1475,6 +2735,10 @@ export function PostAwardTrackingProcurexPage() {
               <div className="post-award-register-grid">
                 <RegisterCard kicker="Changes" title="Variations" records={asRecords(contract.variations as ContractLifecycleItemDto[])} />
                 <RegisterCard kicker="Changes" title="Change requests and amendments" records={asRecords(contract.changeRequests)} />
+                <RegisterCard kicker="Changes" title="Extension requests" records={asRecords(contract.extensionRequests)} />
+                <RegisterCard kicker="Changes" title="Amendments" records={asRecords(contract.amendments)} />
+                <RegisterCard kicker="Claims" title="Claims" records={asRecords(contract.claims)} />
+                <RegisterCard kicker="Claims" title="Claim responses" records={asRecords(contract.claimResponses)} />
                 <RegisterCard kicker="Changes" title="Issues" records={asRecords(contract.issues)} />
                 <RegisterCard kicker="Changes" title="Disputes" records={asRecords(contract.disputes)} />
               </div>
@@ -1495,27 +2759,48 @@ export function PostAwardTrackingProcurexPage() {
             {activeGroup === 'closeout' ? (
               <div className="post-award-register-grid">
                 <RegisterCard kicker="Close-out" title="Close-out" records={contract.closeout ? [contract.closeout as Record<string, unknown>] : []} countLabel="records" />
-                <RegisterCard kicker="Audit" title="Audit events" records={asRecords(contract.audit)} countLabel="events" />
+                {!isSupplierViewer ? <RegisterCard kicker="Audit" title="Audit events" records={asRecords(contract.audit)} countLabel="events" /> : null}
               </div>
             ) : null}
             {activeGroup === 'performance' ? (
               <div className="post-award-register-grid">
                 <RegisterCard kicker="Performance" title="Supplier performance" records={asRecords(contract.supplierPerformanceRecords)} />
                 <RegisterCard kicker="Performance" title="Performance scores" records={asRecords(contract.performanceScores)} />
-                <RegisterCard kicker="Risk" title="Supplier risk profile" records={contract.supplierRiskProfile ? [contract.supplierRiskProfile as Record<string, unknown>] : []} countLabel="profiles" />
+                {!isSupplierViewer ? <RegisterCard kicker="Risk" title="Supplier risk profile" records={contract.supplierRiskProfile ? [contract.supplierRiskProfile as Record<string, unknown>] : []} countLabel="profiles" /> : null}
               </div>
             ) : null}
           </section>
           ) : null}
           {activeGroup === 'registers' ? (
-            <div className="post-award-register-grid">
+            <>
+            <PostAwardRegisterOverview configs={activeRegisterConfigs} search={location.search} onOpen={openPostAwardPath} />
+            <div className="post-award-register-grid post-award-history-legacy-grid">
+              <RegisterCard kicker="Activation" title="Activation checklist" records={asRecords(contract.activationItems)} />
+              <RegisterCard kicker="Activation" title="Contract baselines" records={asRecords(contract.baselines)} />
+              <RegisterCard kicker="Obligations" title="Contract obligations" records={asRecords(contract.obligations)} />
+              <RegisterCard kicker="Evidence" title="Evidence requirements" records={asRecords(contract.evidenceRequirements)} />
               <RegisterCard kicker="Commencement" title="Commencement notices" records={asRecords(contract.commencements)} />
               <RegisterCard kicker="Delivery" title="Mobilization" records={asRecords(contract.mobilizationItems)} />
               <RegisterCard kicker="Delivery" title="Milestones" records={asRecords(contract.milestones as ContractLifecycleItemDto[])} />
               <RegisterCard kicker="Delivery" title="Deliverables" records={asRecords(contract.deliverables as ContractLifecycleItemDto[] | undefined)} />
+              <RegisterCard kicker="Goods" title="Delivery schedules" records={asRecords(contract.deliverySchedules)} />
+              <RegisterCard kicker="Goods" title="Dispatch notices" records={asRecords(contract.dispatchNotices)} />
+              <RegisterCard kicker="Goods" title="Goods receipts" records={asRecords(contract.goodsReceipts)} />
+              <RegisterCard kicker="Works" title="Site handovers" records={asRecords(contract.siteHandovers)} />
+              <RegisterCard kicker="Works" title="Progress reports" records={asRecords(contract.worksProgressReports)} />
+              <RegisterCard kicker="Works" title="BOQ measurements" records={asRecords(contract.boqMeasurements)} />
+              <RegisterCard kicker="Works" title="Interim payment certificates" records={asRecords(contract.interimPaymentCertificates)} />
+              <RegisterCard kicker="Services" title="Service levels" records={asRecords(contract.serviceLevels)} />
+              <RegisterCard kicker="Services" title="Service periods" records={asRecords(contract.servicePeriods)} />
+              <RegisterCard kicker="Services" title="Service reports" records={asRecords(contract.serviceReports)} />
+              <RegisterCard kicker="Services" title="Service credits" records={asRecords(contract.serviceCredits)} />
+              <RegisterCard kicker="Consultancy" title="Consultancy deliverables" records={asRecords(contract.consultancyDeliverables)} />
+              <RegisterCard kicker="Consultancy" title="Deliverable versions" records={asRecords(contract.deliverableVersions)} />
+              <RegisterCard kicker="Consultancy" title="Deliverable reviews" records={asRecords(contract.deliverableReviews)} />
               <RegisterCard kicker="Inspections" title="Inspections" records={asRecords(contract.inspections)} />
               <RegisterCard kicker="Inspections" title="Goods inspections" records={asRecords(contract.goodsInspections)} />
               <RegisterCard kicker="Inspections" title="Acceptance" records={asRecords(contract.acceptances as ContractLifecycleItemDto[] | undefined)} />
+              <RegisterCard kicker="Works" title="Defects" records={asRecords(contract.defects)} />
               <RegisterCard kicker="Payments" title="Payment schedule" records={asRecords(contract.paymentSchedules as ContractLifecycleItemDto[] | undefined)} />
               <RegisterCard kicker="Payments" title="Purchase orders" records={asRecords(contract.purchaseOrders)} />
               <RegisterCard kicker="Payments" title="Invoices" records={asRecords(contract.invoices)} />
@@ -1525,10 +2810,14 @@ export function PostAwardTrackingProcurexPage() {
               <RegisterCard kicker="Payments" title="Payment approvals" records={asRecords(contract.paymentApprovals)} />
               <RegisterCard kicker="Payments" title="Payment confirmations" records={asRecords(contract.paymentConfirmations)} />
               <RegisterCard kicker="Risk" title="Risks" records={asRecords(contract.risks as ContractLifecycleItemDto[])} />
-              <RegisterCard kicker="Risk" title="Risk forecasts" records={asRecords(contract.riskForecasts)} />
+              {!isSupplierViewer ? <RegisterCard kicker="Risk" title="Risk forecasts" records={asRecords(contract.riskForecasts)} /> : null}
               <RegisterCard kicker="Risk" title="Non-conformance" records={asRecords(contract.nonConformances)} />
               <RegisterCard kicker="Changes" title="Variations" records={asRecords(contract.variations as ContractLifecycleItemDto[])} />
               <RegisterCard kicker="Changes" title="Change requests and amendments" records={asRecords(contract.changeRequests)} />
+              <RegisterCard kicker="Changes" title="Extension requests" records={asRecords(contract.extensionRequests)} />
+              <RegisterCard kicker="Changes" title="Amendments" records={asRecords(contract.amendments)} />
+              <RegisterCard kicker="Claims" title="Claims" records={asRecords(contract.claims)} />
+              <RegisterCard kicker="Claims" title="Claim responses" records={asRecords(contract.claimResponses)} />
               <RegisterCard kicker="Changes" title="Issues" records={asRecords(contract.issues)} />
               <RegisterCard kicker="Changes" title="Disputes" records={asRecords(contract.disputes)} />
               <RegisterCard kicker="Termination" title="Termination" records={asRecords(contract.terminations as ContractLifecycleItemDto[])} />
@@ -1539,11 +2828,13 @@ export function PostAwardTrackingProcurexPage() {
               <RegisterCard kicker="Close-out" title="Close-out" records={contract.closeout ? [contract.closeout as Record<string, unknown>] : []} countLabel="records" />
               <RegisterCard kicker="Performance" title="Supplier performance" records={asRecords(contract.supplierPerformanceRecords)} />
               <RegisterCard kicker="Performance" title="Performance scores" records={asRecords(contract.performanceScores)} />
-              <RegisterCard kicker="Risk" title="Supplier risk profile" records={contract.supplierRiskProfile ? [contract.supplierRiskProfile as Record<string, unknown>] : []} countLabel="profiles" />
-              <RegisterCard kicker="Audit" title="Audit events" records={asRecords(contract.audit)} countLabel="events" />
+              {!isSupplierViewer ? <RegisterCard kicker="Risk" title="Supplier risk profile" records={contract.supplierRiskProfile ? [contract.supplierRiskProfile as Record<string, unknown>] : []} countLabel="profiles" /> : null}
+              {!isSupplierViewer ? <RegisterCard kicker="Audit" title="Audit events" records={asRecords(contract.audit)} countLabel="events" /> : null}
             </div>
+            </>
           ) : null}
           </div>
+          )
           ) : null}
             </AwardContractAccessProvider>
           ) : null}

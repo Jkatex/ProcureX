@@ -115,6 +115,8 @@ export const routes = [
   { path: '/awards-contracts/signing', element: verifiedPage('contract-signing', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/samples', element: verifiedPage('sample-procurement', { adminRedirectTo: '/admin/search' }) },
   { path: '/post-award', element: verifiedPage('post-award', { adminRedirectTo: '/admin/search' }) },
+  { path: '/post-award/:section', element: verifiedPage('post-award', { adminRedirectTo: '/admin/search' }) },
+  { path: '/post-award/:section/*', element: verifiedPage('post-award', { adminRedirectTo: '/admin/search' }) },
   { path: '/awards-contracts/post-award', element: <ProtectedRoute requireVerified adminRedirectTo="/admin/search"><RedirectWithSearch to="/post-award" /></ProtectedRoute> },
   { path: '/communication', element: verifiedPage('communication-center', { adminRedirectTo: '/admin/communication', allowSupportComposeForUnverified: true }) },
   { path: '/communication-center', element: <Navigate to="/communication" replace /> },

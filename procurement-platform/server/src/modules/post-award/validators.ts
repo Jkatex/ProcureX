@@ -8,6 +8,13 @@ export const idParamsSchema = z
   })
   .strict();
 
+export const activationItemParamsSchema = z
+  .object({
+    contractId: uuidSchema,
+    itemId: uuidSchema
+  })
+  .strict();
+
 export const milestoneParamsSchema = z
   .object({
     contractId: uuidSchema,

@@ -20,8 +20,8 @@ export type PostAwardRequestContext = {
 };
 
 export type PostAwardViewerRole = 'BUYER' | 'SUPPLIER' | 'ADMIN' | 'NONE';
-export type PostAwardStageId = 'setup' | 'delivery' | 'acceptance' | 'finance' | 'issues' | 'variations' | 'closeout' | 'history';
-export type PostAwardSecondaryId = 'termination' | 'documents' | 'performance' | 'securities' | 'audit';
+export type PostAwardStageId = 'setup' | 'delivery' | 'inspections' | 'finance' | 'risk' | 'changes' | 'claims' | 'documents' | 'closeout' | 'performance' | 'history';
+export type PostAwardSecondaryId = 'termination' | 'securities' | 'audit';
 
 export type PostAwardContractRowDto = {
   id: string;

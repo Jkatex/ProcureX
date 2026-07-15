@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { store } from '@/app/store';
 import '@/i18n';
+import { postAwardApi } from '@/features/postAward/api';
 import { awardsContractsApi } from './api';
 import type { AwardContractDashboard, AwardContractSampleDashboard, AwardContractSampleDto, ContractDetailDto, LifecycleAction } from './types';
 import { AwardingContractsProcurexPage } from './components/procurex/AwardingContractsProcurexPage';
@@ -344,9 +345,10 @@ describe('awards and contracts empty lifecycle flow', () => {
     await user.click(screen.getByRole('button', { name: 'Back to negotiations' }));
     expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/awards-contracts?queue=contracts-in-progress');
 
+    vi.spyOn(postAwardApi, 'contracts').mockResolvedValue([]);
     renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award');
-    await waitFor(() => expect(screen.getByText('Open an active or closed contract to continue post-award tracking')).toBeInTheDocument());
-    expect(screen.getByText(/Complete award response, contract negotiation, signatures, and activation first/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Choose a contract')).toBeInTheDocument());
+    expect(screen.getByText(/No contracts ready yet. Finish award, contract, and signing first./i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to Awards and Contracts' })).toBeInTheDocument();
   });
 
@@ -456,26 +458,27 @@ describe('awards and contracts empty lifecycle flow', () => {
 
   it('opens active contract tracking from the direct post-award chooser', async () => {
     const user = userEvent.setup();
-    vi.spyOn(awardsContractsApi, 'dashboard').mockResolvedValue(dashboard({
-      'contract-signing': [
-        lifecycleAction({
-          id: 'active-contract-1',
-          contractId: 'contract-1',
-          title: 'Road maintenance contract',
-          reference: 'PX-C-1',
-          status: 'ACTIVE',
-          currentStage: 'Delivery monitoring',
-          otherParty: 'Supplier Org',
-          dueDate: null
-        })
-      ]
-    }));
+    vi.spyOn(postAwardApi, 'contracts').mockResolvedValue([{
+      id: 'contract-1',
+      title: 'Road maintenance contract',
+      reference: 'PX-C-1',
+      status: 'ACTIVE',
+      buyerName: 'Buyer Org',
+      supplierName: 'Supplier Org',
+      viewerRole: 'BUYER',
+      amount: 90000000,
+      currency: 'TZS',
+      stage: 'Delivery monitoring',
+      nextAction: 'Monitor execution',
+      dueDate: null,
+      riskLevel: 'Low'
+    }]);
 
     renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award');
 
     await waitFor(() => expect(screen.getByText('Road maintenance contract')).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Open tracking' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/post-award?contract=contract-1&step=cmp');
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/post-award/setup?contract=contract-1');
   });
 
   it('shows Sample required for opened missing required sample records', async () => {
@@ -1233,13 +1236,15 @@ describe('awards and contracts empty lifecycle flow', () => {
     contractRender.unmount();
 
     renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award?contract=contract-1');
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose the work area you need' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Contract management plan (CMP)' }).length).toBeGreaterThan(0));
     expect(screen.getAllByText('PX-C-1').length).toBeGreaterThan(0);
     expect(screen.queryByText('Selected Contract')).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Post-award health summary' })).not.toBeInTheDocument();
-    expect(screen.getByText('Finance')).toBeInTheDocument();
-    expect(screen.getByText('Risk & Changes')).toBeInTheDocument();
-    expect(screen.getByText('Close-out & Performance')).toBeInTheDocument();
+    expect(screen.queryByText("Open the page that matches today's task")).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Post-award pages' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Finance/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Risk/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Close-out/ })).toBeInTheDocument();
   });
 
   it('generates a draft version and sends it to negotiation without the clause library panel', async () => {
@@ -1601,7 +1606,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     const { container } = renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award?contract=contract-1');
     const form = (title: string) => container.querySelector(`[data-award-contract-form="${title}"]`);
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose the work area you need' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Contract management plan (CMP)' }).length).toBeGreaterThan(0));
     expect(screen.queryByText('Overdue work')).not.toBeInTheDocument();
     expect(screen.queryByText('Payment blockers')).not.toBeInTheDocument();
     expect(form('Contract management plan (CMP)')).toBeInTheDocument();
@@ -1611,8 +1616,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(form('Termination')).not.toBeInTheDocument();
     expect(form('Supplier performance')).not.toBeInTheDocument();
 
-    await user.click(screen.getByText('Finance'));
-    await user.click(screen.getByRole('button', { name: 'Open finance' }));
+    await user.click(screen.getByRole('button', { name: /Finance/ }));
     expect(form('Invoice submission')).toBeInTheDocument();
     expect(form('Payment review')).toBeInTheDocument();
     expect(form('Payment approval')).toBeInTheDocument();
@@ -1633,20 +1637,17 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(within(paymentReview).queryByLabelText('Invoice ID')).not.toBeInTheDocument();
     await user.click(within(paymentReview).getByRole('button', { name: 'Cancel' }));
 
-    await user.click(screen.getByText('Risk & Changes'));
-    await user.click(screen.getByRole('button', { name: 'Open risk & changes' }));
-    await user.click(screen.getByRole('tab', { name: 'Termination' }));
+    await user.click(screen.getByRole('button', { name: /Termination/ }));
     expect(form('Termination')).toBeInTheDocument();
     expect(form('Termination notice')).toBeInTheDocument();
     expect(form('Invoice submission')).not.toBeInTheDocument();
     expect(form('Risk')).not.toBeInTheDocument();
     expect(form('Deliverable')).not.toBeInTheDocument();
 
-    await user.click(screen.getByText('Close-out & Performance'));
-    await user.click(screen.getByRole('button', { name: 'Open close-out & performance' }));
-    await user.click(screen.getByRole('tab', { name: 'Saved history' }));
-    expect(screen.getByText('Mobilization')).toBeInTheDocument();
-    expect(screen.getByText('Invoices')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /History/ }));
+    expect(screen.getByRole('heading', { name: 'Tables' })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Mobilization/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Invoices/ })).toBeInTheDocument();
     expect(container.querySelector('[data-award-contract-form]')).not.toBeInTheDocument();
   });
 
@@ -1661,6 +1662,7 @@ describe('awards and contracts empty lifecycle flow', () => {
         canSignSupplier: false,
         readOnlyReason: null
       },
+      payload: { procurementType: 'GOODS' },
       milestones: [{ id: 'milestone-1', type: 'milestone', title: 'Delivery milestone', status: 'OPEN', dueDate: null, note: 'Pending delivery', payload: {}, createdAt: new Date().toISOString(), updatedAt: null }],
       deliverables: [{ id: 'deliverable-1', type: 'deliverable', title: 'Medical kits delivery', status: 'SUBMITTED', dueDate: null, note: 'Awaiting inspection', payload: {}, createdAt: new Date().toISOString(), updatedAt: null }]
     });
@@ -1668,7 +1670,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     const goodsInspection = vi.spyOn(awardsContractsApi, 'createGoodsInspection').mockResolvedValue(contract);
     const { container } = renderFlow(<PostAwardTrackingProcurexPage />, '/awards-contracts/post-award?contract=contract-1&step=inspections');
 
-    await waitFor(() => expect(screen.getByText('Inspections and acceptance')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('Inspections and acceptance').length).toBeGreaterThan(0));
     const form = container.querySelector('[data-award-contract-form="Goods inspection"]') as HTMLElement;
     await user.click(within(form).getByRole('button', { name: 'Open form' }));
     expect(screen.queryByRole('dialog', { name: 'Goods inspection' })).not.toBeInTheDocument();
@@ -1741,7 +1743,8 @@ describe('awards and contracts empty lifecycle flow', () => {
     })));
   });
 
-  it('locks production action forms that belong to the other contract party', () => {
+  it('opens production action forms read-only when they belong to the other contract party', async () => {
+    const user = userEvent.setup();
     const supplierAccess = {
       viewerRole: 'SUPPLIER' as const,
       canManageBuyerActions: false,
@@ -1762,6 +1765,56 @@ describe('awards and contracts empty lifecycle flow', () => {
     );
 
     expect(screen.getByText('Buyer actions are read-only for the supplier.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View read-only' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'View read-only' }));
+
+    expect(screen.getByLabelText('Objectives')).toHaveAttribute('readonly');
+    expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  }, 10000);
+
+  it('shows supplier-only action fields read-only for buyers without upload or submit controls', async () => {
+    const user = userEvent.setup();
+    const buyerAccess = {
+      viewerRole: 'BUYER' as const,
+      canManageBuyerActions: true,
+      canSubmitSupplierActions: false,
+      canSignBuyer: true,
+      canSignSupplier: false,
+      readOnlyReason: 'Supplier actions are read-only for the buyer.'
+    };
+    render(
+      <AwardContractAccessProvider access={buyerAccess}>
+        <ActionFormPanel
+          title="Milestone evidence"
+          badge="Evidence"
+          fields={[
+            {
+              name: 'documentId',
+              label: 'Evidence document',
+              kind: 'document',
+              document: {
+                options: [{ label: 'Delivery proof.pdf', value: 'doc-1', description: 'Supplier uploaded evidence' }],
+                onUpload: async () => ({ label: 'New upload.pdf', value: 'doc-2' })
+              }
+            },
+            { name: 'note', label: 'Note', kind: 'textarea' }
+          ]}
+          initialValues={{ documentId: 'doc-1', note: 'Supplier delivery evidence.' }}
+          onSubmit={async () => ({})}
+        />
+      </AwardContractAccessProvider>
+    );
+
+    expect(screen.getByText('Supplier actions are read-only for the buyer.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'View read-only' }));
+
+    expect(screen.getByLabelText('Note')).toHaveAttribute('readonly');
+    expect(screen.getByRole('option', { name: /Delivery proof.pdf/ })).toBeDisabled();
+    expect(screen.queryByText('Upload file')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
   });
 

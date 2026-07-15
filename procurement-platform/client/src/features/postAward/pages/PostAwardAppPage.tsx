@@ -5,7 +5,7 @@ import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 import { postAwardApi } from '../api';
 import type { PostAwardAction, PostAwardContractRow, PostAwardRecord, PostAwardStageId, PostAwardWorkspace } from '../types';
 
-const stageOrder: PostAwardStageId[] = ['setup', 'delivery', 'acceptance', 'finance', 'issues', 'variations', 'closeout', 'history'];
+const stageOrder: PostAwardStageId[] = ['setup', 'delivery', 'inspections', 'finance', 'risk', 'changes', 'claims', 'documents', 'closeout', 'performance', 'history'];
 
 function routeFor(pageKey: string) {
   const routes: Record<string, string> = {
@@ -353,7 +353,7 @@ function PostAwardActionForm({ actionKey, workspace, onSaved }: { actionKey: str
 function FieldsForAction({ actionKey, workspace }: { actionKey: string; workspace: PostAwardWorkspace }) {
   const milestones = workspace.stages.find((stage) => stage.id === 'delivery')?.records.filter((record) => record.type === 'milestone') ?? [];
   const deliverables = workspace.stages.find((stage) => stage.id === 'delivery')?.records.filter((record) => record.type === 'deliverable') ?? [];
-  const inspections = workspace.stages.find((stage) => stage.id === 'acceptance')?.records.filter((record) => /inspection/i.test(record.type)) ?? [];
+  const inspections = workspace.stages.find((stage) => stage.id === 'inspections')?.records.filter((record) => /inspection/i.test(record.type)) ?? [];
   const invoices = workspace.stages.find((stage) => stage.id === 'finance')?.records.filter((record) => /invoice/i.test(record.type)) ?? [];
   if (actionKey === 'management-plan') {
     return (

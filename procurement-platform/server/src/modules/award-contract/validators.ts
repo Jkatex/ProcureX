@@ -225,6 +225,283 @@ export const contractStatusPatchBodySchema = z
   })
   .strict();
 
+export const contractActivationItemSubmitBodySchema = z
+  .object({
+    documentId: uuidSchema.optional(),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractActivationItemReviewBodySchema = z
+  .object({
+    status: z.nativeEnum(ContractLifecycleItemStatus),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractActivateBodySchema = z
+  .object({
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractObligationBodySchema = z
+  .object({
+    title: nonEmptyText.max(220),
+    obligationType: z.string().trim().max(120).optional().default('GENERAL'),
+    description: z.string().trim().max(4000).optional().default(''),
+    ownerRole: z.string().trim().min(1).max(80),
+    relatedMilestoneId: uuidSchema.optional(),
+    status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+    dueDate: z.string().trim().date().optional(),
+    amount: z.coerce.number().finite().nonnegative().optional(),
+    currency: z.string().trim().min(3).max(3).optional(),
+    acceptanceMethod: z.string().trim().max(120).optional().default(''),
+    acceptanceCriteria: z.string().trim().max(4000).optional().default(''),
+    paymentEligible: z.boolean().optional().default(false),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractEvidenceRequirementBodySchema = z
+  .object({
+    title: nonEmptyText.max(220),
+    obligationId: uuidSchema.optional(),
+    milestoneId: uuidSchema.optional(),
+    evidenceType: z.string().trim().max(120).optional().default('DOCUMENT'),
+    ownerRole: z.string().trim().min(1).max(80),
+    mandatory: z.boolean().optional().default(true),
+    status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+    dueDate: z.string().trim().date().optional(),
+    documentId: uuidSchema.optional(),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const deliveryScheduleBodySchema = z.object({
+  obligationId: uuidSchema.optional(),
+  lineReference: z.string().trim().max(120).optional().default(''),
+  description: nonEmptyText.max(1000),
+  plannedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  unit: z.string().trim().max(80).optional().default(''),
+  deliveryLocation: z.string().trim().max(220).optional().default(''),
+  plannedDeliveryDate: z.string().trim().date().optional(),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const dispatchNoticeBodySchema = z.object({
+  scheduleId: uuidSchema.optional(),
+  dispatchReference: z.string().trim().max(120).optional().default(''),
+  carrier: z.string().trim().max(220).optional().default(''),
+  trackingReference: z.string().trim().max(220).optional().default(''),
+  dispatchedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  expectedArrivalDate: z.string().trim().date().optional(),
+  status: z.string().trim().max(80).optional().default('DISPATCHED'),
+  payload: jsonObjectSchema
+}).strict();
+
+const goodsReceiptLineSchema = z.object({
+  scheduleId: uuidSchema.optional(),
+  description: nonEmptyText.max(1000),
+  orderedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  receivedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  acceptedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  rejectedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  unit: z.string().trim().max(80).optional().default(''),
+  note: optionalNote,
+  payload: jsonObjectSchema
+}).strict();
+
+export const goodsReceiptBodySchema = z.object({
+  dispatchNoticeId: uuidSchema.optional(),
+  receiptReference: z.string().trim().max(120).optional().default(''),
+  receivedAt: z.string().trim().datetime().optional(),
+  location: z.string().trim().max(220).optional().default(''),
+  conditionAtReceipt: z.string().trim().max(1000).optional().default(''),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  note: optionalNote,
+  lines: z.array(goodsReceiptLineSchema).optional().default([]),
+  payload: jsonObjectSchema
+}).strict();
+
+export const siteHandoverBodySchema = z.object({
+  handoverReference: z.string().trim().max(120).optional().default(''),
+  handoverDate: z.string().trim().date().optional(),
+  location: z.string().trim().max(220).optional().default(''),
+  handedOverBy: z.string().trim().max(220).optional().default(''),
+  receivedBy: z.string().trim().max(220).optional().default(''),
+  constraints: z.string().trim().max(4000).optional().default(''),
+  status: z.string().trim().max(80).optional().default('HANDED_OVER'),
+  payload: jsonObjectSchema
+}).strict();
+
+export const worksProgressReportBodySchema = z.object({
+  reportReference: z.string().trim().max(120).optional().default(''),
+  periodStart: z.string().trim().date().optional(),
+  periodEnd: z.string().trim().date().optional(),
+  progressPercent: z.coerce.number().finite().min(0).max(100).optional(),
+  narrative: z.string().trim().max(4000).optional().default(''),
+  status: z.string().trim().max(80).optional().default('SUBMITTED'),
+  payload: jsonObjectSchema
+}).strict();
+
+export const boqMeasurementBodySchema = z.object({
+  reportId: uuidSchema.optional(),
+  boqItemReference: nonEmptyText.max(120),
+  description: z.string().trim().max(1000).optional().default(''),
+  previousQuantity: z.coerce.number().finite().nonnegative().optional(),
+  currentQuantity: z.coerce.number().finite().nonnegative().optional(),
+  cumulativeQuantity: z.coerce.number().finite().nonnegative().optional(),
+  unitRate: z.coerce.number().finite().nonnegative().optional(),
+  amount: z.coerce.number().finite().nonnegative().optional(),
+  status: z.string().trim().max(80).optional().default('MEASURED'),
+  payload: jsonObjectSchema
+}).strict();
+
+export const interimPaymentCertificateBodySchema = z.object({
+  certificateNumber: z.string().trim().max(120).optional().default(''),
+  periodStart: z.string().trim().date().optional(),
+  periodEnd: z.string().trim().date().optional(),
+  grossAmount: z.coerce.number().finite().nonnegative().optional(),
+  deductionsAmount: z.coerce.number().finite().nonnegative().optional(),
+  netAmount: z.coerce.number().finite().nonnegative().optional(),
+  currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+  status: z.string().trim().max(80).optional().default('DRAFT'),
+  approvedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const contractDefectBodySchema = z.object({
+  defectReference: z.string().trim().max(120).optional().default(''),
+  title: nonEmptyText.max(220),
+  description: z.string().trim().max(4000).optional().default(''),
+  severity: z.string().trim().max(80).optional().default('MINOR'),
+  identifiedAt: z.string().trim().datetime().optional(),
+  dueDate: z.string().trim().date().optional(),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  closedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const serviceLevelBodySchema = z.object({
+  metricKey: nonEmptyText.max(120),
+  title: nonEmptyText.max(220),
+  targetValue: z.string().trim().max(220).optional().default(''),
+  measurementUnit: z.string().trim().max(80).optional().default(''),
+  creditRule: z.string().trim().max(1000).optional().default(''),
+  status: z.string().trim().max(80).optional().default('ACTIVE'),
+  payload: jsonObjectSchema
+}).strict();
+
+export const servicePeriodBodySchema = z.object({
+  periodKey: nonEmptyText.max(120),
+  startDate: z.string().trim().date(),
+  endDate: z.string().trim().date(),
+  status: z.string().trim().max(80).optional().default('OPEN'),
+  payload: jsonObjectSchema
+}).strict();
+
+export const serviceReportBodySchema = z.object({
+  periodId: uuidSchema.optional(),
+  reportReference: z.string().trim().max(120).optional().default(''),
+  submittedAt: z.string().trim().datetime().optional(),
+  status: z.string().trim().max(80).optional().default('SUBMITTED'),
+  summary: z.string().trim().max(4000).optional().default(''),
+  payload: jsonObjectSchema
+}).strict();
+
+export const serviceCreditBodySchema = z.object({
+  serviceLevelId: uuidSchema.optional(),
+  periodId: uuidSchema.optional(),
+  creditType: z.string().trim().max(120).optional().default('SERVICE_CREDIT'),
+  amount: z.coerce.number().finite().nonnegative().optional(),
+  currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+  status: z.string().trim().max(80).optional().default('DRAFT'),
+  reason: z.string().trim().max(2000).optional().default(''),
+  payload: jsonObjectSchema
+}).strict();
+
+export const consultancyDeliverableBodySchema = z.object({
+  deliverableCode: nonEmptyText.max(120),
+  title: nonEmptyText.max(220),
+  description: z.string().trim().max(4000).optional().default(''),
+  dueDate: z.string().trim().date().optional(),
+  paymentEligible: z.boolean().optional().default(false),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const deliverableVersionBodySchema = z.object({
+  deliverableId: uuidSchema.optional(),
+  versionNo: z.coerce.number().int().min(1).optional(),
+  documentId: uuidSchema.optional(),
+  submittedAt: z.string().trim().datetime().optional(),
+  status: z.string().trim().max(80).optional().default('SUBMITTED'),
+  note: optionalNote,
+  payload: jsonObjectSchema
+}).strict();
+
+export const deliverableReviewBodySchema = z.object({
+  versionId: uuidSchema.optional(),
+  decision: z.string().trim().max(80).optional().default('REVISION_REQUESTED'),
+  reviewedAt: z.string().trim().datetime().optional(),
+  comments: z.string().trim().max(4000).optional().default(''),
+  payload: jsonObjectSchema
+}).strict();
+
+export const claimBodySchema = z.object({
+  claimReference: z.string().trim().max(120).optional().default(''),
+  claimType: z.string().trim().max(120).optional().default('GENERAL'),
+  title: nonEmptyText.max(220),
+  description: z.string().trim().max(4000).optional().default(''),
+  raisedByRole: z.string().trim().max(80).optional().default(''),
+  amount: z.coerce.number().finite().nonnegative().optional(),
+  currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  submittedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const claimResponseBodySchema = z.object({
+  claimId: uuidSchema.optional(),
+  responderRole: z.string().trim().max(80).optional().default(''),
+  decision: z.string().trim().max(80).optional().default('UNDER_REVIEW'),
+  response: z.string().trim().max(4000).optional().default(''),
+  amountApproved: z.coerce.number().finite().nonnegative().optional(),
+  respondedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const extensionRequestBodySchema = z.object({
+  requestReference: z.string().trim().max(120).optional().default(''),
+  requestedByRole: z.string().trim().max(80).optional().default(''),
+  reason: z.string().trim().max(4000).optional().default(''),
+  requestedEndDate: z.string().trim().date().optional(),
+  impactSummary: z.string().trim().max(4000).optional().default(''),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  decidedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const amendmentBodySchema = z.object({
+  amendmentReference: z.string().trim().max(120).optional().default(''),
+  amendmentType: z.string().trim().max(120).optional().default('VARIATION'),
+  title: nonEmptyText.max(220),
+  reason: z.string().trim().max(4000).optional().default(''),
+  baselineVersionNo: z.coerce.number().int().min(1).optional(),
+  valueDelta: z.coerce.number().finite().optional(),
+  timeDeltaDays: z.coerce.number().int().optional(),
+  status: z.string().trim().max(80).optional().default('DRAFT'),
+  approvedAt: z.string().trim().datetime().optional(),
+  signedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema
+}).strict();
+
 export const contractManagementPlanBodySchema = z
   .object({
     contractManagerId: uuidSchema.optional(),
@@ -635,6 +912,8 @@ export const invoiceBodySchema = z
     reference: z.string().trim().max(120).optional(),
     purchaseOrderId: uuidSchema.optional(),
     supplierOrgId: uuidSchema.optional(),
+    executionReferenceType: z.string().trim().max(120).optional().default(''),
+    executionReferenceId: uuidSchema.optional(),
     amount: z.coerce.number().finite().nonnegative(),
     currency: z.string().trim().min(3).max(3).optional().default('TZS'),
     status: z.nativeEnum(InvoiceStatus).optional(),

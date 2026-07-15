@@ -411,6 +411,30 @@ export type ContractDetailDto = ContractListItemDto & {
   terminations: ContractTerminationDto[];
   warranties: ContractLifecycleItemDto[];
   requiredDocuments: ContractLifecycleItemDto[];
+  activation: Record<string, unknown> | null;
+  activationItems: ContractLifecycleItemDto[];
+  baselines: Array<Record<string, unknown>>;
+  obligations: ContractLifecycleItemDto[];
+  evidenceRequirements: ContractLifecycleItemDto[];
+  deliverySchedules: Array<Record<string, unknown>>;
+  dispatchNotices: Array<Record<string, unknown>>;
+  goodsReceipts: Array<Record<string, unknown>>;
+  siteHandovers: Array<Record<string, unknown>>;
+  worksProgressReports: Array<Record<string, unknown>>;
+  boqMeasurements: Array<Record<string, unknown>>;
+  interimPaymentCertificates: Array<Record<string, unknown>>;
+  defects: ContractLifecycleItemDto[];
+  serviceLevels: Array<Record<string, unknown>>;
+  servicePeriods: Array<Record<string, unknown>>;
+  serviceReports: Array<Record<string, unknown>>;
+  serviceCredits: Array<Record<string, unknown>>;
+  consultancyDeliverables: Array<Record<string, unknown>>;
+  deliverableVersions: Array<Record<string, unknown>>;
+  deliverableReviews: Array<Record<string, unknown>>;
+  claims: Array<Record<string, unknown>>;
+  claimResponses: Array<Record<string, unknown>>;
+  extensionRequests: Array<Record<string, unknown>>;
+  amendments: Array<Record<string, unknown>>;
   workflowApprovals: ContractLifecycleItemDto[];
   urgentActions: ContractLifecycleItemDto[];
   notifications: ContractLifecycleItemDto[];
@@ -607,6 +631,273 @@ export type LifecycleItemPatchInput = Partial<LifecycleItemInput> & {
   required?: boolean;
   waived?: boolean;
   signatureKeyphrase?: string;
+};
+
+export type ContractActivationItemSubmitInput = {
+  documentId?: string;
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractActivationItemReviewInput = {
+  status: ContractLifecycleItemStatus;
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractActivateInput = {
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractObligationInput = {
+  title: string;
+  obligationType?: string;
+  description?: string;
+  ownerRole: string;
+  relatedMilestoneId?: string;
+  status?: ContractLifecycleItemStatus;
+  dueDate?: string;
+  amount?: number;
+  currency?: string;
+  acceptanceMethod?: string;
+  acceptanceCriteria?: string;
+  paymentEligible?: boolean;
+  payload: Record<string, unknown>;
+};
+
+export type ContractEvidenceRequirementInput = {
+  title: string;
+  obligationId?: string;
+  milestoneId?: string;
+  evidenceType?: string;
+  ownerRole: string;
+  mandatory?: boolean;
+  status?: ContractLifecycleItemStatus;
+  dueDate?: string;
+  documentId?: string;
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractDeliveryScheduleInput = {
+  obligationId?: string;
+  lineReference?: string;
+  description: string;
+  plannedQuantity?: number;
+  unit?: string;
+  deliveryLocation?: string;
+  plannedDeliveryDate?: string;
+  status?: ContractLifecycleItemStatus;
+  payload: Record<string, unknown>;
+};
+
+export type ContractDispatchNoticeInput = {
+  scheduleId?: string;
+  dispatchReference?: string;
+  carrier?: string;
+  trackingReference?: string;
+  dispatchedQuantity?: number;
+  expectedArrivalDate?: string;
+  status?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractGoodsReceiptLineInput = {
+  scheduleId?: string;
+  description: string;
+  orderedQuantity?: number;
+  receivedQuantity?: number;
+  acceptedQuantity?: number;
+  rejectedQuantity?: number;
+  unit?: string;
+  note?: string;
+  payload?: Record<string, unknown>;
+};
+
+export type ContractGoodsReceiptInput = {
+  dispatchNoticeId?: string;
+  receiptReference?: string;
+  receivedAt?: string;
+  location?: string;
+  conditionAtReceipt?: string;
+  status?: ContractLifecycleItemStatus;
+  note?: string;
+  lines?: ContractGoodsReceiptLineInput[];
+  payload: Record<string, unknown>;
+};
+
+export type ContractSiteHandoverInput = {
+  handoverReference?: string;
+  handoverDate?: string;
+  location?: string;
+  handedOverBy?: string;
+  receivedBy?: string;
+  constraints?: string;
+  status?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractWorksProgressReportInput = {
+  reportReference?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  progressPercent?: number;
+  narrative?: string;
+  status?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractBoqMeasurementInput = {
+  reportId?: string;
+  boqItemReference: string;
+  description?: string;
+  previousQuantity?: number;
+  currentQuantity?: number;
+  cumulativeQuantity?: number;
+  unitRate?: number;
+  amount?: number;
+  status?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractInterimPaymentCertificateInput = {
+  certificateNumber?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  grossAmount?: number;
+  deductionsAmount?: number;
+  netAmount?: number;
+  currency?: string;
+  status?: string;
+  approvedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractDefectInput = {
+  defectReference?: string;
+  title: string;
+  description?: string;
+  severity?: string;
+  identifiedAt?: string;
+  dueDate?: string;
+  status?: ContractLifecycleItemStatus;
+  closedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractServiceLevelInput = {
+  metricKey: string;
+  title: string;
+  targetValue?: string;
+  measurementUnit?: string;
+  creditRule?: string;
+  status?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractServicePeriodInput = {
+  periodKey: string;
+  startDate: string;
+  endDate: string;
+  status?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractServiceReportInput = {
+  periodId?: string;
+  reportReference?: string;
+  submittedAt?: string;
+  status?: string;
+  summary?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractServiceCreditInput = {
+  serviceLevelId?: string;
+  periodId?: string;
+  creditType?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  reason?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractConsultancyDeliverableInput = {
+  deliverableCode: string;
+  title: string;
+  description?: string;
+  dueDate?: string;
+  paymentEligible?: boolean;
+  status?: ContractLifecycleItemStatus;
+  payload: Record<string, unknown>;
+};
+
+export type ContractDeliverableVersionInput = {
+  deliverableId?: string;
+  versionNo?: number;
+  documentId?: string;
+  submittedAt?: string;
+  status?: string;
+  note?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractDeliverableReviewInput = {
+  versionId?: string;
+  decision?: string;
+  reviewedAt?: string;
+  comments?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractClaimInput = {
+  claimReference?: string;
+  claimType?: string;
+  title: string;
+  description?: string;
+  raisedByRole?: string;
+  amount?: number;
+  currency?: string;
+  status?: ContractLifecycleItemStatus;
+  submittedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractClaimResponseInput = {
+  claimId?: string;
+  responderRole?: string;
+  decision?: string;
+  response?: string;
+  amountApproved?: number;
+  respondedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractExtensionRequestInput = {
+  requestReference?: string;
+  requestedByRole?: string;
+  reason?: string;
+  requestedEndDate?: string;
+  impactSummary?: string;
+  status?: ContractLifecycleItemStatus;
+  decidedAt?: string;
+  payload: Record<string, unknown>;
+};
+
+export type ContractAmendmentInput = {
+  amendmentReference?: string;
+  amendmentType?: string;
+  title: string;
+  reason?: string;
+  baselineVersionNo?: number;
+  valueDelta?: number;
+  timeDeltaDays?: number;
+  status?: string;
+  approvedAt?: string;
+  signedAt?: string;
+  payload: Record<string, unknown>;
 };
 
 export type InspectionInput = LifecycleItemInput & {
@@ -921,6 +1212,8 @@ export type InvoiceInput = {
   reference?: string;
   purchaseOrderId?: string;
   supplierOrgId?: string;
+  executionReferenceType?: string;
+  executionReferenceId?: string;
   amount: number;
   currency: string;
   status?: InvoiceStatus;

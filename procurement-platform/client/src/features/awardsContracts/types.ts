@@ -61,6 +61,7 @@ export type FlowState<TId extends string = string> = {
 export type LifecycleRoleContext = 'BUYER' | 'SUPPLIER';
 export type ViewerRole = LifecycleRoleContext | 'ADMIN' | 'NONE';
 export type WorkflowActionOwner = LifecycleRoleContext | 'ADMIN' | 'ANY';
+export type CrossPartyVisibility = 'READ_ONLY' | 'STATUS_ONLY' | 'HIDDEN';
 
 export type WorkflowAccess = {
   viewerRole: ViewerRole;
@@ -107,6 +108,8 @@ export type AwardContractActionDefinition = {
   owner: WorkflowActionOwner;
   group: string;
   targetRecordType?: string;
+  crossPartyVisibility?: CrossPartyVisibility;
+  hiddenWhenReadOnly?: string[];
 };
 
 export type ActionDrawerState = {
@@ -342,6 +345,30 @@ export type ContractDetailDto = {
   terminations: Array<ContractLifecycleItemDto & { reason?: string; contractClause?: string; notices?: ContractLifecycleItemDto[]; evidence?: ContractLifecycleItemDto[] }>;
   warranties?: ContractLifecycleItemDto[];
   requiredDocuments?: ContractLifecycleItemDto[];
+  activation?: Record<string, unknown> | null;
+  activationItems?: ContractLifecycleItemDto[];
+  baselines?: Array<Record<string, unknown>>;
+  obligations?: ContractLifecycleItemDto[];
+  evidenceRequirements?: ContractLifecycleItemDto[];
+  deliverySchedules?: Array<Record<string, unknown>>;
+  dispatchNotices?: Array<Record<string, unknown>>;
+  goodsReceipts?: Array<Record<string, unknown>>;
+  siteHandovers?: Array<Record<string, unknown>>;
+  worksProgressReports?: Array<Record<string, unknown>>;
+  boqMeasurements?: Array<Record<string, unknown>>;
+  interimPaymentCertificates?: Array<Record<string, unknown>>;
+  defects?: ContractLifecycleItemDto[];
+  serviceLevels?: Array<Record<string, unknown>>;
+  servicePeriods?: Array<Record<string, unknown>>;
+  serviceReports?: Array<Record<string, unknown>>;
+  serviceCredits?: Array<Record<string, unknown>>;
+  consultancyDeliverables?: Array<Record<string, unknown>>;
+  deliverableVersions?: Array<Record<string, unknown>>;
+  deliverableReviews?: Array<Record<string, unknown>>;
+  claims?: Array<Record<string, unknown>>;
+  claimResponses?: Array<Record<string, unknown>>;
+  extensionRequests?: Array<Record<string, unknown>>;
+  amendments?: Array<Record<string, unknown>>;
   workflowApprovals?: ContractLifecycleItemDto[];
   urgentActions?: ContractLifecycleItemDto[];
   notifications?: ContractLifecycleItemDto[];

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { editableTrustTierValues } from '@/shared/trustRisk';
-import type { PickerOption } from '../../types';
+import type { AwardContractActionDefinition, CrossPartyVisibility, PickerOption, WorkflowActionOwner } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
 import { actionDefinitionForTitle } from './AwardContractActionCatalogue';
 import { clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlow';
 import { notifyAward } from './AwardContractSimpleShared';
-import { canUseWorkflowOwner, inferActionOwner, LockedWorkflowPanel, ownerLockedReason, useAwardContractAccess } from './AwardContractRoleAccess';
+import { canUseWorkflowOwner, inferActionOwner, ownerLockedReason, useAwardContractAccess } from './AwardContractRoleAccess';
 
 export type FieldOption = {
   label: string;
@@ -80,11 +80,14 @@ export const contractStatusOptions = [
   'NEGOTIATION',
   'SIGNATURE_PENDING',
   'SIGNED',
+  'PENDING_ACTIVATION',
   'MOBILIZATION',
   'ACTIVE',
+  'SUSPENDED',
   'AT_RISK',
   'COMPLETED',
   'WARRANTY_DEFECTS',
+  'CLOSING',
   'TERMINATION_REVIEW',
   'TERMINATED',
   'CLOSED'
@@ -368,6 +371,26 @@ function splitLines(value: FormValue | undefined) {
     .filter(Boolean);
 }
 
+function lockedVisibilityFor(actionDefinition: AwardContractActionDefinition | undefined, owner: WorkflowActionOwner): CrossPartyVisibility {
+  return actionDefinition?.crossPartyVisibility ?? (owner === 'ADMIN' ? 'HIDDEN' : 'READ_ONLY');
+}
+
+function shouldHideFieldWhenReadOnly(field: AwardContractFieldConfig, actionDefinition: AwardContractActionDefinition | undefined) {
+  const hiddenNames = new Set((actionDefinition?.hiddenWhenReadOnly ?? []).map((name) => name.toLowerCase()));
+  const name = field.name.toLowerCase();
+  if (hiddenNames.has(name)) return true;
+  if (isTechnicalField(field)) return true;
+  if (field.kind === 'json' || field.kind === 'uuid') return true;
+  if (/payload|metadata|internal|private|keyphrase|password|secret|token/i.test(field.name)) return true;
+  if (/contractManagerId|createdBy|updatedBy|actorId|requestMetadata|providerMetadata/i.test(field.name)) return true;
+  return false;
+}
+
+function actionFieldsForMode(fields: AwardContractFieldConfig[], locked: boolean, mode: CrossPartyVisibility, actionDefinition: AwardContractActionDefinition | undefined) {
+  if (!locked || mode !== 'READ_ONLY') return fields;
+  return fields.filter((field) => !shouldHideFieldWhenReadOnly(field, actionDefinition));
+}
+
 export function ActionFormPanel({
   title,
   eyebrow,
@@ -385,7 +408,10 @@ export function ActionFormPanel({
   const actionDefinition = actionDefinitionForTitle(title);
   const owner = actionDefinition?.owner ?? inferActionOwner(title, badge);
   const allowed = canUseWorkflowOwner(access, owner);
-  const [selected, setSelected] = useState(defaultSelected);
+  const locked = !allowed;
+  const lockedMode = locked ? lockedVisibilityFor(actionDefinition, owner) : 'READ_ONLY';
+  const lockedReason = locked ? ownerLockedReason(access, owner) : '';
+  const [selected, setSelected] = useState(defaultSelected && allowed);
   const formKey = useMemo(() => slug(title), [title]);
   const formTitleId = `award-action-${formKey}-title`;
   const defaults = useMemo(
@@ -399,7 +425,7 @@ export function ActionFormPanel({
   const [message, setMessage] = useState('');
   const dirtyRef = useRef(false);
   const isDirty = useMemo(() => JSON.stringify(values) !== JSON.stringify(defaults), [defaults, values]);
-  useAwardContractFlowGuard(selected && isDirty);
+  useAwardContractFlowGuard(selected && !locked && isDirty);
 
   useEffect(() => {
     if (previousDefaultsKey.current === defaultsKey) return;
@@ -412,35 +438,35 @@ export function ActionFormPanel({
     dirtyRef.current = selected && isDirty;
   }, [isDirty, selected]);
 
+  const displayFields = useMemo(() => actionFieldsForMode(fields, locked, lockedMode, actionDefinition), [actionDefinition, fields, locked, lockedMode]);
   const built = buildAwardContractPayload(fields, values);
   const blocked = saving || built.errors.length > 0;
-  const counts = formCounts(fields);
+  const counts = formCounts(displayFields);
   const fieldsBySection = useMemo(() => {
     const grouped = new Map<string, AwardContractFieldConfig[]>();
-    for (const field of fields.filter((entry) => !isTechnicalField(entry))) {
+    for (const field of displayFields.filter((entry) => !isTechnicalField(entry))) {
       const section = fieldSection(field);
       grouped.set(section, [...(grouped.get(section) ?? []), field]);
     }
     return grouped;
-  }, [fields]);
+  }, [displayFields]);
 
-  if (!allowed) {
-    if (access.hideLockedActions) return null;
-    return <LockedWorkflowPanel title={title} owner={owner} reason={ownerLockedReason(access, owner)} />;
-  }
+  if (locked && (access.hideLockedActions || lockedMode === 'HIDDEN')) return null;
 
   function setValue(name: string, value: FormValue) {
+    if (locked) return;
     setValues((current) => ({ ...current, [name]: value }));
   }
 
   function closeInlineForm() {
     if (saving) return;
-    if (selected && isDirty && !confirmAwardContractNavigation()) return;
+    if (!locked && selected && isDirty && !confirmAwardContractNavigation()) return;
     setSelected(false);
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (locked) return;
     const next = buildAwardContractPayload(fields, values);
     if (next.errors.length > 0) {
       setMessage(next.errors[0]);
@@ -479,17 +505,24 @@ export function ActionFormPanel({
     }
   }
 
+  const ownerLabel = owner === 'ANY' ? 'Shared' : owner === 'BUYER' ? 'Buyer' : owner === 'SUPPLIER' ? 'Supplier' : 'Admin';
+  const actionLabel = locked
+    ? selected ? 'Hide details' : 'View read-only'
+    : selected ? 'Hide form' : 'Open form';
+  const statusOnly = locked && lockedMode === 'STATUS_ONLY';
+
   return (
-    <article className={`award-action-launcher award-action-inline-row${selected ? ' selected' : ''}`} data-award-contract-form={title}>
+    <article className={`award-action-launcher award-action-inline-row${selected ? ' selected' : ''}${locked ? ' locked' : ''}${statusOnly ? ' status-only' : ''}`} data-award-contract-form={title}>
       <div className="award-action-table-row">
         <div className="award-action-cell award-action-cell-main">
-          {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
+          {eyebrow ? <span className="section-kicker">{eyebrow}</span> : locked ? <span className="section-kicker">Read-only action</span> : null}
           <h2>{title}</h2>
           <p>{actionDefinition?.group ?? 'Action'}</p>
+          {locked ? <em className="award-action-lock-reason">{lockedReason}</em> : null}
         </div>
         <div className="award-action-cell">
           <span>Owner</span>
-          <strong>{owner === 'ANY' ? 'Shared' : owner === 'BUYER' ? 'Buyer' : owner === 'SUPPLIER' ? 'Supplier' : 'Admin'}</strong>
+          <strong>{ownerLabel}</strong>
         </div>
         <div className="award-action-cell">
           <span>Required</span>
@@ -500,22 +533,27 @@ export function ActionFormPanel({
           <StatusBadge value={badge} />
         </div>
         <div className="award-action-cell award-action-cell-select">
-          <button className="btn btn-primary btn-sm" type="button" aria-expanded={selected} onClick={() => (selected ? closeInlineForm() : setSelected(true))}>
-            {selected ? 'Hide form' : 'Open form'}
-          </button>
+          {statusOnly ? (
+            <span className="award-action-status-only">Status only</span>
+          ) : (
+            <button className={`btn ${locked ? 'btn-secondary' : 'btn-primary'} btn-sm`} type="button" aria-expanded={selected} onClick={() => (selected ? closeInlineForm() : setSelected(true))}>
+              {actionLabel}
+            </button>
+          )}
         </div>
       </div>
       {selected ? (
-        <form className="award-action-form award-action-form-inline" aria-labelledby={formTitleId} noValidate onSubmit={submit}>
+        <form className={`award-action-form award-action-form-inline${locked ? ' award-action-form-readonly' : ''}`} aria-labelledby={formTitleId} noValidate onSubmit={submit} data-read-only={locked ? 'true' : undefined}>
           <div className="award-inline-form-heading">
             <div>
-              {eyebrow ? <span className="section-kicker">{eyebrow}</span> : null}
+              {eyebrow ? <span className="section-kicker">{eyebrow}</span> : locked ? <span className="section-kicker">Read-only action</span> : null}
               <h2 id={formTitleId}>{title}</h2>
-              <p>{owner === 'ANY' ? 'Shared action' : owner === 'BUYER' ? 'Buyer action' : owner === 'SUPPLIER' ? 'Supplier action' : 'Admin action'}</p>
+              <p>{locked ? `${ownerLabel} action shown read-only` : owner === 'ANY' ? 'Shared action' : owner === 'BUYER' ? 'Buyer action' : owner === 'SUPPLIER' ? 'Supplier action' : 'Admin action'}</p>
+              {locked ? <em className="award-action-lock-reason">{lockedReason}</em> : null}
             </div>
             <StatusBadge value={badge} />
           </div>
-          {drawerSummary ?? children ?? <ActionReviewSummary fields={fields} values={values} />}
+          {drawerSummary ?? children ?? <ActionReviewSummary fields={displayFields} values={values} />}
           {Array.from(fieldsBySection.entries()).map(([section, sectionFields]) => {
             const content = (
               <div className="award-form-grid">
@@ -525,6 +563,7 @@ export function ActionFormPanel({
                     formKey={formKey}
                     value={values[field.name] ?? defaultValue(field)}
                     onChange={(value) => setValue(field.name, value)}
+                    readOnly={locked}
                     key={field.name}
                   />
                 ))}
@@ -545,18 +584,27 @@ export function ActionFormPanel({
               </section>
             );
           })}
-          {built.errors.length > 0 ? <p className="panel-note">{built.errors[0]}</p> : null}
+          {locked && fieldsBySection.size === 0 ? <div className="scope-empty">No supplier-facing fields are available for this action.</div> : null}
+          {!locked && built.errors.length > 0 ? <p className="panel-note">{built.errors[0]}</p> : null}
           {message ? <p className="panel-note" aria-live="polite">{message}</p> : null}
           <div className="inline-actions award-inline-form-footer">
-            <button className="btn btn-primary btn-sm" type="submit" disabled={blocked}>
-              {saving ? 'Saving...' : submitLabel}
-            </button>
-            <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setValues(defaults)}>
-              Reset
-            </button>
-            <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={closeInlineForm}>
-              Cancel
-            </button>
+            {locked ? (
+              <button className="btn btn-secondary btn-sm" type="button" onClick={closeInlineForm}>
+                Close
+              </button>
+            ) : (
+              <>
+                <button className="btn btn-primary btn-sm" type="submit" disabled={blocked}>
+                  {saving ? 'Saving...' : submitLabel}
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={() => setValues(defaults)}>
+                  Reset
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={saving} onClick={closeInlineForm}>
+                  Cancel
+                </button>
+              </>
+            )}
           </div>
         </form>
       ) : null}
@@ -568,12 +616,14 @@ function AwardContractField({
   field,
   formKey,
   value,
-  onChange
+  onChange,
+  readOnly = false
 }: {
   field: AwardContractFieldConfig;
   formKey: string;
   value: FormValue;
   onChange: (value: FormValue) => void;
+  readOnly?: boolean;
 }) {
   const id = `award-contract-${formKey}-${field.name}`;
   const [filter, setFilter] = useState('');
@@ -624,9 +674,10 @@ function AwardContractField({
             type="search"
             value={filter}
             placeholder={selected?.value ? selected.label : field.placeholder ?? 'Search evidence documents'}
+            readOnly={readOnly}
             onChange={(event) => setFilter(event.target.value)}
           />
-          {field.document?.onUpload ? (
+          {!readOnly && field.document?.onUpload ? (
             <label className={`btn btn-secondary btn-sm${uploading ? ' disabled' : ''}`}>
               {uploading ? 'Uploading...' : 'Upload file'}
               <input
@@ -652,7 +703,9 @@ function AwardContractField({
               type="button"
               role="option"
               aria-selected={item.value === String(value)}
+              disabled={readOnly}
               onClick={() => {
+                if (readOnly) return;
                 onChange(item.value);
                 setFilter('');
               }}
@@ -675,7 +728,7 @@ function AwardContractField({
     return (
       <details className="award-form-field award-form-field-wide">
         <summary>{label}</summary>
-        <textarea className="form-input" rows={field.rows ?? 5} id={id} value={String(value)} onChange={(event) => onChange(event.target.value)} />
+        <textarea className="form-input" rows={field.rows ?? 5} id={id} value={String(value)} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} />
         {field.note ? <span>{field.note}</span> : null}
       </details>
     );
@@ -685,7 +738,7 @@ function AwardContractField({
     return (
       <label className="award-form-field" htmlFor={id}>
         <span>{label}</span>
-        <textarea className="form-input" rows={field.rows ?? 3} id={id} value={String(value)} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} />
+        <textarea className="form-input" rows={field.rows ?? 3} id={id} value={String(value)} placeholder={field.placeholder} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} />
         {field.note ? <em>{field.note}</em> : null}
       </label>
     );
@@ -706,6 +759,7 @@ function AwardContractField({
           type="search"
           value={filter}
           placeholder={selected ? selected.label : field.placeholder ?? 'Search records'}
+          readOnly={readOnly}
           onChange={(event) => setFilter(event.target.value)}
         />
         <div className="award-picker-list" role="listbox" aria-label={field.label}>
@@ -717,7 +771,9 @@ function AwardContractField({
               type="button"
               role="option"
               aria-selected={item.value === String(value)}
+              disabled={readOnly}
               onClick={() => {
+                if (readOnly) return;
                 onChange(item.value);
                 setFilter('');
               }}
@@ -739,7 +795,7 @@ function AwardContractField({
     return (
       <label className="award-form-field" htmlFor={id}>
         <span>{label}</span>
-        <select className="form-input" id={id} value={String(value)} onChange={(event) => onChange(event.target.value)}>
+        <select className="form-input" id={id} value={String(value)} disabled={readOnly} onChange={(event) => onChange(event.target.value)}>
           {(field.options ?? []).map((item) => (
             <option value={item.value} key={item.value}>{item.label}</option>
           ))}
@@ -752,7 +808,7 @@ function AwardContractField({
   if (field.kind === 'checkbox') {
     return (
       <label className="award-form-field award-form-checkbox" htmlFor={id}>
-        <input id={id} type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+        <input id={id} type="checkbox" checked={Boolean(value)} disabled={readOnly} onChange={(event) => onChange(event.target.checked)} />
         <span>{label}</span>
       </label>
     );
@@ -768,6 +824,7 @@ function AwardContractField({
             <input
               type="checkbox"
               checked={selected.includes(item.value)}
+              disabled={readOnly}
               onChange={(event) => {
                 onChange(event.target.checked ? [...selected, item.value] : selected.filter((entry) => entry !== item.value));
               }}
@@ -792,6 +849,7 @@ function AwardContractField({
         step={field.step}
         value={String(value)}
         placeholder={field.placeholder}
+        readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}
       />
       {field.note ? <em>{field.note}</em> : null}

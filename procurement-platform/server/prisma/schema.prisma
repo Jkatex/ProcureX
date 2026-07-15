@@ -250,11 +250,14 @@ enum ContractStatus {
   NEGOTIATION
   SIGNATURE_PENDING
   SIGNED
+  PENDING_ACTIVATION
   MOBILIZATION
   ACTIVE
+  SUSPENDED
   AT_RISK
   COMPLETED
   WARRANTY_DEFECTS
+  CLOSING
   TERMINATION_REVIEW
   TERMINATED
   CLOSED
@@ -1761,6 +1764,30 @@ model Contract {
   payments                   ContractPayment[]
   warranties                 ContractWarranty[]
   requiredDocuments          ContractRequiredDocument[]
+  activation                 ContractActivation?
+  activationItems            ContractActivationItem[]
+  baselines                  ContractBaseline[]
+  obligations                ContractObligation[]
+  evidenceRequirements       ContractEvidenceRequirement[]
+  deliverySchedules          ContractDeliverySchedule[]
+  dispatchNotices            ContractDispatchNotice[]
+  goodsReceipts              ContractGoodsReceipt[]
+  siteHandovers              ContractSiteHandover[]
+  worksProgressReports       ContractWorksProgressReport[]
+  boqMeasurements            ContractBoqMeasurement[]
+  interimPaymentCertificates ContractInterimPaymentCertificate[]
+  defects                    ContractDefect[]
+  serviceLevels              ContractServiceLevel[]
+  servicePeriods             ContractServicePeriod[]
+  serviceReports             ContractServiceReport[]
+  serviceCredits             ContractServiceCredit[]
+  consultancyDeliverables    ContractConsultancyDeliverable[]
+  deliverableVersions        ContractDeliverableVersion[]
+  deliverableReviews         ContractDeliverableReview[]
+  claims                     ContractClaim[]
+  claimResponses             ContractClaimResponse[]
+  extensionRequests          ContractExtensionRequest[]
+  amendments                 ContractAmendment[]
   approvalSteps              ContractWorkflowApproval[]
   urgentActions              UrgentAction[]
   notifications              Notification[]
@@ -2441,6 +2468,562 @@ model ContractRequiredDocument {
   @@unique([contractId, documentType])
   @@index([contractId, status])
   @@map("contract_required_documents")
+  @@schema("contract")
+}
+
+model ContractActivation {
+  id                String       @id @default(uuid()) @db.Uuid
+  contractId        String       @unique @map("contract_id") @db.Uuid
+  status            String       @default("DRAFT")
+  readyForActivation Boolean     @default(false) @map("ready_for_activation")
+  activatedAt       DateTime?    @map("activated_at")
+  activatedByUserId String?      @map("activated_by_user_id") @db.Uuid
+  note              String?
+  payload           Json         @default("{}")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  contract          Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  items             ContractActivationItem[]
+
+  @@index([status])
+  @@map("contract_activations")
+  @@schema("contract")
+}
+
+model ContractActivationItem {
+  id               String                      @id @default(uuid()) @db.Uuid
+  activationId     String                      @map("activation_id") @db.Uuid
+  contractId       String                      @map("contract_id") @db.Uuid
+  category         String                      @default("GENERAL")
+  title            String
+  ownerRole        String                      @default("buyer") @map("owner_role")
+  required         Boolean                     @default(true)
+  status           ContractLifecycleItemStatus @default(OPEN)
+  documentId       String?                     @map("document_id") @db.Uuid
+  submittedByOrgId String?                     @map("submitted_by_org_id") @db.Uuid
+  submittedAt      DateTime?                   @map("submitted_at")
+  reviewedByUserId String?                     @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt       DateTime?                   @map("reviewed_at")
+  dueDate          DateTime?                   @map("due_date")
+  note             String?
+  payload          Json                        @default("{}")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+  activation       ContractActivation          @relation(fields: [activationId], references: [id], onDelete: Cascade)
+  contract         Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([activationId, title])
+  @@index([contractId, status])
+  @@index([dueDate])
+  @@map("contract_activation_items")
+  @@schema("contract")
+}
+
+model ContractBaseline {
+  id             String   @id @default(uuid()) @db.Uuid
+  contractId     String   @map("contract_id") @db.Uuid
+  baselineType   String   @default("ORIGINAL") @map("baseline_type")
+  versionNo      Int      @default(1) @map("version_no")
+  contractValue  Decimal? @map("contract_value") @db.Decimal(18, 2)
+  currency       String   @default("TZS")
+  startDate      DateTime? @map("start_date")
+  completionDate DateTime? @map("completion_date")
+  scopeSummary   String?  @map("scope_summary")
+  status         String   @default("ACTIVE")
+  sourceRecordId String?  @map("source_record_id") @db.Uuid
+  approvedAt     DateTime? @map("approved_at")
+  payload        Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, versionNo])
+  @@index([contractId, status])
+  @@map("contract_baselines")
+  @@schema("contract")
+}
+
+model ContractObligation {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  contractId         String                      @map("contract_id") @db.Uuid
+  obligationType     String                      @default("GENERAL") @map("obligation_type")
+  title              String
+  description        String?
+  ownerRole          String                      @map("owner_role")
+  relatedMilestoneId String?                     @map("related_milestone_id") @db.Uuid
+  status             ContractLifecycleItemStatus @default(OPEN)
+  dueDate            DateTime?                   @map("due_date")
+  amount             Decimal?                    @db.Decimal(18, 2)
+  currency           String                      @default("TZS")
+  acceptanceMethod   String?                     @map("acceptance_method")
+  acceptanceCriteria String?                     @map("acceptance_criteria")
+  paymentEligible    Boolean                     @default(false) @map("payment_eligible")
+  payload            Json                        @default("{}")
+  createdAt          DateTime                    @default(now()) @map("created_at")
+  updatedAt          DateTime                    @updatedAt @map("updated_at")
+  contract           Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  evidenceRequirements ContractEvidenceRequirement[]
+
+  @@index([contractId, status])
+  @@index([ownerRole, dueDate])
+  @@map("contract_obligations")
+  @@schema("contract")
+}
+
+model ContractEvidenceRequirement {
+  id           String                      @id @default(uuid()) @db.Uuid
+  contractId   String                      @map("contract_id") @db.Uuid
+  obligationId String?                     @map("obligation_id") @db.Uuid
+  milestoneId  String?                     @map("milestone_id") @db.Uuid
+  title        String
+  evidenceType String                      @default("DOCUMENT") @map("evidence_type")
+  ownerRole    String                      @map("owner_role")
+  mandatory    Boolean                     @default(true)
+  status       ContractLifecycleItemStatus @default(OPEN)
+  dueDate      DateTime?                   @map("due_date")
+  documentId   String?                     @map("document_id") @db.Uuid
+  note         String?
+  payload      Json                        @default("{}")
+  createdAt    DateTime                    @default(now()) @map("created_at")
+  updatedAt    DateTime                    @updatedAt @map("updated_at")
+  contract     Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  obligation   ContractObligation?         @relation(fields: [obligationId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, status])
+  @@index([obligationId])
+  @@index([milestoneId])
+  @@map("contract_evidence_requirements")
+  @@schema("contract")
+}
+
+model ContractDeliverySchedule {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  contractId          String                      @map("contract_id") @db.Uuid
+  obligationId        String?                     @map("obligation_id") @db.Uuid
+  lineReference       String?                     @map("line_reference")
+  description         String
+  plannedQuantity     Decimal?                    @map("planned_quantity") @db.Decimal(18, 4)
+  unit                String?
+  deliveryLocation    String?                     @map("delivery_location")
+  plannedDeliveryDate DateTime?                   @map("planned_delivery_date")
+  status              ContractLifecycleItemStatus @default(OPEN)
+  payload             Json                        @default("{}")
+  createdAt           DateTime                    @default(now()) @map("created_at")
+  updatedAt           DateTime                    @updatedAt @map("updated_at")
+  contract            Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([plannedDeliveryDate])
+  @@map("contract_delivery_schedules")
+  @@schema("contract")
+}
+
+model ContractDispatchNotice {
+  id                  String   @id @default(uuid()) @db.Uuid
+  contractId          String   @map("contract_id") @db.Uuid
+  scheduleId          String?  @map("schedule_id") @db.Uuid
+  dispatchReference   String   @map("dispatch_reference")
+  carrier             String?
+  trackingReference   String?  @map("tracking_reference")
+  dispatchedQuantity  Decimal? @map("dispatched_quantity") @db.Decimal(18, 4)
+  expectedArrivalDate DateTime? @map("expected_arrival_date")
+  status              String   @default("DISPATCHED")
+  submittedByOrgId    String?  @map("submitted_by_org_id") @db.Uuid
+  payload             Json     @default("{}")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  contract            Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([scheduleId])
+  @@map("contract_dispatch_notices")
+  @@schema("contract")
+}
+
+model ContractGoodsReceipt {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  contractId         String                     @map("contract_id") @db.Uuid
+  dispatchNoticeId   String?                    @map("dispatch_notice_id") @db.Uuid
+  receiptReference   String                     @map("receipt_reference")
+  receivedAt         DateTime                   @default(now()) @map("received_at")
+  receivedByUserId   String?                    @map("received_by_user_id") @db.Uuid
+  location           String?
+  conditionAtReceipt String?                    @map("condition_at_receipt")
+  status             ContractLifecycleItemStatus @default(OPEN)
+  note               String?
+  payload            Json                       @default("{}")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+  contract           Contract                   @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  lines              ContractGoodsReceiptLine[]
+
+  @@index([contractId, status])
+  @@index([dispatchNoticeId])
+  @@map("contract_goods_receipts")
+  @@schema("contract")
+}
+
+model ContractGoodsReceiptLine {
+  id               String               @id @default(uuid()) @db.Uuid
+  receiptId        String               @map("receipt_id") @db.Uuid
+  scheduleId       String?              @map("schedule_id") @db.Uuid
+  description      String
+  orderedQuantity  Decimal?             @map("ordered_quantity") @db.Decimal(18, 4)
+  receivedQuantity Decimal?             @map("received_quantity") @db.Decimal(18, 4)
+  acceptedQuantity Decimal?             @map("accepted_quantity") @db.Decimal(18, 4)
+  rejectedQuantity Decimal?             @map("rejected_quantity") @db.Decimal(18, 4)
+  unit             String?
+  note             String?
+  payload          Json                 @default("{}")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  receipt          ContractGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+  @@index([scheduleId])
+  @@map("contract_goods_receipt_lines")
+  @@schema("contract")
+}
+
+model ContractSiteHandover {
+  id                String   @id @default(uuid()) @db.Uuid
+  contractId        String   @map("contract_id") @db.Uuid
+  handoverReference String   @map("handover_reference")
+  handoverDate      DateTime @map("handover_date")
+  location          String?
+  handedOverBy      String?  @map("handed_over_by")
+  receivedBy        String?  @map("received_by")
+  constraints       String?
+  status            String   @default("HANDED_OVER")
+  payload           Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@map("contract_site_handovers")
+  @@schema("contract")
+}
+
+model ContractWorksProgressReport {
+  id               String   @id @default(uuid()) @db.Uuid
+  contractId       String   @map("contract_id") @db.Uuid
+  reportReference  String   @map("report_reference")
+  periodStart      DateTime? @map("period_start")
+  periodEnd        DateTime? @map("period_end")
+  progressPercent  Decimal? @map("progress_percent") @db.Decimal(5, 2)
+  narrative        String?
+  submittedByOrgId String?  @map("submitted_by_org_id") @db.Uuid
+  status           String   @default("SUBMITTED")
+  payload          Json     @default("{}")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  contract         Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([periodEnd])
+  @@map("contract_works_progress_reports")
+  @@schema("contract")
+}
+
+model ContractBoqMeasurement {
+  id                 String   @id @default(uuid()) @db.Uuid
+  contractId         String   @map("contract_id") @db.Uuid
+  reportId           String?  @map("report_id") @db.Uuid
+  boqItemReference   String   @map("boq_item_reference")
+  description        String?
+  previousQuantity   Decimal? @map("previous_quantity") @db.Decimal(18, 4)
+  currentQuantity    Decimal? @map("current_quantity") @db.Decimal(18, 4)
+  cumulativeQuantity Decimal? @map("cumulative_quantity") @db.Decimal(18, 4)
+  unitRate           Decimal? @map("unit_rate") @db.Decimal(18, 4)
+  amount             Decimal? @db.Decimal(18, 2)
+  status             String   @default("MEASURED")
+  payload            Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  contract           Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([reportId])
+  @@map("contract_boq_measurements")
+  @@schema("contract")
+}
+
+model ContractInterimPaymentCertificate {
+  id                 String   @id @default(uuid()) @db.Uuid
+  contractId         String   @map("contract_id") @db.Uuid
+  certificateNumber  String   @map("certificate_number")
+  periodStart        DateTime? @map("period_start")
+  periodEnd          DateTime? @map("period_end")
+  grossAmount        Decimal? @map("gross_amount") @db.Decimal(18, 2)
+  deductionsAmount   Decimal? @map("deductions_amount") @db.Decimal(18, 2)
+  netAmount          Decimal? @map("net_amount") @db.Decimal(18, 2)
+  currency           String   @default("TZS")
+  status             String   @default("DRAFT")
+  approvedAt         DateTime? @map("approved_at")
+  payload            Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  contract           Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, certificateNumber])
+  @@index([contractId, status])
+  @@map("contract_interim_payment_certificates")
+  @@schema("contract")
+}
+
+model ContractDefect {
+  id              String                      @id @default(uuid()) @db.Uuid
+  contractId      String                      @map("contract_id") @db.Uuid
+  defectReference String                      @map("defect_reference")
+  title           String
+  description     String?
+  severity        String                      @default("MINOR")
+  identifiedAt    DateTime                    @default(now()) @map("identified_at")
+  dueDate         DateTime?                   @map("due_date")
+  status          ContractLifecycleItemStatus @default(OPEN)
+  closedAt        DateTime?                   @map("closed_at")
+  payload         Json                        @default("{}")
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
+  contract        Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([dueDate])
+  @@map("contract_defects")
+  @@schema("contract")
+}
+
+model ContractServiceLevel {
+  id              String   @id @default(uuid()) @db.Uuid
+  contractId      String   @map("contract_id") @db.Uuid
+  metricKey       String   @map("metric_key")
+  title           String
+  targetValue     String?  @map("target_value")
+  measurementUnit String?  @map("measurement_unit")
+  creditRule      String?  @map("credit_rule")
+  status          String   @default("ACTIVE")
+  payload         Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  contract        Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, metricKey])
+  @@index([contractId, status])
+  @@map("contract_service_levels")
+  @@schema("contract")
+}
+
+model ContractServicePeriod {
+  id          String   @id @default(uuid()) @db.Uuid
+  contractId  String   @map("contract_id") @db.Uuid
+  periodKey   String   @map("period_key")
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  status      String   @default("OPEN")
+  payload     Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, periodKey])
+  @@index([contractId, status])
+  @@map("contract_service_periods")
+  @@schema("contract")
+}
+
+model ContractServiceReport {
+  id               String   @id @default(uuid()) @db.Uuid
+  contractId       String   @map("contract_id") @db.Uuid
+  periodId         String?  @map("period_id") @db.Uuid
+  reportReference  String   @map("report_reference")
+  submittedByOrgId String?  @map("submitted_by_org_id") @db.Uuid
+  submittedAt      DateTime @default(now()) @map("submitted_at")
+  status           String   @default("SUBMITTED")
+  summary          String?
+  payload          Json     @default("{}")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  contract         Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([periodId])
+  @@map("contract_service_reports")
+  @@schema("contract")
+}
+
+model ContractServiceCredit {
+  id             String   @id @default(uuid()) @db.Uuid
+  contractId     String   @map("contract_id") @db.Uuid
+  serviceLevelId String?  @map("service_level_id") @db.Uuid
+  periodId       String?  @map("period_id") @db.Uuid
+  creditType     String   @default("SERVICE_CREDIT") @map("credit_type")
+  amount         Decimal? @db.Decimal(18, 2)
+  currency       String   @default("TZS")
+  status         String   @default("DRAFT")
+  reason         String?
+  payload        Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, status])
+  @@index([periodId])
+  @@map("contract_service_credits")
+  @@schema("contract")
+}
+
+model ContractConsultancyDeliverable {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  contractId         String                      @map("contract_id") @db.Uuid
+  deliverableCode    String                      @map("deliverable_code")
+  title              String
+  description        String?
+  dueDate            DateTime?                   @map("due_date")
+  paymentEligible    Boolean                     @default(false) @map("payment_eligible")
+  status             ContractLifecycleItemStatus @default(OPEN)
+  payload            Json                        @default("{}")
+  createdAt          DateTime                    @default(now()) @map("created_at")
+  updatedAt          DateTime                    @updatedAt @map("updated_at")
+  contract           Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  versions           ContractDeliverableVersion[]
+
+  @@unique([contractId, deliverableCode])
+  @@index([contractId, status])
+  @@map("contract_consultancy_deliverables")
+  @@schema("contract")
+}
+
+model ContractDeliverableVersion {
+  id               String                         @id @default(uuid()) @db.Uuid
+  contractId       String                         @map("contract_id") @db.Uuid
+  deliverableId    String?                        @map("deliverable_id") @db.Uuid
+  versionNo        Int                            @default(1) @map("version_no")
+  documentId       String?                        @map("document_id") @db.Uuid
+  submittedByOrgId String?                        @map("submitted_by_org_id") @db.Uuid
+  submittedAt      DateTime                       @default(now()) @map("submitted_at")
+  status           String                         @default("SUBMITTED")
+  note             String?
+  payload          Json                           @default("{}")
+  createdAt        DateTime                       @default(now()) @map("created_at")
+  updatedAt        DateTime                       @updatedAt @map("updated_at")
+  contract         Contract                       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  deliverable      ContractConsultancyDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  reviews          ContractDeliverableReview[]
+
+  @@unique([deliverableId, versionNo])
+  @@index([contractId, status])
+  @@map("contract_deliverable_versions")
+  @@schema("contract")
+}
+
+model ContractDeliverableReview {
+  id              String                     @id @default(uuid()) @db.Uuid
+  contractId      String                     @map("contract_id") @db.Uuid
+  versionId       String?                    @map("version_id") @db.Uuid
+  decision        String                     @default("REVISION_REQUESTED")
+  reviewerUserId  String?                    @map("reviewer_user_id") @db.Uuid
+  reviewedAt      DateTime                   @default(now()) @map("reviewed_at")
+  comments        String?
+  payload         Json                       @default("{}")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  contract        Contract                   @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  version         ContractDeliverableVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, decision])
+  @@index([versionId])
+  @@map("contract_deliverable_reviews")
+  @@schema("contract")
+}
+
+model ContractClaim {
+  id              String                      @id @default(uuid()) @db.Uuid
+  contractId      String                      @map("contract_id") @db.Uuid
+  claimReference  String                      @map("claim_reference")
+  claimType       String                      @default("GENERAL") @map("claim_type")
+  title           String
+  description     String?
+  raisedByRole    String                      @map("raised_by_role")
+  amount          Decimal?                    @db.Decimal(18, 2)
+  currency        String                      @default("TZS")
+  status          ContractLifecycleItemStatus @default(OPEN)
+  submittedAt     DateTime                    @default(now()) @map("submitted_at")
+  payload         Json                        @default("{}")
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
+  contract        Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  responses       ContractClaimResponse[]
+
+  @@unique([contractId, claimReference])
+  @@index([contractId, status])
+  @@map("contract_claims")
+  @@schema("contract")
+}
+
+model ContractClaimResponse {
+  id              String        @id @default(uuid()) @db.Uuid
+  contractId      String        @map("contract_id") @db.Uuid
+  claimId         String?       @map("claim_id") @db.Uuid
+  responderRole   String        @map("responder_role")
+  decision        String        @default("UNDER_REVIEW")
+  response        String?
+  amountApproved  Decimal?      @map("amount_approved") @db.Decimal(18, 2)
+  respondedAt     DateTime      @default(now()) @map("responded_at")
+  payload         Json          @default("{}")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  contract        Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  claim           ContractClaim? @relation(fields: [claimId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, decision])
+  @@index([claimId])
+  @@map("contract_claim_responses")
+  @@schema("contract")
+}
+
+model ContractExtensionRequest {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  contractId         String                      @map("contract_id") @db.Uuid
+  requestReference   String                      @map("request_reference")
+  requestedByRole    String                      @map("requested_by_role")
+  reason             String?
+  requestedEndDate   DateTime?                   @map("requested_end_date")
+  impactSummary      String?                     @map("impact_summary")
+  status             ContractLifecycleItemStatus @default(OPEN)
+  decidedAt          DateTime?                   @map("decided_at")
+  payload            Json                        @default("{}")
+  createdAt          DateTime                    @default(now()) @map("created_at")
+  updatedAt          DateTime                    @updatedAt @map("updated_at")
+  contract           Contract                    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, requestReference])
+  @@index([contractId, status])
+  @@map("contract_extension_requests")
+  @@schema("contract")
+}
+
+model ContractAmendment {
+  id                 String   @id @default(uuid()) @db.Uuid
+  contractId         String   @map("contract_id") @db.Uuid
+  amendmentReference String   @map("amendment_reference")
+  amendmentType      String   @default("VARIATION") @map("amendment_type")
+  title              String
+  reason             String?
+  baselineVersionNo  Int?     @map("baseline_version_no")
+  valueDelta         Decimal? @map("value_delta") @db.Decimal(18, 2)
+  timeDeltaDays      Int?     @map("time_delta_days")
+  status             String   @default("DRAFT")
+  approvedAt         DateTime? @map("approved_at")
+  signedAt           DateTime? @map("signed_at")
+  payload            Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  contract           Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, amendmentReference])
+  @@index([contractId, status])
+  @@map("contract_amendments")
   @@schema("contract")
 }
 

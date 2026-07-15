@@ -1,0 +1,136 @@
+name: ProcureX CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - procurement-platform/**
+      - procurex-ui/**
+      - .github/workflows/procurex-ci-cd.yml
+  pull_request:
+    paths:
+      - procurement-platform/**
+      - procurex-ui/**
+      - .github/workflows/procurex-ci-cd.yml
+  workflow_dispatch:
+
+concurrency:
+  group: procurex-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: procurement-platform
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  validate:
+    name: Validate, Test, And Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_ENV: test
+      SMTP_USER: ci@example.test
+      SMTP_PASS: ci-password
+      SMTP_FROM: ProcureX CI <ci@example.test>
+      SMTP_REPLY_TO: ci@example.test
+      SUPPORT_EMAIL_TO: support@example.test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: procurement-platform/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Prisma schema
+        run: npm run db:validate
+
+      - name: Lint client
+        continue-on-error: true
+        run: npm run lint:client
+
+      - name: Test shared package
+        run: npm --workspace shared test
+
+      - name: Test server and client
+        run: npm test
+
+      - name: Build platform
+        run: npm run build
+
+      - name: Upload client build
+        uses: actions/upload-artifact@v4
+        with:
+          name: procurex-client-dist
+          path: procurement-platform/client/dist
+          if-no-files-found: error
+
+      - name: Upload server build
+        uses: actions/upload-artifact@v4
+        with:
+          name: procurex-server-dist
+          path: procurement-platform/server/dist
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    environment: production
+    env:
+      HAS_PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL != '' }}
+      HAS_DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL != '' }}
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.PRODUCTION_DIRECT_URL }}
+      DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: procurement-platform/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build release
+        run: npm run build
+
+      - name: Deploy database migrations
+        if: ${{ env.HAS_PRODUCTION_DATABASE_URL == 'true' }}
+        run: npx prisma migrate deploy --schema prisma/schema.prisma
+        working-directory: procurement-platform/server
+
+      - name: Trigger deployment webhook
+        if: ${{ env.HAS_DEPLOY_WEBHOOK_URL == 'true' }}
+        run: |
+          curl --fail --show-error --silent \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data "{\"sha\":\"${GITHUB_SHA}\",\"ref\":\"${GITHUB_REF_NAME}\",\"workflow\":\"${GITHUB_WORKFLOW}\"}" \
+            "$DEPLOY_WEBHOOK_URL"
+
+      - name: Report skipped deployment target
+        if: ${{ env.HAS_DEPLOY_WEBHOOK_URL != 'true' }}
+        run: |
+          echo "No DEPLOY_WEBHOOK_URL secret configured; build and optional migration deployment completed."

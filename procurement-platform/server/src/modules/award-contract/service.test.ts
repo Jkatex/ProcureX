@@ -639,6 +639,48 @@ describe('award-contract module', () => {
     });
   });
 
+  it('includes signed contracts in the dashboard contract progress queue', async () => {
+    const repository = new ModuleRepository({
+      awardRecommendation: {
+        findMany: async () => []
+      },
+      contract: {
+        findMany: async () => [{
+          ...postAwardContract({
+            status: ContractStatus.SIGNED,
+            tenderId: '77777777-7777-4777-8777-777777777777',
+            awardId: '88888888-8888-4888-8888-888888888888',
+            title: 'Signed clinic supply contract',
+            amount: 1200000,
+            currency: 'TZS'
+          }),
+          buyerOrg: { name: 'Buyer Org' },
+          supplierOrg: { name: 'Supplier Org' },
+          awardNotice: null,
+          mobilizationItems: []
+        }]
+      }
+    } as any);
+    (repository as any).listSamples = async () => ({
+      summary: {},
+      queues: {}
+    });
+
+    await expect(new ModuleService(repository).dashboard(contractContext)).resolves.toMatchObject({
+      summary: { contractActions: 1 },
+      queues: {
+        'contracts-in-progress': [
+          expect.objectContaining({
+            title: 'Signed clinic supply contract',
+            status: ContractStatus.SIGNED,
+            currentStage: 'Activation setup',
+            nextRoute: '/post-award?contract=44444444-4444-4444-8444-444444444444&stage=setup'
+          })
+        ]
+      }
+    });
+  });
+
   it('requires award confirmation before sending award notices', async () => {
     const { service } = await makeAwardNoticeRepository(RecommendationStatus.RECOMMENDED);
 
@@ -1032,6 +1074,86 @@ describe('award-contract module', () => {
     ).resolves.toMatchObject({ id: '44444444-4444-4444-8444-444444444444' });
 
     expect(acceptanceCreates[0].data.certificateNo).toMatch(/^PX-ACPT-\d{4}-[A-F0-9]{8}$/);
+  });
+
+  it('rejects submitted invoices without an accepted execution reference', async () => {
+    const contract = postAwardContract();
+    const invoiceCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        invoice: {
+          create: async (input: any) => {
+            invoiceCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createInvoice(contract.id, {
+      amount: 1000,
+      currency: 'TZS',
+      status: 'SUBMITTED' as any,
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Invoice requires an accepted execution reference before submission.'
+    });
+    expect(invoiceCreates).toHaveLength(0);
+  });
+
+  it('allows supplier invoices linked to accepted goods receipts', async () => {
+    const contract = postAwardContract();
+    const invoiceCreates: any[] = [];
+    const auditEvents: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractGoodsReceipt: {
+          findFirst: async () => ({
+            id: 'receipt-1',
+            contractId: contract.id,
+            status: ContractLifecycleItemStatus.APPROVED,
+            lines: []
+          })
+        },
+        invoice: {
+          create: async (input: any) => {
+            invoiceCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async (...args: any[]) => {
+      auditEvents.push(args);
+    };
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createInvoice(contract.id, {
+      reference: 'INV-GRN-1',
+      amount: 1000,
+      currency: 'TZS',
+      status: 'SUBMITTED' as any,
+      executionReferenceType: 'goods_receipt',
+      executionReferenceId: 'receipt-1',
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).resolves.toMatchObject({ id: contract.id });
+
+    expect(invoiceCreates[0].data).toMatchObject({
+      reference: 'INV-GRN-1',
+      contractId: contract.id,
+      supplierOrgId: contract.supplierOrgId,
+      amount: 1000,
+      payload: {
+        executionReferenceType: 'goods_receipt',
+        executionReferenceId: 'receipt-1'
+      }
+    });
+    expect(auditEvents[0]).toEqual(expect.arrayContaining(['contract.invoice.created', 'contract', contract.id]));
   });
 
   it('validates lifecycle risk and termination payloads', () => {

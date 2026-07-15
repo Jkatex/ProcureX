@@ -5,26 +5,24 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { store } from '@/app/store';
 import '@/i18n';
-import { PostAwardAppPage } from './pages/PostAwardAppPage';
-import { postAwardApi } from './api';
-import type { PostAwardWorkspace } from './types';
+import { awardsContractsApi } from '@/features/awardsContracts/api';
+import { PostAwardTrackingProcurexPage } from '@/features/awardsContracts/components/procurex/PostAwardTrackingProcurexPage';
+import { postAwardApi } from '@/features/postAward/api';
+import type { ContractDetailDto } from '@/features/awardsContracts/types';
+import type { PostAwardContractRow } from '@/features/postAward/types';
 
-vi.mock('./api', () => ({
+vi.mock('@/features/awardsContracts/api', () => ({
+  awardsContractsApi: {
+    contract: vi.fn(),
+    contractDocuments: vi.fn(),
+    uploadContractDocument: vi.fn(),
+    addMilestoneEvidence: vi.fn()
+  }
+}));
+
+vi.mock('@/features/postAward/api', () => ({
   postAwardApi: {
-    contracts: vi.fn(),
-    workspace: vi.fn(),
-    uploadDocument: vi.fn(),
-    upsertManagementPlan: vi.fn(),
-    createDeliverable: vi.fn(),
-    addMilestoneEvidence: vi.fn(),
-    createInspection: vi.fn(),
-    createAcceptance: vi.fn(),
-    createInvoice: vi.fn(),
-    updateInvoiceStatus: vi.fn(),
-    createPayment: vi.fn(),
-    createIssue: vi.fn(),
-    createVariation: vi.fn(),
-    upsertCloseout: vi.fn()
+    contracts: vi.fn()
   }
 }));
 
@@ -37,118 +35,261 @@ function renderPostAward(initialEntry = '/post-award') {
   return render(
     <Provider store={store}>
       <MemoryRouter initialEntries={[initialEntry]}>
-        <PostAwardAppPage />
+        <PostAwardTrackingProcurexPage />
         <LocationProbe />
       </MemoryRouter>
     </Provider>
   );
 }
 
-const contractRow = {
-  id: 'contract-1',
-  reference: 'PX-C-001',
-  title: 'Clinic delivery contract',
-  status: 'ACTIVE',
-  buyerName: 'Arusha City Council',
-  supplierName: 'Moshi Medical Supplies',
-  viewerRole: 'SUPPLIER' as const,
-  amount: 1200000,
-  currency: 'TZS',
-  stage: 'Active',
-  nextAction: 'Submit delivery evidence',
-  dueDate: '2026-07-30T00:00:00.000Z',
-  riskLevel: 'Low'
-};
-
-function workspace(overrides: Partial<PostAwardWorkspace> = {}): PostAwardWorkspace {
+function postAwardContractRow(overrides: Partial<PostAwardContractRow> = {}): PostAwardContractRow {
   return {
-    contract: {
-      ...contractRow,
-      tenderId: 'tender-1',
-      tenderReference: 'TDR-001',
-      access: {
-        viewerRole: 'SUPPLIER',
-        canSubmitSupplierActions: true,
-        canManageBuyerActions: false,
-        readOnlyReason: null
-      }
-    },
-    metrics: [
-      { label: 'Milestones', value: 1, tone: 'info' },
-      { label: 'Open issues', value: 0, tone: 'success' },
-      { label: 'Invoices', value: 0, tone: 'info' },
-      { label: 'Accepted', value: 0, tone: 'success' }
-    ],
-    stages: [
-      { id: 'setup', label: 'CMP / Setup', description: 'Setup', count: 0, records: [] },
-      {
-        id: 'delivery',
-        label: 'Delivery',
-        description: 'Milestones, deliverables, and supplier evidence.',
-        count: 1,
-        records: [{ id: 'milestone-1', type: 'milestone', title: 'First delivery', status: 'OPEN', dueDate: '2026-07-30T00:00:00.000Z' }]
-      },
-      { id: 'acceptance', label: 'Inspections / Acceptance', description: 'Acceptance', count: 0, records: [] },
-      { id: 'finance', label: 'Finance', description: 'Finance', count: 0, records: [] },
-      { id: 'issues', label: 'Issues', description: 'Issues', count: 0, records: [] },
-      { id: 'variations', label: 'Variations', description: 'Variations', count: 0, records: [] },
-      { id: 'closeout', label: 'Close-out', description: 'Close-out', count: 0, records: [] },
-      { id: 'history', label: 'History', description: 'History', count: 0, records: [] }
-    ],
-    secondary: [
-      { id: 'termination', label: 'Termination', count: 0, records: [] },
-      { id: 'documents', label: 'Documents / Warranty', count: 0, records: [] },
-      { id: 'performance', label: 'Supplier Performance', count: 0, records: [] },
-      { id: 'securities', label: 'Securities', count: 0, records: [] },
-      { id: 'audit', label: 'Audit', count: 0, records: [] }
-    ],
-    actions: [
-      { key: 'deliverable', label: 'Submit deliverable', stage: 'delivery', owner: 'SUPPLIER', priority: 'Medium', enabled: true, reason: null },
-      { key: 'evidence', label: 'Upload milestone evidence', stage: 'delivery', owner: 'SUPPLIER', priority: 'High', enabled: true, reason: null },
-      { key: 'inspection', label: 'Record inspection', stage: 'acceptance', owner: 'BUYER', priority: 'High', enabled: false, reason: 'Buyer action' },
-      { key: 'payment', label: 'Record payment review', stage: 'finance', owner: 'BUYER', priority: 'Medium', enabled: false, reason: 'Buyer action' }
-    ],
+    id: 'contract-1',
+    title: 'Clinic delivery contract',
+    reference: 'PX-C-001',
+    status: 'SIGNED',
+    buyerName: 'Arusha City Council',
+    supplierName: 'Moshi Medical Supplies',
+    viewerRole: 'BUYER',
+    amount: 1200000,
+    currency: 'TZS',
+    stage: 'Signed',
+    nextAction: 'Complete mobilization checklist',
+    dueDate: '2026-07-30T00:00:00.000Z',
+    riskLevel: 'Low',
     ...overrides
   };
 }
 
-describe('PostAwardAppPage', () => {
+function contractDetail(overrides: Partial<ContractDetailDto> = {}): ContractDetailDto {
+  return {
+    access: {
+      viewerRole: 'SUPPLIER',
+      canManageBuyerActions: false,
+      canSubmitSupplierActions: true,
+      canSignBuyer: false,
+      canSignSupplier: true,
+      readOnlyReason: 'Buyer actions are read-only for the supplier.'
+    },
+    id: 'contract-1',
+    reference: 'PX-C-001',
+    tenderId: 'tender-1',
+    tenderReference: 'TDR-001',
+    buyerOrgId: 'buyer-1',
+    supplierOrgId: 'supplier-1',
+    awardId: null,
+    noticeId: null,
+    title: 'Clinic delivery contract',
+    status: 'ACTIVE',
+    buyerName: 'Arusha City Council',
+    supplierName: 'Moshi Medical Supplies',
+    amount: 1200000,
+    currency: 'TZS',
+    payload: {},
+    parties: [],
+    versions: [],
+    clauses: [],
+    negotiations: [],
+    signatures: [],
+    milestones: [{ id: 'milestone-1', type: 'milestone', title: 'First delivery', status: 'OPEN', dueDate: '2026-07-30T00:00:00.000Z', note: 'Pending delivery', payload: {}, createdAt: '2026-07-14T00:00:00.000Z', updatedAt: null }],
+    managementPlan: null,
+    mobilizationItems: [],
+    kpis: [],
+    deliverables: [],
+    acceptances: [],
+    inspections: [],
+    goodsInspections: [],
+    paymentSchedules: [],
+    purchaseOrders: [],
+    invoices: [],
+    payments: [],
+    threeWayMatches: [],
+    paymentApprovals: [],
+    paymentConfirmations: [],
+    commencements: [],
+    nonConformances: [],
+    securities: [],
+    penalties: [],
+    changeRequests: [],
+    referenceSamples: [],
+    risks: [],
+    riskForecasts: [],
+    variations: [],
+    issues: [],
+    disputes: [],
+    terminations: [],
+    warranties: [],
+    requiredDocuments: [],
+    workflowApprovals: [],
+    urgentActions: [],
+    notifications: [],
+    closeout: null,
+    supplierPerformanceRecords: [],
+    performanceScores: [],
+    supplierRiskProfile: null,
+    audit: [],
+    ...overrides
+  };
+}
+
+describe('PostAwardTrackingProcurexPage', () => {
   beforeEach(() => {
-    vi.mocked(postAwardApi.contracts).mockResolvedValue([contractRow]);
-    vi.mocked(postAwardApi.workspace).mockResolvedValue(workspace());
-    vi.mocked(postAwardApi.createDeliverable).mockImplementation(async (_contractId, payload) =>
-      workspace({
-        stages: workspace().stages.map((stage) =>
-          stage.id === 'delivery'
-            ? { ...stage, count: 2, records: [...stage.records, { id: 'deliverable-1', type: 'deliverable', title: String(payload.title), status: 'SUBMITTED', note: String(payload.note ?? '') }] }
-            : stage
-        )
-      })
-    );
+    vi.mocked(postAwardApi.contracts).mockResolvedValue([postAwardContractRow()]);
+    vi.mocked(awardsContractsApi.contract).mockResolvedValue(contractDetail());
+    vi.mocked(awardsContractsApi.contractDocuments).mockResolvedValue([]);
+    vi.mocked(awardsContractsApi.uploadContractDocument).mockResolvedValue({
+      id: 'doc-uploaded',
+      name: 'delivery-note.pdf',
+      documentType: 'application/pdf',
+      createdAt: '2026-07-14T00:00:00.000Z',
+      contentUrl: '/api/award-contract/documents/doc-uploaded/content',
+      sourceLabel: 'Uploaded evidence'
+    });
+    vi.mocked(awardsContractsApi.addMilestoneEvidence).mockResolvedValue(contractDetail());
   });
 
-  it('opens the standalone contract-first workspace at /post-award', async () => {
+  it('opens the post-award dashboard with signed contracts from the post-award facade', async () => {
+    const user = userEvent.setup();
     renderPostAward();
 
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/post-award?contract=contract-1&stage=delivery'));
-    expect(await screen.findByRole('heading', { name: 'Clinic delivery contract' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Post Award stages' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Submit deliverable/i })).toBeEnabled();
-    expect(screen.getByText('Secondary tools and registers')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Post-award' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Choose a contract' })).toBeInTheDocument();
+    expect(await screen.findByText('Clinic delivery contract')).toBeInTheDocument();
+    expect(screen.getByText('Signed')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/post-award/setup?contract=contract-1');
   });
 
-  it('lets a supplier submit a deliverable inline and refreshes the delivery register', async () => {
-    const user = userEvent.setup();
+  it('maps old stage links to the matching post-award subpage', async () => {
     renderPostAward('/post-award?contract=contract-1&stage=delivery');
 
-    await user.click(await screen.findByRole('button', { name: /Submit deliverable/i }));
-    const form = screen.getByRole('heading', { name: 'Deliverable' }).closest('form') as HTMLFormElement;
-    await user.type(within(form).getByLabelText('Deliverable title'), 'Batch one delivery note');
-    await user.selectOptions(within(form).getByLabelText('Milestone'), 'milestone-1');
-    await user.type(within(form).getByLabelText('Supplier note'), 'Evidence attached for batch one.');
-    await user.click(within(form).getByRole('button', { name: 'Save action' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/post-award/delivery?contract=contract-1'));
+    expect(await screen.findByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'My actions' })).toBeInTheDocument();
+  });
 
-    await waitFor(() => expect(postAwardApi.createDeliverable).toHaveBeenCalledWith('contract-1', expect.objectContaining({ title: 'Batch one delivery note', milestoneId: 'milestone-1' })));
-    expect(await screen.findByText('Batch one delivery note')).toBeInTheDocument();
+  it('lets suppliers open buyer setup actions as readable disabled forms', async () => {
+    const user = userEvent.setup();
+    renderPostAward('/post-award/setup?contract=contract-1');
+
+    const cmpAction = (await screen.findAllByText('Contract management plan (CMP)'))
+      .map((node) => node.closest('[data-award-contract-form]'))
+      .find(Boolean) as HTMLElement;
+    expect(cmpAction).toBeTruthy();
+    expect(within(cmpAction).getByText('Buyer actions are read-only for the supplier.')).toBeInTheDocument();
+    expect(within(cmpAction).queryByLabelText(/Objectives/i)).not.toBeInTheDocument();
+
+    await user.click(within(cmpAction).getByRole('button', { name: 'View read-only' }));
+
+    const objectives = within(cmpAction).getByLabelText(/Objectives/i);
+    expect(objectives).toHaveAttribute('readonly');
+    expect(within(cmpAction).queryByRole('searchbox', { name: /Contract manager/i })).not.toBeInTheDocument();
+    expect(within(cmpAction).queryByText('Advanced payload')).not.toBeInTheDocument();
+    expect(within(cmpAction).queryByRole('button', { name: 'Save plan' })).not.toBeInTheDocument();
+    expect(within(cmpAction).queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+    expect(within(cmpAction).getByRole('button', { name: 'Close' })).toBeInTheDocument();
+
+    const statusAction = screen.getByText('Contract status').closest('[data-award-contract-form]') as HTMLElement;
+    expect(within(statusAction).getByText('Status only')).toBeInTheDocument();
+    expect(within(statusAction).queryByRole('button', { name: 'View read-only' })).not.toBeInTheDocument();
+    expect(within(statusAction).queryByLabelText('Status')).not.toBeInTheDocument();
+
+    const activationReview = screen.getByText('Activation review').closest('[data-award-contract-form]') as HTMLElement;
+    expect(within(activationReview).getByRole('button', { name: 'View read-only' })).toBeInTheDocument();
+  });
+
+  it('shows supplier actions and buyer locked states on a subpage', async () => {
+    const user = userEvent.setup();
+    renderPostAward('/post-award/delivery?contract=contract-1');
+
+    await waitFor(() => expect(screen.getByText('Milestone evidence')).toBeInTheDocument());
+    expect(screen.getAllByText('Read-only action').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Buyer actions are read-only for the supplier.').length).toBeGreaterThan(0);
+
+    const form = screen.getByText('Milestone evidence').closest('[data-award-contract-form]') as HTMLElement;
+    await user.click(within(form).getByRole('button', { name: 'Open form' }));
+    await user.upload(form.querySelector('input[type="file"]') as HTMLInputElement, new File(['proof'], 'delivery-note.pdf', { type: 'application/pdf' }));
+    await waitFor(() => expect(awardsContractsApi.uploadContractDocument).toHaveBeenCalledWith('contract-1', expect.objectContaining({ name: 'delivery-note.pdf' })));
+    await user.click(within(form).getByRole('button', { name: 'Submit' }));
+
+    await waitFor(() => expect(awardsContractsApi.addMilestoneEvidence).toHaveBeenCalledWith('contract-1', 'milestone-1', expect.objectContaining({ documentId: 'doc-uploaded' })));
+  });
+
+  it('shows goods workflow actions and hides works-only delivery forms', async () => {
+    vi.mocked(awardsContractsApi.contract).mockResolvedValue(contractDetail({
+      payload: { procurementType: 'GOODS' },
+      deliverySchedules: [],
+      dispatchNotices: [],
+      goodsReceipts: []
+    }));
+
+    renderPostAward('/post-award/delivery?contract=contract-1');
+
+    expect(await screen.findByText('Goods execution')).toBeInTheDocument();
+    expect(screen.getByText('Goods delivery schedule')).toBeInTheDocument();
+    expect(screen.getByText('Dispatch notice')).toBeInTheDocument();
+    const dispatchAction = screen.getByText('Dispatch notice').closest('[data-award-contract-form]') as HTMLElement;
+    expect(within(dispatchAction).getByRole('button', { name: 'Open form' })).toBeInTheDocument();
+    expect(screen.queryByText('Site handover')).not.toBeInTheDocument();
+    expect(screen.queryByText('Works progress report')).not.toBeInTheDocument();
+  });
+
+  it('shows works workflow actions and hides goods-only delivery forms', async () => {
+    vi.mocked(awardsContractsApi.contract).mockResolvedValue(contractDetail({
+      title: 'Clinic construction works',
+      payload: { procurementType: 'WORKS' },
+      siteHandovers: [],
+      worksProgressReports: [],
+      boqMeasurements: [],
+      interimPaymentCertificates: []
+    }));
+
+    renderPostAward('/post-award/delivery?contract=contract-1');
+
+    expect(await screen.findByText('Works execution')).toBeInTheDocument();
+    expect(screen.getByText('Site handover')).toBeInTheDocument();
+    expect(screen.getByText('Works progress report')).toBeInTheDocument();
+    const progressReport = screen.getByText('Works progress report').closest('[data-award-contract-form]') as HTMLElement;
+    expect(within(progressReport).getByRole('button', { name: 'Open form' })).toBeInTheDocument();
+    expect(screen.queryByText('Goods delivery schedule')).not.toBeInTheDocument();
+    expect(screen.queryByText('Goods receipt')).not.toBeInTheDocument();
+  });
+
+  it('hides internal buyer/admin post-award actions from suppliers', async () => {
+    const riskView = renderPostAward('/post-award/risk?contract=contract-1');
+    expect(await screen.findByText('Risks and non-conformance')).toBeInTheDocument();
+    expect(document.querySelector('[data-award-contract-form="Risk"]')).toBeInTheDocument();
+    expect(screen.queryByText('Risk forecast')).not.toBeInTheDocument();
+    riskView.unmount();
+
+    const terminationView = renderPostAward('/post-award/termination?contract=contract-1');
+    expect((await screen.findAllByRole('heading', { name: 'Termination' })).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Replacement procurement')).not.toBeInTheDocument();
+    terminationView.unmount();
+
+    renderPostAward('/post-award/performance?contract=contract-1');
+    expect((await screen.findAllByRole('heading', { name: 'Supplier performance' })).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Supplier risk profile')).not.toBeInTheDocument();
+  });
+
+  it('guides users on empty finance pages and keeps payload fields hidden by default', async () => {
+    vi.mocked(awardsContractsApi.contract).mockResolvedValue(contractDetail({
+      payload: { procurementType: 'SERVICES' },
+      milestones: [],
+      invoices: [],
+      payments: [],
+      paymentApprovals: [],
+      serviceCredits: []
+    }));
+
+    renderPostAward('/post-award/finance?contract=contract-1');
+
+    expect(await screen.findByText('Services execution')).toBeInTheDocument();
+    expect(screen.getByText('No finance record yet')).toBeInTheDocument();
+    expect(screen.getByText('Service credit')).toBeInTheDocument();
+    expect(screen.queryByText('Three-way match')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Invoice payload/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Advanced payload')).not.toBeInTheDocument();
   });
 });

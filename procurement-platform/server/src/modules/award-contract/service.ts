@@ -16,8 +16,25 @@ import {
   type ClauseInput,
   type ContractChangeRequestInput,
   type ContractCloseoutInput,
+  type ContractActivateInput,
+  type ContractActivationItemReviewInput,
+  type ContractActivationItemSubmitInput,
+  type ContractAmendmentInput,
+  type ContractBoqMeasurementInput,
+  type ContractClaimInput,
+  type ContractClaimResponseInput,
   type AwardContractDocumentUploadInput,
   type ContractCommencementInput,
+  type ContractConsultancyDeliverableInput,
+  type ContractDefectInput,
+  type ContractDeliverableReviewInput,
+  type ContractDeliverableVersionInput,
+  type ContractDeliveryScheduleInput,
+  type ContractDispatchNoticeInput,
+  type ContractEvidenceRequirementInput,
+  type ContractExtensionRequestInput,
+  type ContractGoodsReceiptInput,
+  type ContractInterimPaymentCertificateInput,
   type ContractManagementPlanInput,
   type ContractNonConformanceInput,
   type ContractPaymentInput,
@@ -32,6 +49,13 @@ import {
   type ContractMilestoneEvidenceInput,
   type ContractMilestoneInput,
   type ContractMilestonePatchInput,
+  type ContractObligationInput,
+  type ContractServiceCreditInput,
+  type ContractServiceLevelInput,
+  type ContractServicePeriodInput,
+  type ContractServiceReportInput,
+  type ContractSiteHandoverInput,
+  type ContractWorksProgressReportInput,
   type ContractQuery,
   type InspectionInput,
   type InvoiceStatusPatchInput,
@@ -305,6 +329,108 @@ export class ModuleService {
     const contract = await this.repository.updateContractStatus(contractId, input, context);
     if (!contract) throw requestError('Contract was not found after status update.', 404);
     return contract;
+  }
+
+  async submitActivationItem(contractId: string, itemId: string, input: ContractActivationItemSubmitInput, context: AwardContractRequestContext) {
+    const contract = await this.repository.submitActivationItem(contractId, itemId, input, context);
+    if (!contract) throw requestError('Contract was not found after activation item submission.', 404);
+    return contract;
+  }
+
+  async reviewActivationItem(contractId: string, itemId: string, input: ContractActivationItemReviewInput, context: AwardContractRequestContext) {
+    const contract = await this.repository.reviewActivationItem(contractId, itemId, input, context);
+    if (!contract) throw requestError('Contract was not found after activation item review.', 404);
+    return contract;
+  }
+
+  async activateContract(contractId: string, input: ContractActivateInput, context: AwardContractRequestContext) {
+    const contract = await this.repository.activateContract(contractId, input, context);
+    if (!contract) throw requestError('Contract was not found after activation.', 404);
+    return contract;
+  }
+
+  createObligation(contractId: string, input: ContractObligationInput, context: AwardContractRequestContext) {
+    return this.repository.createObligation(contractId, input, context);
+  }
+
+  createEvidenceRequirement(contractId: string, input: ContractEvidenceRequirementInput, context: AwardContractRequestContext) {
+    return this.repository.createEvidenceRequirement(contractId, input, context);
+  }
+
+  createDeliverySchedule(contractId: string, input: ContractDeliveryScheduleInput, context: AwardContractRequestContext) {
+    return this.repository.createDeliverySchedule(contractId, input, context);
+  }
+
+  createDispatchNotice(contractId: string, input: ContractDispatchNoticeInput, context: AwardContractRequestContext) {
+    return this.repository.createDispatchNotice(contractId, input, context);
+  }
+
+  createGoodsReceipt(contractId: string, input: ContractGoodsReceiptInput, context: AwardContractRequestContext) {
+    return this.repository.createGoodsReceipt(contractId, input, context);
+  }
+
+  createSiteHandover(contractId: string, input: ContractSiteHandoverInput, context: AwardContractRequestContext) {
+    return this.repository.createSiteHandover(contractId, input, context);
+  }
+
+  createWorksProgressReport(contractId: string, input: ContractWorksProgressReportInput, context: AwardContractRequestContext) {
+    return this.repository.createWorksProgressReport(contractId, input, context);
+  }
+
+  createBoqMeasurement(contractId: string, input: ContractBoqMeasurementInput, context: AwardContractRequestContext) {
+    return this.repository.createBoqMeasurement(contractId, input, context);
+  }
+
+  createInterimPaymentCertificate(contractId: string, input: ContractInterimPaymentCertificateInput, context: AwardContractRequestContext) {
+    return this.repository.createInterimPaymentCertificate(contractId, input, context);
+  }
+
+  createContractDefect(contractId: string, input: ContractDefectInput, context: AwardContractRequestContext) {
+    return this.repository.createContractDefect(contractId, input, context);
+  }
+
+  createServiceLevel(contractId: string, input: ContractServiceLevelInput, context: AwardContractRequestContext) {
+    return this.repository.createServiceLevel(contractId, input, context);
+  }
+
+  createServicePeriod(contractId: string, input: ContractServicePeriodInput, context: AwardContractRequestContext) {
+    return this.repository.createServicePeriod(contractId, input, context);
+  }
+
+  createServiceReport(contractId: string, input: ContractServiceReportInput, context: AwardContractRequestContext) {
+    return this.repository.createServiceReport(contractId, input, context);
+  }
+
+  createServiceCredit(contractId: string, input: ContractServiceCreditInput, context: AwardContractRequestContext) {
+    return this.repository.createServiceCredit(contractId, input, context);
+  }
+
+  createConsultancyDeliverable(contractId: string, input: ContractConsultancyDeliverableInput, context: AwardContractRequestContext) {
+    return this.repository.createConsultancyDeliverable(contractId, input, context);
+  }
+
+  createDeliverableVersion(contractId: string, input: ContractDeliverableVersionInput, context: AwardContractRequestContext) {
+    return this.repository.createDeliverableVersion(contractId, input, context);
+  }
+
+  createDeliverableReview(contractId: string, input: ContractDeliverableReviewInput, context: AwardContractRequestContext) {
+    return this.repository.createDeliverableReview(contractId, input, context);
+  }
+
+  createClaim(contractId: string, input: ContractClaimInput, context: AwardContractRequestContext) {
+    return this.repository.createClaim(contractId, input, context);
+  }
+
+  createClaimResponse(contractId: string, input: ContractClaimResponseInput, context: AwardContractRequestContext) {
+    return this.repository.createClaimResponse(contractId, input, context);
+  }
+
+  createExtensionRequest(contractId: string, input: ContractExtensionRequestInput, context: AwardContractRequestContext) {
+    return this.repository.createExtensionRequest(contractId, input, context);
+  }
+
+  createAmendment(contractId: string, input: ContractAmendmentInput, context: AwardContractRequestContext) {
+    return this.repository.createAmendment(contractId, input, context);
   }
 
   upsertManagementPlan(contractId: string, input: ContractManagementPlanInput, context: AwardContractRequestContext) {

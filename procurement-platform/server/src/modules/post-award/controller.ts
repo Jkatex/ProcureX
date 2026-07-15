@@ -3,19 +3,43 @@ import { ModuleService as IdentityService } from '../identity/service.js';
 import { ModuleService } from './service.js';
 import {
   acceptanceBodySchema,
+  amendmentBodySchema,
+  boqMeasurementBodySchema,
+  claimBodySchema,
+  claimResponseBodySchema,
   closeoutBodySchema,
+  consultancyDeliverableBodySchema,
+  contractActivateBodySchema,
+  contractActivationItemReviewBodySchema,
+  contractActivationItemSubmitBodySchema,
+  contractDefectBodySchema,
   contractDocumentUploadBodySchema,
+  contractEvidenceRequirementBodySchema,
   contractManagementPlanBodySchema,
   contractMilestoneEvidenceBodySchema,
+  contractObligationBodySchema,
   contractPaymentBodySchema,
+  deliverableReviewBodySchema,
+  deliverableVersionBodySchema,
+  deliveryScheduleBodySchema,
   deliverableBodySchema,
+  dispatchNoticeBodySchema,
+  extensionRequestBodySchema,
+  goodsReceiptBodySchema,
   inspectionBodySchema,
+  interimPaymentCertificateBodySchema,
   invoiceBodySchema,
   invoiceStatusPatchBodySchema,
   lifecycleItemBodySchema,
-  variationBodySchema
+  serviceCreditBodySchema,
+  serviceLevelBodySchema,
+  servicePeriodBodySchema,
+  serviceReportBodySchema,
+  siteHandoverBodySchema,
+  variationBodySchema,
+  worksProgressReportBodySchema
 } from '../award-contract/validators.js';
-import { idParamsSchema, invoiceParamsSchema, milestoneParamsSchema, moduleStatusQuerySchema } from './validators.js';
+import { activationItemParamsSchema, idParamsSchema, invoiceParamsSchema, milestoneParamsSchema, moduleStatusQuerySchema } from './validators.js';
 import type { PostAwardRequestContext } from './types.js';
 
 function requestError(message: string, status = 400) {
@@ -60,6 +84,46 @@ export class ModuleController {
     };
   }
 
+  private workspaceMutation(
+    method: keyof ModuleService,
+    bodySchema: { safeParse: (value: unknown) => { success: true; data: unknown } | { success: false } },
+    permission: Parameters<IdentityService['requirePermission']>[1],
+    invalidMessage: string
+  ): RequestHandler {
+    return async (req, res, next) => {
+      try {
+        const params = idParamsSchema.safeParse(req.params);
+        const body = bodySchema.safeParse(req.body);
+        if (!params.success) throw requestError('Invalid contract id.');
+        if (!body.success) throw requestError(invalidMessage);
+        const action = this.service[method] as unknown as (contractId: string, input: unknown, context: PostAwardRequestContext) => Promise<unknown>;
+        res.status(201).json(await action.call(this.service, params.data.contractId, body.data, await this.requirePermissionContext(req, permission)));
+      } catch (error) {
+        next(error);
+      }
+    };
+  }
+
+  createDeliverySchedule = this.workspaceMutation('createDeliverySchedule', deliveryScheduleBodySchema, 'contract.manage', 'Invalid delivery schedule payload.');
+  createDispatchNotice = this.workspaceMutation('createDispatchNotice', dispatchNoticeBodySchema, 'contract.track', 'Invalid dispatch notice payload.');
+  createGoodsReceipt = this.workspaceMutation('createGoodsReceipt', goodsReceiptBodySchema, 'contract.manage', 'Invalid goods receipt payload.');
+  createSiteHandover = this.workspaceMutation('createSiteHandover', siteHandoverBodySchema, 'contract.manage', 'Invalid site handover payload.');
+  createWorksProgressReport = this.workspaceMutation('createWorksProgressReport', worksProgressReportBodySchema, 'contract.track', 'Invalid works progress report payload.');
+  createBoqMeasurement = this.workspaceMutation('createBoqMeasurement', boqMeasurementBodySchema, 'contract.manage', 'Invalid BOQ measurement payload.');
+  createInterimPaymentCertificate = this.workspaceMutation('createInterimPaymentCertificate', interimPaymentCertificateBodySchema, 'contract.manage', 'Invalid interim payment certificate payload.');
+  createContractDefect = this.workspaceMutation('createContractDefect', contractDefectBodySchema, 'contract.manage', 'Invalid defect payload.');
+  createServiceLevel = this.workspaceMutation('createServiceLevel', serviceLevelBodySchema, 'contract.manage', 'Invalid service level payload.');
+  createServicePeriod = this.workspaceMutation('createServicePeriod', servicePeriodBodySchema, 'contract.manage', 'Invalid service period payload.');
+  createServiceReport = this.workspaceMutation('createServiceReport', serviceReportBodySchema, 'contract.track', 'Invalid service report payload.');
+  createServiceCredit = this.workspaceMutation('createServiceCredit', serviceCreditBodySchema, 'contract.manage', 'Invalid service credit payload.');
+  createConsultancyDeliverable = this.workspaceMutation('createConsultancyDeliverable', consultancyDeliverableBodySchema, 'contract.manage', 'Invalid consultancy deliverable payload.');
+  createDeliverableVersion = this.workspaceMutation('createDeliverableVersion', deliverableVersionBodySchema, 'contract.track', 'Invalid deliverable version payload.');
+  createDeliverableReview = this.workspaceMutation('createDeliverableReview', deliverableReviewBodySchema, 'contract.manage', 'Invalid deliverable review payload.');
+  createClaim = this.workspaceMutation('createClaim', claimBodySchema, 'contract.track', 'Invalid claim payload.');
+  createClaimResponse = this.workspaceMutation('createClaimResponse', claimResponseBodySchema, 'contract.track', 'Invalid claim response payload.');
+  createExtensionRequest = this.workspaceMutation('createExtensionRequest', extensionRequestBodySchema, 'contract.track', 'Invalid extension request payload.');
+  createAmendment = this.workspaceMutation('createAmendment', amendmentBodySchema, 'contract.manage', 'Invalid amendment payload.');
+
   status: RequestHandler = async (req, res, next) => {
     try {
       moduleStatusQuerySchema.parse(req.query);
@@ -87,6 +151,16 @@ export class ModuleController {
     }
   };
 
+  actions: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      if (!params.success) throw requestError('Invalid contract id.');
+      res.json(await this.service.actions(params.data.contractId, await this.requireContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   uploadDocument: RequestHandler = async (req, res, next) => {
     try {
       const params = idParamsSchema.safeParse(req.params);
@@ -106,6 +180,66 @@ export class ModuleController {
       if (!params.success) throw requestError('Invalid contract id.');
       if (!body.success) throw requestError('Invalid management plan payload.');
       res.json(await this.service.upsertManagementPlan(params.data.contractId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  submitActivationItem: RequestHandler = async (req, res, next) => {
+    try {
+      const params = activationItemParamsSchema.safeParse(req.params);
+      const body = contractActivationItemSubmitBodySchema.safeParse(req.body);
+      if (!params.success) throw requestError('Invalid activation item route.');
+      if (!body.success) throw requestError('Invalid activation item payload.');
+      res.status(201).json(await this.service.submitActivationItem(params.data.contractId, params.data.itemId, body.data, await this.requirePermissionContext(req, 'contract.track')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reviewActivationItem: RequestHandler = async (req, res, next) => {
+    try {
+      const params = activationItemParamsSchema.safeParse(req.params);
+      const body = contractActivationItemReviewBodySchema.safeParse(req.body);
+      if (!params.success) throw requestError('Invalid activation item route.');
+      if (!body.success) throw requestError('Invalid activation review payload.');
+      res.json(await this.service.reviewActivationItem(params.data.contractId, params.data.itemId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  activateContract: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      const body = contractActivateBodySchema.safeParse(req.body);
+      if (!params.success) throw requestError('Invalid contract id.');
+      if (!body.success) throw requestError('Invalid activation payload.');
+      res.json(await this.service.activateContract(params.data.contractId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createObligation: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      const body = contractObligationBodySchema.safeParse(req.body);
+      if (!params.success) throw requestError('Invalid contract id.');
+      if (!body.success) throw requestError('Invalid obligation payload.');
+      res.status(201).json(await this.service.createObligation(params.data.contractId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createEvidenceRequirement: RequestHandler = async (req, res, next) => {
+    try {
+      const params = idParamsSchema.safeParse(req.params);
+      const body = contractEvidenceRequirementBodySchema.safeParse(req.body);
+      if (!params.success) throw requestError('Invalid contract id.');
+      if (!body.success) throw requestError('Invalid evidence requirement payload.');
+      res.status(201).json(await this.service.createEvidenceRequirement(params.data.contractId, body.data, await this.requirePermissionContext(req, 'contract.manage')));
     } catch (error) {
       next(error);
     }
