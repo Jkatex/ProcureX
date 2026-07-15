@@ -240,6 +240,35 @@ export type TenderLanguageScanResponseDto = {
   data: TenderLanguageScanDto;
 };
 
+export type ContactVerificationChannel = 'email' | 'phone';
+
+export type ContactVerificationStartInput = {
+  channel: ContactVerificationChannel;
+  target: string;
+};
+
+export type ContactVerificationStartResponseDto = {
+  challengeId: string;
+  channel: ContactVerificationChannel;
+  target: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+  maxAttempts: number;
+  devCode?: string;
+};
+
+export type ContactVerificationVerifyInput = {
+  challengeId: string;
+  code: string;
+};
+
+export type ContactVerificationVerifyResponseDto = {
+  verified: true;
+  channel: ContactVerificationChannel;
+  target: string;
+  verifiedAt: string;
+};
+
 export const planningSortValues = ['date', 'title', 'budget', 'status', 'category'] as const;
 
 export type PlanningSort = (typeof planningSortValues)[number];

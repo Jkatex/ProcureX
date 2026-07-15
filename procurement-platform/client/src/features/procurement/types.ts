@@ -60,6 +60,8 @@ export type CreateTenderContact = {
   phone: string;
   verifiedEmail: boolean;
   verifiedPhone: boolean;
+  verifiedEmailTarget: string;
+  verifiedPhoneTarget: string;
 };
 
 export type CreateTenderLineItem = {
@@ -513,6 +515,35 @@ export type CreateTenderPayload = {
 };
 
 export type UpdateTenderPayload = Partial<CreateTenderPayload>;
+
+export type ContactVerificationChannel = 'email' | 'phone';
+
+export type StartContactVerificationPayload = {
+  channel: ContactVerificationChannel;
+  target: string;
+};
+
+export type StartContactVerificationResponse = {
+  challengeId: string;
+  channel: ContactVerificationChannel;
+  target: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+  maxAttempts: number;
+  devCode?: string;
+};
+
+export type VerifyContactVerificationPayload = {
+  challengeId: string;
+  code: string;
+};
+
+export type VerifyContactVerificationResponse = {
+  verified: true;
+  channel: ContactVerificationChannel;
+  target: string;
+  verifiedAt: string;
+};
 
 export type CreateTenderResponse = {
   success: true;
