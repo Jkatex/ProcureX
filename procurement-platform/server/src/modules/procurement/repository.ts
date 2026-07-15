@@ -2544,10 +2544,10 @@ function toTenderDetailDto(
       id: item.id,
       itemNo: item.itemNo,
       description: item.description,
-      quantity: decimalToNumber(item.quantity),
+      quantity: decimalToNullableNumber(item.quantity),
       unit: item.unit,
-      rate: decimalToNumber(item.rate),
-      total: decimalToNumber(item.total),
+      rate: decimalToNullableNumber(item.rate),
+      total: decimalToNullableNumber(item.total),
       payload: objectPayload(item.payload)
     })),
     documents: tender.documents.map((document) => ({
@@ -3152,6 +3152,12 @@ function hasReachedOpeningDate(metadata: unknown, now = Date.now()) {
 function decimalToNumber(value: unknown) {
   const numeric = Number(value ?? 0);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function decimalToNullableNumber(value: unknown) {
+  if (value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function objectPayload(value: unknown): Record<string, unknown> {

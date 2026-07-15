@@ -21,8 +21,7 @@ const emptyDashboard: AwardContractDashboard = {
     'awarding-in-progress': [],
     'awards-received': [],
     'contracts-in-progress': [],
-    'active-contracts': [],
-    'closed-contracts': []
+    'contract-signing': []
   }
 };
 
@@ -173,8 +172,12 @@ export const awardsContractsApi = {
     const response = await apiClient.post<AwardRecommendationDetailDto>(`/api/award-contract/notices/${noticeId}/reissue`, { reason, payload });
     return response.data;
   },
-  async saveDraft(contractId: string, payload: Record<string, unknown>) {
-    const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/versions`, { payload });
+  async saveDraft(contractId: string, payload: Record<string, unknown>, documentId?: string) {
+    const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/versions`, { payload, ...(documentId ? { documentId } : {}) });
+    return response.data;
+  },
+  async sendForNegotiation(contractId: string) {
+    const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/send-for-negotiation`, {});
     return response.data;
   },
   async createSignatureRequests(contractId: string, roles: Array<'BUYER' | 'SUPPLIER'> = ['BUYER', 'SUPPLIER']) {
@@ -229,8 +232,16 @@ export const awardsContractsApi = {
     const response = await apiClient.put(`/api/award-contract/contracts/${contractId}/clauses`, payload);
     return response.data;
   },
+  async deleteClause(contractId: string, clauseId: string) {
+    const response = await apiClient.delete(`/api/award-contract/contracts/${contractId}/clauses/${clauseId}`);
+    return response.data;
+  },
   async createNegotiation(contractId: string, payload: Record<string, unknown>) {
     const response = await apiClient.post(`/api/award-contract/contracts/${contractId}/negotiations`, payload);
+    return response.data;
+  },
+  async updateNegotiation(contractId: string, negotiationId: string, payload: Record<string, unknown>) {
+    const response = await apiClient.patch(`/api/award-contract/contracts/${contractId}/negotiations/${negotiationId}`, payload);
     return response.data;
   },
   async createDeliverable(contractId: string, payload: Record<string, unknown>) {

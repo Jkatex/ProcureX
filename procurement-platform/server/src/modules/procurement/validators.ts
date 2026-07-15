@@ -84,6 +84,48 @@ const optionalDateSchema = z
 const metadataSchema = z.record(z.unknown()).optional().default({});
 const customValuesSchema = z.record(z.string()).optional().default({});
 
+export const contactVerificationStartBodySchema = z
+  .object({
+    channel: z.enum(['email', 'phone']),
+    target: z.string().trim().min(1).max(254)
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (input.channel === 'email' && !z.string().email().safeParse(input.target).success) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['target'],
+        message: 'Enter a valid contact email address.'
+      });
+    }
+    if (input.channel === 'phone') {
+      const normalizedDigits = input.target.trim().replace(/\D/g, '');
+      const normalized = input.target.trim().startsWith('+')
+        ? `+${normalizedDigits}`
+        : normalizedDigits.startsWith('255')
+          ? `+${normalizedDigits}`
+          : normalizedDigits.startsWith('0') && normalizedDigits.length === 10
+            ? `+255${normalizedDigits.slice(1)}`
+            : /^[67]\d{8}$/.test(normalizedDigits)
+              ? `+255${normalizedDigits}`
+              : `+${normalizedDigits}`;
+      if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['target'],
+          message: 'Enter a valid contact phone number.'
+        });
+      }
+    }
+  });
+
+export const contactVerificationVerifyBodySchema = z
+  .object({
+    challengeId: uuidSchema,
+    code: z.string().trim().min(6).max(24)
+  })
+  .strict();
+
 type PlanLineDateInput = {
   openingDate?: string;
   closingDate?: string;

@@ -60,6 +60,8 @@ const emailActivationPurpose = 'EMAIL_ACTIVATION';
 const passwordResetPurpose = 'PASSWORD_RESET';
 const keyphraseRecoveryEmailPurpose = 'KEYPHRASE_RECOVERY_EMAIL';
 const keyphraseRecoveryPhonePurpose = 'KEYPHRASE_RECOVERY_PHONE';
+const tenderContactEmailPurpose = 'TENDER_CONTACT_EMAIL_CODE';
+const tenderContactPhonePurpose = 'TENDER_CONTACT_PHONE_OTP';
 const sessionDays = 7;
 const maxChallengeAttempts = 5;
 const phoneOtpMinutes = 10;
@@ -75,6 +77,30 @@ type RegistrationStartInput = {
   email: string;
   phone: string;
   location?: TanzaniaLocationSelection;
+};
+
+export type TenderContactVerificationChannel = 'email' | 'phone';
+
+export type TenderContactVerificationStartInput = {
+  channel: TenderContactVerificationChannel;
+  target: string;
+};
+
+export type TenderContactVerificationStartDto = {
+  challengeId: string;
+  channel: TenderContactVerificationChannel;
+  target: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+  maxAttempts: number;
+  devCode?: string;
+};
+
+export type TenderContactVerificationVerifyDto = {
+  verified: true;
+  channel: TenderContactVerificationChannel;
+  target: string;
+  verifiedAt: string;
 };
 
 type LegalAcceptanceInput = {
@@ -152,6 +178,12 @@ function normalizePhone(phone: string) {
 function assertValidE164Phone(phone: string) {
   if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
     throw requestError('Phone number must use a valid international format.', 400);
+  }
+}
+
+function assertValidEmail(email: string) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw requestError('Email address must use a valid format.', 400);
   }
 }
 
@@ -303,6 +335,28 @@ function devCodeFromReceipt(receipt: DeliveryReceipt, code: string) {
 function phoneDeliveryChannel(receipt?: DeliveryReceipt) {
   if (receipt?.provider === 'meta-whatsapp') return 'whatsapp';
   return 'sms';
+}
+
+function tenderContactPurpose(channel: TenderContactVerificationChannel) {
+  return channel === 'email' ? tenderContactEmailPurpose : tenderContactPhonePurpose;
+}
+
+function tenderContactChannelFromPurpose(purpose: string): TenderContactVerificationChannel | null {
+  if (purpose === tenderContactEmailPurpose) return 'email';
+  if (purpose === tenderContactPhonePurpose) return 'phone';
+  return null;
+}
+
+function normalizeTenderContactTarget(channel: TenderContactVerificationChannel, rawTarget: string) {
+  if (channel === 'email') {
+    const email = normalizeEmail(rawTarget);
+    assertValidEmail(email);
+    return email;
+  }
+
+  const phone = normalizePhone(rawTarget);
+  assertValidE164Phone(phone);
+  return phone;
 }
 
 function appPublicUrl() {
@@ -1797,6 +1851,173 @@ export class ModuleService {
       details: { source: 'account_menu' }
     });
     return { ok: true };
+  }
+
+  async startTenderContactVerification(
+    token: string | undefined,
+    input: TenderContactVerificationStartInput,
+    audit?: AuthAuditContext
+  ): Promise<TenderContactVerificationStartDto> {
+    const session = await this.requirePermission(token, 'procurement.create');
+    const channel = input.channel;
+    const target = normalizeTenderContactTarget(channel, input.target);
+    const purpose = tenderContactPurpose(channel);
+    const code = randomCode();
+    const expiresInMinutes = channel === 'email' ? activationMinutes : phoneOtpMinutes;
+
+    await this.repository.replacePendingChallenges({ userId: session.user.id, purpose, target });
+    const challenge = await this.repository.createChallenge({
+      userId: session.user.id,
+      purpose,
+      target,
+      codeHash: sha256(code),
+      expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000),
+      metadata: {
+        channel,
+        target,
+        ownerOrgId: session.user.organizationId,
+        source: 'create_tender_contact',
+        delivery: { channel, status: 'pending' }
+      }
+    });
+
+    try {
+      const receipt =
+        channel === 'email'
+          ? await this.notifications.sendTenderContactVerification({
+              to: target,
+              code,
+              expiresInMinutes,
+              idempotencyKey: `procurement-tender-contact-email/${challenge.id}`,
+              metadata: { challengeId: challenge.id, userId: session.user.id }
+            })
+          : await this.notifications.sendPhoneOtp({ to: target, code, expiresInMinutes });
+      const devCode = devCodeFromReceipt(receipt, code) ?? (channel === 'email' && localTemporaryAuthCodesEnabled() ? code : undefined);
+      await this.repository.updateChallenge(challenge.id, {
+        metadata: inputJson({
+          ...metadataObject(challenge.metadata),
+          ...(devCode ? { devCode } : {}),
+          delivery: {
+            channel: channel === 'phone' ? phoneDeliveryChannel(receipt) : 'email',
+            status: 'sent',
+            ...deliveryMetadata(receipt)
+          }
+        })
+      });
+      await this.recordAuthEvent('procurement.contact_verification.delivery_succeeded', {
+        ...audit,
+        userId: session.user.id,
+        ownerOrgId: session.user.organizationId,
+        entityRef: challenge.id,
+        target,
+        details: { channel, provider: receipt.provider, messageId: receipt.messageId }
+      });
+
+      return {
+        challengeId: challenge.id,
+        channel,
+        target,
+        expiresAt: challenge.expiresAt.toISOString(),
+        resendAvailableAt: challengeResendAvailableAt(challenge.createdAt, resendCooldownSeconds),
+        maxAttempts: maxChallengeAttempts,
+        ...(devCode ? { devCode } : {})
+      };
+    } catch (error) {
+      if (channel === 'email' && localTemporaryAuthCodesEnabled()) {
+        const fallbackChallenge = await this.repository.updateChallenge(challenge.id, {
+          metadata: inputJson({
+            ...metadataObject(challenge.metadata),
+            devCode: code,
+            delivery: {
+              channel: 'email',
+              status: 'local-temporary-code',
+              failedAt: new Date().toISOString(),
+              error: error instanceof Error ? error.message : 'Email delivery failed.'
+            }
+          })
+        });
+        await this.recordAuthEvent('procurement.contact_verification.delivery_succeeded', {
+          ...audit,
+          userId: session.user.id,
+          ownerOrgId: session.user.organizationId,
+          entityRef: challenge.id,
+          target,
+          details: { channel, provider: 'local-temporary-code' }
+        });
+        return {
+          challengeId: fallbackChallenge.id,
+          channel,
+          target,
+          expiresAt: fallbackChallenge.expiresAt.toISOString(),
+          resendAvailableAt: challengeResendAvailableAt(fallbackChallenge.createdAt, resendCooldownSeconds),
+          maxAttempts: maxChallengeAttempts,
+          devCode: code
+        };
+      }
+
+      await this.markChallengeDeliveryFailed(challenge.id, challenge.metadata, error);
+      await this.recordAuthEvent('procurement.contact_verification.delivery_failed', {
+        ...audit,
+        userId: session.user.id,
+        ownerOrgId: session.user.organizationId,
+        entityRef: challenge.id,
+        target,
+        severity: AuditSeverity.ERROR,
+        details: { channel }
+      });
+      throw requestError(channel === 'email' ? 'Could not send contact verification email. Please try again later.' : 'Could not send contact verification SMS. Please try again later.', 502);
+    }
+  }
+
+  async verifyTenderContact(
+    token: string | undefined,
+    challengeId: string,
+    code: string,
+    audit?: AuthAuditContext
+  ): Promise<TenderContactVerificationVerifyDto> {
+    const session = await this.requirePermission(token, 'procurement.create');
+    const challenge = await this.repository.findChallenge(challengeId);
+    const channel = challenge ? tenderContactChannelFromPurpose(challenge.purpose) : null;
+    if (!challenge || !channel || challenge.userId !== session.user.id) {
+      throw requestError('Contact verification code was not found.', 404);
+    }
+    if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) {
+      throw requestError('Contact verification code is no longer valid.', 410);
+    }
+    if (challenge.attempts >= maxChallengeAttempts) {
+      throw requestError('Too many contact verification attempts. Please request a new code.', 429);
+    }
+    if (challenge.codeHash !== sha256(code.trim())) {
+      await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('procurement.contact_verification.failed_attempt', {
+        ...audit,
+        userId: session.user.id,
+        ownerOrgId: session.user.organizationId,
+        entityRef: challenge.id,
+        target: challenge.target,
+        severity: AuditSeverity.WARNING,
+        details: { channel }
+      });
+      throw requestError('Contact verification code is incorrect.', 400);
+    }
+
+    const consumed = await this.repository.consumeChallenge(challenge.id);
+    const verifiedAt = consumed.consumedAt ?? new Date();
+    await this.recordAuthEvent('procurement.contact_verification.verified', {
+      ...audit,
+      userId: session.user.id,
+      ownerOrgId: session.user.organizationId,
+      entityRef: challenge.id,
+      target: challenge.target,
+      details: { channel }
+    });
+
+    return {
+      verified: true,
+      channel,
+      target: challenge.target,
+      verifiedAt: verifiedAt.toISOString()
+    };
   }
 
   async signOut(token: string, audit?: AuthAuditContext) {

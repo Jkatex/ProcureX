@@ -32,6 +32,7 @@
 - [Development Commands](#development-commands)
 - [Repository Map](#repository-map)
 - [Testing And Verification](#testing-and-verification)
+- [CI/CD Pipeline](#cicd-pipeline)
 - [Documentation Map](#documentation-map)
 - [Current Status And Roadmap](#current-status-and-roadmap)
 - [License](#license)
@@ -306,6 +307,20 @@ Output is saved under:
 ```text
 procurement-platform/docs/ui-parity/screenshots/
 ```
+
+## CI/CD Pipeline
+
+GitHub Actions runs from the repository root at `.github/workflows/procurex-ci-cd.yml`.
+
+The validation job runs on pull requests and pushes to `main` or `develop` when platform files change. It installs dependencies with `npm ci`, validates Prisma, runs client lint as a non-blocking report, runs shared/server/client tests, builds the full platform, and uploads the client and server build artifacts.
+
+The production deploy job runs after validation on `main` pushes or manual dispatch. Configure these repository secrets when a production target exists:
+
+| Secret | Purpose |
+| --- | --- |
+| `PRODUCTION_DATABASE_URL` | Enables `prisma migrate deploy` against production. |
+| `PRODUCTION_DIRECT_URL` | Optional direct database URL if the host requires it. |
+| `DEPLOY_WEBHOOK_URL` | Optional HTTPS webhook called with the commit SHA and branch after the release build. |
 
 ## Documentation Map
 

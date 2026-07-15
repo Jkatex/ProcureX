@@ -913,7 +913,7 @@ describe('procurement marketplace repository', () => {
       status: TenderStatus.CLOSED,
       visibility: Visibility.PUBLIC_MARKETPLACE,
       publishedAt: new Date('2026-07-01T08:00:00.000Z'),
-      closingDate: new Date('2026-07-15T00:00:00.000Z')
+      closingDate: new Date('2099-07-15T00:00:00.000Z')
     });
     const db = {
       tender: {
@@ -2384,6 +2384,16 @@ describe('procurement tender detail repository', () => {
           rate: 1200000,
           total: 12000000,
           payload: { processor: 'Core i5 or equivalent' }
+        },
+        {
+          id: 'item-2',
+          itemNo: '2',
+          description: 'Laptop computer',
+          quantity: 5,
+          unit: 'pcs',
+          rate: null,
+          total: null,
+          payload: { memory: '16 GB' }
         }
       ],
       bids: [
@@ -2404,7 +2414,10 @@ describe('procurement tender detail repository', () => {
     expect(result).toMatchObject({
       requirementRows: [{ id: 'req-1', section: 'Technical', payload: { title: 'Desktop computers specification' } }],
       milestones: [{ id: 'milestone-1', name: 'Submission deadline', dueDate: '2026-08-30T00:00:00.000Z', payload: { type: 'closing' } }],
-      commercialItems: [{ id: 'item-1', itemNo: '1', description: 'Desktop computer', quantity: 10, unit: 'pcs', rate: 1200000, total: 12000000 }],
+      commercialItems: [
+        { id: 'item-1', itemNo: '1', description: 'Desktop computer', quantity: 10, unit: 'pcs', rate: 1200000, total: 12000000 },
+        { id: 'item-2', itemNo: '2', description: 'Laptop computer', quantity: 5, unit: 'pcs', rate: null, total: null }
+      ],
       bidSummary: { total: 0, draft: 0, submitted: 0, withdrawn: 0 },
       currentBid: { id: 'bid-1', reference: 'PX-BID-2026-000001', status: 'DRAFT', submittedAt: null, receiptHash: null },
       hasDraftBid: true,

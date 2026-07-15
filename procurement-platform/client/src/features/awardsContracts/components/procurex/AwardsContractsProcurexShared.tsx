@@ -35,7 +35,10 @@ const routeByPage: Record<string, string> = {
   'awarding-contracts': '/awards-contracts',
   'award-recommendation': '/awards-contracts/recommendation',
   'award-response': '/awards-contracts/award-response',
+  'contract-drafting': '/awards-contracts/drafting',
+  'contract-clauses': '/awards-contracts/drafting/clauses',
   'contract-negotiation': '/awards-contracts/negotiation',
+  'contract-signing': '/awards-contracts/signing',
   'sample-procurement': '/awards-contracts/samples',
   'post-award-tracking': '/post-award',
   'records-history': '/records'

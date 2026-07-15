@@ -285,8 +285,7 @@ function renderContractNegotiation() {
                     ${renderContractQueueNavLink('Awarding in Progress', 'awarding-in-progress')}
                     ${renderContractQueueNavLink('Awards Received', 'awards-received')}
                     ${renderContractQueueNavLink('Contract Negotiation', 'contracts-in-progress', true)}
-                    ${renderContractQueueNavLink('Active Contracts', 'active-contracts')}
-                    ${renderContractQueueNavLink('Closed Contracts', 'closed-contracts')}
+                    ${renderContractQueueNavLink('Contract Signing', 'contract-signing')}
                     <li><a href="#" data-award-guard-navigate data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="sign-in">Logout</a></li>
                 </ul>

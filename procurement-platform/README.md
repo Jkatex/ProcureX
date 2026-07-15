@@ -77,6 +77,17 @@ npm run db:seed:award-ready-demo
 
 The award-ready seed is idempotent and only recreates records marked as the `award-ready-evaluation-demo` dataset. Sign in as `award-ready-buyer@procurex.tz` with password `AwardReady123!`, then open Awarding and Contracts to continue from the prepared recommendation.
 
+To load a Hassan Omari Mdee award demo for the verified demo buyer:
+
+```powershell
+npm run infra:up
+npm run db:migrate
+npm run db:seed
+npm run db:seed:hassan-award-demo
+```
+
+The Hassan award seed is idempotent and only recreates records marked as the `demo-evaluation-award-two-user` dataset. Sign in as `demo@procurex.tz` with password `Demo123!`, then open Awarding and Contracts. Hassan Omari Mdee is the recommended winner, and the signing keyphrase is `DemoAward123!`.
+
 To load optional marketplace demo tenders that supplier users can bid:
 
 ```powershell
@@ -87,6 +98,17 @@ npm run db:seed:marketplace-demo
 ```
 
 The marketplace demo seed creates separate buyer and supplier organizations so ownership and bidding rules are realistic. Sign in as `market-buyer@procurex.tz` or `market-buyer2@procurex.tz` with `Market123!` to inspect buyer-owned tenders. Sign in as `huui@gmail.com` with `55566677` to inspect Huui-owned demo tenders for evaluation and award recommendation review. Sign in as `ict-supplier@procurex.tz`, `works-supplier@procurex.tz`, or `services-supplier@procurex.tz` with `Supplier123!` to save public tenders, prepare draft bids, and submit bids on tenders owned by other organizations. `My Tenders` shows only tenders created by the exact logged-in user; another user in the same organization should not see that tender as their own.
+
+To test the evaluation frontend with realistic seeded tender, bid, criteria, document, draft, and signature data:
+
+```powershell
+npm run infra:up
+npm run db:migrate
+npm run db:seed:evaluation-intake-demo
+npm run dev
+```
+
+Sign in as `evaluation-buyer@procurex.tz` with password `Demo123!`, then open Evaluation. The final submission signing keyphrase is `Signing123`. The automated Playwright workflow completes the demo tenders, so reseed with `npm run db:seed:evaluation-intake-demo` before manual testing again. See [Evaluation Frontend Test Data](docs/evaluation-frontend-test-data.md) for the manual checklist and the automated Playwright workflow.
 
 ## Local Testing Data
 

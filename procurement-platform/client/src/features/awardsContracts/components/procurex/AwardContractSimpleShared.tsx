@@ -165,12 +165,14 @@ export function AwardDecisionForm({
   recommendation,
   saving,
   onSave,
-  onConfirm
+  onConfirm,
+  confirmLabel = 'Confirm award'
 }: {
   recommendation: AwardRecommendationDetailDto | null;
   saving?: boolean;
   onSave: (payload: AwardDecisionDraftInput) => Promise<void>;
   onConfirm: (payload: AwardDecisionDraftInput) => Promise<void>;
+  confirmLabel?: string;
 }) {
   const [values, setValues] = useState<AwardDecisionValues>(() => draftFromRecommendation(recommendation));
   const [submitted, setSubmitted] = useState(false);
@@ -212,7 +214,7 @@ export function AwardDecisionForm({
   async function confirm() {
     setSubmitted(true);
     if (!ready) {
-      notifyAward('warning', 'Complete award decision', 'Fill the required award fields and tick all confirmations before confirming.');
+      notifyAward('warning', 'Complete award decision', 'Complete the required fields and confirmations.');
       return;
     }
     await onConfirm(payload());
@@ -223,8 +225,8 @@ export function AwardDecisionForm({
       <div className="panel-heading">
         <div>
           <span className="section-kicker">Award Decision</span>
-          <h2>Confirm award for {values.selectedSupplier || 'recommended supplier'}</h2>
-          <p>Fill the award details the buyer will rely on before notices and contract preparation.</p>
+          <h2>Approve award for {values.selectedSupplier || 'recommended supplier'}</h2>
+          <p>Confirm the award details.</p>
         </div>
         <StatusBadge value={recommendation?.status ?? 'Draft'} />
       </div>
@@ -240,7 +242,7 @@ export function AwardDecisionForm({
           <label className="award-form-field">
             <span>Selected supplier *</span>
             <input className="form-input" value={values.selectedSupplier} placeholder="Supplier to award" onChange={(event) => update('selectedSupplier', event.target.value)} />
-            {submitted && !values.selectedSupplier.trim() ? <em>Enter the supplier name.</em> : <em>Use the supplier recommended by evaluation unless the decision changed.</em>}
+            {submitted && !values.selectedSupplier.trim() ? <em>Enter the supplier name.</em> : null}
           </label>
           <label className="award-form-field">
             <span>Award amount *</span>
@@ -257,12 +259,12 @@ export function AwardDecisionForm({
           </label>
           <label className="award-form-field award-form-field-wide">
             <span>Reason for award *</span>
-            <textarea className="form-input" rows={4} value={values.reason} placeholder="Explain why this supplier is selected." onChange={(event) => update('reason', event.target.value)} />
+            <textarea className="form-input" rows={4} value={values.reason} placeholder="Award reason" onChange={(event) => update('reason', event.target.value)} />
             {submitted && !values.reason.trim() ? <em>Write the award reason.</em> : null}
           </label>
           <label className="award-form-field award-form-field-wide">
             <span>Conditions</span>
-            <textarea className="form-input" rows={3} value={values.conditions} placeholder="Add any award conditions, or write None." onChange={(event) => update('conditions', event.target.value)} />
+            <textarea className="form-input" rows={3} value={values.conditions} placeholder="Award conditions" onChange={(event) => update('conditions', event.target.value)} />
           </label>
           <label className="award-form-field">
             <span>Confirmed by *</span>
@@ -293,7 +295,7 @@ export function AwardDecisionForm({
 
         <div className="award-simple-actions">
           <button className="btn btn-secondary" type="button" disabled={saving} onClick={() => void onSave(payload())}>{saving ? 'Saving...' : 'Save'}</button>
-          <button className="btn btn-primary" type="button" disabled={saving} onClick={() => void confirm()}>Confirm award</button>
+          <button className="btn btn-primary" type="button" disabled={saving} onClick={() => void confirm()}>{confirmLabel}</button>
         </div>
       </form>
     </section>

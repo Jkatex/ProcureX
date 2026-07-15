@@ -49,8 +49,11 @@ export function createModuleRouter() {
   router.get('/contracts/:id/documents', controller.contractDocuments);
   router.post('/contracts/:id/documents', controller.uploadContractDocument);
   router.post('/contracts/:id/versions', controller.createContractVersion);
+  router.post('/contracts/:id/send-for-negotiation', controller.sendContractForNegotiation);
   router.put('/contracts/:id/clauses', controller.upsertClause);
+  router.delete('/contracts/:id/clauses/:itemId', controller.deleteClause);
   router.post('/contracts/:id/negotiations', controller.createNegotiation);
+  router.patch('/contracts/:id/negotiations/:itemId', controller.updateNegotiation);
   router.post('/contracts/:id/signatures', controller.createSignatureRequests);
   router.post('/contracts/:id/signatures/:signatureId/sign', controller.signContractSignature);
   router.post('/contracts/:id/milestones', controller.createMilestone);

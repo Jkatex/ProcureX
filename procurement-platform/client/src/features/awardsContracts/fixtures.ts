@@ -1,8 +1,6 @@
 import type {
-  ActiveContract,
   AwardQueueId,
   AwardWorkflowStep,
-  ClosedContract,
   ContractAction,
   ContractTab,
   PostAwardTab,
@@ -13,12 +11,11 @@ import type {
 
 export const awardQueueLabels: Record<AwardQueueId, string> = {
   'sample-procurement': 'Samples',
-  'contract-preparation': 'Draft Contracts',
+  'contract-preparation': 'Contract Drafting',
   'awarding-in-progress': 'Award Decisions',
   'awards-received': 'Awards Received',
   'contracts-in-progress': 'Contract Negotiation',
-  'active-contracts': 'Active Contracts',
-  'closed-contracts': 'Closed / Archived'
+  'contract-signing': 'Contract Signing'
 };
 
 export const pendingAwards: PendingAward[] = [
@@ -30,61 +27,48 @@ export const supplierAwards: SupplierAward[] = [
 export const contractActions: ContractAction[] = [
 ];
 
-export const activeContracts: ActiveContract[] = [
-];
-
-export const closedContracts: ClosedContract[] = [
-];
-
 export const summaryCards: SummaryCard[] = [
   {
     queue: 'sample-procurement',
     label: 'Sample Procurement',
     value: 0,
-    detail: 'Receipt, verification, custody, evaluation, testing, return, disposal, and reference samples',
+    detail: 'Sample receipt and review',
     trend: 'Samples'
   },
   {
     queue: 'contract-preparation',
     label: 'Contract Preparation',
     value: 0,
-    detail: 'Buyer-owned contract drafts prepared after tender publication and before award',
+    detail: 'Draft contracts',
     trend: 'Draft'
   },
   {
     queue: 'awarding-in-progress',
     label: 'Awarding in Progress',
     value: pendingAwards.length,
-    detail: 'Buyer-side tenders moving from evaluation results to draft contract',
+    detail: 'Award decisions',
     trend: 'Up'
   },
   {
     queue: 'awards-received',
     label: 'Awards Received',
     value: supplierAwards.length,
-    detail: 'Supplier-side awards awaiting response, review, or signature',
+    detail: 'Supplier responses',
     trend: 'Next'
   },
   {
     queue: 'contracts-in-progress',
     label: 'Contracts in Progress',
     value: contractActions.length,
-    detail: 'Draft review, amendment requests, final acceptance, and communication confirmation',
+    detail: 'Draft review and requests',
     trend: 'Due'
   },
   {
-    queue: 'active-contracts',
-    label: 'Active Contracts',
-    value: activeContracts.length,
-    detail: 'Signed contracts under delivery and payment tracking',
-    trend: 'Live'
-  },
-  {
-    queue: 'closed-contracts',
-    label: 'Closed Contracts',
-    value: closedContracts.length,
-    detail: 'Completed, terminated, or archived contract records',
-    trend: 'Done'
+    queue: 'contract-signing',
+    label: 'Contract Signing',
+    value: 0,
+    detail: 'Pending signatures',
+    trend: 'Sign'
   }
 ];
 

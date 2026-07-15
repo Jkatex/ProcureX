@@ -86,8 +86,9 @@ describeDb('award-contract demo seed', () => {
     expect(demoDashboard.queues['awarding-in-progress'].length).toBeGreaterThan(0);
     expect(demoDashboard.queues['awards-received'].length).toBeGreaterThan(0);
     expect(demoDashboard.queues['contracts-in-progress'].length).toBeGreaterThan(0);
-    expect(demoDashboard.queues['active-contracts'].length).toBeGreaterThan(0);
-    expect(demoDashboard.queues['closed-contracts'].length).toBeGreaterThan(0);
+    expect(demoDashboard.queues['contract-signing'].length).toBeGreaterThan(0);
+    expect(demoDashboard.queues).not.toHaveProperty('active-contracts');
+    expect(demoDashboard.queues).not.toHaveProperty('closed-contracts');
     await expect(db.user.count({ where: { email: 'award-demo@procurex.tz' } })).resolves.toBe(0);
     await expect(
       db.user.count({

@@ -4,10 +4,8 @@ import { apiErrorMessage } from '@/shared/api/errors';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { awardsContractsApi } from '../../api';
 import type { AwardRecommendationDetailDto, LifecycleAction } from '../../types';
-import { ActionFormPanel, lifecycleStatusOptions, option } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
-import { LockedFlowStepPanel } from './AwardContractFlow';
-import { AwardPlainRecordList, ExpandableAwardDetails, notifyAward } from './AwardContractSimpleShared';
+import { notifyAward } from './AwardContractSimpleShared';
 import {
   AwardHero,
   formatMoney,
@@ -15,7 +13,6 @@ import {
   LifecycleActionCard,
   ProcurexAwardFrame,
   RemoteStatePanel,
-  SimpleTable,
   StatusBadge
 } from './AwardsContractsProcurexShared';
 
@@ -23,35 +20,26 @@ function getAwardId(search: string) {
   return new URLSearchParams(search).get('award') || '';
 }
 
-function getOpenSection(search: string) {
-  return new URLSearchParams(search).get('step') || '';
-}
-
 function recommendationIdForAward(award: LifecycleAction | null) {
   if (!award) return '';
   return award.awardId ?? award.id.replace(/^award-/, '');
 }
 
-const preContractDocuments = [
-  'Performance security',
-  'Advance payment guarantee',
-  'Insurance',
-  'Power of attorney or signatory authorization',
-  'Work plan or delivery schedule',
-  'Bank details'
-];
-
 export function AwardResponseProcurexPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const selectedAwardId = useMemo(() => getAwardId(location.search), [location.search]);
-  const openSection = useMemo(() => getOpenSection(location.search), [location.search]);
   const [awards, setAwards] = useState<LifecycleAction[]>([]);
   const [awardSearch, setAwardSearch] = useState('');
   const [awardDetail, setAwardDetail] = useState<AwardRecommendationDetailDto | null>(null);
   const [detailError, setDetailError] = useState('');
   const [responseMessages, setResponseMessages] = useState<Record<string, string>>({});
+  const [acceptNote, setAcceptNote] = useState('We accept the award offer.');
+  const [clarificationNote, setClarificationNote] = useState('Please clarify the award notice.');
+  const [declineReason, setDeclineReason] = useState('');
   const [pendingResponseSignature, setPendingResponseSignature] = useState<{ award: LifecycleAction; payload: Record<string, unknown> } | null>(null);
+  const [signatureError, setSignatureError] = useState('');
+  const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -106,54 +94,19 @@ export function AwardResponseProcurexPage() {
   } as const;
   const noticeReference = awardDetail?.notice?.reference ?? activeAward?.noticeReference ?? 'Not issued';
   const noticeStatus = awardDetail?.notice?.status ?? activeAward?.status ?? 'Not issued';
+  const normalizedNoticeStatus = String(noticeStatus).toUpperCase();
   const latestPersistedResponse = [...(awardDetail?.notice?.responses ?? [])]
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
   const responseStatus = latestPersistedResponse?.action ?? responseMessages[activeAward?.id ?? ''] ?? activeAward?.requiredAction ?? 'No response due';
   const contractHandoffId = awardDetail?.notice?.contractId ?? activeAward?.contractId;
   const contractHandoffStatus = contractHandoffId ? 'Contract linked' : 'Pending contract handoff';
   const hasNotice = Boolean(activeAward?.noticeId ?? awardDetail?.notice?.id);
-
-  const responseActivityRecords = useMemo(() => {
-    const records: Array<Record<string, unknown>> = [];
-    const localMessage = activeAward ? responseMessages[activeAward.id] : '';
-    if (localMessage && activeAward) {
-      records.push({
-        id: `latest-${activeAward.id}`,
-        title: 'Latest submitted response',
-        status: localMessage.replace(/^Supplier response submitted:\s*/, ''),
-        note: localMessage,
-        createdAt: new Date().toISOString()
-      });
-    }
-    if (awardDetail?.notice) {
-      records.push({
-        id: awardDetail.notice.id,
-        title: awardDetail.notice.reference ?? 'Award notice',
-        status: awardDetail.notice.status,
-        note: awardDetail.notice.contractId ? 'Linked contract is ready for preparation' : 'Contract handoff pending',
-        createdAt: awardDetail.notice.issuedAt
-      });
-    }
-    for (const response of awardDetail?.notice?.responses ?? []) {
-      records.push({
-        id: response.id,
-        title: `Supplier response - ${response.action}`,
-        status: response.action,
-        note: response.note || 'No supplier note captured',
-        createdAt: response.createdAt
-      });
-    }
-    for (const audit of awardDetail?.audit ?? []) {
-      records.push({
-        id: `${audit.event}-${audit.createdAt}`,
-        title: audit.event,
-        status: 'Recorded',
-        note: audit.actorUserId ? `Actor ${audit.actorUserId}` : 'System event',
-        createdAt: audit.createdAt
-      });
-    }
-    return records;
-  }, [activeAward, awardDetail, responseMessages]);
+  const accepted = normalizedNoticeStatus === 'ACCEPTED';
+  const declined = normalizedNoticeStatus === 'DECLINED';
+  const responseClosed = accepted || declined || normalizedNoticeStatus === 'CANCELLED';
+  const decisionDraft = (awardDetail?.payload?.awardDecisionDraft ?? {}) as Record<string, unknown>;
+  const awardReason = String(decisionDraft.reason ?? awardDetail?.reason ?? 'No award reason is recorded yet.');
+  const awardConditions = String(decisionDraft.conditions ?? 'No special conditions are recorded.');
 
   function selectAward(award: LifecycleAction) {
     navigate(`/awards-contracts/award-response?award=${award.awardId ?? award.id}`);
@@ -172,23 +125,39 @@ export function AwardResponseProcurexPage() {
     }
     const responseAction = String(payload.action) as 'ACCEPT' | 'REQUEST_CLARIFICATION' | 'DECLINE';
     if ((responseAction === 'ACCEPT' || responseAction === 'DECLINE') && !signatureKeyphrase) {
+      setSignatureError('');
       setPendingResponseSignature({ award, payload });
       return;
     }
-    await awardsContractsApi.respondToNotice(award.noticeId, responseAction, String(payload.note ?? ''), payload.payload as Record<string, unknown>, signatureKeyphrase);
-    setPendingResponseSignature(null);
-    setResponseMessages((current) => ({ ...current, [award.id]: `Supplier response submitted: ${responseAction}` }));
-    notifyAward('success', 'Supplier response sent', `Response submitted: ${responseAction}.`);
-    await refreshAwards(recommendationIdForAward(award));
+    setIsSubmittingResponse(true);
+    try {
+      await awardsContractsApi.respondToNotice(award.noticeId, responseAction, String(payload.note ?? ''), payload.payload as Record<string, unknown>, signatureKeyphrase);
+      setPendingResponseSignature(null);
+      setSignatureError('');
+      setResponseMessages((current) => ({ ...current, [award.id]: `Supplier response submitted: ${responseAction}` }));
+      notifyAward('success', 'Supplier response sent', `Response submitted: ${responseAction}.`);
+      await refreshAwards(recommendationIdForAward(award));
+    } catch (error) {
+      const message = apiErrorMessage(error, 'The response could not be submitted.');
+      setSignatureError(message);
+      notifyAward('error', 'Supplier response not sent', message);
+    } finally {
+      setIsSubmittingResponse(false);
+    }
   }
 
   return (
     <ProcurexAwardFrame pageKey="award-response">
       <SignatureKeyphraseModal
         open={pendingResponseSignature !== null}
-        title="Submit final award response"
-        actionLabel="Submit response"
-        onCancel={() => setPendingResponseSignature(null)}
+        title="Submit award response"
+        actionLabel="Sign and submit"
+        isSubmitting={isSubmittingResponse}
+        error={signatureError}
+        onCancel={() => {
+          setPendingResponseSignature(null);
+          setSignatureError('');
+        }}
         onConfirm={(signatureKeyphrase) => {
           if (pendingResponseSignature) void recordResponse(pendingResponseSignature.award, pendingResponseSignature.payload, signatureKeyphrase);
         }}
@@ -198,7 +167,7 @@ export function AwardResponseProcurexPage() {
           <AwardHero
             kicker="Supplier award response"
             title={activeAward?.title ?? 'Awards received by your organization'}
-            copy="Respond to the award first. Supporting notices, documents, contract handoff, and history are below."
+            copy="Review the offer and respond."
             stats={[
               { value: awards.length, label: 'Awards received' },
               { value: activeAward?.status ?? 'None', label: 'Selected award status' },
@@ -210,7 +179,7 @@ export function AwardResponseProcurexPage() {
             <RemoteStatePanel
               kicker="Loading"
               title="Loading supplier award notices"
-              message="ProcureX is fetching awards received by your organization."
+              message="Loading awards received."
               status="Loading"
             />
           ) : null}
@@ -244,7 +213,7 @@ export function AwardResponseProcurexPage() {
                   <div><span className="section-kicker">Respond to award</span><h2>No award selected</h2></div>
                   <StatusBadge value="No records" />
                 </div>
-                <div className="scope-empty">Award response details will appear here after your organization receives an award.</div>
+                <div className="scope-empty">No award is ready yet.</div>
                 <div className="inline-actions">
                   <button className="btn btn-secondary" type="button" data-navigate="awarding-contracts" data-route-search="queue=awards-received">Open awards received</button>
                 </div>
@@ -254,56 +223,152 @@ export function AwardResponseProcurexPage() {
 
           {!isLoading && !loadError && activeAward ? (
             <AwardContractAccessProvider access={{ ...access, hideLockedActions: true }}>
-              <section className="procurement-panel evaluation-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">Respond to award</span>
-                    <h2>Respond to award</h2>
-                    <p>Accept the award, ask for clarification, or decline it. Required documents and history stay available below.</p>
+              <div className="award-response-main-grid">
+                <section className="procurement-panel evaluation-panel award-offer-current">
+                  <div className="panel-heading">
+                    <div>
+                      <span className="section-kicker">Award offer notice</span>
+                      <h2>{noticeReference}</h2>
+                      <p>Review and respond.</p>
+                    </div>
+                    <StatusBadge value={noticeStatus} />
                   </div>
-                  <StatusBadge value={noticeStatus} />
-                </div>
 
-                <div className="award-readonly-summary">
-                  <article><span>Award</span><strong>{activeAward.title}</strong></article>
-                  <article><span>Buyer</span><strong>{activeAward.otherParty}</strong></article>
-                  <article><span>Value</span><strong>{activeAward.amount === null ? 'Not priced' : formatMoney(activeAward.amount, activeAward.currency)}</strong></article>
-                  <article><span>Notice</span><strong>{noticeReference}</strong></article>
-                  <article><span>Response</span><strong>{responseStatus}</strong></article>
-                  <article><span>Deadline</span><strong>{activeAward.dueDate ? new Date(activeAward.dueDate).toLocaleDateString() : 'Not dated'}</strong></article>
-                  <article><span>Contract</span><strong>{contractHandoffStatus}</strong></article>
-                </div>
-
-                {!hasNotice ? (
-                  <LockedFlowStepPanel
-                    title="Response is locked"
-                    reason={{ message: 'The selected award does not have an issued notice yet, so a supplier response cannot be submitted.' }}
-                  />
-                ) : (
-                  <div className="award-simple-form-stack">
-                    <ActionFormPanel
-                      title="Supplier award response"
-                      badge="Supplier"
-                      submitLabel="Submit response"
-                      fields={[
-                        { name: 'action', label: 'Response', kind: 'select', required: true, options: [option('ACCEPT', 'Accept'), option('REQUEST_CLARIFICATION', 'Request clarification'), option('DECLINE', 'Decline')] },
-                        { name: 'note', label: 'Message to buyer', kind: 'textarea' },
-                        { name: 'payload', label: 'Response payload', kind: 'json', rows: 4 }
-                      ]}
-                      initialValues={{
-                        action: 'ACCEPT',
-                        note: 'Award response submitted from ProcureX supplier workspace',
-                        payload: JSON.stringify({ source: 'award-response-workspace', awardId: activeAward.awardId ?? activeAward.id }, null, 2)
-                      }}
-                      onSubmit={(payload) => recordResponse(activeAward, payload)}
-                      defaultSelected
-                    />
+                  <div className="award-readonly-summary">
+                    <article><span>Award</span><strong>{activeAward.title}</strong></article>
+                    <article><span>Buyer</span><strong>{activeAward.otherParty}</strong></article>
+                    <article><span>Value</span><strong>{activeAward.amount === null ? 'Not priced' : formatMoney(activeAward.amount, activeAward.currency)}</strong></article>
+                    <article><span>Response</span><strong>{responseStatus}</strong></article>
+                    <article><span>Deadline</span><strong>{activeAward.dueDate ? new Date(activeAward.dueDate).toLocaleDateString() : 'Not dated'}</strong></article>
+                    <article><span>Contract</span><strong>{contractHandoffStatus}</strong></article>
                   </div>
-                )}
-              </section>
 
-              <section className="award-simple-details-stack" aria-label="Award response supporting details">
-                <ExpandableAwardDetails title="Awards received" summary={`${filteredAwards.length} of ${awards.length} awards`} open={openSection === 'award-notice'}>
+                  <div className="award-offer-notice-card">
+                    <div>
+                      <span>Reason for award</span>
+                      <p>{awardReason}</p>
+                    </div>
+                    <div>
+                      <span>Conditions</span>
+                      <p>{awardConditions}</p>
+                    </div>
+                    {awardDetail?.notice?.buyerNote ? (
+                      <div>
+                        <span>Buyer message</span>
+                        <p>{awardDetail.notice.buyerNote}</p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {!hasNotice ? (
+                    <div className="scope-empty">This award is listed, but the buyer has not issued the award offer notice yet.</div>
+                  ) : null}
+
+                  {accepted ? (
+                    <div className="award-response-note-box">
+                      <span>Award accepted</span>
+                      <p>{latestPersistedResponse?.note || 'Award accepted.'}</p>
+                      <div className="inline-actions">
+                        {contractHandoffId ? (
+                          <button className="btn btn-primary" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${contractHandoffId}`)}>Open contract negotiation</button>
+                        ) : (
+                          <button className="btn btn-secondary" type="button" disabled>Waiting for buyer draft</button>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {declined ? (
+                    <div className="award-response-note-box">
+                      <span>Award declined</span>
+                      <p>{latestPersistedResponse?.note || 'Award declined.'}</p>
+                    </div>
+                  ) : null}
+
+                  {hasNotice && !responseClosed ? (
+                    <div className="award-response-action-grid">
+                      <article className="award-response-action-card">
+                        <div>
+                          <span className="section-kicker">Accept award</span>
+                          <h3>Accept award</h3>
+                        </div>
+                        <label className="award-form-field">
+                          <span>Message to buyer</span>
+                          <textarea className="form-input" rows={4} value={acceptNote} onChange={(event) => setAcceptNote(event.target.value)} />
+                        </label>
+                        <button
+                          className="btn btn-primary"
+                          type="button"
+                          disabled={isSubmittingResponse}
+                          onClick={() => void recordResponse(activeAward, {
+                            action: 'ACCEPT',
+                            note: acceptNote,
+                            payload: { source: 'award-response-workspace', requestContractDraft: true, awardId: activeAward.awardId ?? activeAward.id }
+                          })}
+                        >
+                          Accept award and request contract draft
+                        </button>
+                      </article>
+
+                      <article className="award-response-action-card">
+                        <div>
+                          <span className="section-kicker">Clarification</span>
+                          <h3>Ask buyer for clarification</h3>
+                          <p>Ask the buyer a question.</p>
+                        </div>
+                        <label className="award-form-field">
+                          <span>Clarification needed</span>
+                          <textarea className="form-input" rows={4} value={clarificationNote} onChange={(event) => setClarificationNote(event.target.value)} />
+                        </label>
+                        <button
+                          className="btn btn-secondary"
+                          type="button"
+                          disabled={isSubmittingResponse || !clarificationNote.trim()}
+                          onClick={() => void recordResponse(activeAward, {
+                            action: 'REQUEST_CLARIFICATION',
+                            note: clarificationNote,
+                            payload: { source: 'award-response-workspace', awardId: activeAward.awardId ?? activeAward.id }
+                          })}
+                        >
+                          Send clarification request
+                        </button>
+                      </article>
+
+                      <article className="award-response-action-card">
+                        <div>
+                          <span className="section-kicker">Decline</span>
+                          <h3>Decline award offer</h3>
+                          <p>Give a short reason.</p>
+                        </div>
+                        <label className="award-form-field">
+                          <span>Decline reason</span>
+                          <textarea className="form-input" rows={4} value={declineReason} placeholder="Explain why you cannot accept this award." onChange={(event) => setDeclineReason(event.target.value)} />
+                        </label>
+                        <button
+                          className="btn btn-danger"
+                          type="button"
+                          disabled={isSubmittingResponse || !declineReason.trim()}
+                          onClick={() => void recordResponse(activeAward, {
+                            action: 'DECLINE',
+                            note: declineReason,
+                            payload: { source: 'award-response-workspace', awardId: activeAward.awardId ?? activeAward.id }
+                          })}
+                        >
+                          Decline award
+                        </button>
+                      </article>
+                    </div>
+                  ) : null}
+                </section>
+
+                <aside className="procurement-panel evaluation-panel award-offer-side">
+                  <div className="panel-heading">
+                    <div>
+                      <span className="section-kicker">Awards received</span>
+                      <h2>{filteredAwards.length} visible</h2>
+                    </div>
+                    <StatusBadge value={`${awards.length} total`} />
+                  </div>
                   <div className="queue-toolbar">
                     <label>
                       Search
@@ -324,63 +389,8 @@ export function AwardResponseProcurexPage() {
                       ))}
                     </div>
                   )}
-                </ExpandableAwardDetails>
-
-                <ExpandableAwardDetails title="Required documents" summary={`${preContractDocuments.length} common documents`} open={openSection === 'required-documents'}>
-                  <SimpleTable headers={['Document', 'Owner', 'Status', 'Action']}>
-                    {preContractDocuments.map((document) => (
-                      <tr key={document}>
-                        <td><strong>{document}</strong></td>
-                        <td>Supplier Representative</td>
-                        <td><StatusBadge value="Required" /></td>
-                        <td>{contractHandoffId ? 'Use form below' : 'Available after contract draft'}</td>
-                      </tr>
-                    ))}
-                  </SimpleTable>
-                  {contractHandoffId ? (
-                    <ActionFormPanel
-                      title="Pre-contract required document"
-                      badge="Document"
-                      submitLabel="Submit document"
-                      fields={[
-                        { name: 'documentType', label: 'Document type', kind: 'text', required: true },
-                        { name: 'title', label: 'Title', kind: 'text', required: true },
-                        { name: 'ownerRole', label: 'Document owner', kind: 'select', required: true, options: [option('Supplier Representative'), option('Buyer Representative'), option('Contract Manager')] },
-                        { name: 'status', label: 'Status', kind: 'select', options: lifecycleStatusOptions },
-                        { name: 'documentId', label: 'External document reference (optional)', kind: 'uuid', helpText: 'Use only when referencing an uploaded document outside this workflow.' },
-                        { name: 'dueDate', label: 'Due date', kind: 'date' },
-                        { name: 'reviewedAt', label: 'Reviewed at', kind: 'datetime' },
-                        { name: 'note', label: 'Note', kind: 'textarea' },
-                        { name: 'payload', label: 'Document payload', kind: 'json', rows: 4 }
-                      ]}
-                      initialValues={{
-                        documentType: 'performance-security',
-                        title: 'Performance security',
-                        ownerRole: 'Supplier Representative',
-                        status: 'SUBMITTED',
-                        payload: '{}'
-                      }}
-                      onSubmit={(payload) => awardsContractsApi.upsertRequiredDocument(contractHandoffId, payload)}
-                      defaultSelected
-                    />
-                  ) : <div className="scope-empty">Required document submission becomes available after contract draft creation.</div>}
-                </ExpandableAwardDetails>
-
-                <ExpandableAwardDetails title="Contract handoff" summary={contractHandoffId ? 'Contract is linked' : 'Waiting for draft contract'} open={openSection === 'contract-handoff'}>
-                  <div className="scope-empty">
-                    {contractHandoffId ? 'The award response is linked to a draft contract. Continue without restarting the supplier flow.' : 'The buyer has not linked a draft contract yet.'}
-                  </div>
-                  {contractHandoffId ? (
-                    <div className="inline-actions">
-                      <button className="btn btn-primary btn-sm" type="button" onClick={() => navigate(`/awards-contracts/negotiation?contract=${contractHandoffId}`)}>Open contract</button>
-                    </div>
-                  ) : null}
-                </ExpandableAwardDetails>
-
-                <ExpandableAwardDetails title="Response history" summary={`${responseActivityRecords.length} records`} open={openSection === 'activity'}>
-                  <AwardPlainRecordList records={responseActivityRecords} emptyMessage="No persisted supplier response activity is available yet." />
-                </ExpandableAwardDetails>
-              </section>
+                </aside>
+              </div>
             </AwardContractAccessProvider>
           ) : null}
         </main>

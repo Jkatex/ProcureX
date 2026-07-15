@@ -141,7 +141,7 @@ function renderPostAwardTracking() {
                     ${renderPostAwardQueueNavLink('Contract Negotiation', 'contracts-in-progress')}
                     ${renderPostAwardQueueNavLink('Active Contracts', 'active-contracts', true)}
                     ${renderPostAwardQueueNavLink('Closed Contracts', 'closed-contracts')}
-                    <li><a href="#" data-award-guard-navigate data-navigate="contract-negotiation" data-route-search="tab=signatures">Back to Contract</a></li>
+                    <li><a href="#" data-award-guard-navigate data-navigate="contract-signing">Back to Contract Signing</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="workspace-dashboard">Workspace Dashboard</a></li>
                     <li><a href="#" data-award-guard-navigate data-navigate="sign-in">Logout</a></li>
                 </ul>

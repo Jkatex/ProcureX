@@ -1,4 +1,4 @@
-import { AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, RecommendationStatus, TenderStatus } from '@prisma/client';
+import { AwardNoticeStatus, AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, InvoiceStatus, RecommendationStatus, TenderStatus } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { computeAccessContext } from '../../security/accessPolicy.js';
@@ -9,11 +9,17 @@ import {
   awardNoticeResponseBodySchema,
   awardRecommendationQuerySchema,
   acceptanceBodySchema,
+  boqMeasurementBodySchema,
+  boqMeasurementReviewBodySchema,
   clauseBodySchema,
+  contractDefectActionBodySchema,
+  contractNegotiationDecisionBodySchema,
   contractDocumentUploadBodySchema,
   contractPaymentBodySchema,
   deliverableBodySchema,
   goodsInspectionBodySchema,
+  interimPaymentCertificateBodySchema,
+  interimPaymentCertificateCertifyBodySchema,
   contractMilestonePatchBodySchema,
   contractSignatureRequestBodySchema,
   contractStatusPatchBodySchema,
@@ -21,9 +27,15 @@ import {
   paymentScheduleBodySchema,
   requiredDocumentBodySchema,
   riskBodySchema,
+  serviceCreditReviewBodySchema,
+  serviceIncidentActionBodySchema,
+  serviceIncidentBodySchema,
+  serviceReportReviewBodySchema,
   supplierRiskProfileBodySchema,
   terminationBodySchema,
   warrantyBodySchema,
+  worksCompletionCertificateBodySchema,
+  worksProgressReviewBodySchema,
   workflowApprovalBodySchema
 } from './validators.js';
 
@@ -117,6 +129,15 @@ function makeLifecycleNumberRepository() {
         return input.create;
       }
     },
+    contractGoodsReceipt: {
+      findFirst: async () => ({
+        id: 'receipt-1',
+        contractId: contract.id,
+        status: ContractLifecycleItemStatus.APPROVED,
+        payload: { acceptedValue: 1000 },
+        lines: [{ acceptedQuantity: 10, payload: {} }]
+      })
+    },
     contractAcceptance: {
       create: async (input: any) => {
         acceptanceCreates.push(input);
@@ -131,6 +152,33 @@ function makeLifecycleNumberRepository() {
   (repository as any).audit = async () => undefined;
   (repository as any).getContract = async () => ({ id: contract.id });
   return { repository, goodsInspectionUpserts, acceptanceCreates };
+}
+
+function makeFinalDraftAcceptanceRepository() {
+  const acceptanceCreates: any[] = [];
+  const contract = {
+    id: '44444444-4444-4444-8444-444444444444',
+    buyerOrgId: organizationId,
+    supplierOrgId: '55555555-5555-4555-8555-555555555555',
+    status: ContractStatus.NEGOTIATION
+  };
+  const tx = {
+    contract: {
+      findUnique: async ({ where }: any) => where.id === contract.id ? contract : null
+    },
+    contractAcceptance: {
+      create: async (input: any) => {
+        acceptanceCreates.push(input);
+        return input.data;
+      }
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).audit = async () => undefined;
+  (repository as any).getContract = async () => ({ id: contract.id });
+  return { repository, contract, acceptanceCreates };
 }
 
 async function makeAwardNoticeRepository(status: RecommendationStatus) {
@@ -286,6 +334,98 @@ function makePreAwardDraftRepository(options: {
     status: ContractStatus.DRAFT
   });
   return { repository, contractCreates, auditCreates };
+}
+
+function makeDraftVersionRepository(options: {
+  awardNoticeStatus?: AwardNoticeStatus;
+  versionCount?: number;
+  status?: ContractStatus;
+  payload?: Record<string, unknown>;
+} = {}) {
+  const contractUpdates: any[] = [];
+  const versionCreates: any[] = [];
+  const auditCreates: any[] = [];
+  const contract = {
+    id: '44444444-4444-4444-8444-444444444444',
+    buyerOrgId: organizationId,
+    supplierOrgId: '55555555-5555-4555-8555-555555555555',
+    awardId: '66666666-6666-4666-8666-666666666666',
+    status: options.status ?? ContractStatus.DRAFT,
+    payload: options.payload ?? {},
+    versions: Array.from({ length: options.versionCount ?? 1 }, (_, index) => ({ versionNo: index + 1 })),
+    awardNotice: { status: options.awardNoticeStatus ?? AwardNoticeStatus.ACCEPTED }
+  };
+  const tx = {
+    contract: {
+      findUnique: async () => contract,
+      update: async (input: any) => {
+        contractUpdates.push(input);
+        Object.assign(contract, input.data);
+        return contract;
+      }
+    },
+    contractVersion: {
+      count: async () => contract.versions.length,
+      create: async (input: any) => {
+        versionCreates.push(input);
+        contract.versions.unshift({ versionNo: input.data.versionNo });
+        return input.data;
+      }
+    },
+    auditEvent: {
+      create: async (input: any) => {
+        auditCreates.push(input);
+        return input;
+      }
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).getContract = async () => contract;
+  return { repository, contract, contractUpdates, versionCreates, auditCreates };
+}
+
+function makeNegotiationDecisionRepository(options: { requestType?: 'AMENDMENT' | 'CLARIFICATION' } = {}) {
+  const negotiationUpdates: any[] = [];
+  const contractUpdates: any[] = [];
+  const negotiation = {
+    id: 'negotiation-1',
+    contractId: '44444444-4444-4444-8444-444444444444',
+    payload: { requestType: options.requestType ?? 'AMENDMENT' },
+    contract: {
+      id: '44444444-4444-4444-8444-444444444444',
+      buyerOrgId: organizationId,
+      supplierOrgId: '55555555-5555-4555-8555-555555555555',
+      payload: {},
+      status: ContractStatus.NEGOTIATION
+    }
+  };
+  const tx = {
+    contractNegotiation: {
+      findUnique: async () => negotiation,
+      update: async (input: any) => {
+        negotiationUpdates.push(input);
+        Object.assign(negotiation, input.data);
+        return negotiation;
+      }
+    },
+    contract: {
+      update: async (input: any) => {
+        contractUpdates.push(input);
+        Object.assign(negotiation.contract, input.data);
+        return negotiation.contract;
+      }
+    },
+    auditEvent: {
+      create: async (input: any) => input
+    }
+  };
+  const repository = new ModuleRepository({
+    $transaction: async (callback: any) => callback(tx)
+  } as any);
+  (repository as any).getContract = async () => negotiation.contract;
+  return { repository, negotiationUpdates, contractUpdates };
 }
 
 function makePreAwardGuardRepository() {
@@ -546,6 +686,48 @@ describe('award-contract module', () => {
     });
   });
 
+  it('includes signed contracts in the dashboard contract progress queue', async () => {
+    const repository = new ModuleRepository({
+      awardRecommendation: {
+        findMany: async () => []
+      },
+      contract: {
+        findMany: async () => [{
+          ...postAwardContract({
+            status: ContractStatus.SIGNED,
+            tenderId: '77777777-7777-4777-8777-777777777777',
+            awardId: '88888888-8888-4888-8888-888888888888',
+            title: 'Signed clinic supply contract',
+            amount: 1200000,
+            currency: 'TZS'
+          }),
+          buyerOrg: { name: 'Buyer Org' },
+          supplierOrg: { name: 'Supplier Org' },
+          awardNotice: null,
+          mobilizationItems: []
+        }]
+      }
+    } as any);
+    (repository as any).listSamples = async () => ({
+      summary: {},
+      queues: {}
+    });
+
+    await expect(new ModuleService(repository).dashboard(contractContext)).resolves.toMatchObject({
+      summary: { contractActions: 1 },
+      queues: {
+        'contracts-in-progress': [
+          expect.objectContaining({
+            title: 'Signed clinic supply contract',
+            status: ContractStatus.SIGNED,
+            currentStage: 'Activation setup',
+            nextRoute: '/post-award?contract=44444444-4444-4444-8444-444444444444&stage=setup'
+          })
+        ]
+      }
+    });
+  });
+
   it('requires award confirmation before sending award notices', async () => {
     const { service } = await makeAwardNoticeRepository(RecommendationStatus.RECOMMENDED);
 
@@ -617,6 +799,73 @@ describe('award-contract module', () => {
     await expect(
       draftTender.prepareTenderContractDraft('77777777-7777-4777-8777-777777777777', contractContext)
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('saves contract draft versions without starting supplier negotiation automatically', async () => {
+    const { repository, contractUpdates, versionCreates } = makeDraftVersionRepository({ versionCount: 0 });
+
+    await expect(
+      repository.createContractVersion('44444444-4444-4444-8444-444444444444', { payload: { source: 'drafting' } }, contractContext)
+    ).resolves.toMatchObject({ id: '44444444-4444-4444-8444-444444444444', status: ContractStatus.DRAFT });
+
+    expect(versionCreates[0].data).toMatchObject({ contractId: '44444444-4444-4444-8444-444444444444', versionNo: 1 });
+    expect(contractUpdates).toHaveLength(0);
+  });
+
+  it('sends a saved draft to negotiation only after supplier award notice acceptance', async () => {
+    const blockedNotice = makeDraftVersionRepository({ awardNoticeStatus: AwardNoticeStatus.PENDING_RESPONSE });
+    await expect(
+      blockedNotice.repository.sendContractForNegotiation('44444444-4444-4444-8444-444444444444', contractContext)
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Supplier must accept the award notice before contract negotiation starts.'
+    });
+
+    const blockedVersion = makeDraftVersionRepository({ versionCount: 0 });
+    await expect(
+      blockedVersion.repository.sendContractForNegotiation('44444444-4444-4444-8444-444444444444', contractContext)
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Generate or save a contract draft version before sending to negotiation.'
+    });
+
+    const ready = makeDraftVersionRepository({ versionCount: 1, payload: { redraftRequired: true } });
+    await expect(
+      ready.repository.sendContractForNegotiation('44444444-4444-4444-8444-444444444444', contractContext)
+    ).resolves.toMatchObject({ id: '44444444-4444-4444-8444-444444444444', status: ContractStatus.NEGOTIATION });
+
+    expect(ready.contractUpdates[0].data).toMatchObject({
+      status: ContractStatus.NEGOTIATION,
+      payload: expect.objectContaining({ redraftRequired: false, sentVersionNo: 1 })
+    });
+  });
+
+  it('accepts supplier amendment requests by returning the contract to buyer redraft', async () => {
+    const { repository, negotiationUpdates, contractUpdates } = makeNegotiationDecisionRepository({ requestType: 'AMENDMENT' });
+
+    await expect(
+      repository.updateNegotiation('44444444-4444-4444-8444-444444444444', 'negotiation-1', {
+        status: ContractLifecycleItemStatus.APPROVED,
+        reason: 'Payment wording must be revised.',
+        payload: { buyerNote: 'Accepted for redraft.' }
+      }, contractContext)
+    ).resolves.toMatchObject({ id: '44444444-4444-4444-8444-444444444444', status: ContractStatus.DRAFT });
+
+    expect(negotiationUpdates[0].data).toMatchObject({
+      status: ContractLifecycleItemStatus.APPROVED,
+      payload: expect.objectContaining({
+        decisionReason: 'Payment wording must be revised.',
+        redraftRequired: true
+      })
+    });
+    expect(contractUpdates[0].data).toMatchObject({
+      status: ContractStatus.DRAFT,
+      payload: expect.objectContaining({
+        redraftRequired: true,
+        redraftReason: 'Payment wording must be revised.',
+        redraftNegotiationId: 'negotiation-1'
+      })
+    });
   });
 
   it('blocks signatures and signature-pending status before award and supplier are linked', async () => {
@@ -868,10 +1117,372 @@ describe('award-contract module', () => {
     expect(goodsInspectionUpserts[0].create.inspectionNo).toBe(goodsInspectionUpserts[0].where.contractId_inspectionNo.inspectionNo);
 
     await expect(
-      repository.createAcceptance('44444444-4444-4444-8444-444444444444', { acceptedValue: 1000, currency: 'TZS', payload: {} }, contractContext)
+      repository.createAcceptance('44444444-4444-4444-8444-444444444444', { goodsReceiptId: 'receipt-1', acceptedValue: 1000, currency: 'TZS', payload: {} }, contractContext)
     ).resolves.toMatchObject({ id: '44444444-4444-4444-8444-444444444444' });
 
     expect(acceptanceCreates[0].data.certificateNo).toMatch(/^PX-ACPT-\d{4}-[A-F0-9]{8}$/);
+    expect(acceptanceCreates[0].data.goodsReceiptId).toBe('receipt-1');
+  });
+
+  it('creates buyer and supplier final draft acceptances without execution evidence', async () => {
+    const { repository, contract, acceptanceCreates } = makeFinalDraftAcceptanceRepository();
+    const supplierContext = { ...contractContext, organizationId: contract.supplierOrgId };
+
+    await expect(repository.createAcceptance(contract.id, {
+      status: ContractLifecycleItemStatus.APPROVED,
+      currency: 'TZS',
+      note: 'Buyer accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'BUYER' }
+    }, contractContext)).resolves.toMatchObject({ id: contract.id });
+
+    await expect(repository.createAcceptance(contract.id, {
+      status: ContractLifecycleItemStatus.APPROVED,
+      currency: 'TZS',
+      note: 'Supplier accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'SUPPLIER' }
+    }, supplierContext)).resolves.toMatchObject({ id: contract.id });
+
+    expect(acceptanceCreates).toHaveLength(2);
+    expect(acceptanceCreates[0].data).toMatchObject({
+      contractId: contract.id,
+      deliverableId: undefined,
+      inspectionId: undefined,
+      goodsReceiptId: undefined,
+      goodsInspectionId: undefined,
+      note: 'Buyer accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'BUYER' }
+    });
+    expect(acceptanceCreates[1].data).toMatchObject({
+      contractId: contract.id,
+      note: 'Supplier accepts the negotiated final draft.',
+      payload: { acceptanceType: 'NEGOTIATED_DRAFT', role: 'SUPPLIER' }
+    });
+  });
+
+  it('still rejects ordinary acceptances without execution evidence', async () => {
+    const { repository } = makeFinalDraftAcceptanceRepository();
+
+    await expect(repository.createAcceptance('44444444-4444-4444-8444-444444444444', {
+      status: ContractLifecycleItemStatus.APPROVED,
+      currency: 'TZS',
+      note: 'Generic acceptance without linked execution evidence.',
+      payload: {}
+    }, contractContext)).rejects.toMatchObject({
+      status: 409,
+      message: 'Acceptance requires linked deliverable, inspection, goods receipt, or goods inspection evidence.'
+    });
+  });
+
+  it('blocks supplier service reports without an open service period', async () => {
+    const contract = postAwardContract();
+    const reportCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractServicePeriod: {
+          findFirst: async () => null
+        },
+        contractServiceReport: {
+          create: async (input: any) => {
+            reportCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createServiceReport(contract.id, {
+      reportReference: 'SR-001',
+      summary: 'Monthly services completed.',
+      status: 'SUBMITTED',
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Service report requires an open service period.'
+    });
+    expect(reportCreates).toHaveLength(0);
+  });
+
+  it('rejects submitted invoices without an accepted execution reference', async () => {
+    const contract = postAwardContract();
+    const invoiceCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        invoice: {
+          create: async (input: any) => {
+            invoiceCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createInvoice(contract.id, {
+      amount: 1000,
+      currency: 'TZS',
+      status: 'SUBMITTED' as any,
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Invoice requires an accepted execution reference before submission.'
+    });
+    expect(invoiceCreates).toHaveLength(0);
+  });
+
+  it('allows supplier invoices linked to accepted goods receipts', async () => {
+    const contract = postAwardContract();
+    const invoiceCreates: any[] = [];
+    const auditEvents: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractGoodsReceipt: {
+          findFirst: async () => ({
+            id: 'receipt-1',
+            contractId: contract.id,
+            status: ContractLifecycleItemStatus.APPROVED,
+            lines: []
+          })
+        },
+        invoice: {
+          create: async (input: any) => {
+            invoiceCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async (...args: any[]) => {
+      auditEvents.push(args);
+    };
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createInvoice(contract.id, {
+      reference: 'INV-GRN-1',
+      amount: 1000,
+      currency: 'TZS',
+      status: 'SUBMITTED' as any,
+      executionReferenceType: 'goods_receipt',
+      executionReferenceId: 'receipt-1',
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).resolves.toMatchObject({ id: contract.id });
+
+    expect(invoiceCreates[0].data).toMatchObject({
+      reference: 'INV-GRN-1',
+      contractId: contract.id,
+      supplierOrgId: contract.supplierOrgId,
+      amount: 1000,
+      payload: {
+        executionReferenceType: 'goods_receipt',
+        executionReferenceId: 'receipt-1'
+      }
+    });
+    expect(auditEvents[0]).toEqual(expect.arrayContaining(['contract.invoice.created', 'contract', contract.id]));
+  });
+
+  it('blocks supplier dispatch notices without a delivery schedule', async () => {
+    const contract = postAwardContract();
+    const dispatchCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractDispatchNotice: {
+          create: async (input: any) => {
+            dispatchCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createDispatchNotice(contract.id, {
+      dispatchReference: 'DN-NO-SCHEDULE',
+      dispatchedQuantity: 10,
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Dispatch notice requires an approved delivery schedule.'
+    });
+    expect(dispatchCreates).toHaveLength(0);
+  });
+
+  it('blocks BOQ measurement until works progress is approved', async () => {
+    const contract = postAwardContract({ title: 'Road works contract', payload: { procurementType: 'WORKS' } });
+    const measurementCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractWorksProgressReport: {
+          findFirst: async () => null
+        },
+        contractBoqMeasurement: {
+          create: async (input: any) => {
+            measurementCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createBoqMeasurement(contract.id, {
+      boqItemReference: 'BOQ-1',
+      currentQuantity: 20,
+      unitRate: 1000,
+      payload: {}
+    }, contractContext)).rejects.toMatchObject({
+      status: 409,
+      message: 'BOQ measurement requires an approved works progress report.'
+    });
+    expect(measurementCreates).toHaveLength(0);
+  });
+
+  it('blocks supplier invoices above remaining accepted goods value', async () => {
+    const contract = postAwardContract();
+    const invoiceCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        contractGoodsReceipt: {
+          findFirst: async () => ({
+            id: 'receipt-1',
+            contractId: contract.id,
+            status: ContractLifecycleItemStatus.APPROVED,
+            payload: { acceptedValue: 1000 },
+            lines: []
+          })
+        },
+        invoice: {
+          aggregate: async () => ({ _sum: { amount: 800 } }),
+          create: async (input: any) => {
+            invoiceCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createInvoice(contract.id, {
+      reference: 'INV-OVER',
+      amount: 250,
+      currency: 'TZS',
+      status: InvoiceStatus.SUBMITTED,
+      executionReferenceType: 'goods_receipt',
+      executionReferenceId: 'receipt-1',
+      payload: {}
+    }, { ...contractContext, organizationId: contract.supplierOrgId })).rejects.toMatchObject({
+      status: 409,
+      message: 'Invoice amount exceeds the remaining accepted value for this execution item.'
+    });
+    expect(invoiceCreates).toHaveLength(0);
+  });
+
+  it('records three-way match mismatches and keeps invoices in review', async () => {
+    const contract = postAwardContract();
+    const matchUpserts: any[] = [];
+    const invoiceUpdates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        invoice: {
+          findUnique: async () => ({
+            id: 'invoice-1',
+            contractId: contract.id,
+            executionReferenceType: 'goods_receipt',
+            executionReferenceId: 'receipt-1',
+            status: InvoiceStatus.SUBMITTED,
+            amount: 1000
+          }),
+          update: async (input: any) => {
+            invoiceUpdates.push(input);
+            return input.data;
+          }
+        },
+        contractGoodsReceipt: {
+          findFirst: async () => ({
+            id: 'receipt-1',
+            contractId: contract.id,
+            status: ContractLifecycleItemStatus.APPROVED,
+            lines: [{ acceptedQuantity: 10 }]
+          })
+        },
+        threeWayMatchResult: {
+          upsert: async (input: any) => {
+            matchUpserts.push(input);
+            return input.create;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.upsertThreeWayMatch(contract.id, {
+      invoiceId: 'invoice-1',
+      poMatched: true,
+      receiptMatched: false,
+      invoiceMatched: true,
+      currency: 'TZS',
+      payload: {}
+    }, contractContext)).resolves.toMatchObject({ id: contract.id });
+
+    expect(matchUpserts[0].create).toMatchObject({
+      invoiceId: 'invoice-1',
+      goodsReceiptId: 'receipt-1',
+      status: InvoiceStatus.REVIEW,
+      mismatchType: 'QUANTITY_OR_RECEIPT_MISMATCH'
+    });
+    expect(invoiceUpdates[0]).toMatchObject({ where: { id: 'invoice-1' }, data: { status: InvoiceStatus.REVIEW } });
+  });
+
+  it('blocks payment approval until the invoice is matched', async () => {
+    const contract = postAwardContract();
+    const paymentApprovalCreates: any[] = [];
+    const repository = new ModuleRepository({
+      $transaction: async (callback: any) => callback({
+        invoice: {
+          findUnique: async () => ({
+            id: 'invoice-1',
+            contractId: contract.id,
+            status: InvoiceStatus.SUBMITTED,
+            amount: 1000
+          })
+        },
+        paymentApproval: {
+          create: async (input: any) => {
+            paymentApprovalCreates.push(input);
+            return input.data;
+          }
+        }
+      })
+    } as any);
+    (repository as any).requireContract = async () => contract;
+    (repository as any).audit = async () => undefined;
+    (repository as any).getContract = async () => contract;
+
+    await expect(repository.createPaymentApproval(contract.id, {
+      invoiceId: 'invoice-1',
+      stepKey: 'payment-approval',
+      role: 'BUYER',
+      amountApproved: 1000,
+      currency: 'TZS',
+      payload: {},
+      signatureKeyphrase: 'Approve123'
+    }, contractContext)).rejects.toMatchObject({
+      status: 409,
+      message: 'Invoice must be matched before payment approval.'
+    });
+    expect(paymentApprovalCreates).toHaveLength(0);
   });
 
   it('validates lifecycle risk and termination payloads', () => {
@@ -915,10 +1526,17 @@ describe('award-contract module', () => {
       payload: {}
     });
 
-    expect(negotiationBodySchema.parse({ raisedByRole: 'Buyer', subject: 'Payment terms' })).toMatchObject({
+    expect(negotiationBodySchema.parse({ raisedByRole: 'Buyer', requestType: 'AMENDMENT', subject: 'Payment terms' })).toMatchObject({
       raisedByRole: 'Buyer',
+      requestType: 'AMENDMENT',
       subject: 'Payment terms',
       payload: {}
+    });
+
+    expect(contractNegotiationDecisionBodySchema.parse({ status: ContractLifecycleItemStatus.APPROVED, reason: 'Accepted for redraft.', payload: { redraft: true } })).toMatchObject({
+      status: ContractLifecycleItemStatus.APPROVED,
+      reason: 'Accepted for redraft.',
+      payload: { redraft: true }
     });
 
     expect(deliverableBodySchema.parse({ title: 'Delivery report', status: ContractLifecycleItemStatus.SUBMITTED })).toMatchObject({
@@ -929,6 +1547,81 @@ describe('award-contract module', () => {
 
     expect(goodsInspectionBodySchema.parse({ goodsDescription: 'Laptop delivery' })).toMatchObject({
       goodsDescription: 'Laptop delivery',
+      payload: {}
+    });
+
+    expect(worksProgressReviewBodySchema.parse({ status: 'APPROVED', progressPercent: 45 })).toMatchObject({
+      status: 'APPROVED',
+      progressPercent: 45,
+      payload: {}
+    });
+
+    expect(boqMeasurementBodySchema.parse({ boqItemReference: 'BOQ-1', currentQuantity: 10, unitRate: 5000, certifiedQuantity: 9 })).toMatchObject({
+      boqItemReference: 'BOQ-1',
+      currentQuantity: 10,
+      unitRate: 5000,
+      certifiedQuantity: 9,
+      visibilityScope: 'SHARED',
+      payload: {}
+    });
+
+    expect(boqMeasurementReviewBodySchema.parse({ status: 'CERTIFIED', certifiedAmount: 45000 })).toMatchObject({
+      status: 'CERTIFIED',
+      certifiedAmount: 45000,
+      payload: {}
+    });
+
+    expect(interimPaymentCertificateBodySchema.parse({ certificateNumber: 'IPC-1', grossAmount: 100000, retentionAmount: 5000 })).toMatchObject({
+      certificateNumber: 'IPC-1',
+      grossAmount: 100000,
+      retentionAmount: 5000,
+      certificateType: 'INTERIM',
+      payload: {}
+    });
+
+    expect(interimPaymentCertificateCertifyBodySchema.parse({ status: 'CERTIFIED', netAmount: 95000 })).toMatchObject({
+      status: 'CERTIFIED',
+      netAmount: 95000,
+      payload: {}
+    });
+
+    expect(worksCompletionCertificateBodySchema.parse({ certificateType: 'FINAL_ACCOUNT', finalAccountAmount: 100000 })).toMatchObject({
+      certificateType: 'FINAL_ACCOUNT',
+      finalAccountAmount: 100000,
+      status: 'ISSUED',
+      payload: {}
+    });
+
+    expect(contractDefectActionBodySchema.parse({ status: ContractLifecycleItemStatus.SUBMITTED, response: 'Corrected' })).toMatchObject({
+      status: ContractLifecycleItemStatus.SUBMITTED,
+      response: 'Corrected',
+      payload: {}
+    });
+
+    expect(serviceReportReviewBodySchema.parse({ status: 'APPROVED', verifiedSlaResult: 'MET', acceptedAmount: 180000 })).toMatchObject({
+      status: 'APPROVED',
+      verifiedSlaResult: 'MET',
+      acceptedAmount: 180000,
+      payload: {}
+    });
+
+    expect(serviceIncidentBodySchema.parse({ title: 'Missed response target', severity: 'MAJOR', responseDueDate: '2026-07-20' })).toMatchObject({
+      title: 'Missed response target',
+      severity: 'MAJOR',
+      status: ContractLifecycleItemStatus.OPEN,
+      payload: {}
+    });
+
+    expect(serviceIncidentActionBodySchema.parse({ status: ContractLifecycleItemStatus.SUBMITTED, response: 'Corrective crew assigned' })).toMatchObject({
+      status: ContractLifecycleItemStatus.SUBMITTED,
+      response: 'Corrective crew assigned',
+      payload: {}
+    });
+
+    expect(serviceCreditReviewBodySchema.parse({ status: 'APPROVED', decision: 'APPLIED', invoiceImpactAmount: 15000 })).toMatchObject({
+      status: 'APPROVED',
+      decision: 'APPLIED',
+      invoiceImpactAmount: 15000,
       payload: {}
     });
 

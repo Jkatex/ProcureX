@@ -5772,6 +5772,10 @@ ul.closure-checklist {
     left: 16px;
     top: 12px;
     z-index: 10000;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
     transform: translateY(-160%);
     padding: 10px 14px;
     border-radius: var(--radius-sm);
@@ -5781,6 +5785,10 @@ ul.closure-checklist {
 }
 
 .skip-link:focus-visible {
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
     transform: translateY(0);
 }
 
@@ -11453,6 +11461,96 @@ ul.closure-checklist {
 .product-spec-modal-actions {
     justify-content: flex-end;
     align-items: center;
+}
+
+.signature-keyphrase-modal {
+    padding: 24px;
+}
+
+.signature-keyphrase-modal-card {
+    width: min(520px, 100%);
+    gap: 18px;
+    padding: 22px;
+}
+
+.signature-keyphrase-modal-heading {
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.signature-keyphrase-modal-heading h4 {
+    margin: 6px 0 8px;
+    line-height: 1.25;
+}
+
+.signature-keyphrase-modal-heading p {
+    max-width: 48ch;
+    line-height: 1.55;
+}
+
+.signature-keyphrase-modal-label {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.signature-keyphrase-modal-label {
+    padding: 4px 8px;
+    border: 1px solid var(--border-soft);
+    background: var(--surface-soft);
+}
+
+.signature-keyphrase-modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.signature-keyphrase-modal-close:hover:not(:disabled),
+.signature-keyphrase-modal-close:focus-visible {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.signature-keyphrase-modal-close:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.signature-keyphrase-field {
+    display: grid;
+    gap: 7px;
+    padding-top: 2px;
+}
+
+.signature-keyphrase-field input {
+    min-height: 46px;
+}
+
+@media (max-width: 560px) {
+    .signature-keyphrase-modal {
+        padding: 14px;
+        place-items: end center;
+    }
+
+    .signature-keyphrase-modal-card {
+        padding: 18px;
+    }
 }
 
 .required-dot {
@@ -24585,6 +24683,43 @@ body:not([data-page="iam-verification"]) .communication-shell {
     line-height: 1.5;
 }
 
+.evaluation-finish-content {
+    min-width: 0;
+}
+
+.evaluation-blocking-summary {
+    display: grid;
+    gap: 6px;
+    max-width: 720px;
+    margin-top: 12px;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    border-radius: 8px;
+    background: #fffaf0;
+    padding: 10px 12px;
+    color: var(--text-primary);
+}
+
+.evaluation-blocking-summary strong {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.evaluation-blocking-summary ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+[data-evaluation-report-panel]:focus {
+    outline: 3px solid rgba(0, 128, 128, 0.22);
+    outline-offset: 4px;
+}
+
 .evaluation-step-grid {
     display: grid;
     grid-template-columns: minmax(220px, 0.32fr) minmax(0, 1fr);
@@ -28205,6 +28340,11 @@ button.dashboard-status-line:hover {
     overflow: hidden;
 }
 
+.award-action-inline-row.locked {
+    border-style: dashed;
+    background: color-mix(in srgb, var(--design-canvas, var(--card-bg)) 92%, var(--design-muted, #eef2f7));
+}
+
 .award-action-table-row {
     display: grid;
     grid-template-columns: minmax(240px, 1.5fr) minmax(110px, 0.65fr) minmax(110px, 0.65fr) minmax(130px, 0.7fr) auto;
@@ -28244,6 +28384,27 @@ button.dashboard-status-line:hover {
     line-height: 1.3;
 }
 
+.award-action-lock-reason {
+    color: var(--design-muted, var(--text-secondary));
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1.35;
+}
+
+.award-action-status-only {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 6px 10px;
+    border: 1px solid var(--design-hairline, var(--border-soft));
+    border-radius: 999px;
+    background: var(--surface-soft, #f8fafc);
+    color: var(--design-muted, var(--text-secondary));
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
 .award-action-cell-select {
     justify-items: end;
 }
@@ -28258,6 +28419,24 @@ button.dashboard-status-line:hover {
     border-radius: 0;
     padding: 18px;
     background: color-mix(in srgb, var(--design-canvas, var(--card-bg)) 96%, var(--design-muted, #eef2f7));
+}
+
+.award-action-form-readonly {
+    background: color-mix(in srgb, var(--design-canvas, var(--card-bg)) 91%, var(--design-muted, #eef2f7));
+}
+
+.award-action-form-readonly .form-input,
+.award-action-form-readonly input,
+.award-action-form-readonly textarea,
+.award-action-form-readonly select,
+.award-action-form-readonly .award-picker-option {
+    cursor: default;
+}
+
+.award-action-form-readonly .form-input,
+.award-action-form-readonly textarea,
+.award-action-form-readonly select {
+    color: var(--design-body, var(--text-primary));
 }
 
 .award-inline-form-heading {
@@ -28971,6 +29150,187 @@ fieldset.award-form-field {
     justify-content: flex-end;
 }
 
+.award-offer-flow-panel .panel-heading p,
+.award-offer-current .panel-heading p {
+    max-width: 760px;
+}
+
+.award-offer-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.award-offer-step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.award-offer-step > span {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--surface-soft, #f8fafc);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.award-offer-step div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.award-offer-step strong,
+.award-offer-ranking h3,
+.award-response-action-card h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.award-offer-step em,
+.award-offer-notice-card span,
+.award-response-note-box span,
+.award-response-action-card p {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1.4;
+}
+
+.award-offer-step.complete {
+    border-color: color-mix(in srgb, #16a34a 40%, var(--award-form-line));
+    background: #f0fdf4;
+}
+
+.award-offer-step.complete > span {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.award-offer-step.current {
+    border-color: color-mix(in srgb, var(--design-primary, #2563eb) 45%, var(--award-form-line));
+    background: #eff6ff;
+}
+
+.award-offer-step.current > span {
+    background: var(--design-primary, #2563eb);
+    color: #ffffff;
+}
+
+.award-offer-step.blocked {
+    border-color: color-mix(in srgb, #dc2626 34%, var(--award-form-line));
+    background: #fef2f2;
+}
+
+.award-offer-step.blocked > span {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.award-offer-step.locked {
+    opacity: 0.72;
+}
+
+.award-decision-command-grid,
+.award-response-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.award-offer-primary,
+.award-offer-side,
+.award-offer-current,
+.award-offer-ranking,
+.award-response-action-grid,
+.award-response-action-card,
+.award-offer-notice-card,
+.award-response-note-box {
+    min-width: 0;
+}
+
+.award-offer-primary {
+    display: grid;
+    gap: 16px;
+}
+
+.award-offer-side {
+    position: sticky;
+    top: 84px;
+    display: grid;
+    gap: 14px;
+}
+
+.award-offer-ranking {
+    display: grid;
+    gap: 10px;
+}
+
+.award-offer-notice-card,
+.award-response-note-box {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+}
+
+.award-offer-notice-card div,
+.award-response-note-box {
+    overflow-wrap: anywhere;
+}
+
+.award-offer-notice-card p,
+.award-response-note-box p {
+    margin: 0;
+    color: var(--text-primary);
+    line-height: 1.55;
+}
+
+.award-response-action-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.award-response-action-card {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    padding: 14px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.award-response-action-card .btn {
+    width: 100%;
+}
+
+.award-response-action-card .btn-danger {
+    border-color: #fecaca;
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.award-response-action-card .btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+}
+
 .award-simple-details-stack {
     display: grid;
     gap: 10px;
@@ -29224,6 +29584,15 @@ fieldset.award-form-field {
     margin-top: 12px;
 }
 
+.post-award-dashboard-actions {
+    justify-content: flex-start;
+    min-width: 240px;
+}
+
+.post-award-dashboard-actions .btn {
+    min-width: 76px;
+}
+
 .post-award-next-actions {
     display: grid;
     gap: 12px;
@@ -29232,6 +29601,328 @@ fieldset.award-form-field {
     border: 1px solid var(--award-form-line);
     border-radius: 8px;
     background: var(--surface-soft, #f8fafc);
+}
+
+.post-award-guided-header,
+.post-award-compact-header {
+    display: grid;
+    gap: 16px;
+}
+
+.post-award-compact-header {
+    padding: 18px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.post-award-compact-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.post-award-compact-title h1 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 30px;
+    line-height: 1.1;
+    letter-spacing: 0;
+}
+
+.post-award-compact-title p {
+    margin: 6px 0 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.post-award-compact-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.post-award-command-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.post-award-command-grid article,
+.post-award-guided-empty {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.post-award-command-grid span,
+.post-award-guided-empty span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.post-award-command-grid strong,
+.post-award-guided-empty strong {
+    color: var(--text-primary);
+    font-size: 15px;
+    overflow-wrap: anywhere;
+}
+
+.post-award-command-grid em,
+.post-award-guided-empty p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-style: normal;
+    line-height: 1.45;
+}
+
+.post-award-guided-empty {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    margin-bottom: 14px;
+    background: color-mix(in srgb, var(--design-primary, #2563eb) 5%, #ffffff);
+}
+
+.post-award-guided-empty>div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.post-award-guided-queue {
+    margin-top: 0;
+}
+
+.post-award-page-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    overflow-x: visible;
+    padding: 8px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+}
+
+.post-award-page-nav button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 7px 11px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.post-award-page-nav button.active,
+.post-award-page-nav button:focus-visible {
+    border-color: color-mix(in srgb, var(--design-primary, #0f766e) 32%, #dbeafe);
+    background: color-mix(in srgb, var(--design-primary, #0f766e) 9%, #ffffff);
+}
+
+.post-award-page-nav em {
+    min-width: 18px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--surface-soft, #eef2f7);
+    color: var(--text-secondary);
+    font-style: normal;
+    font-size: 11px;
+}
+
+.post-award-action-queue,
+.post-award-register-overview,
+.post-award-deep-page,
+.post-award-record-page {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.post-award-action-table {
+    display: grid;
+    gap: 6px;
+}
+
+.post-award-action-row {
+    display: grid;
+    grid-template-columns: 80px minmax(180px, 1fr) 110px;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.post-award-action-row:hover,
+.post-award-action-row:focus-visible {
+    border-color: color-mix(in srgb, var(--design-primary, #0f766e) 34%, #dbeafe);
+    background: #ffffff;
+}
+
+.post-award-action-row span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.post-award-action-row strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.post-award-action-row em {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1.35;
+}
+
+.post-award-action-row b {
+    justify-self: end;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.post-award-forms-panel .award-control-grid,
+.post-award-register-panel .award-control-grid {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.post-award-forms-panel .award-action-table-row,
+.post-award-register-panel .award-action-table-row {
+    grid-template-columns: minmax(260px, 2fr) minmax(100px, .55fr) minmax(100px, .55fr) minmax(120px, .7fr) 124px;
+}
+
+.post-award-forms-panel .award-action-cell,
+.post-award-register-panel .award-action-cell {
+    min-height: 58px;
+    padding: 10px 12px;
+    border-top: 0;
+    border-left: 1px solid var(--design-hairline, var(--border-soft));
+}
+
+.post-award-forms-panel .award-action-cell:first-child,
+.post-award-register-panel .award-action-cell:first-child {
+    border-left: 0;
+}
+
+.post-award-forms-panel .award-action-cell-main h2,
+.post-award-register-panel .award-action-cell-main h2 {
+    font-size: 18px;
+}
+
+.post-award-forms-panel .award-action-cell-select,
+.post-award-register-panel .award-action-cell-select {
+    justify-items: end;
+}
+
+.post-award-forms-panel .award-action-cell-select .btn,
+.post-award-register-panel .award-action-cell-select .btn {
+    width: auto;
+    min-width: 92px;
+}
+
+.post-award-forms-panel>.post-award-register-grid,
+.post-award-register-panel>.post-award-register-grid,
+.post-award-history-legacy-grid {
+    display: none;
+}
+
+.post-award-full-table table {
+    min-width: 860px;
+}
+
+.post-award-register-overview .data-table,
+.post-award-deep-page .data-table,
+.post-award-record-page .data-table {
+    border-radius: 8px;
+}
+
+.post-award-table-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.post-award-table-toolbar label {
+    display: grid;
+    gap: 6px;
+    min-width: min(360px, 100%);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.post-award-record-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.post-award-record-summary article {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--award-form-line);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+}
+
+.post-award-record-summary span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.post-award-record-summary strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.post-award-record-advanced {
+    padding: 12px;
+    border: 1px dashed var(--award-form-line);
+    border-radius: 8px;
+    background: var(--surface-soft, #f8fafc);
+}
+
+.post-award-record-advanced pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .post-award-next-actions .panel-heading {
@@ -29295,7 +29986,69 @@ fieldset.award-form-field {
     pointer-events: none;
 }
 
+@media (max-width: 920px) {
+    .post-award-command-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .post-award-action-row,
+    .post-award-forms-panel .award-action-table-row,
+    .post-award-register-panel .award-action-table-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .post-award-forms-panel .award-action-cell,
+    .post-award-register-panel .award-action-cell {
+        border-left: 0;
+        border-top: 1px solid var(--design-hairline, var(--border-soft));
+    }
+
+    .post-award-forms-panel .award-action-cell:first-child,
+    .post-award-register-panel .award-action-cell:first-child {
+        border-top: 0;
+    }
+
+    .post-award-action-row b,
+    .post-award-forms-panel .award-action-cell-select,
+    .post-award-register-panel .award-action-cell-select {
+        justify-self: stretch;
+        justify-items: stretch;
+    }
+
+    .post-award-forms-panel .award-action-cell-select .btn,
+    .post-award-register-panel .award-action-cell-select .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .post-award-command-grid,
+    .post-award-guided-empty,
+    .post-award-record-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .post-award-compact-title {
+        display: grid;
+    }
+
+    .post-award-compact-title h1 {
+        font-size: 24px;
+    }
+}
+
 @media (max-width: 720px) {
+    .award-offer-steps,
+    .award-decision-command-grid,
+    .award-response-main-grid,
+    .award-response-action-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .award-offer-side {
+        position: static;
+    }
+
     .award-form-grid,
     .award-readonly-summary {
         grid-template-columns: 1fr;
@@ -29340,6 +30093,296 @@ fieldset.award-form-field {
     color: var(--text-secondary);
     font-size: 13px;
     line-height: 1.5;
+}
+
+.contract-drafting-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.contract-drafting-main,
+.contract-drafting-side {
+    min-width: 0;
+}
+
+.contract-drafting-document {
+    width: min(100%, 1120px);
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 8px;
+    box-shadow: 0 22px 60px rgba(15, 23, 42, 0.1);
+    padding: clamp(28px, 5vw, 64px);
+    color: #172033;
+    line-height: 1.72;
+    font-size: 15px;
+}
+
+.contract-drafting-document-cover {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    align-items: end;
+    border-bottom: 2px solid rgba(15, 23, 42, 0.16);
+    margin-bottom: 28px;
+    padding-bottom: 22px;
+}
+
+.contract-drafting-document-cover p {
+    margin: 0;
+    color: #475569;
+    font-weight: 800;
+    text-align: right;
+}
+
+.contract-drafting-document header span,
+.contract-drafting-summary-grid span,
+.contract-drafting-clause span {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.contract-drafting-document h2,
+.contract-drafting-document h3,
+.contract-drafting-document h4 {
+    color: #0f172a;
+    letter-spacing: 0;
+}
+
+.contract-drafting-document h2 {
+    max-width: 780px;
+    margin: 8px 0 0;
+    font-size: clamp(1.75rem, 3vw, 2.55rem);
+    line-height: 1.15;
+}
+
+.contract-drafting-document-section {
+    padding: 22px 0;
+    border-top: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.contract-drafting-document-section:first-of-type {
+    border-top: 0;
+}
+
+.contract-drafting-document-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px;
+    font-size: 1.08rem;
+}
+
+.contract-drafting-document-section h3 span {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid rgba(15, 23, 42, 0.16);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 900;
+}
+
+.contract-drafting-document-section p {
+    margin: 0;
+}
+
+.contract-drafting-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.contract-drafting-summary-grid div {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.contract-drafting-summary-grid strong {
+    color: #0f172a;
+    font-size: 0.94rem;
+    overflow-wrap: anywhere;
+}
+
+.contract-drafting-clause {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.contract-drafting-clause h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.contract-drafting-document-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.contract-drafting-document-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.contract-drafting-document-list span {
+    color: #475569;
+    font-weight: 800;
+}
+
+.contract-drafting-signature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    margin-top: 16px;
+}
+
+.contract-drafting-signature-grid div {
+    display: grid;
+    gap: 32px;
+    min-height: 112px;
+    padding: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.contract-drafting-signature-grid span {
+    display: block;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.4);
+}
+
+.contract-drafting-library {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.contract-drafting-library .contract-clause-category {
+    text-align: left;
+}
+
+.contract-drafting-clause-form {
+    margin-top: 14px;
+}
+
+.contract-drafting-editor {
+    min-height: 220px;
+    line-height: 1.55;
+}
+
+.contract-clauses-workspace {
+    display: grid;
+    gap: 16px;
+}
+
+.contract-clauses-editor-panel {
+    margin: 0;
+}
+
+.contract-clause-row-actions,
+.contract-clause-modal-heading-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.contract-clause-delete-button,
+.contract-clause-modal-close {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 8px !important;
+    color: var(--error-red) !important;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.contract-clause-delete-button:hover,
+.contract-clause-modal-close:hover {
+    border-color: var(--error-red) !important;
+    background: var(--error-bg) !important;
+}
+
+.contract-clause-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.42);
+}
+
+.contract-clause-modal {
+    width: min(920px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    margin: 0;
+    border-radius: 8px;
+}
+
+.contract-clauses-editor {
+    min-height: 420px;
+    line-height: 1.6;
+    font-size: 15px;
+}
+
+.contract-negotiation-request-form,
+.contract-negotiation-decision {
+    margin-top: 14px;
+}
+
+.contract-negotiation-decision {
+    display: grid;
+    gap: 10px;
+}
+
+@media (max-width: 980px) {
+    .contract-drafting-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .contract-drafting-document-cover,
+    .contract-drafting-summary-grid,
+    .contract-drafting-signature-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .contract-drafting-document-cover p {
+        text-align: left;
+    }
 }
 
 .award-detail-list {

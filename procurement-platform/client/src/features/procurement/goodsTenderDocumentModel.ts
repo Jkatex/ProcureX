@@ -312,7 +312,7 @@ function tenderGoodsItems(tender: TenderDetail | undefined, requirements: Record
   return (tender?.commercialItems ?? []).map((row, index) => ({
     id: row.id || `goods-item-${index + 1}`,
     description: row.description || `Goods item ${index + 1}`,
-    quantity: row.quantity,
+    quantity: row.quantity ?? '',
     unit: row.unit || ''
   }));
 }

@@ -4841,8 +4841,7 @@ const mockData = {
             { label: 'Awarding in Progress', value: 0, detail: 'Buyer-side tenders moving from evaluation results to draft contract', tab: 'awarding-in-progress' },
             { label: 'Awards Received', value: 0, detail: 'Supplier-side awards awaiting response, review, or signature', tab: 'awards-received' },
             { label: 'Contract Negotiation', value: 0, detail: 'Draft review, negotiation, final acceptance, and outcome notice actions', tab: 'contracts-in-progress' },
-            { label: 'Active Contracts', value: 0, detail: 'Signed contracts under delivery and payment tracking', tab: 'active-contracts' },
-            { label: 'Closed Contracts', value: 0, detail: 'Completed, terminated, or archived contract records', tab: 'closed-contracts' }
+            { label: 'Contract Signing', value: 0, detail: 'Contracts pending buyer or supplier digital signature', tab: 'contract-signing' }
         ],
         pendingAwarding: [],
         awardedToUs: [],

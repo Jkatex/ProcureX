@@ -5,6 +5,7 @@ import { signOut } from '@/features/auth/slice';
 import { useNotifications } from '@/features/notifications/hooks';
 import { communicationApi } from '@/features/communication/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
@@ -17,6 +18,7 @@ import { GoodsTenderReviewDocument } from './GoodsTenderReviewDocument';
 import { SupplierProcurementDetails } from './SupplierTenderDetailProcurexPage';
 import { WorksTenderReviewDocument } from './WorksTenderReviewDocument';
 import type {
+  ContactVerificationChannel,
   CreateTenderConfirmationId,
   CreateTenderConsultancyAssignmentActivityRow,
   CreateTenderConsultancyDeliverableRow,
@@ -62,6 +64,25 @@ const steps = ['Basic Information', 'Procurement Planning', 'Tender Requirements
 const tenderImportAccept = '.xlsx,.xls,.csv,.txt';
 const goodsQuantityImportAccept = '.xlsx,.xls';
 const goodsQuantityTemplateHeaders = ['Id', 'Item name', 'Quantity', 'Unit'];
+
+type ContactVerificationUiState = Record<
+  ContactVerificationChannel,
+  {
+    challengeId: string;
+    target: string;
+    code: string;
+    loading: boolean;
+    verifying: boolean;
+    error: string;
+  }
+>;
+
+function createEmptyContactVerificationState(): ContactVerificationUiState {
+  return {
+    email: { challengeId: '', target: '', code: '', loading: false, verifying: false, error: '' },
+    phone: { challengeId: '', target: '', code: '', loading: false, verifying: false, error: '' }
+  };
+}
 
 const goodsUnitOptions = ['Pcs', 'Unit', 'Set', 'Lot', 'Kg', 'Litre', 'Meter', 'Sqm', 'Day', 'Month'];
 const evaluationTypes = [
@@ -335,13 +356,14 @@ export function CreateTenderProcurexPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { notifyError, notifySuccess, notifyWarning } = useNotifications();
+  const { notifyError, notifyInfo, notifySuccess, notifyWarning } = useNotifications();
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
   const [activeStep, setActiveStep] = useState(0);
   const [validationMessage, setValidationMessage] = useState('');
   const [isPersisting, setIsPersisting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showSubmitSignature, setShowSubmitSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
   const [loadedTenderId, setLoadedTenderId] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newSupplier, setNewSupplier] = useState('');
@@ -351,6 +373,7 @@ export function CreateTenderProcurexPage() {
   const [newDeliverable, setNewDeliverable] = useState('');
   const [newAttachment, setNewAttachment] = useState('');
   const [planWarningFields, setPlanWarningFields] = useState<string[]>([]);
+  const [contactVerification, setContactVerification] = useState<ContactVerificationUiState>(() => createEmptyContactVerificationState());
 
   const selectedType = createTenderSetup.procurementTypes.find((type) => type.id === draft.procurementTypeId) ?? createTenderSetup.procurementTypes[0];
   const requirementTemplates = createTenderSetup.requirementTemplates.filter((template) => template.typeId === draft.procurementTypeId);
@@ -360,7 +383,7 @@ export function CreateTenderProcurexPage() {
   const evaluationSummary = getEvaluationSummary(draft.evaluationCriteria);
   const canSaveDraft = hasMeaningfulDraft(draft);
   const confirmationsComplete = Object.values(draft.confirmations).every(Boolean);
-  const contactVerified = (draft.contact.verifiedPhone && Boolean(draft.contact.phone)) || (draft.contact.verifiedEmail && Boolean(draft.contact.email));
+  const contactVerified = hasVerifiedTenderContact(draft.contact);
   const activeStepBadge =
     activeStep === 0
       ? contactVerified
@@ -501,7 +524,166 @@ export function CreateTenderProcurexPage() {
   }
 
   function patchContact(field: keyof CreateTenderDraft['contact'], value: string | boolean) {
-    patchDraft({ contact: { ...draft.contact, [field]: value } });
+    const nextContact = { ...draft.contact, [field]: value } as CreateTenderDraft['contact'];
+    if (field === 'email') {
+      const normalizedEmail = normalizeTenderContactEmail(String(value));
+      if (normalizedEmail !== draft.contact.verifiedEmailTarget) {
+        nextContact.verifiedEmail = false;
+        nextContact.verifiedEmailTarget = '';
+      }
+      clearContactVerification('email');
+    }
+    if (field === 'phone') {
+      const normalizedPhone = normalizeTenderContactPhone(String(value));
+      if (normalizedPhone !== draft.contact.verifiedPhoneTarget) {
+        nextContact.verifiedPhone = false;
+        nextContact.verifiedPhoneTarget = '';
+      }
+      clearContactVerification('phone');
+    }
+    patchDraft({ contact: nextContact });
+  }
+
+  function clearContactVerification(channel: ContactVerificationChannel) {
+    setContactVerification((current) => ({
+      ...current,
+      [channel]: createEmptyContactVerificationState()[channel]
+    }));
+  }
+
+  function patchContactVerificationCode(channel: ContactVerificationChannel, code: string) {
+    setContactVerification((current) => ({
+      ...current,
+      [channel]: { ...current[channel], code, error: '' }
+    }));
+  }
+
+  async function startContactVerification(channel: ContactVerificationChannel) {
+    const target = channel === 'email' ? draft.contact.email.trim() : draft.contact.phone.trim();
+    if (!target) {
+      const message = channel === 'email' ? 'Enter a contact email before requesting a code.' : 'Enter a contact phone number before requesting a code.';
+      setContactVerification((current) => ({
+        ...current,
+        [channel]: { ...current[channel], error: message }
+      }));
+      notifyWarning('Contact detail required', message, {
+        reason: 'ProcureX needs a destination before it can send a verification code.'
+      });
+      return;
+    }
+    if (channel === 'email' && !isValidTenderContactEmail(target)) {
+      const message = 'Enter a valid contact email address.';
+      setContactVerification((current) => ({
+        ...current,
+        email: { ...current.email, error: message }
+      }));
+      notifyWarning('Invalid contact email', message, {
+        reason: 'The email must be shaped like name@example.go.tz before ProcureX can send a code.'
+      });
+      return;
+    }
+    if (channel === 'phone' && !isValidTenderContactPhone(target)) {
+      const message = 'Enter a valid contact phone number.';
+      setContactVerification((current) => ({
+        ...current,
+        phone: { ...current.phone, error: message }
+      }));
+      notifyWarning('Invalid contact phone', message, {
+        reason: 'Use an international number such as +255700000001 or a valid Tanzania mobile number.'
+      });
+      return;
+    }
+
+    setContactVerification((current) => ({
+      ...current,
+      [channel]: { ...current[channel], loading: true, error: '', code: '' }
+    }));
+    try {
+      const result = await procurementApi.startContactVerification({ channel, target });
+      setContactVerification((current) => ({
+        ...current,
+        [channel]: {
+          ...current[channel],
+          challengeId: result.challengeId,
+          target: result.target,
+          code: '',
+          loading: false,
+          verifying: false,
+          error: ''
+        }
+      }));
+      const label = channel === 'email' ? 'Email' : 'Phone';
+      if (result.devCode) {
+        notifyInfo(`${label} verification code`, `${label} verification code: ${result.devCode}`, {
+          reason: 'Local development returned a temporary code for testing.',
+          autoDismissMs: 30_000
+        });
+      } else {
+        notifySuccess(`${label} code sent`, `A verification code was sent to ${result.target}.`, {
+          reason: 'Enter the code in the tender contact field to confirm this contact.'
+        });
+      }
+    } catch (error) {
+      const message = getApiErrorMessage(error, channel === 'email' ? 'Contact verification email could not be sent.' : 'Contact verification SMS could not be sent.');
+      setContactVerification((current) => ({
+        ...current,
+        [channel]: { ...current[channel], loading: false, verifying: false, error: message }
+      }));
+      notifyError('Contact verification failed', message, {
+        reason: 'ProcureX could not start the contact verification challenge.'
+      });
+    }
+  }
+
+  async function verifyContactCode(channel: ContactVerificationChannel) {
+    const state = contactVerification[channel];
+    if (!state.challengeId || !state.code.trim()) {
+      const message = 'Enter the verification code before confirming.';
+      setContactVerification((current) => ({
+        ...current,
+        [channel]: { ...current[channel], error: message }
+      }));
+      return;
+    }
+    setContactVerification((current) => ({
+      ...current,
+      [channel]: { ...current[channel], verifying: true, error: '' }
+    }));
+    try {
+      const result = await procurementApi.verifyContactVerification({ challengeId: state.challengeId, code: state.code.trim() });
+      if (result.channel === 'email') {
+        patchDraft({
+          contact: {
+            ...draft.contact,
+            email: result.target,
+            verifiedEmail: true,
+            verifiedEmailTarget: result.target
+          }
+        });
+      } else {
+        patchDraft({
+          contact: {
+            ...draft.contact,
+            phone: result.target,
+            verifiedPhone: true,
+            verifiedPhoneTarget: result.target
+          }
+        });
+      }
+      clearContactVerification(channel);
+      notifySuccess(channel === 'email' ? 'Email verified' : 'Phone verified', `${result.target} is verified for this tender.`, {
+        reason: 'This contact can now be used for the tender notice and bidder communications.'
+      });
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Contact verification code could not be confirmed.');
+      setContactVerification((current) => ({
+        ...current,
+        [channel]: { ...current[channel], verifying: false, error: message }
+      }));
+      notifyError('Code not verified', message, {
+        reason: 'Check the code and request a new one if it has expired.'
+      });
+    }
   }
 
   function changeType(typeId: CreateTenderProcurementTypeId) {
@@ -551,8 +733,7 @@ export function CreateTenderProcurexPage() {
       itemNo: '',
       description: '',
       quantity: '',
-      unit: '',
-      unitPrice: ''
+      unit: ''
     };
     patchDraft({ commercialItems: renumberGoodsLineItems([...draft.commercialItems, item]) });
   }
@@ -678,6 +859,7 @@ export function CreateTenderProcurexPage() {
       setValidationMessage(blocker.message);
       setActiveStep(blocker.step);
       setShowSubmitSignature(false);
+      setSignatureError('');
       notifyWarning(blocker.title, blocker.message, {
         reason: blocker.reason
       });
@@ -685,6 +867,7 @@ export function CreateTenderProcurexPage() {
     }
     if (isPersisting) return;
     if (!signatureKeyphrase) {
+      setSignatureError('');
       setShowSubmitSignature(true);
       return;
     }
@@ -694,6 +877,7 @@ export function CreateTenderProcurexPage() {
       const { saved } = await persistTenderDraft();
       const reviewResponse = await procurementApi.publishTender(saved.id, { signatureKeyphrase });
       setShowSubmitSignature(false);
+      setSignatureError('');
       const now = new Date().toISOString();
       const submitted: CreateTenderDraft = {
         ...saved,
@@ -713,12 +897,14 @@ export function CreateTenderProcurexPage() {
       navigate('/procurement/my-tenders');
     } catch (error) {
       const message = getPublishTenderErrorMessage(error, 'Tender could not be submitted for review.');
+      setSignatureError(message);
       setValidationMessage(message);
       notifyError('Tender not submitted', message, {
         reason: 'ProcureX could not send this tender to admin review.'
       });
       if (isUnauthorizedApiError(error)) {
         setShowSubmitSignature(false);
+        setSignatureError('');
         dispatch(signOut());
         navigate('/sign-in', { replace: true, state: { from: { pathname: `${location.pathname}${location.search}` } } });
       }
@@ -750,7 +936,11 @@ export function CreateTenderProcurexPage() {
           title="Submit tender for review"
           actionLabel="Submit tender"
           isSubmitting={isPersisting}
-          onCancel={() => setShowSubmitSignature(false)}
+          error={signatureError}
+          onCancel={() => {
+            setShowSubmitSignature(false);
+            setSignatureError('');
+          }}
           onConfirm={(signatureKeyphrase) => void submitTender(signatureKeyphrase)}
         />
         <section className="journey-hero compact">
@@ -822,7 +1012,15 @@ export function CreateTenderProcurexPage() {
 
               <div className="journey-panel-content">
                 {activeStep === 0 ? (
-                  <BasicInfoStep draft={draft} onPatch={patchPlanAware} onContactPatch={patchContact} />
+                  <BasicInfoStep
+                    draft={draft}
+                    contactVerification={contactVerification}
+                    onPatch={patchPlanAware}
+                    onContactPatch={patchContact}
+                    onStartContactVerification={startContactVerification}
+                    onContactCodeChange={patchContactVerificationCode}
+                    onVerifyContactCode={verifyContactCode}
+                  />
                 ) : null}
                 {activeStep === 1 ? (
                   <PlanningStep
@@ -911,15 +1109,27 @@ export function CreateTenderProcurexPage() {
 
 function BasicInfoStep({
   draft,
+  contactVerification,
   onPatch,
-  onContactPatch
+  onContactPatch,
+  onStartContactVerification,
+  onContactCodeChange,
+  onVerifyContactCode
 }: {
   draft: CreateTenderDraft;
+  contactVerification: ContactVerificationUiState;
   onPatch: (field: keyof CreateTenderDraft, value: CreateTenderDraft[keyof CreateTenderDraft]) => void;
   onContactPatch: (field: keyof CreateTenderDraft['contact'], value: string | boolean) => void;
+  onStartContactVerification: (channel: ContactVerificationChannel) => void;
+  onContactCodeChange: (channel: ContactVerificationChannel, code: string) => void;
+  onVerifyContactCode: (channel: ContactVerificationChannel) => void;
 }) {
-  const phoneStatus = draft.contact.verifiedPhone && draft.contact.phone ? 'Phone verified' : draft.contact.phone ? 'Phone ready to verify' : 'Enter a valid phone number';
-  const emailStatus = draft.contact.verifiedEmail && draft.contact.email ? 'Email verified' : draft.contact.email ? 'Email ready to verify' : 'Enter a valid email address';
+  const phoneVerified = isVerifiedTenderContactChannel(draft.contact, 'phone');
+  const emailVerified = isVerifiedTenderContactChannel(draft.contact, 'email');
+  const phoneChallengeActive = Boolean(contactVerification.phone.challengeId && contactVerification.phone.target === normalizeTenderContactPhone(draft.contact.phone));
+  const emailChallengeActive = Boolean(contactVerification.email.challengeId && contactVerification.email.target === normalizeTenderContactEmail(draft.contact.email));
+  const phoneStatus = phoneVerified ? 'Phone verified' : phoneChallengeActive ? 'Enter the phone verification code' : draft.contact.phone ? 'Phone ready to verify' : 'Enter a valid phone number';
+  const emailStatus = emailVerified ? 'Email verified' : emailChallengeActive ? 'Enter the email verification code' : draft.contact.email ? 'Email ready to verify' : 'Enter a valid email address';
   return (
     <div className="basic-information-prototype wizard-step-surface">
       <section className="planning-section wizard-section">
@@ -963,11 +1173,27 @@ function BasicInfoStep({
                 value={draft.contact.phone}
                 onChange={(event) => onContactPatch('phone', event.target.value)}
               />
-              <button className="btn btn-secondary" type="button" aria-label="Verify Phone" onClick={() => onContactPatch('verifiedPhone', true)} disabled={!draft.contact.phone}>
-                Verify
+              <button className="btn btn-secondary" type="button" aria-label="Verify Phone" onClick={() => onStartContactVerification('phone')} disabled={!draft.contact.phone || contactVerification.phone.loading || phoneVerified}>
+                {contactVerification.phone.loading ? 'Sending...' : phoneVerified ? 'Verified' : 'Verify'}
               </button>
             </div>
-            <span className={`form-hint ${draft.contact.verifiedPhone && draft.contact.phone ? 'is-verified' : ''}`}>{phoneStatus}</span>
+            {phoneChallengeActive ? (
+              <div className="contact-verify-row">
+                <input
+                  className="form-input"
+                  aria-label="Phone verification code"
+                  autoComplete="one-time-code"
+                  placeholder="Enter code"
+                  value={contactVerification.phone.code}
+                  onChange={(event) => onContactCodeChange('phone', event.target.value)}
+                />
+                <button className="btn btn-secondary" type="button" aria-label="Confirm Phone Code" onClick={() => onVerifyContactCode('phone')} disabled={contactVerification.phone.verifying || !contactVerification.phone.code.trim()}>
+                  {contactVerification.phone.verifying ? 'Checking...' : 'Confirm'}
+                </button>
+              </div>
+            ) : null}
+            <span className={`form-hint ${phoneVerified ? 'is-verified' : ''}`}>{phoneStatus}</span>
+            {contactVerification.phone.error ? <span className="form-hint error">{contactVerification.phone.error}</span> : null}
           </div>
           <div className="form-group contact-verify-field">
             <label className="form-label" htmlFor="create-tender-contact-email">
@@ -983,11 +1209,27 @@ function BasicInfoStep({
                 value={draft.contact.email}
                 onChange={(event) => onContactPatch('email', event.target.value)}
               />
-              <button className="btn btn-secondary" type="button" aria-label="Verify Email" onClick={() => onContactPatch('verifiedEmail', true)} disabled={!draft.contact.email}>
-                Verify
+              <button className="btn btn-secondary" type="button" aria-label="Verify Email" onClick={() => onStartContactVerification('email')} disabled={!draft.contact.email || contactVerification.email.loading || emailVerified}>
+                {contactVerification.email.loading ? 'Sending...' : emailVerified ? 'Verified' : 'Verify'}
               </button>
             </div>
-            <span className={`form-hint ${draft.contact.verifiedEmail && draft.contact.email ? 'is-verified' : ''}`}>{emailStatus}</span>
+            {emailChallengeActive ? (
+              <div className="contact-verify-row">
+                <input
+                  className="form-input"
+                  aria-label="Email verification code"
+                  autoComplete="one-time-code"
+                  placeholder="Enter code"
+                  value={contactVerification.email.code}
+                  onChange={(event) => onContactCodeChange('email', event.target.value)}
+                />
+                <button className="btn btn-secondary" type="button" aria-label="Confirm Email Code" onClick={() => onVerifyContactCode('email')} disabled={contactVerification.email.verifying || !contactVerification.email.code.trim()}>
+                  {contactVerification.email.verifying ? 'Checking...' : 'Confirm'}
+                </button>
+              </div>
+            ) : null}
+            <span className={`form-hint ${emailVerified ? 'is-verified' : ''}`}>{emailStatus}</span>
+            {contactVerification.email.error ? <span className="form-hint error">{contactVerification.email.error}</span> : null}
           </div>
         </div>
       </section>
@@ -1696,11 +1938,11 @@ function RequirementsStep({
         </div>
 
         <div className="requirement-section-grid">
-          <article className="requirement-block" id="requirement-section-quantitySchedule">
-            <div>
-              <h4>Quantity Schedule / BOQ</h4>
-              <span className="form-hint">Editable four-column schedule for the goods suppliers must provide.</span>
-            </div>
+            <article className="requirement-block" id="requirement-section-quantitySchedule">
+              <div>
+                <h4>Quantity Schedule / BOQ</h4>
+                <span className="form-hint">Editable four-column schedule for the goods suppliers must provide.</span>
+              </div>
             <div className="requirement-control-grid">
               <div className="requirement-control requirement-control-wide">
                 <span className="form-label">Quantity lines</span>
@@ -4982,13 +5224,13 @@ function draftCommercialItems(draft: CreateTenderDraft): TenderDetail['commercia
     ];
   }
 
-  return draft.commercialItems.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, undefined, { itemNo: String(index + 1) }));
+  return draft.commercialItems.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, null, { itemNo: String(index + 1) }));
 }
 
-function commercialItemFromValues(id: string, index: number, description: string, quantityValue: string | number, unit: string | null, rateValue: string | number | undefined, payload: Record<string, unknown> = {}) {
+function commercialItemFromValues(id: string, index: number, description: string, quantityValue: string | number, unit: string | null, rateValue: string | number | null | undefined, payload: Record<string, unknown> = {}) {
   const quantity = parsePdfNumber(quantityValue) || 1;
-  const rate = parsePdfNumber(rateValue) || 0;
-  const total = rate ? Math.round(quantity * rate * 100) / 100 : 0;
+  const rate = rateValue === null ? null : parsePdfNumber(rateValue) || 0;
+  const total = rate === null ? null : rate ? Math.round(quantity * rate * 100) / 100 : 0;
 
   return {
     id,
@@ -5217,6 +5459,8 @@ function getPublishTenderErrorMessage(error: unknown, fallback: string) {
 }
 
 function getApiValidationErrorMessage(error: unknown, fallback: string) {
+  const sharedMessage = apiErrorMessage(error, '');
+  if (sharedMessage) return sharedMessage;
   const body = apiErrorBody(error);
   const issueMessages = Array.isArray(body?.errors)
     ? body.errors
@@ -5360,10 +5604,7 @@ function draftFromTenderDetail(tender: TenderDetail): CreateTenderDraft {
     customFundingSource: fundingSource && !createTenderSetup.fundingSources.includes(fundingSource) ? fundingSource : '',
     currency: tender.currency || 'TZS',
     estimatedBudget: tender.budget ? String(tender.budget) : '',
-    contact: {
-      ...base.contact,
-      ...objectValue(metadata.contact)
-    },
+    contact: normalizeStoredTenderContact(objectValue(metadata.contact), base.contact),
     submissionDate: dateOnlyString(tender.closingDate),
     openingDate: dateOnlyString(publication.openingDate),
     clarificationDeadline: dateOnlyString(publication.clarificationDeadline),
@@ -5422,6 +5663,25 @@ function stringValue(value: unknown) {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item ?? '').trim()).filter(Boolean) : [];
+}
+
+function normalizeStoredTenderContact(value: Record<string, unknown>, fallback: CreateTenderDraft['contact']): CreateTenderDraft['contact'] {
+  const email = stringValue(value.email);
+  const phone = stringValue(value.phone);
+  const verifiedEmail = value.verifiedEmail === true;
+  const verifiedPhone = value.verifiedPhone === true;
+  return {
+    ...fallback,
+    name: stringValue(value.name),
+    role: stringValue(value.role),
+    department: stringValue(value.department),
+    email,
+    phone,
+    verifiedEmail,
+    verifiedPhone,
+    verifiedEmailTarget: stringValue(value.verifiedEmailTarget) || (verifiedEmail ? normalizeTenderContactEmail(email) : ''),
+    verifiedPhoneTarget: stringValue(value.verifiedPhoneTarget) || (verifiedPhone ? normalizeTenderContactPhone(phone) : '')
+  };
 }
 
 function stringMap(value: Record<string, unknown>): Record<string, string> {
@@ -5634,6 +5894,40 @@ function validateStep(step: number, draft: CreateTenderDraft, total: number) {
   return '';
 }
 
+function normalizeTenderContactEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function normalizeTenderContactPhone(phone: string) {
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return trimmed;
+  if (trimmed.startsWith('+')) return `+${digits}`;
+  if (digits.startsWith('255')) return `+${digits}`;
+  if (digits.startsWith('0') && digits.length === 10) return `+255${digits.slice(1)}`;
+  if (/^[67]\d{8}$/.test(digits)) return `+255${digits}`;
+  return `+${digits}`;
+}
+
+function isValidTenderContactEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeTenderContactEmail(email));
+}
+
+function isValidTenderContactPhone(phone: string) {
+  return /^\+[1-9]\d{7,14}$/.test(normalizeTenderContactPhone(phone));
+}
+
+function isVerifiedTenderContactChannel(contact: CreateTenderDraft['contact'], channel: ContactVerificationChannel) {
+  if (channel === 'email') {
+    return Boolean(contact.verifiedEmail && contact.email && normalizeTenderContactEmail(contact.email) === contact.verifiedEmailTarget);
+  }
+  return Boolean(contact.verifiedPhone && contact.phone && normalizeTenderContactPhone(contact.phone) === contact.verifiedPhoneTarget);
+}
+
+function hasVerifiedTenderContact(contact: CreateTenderDraft['contact']) {
+  return isVerifiedTenderContactChannel(contact, 'email') || isVerifiedTenderContactChannel(contact, 'phone');
+}
+
 function getTenderReviewSubmissionBlocker(draft: CreateTenderDraft, total: number, confirmationsComplete: boolean): TenderReviewSubmissionBlocker | null {
   if (!confirmationsComplete) {
     return {
@@ -5674,6 +5968,7 @@ function validateBasicTenderInformation(draft: CreateTenderDraft) {
   if (!isFutureDateOnly(draft.submissionDate)) return 'Select a submission deadline in the future before continuing.';
   if (!draft.openingDate) return 'Select an opening date before continuing.';
   if (!draft.contact.email.trim() && !draft.contact.phone.trim()) return 'Add at least one contact email or phone before continuing.';
+  if (!hasVerifiedTenderContact(draft.contact)) return 'Verify at least one contact email or phone before continuing.';
   return '';
 }
 

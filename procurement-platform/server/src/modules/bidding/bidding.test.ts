@@ -273,7 +273,7 @@ describe('bid submission schema builder', () => {
         requirements: {
           goods: {
             fields: {
-              quantityScheduleRows: [{ id: 'item-1', itemNumber: 1, itemDescription: 'Hospital bed', quantity: '10', unitOfMeasure: 'Each', unitPrice: '100' }],
+              quantityScheduleRows: [{ id: 'item-1', itemNumber: 1, itemDescription: 'Hospital bed', quantity: '10', unitOfMeasure: 'Each' }],
               productSpecificationTemplate: [{ id: 'spec-1', sourceItemId: 'item-1', itemNo: '1', productName: 'Hospital bed', specificationName: 'Mattress size', specificDetail: 'Adjustable ICU bed with side rails', quantity: 10, unit: 'Each', mandatory: true }],
               supportingDocumentRows: [{ id: 'doc-1', documentName: 'Manufacturer authorization', mandatory: true }],
               sampleRequirementRows: [{ id: 'sample-1', sampleDescription: 'Hospital bed sample', relatedBoqItemId: 'item-1', numberOfSamples: '2', deliveryLocation: 'PMU office', mandatory: true }],
@@ -287,7 +287,7 @@ describe('bid submission schema builder', () => {
         },
         metadata: { evaluationCriteria: [{ id: 'criteria-1', name: 'Technical compliance', weight: 70 }] },
         commercialItems: [
-          { id: 'item-1', itemNo: '1', description: 'Hospital bed', quantity: 10, unit: 'Each', rate: 100, total: 1000, payload: { source: 'boq' } }
+          { id: 'item-1', itemNo: '1', description: 'Hospital bed', quantity: 10, unit: 'Each', rate: null, total: null, payload: { source: 'boq' } }
         ],
         documents: [{ label: 'Tender document', document: { id: 'doc-tender', name: 'beds.pdf', documentType: 'PDF' } }]
       })
@@ -480,7 +480,7 @@ describe('bid submission schema builder', () => {
         type: 'GOODS',
         commercialItems: [],
         requirements: {
-          commercialItems: [{ id: 'json-line-1', description: 'Desktop computer', quantity: 5, unit: 'Each', unitPrice: 2000 }]
+          commercialItems: [{ id: 'json-line-1', description: 'Desktop computer', quantity: 5, unit: 'Each' }]
         }
       })
     );

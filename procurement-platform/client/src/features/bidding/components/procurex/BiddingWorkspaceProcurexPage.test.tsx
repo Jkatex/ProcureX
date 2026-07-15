@@ -1,12 +1,15 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { configureStore } from '@reduxjs/toolkit';
+import type { ReactElement } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import authReducer, { assumeUser } from '@/features/auth/slice';
 import { NotificationToastHost } from '@/features/notifications/NotificationToastHost';
 import notificationsReducer, { enqueueNotification } from '@/features/notifications/slice';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
+import { demoUsers } from '@/shared/data/fixtures';
 import { biddingApi } from '../../api';
 import type { BidDocumentEnvelope, BidDto, BidSampleDto, BidSubmissionSchemaDto, BidSubmissionSchemaFieldDto, BidSubmissionSection, BidSubmissionSchemaStepDto, BidSubmissionStepId } from '../../types';
 import { BiddingWorkspaceProcurexPage } from './BiddingWorkspaceProcurexPage';
@@ -15,17 +18,32 @@ vi.mock('@/features/procurement/hooks', () => ({
   useTenderDetail: vi.fn()
 }));
 
-function renderWorkspaceWithNotifications() {
-  const store = configureStore({ reducer: { notifications: notificationsReducer } });
-  const view = render(
-    <Provider store={store}>
-      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
-        <BiddingWorkspaceProcurexPage />
-        <NotificationToastHost />
-      </MemoryRouter>
-    </Provider>
-  );
+vi.mock('@/features/identity/api', () => ({
+  identityApi: {
+    getVerificationMe: vi.fn().mockResolvedValue({ verification: { payload: { profile: {} } } }),
+    getProfileImageBlob: vi.fn()
+  }
+}));
+
+function createBidWorkspaceStore() {
+  const store = configureStore({ reducer: { auth: authReducer, notifications: notificationsReducer } });
+  store.dispatch(assumeUser(demoUsers.user));
+  return store;
+}
+
+function render(ui: ReactElement) {
+  const store = createBidWorkspaceStore();
+  const view = rtlRender(<Provider store={store}>{ui}</Provider>);
   return { ...view, store };
+}
+
+function renderWorkspaceWithNotifications() {
+  return render(
+    <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+      <BiddingWorkspaceProcurexPage />
+      <NotificationToastHost />
+    </MemoryRouter>
+  );
 }
 
 describe('BiddingWorkspaceProcurexPage document upload', () => {
@@ -318,6 +336,37 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       isLoading: false,
       isError: false
     });
+  });
+
+  it('renders the ProcureX workspace top bar for the bidding workspace', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bid Submission Workspace' })).toBeInTheDocument();
+    const topBar = container.querySelector('.app-topbar') as HTMLElement | null;
+    expect(topBar).toBeInTheDocument();
+    expect(within(topBar!).getByRole('img', { name: 'ProcureX' })).toBeInTheDocument();
+    expect(within(topBar!).getByText('Bidding')).toBeInTheDocument();
+    expect(topBar!.querySelector('[data-app-menu-toggle]')).toBeInTheDocument();
+    expect(topBar!.querySelector('.profile-button')).toBeInTheDocument();
+  });
+
+  it('keeps the ProcureX workspace top bar on the empty bid workspace state', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Open a tender from the marketplace to start or continue a bid.')).toBeInTheDocument();
+    const topBar = container.querySelector('.app-topbar') as HTMLElement | null;
+    expect(topBar).toBeInTheDocument();
+    expect(within(topBar!).getByText('Bidding')).toBeInTheDocument();
+    expect(topBar!.querySelector('[data-app-menu-toggle]')).toBeInTheDocument();
+    expect(topBar!.querySelector('.profile-button')).toBeInTheDocument();
   });
 
   it.each([

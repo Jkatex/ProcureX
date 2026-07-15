@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';
 import LeaderboardRoundedIcon from '@mui/icons-material/LeaderboardRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { evaluationApi } from '@/features/evaluation/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
+import { apiErrorMessage } from '@/shared/api/errors';
 import type {
   EvaluationDashboard,
   EvaluationDecisionStatus,
@@ -53,7 +54,14 @@ type CommercialReviewRow = {
   total: number | null;
   source: string;
 };
-type CompletionState = { complete: number; total: number; percent: number; canComplete: boolean };
+type CompletionState = {
+  complete: number;
+  total: number;
+  percent: number;
+  canComplete: boolean;
+  blockingReasons: string[];
+  firstBlockingStageId: EvaluationStageId;
+};
 
 type TenderQueueRow = {
   tenderId: string;
@@ -109,6 +117,8 @@ export function BidEvaluationProcurexPage() {
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
   const [showCompletionSignature, setShowCompletionSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
+  const reportPreviewRequestedRef = useRef(false);
 
   useBodyPageMetadata('bid-evaluation');
 
@@ -358,6 +368,7 @@ export function BidEvaluationProcurexPage() {
       return;
     }
     if (complete && !signatureKeyphrase) {
+      setSignatureError('');
       setShowCompletionSignature(true);
       return;
     }
@@ -390,6 +401,7 @@ export function BidEvaluationProcurexPage() {
         ...(complete && signatureKeyphrase ? { signatureKeyphrase } : {})
       });
       setShowCompletionSignature(false);
+      setSignatureError('');
       setWorkspace(saved);
       setScoreDrafts(createScoreDrafts(saved));
       setDecisionDrafts(createDecisionDrafts(saved));
@@ -398,12 +410,26 @@ export function BidEvaluationProcurexPage() {
       notifySuccess(complete ? 'Evaluation completed' : 'Evaluation saved', complete ? 'Evaluation workspace completed.' : 'Evaluation workspace saved.', {
         reason: complete ? 'Scores, decisions, ranking, and recommendation data were saved.' : 'Your current evaluation entries were saved as progress.'
       });
-    } catch {
-      setWorkspaceError(t('evaluationApp.p5.errors.save'));
+    } catch (error) {
+      const message = evaluationSaveErrorMessage(error, t('evaluationApp.p5.errors.save'));
+      setSignatureError(message);
+      setWorkspaceError(message);
     } finally {
       setWorkspaceSaving(false);
     }
   }
+
+  function previewReport() {
+    reportPreviewRequestedRef.current = true;
+    setActiveStageId('report');
+    window.setTimeout(focusEvaluationReportPanel, 80);
+  }
+
+  useEffect(() => {
+    if (activeStageId !== 'report' || !reportPreviewRequestedRef.current) return;
+    reportPreviewRequestedRef.current = false;
+    window.setTimeout(focusEvaluationReportPanel, 80);
+  }, [activeStageId, workspace?.tender?.id]);
 
   return (
     <>
@@ -412,7 +438,11 @@ export function BidEvaluationProcurexPage() {
         title="Complete evaluation"
         actionLabel="Complete evaluation"
         isSubmitting={workspaceSaving}
-        onCancel={() => setShowCompletionSignature(false)}
+        error={signatureError}
+        onCancel={() => {
+          setShowCompletionSignature(false);
+          setSignatureError('');
+        }}
         onConfirm={(signatureKeyphrase) => void saveWorkspace(true, signatureKeyphrase)}
       />
       <WorkspaceTopBar title="Evaluation" onNavigate={navigateToPage} />
@@ -446,7 +476,7 @@ export function BidEvaluationProcurexPage() {
               formatMoney={formatMoney}
               onBack={() => setSelectedTenderId('')}
               onDecisionChange={updateDecisionDraft}
-              onPreviewReport={() => setActiveStageId('report')}
+              onPreviewReport={previewReport}
               onSave={(complete) => void saveWorkspace(complete)}
               onScoreChange={updateScoreDraft}
               onSectionDraftChange={updateSectionDraft}
@@ -684,7 +714,7 @@ function EvaluationWorkspaceView({
 }: {
   activeStageId: EvaluationStageId;
   bids: EditableEvaluationBid[];
-  completion: { complete: number; total: number; percent: number; canComplete: boolean };
+  completion: CompletionState;
   expandedBidId: string;
   formatDate: (value: string | null) => string;
   formatMoney: (value: number | null, currency: string) => string;
@@ -770,10 +800,18 @@ function EvaluationWorkspaceView({
         </div>
 
         <div className="evaluation-finish-panel">
-          <div>
+          <div className="evaluation-finish-content">
             <span className="section-kicker">Complete {typeLabel(tender.procurementType).toLowerCase()} evaluation</span>
             <h3>{completion.canComplete ? 'Ready for buyer completion' : 'Complete all evaluation scores and recommendation'}</h3>
             <p>{completion.complete} of {completion.total} required checks are complete. Ranking and award recommendation remain manual buyer decisions.</p>
+            {!completion.canComplete && completion.blockingReasons.length ? (
+              <div className="evaluation-blocking-summary" aria-live="polite">
+                <strong>Still needed</strong>
+                <ul>
+                  {completion.blockingReasons.slice(0, 4).map((reason) => <li key={reason}>{reason}</li>)}
+                </ul>
+              </div>
+            ) : null}
           </div>
           <div className="inline-actions">
             <button className="btn btn-secondary" type="button" disabled={saving || workspaceLoading} onClick={() => onSave(false)}>
@@ -788,6 +826,9 @@ function EvaluationWorkspaceView({
             <button className="btn btn-secondary" type="button" disabled={!canMoveNext || saving || workspaceLoading} onClick={() => onStageChange(nextStage)}>Next</button>
             <button className="btn btn-secondary" type="button" onClick={onPreviewReport}>Preview Report</button>
             <button className="btn btn-secondary" type="button" onClick={() => window.print()}>Download Report</button>
+            {!completion.canComplete ? (
+              <button className="btn btn-secondary" type="button" disabled={saving || workspaceLoading} onClick={() => onStageChange(completion.firstBlockingStageId)}>Review missing checks</button>
+            ) : null}
             <button className="btn btn-primary" type="button" disabled={!completion.canComplete || saving || workspaceLoading} onClick={() => onSave(true)}>Submit Evaluation</button>
             <button className="btn btn-secondary" type="button" onClick={onBack}>Back to Tender List</button>
           </div>
@@ -1488,7 +1529,7 @@ function ReportPanel({
   workspace: EvaluationWorkspace;
 }) {
   return (
-    <section className="evaluation-section-workspace">
+    <section className="evaluation-section-workspace" data-evaluation-report-panel tabIndex={-1}>
       <div className="panel-heading">
         <div>
           <span className="section-kicker">Evaluation Report</span>
@@ -1817,7 +1858,16 @@ function buildRankings(bids: EditableEvaluationBid[]) {
 }
 
 function completionState(workspace: EvaluationWorkspace | null, bids: EditableEvaluationBid[], sectionDraft: SectionDraftMap): CompletionState {
-  if (!workspace) return { complete: 0, total: 0, percent: 0, canComplete: false };
+  if (!workspace) {
+    return {
+      complete: 0,
+      total: 0,
+      percent: 0,
+      canComplete: false,
+      blockingReasons: ['Open an evaluation workspace before submitting.'],
+      firstBlockingStageId: 'opening'
+    };
+  }
   const scoreCriteria = scoreCriteriaForCompletion(workspace);
   const scoreTotal = scoreCriteria.length * bids.length;
   const scoreComplete = bids.reduce(
@@ -1843,8 +1893,131 @@ function completionState(workspace: EvaluationWorkspace | null, bids: EditableEv
   const complete = scoreComplete + manualComplete + rankingComplete;
   const percent = total > 0 ? Math.round((complete / total) * 100) : 0;
   const hasRecommendation = bids.some((bid) => bid.decisionStatus === 'RECOMMENDED' && !recommendationBlockReason(workspace, sectionDraft, bid));
-  const allRejected = bids.length > 0 && bids.every((bid) => bid.decisionStatus === 'FAILED');
-  return { complete, total, percent, canComplete: total > 0 && complete === total && (hasRecommendation || allRejected) };
+  const allRejected = bids.length > 0 && bids.every((bid) => bid.decisionStatus === 'FAILED' && bid.decisionComment.trim());
+  const blockers = completionBlockers(workspace, bids, sectionDraft, scoreCriteria, manualDefinitions, {
+    scoreComplete,
+    scoreTotal,
+    manualComplete,
+    manualTotal,
+    rankingComplete,
+    rankingTotal,
+    hasRecommendation,
+    allRejected
+  });
+  return {
+    complete,
+    total,
+    percent,
+    canComplete: total > 0 && complete === total && (hasRecommendation || allRejected),
+    blockingReasons: blockers.reasons,
+    firstBlockingStageId: blockers.firstStageId
+  };
+}
+
+function completionBlockers(
+  workspace: EvaluationWorkspace,
+  bids: EditableEvaluationBid[],
+  sectionDraft: SectionDraftMap,
+  scoreCriteria: EvaluationWorkspaceCriterion[],
+  manualDefinitions: Array<{ stageId: EvaluationStageId; definition: SectionDefinition }>,
+  state: {
+    scoreComplete: number;
+    scoreTotal: number;
+    manualComplete: number;
+    manualTotal: number;
+    rankingComplete: number;
+    rankingTotal: number;
+    hasRecommendation: boolean;
+    allRejected: boolean;
+  }
+) {
+  const reasons: string[] = [];
+  let firstStageId: EvaluationStageId = 'ranking';
+
+  if (state.scoreComplete < state.scoreTotal) {
+    const missing = firstMissingScoreCriterion(workspace, bids, scoreCriteria);
+    firstStageId = missing?.stageId ?? 'technical';
+    reasons.push(missing?.reason ?? 'Enter all custom evaluation scores for every bidder.');
+  }
+
+  if (state.manualComplete < state.manualTotal) {
+    const missing = firstMissingManualDecision(workspace, bids, sectionDraft, manualDefinitions);
+    if (!reasons.length) firstStageId = missing?.stageId ?? 'preliminary';
+    reasons.push(missing?.reason ?? 'Complete all manual section decisions and required remarks.');
+  }
+
+  if (state.rankingComplete < state.rankingTotal) {
+    if (!reasons.length) firstStageId = 'ranking';
+    reasons.push('Add final decision reasons for any recommended, failed, or clarification-required bidders.');
+  }
+
+  const recommendedBid = bids.find((bid) => bid.decisionStatus === 'RECOMMENDED');
+  const recommendedBlockReason = recommendedBid ? recommendationBlockReason(workspace, sectionDraft, recommendedBid) : '';
+  if (recommendedBlockReason) {
+    if (!reasons.length) firstStageId = 'ranking';
+    reasons.push(`Recommended bidder is blocked: ${recommendedBlockReason}`);
+  }
+
+  if (!state.hasRecommendation && !state.allRejected) {
+    if (!reasons.length) firstStageId = 'ranking';
+    reasons.push('In Ranking & Recommendation, mark one bidder as Recommended with a reason, or mark all bidders Failed with reasons.');
+  }
+
+  return { reasons: uniqueReasons(reasons), firstStageId };
+}
+
+function firstMissingScoreCriterion(workspace: EvaluationWorkspace, bids: EditableEvaluationBid[], criteria: EvaluationWorkspaceCriterion[]) {
+  for (const bid of bids) {
+    for (const criterion of criteria) {
+      const score = bid.scores.find((item) => item.criterionId === criterion.id)?.score;
+      if (score === null || score === undefined || score > criterion.maxScore) {
+        return {
+          stageId: 'technical' as EvaluationStageId,
+          reason: `Enter a valid score for ${bid.supplierName} on ${criterion.name}.`
+        };
+      }
+      const draft = bid.scoreDrafts?.[criterion.id];
+      if (draft?.decision && isGoodsManualDecisionNegative(draft.decision) && !draft.comment.trim()) {
+        return {
+          stageId: 'technical' as EvaluationStageId,
+          reason: `Add a buyer comment for ${bid.supplierName} on ${criterion.name}.`
+        };
+      }
+    }
+  }
+  void workspace;
+  return null;
+}
+
+function firstMissingManualDecision(
+  workspace: EvaluationWorkspace,
+  bids: EditableEvaluationBid[],
+  sectionDraft: SectionDraftMap,
+  manualDefinitions: Array<{ stageId: EvaluationStageId; definition: SectionDefinition }>
+) {
+  for (const bid of bids) {
+    for (const { stageId, definition } of manualDefinitions) {
+      const decision = sectionDecision(sectionDraft, stageId, bid.id, definition.id);
+      if (!decision.decision) {
+        return {
+          stageId,
+          reason: `Complete ${stageLabel(stageId)} for ${bid.supplierName}: ${definition.label}.`
+        };
+      }
+      if (isNegativeSectionDecision(decision.decision) && !String(decision.remark ?? '').trim()) {
+        return {
+          stageId,
+          reason: `Add a remark for ${bid.supplierName}: ${definition.label}.`
+        };
+      }
+    }
+  }
+  void workspace;
+  return null;
+}
+
+function uniqueReasons(reasons: string[]) {
+  return Array.from(new Set(reasons.filter(Boolean)));
 }
 
 function validateWorkspaceDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap, sectionDraft: SectionDraftMap) {
@@ -1885,6 +2058,17 @@ function validateScoreDrafts(workspace: EvaluationWorkspace, scoreDrafts: ScoreD
   return '';
 }
 
+function evaluationSaveErrorMessage(error: unknown, fallback: string) {
+  const sharedMessage = apiErrorMessage(error, '');
+  if (sharedMessage) return sharedMessage;
+  const response = (error as { response?: { data?: { message?: unknown; error?: unknown } }; message?: unknown }).response;
+  const serverMessage = response?.data?.message ?? response?.data?.error;
+  if (typeof serverMessage === 'string' && serverMessage.trim()) return serverMessage.trim();
+  const clientMessage = (error as { message?: unknown }).message;
+  if (typeof clientMessage === 'string' && clientMessage.trim()) return clientMessage.trim();
+  return fallback;
+}
+
 function firstMissingScoreStage(workspace: EvaluationWorkspace, scoreDrafts: ScoreDraftMap): EvaluationStageId {
   const missing = scoreCriteriaForCompletion(workspace).find((criterion) =>
     workspace.bids.some((bid) => {
@@ -1894,6 +2078,13 @@ function firstMissingScoreStage(workspace: EvaluationWorkspace, scoreDrafts: Sco
   );
   if (!missing) return 'technical';
   return 'technical';
+}
+
+function focusEvaluationReportPanel() {
+  const panel = document.querySelector<HTMLElement>('[data-evaluation-report-panel]');
+  if (!panel) return;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  panel.focus({ preventScroll: true });
 }
 
 function scoreCriteriaForCompletion(workspace: EvaluationWorkspace) {
