@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { store } from '@/app/store';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
@@ -130,7 +131,7 @@ export function BiddingWorkspaceProcurexPage() {
   const [sampleSaving, setSampleSaving] = useState(false);
   const [sampleEdits, setSampleEdits] = useState<Record<string, SampleFormState>>({});
   const [form, setForm] = useState<BidFormState>(() => emptyBidForm());
-  const [schema, setSchema] = useState<BidSubmissionSchemaDto | null>(null);
+  const [rawSchema, setRawSchema] = useState<BidSubmissionSchemaDto | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaResponses, setSchemaResponses] = useState<SchemaResponseState>({});
   const [reviewEditTarget, setReviewEditTarget] = useState<string | null>(null);
@@ -138,6 +139,10 @@ export function BiddingWorkspaceProcurexPage() {
   const [signatureError, setSignatureError] = useState('');
 
   const workflow = useMemo(() => workflowFromTender(tender), [tender]);
+  const schema = useMemo(() => withGoodsBidInformationStep(rawSchema, workflow, tender), [rawSchema, tender, workflow]);
+  const sessionUser = useSyncExternalStore(store.subscribe, () => store.getState().auth.user, () => store.getState().auth.user);
+  const bidderName = useMemo(() => bid?.supplierName || sessionUser?.organization || sessionUser?.displayName || 'Supplier organization', [bid?.supplierName, sessionUser?.displayName, sessionUser?.organization]);
+  const bidReferenceNumber = useMemo(() => bid?.reference || generatedBidReference(tender, sessionUser?.organizationId || sessionUser?.id || bidderName), [bid?.reference, bidderName, sessionUser?.id, sessionUser?.organizationId, tender]);
   const sampleRequirements = useMemo(() => schemaSampleRequirements(schema, tender), [schema, tender]);
   const sampleItemOptions = useMemo(() => sampleOptionsFromTender(tender, sampleRequirements), [tender, sampleRequirements]);
   const steps = useMemo(() => (schema ? schemaSteps(schema) : []), [schema]);
@@ -177,7 +182,7 @@ export function BiddingWorkspaceProcurexPage() {
 
   useEffect(() => {
     if (!tenderId) {
-      setSchema(null);
+      setRawSchema(null);
       return;
     }
 
@@ -187,12 +192,12 @@ export function BiddingWorkspaceProcurexPage() {
       .getTenderSchema(tenderId)
       .then((nextSchema) => {
         if (!mounted) return;
-        setSchema(nextSchema);
+        setRawSchema(nextSchema);
         setActiveStep(0);
       })
       .catch((error) => {
         if (!mounted) return;
-        setSchema(null);
+        setRawSchema(null);
         showBidNotice('error', 'Notice', errorMessage(error, 'Bid response fields could not be loaded from the tender requirements.'));
       })
       .finally(() => {
@@ -203,6 +208,16 @@ export function BiddingWorkspaceProcurexPage() {
       mounted = false;
     };
   }, [tenderId]);
+
+  useEffect(() => {
+    if (workflow !== 'goods' || !schemaStep(schema, 'goodsBidInformation')) return;
+    setSchemaResponses((current) =>
+      withGoodsBidInformationDefaults(current, schema, workflow, bidderName, bidReferenceNumber, {
+        forceBidderName: Boolean(bid?.supplierName),
+        forceReferenceNumber: Boolean(bid?.reference)
+      })
+    );
+  }, [bid?.reference, bid?.supplierName, bidReferenceNumber, bidderName, schema, workflow]);
 
   useEffect(() => {
     if (!tenderId) {
@@ -296,14 +311,27 @@ export function BiddingWorkspaceProcurexPage() {
     const workspaceDeclarations = objectPayload(workspaceForm.declarations);
     const workspaceSchemaResponses = objectPayload(workspaceState.schemaResponses);
     const responseState = Object.fromEntries(draft.responses.map((item) => [item.requirementKey, responseValue(item.response)]));
-    setSchemaResponses({
+    const hydratedResponses = {
       ...responseState,
       ...schemaResponsesFromPayload(administrative),
       ...schemaResponsesFromPayload(technical),
       ...schemaResponsesFromPayload(financial),
       ...schemaResponsesFromPayload(declarations),
       ...workspaceSchemaResponses
-    });
+    };
+    setSchemaResponses(
+      withGoodsBidInformationDefaults(
+        hydratedResponses,
+        schema,
+        workflow,
+        draft.supplierName || bidderName,
+        draft.reference || bidReferenceNumber,
+        {
+          forceBidderName: Boolean(draft.supplierName),
+          forceReferenceNumber: Boolean(draft.reference)
+        }
+      )
+    );
     setForm((current) => ({
       administrative: { ...current.administrative, ...administrative, ...workspaceAdministrative },
       technical: { ...current.technical, ...technical, ...workspaceTechnical },
@@ -562,11 +590,6 @@ export function BiddingWorkspaceProcurexPage() {
     return `${field.label || 'Required field'}${suffix}`;
   }
 
-  function jumpToReview() {
-    const reviewIndex = steps.findIndex((step) => isReviewStep(step));
-    setActiveStep(reviewIndex > -1 ? reviewIndex : Math.max(0, steps.length - 1));
-  }
-
   function goToStep(index: number) {
     if (index === activeStep) return;
     if (index > activeStep && !isSubmitted && !receipt && !canLeaveStep(activeStep)) return;
@@ -703,11 +726,7 @@ export function BiddingWorkspaceProcurexPage() {
               <button className="btn btn-secondary" type="button" disabled={saving || uploading} onClick={() => void withdrawBid()}>
                 Withdraw
               </button>
-            ) : (
-              <button className="btn btn-primary" type="button" disabled={saving || uploading} onClick={jumpToReview}>
-                Review Submission
-              </button>
-            )}
+            ) : null}
           </div>
         </section>
 
@@ -859,15 +878,23 @@ export function BiddingWorkspaceProcurexPage() {
           </div>
         );
       }
+      if (workflow === 'goods' && currentSchemaStep.id === 'goodsBidInformation') {
+        return (
+          <BidInformationPanel
+            step={currentSchemaStep}
+            responses={schemaResponses}
+            disabled={saving || uploading || isSubmitted || Boolean(receipt)}
+            onPatch={patchSchemaResponse}
+          />
+        );
+      }
       if (currentSchemaStep.id === 'administrative') {
         return (
           <AdministrativeGateSchemaPanel
-            tender={loadedTender}
             gate={gate}
             step={currentSchemaStep}
             responses={schemaResponses}
             documents={documents}
-            currency={loadedTender.currency}
             disabled={saving || uploading || isSubmitted || Boolean(receipt)}
             uploadingKey={uploadingKey}
             onPatch={patchSchemaResponse}
@@ -1218,44 +1245,66 @@ function workflowStepCopy(workflow: WorkflowType, stepId: string) {
 }
 
 function AdministrativeGateSchemaPanel({
-  tender,
   gate,
   step,
   responses,
   documents,
-  currency,
   disabled,
   uploadingKey,
   onPatch,
   onFiles
 }: {
-  tender: TenderDetail;
   gate: GateStatus;
   step: BidSubmissionSchemaStepDto;
   responses: SchemaResponseState;
   documents: BidDocumentState[];
-  currency: string;
   disabled: boolean;
   uploadingKey: string | null;
   onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
   onFiles: UploadHandler;
 }) {
   const groups = administrativeGateGroups(step);
+  const hasFinancialSection = groups.financialFields.length > 0;
   const hasSubmissionSection = groups.submissionFields.length > 0;
   const hasOtherSection = groups.otherDocumentFields.length > 0;
-  const declarationIndex = 2 + (hasSubmissionSection ? 1 : 0) + (hasOtherSection ? 1 : 0);
+  let sectionIndex = 1;
+  const financialIndex = sectionIndex;
+  if (hasFinancialSection) sectionIndex += 1;
+  const licenseIndex = sectionIndex;
+  sectionIndex += 1;
+  const submissionIndex = sectionIndex;
+  if (hasSubmissionSection) sectionIndex += 1;
+  const otherIndex = sectionIndex;
+  if (hasOtherSection) sectionIndex += 1;
+  const declarationIndex = sectionIndex;
+  const useGoodsDeclarationChecklist = groups.declarationFields.some(isGoodsEligibilityDeclarationField);
 
   return (
     <>
       <div className={`bid-gate-status ${gate.complete ? 'balanced' : ''}`}>{gate.message}</div>
       <div className="bid-prequalification-note">
         <strong>Eligibility and document requirements</strong>
-        <span>Upload administrative eligibility documents and complete required confirmations before moving forward. Technical uploads are completed in the technical response steps, and financial capacity uploads are completed in the financial offer.</span>
+        <span>Upload buyer-required financial capacity evidence, regulatory license evidence, and other eligibility documents before moving forward. Mandatory items block the bid workflow until uploaded.</span>
       </div>
-      <AdministrativeLicenseEvidenceSection fields={groups.licenseFields} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
+      {hasFinancialSection ? (
+        <AdministrativeDocumentGroup
+          index={financialIndex}
+          kicker="Financial capacity requirements"
+          title="Financial capacity evidence"
+          description="Upload the financial capacity documents required as evidence by the buyer."
+          fields={groups.financialFields}
+          responses={responses}
+          documents={documents}
+          disabled={disabled}
+          uploadingKey={uploadingKey}
+          onPatch={onPatch}
+          onFiles={onFiles}
+        />
+      ) : null}
+      <AdministrativeLicenseEvidenceSection index={licenseIndex} fields={groups.licenseFields} responses={responses} documents={documents} disabled={disabled} uploadingKey={uploadingKey} onPatch={onPatch} onFiles={onFiles} />
       {hasSubmissionSection ? (
         <AdministrativeDocumentGroup
-          index={2}
+          index={submissionIndex}
           kicker="Submission documents"
           title="Bid submission documents"
           description="Tender submission forms, signed bid documents, authorization letters, and buyer-required administrative submission files."
@@ -1270,10 +1319,10 @@ function AdministrativeGateSchemaPanel({
       ) : null}
       {hasOtherSection ? (
         <AdministrativeDocumentGroup
-          index={2 + (hasSubmissionSection ? 1 : 0)}
-          kicker="Other documents"
-          title="Other administrative supporting documents"
-          description="Additional administrative evidence that is not a license, certification, technical upload, or financial capacity document."
+          index={otherIndex}
+          kicker="Other eligibility requirements"
+          title="Other eligibility documents"
+          description="Upload the additional eligibility documents requested by the buyer. Mandatory rows must be uploaded before continuing."
           fields={groups.otherDocumentFields}
           responses={responses}
           documents={documents}
@@ -1283,29 +1332,36 @@ function AdministrativeGateSchemaPanel({
           onFiles={onFiles}
         />
       ) : null}
-      <AdministrativeDocumentGroup
-        index={declarationIndex}
-        kicker="Eligibility declarations/confirmations"
-        title="Administrative confirmations"
-        fields={groups.declarationFields}
-        responses={responses}
-        documents={documents}
-        disabled={disabled}
-        uploadingKey={uploadingKey}
-        onPatch={onPatch}
-        onFiles={onFiles}
-        emptyMessage="No additional confirmations are required."
-        action={
-          <Link className="btn btn-secondary btn-sm" to={`/communication?view=compose&mode=clarification&tenderId=${encodeURIComponent(tender.id)}&category=Administrative&context=eligibility`}>
-            Ask Buyer
-          </Link>
-        }
-      />
+      {useGoodsDeclarationChecklist ? (
+        <AdministrativeDeclarationSection
+          index={declarationIndex}
+          fields={groups.declarationFields}
+          responses={responses}
+          disabled={disabled}
+          onPatch={onPatch}
+          emptyMessage="No additional confirmations are required."
+        />
+      ) : (
+        <AdministrativeDocumentGroup
+          index={declarationIndex}
+          kicker="Eligibility declarations/confirmations"
+          title="Administrative confirmations"
+          fields={groups.declarationFields}
+          responses={responses}
+          documents={documents}
+          disabled={disabled}
+          uploadingKey={uploadingKey}
+          onPatch={onPatch}
+          onFiles={onFiles}
+          emptyMessage="No additional confirmations are required."
+        />
+      )}
     </>
   );
 }
 
 function AdministrativeLicenseEvidenceSection({
+  index,
   fields,
   responses,
   documents,
@@ -1314,6 +1370,7 @@ function AdministrativeLicenseEvidenceSection({
   onPatch,
   onFiles
 }: {
+  index: number;
   fields: BidSubmissionSchemaFieldDto[];
   responses: SchemaResponseState;
   documents: BidDocumentState[];
@@ -1328,7 +1385,7 @@ function AdministrativeLicenseEvidenceSection({
     <div className="bid-gate-group license-compliance-matrix">
       <div className="bid-gate-group-heading">
         <div>
-          <span className="section-kicker">1. Licenses and certifications</span>
+          <span className="section-kicker">{`${index}. Regulatory license requirements`}</span>
           <h3>{fields.length ? 'Regulatory license evidence' : 'License and certification documents'}</h3>
           <p>Upload the required license evidence in the table below. Each row shows the license name first and the issuing board or authority below it.</p>
         </div>
@@ -1466,6 +1523,40 @@ function AdministrativeDocumentGroup({
   );
 }
 
+function AdministrativeDeclarationSection({
+  index,
+  fields,
+  responses,
+  disabled,
+  onPatch,
+  emptyMessage = 'No additional confirmations are required.'
+}: {
+  index: number;
+  fields: BidSubmissionSchemaFieldDto[];
+  responses: SchemaResponseState;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+  emptyMessage?: string;
+}) {
+  return (
+    <div className="bid-gate-group declaration-confirmation-section">
+      <span className="section-kicker">{`${index}. Eligibility declarations/confirmations`}</span>
+      {fields.length ? (
+        <div className="bid-declaration-checklist">
+          {fields.map((field) => (
+            <label className="bid-declaration-check" data-bid-review-source-id={field.id} key={field.id}>
+              <input type="checkbox" checked={schemaFieldValue(field, responses) === true} disabled={disabled} onChange={(event) => onPatch(field, event.target.checked)} />
+              <span>{field.label}</span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <div className="scope-empty">{emptyMessage}</div>
+      )}
+    </div>
+  );
+}
+
 function AdministrativeConfirmationCard({
   field,
   checked,
@@ -1533,12 +1624,15 @@ function administrativeGateGroups(step: BidSubmissionSchemaStepDto) {
   const structuredLicenseFields = fields.filter(isGoodsRegulatoryLicenseField);
   const licenseFields = [...structuredLicenseFields, ...documentFields.filter(isAdministrativeLicenseField)];
   const remainingDocumentFields = documentFields.filter((field) => !licenseFields.includes(field));
-  const submissionFields = remainingDocumentFields.filter(isAdministrativeSubmissionDocumentField);
-  const otherDocumentFields = remainingDocumentFields.filter((field) => !submissionFields.includes(field));
+  const financialFields = remainingDocumentFields.filter(isAdministrativeFinancialCapacityField);
+  const afterFinancialFields = remainingDocumentFields.filter((field) => !financialFields.includes(field));
+  const submissionFields = afterFinancialFields.filter(isAdministrativeSubmissionDocumentField);
+  const otherDocumentFields = afterFinancialFields.filter((field) => !submissionFields.includes(field));
   const licenseSet = new Set(licenseFields);
   const declarationFields = fields.filter((field) => !isAdministrativeAttachmentField(field) && !licenseSet.has(field));
 
   return {
+    financialFields,
     licenseFields,
     submissionFields,
     otherDocumentFields,
@@ -1552,6 +1646,7 @@ function isAdministrativeAttachmentField(field: BidSubmissionSchemaFieldDto) {
 
 function isAdministrativeLicenseField(field: BidSubmissionSchemaFieldDto) {
   const text = administrativeFieldSearchText(field);
+  if (isAdministrativeFinancialCapacityField(field) || isGoodsOtherEligibilityEvidenceField(field)) return false;
   return /license|certificate|registration|permit|regulatory|crb|osha|statutory|tax clearance|vat registration|manufacturer authorization|authorization/i.test(text);
 }
 
@@ -1559,8 +1654,21 @@ function isGoodsRegulatoryLicenseField(field: BidSubmissionSchemaFieldDto) {
   return (field.type === 'table' || field.responseType === 'structured') && String(field.validation.control ?? '') === 'goodsRegulatoryLicense';
 }
 
+function isAdministrativeFinancialCapacityField(field: BidSubmissionSchemaFieldDto) {
+  return isGoodsFinancialCapacityEvidenceField(field) || /financialRequirementRows|financial capacity|financialRequirement|turnover|audited accounts|bank statement/i.test(administrativeFieldSearchText(field));
+}
+
+function isGoodsFinancialCapacityEvidenceField(field: BidSubmissionSchemaFieldDto) {
+  return String(field.validation.control ?? '') === 'goodsFinancialCapacityEvidence';
+}
+
+function isGoodsOtherEligibilityEvidenceField(field: BidSubmissionSchemaFieldDto) {
+  return String(field.validation.control ?? '') === 'goodsOtherEligibilityEvidence';
+}
+
 function isAdministrativeSubmissionDocumentField(field: BidSubmissionSchemaFieldDto) {
   const text = administrativeFieldSearchText(field);
+  if (isAdministrativeFinancialCapacityField(field) || isGoodsOtherEligibilityEvidenceField(field)) return false;
   return /submission|bid form|signed|signature|power of attorney|authority letter|authorization letter|administrative submission/i.test(text);
 }
 
@@ -1587,6 +1695,10 @@ function administrativeFieldDetail(field: BidSubmissionSchemaFieldDto) {
 
 function isAdministrativeConfirmationField(field: BidSubmissionSchemaFieldDto) {
   return field.section === 'administrative' && (field.type === 'boolean' || field.responseType === 'boolean' || field.responseType === 'declaration' || field.responseType === 'acknowledgement');
+}
+
+function isGoodsEligibilityDeclarationField(field: BidSubmissionSchemaFieldDto) {
+  return String(field.validation.control ?? '') === 'goodsEligibilityDeclaration';
 }
 
 function administrativeConfirmationCategory(field: BidSubmissionSchemaFieldDto) {
@@ -3436,6 +3548,51 @@ function goodsFieldForCsvRow(fields: BidSubmissionSchemaFieldDto[], row: Record<
   return fields.find((field) => field.requirementKey === row.requirementKey || field.id === row.fieldId) ?? fields[index];
 }
 
+function BidInformationPanel({
+  step,
+  responses,
+  disabled,
+  onPatch
+}: {
+  step: BidSubmissionSchemaStepDto;
+  responses: SchemaResponseState;
+  disabled: boolean;
+  onPatch: (field: BidSubmissionSchemaFieldDto, value: unknown) => void;
+}) {
+  const fieldByKey = Object.fromEntries(step.fields.map((field) => [field.requirementKey, field]));
+  const fields = [
+    fieldByKey['bidInformation.bidderName'],
+    fieldByKey['bidInformation.contactName'],
+    fieldByKey['bidInformation.contactEmail'],
+    fieldByKey['bidInformation.contactPhone'],
+    fieldByKey['bidInformation.referenceNumber']
+  ].filter((field): field is BidSubmissionSchemaFieldDto => Boolean(field));
+
+  return (
+    <section className="bid-dynamic-group bid-information-panel" data-bid-review-source-id={step.id}>
+      <div className="form-grid two">
+        {fields.map((field) => {
+          const readOnly = field.validation.readOnly === true;
+          return (
+            <label className={readOnly ? 'bid-readonly-field' : undefined} data-bid-review-source-id={field.id} key={field.id}>
+              <span>{field.label}</span>
+              <input
+                className="form-input"
+                aria-label={field.label}
+                type={field.validation.inputType === 'email' ? 'email' : field.validation.inputType === 'tel' ? 'tel' : 'text'}
+                value={String(schemaFieldValue(field, responses) ?? '')}
+                disabled={disabled}
+                readOnly={readOnly}
+                onChange={(event) => onPatch(field, event.target.value)}
+              />
+            </label>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function SchemaStepFields({
   step,
   responses,
@@ -3577,6 +3734,7 @@ function SchemaFieldControl({
           requirementKey={field.requirementKey}
           disabled={disabled}
           isUploading={uploadingKey === field.requirementKey}
+          metadata={{ fieldId: field.id }}
           onFiles={onFiles}
         />
         {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : hint ? <span className="form-hint">{hint}</span> : null}
@@ -4336,7 +4494,6 @@ function EligibilityGate({ gate, tender, administrative, onPatch, uploadBox }: {
           <span className={`badge ${gate.complete ? 'badge-success' : 'badge-warning'}`}>{gate.complete ? 'Gate complete' : `${gate.remaining} remaining`}</span>
         </div>
         <div className="tender-detail-field-grid">
-          <CheckCard label="Confirm eligibility to participate" checked={Boolean(administrative.eligible)} onChange={(value) => onPatch('eligible', value)} />
           <CheckCard label="Confirm tax and statutory compliance" checked={Boolean(administrative.taxCompliant)} onChange={(value) => onPatch('taxCompliant', value)} />
           <CheckCard label="Confirm mandatory documents are attached" checked={Boolean(administrative.documentsConfirmed)} onChange={(value) => onPatch('documentsConfirmed', value)} />
         </div>
@@ -4412,10 +4569,11 @@ function ReviewPanel({
   const checklistItems = reviewCompletenessChecklist(schema, responses, documents, samples, currency);
   const confirmationField = reviewConfirmationField(schema);
   const confirmationChecked = confirmationField ? schemaFieldValue(confirmationField, responses) === true : false;
+  const bidderLabel = bidderNameFromResponses(responses);
   return (
     <>
       <div className="record-summary submission-readiness-dashboard">
-        <SummaryItem label="Bidder" value="Supplier organization" />
+        <SummaryItem label="Bidder" value={bidderLabel} />
         <SummaryItem label="Eligibility readiness" value={sectionReadiness(schema, responses, documents, samples, 'administrative')} />
         <SummaryItem label="Technical response" value={`${technicalReviewResponseCount(schema, responses, documents, samples, currency)} response fields`} />
         <SummaryItem label="Financial offer" value={formatMoney(totalAmount, currency)} />
@@ -4600,6 +4758,10 @@ function ReviewPanel({
       </section>
     </>
   );
+}
+
+function bidderNameFromResponses(responses: SchemaResponseState) {
+  return String(responses['bidInformation.bidderName'] ?? '').trim() || 'Supplier organization';
 }
 
 function reviewDocumentSections(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[], currency: string): ReviewDocumentSection[] {
@@ -5027,6 +5189,319 @@ function samplePatchFromForm(input: SampleFormState, sample: BidSampleDto): Patc
   return patch;
 }
 
+function withGoodsBidInformationStep(schema: BidSubmissionSchemaDto | null, workflow: WorkflowType, tender?: TenderDetail | null): BidSubmissionSchemaDto | null {
+  if (!schema || workflow !== 'goods') return schema;
+
+  const bidInformationStep: BidSubmissionSchemaStepDto = {
+    id: 'goodsBidInformation',
+    label: 'Bid Information',
+    envelope: 'ADMINISTRATIVE',
+    required: true,
+    fields: goodsBidInformationFields()
+  };
+  const schemaWithBidInformation: BidSubmissionSchemaDto = schema.steps.some((step) => step.id === 'goodsBidInformation')
+    ? schema
+    : {
+        ...schema,
+        steps: [bidInformationStep, ...schema.steps]
+      };
+
+  return withGoodsEligibilityDocumentRequirements(schemaWithBidInformation, tender);
+}
+
+function goodsBidInformationFields(): BidSubmissionSchemaFieldDto[] {
+  return [
+    bidInformationField('bidInformation.bidderName', 'Name of bidder', true, { readOnly: true }),
+    bidInformationField('bidInformation.contactName', 'Contact person name', true),
+    bidInformationField('bidInformation.contactEmail', 'Contact person email', true, { inputType: 'email' }),
+    bidInformationField('bidInformation.contactPhone', 'Contact person phone number', true, { inputType: 'tel' }),
+    bidInformationField('bidInformation.referenceNumber', 'Bid reference number', true, { readOnly: true })
+  ];
+}
+
+function bidInformationField(id: string, label: string, required: boolean, validation: Record<string, unknown> = {}): BidSubmissionSchemaFieldDto {
+  return {
+    id,
+    requirementKey: id,
+    label,
+    type: 'text',
+    section: 'administrative',
+    required,
+    responseType: 'text',
+    envelope: 'ADMINISTRATIVE',
+    source: 'bid-information',
+    validation
+  };
+}
+
+function withGoodsEligibilityDocumentRequirements(schema: BidSubmissionSchemaDto, tender?: TenderDetail | null): BidSubmissionSchemaDto {
+  const existingFields = schema.steps.flatMap((step) => step.fields);
+  const movedFinancialFields = existingFields.filter(isGoodsFinancialRequirementField).map(goodsFinancialEvidenceFieldFromSchema);
+  const derivedFields = goodsEligibilityDocumentFieldsFromTender(tender);
+  const declarationFields = goodsEligibilityDeclarationFields();
+  const generatedFields = uniqueGoodsEligibilityFields([...movedFinancialFields, ...derivedFields, ...declarationFields]);
+
+  if (!generatedFields.length && !movedFinancialFields.length) return schema;
+
+  const stepsWithoutFinancialCapacity = schema.steps.map((step) => {
+    if (step.id === 'administrative') return step;
+    return { ...step, fields: step.fields.filter((field) => !isGoodsFinancialRequirementField(field)) };
+  });
+  const administrativeIndex = stepsWithoutFinancialCapacity.findIndex((step) => step.id === 'administrative');
+  const administrativeStep: BidSubmissionSchemaStepDto = administrativeIndex >= 0
+    ? stepsWithoutFinancialCapacity[administrativeIndex]
+    : { id: 'administrative', label: 'Eligibility and Document Requirements', envelope: 'ADMINISTRATIVE', required: true, fields: [] };
+  const nextAdministrative = {
+    ...administrativeStep,
+    fields: uniqueGoodsEligibilityFields([
+      ...administrativeStep.fields.filter((field) => !isGoodsFinancialRequirementField(field) && !isRemovedGoodsAdministrativeConfirmationField(field)),
+      ...generatedFields
+    ])
+  };
+  const nextSteps = administrativeIndex >= 0
+    ? stepsWithoutFinancialCapacity.map((step, index) => (index === administrativeIndex ? nextAdministrative : step))
+    : [...stepsWithoutFinancialCapacity, nextAdministrative];
+
+  return { ...schema, steps: nextSteps };
+}
+
+function goodsEligibilityDocumentFieldsFromTender(tender?: TenderDetail | null): BidSubmissionSchemaFieldDto[] {
+  if (!isGoodsTender(tender)) return [];
+  const requirements = objectPayload(tender?.requirements);
+  const fields = objectPayload(objectPayload(requirements.goods).fields);
+  const financialRows = firstRecordArray(requirements.financialRequirements, fields.financialRequirementRows, requirements.financialRequirementRows);
+  const regulatoryRows = firstRecordArray(requirements.regulatoryLicenseRequirements, fields.regulatoryLicenseRequirementRows, requirements.regulatoryLicenseRequirementRows);
+  const eligibilityRows = firstRecordArray(requirements.eligibilityRequirements, fields.eligibilityRequirementCards, requirements.eligibilityRequirementCards);
+
+  return [
+    ...financialRows.flatMap((row, index) => goodsFinancialEvidenceFieldFromTender(row, index)),
+    ...regulatoryRows.map(goodsRegulatoryLicenseFieldFromTender),
+    ...eligibilityRows.map(goodsOtherEligibilityFieldFromTender)
+  ];
+}
+
+function goodsFinancialEvidenceFieldFromSchema(field: BidSubmissionSchemaFieldDto): BidSubmissionSchemaFieldDto {
+  const evidenceRequired = goodsText(field.validation.evidenceRequired) || goodsCleanRequirementText(field.validation.prompt) || 'Financial capacity evidence required by the buyer.';
+  return goodsAdministrativeUploadField({
+    id: `${field.id}.evidenceUpload`,
+    requirementKey: evidenceRequirementKey(field, 'evidenceUpload'),
+    label: field.label,
+    required: field.required !== false,
+    source: 'requirements.goods.financialRequirementRows',
+    documentType: bidDocumentType('ADMIN_FINANCIAL_CAPACITY', field.label),
+    prompt: evidenceRequired,
+    validation: {
+      control: 'goodsFinancialCapacityEvidence',
+      originalRequirementKey: field.requirementKey,
+      minimumValue: field.validation.minimumValue,
+      period: field.validation.period,
+      evidenceRequired
+    }
+  });
+}
+
+function goodsFinancialEvidenceFieldFromTender(row: Record<string, unknown>, index: number): BidSubmissionSchemaFieldDto[] {
+  const evidenceRequired = goodsText(row.evidenceRequired ?? row.documentName ?? row.documentTitle ?? row.evidence);
+  if (!evidenceRequired) return [];
+  const id = goodsRequirementRowId(row, index, 'financial');
+  const label = goodsText(row.requirementType ?? row.requirementName ?? row.name ?? row.title) || `Financial capacity requirement ${index + 1}`;
+  return [
+    goodsAdministrativeUploadField({
+      id: `goods.financialRequirement.${id}.evidenceUpload`,
+      requirementKey: `goods.financialRequirement.${id}.evidenceUpload`,
+      label,
+      required: row.mandatory !== false && row.required !== false,
+      source: 'requirements.goods.financialRequirementRows',
+      documentType: bidDocumentType('ADMIN_FINANCIAL_CAPACITY', label),
+      prompt: [
+        `Evidence required: ${evidenceRequired}`,
+        goodsText(row.minimumValue) ? `Minimum value: ${goodsText(row.minimumValue)}` : '',
+        goodsText(row.period) ? `Period: ${goodsText(row.period)}` : ''
+      ].filter(Boolean).join(' / '),
+      validation: {
+        control: 'goodsFinancialCapacityEvidence',
+        originalRequirementKey: `goods.financialRequirement.${id}`,
+        minimumValue: goodsText(row.minimumValue),
+        period: goodsText(row.period),
+        evidenceRequired
+      }
+    })
+  ];
+}
+
+function goodsRegulatoryLicenseFieldFromTender(row: Record<string, unknown>, index: number): BidSubmissionSchemaFieldDto {
+  const id = goodsRequirementRowId(row, index, 'license');
+  const label = goodsText(row.license ?? row.requirementName ?? row.name ?? row.title) || `Regulatory license ${index + 1}`;
+  const issuingAuthority = goodsText(row.body ?? row.issuingAuthority ?? row.issuingBody ?? row.authority ?? row.board);
+  return {
+    id: `goods.regulatoryLicense.${id}`,
+    requirementKey: `goods.regulatoryLicense.${id}`,
+    label,
+    type: 'table',
+    section: 'administrative',
+    required: row.mandatory !== false && row.required !== false,
+    responseType: 'structured',
+    envelope: 'ADMINISTRATIVE',
+    source: 'requirements.goods.regulatoryLicenseRequirementRows',
+    validation: {
+      control: 'goodsRegulatoryLicense',
+      licenseName: label,
+      issuingAuthority,
+      prompt: goodsCleanRequirementText(row.evidenceRequired ?? row.description ?? row.notes) || issuingAuthority || 'Upload the license evidence required by the buyer.',
+      rowIndex: index + 1
+    }
+  };
+}
+
+function goodsOtherEligibilityFieldFromTender(row: Record<string, unknown>, index: number): BidSubmissionSchemaFieldDto {
+  const id = goodsRequirementRowId(row, index, 'eligibility');
+  const label = goodsText(row.requirementName ?? row.documentName ?? row.documentTitle ?? row.name ?? row.title) || `Eligibility requirement ${index + 1}`;
+  const notes = goodsCleanRequirementText(row.notes ?? row.description ?? row.requirementDescription);
+  return goodsAdministrativeUploadField({
+    id: `goods.eligibilityRequirement.${id}`,
+    requirementKey: `goods.eligibilityRequirement.${id}`,
+    label,
+    required: row.mandatory !== false && row.required !== false,
+    source: 'requirements.goods.eligibilityRequirements',
+    documentType: bidDocumentType('ADMIN_ELIGIBILITY', label),
+    prompt: notes || 'Upload the eligibility document required by the buyer.',
+    validation: { control: 'goodsOtherEligibilityEvidence', notes }
+  });
+}
+
+function goodsEligibilityDeclarationFields(): BidSubmissionSchemaFieldDto[] {
+  return [
+    goodsAdministrativeDeclarationField('goods.eligibilityDeclaration.documentsTrue', 'I confirm that the documents I uploaded are valid and true.'),
+    goodsAdministrativeDeclarationField('goods.eligibilityDeclaration.disqualificationAcknowledgement', 'I understand that false or misleading documents may lead to disqualification.')
+  ];
+}
+
+function isRemovedGoodsAdministrativeConfirmationField(field: BidSubmissionSchemaFieldDto) {
+  const normalizedLabel = field.label.toLowerCase().replace(/\s+/g, ' ').trim();
+  return normalizedLabel === 'confirm eligibility to participate'
+    || normalizedLabel === 'i confirm i am authorized to submit these documents on behalf of the bidder.';
+}
+
+function goodsAdministrativeDeclarationField(id: string, label: string): BidSubmissionSchemaFieldDto {
+  return {
+    id,
+    requirementKey: id,
+    label,
+    type: 'boolean',
+    section: 'administrative',
+    required: true,
+    responseType: 'acknowledgement',
+    envelope: 'ADMINISTRATIVE',
+    source: 'goods.eligibilityDeclarations',
+    validation: { control: 'goodsEligibilityDeclaration' }
+  };
+}
+
+function goodsAdministrativeUploadField(input: {
+  id: string;
+  requirementKey: string;
+  label: string;
+  required: boolean;
+  source: string;
+  documentType: string;
+  prompt?: string;
+  validation?: Record<string, unknown>;
+}): BidSubmissionSchemaFieldDto {
+  return {
+    id: input.id,
+    requirementKey: input.requirementKey,
+    label: input.label,
+    type: 'file',
+    section: 'administrative',
+    required: input.required,
+    responseType: 'attachment',
+    envelope: 'ADMINISTRATIVE',
+    source: input.source,
+    validation: {
+      documentType: input.documentType,
+      prompt: input.prompt,
+      ...input.validation
+    }
+  };
+}
+
+function uniqueGoodsEligibilityFields(fields: BidSubmissionSchemaFieldDto[]) {
+  const seen = new Set<string>();
+  return fields.filter((field) => {
+    const key = goodsEligibilityDedupeKey(field);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function goodsEligibilityDedupeKey(field: BidSubmissionSchemaFieldDto) {
+  const control = String(field.validation.control ?? '');
+  const normalizedLabel = field.label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (isGoodsFinancialCapacityEvidenceField(field) || control === 'goodsFinancialRequirement') return `financial::${normalizedLabel}`;
+  if (isGoodsRegulatoryLicenseField(field)) return `regulatory::${normalizedLabel}`;
+  if (isGoodsOtherEligibilityEvidenceField(field) || /eligibilityRequirementCards|eligibilityRequirements/i.test(field.source)) return `eligibility::${normalizedLabel}`;
+  return `${field.id}::${field.requirementKey}`;
+}
+
+function goodsRequirementRowId(row: Record<string, unknown>, index: number, fallbackPrefix: string) {
+  return safeSchemaKey(goodsText(row.id ?? row.sourceItemId ?? row.requirementKey) || `${fallbackPrefix}-${index + 1}`);
+}
+
+function safeSchemaKey(value: string) {
+  return value.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'item';
+}
+
+function bidDocumentType(prefix: string, label: string) {
+  const suffix = label.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toUpperCase();
+  return `${prefix}_${suffix || 'DOCUMENT'}`.slice(0, 120);
+}
+
+function firstRecordArray(...values: unknown[]) {
+  const found = values.find((value) => Array.isArray(value) && value.some((item) => Object.keys(objectPayload(item)).length));
+  return Array.isArray(found) ? found.map(objectPayload).filter((row) => Object.keys(row).length > 0) : [];
+}
+
+function isGoodsTender(tender?: TenderDetail | null) {
+  return String(tender?.type ?? '').toLowerCase().replace(/[^a-z]/g, '') === 'goods';
+}
+
+function withGoodsBidInformationDefaults(
+  responses: SchemaResponseState,
+  schema: BidSubmissionSchemaDto | null,
+  workflow: WorkflowType,
+  bidderName: string,
+  bidReferenceNumber: string,
+  options: { forceBidderName?: boolean; forceReferenceNumber?: boolean } = {}
+) {
+  if (workflow !== 'goods' || !schemaStep(schema, 'goodsBidInformation')) return responses;
+
+  const next: SchemaResponseState = {};
+  const currentBidderName = String(responses['bidInformation.bidderName'] ?? '').trim();
+  const currentReferenceNumber = String(responses['bidInformation.referenceNumber'] ?? '').trim();
+  if ((!currentBidderName || options.forceBidderName) && bidderName && currentBidderName !== bidderName) next['bidInformation.bidderName'] = bidderName;
+  if ((!currentReferenceNumber || options.forceReferenceNumber) && bidReferenceNumber && currentReferenceNumber !== bidReferenceNumber) next['bidInformation.referenceNumber'] = bidReferenceNumber;
+  return Object.keys(next).length ? { ...responses, ...next } : responses;
+}
+
+function generatedBidReference(tender: TenderDetail | null | undefined, supplierKey: string | undefined) {
+  const tenderPart = safeReferencePart(tender?.reference || tender?.id || 'TENDER');
+  const supplierPart = shortHash(supplierKey || 'SUPPLIER');
+  return `PX-BID-${tenderPart}-${supplierPart}`;
+}
+
+function safeReferencePart(value: string) {
+  return value.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toUpperCase() || 'TENDER';
+}
+
+function shortHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36).toUpperCase().padStart(6, '0').slice(-6);
+}
+
 function schemaSteps(schema: BidSubmissionSchemaDto): Step[] {
   return schema.steps.map((step, index) => ({
     id: step.id,
@@ -5066,6 +5541,7 @@ function reviewStepSubmits(workflow: WorkflowType, stepId: string) {
 }
 
 function schemaStepDescription(step: BidSubmissionSchemaStepDto) {
+  if (step.id === 'goodsBidInformation') return '';
   if (!step.fields.length) return 'No supplier response fields configured for this step.';
   return `${step.fields.length} tender-derived supplier response field${step.fields.length === 1 ? '' : 's'}.`;
 }
@@ -5079,6 +5555,7 @@ function schemaReviewSectionTitle(step: BidSubmissionSchemaStepDto) {
     declarations: 'Supplier Declarations',
     review: 'Review Submission',
     receipt: 'Submission Receipt',
+    goodsBidInformation: 'Bid Information',
     goodsTechnical: 'Technical Response',
     goodsFinancial: 'Quantity Schedule / Financial Offer',
     goodsSamples: 'Sample Submission',
@@ -5195,6 +5672,7 @@ function schemaFieldComplete(field: BidSubmissionSchemaFieldDto, responses: Sche
   if (worksFieldControl(field) === 'worksSimilarProject') return field.required ? fieldEvidenceUploadsComplete(field, documents) : hasMeaningfulStructuredResponse(value) || fieldEvidenceUploadsComplete(field, documents);
   if (worksFieldControl(field) === 'worksPersonnel') return field.required ? hasFilledStructuredKey(value, 'namedResource') && fieldEvidenceUploadsComplete(field, documents) : hasFilledStructuredKey(value, 'namedResource') || fieldEvidenceUploadsComplete(field, documents);
   if (isWorksHseField(field)) return worksHseFieldComplete(field, responses, documents);
+  if (isGoodsRegulatoryLicenseField(field)) return field.required ? fieldEvidenceUploadsComplete(field, documents) : hasMeaningfulStructuredResponse(value) || fieldEvidenceUploadsComplete(field, documents);
   if (field.type === 'table' || field.responseType === 'structured') {
     const hasResponse = hasMeaningfulStructuredResponse(value);
     return field.required ? hasResponse && fieldEvidenceUploadsComplete(field, documents) : hasResponse;
@@ -5711,7 +6189,6 @@ function bidGateStatus(form: BidFormState, documents: BidDocumentState[], tender
   });
   const hasAdministrativeEvidence = hasUploadedAdministrativeEvidence || form.administrative.documentsConfirmed === true;
   const items: GateItem[] = [
-    { id: 'eligible', label: 'Confirm eligibility to participate', category: 'Eligibility declarations/confirmations', mandatory: true, complete: form.administrative.eligible === true },
     { id: 'taxCompliant', label: 'Confirm tax and statutory compliance', category: 'Eligibility declarations/confirmations', mandatory: true, complete: form.administrative.taxCompliant === true },
     { id: 'documentsConfirmed', label: 'Confirm mandatory documents are attached', category: 'Submission documents', mandatory: true, complete: form.administrative.documentsConfirmed === true },
     { id: 'administrativeEvidence', label: 'Upload eligibility and administrative evidence', category: 'Licenses and certifications', mandatory: true, complete: hasAdministrativeEvidence }

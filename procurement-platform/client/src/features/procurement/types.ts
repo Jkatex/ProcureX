@@ -66,6 +66,7 @@ export type CreateTenderContact = {
 
 export type CreateTenderLineItem = {
   id: string;
+  itemNo?: string;
   description: string;
   quantity: string;
   unit: string;
@@ -220,6 +221,7 @@ export type CreateTenderConsultancyResponsibilityRow = {
   title: string;
   description: string;
   supportType: string;
+  reportingFrequency?: string;
 };
 
 export type CreateTenderConsultancyDeliverableRow = {
@@ -229,6 +231,7 @@ export type CreateTenderConsultancyDeliverableRow = {
   submissionTimeline: string;
   formatRequired: string;
   reviewer: string;
+  submissionChannel?: string;
   mandatory: boolean;
 };
 

@@ -10,9 +10,13 @@ import { procurementApi } from '../../api';
 import { createEmptyConsultancyRequirements, createEmptyServiceRequirements, createEmptyTenderDraft, createEmptyWorksRequirements, createTenderSetup, getSuggestedCriteria } from '../../createTenderConfig';
 import { saveCreateTenderDraft, selectCreateTenderDraft, submitCreateTenderForEvaluation } from '../../slice';
 import { downloadTenderSpreadsheetTemplate, readTenderSpreadsheetRows, type TenderSpreadsheetRow } from '../../tenderSpreadsheetImport';
-import { downloadTenderDocument } from '../../tenderDocumentActions';
+import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';
 import { NotificationCard } from '@/shared/components/NotificationCard';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
+import { ConsultancyTenderReviewDocument } from './ConsultancyTenderReviewDocument';
+import { GoodsTenderReviewDocument } from './GoodsTenderReviewDocument';
+import { SupplierProcurementDetails } from './SupplierTenderDetailProcurexPage';
+import { WorksTenderReviewDocument } from './WorksTenderReviewDocument';
 import type {
   ContactVerificationChannel,
   CreateTenderConfirmationId,
@@ -58,6 +62,8 @@ import type { CommunicationRecipient } from '@/features/communication/types';
 
 const steps = ['Basic Information', 'Procurement Planning', 'Tender Requirements', 'Evaluation Criteria and Weights', 'Review Tender', 'Tender Review and Publication'];
 const tenderImportAccept = '.xlsx,.xls,.csv,.txt';
+const goodsQuantityImportAccept = '.xlsx,.xls';
+const goodsQuantityTemplateHeaders = ['Id', 'Item name', 'Quantity', 'Unit'];
 
 type ContactVerificationUiState = Record<
   ContactVerificationChannel,
@@ -98,7 +104,7 @@ const financialRequirementTypes = [
   'Bank Statement Requirement',
   'Audited Financial Statements'
 ];
-const financialPeriods = ['Annual', 'Current', 'Last 12 Months', 'Last 3 Years', 'Last 5 Years'];
+const financialPeriods = ['Annual', 'Current', 'Last 6 Months', 'Last 3 Years', 'Last 5 Years'];
 const financialEvidence = ['Audited accounts', 'Bank statement', 'Bank letter', 'Credit facility letter', 'Tax clearance', 'Management accounts'];
 const worksContractTypes = ['Lump Sum Contract', 'Unit Price Contract', 'Fixed Price Contract', 'Framework Contract', 'Consultancy / Time-Based Contract', 'Other'];
 const worksDocumentTypes = ['Architectural drawings', 'Structural drawings', 'Electrical drawings', 'Mechanical drawings', 'Geotechnical report', 'Environmental report', 'Other'];
@@ -119,7 +125,7 @@ const consultancySupportTypes = ['Office access', 'Document access', 'Meeting co
 const consultancyFrequencyOptions = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'On completion', 'Ad hoc'];
 const consultancyReportTypes = ['Weekly progress report', 'Monthly report', 'Inception report', 'Draft report', 'Final report', 'Ad hoc report'];
 const consultancyFormats = ['PDF', 'Word', 'Excel', 'PowerPoint', 'Hard copy', 'Soft copy', 'Other'];
-const consultancyReviewers = ['Project Manager', 'Supervising Officer', 'Accounting Officer', 'Buyer', 'User Department', 'Other'];
+const consultancySubmissionChannels = ['Procurement portal', 'Email', 'Physical submission', 'Project meeting', 'Other'];
 const consultancyEducationLevels = ['Certificate', 'Diploma', 'Bachelor Degree', 'Masters Degree', 'PhD', 'Professional certification', 'Other'];
 const consultancyFirmSectors = ['Public sector', 'Health', 'Education', 'Infrastructure', 'ICT', 'Finance', 'Environment', 'Energy', 'Water', 'Transport', 'Agriculture', 'Research'];
 const consultancyAuthorities = ['Project Manager', 'Supervising Officer', 'Accounting Officer', 'User Department', 'Steering Committee', 'Tender Board', 'Other'];
@@ -187,55 +193,59 @@ function createRegulatoryLicenseRow(licenseName: string): CreateTenderRegulatory
     license: catalogItem.license,
     body: catalogItem.body,
     mandatory: true,
-    expiryRequired: true
+    expiryRequired: false
   };
 }
 
 function downloadGoodsQuantityTemplate() {
-  downloadTenderSpreadsheetTemplate('goods-quantity-schedule-template.xlsx', [
-    ['Item', 'Description', 'Unit', 'Qty'],
-    ['1', '', '', '']
-  ]);
-}
-
-function downloadProductSpecificationTemplate() {
-  downloadTenderSpreadsheetTemplate('goods-product-specification-template.xlsx', [
-    ['Item', 'Specification', 'Specific detail required'],
-    ['1', 'Brand', 'HP/Dell/Lenovo or equivalent']
-  ]);
+  downloadTenderSpreadsheetTemplate(
+    'goods-quantity-schedule-template.xlsx',
+    [
+      goodsQuantityTemplateHeaders,
+      ['1', '', '', '']
+    ],
+    [
+      { wch: 16 },
+      { wch: 42 },
+      { wch: 18 },
+      { wch: 18 }
+    ]
+  );
 }
 
 function parseGoodsQuantityRows(rows: TenderSpreadsheetRow[]): CreateTenderLineItem[] {
-  const dataRows = rows[0]?.join(' ').toLowerCase().includes('description') ? rows.slice(1) : rows;
+  if (!isExactGoodsQuantityHeader(rows[0])) {
+    throw new Error('The Excel format is not correct. Download Excel Template and use exactly four columns: Id, Item name, Quantity, Unit.');
+  }
 
-  return dataRows.map((row, index) => ({
-    id: `item-import-${Date.now()}-${index}`,
-    description: row[1] || row[0] || '',
-    unit: row[2] || '',
-    quantity: row[3] || ''
+  return rows
+    .slice(1)
+    .filter((row) => row.slice(1, 4).some(Boolean))
+    .map((row, index) => {
+      if (row.length !== 4 || row.slice(4).some(Boolean)) {
+        throw new Error('The Excel format is not correct. Download Excel Template and use exactly four columns: Id, Item name, Quantity, Unit.');
+      }
+      return {
+        id: `item-import-${Date.now()}-${index}`,
+        itemNo: String(index + 1),
+        description: row[1] || '',
+        quantity: row[2] || '',
+        unit: row[3] || '',
+        unitPrice: ''
+      };
+    });
+}
+
+function renumberGoodsLineItems(items: CreateTenderLineItem[]) {
+  return items.map((item, index) => ({
+    ...item,
+    itemNo: String(index + 1)
   }));
 }
 
-function parseProductSpecificationRows(rows: TenderSpreadsheetRow[], items: CreateTenderLineItem[]): CreateTenderProductSpecificationRow[] {
-  const dataRows = rows[0]?.join(' ').toLowerCase().includes('specification') ? rows.slice(1) : rows;
-
-  return dataRows
-    .map((row, index) => {
-      const sourceToken = row[0] || '';
-      const itemIndex = Math.max(Number(sourceToken) - 1, 0);
-      const matchedItem =
-        items[itemIndex] ??
-        items.find((item) => item.description.toLowerCase() === sourceToken.toLowerCase()) ??
-        items[0];
-      if (!matchedItem || !row[1]) return null;
-      return {
-        id: createRowId(`spec-import-${index}`),
-        sourceItemId: matchedItem.id,
-        specificationName: row[1],
-        acceptableRequirement: row[2] || ''
-      };
-    })
-    .filter(Boolean) as CreateTenderProductSpecificationRow[];
+function isExactGoodsQuantityHeader(row: TenderSpreadsheetRow | undefined) {
+  if (!row || row.length !== goodsQuantityTemplateHeaders.length) return false;
+  return goodsQuantityTemplateHeaders.every((header, index) => row[index]?.trim().toLowerCase() === header.toLowerCase());
 }
 
 function getServiceBoqTotal(row: CreateTenderServiceBoqRow) {
@@ -718,8 +728,14 @@ export function CreateTenderProcurexPage() {
   }
 
   function addLineItem() {
-    const item: CreateTenderLineItem = { id: createRowId('item'), description: '', quantity: '', unit: '' };
-    patchDraft({ commercialItems: [...draft.commercialItems, item] });
+    const item: CreateTenderLineItem = {
+      id: createRowId('item'),
+      itemNo: '',
+      description: '',
+      quantity: '',
+      unit: ''
+    };
+    patchDraft({ commercialItems: renumberGoodsLineItems([...draft.commercialItems, item]) });
   }
 
   function updateLineItem(itemId: string, patch: Partial<CreateTenderLineItem>) {
@@ -728,7 +744,7 @@ export function CreateTenderProcurexPage() {
 
   function removeLineItem(itemId: string) {
     patchDraft({
-      commercialItems: draft.commercialItems.filter((item) => item.id !== itemId),
+      commercialItems: renumberGoodsLineItems(draft.commercialItems.filter((item) => item.id !== itemId)),
       productSpecifications: draft.productSpecifications.filter((row) => row.sourceItemId !== itemId),
       sampleRequirements: draft.sampleRequirements.filter((row) => row.relatedBoqItemId !== itemId)
     });
@@ -1061,7 +1077,7 @@ export function CreateTenderProcurexPage() {
                     onReplaceCriteria={(evaluationCriteria) => patchDraft({ evaluationCriteria })}
                   />
                 ) : null}
-                {activeStep === 4 ? <ReviewStep draft={draft} selectedType={selectedType} total={criteriaTotal} /> : null}
+                {activeStep === 4 ? <ReviewStep draft={draft} /> : null}
                 {activeStep === 5 ? (
                   <PublicationStep
                     draft={draft}
@@ -1497,8 +1513,10 @@ function RegulatoryLicenseRequirementsPanel({
   filteredAddLicenses,
   getChangeMatches,
   onToggleAdd,
+  onCancelAdd,
   onAddSearch,
   onStartChange,
+  onCancelChange,
   onChangeSearch,
   onAddLicense,
   onUpdateLicense,
@@ -1513,8 +1531,10 @@ function RegulatoryLicenseRequirementsPanel({
   filteredAddLicenses: RegulatoryLicenseCatalogItem[];
   getChangeMatches: (row: CreateTenderRegulatoryLicenseRequirementRow) => RegulatoryLicenseCatalogItem[];
   onToggleAdd: () => void;
+  onCancelAdd: () => void;
   onAddSearch: (value: string) => void;
   onStartChange: (rowId: string) => void;
+  onCancelChange: () => void;
   onChangeSearch: (value: string) => void;
   onAddLicense: (licenseName: string) => void;
   onUpdateLicense: (rowId: string, patch: Partial<CreateTenderRegulatoryLicenseRequirementRow>) => void;
@@ -1522,7 +1542,7 @@ function RegulatoryLicenseRequirementsPanel({
   onDeleteLicense: (rowId: string) => void;
 }) {
   return (
-    <section className="planning-section wizard-section scope-list-panel license-requirements-panel">
+    <section className="requirement-block license-requirements-panel">
       <div className="scope-list-heading">
         <div>
           <h3>Regulatory license requirements</h3>
@@ -1544,14 +1564,19 @@ function RegulatoryLicenseRequirementsPanel({
                   <small>{row.body}</small>
                   {changeRowId === row.id ? (
                     <div className="license-picker">
-                      <input
-                        className="form-input"
-                        type="search"
-                        aria-label="Search regulatory license"
-                        placeholder="Search license"
-                        value={changeSearch}
-                        onChange={(event) => onChangeSearch(event.target.value)}
-                      />
+                      <div className="license-picker-control-row">
+                        <input
+                          className="form-input"
+                          type="search"
+                          aria-label="Search regulatory license"
+                          placeholder="Search license"
+                          value={changeSearch}
+                          onChange={(event) => onChangeSearch(event.target.value)}
+                        />
+                        <button className="btn btn-secondary" type="button" onClick={onCancelChange}>
+                          Cancel
+                        </button>
+                      </div>
                       <div className="license-results open" role="listbox" aria-label="Matching licenses">
                         {changeMatches.length ? (
                           changeMatches.map((item) => (
@@ -1579,18 +1604,6 @@ function RegulatoryLicenseRequirementsPanel({
                     <span></span>
                   </label>
                 </div>
-                <div className="license-toggle-cell">
-                  <span>Expiry required</span>
-                  <label className="requirement-toggle">
-                    <input
-                      type="checkbox"
-                      aria-label={`${row.license} Expiry required`}
-                      checked={row.expiryRequired}
-                      onChange={(event) => onUpdateLicense(row.id, { expiryRequired: event.target.checked })}
-                    />
-                    <span></span>
-                  </label>
-                </div>
                 <div className="license-row-actions">
                   <button className="btn btn-secondary" type="button" onClick={() => onStartChange(row.id)}>
                     Change
@@ -1608,14 +1621,19 @@ function RegulatoryLicenseRequirementsPanel({
       </div>
       {addOpen ? (
         <div className="license-add-picker">
-          <input
-            className="form-input"
-            type="search"
-            aria-label="Search all regulatory licenses"
-            placeholder="Search all licenses"
-            value={addSearch}
-            onChange={(event) => onAddSearch(event.target.value)}
-          />
+          <div className="license-picker-control-row">
+            <input
+              className="form-input"
+              type="search"
+              aria-label="Search all regulatory licenses"
+              placeholder="Search all licenses"
+              value={addSearch}
+              onChange={(event) => onAddSearch(event.target.value)}
+            />
+            <button className="btn btn-secondary" type="button" onClick={onCancelAdd}>
+              Cancel
+            </button>
+          </div>
           <div className="license-results open" role="listbox" aria-label="Available regulatory licenses">
             {filteredAddLicenses.length ? (
               filteredAddLicenses.map((item) => (
@@ -1829,12 +1847,22 @@ function RequirementsStep({
       onToggleAdd={() => {
         setLicenseAddOpen((current) => !current);
         setLicenseAddSearch('');
+        setLicenseChangeRowId(null);
+        setLicenseChangeSearch('');
+      }}
+      onCancelAdd={() => {
+        setLicenseAddOpen(false);
+        setLicenseAddSearch('');
       }}
       onAddSearch={setLicenseAddSearch}
       onStartChange={(rowId) => {
         setLicenseAddOpen(false);
         setLicenseAddSearch('');
         setLicenseChangeRowId(rowId);
+        setLicenseChangeSearch('');
+      }}
+      onCancelChange={() => {
+        setLicenseChangeRowId(null);
         setLicenseChangeSearch('');
       }}
       onChangeSearch={setLicenseChangeSearch}
@@ -1886,29 +1914,20 @@ function RequirementsStep({
 
   if (draft.procurementTypeId === 'goods') {
     function importGoodsQuantitySchedule(event: ChangeEvent<HTMLInputElement>) {
-      void handleTenderSpreadsheetImport(
-        event,
-        'Goods quantity schedule',
-        parseGoodsQuantityRows,
-        (importedItems) => onPatch({ commercialItems: [...draft.commercialItems, ...importedItems] }),
-        notifySuccess,
-        notifyWarning
-      );
-    }
-
-    function importProductSpecifications(event: ChangeEvent<HTMLInputElement>) {
-      if (!draft.commercialItems.length) {
-        event.currentTarget.value = '';
-        notifyWarning('Import not added', 'Add at least one quantity schedule item before importing product specifications.', {
-          reason: 'Product specification rows must be matched to an existing BOQ item.'
+      const input = event.currentTarget;
+      const fileName = input.files?.[0]?.name ?? '';
+      if (!/\.(xlsx|xls)$/i.test(fileName)) {
+        input.value = '';
+        notifyWarning('Import not added', 'The Excel format is not correct. Download Excel Template and use exactly four columns: Id, Item name, Quantity, Unit.', {
+          reason: 'Only .xlsx or .xls files that match the ProcureX Goods BOQ template can be imported here.'
         });
         return;
       }
       void handleTenderSpreadsheetImport(
         event,
-        'Product specifications',
-        (rows) => parseProductSpecificationRows(rows, draft.commercialItems),
-        (importedRows) => onPatch({ productSpecifications: [...draft.productSpecifications, ...importedRows] }),
+        'Goods quantity schedule',
+        parseGoodsQuantityRows,
+        (importedItems) => onPatch({ commercialItems: renumberGoodsLineItems([...draft.commercialItems, ...importedItems]) }),
         notifySuccess,
         notifyWarning
       );
@@ -1925,11 +1944,11 @@ function RequirementsStep({
         </div>
 
         <div className="requirement-section-grid">
-          <article className="requirement-block" id="requirement-section-quantitySchedule">
-            <div>
-              <h4>Quantity Schedule / BOQ</h4>
-              <span className="form-hint">Unpriced quantity schedule bidders will price during submission.</span>
-            </div>
+            <article className="requirement-block" id="requirement-section-quantitySchedule">
+              <div>
+                <h4>Quantity Schedule / BOQ</h4>
+                <span className="form-hint">Editable four-column schedule for the goods suppliers must provide.</span>
+              </div>
             <div className="requirement-control-grid">
               <div className="requirement-control requirement-control-wide">
                 <span className="form-label">Quantity lines</span>
@@ -1937,10 +1956,10 @@ function RequirementsStep({
                   <table className="requirement-table" data-requirement-table="quantityScheduleRows">
                     <thead>
                       <tr>
-                        <th>Item</th>
-                        <th>Description</th>
+                        <th>Id</th>
+                        <th>Item name</th>
+                        <th>Quantity</th>
                         <th>Unit</th>
-                        <th>Qty</th>
                         <th aria-label="Actions"></th>
                       </tr>
                     </thead>
@@ -1952,20 +1971,10 @@ function RequirementsStep({
                             <td>
                               <input
                                 className="form-input"
-                                aria-label={`Item ${index + 1} description`}
+                                aria-label={`Item ${index + 1} name`}
                                 value={item.description}
                                 onChange={(event) => onUpdateLineItem(item.id, { description: event.target.value })}
                               />
-                            </td>
-                            <td>
-                              <select className="form-input" aria-label={`Item ${index + 1} unit`} value={item.unit} onChange={(event) => onUpdateLineItem(item.id, { unit: event.target.value })}>
-                                <option value="">Select unit</option>
-                                {goodsUnitOptions.map((unit) => (
-                                  <option key={unit} value={unit}>
-                                    {unit}
-                                  </option>
-                                ))}
-                              </select>
                             </td>
                             <td>
                               <input
@@ -1974,6 +1983,14 @@ function RequirementsStep({
                                 inputMode="decimal"
                                 value={item.quantity}
                                 onChange={(event) => onUpdateLineItem(item.id, { quantity: event.target.value })}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                className="form-input"
+                                aria-label={`Item ${index + 1} unit`}
+                                value={item.unit}
+                                onChange={(event) => onUpdateLineItem(item.id, { unit: event.target.value })}
                               />
                             </td>
                             <td className="requirement-table-action-cell">
@@ -1995,8 +2012,8 @@ function RequirementsStep({
                 </div>
                 <div className="requirement-table-actions">
                   <label className="btn btn-secondary scope-add goods-import-control">
-                    Import Excel / CSV
-                    <input type="file" accept={tenderImportAccept} aria-label="Import goods quantity schedule" onChange={importGoodsQuantitySchedule} />
+                    Import Excel
+                    <input type="file" accept={goodsQuantityImportAccept} aria-label="Import goods quantity schedule" onChange={importGoodsQuantitySchedule} />
                   </label>
                   <button className="btn btn-secondary scope-add" type="button" onClick={downloadGoodsQuantityTemplate}>
                     Download Excel Template
@@ -2018,15 +2035,6 @@ function RequirementsStep({
             <div className="requirement-control requirement-control-wide">
               <span className="form-label">Product specification table</span>
               <div className="product-spec-builder" data-product-spec-builder="productSpecificationTemplate">
-                <div className="product-spec-toolbar">
-                  <label className="btn btn-secondary scope-add goods-import-control">
-                    Import Excel / CSV
-                    <input type="file" accept={tenderImportAccept} aria-label="Import product specifications" onChange={importProductSpecifications} />
-                  </label>
-                  <button className="btn btn-secondary scope-add" type="button" onClick={downloadProductSpecificationTemplate}>
-                    Download Excel Template
-                  </button>
-                </div>
                 <div className="product-spec-item-grid">
                   {draft.commercialItems.length ? (
                     draft.commercialItems.map((item, index) => {
@@ -2035,11 +2043,9 @@ function RequirementsStep({
                         <article key={item.id} className="product-spec-item-card">
                           <div className="product-spec-item-header">
                             <div>
-                              <span className="section-kicker">Quantity schedule item {index + 1}</span>
                               <h4>{item.description || `Product item ${index + 1}`}</h4>
                               <p>
-                                {item.quantity || 0} {item.unit || 'unit'}
-                                {Number(item.quantity) === 1 ? '' : 's'} required
+                                {item.quantity || 0} {item.unit || 'unit'} required
                               </p>
                             </div>
                             <button
@@ -2051,51 +2057,36 @@ function RequirementsStep({
                             </button>
                           </div>
                           <div className="product-spec-sheet-wrap">
-                            <table className="product-spec-sheet product-spec-item-sheet">
-                              <thead>
-                                <tr>
-                                  <th>Specification <span className="required-dot">*</span></th>
-                                  <th>Specific detail required</th>
-                                  <th aria-label="Actions"></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {itemRows.length ? (
-                                  itemRows.map((row, rowIndex) => (
-                                    <tr key={row.id} data-product-spec-row={row.id} data-product-spec-control="productSpecificationTemplate">
-                                      <td>
-                                        <input
-                                          className="form-input"
-                                          aria-label={`Specification name ${rowIndex + 1}`}
-                                          value={row.specificationName}
-                                          onChange={(event) => updateProductSpecification(row.id, { specificationName: event.target.value })}
-                                        />
-                                      </td>
-                                      <td>
-                                        <textarea
-                                          className="form-input"
-                                          rows={3}
-                                          aria-label={`Specific detail required ${rowIndex + 1}`}
-                                          value={row.acceptableRequirement}
-                                          onChange={(event) => updateProductSpecification(row.id, { acceptableRequirement: event.target.value })}
-                                        />
-                                      </td>
-                                      <td>
-                                        <button className="boq-row-action icon-delete-btn" type="button" aria-label="Delete specification" onClick={() => deleteProductSpecification(row.id)}>
-                                          x
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td colSpan={3}>
-                                      <div className="scope-empty">No specifications added for this item yet.</div>
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
+                            {itemRows.length ? (
+                              <div className="product-spec-sheet-grid" data-product-spec-control="productSpecificationTemplate">
+                                <div className="product-spec-sheet-row product-spec-sheet-head">
+                                  <span>Specification</span>
+                                  <span>Specific detail required</span>
+                                </div>
+                                {itemRows.map((row, rowIndex) => (
+                                  <div className="product-spec-sheet-row" key={row.id} data-product-spec-row={row.id}>
+                                    <input
+                                      className="form-input"
+                                      aria-label={`Specification name ${rowIndex + 1}`}
+                                      value={row.specificationName}
+                                      onChange={(event) => updateProductSpecification(row.id, { specificationName: event.target.value })}
+                                    />
+                                    <textarea
+                                      className="form-input"
+                                      rows={3}
+                                      aria-label={`Specific detail required ${rowIndex + 1}`}
+                                      value={row.acceptableRequirement}
+                                      onChange={(event) => updateProductSpecification(row.id, { acceptableRequirement: event.target.value })}
+                                    />
+                                    <button className="boq-row-action icon-delete-btn product-spec-sheet-action" type="button" aria-label="Delete specification" onClick={() => deleteProductSpecification(row.id)}>
+                                      x
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="scope-empty">No specifications added for this item yet.</div>
+                            )}
                           </div>
                         </article>
                       );
@@ -2104,36 +2095,32 @@ function RequirementsStep({
                     <div className="scope-empty">Add goods items in the Quantity Schedule first. Each item will get its own specification table here.</div>
                   )}
                 </div>
-                <div className="product-spec-modal" role="dialog" aria-modal="true" aria-labelledby="product-spec-modal-title" hidden={!specModal}>
+                <div className="product-spec-modal goods-product-spec-modal" role="dialog" aria-modal="true" aria-labelledby="product-spec-modal-title" hidden={!specModal}>
                   <div className="product-spec-modal-card">
                     <div className="product-spec-modal-heading">
                       <div>
-                        <span className="section-kicker">Item specification</span>
-                        <h4 id="product-spec-modal-title">Add Specification</h4>
-                        <p>{draft.commercialItems.find((item) => item.id === specModal?.sourceItemId)?.description || 'Product item'}</p>
+                        <span id="product-spec-modal-title" className="sr-only">Add Specification</span>
+                        <h4>{draft.commercialItems.find((item) => item.id === specModal?.sourceItemId)?.description || 'Product item'}</h4>
                       </div>
-                      <button className="boq-row-action icon-delete-btn" type="button" aria-label="Cancel add specification" onClick={() => setSpecModal(null)}>
-                        x
-                      </button>
                     </div>
-                    <label>
+                    <label className="product-spec-modal-field">
                       <span className="form-label">Specification name</span>
                       <input
                         className="form-input"
                         type="text"
                         aria-label="Specification name"
-                        placeholder="Example: Brand, Processor, Warranty"
+                        placeholder="Example: Feature, Packaging, Brand, Processor, Warranty"
                         value={specModal?.name ?? ''}
                         onChange={(event) => specModal && setSpecModal({ ...specModal, name: event.target.value, error: '' })}
                       />
                     </label>
-                    <label>
+                    <label className="product-spec-modal-field">
                       <span className="form-label">Specific detail required</span>
                       <textarea
                         className="form-input"
                         rows={4}
                         aria-label="Specific detail required"
-                        placeholder="Optional, e.g. HP/Dell/Lenovo or equivalent, Core i5 or above"
+                        placeholder="Describe the required specification or acceptable value"
                         value={specModal?.detail ?? ''}
                         onChange={(event) => specModal && setSpecModal({ ...specModal, detail: event.target.value })}
                       />
@@ -2147,6 +2134,9 @@ function RequirementsStep({
                         Save Specification
                       </button>
                     </div>
+                    <button className="boq-row-action icon-delete-btn product-spec-modal-close" type="button" aria-label="Cancel add specification" onClick={() => setSpecModal(null)}>
+                      x
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2188,12 +2178,10 @@ function RequirementsStep({
                     <thead>
                       <tr>
                         <th>Related BOQ Item</th>
-                        <th>Sample Required</th>
-                        <th>Number of Samples</th>
+                        <th>Sample Size</th>
                         <th>Sample Description</th>
                         <th>Delivery Location</th>
                         <th>Delivery Deadline</th>
-                        <th>Mandatory</th>
                         <th>Returnable Sample?</th>
                         <th aria-label="Actions"></th>
                       </tr>
@@ -2217,20 +2205,9 @@ function RequirementsStep({
                               </select>
                             </td>
                             <td>
-                              <label className="requirement-toggle" title="Sample Required">
-                                <input
-                                  type="checkbox"
-                                  aria-label={`Sample Required ${index + 1}`}
-                                  checked={row.sampleRequired}
-                                  onChange={(event) => updateSampleRequirement(row.id, { sampleRequired: event.target.checked })}
-                                />
-                                <span></span>
-                              </label>
-                            </td>
-                            <td>
                               <input
                                 className="form-input"
-                                aria-label={`Number of Samples ${index + 1}`}
+                                aria-label={`Sample Size ${index + 1}`}
                                 inputMode="numeric"
                                 value={row.numberOfSamples}
                                 onChange={(event) => updateSampleRequirement(row.id, { numberOfSamples: event.target.value })}
@@ -2262,17 +2239,6 @@ function RequirementsStep({
                               />
                             </td>
                             <td>
-                              <label className="requirement-toggle" title="Mandatory">
-                                <input
-                                  type="checkbox"
-                                  aria-label={`Mandatory sample ${index + 1}`}
-                                  checked={row.mandatory}
-                                  onChange={(event) => updateSampleRequirement(row.id, { mandatory: event.target.checked })}
-                                />
-                                <span></span>
-                              </label>
-                            </td>
-                            <td>
                               <label className="requirement-toggle" title="Returnable Sample?">
                                 <input
                                   type="checkbox"
@@ -2292,7 +2258,7 @@ function RequirementsStep({
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={9}>
+                          <td colSpan={7}>
                             <div className="scope-empty">No sample requirements added yet.</div>
                           </td>
                         </tr>
@@ -2327,7 +2293,6 @@ function RequirementsStep({
                       <th>Minimum value</th>
                       <th>Period</th>
                       <th>Evidence required</th>
-                      <th>Mandatory</th>
                       <th aria-label="Actions"></th>
                     </tr>
                   </thead>
@@ -2384,17 +2349,6 @@ function RequirementsStep({
                               ))}
                             </select>
                           </td>
-                          <td>
-                            <label className="requirement-toggle" title="Mandatory">
-                              <input
-                                type="checkbox"
-                                aria-label={`Mandatory financial requirement ${index + 1}`}
-                                checked={row.mandatory}
-                                onChange={(event) => updateFinancialRequirement(row.id, { mandatory: event.target.checked })}
-                              />
-                              <span></span>
-                            </label>
-                          </td>
                           <td className="requirement-table-action-cell">
                             <button className="boq-row-action icon-delete-btn" type="button" aria-label={`Delete financial requirement ${index + 1}`} onClick={() => deleteFinancialRequirement(row.id)}>
                               x
@@ -2404,7 +2358,7 @@ function RequirementsStep({
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6}>
+                        <td colSpan={5}>
                           <div className="scope-empty">No financial requirements added yet.</div>
                         </td>
                       </tr>
@@ -2459,13 +2413,6 @@ function RequirementsStep({
                           <span className="form-label">Mandatory</span>
                           <label className="requirement-toggle">
                             <input type="checkbox" checked={row.mandatory} onChange={(event) => updateEligibilityRequirement(row.id, { mandatory: event.target.checked })} aria-label={`Eligibility mandatory ${index + 1}`} />
-                            <span></span>
-                          </label>
-                        </label>
-                        <label className="requirement-card-field">
-                          <span className="form-label">Requires upload</span>
-                          <label className="requirement-toggle">
-                            <input type="checkbox" checked={row.requiresUpload} onChange={(event) => updateEligibilityRequirement(row.id, { requiresUpload: event.target.checked })} aria-label={`Eligibility requires upload ${index + 1}`} />
                             <span></span>
                           </label>
                         </label>
@@ -2657,7 +2604,7 @@ function ConsultancyRequirementsStep({
   }
 
   function addResponsibility(type: 'clientResponsibilityRows' | 'consultantResponsibilityRows') {
-    patchConsultancy({ [type]: [...consultancy[type], { id: createRowId(type), title: '', description: '', supportType: '' }] } as Partial<CreateTenderConsultancyRequirements>);
+    patchConsultancy({ [type]: [...consultancy[type], { id: createRowId(type), title: '', description: '', supportType: '', reportingFrequency: '' }] } as Partial<CreateTenderConsultancyRequirements>);
   }
 
   function updateResponsibility(type: 'clientResponsibilityRows' | 'consultantResponsibilityRows', rowId: string, patch: Partial<CreateTenderConsultancyResponsibilityRow>) {
@@ -2672,7 +2619,7 @@ function ConsultancyRequirementsStep({
     patchConsultancy({
       deliverableRows: [
         ...consultancy.deliverableRows,
-        { id: createRowId('consultancy-deliverable'), deliverableName: '', description: '', submissionTimeline: '', formatRequired: '', reviewer: '', mandatory: true }
+        { id: createRowId('consultancy-deliverable'), deliverableName: '', description: '', submissionTimeline: '', formatRequired: '', reviewer: '', submissionChannel: '', mandatory: true }
       ]
     });
   }
@@ -2978,9 +2925,14 @@ function ConsultancyRequirementsStep({
                           </div>
                           <input className="form-input" placeholder={key === 'clientResponsibilityRows' ? 'Responsibility Title' : 'Responsibility'} value={row.title} onChange={(event) => updateResponsibility(key, row.id, { title: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility ${index + 1}`} />
                           <textarea className="form-input" placeholder="Description" value={row.description} onChange={(event) => updateResponsibility(key, row.id, { description: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility Description ${index + 1}`} />
-                          <select className="form-input" value={row.supportType} onChange={(event) => updateResponsibility(key, row.id, { supportType: event.target.value })} aria-label={`${key === 'clientResponsibilityRows' ? 'Client' : 'Consultant'} Responsibility Support Type ${index + 1}`}>
-                            <option value="">Support Type</option>
-                            {consultancySupportTypes.map((option) => (
+                          <select
+                            className="form-input"
+                            value={key === 'clientResponsibilityRows' ? row.supportType : row.reportingFrequency || row.supportType}
+                            onChange={(event) => updateResponsibility(key, row.id, key === 'clientResponsibilityRows' ? { supportType: event.target.value } : { reportingFrequency: event.target.value, supportType: event.target.value })}
+                            aria-label={`${key === 'clientResponsibilityRows' ? 'Client Responsibility Support Type' : 'Consultant Responsibility Reporting Frequency'} ${index + 1}`}
+                          >
+                            <option value="">{key === 'clientResponsibilityRows' ? 'Support Type' : 'Reporting Frequency'}</option>
+                            {(key === 'clientResponsibilityRows' ? consultancySupportTypes : consultancyFrequencyOptions).map((option) => (
                               <option key={option} value={option}>
                                 {option}
                               </option>
@@ -3016,7 +2968,7 @@ function ConsultancyRequirementsStep({
                         <th>Description</th>
                         <th>Submission Timeline</th>
                         <th>Format Required</th>
-                        <th>Reviewer</th>
+                        <th>Submission Channel</th>
                         <th>Mandatory</th>
                         <th aria-label="Actions"></th>
                       </tr>
@@ -3029,7 +2981,7 @@ function ConsultancyRequirementsStep({
                             <td><textarea className="form-input" value={row.description} onChange={(event) => updateConsultancyDeliverable(row.id, { description: event.target.value })} aria-label={`Deliverable Description ${index + 1}`} /></td>
                             <td><input className="form-input" value={row.submissionTimeline} onChange={(event) => updateConsultancyDeliverable(row.id, { submissionTimeline: event.target.value })} aria-label={`Submission Timeline ${index + 1}`} /></td>
                             <td><select className="form-input" value={row.formatRequired} onChange={(event) => updateConsultancyDeliverable(row.id, { formatRequired: event.target.value })} aria-label={`Format Required ${index + 1}`}><option value="">Select</option>{consultancyFormats.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
-                            <td><select className="form-input" value={row.reviewer} onChange={(event) => updateConsultancyDeliverable(row.id, { reviewer: event.target.value })} aria-label={`Reviewer ${index + 1}`}><option value="">Select</option>{consultancyReviewers.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
+                            <td><select className="form-input" value={row.submissionChannel || row.reviewer} onChange={(event) => updateConsultancyDeliverable(row.id, { submissionChannel: event.target.value, reviewer: event.target.value })} aria-label={`Submission Channel ${index + 1}`}><option value="">Select</option>{consultancySubmissionChannels.map((option) => <option key={option} value={option}>{option}</option>)}</select></td>
                             <td>
                               <label className="requirement-toggle" title="Mandatory">
                                 <input type="checkbox" checked={row.mandatory} onChange={(event) => updateConsultancyDeliverable(row.id, { mandatory: event.target.checked })} aria-label={`Deliverable Mandatory ${index + 1}`} />
@@ -4891,236 +4843,87 @@ function EvaluationStep({
 }
 
 function ReviewStep({
-  draft,
-  selectedType,
-  total
+  draft
 }: {
   draft: CreateTenderDraft;
-  selectedType: { id: CreateTenderProcurementTypeId; label: string; description: string };
-  total: number;
 }) {
-  const itemLabel = (itemId: string) => {
-    const index = draft.commercialItems.findIndex((item) => item.id === itemId);
-    const item = draft.commercialItems[index];
-    return item ? item.description || `Product item ${index + 1}` : 'Unknown BOQ item';
-  };
-  const fundingSource = draft.fundingSource === 'Other' ? draft.customFundingSource || 'Other' : draft.fundingSource;
-  const requirementEntries = Object.entries(draft.requirements).filter(([, value]) => Boolean(value));
-  const consultancy = draft.consultancyRequirements ?? createEmptyConsultancyRequirements();
-  const services = draft.serviceRequirements ?? createEmptyServiceRequirements();
-  const works = draft.worksRequirements ?? createEmptyWorksRequirements();
-  const licenseRows = draft.regulatoryLicenseRequirements.length
-    ? draft.regulatoryLicenseRequirements.map((row) => [
-        { label: 'License', value: row.license },
-        { label: 'Issuing body', value: row.body },
-        { label: 'Mandatory', value: row.mandatory ? 'Yes' : 'No' },
-        { label: 'Expiry validation', value: row.expiryRequired ? 'Yes' : 'No' }
-      ])
-    : draft.selectedLicenses.map((license) => [{ label: 'License', value: license }]);
-  const serviceBoqTotal = services.serviceBoqRows.reduce((sum, row) => sum + Number(row.quantity || 0) * Number(row.rate || 0), 0);
-  const reviewCommercialBadge = selectedType.id === 'works' || selectedType.id === 'goods' ? 'Unpriced schedule' : formatReviewMoney(serviceBoqTotal, draft.currency);
+  const user = useAppSelector((state) => state.auth.user);
+
+  if (draft.procurementTypeId === 'goods') {
+    return (
+      <div className="wizard-step-surface review-step-surface">
+        <GoodsTenderReviewDocument draft={draft} profileOrganization={user?.organization} />
+      </div>
+    );
+  }
+
+  if (draft.procurementTypeId === 'consultancy') {
+    const previewTender = draftToTenderDetail(draft);
+    return (
+      <div className="wizard-step-surface review-step-surface">
+        <ConsultancyTenderReviewDocument
+          draft={draft}
+          profileOrganization={user?.organization}
+          onOpenDocument={(document) => {
+            void openTenderDocument(previewTender, isDraftTenderDocument(document) ? undefined : document, 'documents').catch((error) => {
+              console.error('Tender document preview failed', error);
+            });
+          }}
+          onDownloadDocument={(document) => {
+            void downloadTenderDocument(previewTender, isDraftTenderDocument(document) ? undefined : document).catch((error) => {
+              console.error('Tender document download failed', error);
+            });
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (draft.procurementTypeId === 'works') {
+    const previewTender = draftToTenderDetail(draft);
+    return (
+      <div className="wizard-step-surface review-step-surface">
+        <WorksTenderReviewDocument
+          draft={draft}
+          profileOrganization={user?.organization}
+          onOpenDocument={(document) => {
+            void openTenderDocument(previewTender, isDraftTenderDocument(document) ? undefined : document, 'documents').catch((error) => {
+              console.error('Tender document preview failed', error);
+            });
+          }}
+          onDownloadDocument={(document) => {
+            void downloadTenderDocument(previewTender, isDraftTenderDocument(document) ? undefined : document).catch((error) => {
+              console.error('Tender document download failed', error);
+            });
+          }}
+        />
+      </div>
+    );
+  }
+
+  const previewTender = draftToTenderDetail(draft);
 
   return (
     <div className="wizard-step-surface review-step-surface">
-      <div className="tender-review-workspace">
-        <section className="tender-review-panel">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Tender information</h3>
-              <span className="form-hint">Basic details, contact, procurement type, category, method, and visibility.</span>
-            </div>
-          </div>
-          <div className="tender-review-field-grid">
-            {renderReviewField('Tender title', draft.title)}
-            {renderReviewField('Procurement type', selectedType.label)}
-            {renderReviewField('Categories', draft.categories)}
-            {renderReviewField('Procurement method', draft.method)}
-            {renderReviewField('Funding source', fundingSource)}
-            {renderReviewField('Visibility', getReviewVisibility(draft.method))}
-            {renderReviewField('Invited suppliers', draft.invitedSuppliers)}
-            {renderReviewField('Location', draft.location)}
-            {renderReviewField('Contact person / department', draft.contact.name)}
-            {renderReviewField('Phone', draft.contact.phone)}
-            {renderReviewField('Email', draft.contact.email)}
-            {renderReviewField('Estimated budget', draft.estimatedBudget ? `${draft.currency} ${draft.estimatedBudget}` : '')}
-          </div>
-        </section>
-
-        <section className="tender-review-panel">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Tender requirements</h3>
-              <span className="form-hint">Structured requirement fields and procurement-specific response controls.</span>
-            </div>
-          </div>
-          {selectedType.id === 'works' ? (
-            renderWorksReviewRequirements(works, draft.financialRequirements)
-          ) : selectedType.id === 'services' ? (
-            renderServiceReviewRequirements(services, draft.financialRequirements)
-          ) : selectedType.id === 'consultancy' ? (
-            renderConsultancyReviewRequirements(consultancy, draft.financialRequirements, licenseRows)
-          ) : (
-            <div className="tender-review-section-stack">
-              <article className="tender-review-section">
-                <h4>Requirement fields</h4>
-                {requirementEntries.length ? (
-                  <div className="tender-review-field-grid">
-                    {requirementEntries.map(([key, value]) => renderReviewField(key === 'requireSamples' ? 'Require Samples?' : formatReviewLabel(key), value))}
-                  </div>
-                ) : (
-                  <div className="scope-empty">No structured requirement fields were configured.</div>
-                )}
-              </article>
-              <article className="tender-review-section">
-                <h4>Product specifications</h4>
-                {renderReviewTextList(
-                  draft.productSpecifications.map((row) => `${itemLabel(row.sourceItemId)} - ${row.specificationName}${row.acceptableRequirement ? `: ${row.acceptableRequirement}` : ''}`),
-                  'No product specifications added yet.'
-                )}
-              </article>
-              <article className="tender-review-section">
-                <h4>Sample requirements</h4>
-                {renderReviewTextList(
-                  draft.sampleRequirements.map((row) => `${itemLabel(row.relatedBoqItemId)} - ${row.numberOfSamples || 'Sample count pending'}${row.deliveryDeadline ? ` by ${row.deliveryDeadline}` : ''}`),
-                  'No sample requirements added yet.'
-                )}
-              </article>
-              <article className="tender-review-section">
-                <h4>Financial capacity</h4>
-                {renderReviewTextList(
-                  draft.financialRequirements.map((row) =>
-                    [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
-                  ),
-                  'No financial capacity requirements added yet.'
-                )}
-              </article>
-              <article className="tender-review-section">
-                <h4>Other eligibility</h4>
-                {renderReviewTextList(
-                  draft.eligibilityRequirements.map((row) =>
-                    `${row.requirementName || 'Eligibility requirement'}${row.mandatory ? ' - mandatory' : ''}${row.requiresUpload ? ' - upload required' : ''}${row.notes ? ` - ${row.notes}` : ''}`
-                  ),
-                  'No eligibility requirements added yet.'
-                )}
-              </article>
-            </div>
-          )}
-        </section>
-
-        {selectedType.id === 'consultancy' ? null : (
-          <section className="tender-review-panel">
-            <div className="scope-list-heading">
-              <div>
-                <h3>Regulatory license requirements</h3>
-                <span className="form-hint">Licenses required for supplier eligibility.</span>
-              </div>
-            </div>
-            {licenseRows.length ? renderReviewObjectRows(licenseRows) : <div className="scope-empty">No regulatory licenses selected.</div>}
-          </section>
-        )}
-
-        <section className="tender-review-panel">
-          <div className="scope-list-heading">
-            <div>
-              <h3>{getReviewCommercialTitle(selectedType.id)}</h3>
-              <span className="form-hint">{selectedType.id === 'works' || selectedType.id === 'goods' ? 'Commercial schedule bidders will price during submission.' : 'Commercial schedule and estimated amount.'}</span>
-            </div>
-            <span className="badge badge-info">{reviewCommercialBadge}</span>
-          </div>
-          {selectedType.id === 'works' ? (
-            works.boqRows.length || works.lumpSumPricingRows.length ? (
-              renderReviewObjectRows([
-                ...works.lumpSumPricingRows.map((row, index) => [
-                  { label: 'Code', value: `LS-${index + 1}` },
-                  { label: 'Requirement', value: row.section || 'Pricing section' },
-                  { label: 'Qty / Duration', value: row.description },
-                  { label: 'Unit', value: 'Lump sum' }
-                ]),
-                ...works.boqRows.map((row, index) => [
-                  { label: 'Code', value: String(index + 1) },
-                  { label: 'Requirement', value: row.description || 'BOQ line' },
-                  { label: 'Qty / Duration', value: row.quantity },
-                  { label: 'Unit', value: row.unit }
-                ])
-              ])
-            ) : (
-              <div className="scope-empty">{getReviewCommercialEmptyText(selectedType.id)}</div>
-            )
-          ) : selectedType.id === 'services' ? (
-            services.serviceBoqRows.length ? (
-              renderReviewObjectRows(
-                services.serviceBoqRows.map((row, index) => [
-                  { label: 'Code', value: String(index + 1) },
-                  { label: 'Requirement', value: row.description || 'Service BOQ line' },
-                  { label: 'Qty / Duration', value: row.quantity },
-                  { label: 'Unit', value: row.unit },
-                  { label: 'Rate / Fee', value: row.rate }
-                ])
-              )
-            ) : (
-              <div className="scope-empty">{getReviewCommercialEmptyText(selectedType.id)}</div>
-            )
-          ) : draft.commercialItems.length ? (
-            renderReviewObjectRows(
-              draft.commercialItems.map((item, index) => [
-                { label: 'Code', value: String(index + 1) },
-                { label: 'Requirement', value: item.description || 'Item' },
-                { label: 'Qty / Duration', value: item.quantity },
-                { label: 'Unit', value: item.unit }
-              ])
-            )
-          ) : (
-            <div className="scope-empty">{getReviewCommercialEmptyText(selectedType.id)}</div>
-          )}
-        </section>
-
-        <section className="tender-review-panel">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Deliverables and attachments</h3>
-              <span className="form-hint">Outputs and required supporting documents.</span>
-            </div>
-          </div>
-          <div className="tender-review-two-column">
-            <div>
-              <h4>Deliverables</h4>
-              {renderReviewTextList(draft.deliverables, 'No deliverables added yet.')}
-            </div>
-            <div>
-              <h4>Required attachments</h4>
-              {renderReviewTextList(draft.attachments, 'No required attachments added yet.')}
-            </div>
-          </div>
-        </section>
-
-        <section className="tender-review-panel">
-          <div className="scope-list-heading">
-            <div>
-              <h3>Evaluation criteria and timeline</h3>
-              <span className="form-hint">Evaluation weights and publication milestones.</span>
-            </div>
-            <span className={`badge ${total === 100 ? 'badge-success' : 'badge-warning'}`}>{total === 100 ? 'Balanced' : `Add ${100 - total}% remaining`}</span>
-          </div>
-          <div className="tender-review-two-column">
-            <div>
-              <h4>Evaluation criteria</h4>
-              {renderReviewEvaluation(draft.evaluationCriteria)}
-            </div>
-            <div>
-              <h4>Timeline</h4>
-              <div className="tender-review-field-grid">
-                {renderReviewField('Publication', draft.publicationDate)}
-                {renderReviewField('Clarification deadline', draft.clarificationDeadline)}
-                {renderReviewField('Bid submission deadline', draft.submissionDate)}
-                {renderReviewField('Opening session', draft.openingDate)}
-                {draft.milestones.map((milestone) => renderReviewField(milestone.label, milestone.dueDate))}
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
+      <SupplierProcurementDetails
+        tender={previewTender}
+        onOpenDocument={(document) => {
+          void openTenderDocument(previewTender, isDraftTenderDocument(document) ? undefined : document, 'documents').catch((error) => {
+            console.error('Tender document preview failed', error);
+          });
+        }}
+        onDownloadDocument={(document) => {
+          void downloadTenderDocument(previewTender, isDraftTenderDocument(document) ? undefined : document).catch((error) => {
+            console.error('Tender document download failed', error);
+          });
+        }}
+      />
     </div>
   );
+}
+
+function isDraftTenderDocument(document: NonNullable<TenderDetail['documents']>[number] | undefined) {
+  return String(document?.id || '').startsWith('draft-');
 }
 
 function PublicationStep({
@@ -5207,319 +5010,6 @@ function PublicationStep({
       </div>
     </div>
   );
-}
-
-function renderConsultancyReviewRequirements(consultancy: CreateTenderConsultancyRequirements, financialRequirements: CreateTenderFinancialRequirementRow[], licenseRows: Array<Array<{ label: string; value: string }>>) {
-  return (
-    <div className="tender-review-section-stack">
-      <article className="tender-review-section">
-        <h4>Consultancy TOR introduction</h4>
-        <div className="tender-review-field-grid">
-          {renderReviewField('Project name', consultancy.projectName)}
-          {renderReviewField('Background narrative', consultancy.backgroundNarrative)}
-          {renderReviewField('Problem statement', consultancy.mainProblemDescription)}
-          {renderReviewField('Expected impact', consultancy.expectedImpact)}
-        </div>
-        {renderReviewTextList(
-          consultancy.entityBackgroundCards.map((row) => [row.organizationBackground, row.departmentUnit].filter(Boolean).join(' - ')),
-          'No procuring entity background captured yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Objectives</h4>
-        <div className="tender-review-field-grid">{renderReviewField('General objective', consultancy.generalObjective)}</div>
-        {renderReviewTextList(
-          consultancy.specificObjectiveRows.map((row) => [row.objectiveTitle || 'Objective', row.objectiveDescription, row.priorityLevel].filter(Boolean).join(' - ')),
-          'No specific objectives added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Scope of consultancy services</h4>
-        {renderReviewTextList(
-          consultancy.assignmentActivityRows.map((row) => [row.activityTitle || 'Activity', row.expectedOutput, row.location, row.duration ? `${row.duration} days` : ''].filter(Boolean).join(' - ')),
-          'No assignment activities added yet.'
-        )}
-        <div className="tender-review-field-grid">{renderReviewField('Out-of-scope activities', consultancy.outOfScopeActivities)}</div>
-      </article>
-      <article className="tender-review-section">
-        <h4>Duties and responsibilities</h4>
-        {renderReviewTextList(
-          [
-            ...consultancy.clientResponsibilityRows.map((row) => `Client: ${[row.title || 'Responsibility', row.description, row.supportType].filter(Boolean).join(' - ')}`),
-            ...consultancy.consultantResponsibilityRows.map((row) => `Consultant: ${[row.title || 'Responsibility', row.description, row.supportType].filter(Boolean).join(' - ')}`)
-          ],
-          'No responsibilities added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Deliverables and reporting</h4>
-        {renderReviewTextList(
-          [
-            ...consultancy.deliverableRows.map((row) => [row.deliverableName || 'Deliverable', row.submissionTimeline, row.formatRequired, row.reviewer].filter(Boolean).join(' - ')),
-            ...consultancy.reportingRequirementRows.map((row) => [row.reportType || 'Report', row.frequency, row.submissionFormat, row.submissionChannel].filter(Boolean).join(' - '))
-          ],
-          'No deliverables or reporting requirements added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Qualifications and experience</h4>
-        <div className="tender-review-field-grid">
-          {renderReviewField('Individual years of experience', consultancy.individualYearsExperience)}
-          {renderReviewField('Individual similar assignments', consultancy.individualSimilarAssignmentsCount)}
-          {renderReviewField('Firm minimum years', consultancy.firmMinimumYearsExperience)}
-          {renderReviewField('Firm similar assignments', consultancy.firmRequiredSimilarAssignments)}
-        </div>
-        {renderReviewTextList(
-          consultancy.keyExpertRows.map((row) => [row.positionTitle || 'Key expert', row.minimumQualification, row.yearsOfExperience ? `${row.yearsOfExperience} years` : '', row.certifications].filter(Boolean).join(' - ')),
-          'No key experts added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Regulatory license requirements</h4>
-        {licenseRows.length ? renderReviewObjectRows(licenseRows) : <div className="scope-empty">No regulatory licenses selected.</div>}
-      </article>
-      <article className="tender-review-section">
-        <h4>Financial capacity</h4>
-        {renderReviewTextList(
-          financialRequirements.map((row) =>
-            [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
-          ),
-          'No financial capacity requirements added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Institutional arrangements</h4>
-        <div className="tender-review-field-grid">
-          {renderReviewField('Consultant reports to', consultancy.consultantReportsTo)}
-          {renderReviewField('Supervising officer', consultancy.supervisingOfficer)}
-          {renderReviewField('Approval authority', consultancy.approvalAuthority)}
-          {renderReviewField('Meeting frequency', consultancy.meetingFrequency)}
-          {renderReviewField('Coordination mechanism', consultancy.coordinationMechanism)}
-          {renderReviewField('Communication methods', consultancy.communicationMethods)}
-        </div>
-      </article>
-      <article className="tender-review-section">
-        <h4>Attachments and reference documents</h4>
-        {renderReviewTextList(
-          [
-            ...consultancy.supportingDocumentRows.map((row) => [row.documentTitle || 'Supporting document', row.uploadName, row.category].filter(Boolean).join(' - ')),
-            ...consultancy.externalReferenceRows.map((row) => [row.referenceName || 'External reference', row.url, row.description].filter(Boolean).join(' - '))
-          ],
-          'No supporting documents or external references added yet.'
-        )}
-      </article>
-    </div>
-  );
-}
-
-function renderWorksReviewRequirements(works: CreateTenderWorksRequirements, financialRequirements: CreateTenderFinancialRequirementRow[]) {
-  return (
-    <div className="tender-review-section-stack">
-      <article className="tender-review-section">
-        <h4>Project overview</h4>
-        <div className="tender-review-field-grid">
-          {renderReviewField('Project title', works.projectName)}
-          {renderReviewField('Procuring entity', works.procuringEntity)}
-          {renderReviewField('Project location', works.location)}
-          {renderReviewField('Contract type', works.contractType === 'Other' ? works.customContractType || 'Other' : works.contractType)}
-          {renderReviewField('Completion period', works.completionPeriod)}
-        </div>
-      </article>
-      <article className="tender-review-section">
-        <h4>Scope description</h4>
-        <div className="tender-review-field-grid">{renderReviewField('Scope Summary', works.scopeSummary)}</div>
-        {renderReviewTextList(works.mainConstructionActivities, 'No main activities added yet.')}
-      </article>
-      <article className="tender-review-section">
-        <h4>Technical specifications</h4>
-        {renderReviewTextList(
-          works.technicalSpecificationDocuments.map((row) => [row.documentTitle === 'Others' ? row.customDocumentTitle || 'Others' : row.documentTitle, row.uploadName].filter(Boolean).join(' - ')),
-          'No specification documents added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Drawings and design documents</h4>
-        {renderReviewTextList(
-          works.drawingDesignRows.map((row) => [row.documentType === 'Other' ? row.otherDocumentName || 'Other' : row.documentType, row.uploadName].filter(Boolean).join(' - ')),
-          'No drawings or design documents added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Time schedule and milestones</h4>
-        <div className="tender-review-field-grid">
-          {renderReviewField('Commencement date', works.commencementDate)}
-          {renderReviewField('Completion period', works.worksCompletionPeriod)}
-          {renderReviewField('Site visit requirement', works.siteVisitRequirement)}
-          {renderReviewField('Site survey', works.siteSurveyUploadName)}
-        </div>
-        {renderReviewTextList(
-          works.worksMilestoneRows.map((row) => [row.milestone || 'Milestone', row.targetDate].filter(Boolean).join(' - ')),
-          'No works milestones added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Technical capacity</h4>
-        {renderReviewTextList(
-          [
-            works.similarCompletedProjectsRequired ? 'Similar completed projects required' : '',
-            works.keyPersonnelCvsRequired ? 'Key personnel CVs required' : '',
-            works.bankStatementsRequired ? `Bank statements required${works.bankStatementPeriod ? ` - ${works.bankStatementPeriod}` : ''}` : ''
-          ],
-          'No technical capacity evidence toggled yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Financial capacity</h4>
-        {renderReviewTextList(
-          financialRequirements.map((row) =>
-            [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
-          ),
-          'No financial capacity requirements added yet.'
-        )}
-      </article>
-    </div>
-  );
-}
-
-function renderServiceReviewRequirements(services: CreateTenderServiceRequirements, financialRequirements: CreateTenderFinancialRequirementRow[]) {
-  return (
-    <div className="tender-review-section-stack">
-      <article className="tender-review-section">
-        <h4>Service definition</h4>
-        <div className="tender-review-field-grid">
-          {renderReviewField('Service category', services.serviceCategory)}
-          {renderReviewField('Scope of services', services.scopeOfServices)}
-          {renderReviewField('Duration', services.duration)}
-        </div>
-        {renderReviewTextList(services.serviceLocations, 'No service locations added yet.')}
-      </article>
-      <article className="tender-review-section">
-        <h4>Personnel requirements</h4>
-        {renderReviewTextList(
-          services.personnelRequirementRows.map((row) =>
-            [row.position || 'Personnel role', row.minimumEducation, row.minimumYearsExperience ? `${row.minimumYearsExperience} years` : '', row.cvRequired ? 'CV required' : '', row.mandatory ? 'mandatory' : 'optional']
-              .filter(Boolean)
-              .join(' - ')
-          ),
-          'No personnel requirements added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Financial capacity</h4>
-        {renderReviewTextList(
-          financialRequirements.map((row) =>
-            [row.requirementType || 'Financial requirement', row.minimumValue ? `minimum ${row.minimumValue}` : '', row.period, row.evidenceRequired].filter(Boolean).join(' - ')
-          ),
-          'No financial capacity requirements added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Supporting documents</h4>
-        {renderReviewTextList(
-          services.supportingDocumentRows.map((row) => `${row.documentName || 'Supporting document'}${row.mandatory ? ' - mandatory' : ''}`),
-          'No supporting documents added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Environmental and social requirements</h4>
-        {renderReviewTextList(
-          services.esRequirementCards.map((row) => [row.category || 'ES requirement', row.description, row.evidenceRequired.join(', '), row.mandatory ? 'mandatory' : 'optional'].filter(Boolean).join(' - ')),
-          'No environmental or social requirements added yet.'
-        )}
-      </article>
-      <article className="tender-review-section">
-        <h4>Risk, safety, and insurance</h4>
-        {renderReviewTextList(
-          [
-            ...services.insuranceCovers.map((cover) => `Insurance cover: ${cover}`),
-            services.insuranceNotes ? `Insurance notes: ${services.insuranceNotes}` : '',
-            services.riskAssessmentRequirement ? `Risk assessment: ${services.riskAssessmentRequirement}` : '',
-            services.safetyPlanRequirement ? `Safety plan: ${services.safetyPlanRequirement}` : '',
-            services.ppeRequirements ? `PPE: ${services.ppeRequirements}` : ''
-          ],
-          'No risk, safety, or insurance requirements added yet.'
-        )}
-      </article>
-    </div>
-  );
-}
-
-function renderReviewField(label: string, value: string | number | string[] | undefined) {
-  const display = Array.isArray(value) ? value.filter(Boolean).join(', ') : String(value ?? '').trim();
-  return (
-    <div className="tender-review-field" key={`${label}-${display || 'empty'}`}>
-      <span>{label}</span>
-      <strong>{display || 'Not specified'}</strong>
-    </div>
-  );
-}
-
-function renderReviewTextList(items: string[], emptyText: string) {
-  const values = items.map((item) => item.trim()).filter(Boolean);
-  if (!values.length) return <div className="scope-empty">{emptyText}</div>;
-  return (
-    <ul className="tender-review-bullet-list">
-      {values.map((item) => (
-        <li key={item}>{item}</li>
-      ))}
-    </ul>
-  );
-}
-
-function renderReviewObjectRows(rows: Array<Array<{ label: string; value: string | number | undefined }>>) {
-  return (
-    <div className="tender-review-record-list">
-      {rows.map((row, index) => (
-        <article className="tender-review-record" key={`${index}-${row.map((item) => item.value).join('-')}`}>
-          {row.map((item) => (
-            <div className="tender-review-record-heading" key={item.label}>
-              <strong>{item.label}</strong>
-              <span>{String(item.value ?? '').trim() || 'Not specified'}</span>
-            </div>
-          ))}
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function renderReviewEvaluation(criteria: CreateTenderEvaluationCriterion[]) {
-  if (!criteria.length) return <div className="scope-empty">No evaluation criteria configured.</div>;
-  return (
-    <div className="tender-review-record-list">
-      {criteria.map((criterion) => (
-        <article className="tender-review-record" key={criterion.id}>
-          <div className="tender-review-record-heading">
-            <strong>{criterion.label}</strong>
-            <span>{criterion.weight}%</span>
-          </div>
-          {renderReviewTextList(normalizeTextList(criterion.subcriteria?.length ? criterion.subcriteria : criterion.notes), 'No subcriteria selected.')}
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function getReviewVisibility(method: string) {
-  return method === 'Invited Tender' || method === 'Restricted Tender' ? 'Invited suppliers only' : 'Public marketplace';
-}
-
-function getReviewCommercialTitle(typeId: CreateTenderProcurementTypeId) {
-  if (typeId === 'works') return 'Bill of Quantities';
-  if (typeId === 'consultancy') return 'Financial Proposal';
-  if (typeId === 'services') return 'Service Commercial Schedule';
-  return 'Quantity Schedule';
-}
-
-function getReviewCommercialEmptyText(typeId: CreateTenderProcurementTypeId) {
-  if (typeId === 'works') return 'No BOQ items added yet.';
-  if (typeId === 'consultancy') return 'No financial proposal items added yet.';
-  if (typeId === 'services') return 'No service commercial items added yet.';
-  return 'No quantity schedule items added yet.';
-}
-
-function formatReviewMoney(value: number, currency: string) {
-  return `${currency || 'TZS'} ${Math.round(value).toLocaleString('en-US')}`;
 }
 
 function formatReviewLabel(value: string) {
@@ -5740,7 +5230,7 @@ function draftCommercialItems(draft: CreateTenderDraft): TenderDetail['commercia
     ];
   }
 
-  return draft.commercialItems.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, null));
+  return draft.commercialItems.map((row, index) => commercialItemFromValues(row.id, index, row.description, row.quantity, row.unit, null, { itemNo: String(index + 1) }));
 }
 
 function commercialItemFromValues(id: string, index: number, description: string, quantityValue: string | number, unit: string | null, rateValue: string | number | null | undefined, payload: Record<string, unknown> = {}) {
@@ -5750,7 +5240,7 @@ function commercialItemFromValues(id: string, index: number, description: string
 
   return {
     id,
-    itemNo: String(index + 1),
+    itemNo: String(payload.itemNo || index + 1),
     description: description || `Commercial item ${index + 1}`,
     quantity,
     unit,
@@ -5851,7 +5341,7 @@ function buildRequirementFields(draft: CreateTenderDraft): Record<string, unknow
 function buildGoodsRequirementFields(draft: CreateTenderDraft): Record<string, unknown> {
   return {
     quantityScheduleRows: draft.commercialItems.map((item, index) => ({
-      itemNumber: index + 1,
+      itemNumber: String(index + 1),
       itemDescription: item.description,
       unitOfMeasure: normalizeBackendUnit(item.unit),
       quantity: item.quantity
@@ -5915,6 +5405,7 @@ function buildConsultancyRequirementFields(draft: CreateTenderDraft): Record<str
     entityBackgroundCards: consultancy.entityBackgroundCards,
     projectName: consultancy.projectName || draft.title,
     backgroundNarrative: consultancy.backgroundNarrative || draft.description,
+    existingChallenges: consultancy.existingChallenges,
     currentSituation: consultancy.currentSituation,
     relatedInitiatives: consultancy.relatedInitiatives,
     mainProblemDescription: consultancy.mainProblemDescription,
@@ -5922,11 +5413,30 @@ function buildConsultancyRequirementFields(draft: CreateTenderDraft): Record<str
     consultancyGeneralObjective: consultancy.generalObjective,
     specificObjectiveRows: consultancy.specificObjectiveRows,
     assignmentActivityRows: consultancy.assignmentActivityRows,
+    outOfScopeActivities: consultancy.outOfScopeActivities,
     clientResponsibilityRows: consultancy.clientResponsibilityRows,
     consultantResponsibilityRows: consultancy.consultantResponsibilityRows,
     deliverableRows: consultancy.deliverableRows,
     reportingRequirementRows: consultancy.reportingRequirementRows,
+    individualProfessionalCertifications: consultancy.individualProfessionalCertifications,
+    individualCvRequired: consultancy.individualCvRequired,
+    individualYearsExperience: consultancy.individualYearsExperience,
+    individualSimilarAssignmentsCount: consultancy.individualSimilarAssignmentsCount,
+    individualSimilarAssignmentsEvidenceRequired: consultancy.individualSimilarAssignmentsEvidenceRequired,
+    firmMinimumYearsExperience: consultancy.firmMinimumYearsExperience,
+    firmRequiredSimilarAssignments: consultancy.firmRequiredSimilarAssignments,
+    firmSectorExperience: consultancy.firmSectorExperience,
+    firmRequiredEvidence: consultancy.firmRequiredEvidence,
     keyExpertRows: consultancy.keyExpertRows,
+    consultantReportsTo: consultancy.consultantReportsTo,
+    supervisingOfficer: consultancy.supervisingOfficer,
+    approvalAuthority: consultancy.approvalAuthority,
+    meetingFrequency: consultancy.meetingFrequency,
+    coordinationMechanism: consultancy.coordinationMechanism,
+    communicationMethods: consultancy.communicationMethods,
+    officeSpaceProvided: consultancy.officeSpaceProvided,
+    accessToFacilities: consultancy.accessToFacilities,
+    accessToDocuments: consultancy.accessToDocuments,
     supportingDocumentRows: consultancy.supportingDocumentRows,
     externalReferenceRows: consultancy.externalReferenceRows
   };

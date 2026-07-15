@@ -108,9 +108,10 @@ function sanitizeFilename(filename: string) {
 }
 
 function officialProcurementType(value: unknown) {
-  if (value === 'GOODS') return 'GOODS';
-  if (value === 'WORKS') return 'WORKS';
-  if (value === 'CONSULTANCY') return 'CONSULTANCY';
-  if (value === 'SERVICE') return 'NON_CONSULTANCY';
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'goods') return 'GOODS';
+  if (normalized === 'works') return 'WORKS';
+  if (normalized === 'consultancy') return 'CONSULTANCY';
+  if (normalized === 'service' || normalized === 'services' || normalized === 'non consultancy' || normalized === 'non-consultancy') return 'NON_CONSULTANCY';
   return 'MIXED';
 }

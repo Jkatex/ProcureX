@@ -92,7 +92,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     completeGate();
     const technicalStep = screen.getAllByRole('button', { name: /Technical Response/i })[0];
     fireEvent.click(technicalStep);
@@ -161,7 +161,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     const uploadInput = screen
       .getByText('Eligibility and administrative evidence')
       .closest('label')
@@ -195,7 +195,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     completeGate();
     expect(screen.queryByRole('button', { name: /Sample Submission/i })).not.toBeInTheDocument();
   });
@@ -216,7 +216,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     completeGate();
     expect(screen.getAllByRole('button', { name: /Sample Submission/i })[0]).toBeInTheDocument();
   });
@@ -249,7 +249,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     completeGate();
     fireEvent.click(screen.getAllByRole('button', { name: /Sample Submission/i })[0]);
     fireEvent.change(screen.getByLabelText('Courier'), { target: { value: 'DHL' } });
@@ -290,6 +290,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
     );
 
     await waitFor(() => expect(biddingApi.listSamples).toHaveBeenCalledWith('bid-1'));
+    await openEligibilityStep();
     completeGate();
     fireEvent.click(screen.getAllByRole('button', { name: /Sample Submission/i })[0]);
 
@@ -369,8 +370,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
   });
 
   it.each([
-    ['goods', tenderDetail(), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit']],
-    ['goods samples', tenderDetailWithSamples(), ['Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Sample Submission', 'Review Submission', 'Supplier Declaration and Submit']],
+    ['goods', tenderDetail(), ['Bid Information', 'Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Review Submission', 'Supplier Declaration and Submit']],
+    ['goods samples', tenderDetailWithSamples(), ['Bid Information', 'Eligibility and Document Requirements', 'Technical Response', 'Quantity Schedule / Financial Offer', 'Sample Submission', 'Review Submission', 'Supplier Declaration and Submit']],
     ['works', tenderDetail({ type: 'WORKS' }), ['Eligibility and Document Requirements', 'Technical Capacity and Experience', 'Technical Proposal and Work Program', 'Financial Proposal / BOQ Pricing', 'Review Submission', 'Declaration and Submission']],
     ['services', tenderDetail({ type: 'SERVICE' }), ['Eligibility and Document Requirements', 'Service Understanding and Methodology', 'Service Schedule and Delivery Plan', 'Staffing, Capacity and Continuity Plan', 'Performance, SLA, Reporting and Compliance', 'Commercial Pricing and Cost Breakdown', 'Review Submission']],
     ['consultancy', tenderDetail({ type: 'CONSULTANCY' }), ['Eligibility and Document Requirements', 'Technical Proposal', 'Financial Proposal', 'Review and Submit']],
@@ -390,14 +391,40 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     expect(progressStepLabels()).toEqual(expected);
+  });
+
+  it('renders goods Bid Information first with autofilled bidder and reference before eligibility', async () => {
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bid Information' })).toBeInTheDocument();
+    expect(progressStepLabels()[0]).toBe('Bid Information');
+    await waitFor(() => expect(screen.getByLabelText('Name of bidder')).toHaveValue('Supplier organization'));
+    await waitFor(() => expect((screen.getByLabelText('Bid reference number') as HTMLInputElement).value).toMatch(/^PX-BID-PX-2026-001-/));
+    expect(screen.getByLabelText('Name of bidder')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Bid reference number')).toHaveAttribute('readonly');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Bid Information' })).toBeInTheDocument();
+    expect(screen.getByText(/First incomplete: Contact person name/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Contact person name'), { target: { value: 'Jane Supplier' } });
+    fireEvent.change(screen.getByLabelText('Contact person email'), { target: { value: 'jane@supplier.example' } });
+    fireEvent.change(screen.getByLabelText('Contact person phone number'), { target: { value: '+255700111222' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
   });
 
   it('shows only one active new-bid notice when the same bid notice is replayed', async () => {
     const { store } = renderWorkspaceWithNotifications();
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     act(() => {
       store.dispatch(enqueueNotification({ tone: 'info', presentation: 'bidNotice', title: 'Notice', message: 'Ready to prepare a new sealed bid.', dismissible: true, autoDismissMs: 3000 }));
     });
@@ -418,7 +445,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     const page = container.querySelector('.journey-page.tender-wizard-page.bid-flow-page');
     expect(page).toBeInTheDocument();
     expect(container.querySelector('.procurement-market-summary')).not.toBeInTheDocument();
@@ -429,21 +456,24 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(within(heroActions as HTMLElement).getByText('View Tender Details')).toBeInTheDocument();
     expect(within(heroActions as HTMLElement).getByText('Ask Buyer')).toBeInTheDocument();
     expect(within(heroActions as HTMLElement).getByText('Save Draft')).toBeInTheDocument();
-    expect(within(heroActions as HTMLElement).getByText('Review Submission')).toBeInTheDocument();
+    expect(within(heroActions as HTMLElement).queryByText('Review Submission')).not.toBeInTheDocument();
 
     expect(container.querySelector('.bid-assistance-panel')).not.toBeInTheDocument();
     expect(container.querySelector('.bid-command-bar')).not.toBeInTheDocument();
 
     const progressButtons = within(screen.getByRole('navigation', { name: 'Bid submission progress' })).getAllByRole('button');
-    expect(progressButtons[0]).toHaveClass('wizard-progress-step', 'active');
+    expect(progressButtons[0]).toHaveClass('completed');
     expect(within(progressButtons[0]).getByText('01')).toBeInTheDocument();
-    expect(within(progressButtons[0]).getByText('Eligibility and Document Requirements')).toBeInTheDocument();
+    expect(within(progressButtons[0]).getByText('Bid Information')).toBeInTheDocument();
+    expect(progressButtons[1]).toHaveClass('wizard-progress-step', 'active');
+    expect(within(progressButtons[1]).getByText('02')).toBeInTheDocument();
+    expect(within(progressButtons[1]).getByText('Eligibility and Document Requirements')).toBeInTheDocument();
 
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    expect(progressButtons[0]).toHaveClass('completed');
-    expect(progressButtons[1]).toHaveClass('wizard-progress-step', 'active');
+    expect(progressButtons[1]).toHaveClass('completed');
+    expect(progressButtons[2]).toHaveClass('wizard-progress-step', 'active');
   });
 
   it('blocks Continue and forward step navigation until the mandatory gate is complete', async () => {
@@ -452,7 +482,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     window.addEventListener('procurex:notify', listener);
     const { container } = renderWorkspaceWithNotifications();
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
@@ -464,7 +494,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             title: 'Notice',
             presentation: 'bidNotice',
             autoDismissMs: 3000,
-            message: expect.stringMatching(/Complete all mandatory eligibility requirements before continuing.*Incomplete: Confirm eligibility to participate \(Confirmation\)/i)
+            message: expect.stringMatching(/Complete all mandatory eligibility requirements before continuing.*Incomplete: Confirm tax and statutory compliance \(Confirmation\)/i)
           })
         ])
       )
@@ -498,7 +528,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
     const { container } = renderWorkspaceWithNotifications();
 
-    expect(await screen.findByText('Required field')).toBeInTheDocument();
+    await openEligibilityStep();
+    expect(screen.getByText('Required field')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await waitFor(() =>
@@ -543,8 +574,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     const { container } = renderWorkspaceWithNotifications();
 
-    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
-    expect(screen.getByText('1. Licenses and certifications')).toBeInTheDocument();
+    await openEligibilityStep();
+    expect(screen.getByText('Eligibility and document requirements')).toBeInTheDocument();
+    expect(screen.getByText('1. Regulatory license requirements')).toBeInTheDocument();
     expect(screen.getByText('Regulatory license evidence')).toBeInTheDocument();
     expect(screen.getByText('Shipping Agency License')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Permit / license' })).toBeInTheDocument();
@@ -553,29 +585,150 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.getByLabelText('Shipping Agency License status')).toBeInTheDocument();
     expect(screen.getByText('Bid submission documents')).toBeInTheDocument();
     expect(screen.getByText('Signed bid submission form')).toBeInTheDocument();
-    expect(screen.getByText('Other administrative supporting documents')).toBeInTheDocument();
+    expect(screen.getByText('Other eligibility documents')).toBeInTheDocument();
     expect(screen.getByText('Eligibility and administrative evidence')).toBeInTheDocument();
     expect(screen.getByText('4. Eligibility declarations/confirmations')).toBeInTheDocument();
-    expect(screen.getByText('Administrative confirmations')).toBeInTheDocument();
-    expect(screen.getAllByText('Administrative compliance').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Confirm eligibility to participate')).toBeInTheDocument();
+    expect(screen.getByText('I confirm that the documents I uploaded are valid and true.')).toBeInTheDocument();
+    expect(screen.getByText('I understand that false or misleading documents may lead to disqualification.')).toBeInTheDocument();
+    expect(screen.queryByText('Administrative confirmations')).not.toBeInTheDocument();
+    expect(screen.queryByText('Administrative compliance')).not.toBeInTheDocument();
+    expect(screen.queryByText('Confirm eligibility to participate')).not.toBeInTheDocument();
+    expect(screen.queryByText('I confirm I am authorized to submit these documents on behalf of the bidder.')).not.toBeInTheDocument();
     expect(screen.queryByText('Confirm authorized representative')).not.toBeInTheDocument();
     expect(screen.queryByText('Confirm similar project evidence')).not.toBeInTheDocument();
     expect(screen.queryByText('Confirm that similar completed project evidence is completed in the technical capacity response.')).not.toBeInTheDocument();
-    expect(screen.getAllByText('I confirm and accept this requirement.').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('I confirm and accept this requirement.')).not.toBeInTheDocument();
     expect(container.querySelectorAll('.bid-gate-group').length).toBeGreaterThanOrEqual(4);
-    expect(container.querySelectorAll('.bid-requirement-card').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('.bid-declaration-check').length).toBe(2);
   });
 
-  it('uses the hero Review Submission action as a jump to the review step', async () => {
+  it('derives goods eligibility uploads from financial, regulatory, and other eligibility tender requirements', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({
+        requirements: {
+          financialRequirements: [{ id: 'fin-1', requirementType: 'Average annual turnover', minimumValue: 'TZS 500M', period: 'Last 6 months', evidenceRequired: 'Audited accounts', mandatory: true }],
+          regulatoryLicenseRequirements: [{ id: 'lic-1', license: 'Medical devices dealer license', body: 'TMDA', mandatory: true, expiryRequired: false }],
+          eligibilityRequirements: [
+            { id: 'elig-1', requirementName: 'Tax clearance certificate', mandatory: true, requiresUpload: false, notes: 'Valid TRA tax clearance certificate.' },
+            { id: 'elig-2', requirementName: 'ISO 9001 certificate', mandatory: false, requiresUpload: false, notes: 'Optional quality certification.' }
+          ]
+        }
+      }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible')
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')]),
+          step('goodsFinancial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
+            field('financial.unitRate', 'Unit rate for Laptop', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'unitRate', {
+              itemId: 'line-1',
+              itemNo: '1',
+              description: 'Laptop',
+              quantity: 1,
+              unit: 'Each',
+              min: 0
+            })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    const uploadedDocuments: BidDto['documents'] = [];
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, input) => {
+      input.files.forEach((file, index) => {
+        uploadedDocuments.push({
+          id: `bid-doc-${uploadedDocuments.length + 1}`,
+          documentId: `doc-${uploadedDocuments.length + 1}`,
+          name: file.name,
+          documentType: input.documentType,
+          envelope: input.envelope,
+          reviewStatus: 'UPLOADED',
+          checksum: `${index}`.padStart(64, 'a'),
+          metadata: input.metadata ?? {}
+        });
+      });
+      return bidDto({ documents: uploadedDocuments });
+    });
+
     render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
         <BiddingWorkspaceProcurexPage />
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    await openEligibilityStep();
+    expect(screen.getByText('Financial capacity evidence')).toBeInTheDocument();
+    expect(screen.getByText('Average annual turnover')).toBeInTheDocument();
+    expect(screen.getByText(/Evidence required: Audited accounts/)).toBeInTheDocument();
+    expect(screen.getByText('Regulatory license evidence')).toBeInTheDocument();
+    expect(screen.getByText('Medical devices dealer license')).toBeInTheDocument();
+    expect(screen.getByText('Other eligibility documents')).toBeInTheDocument();
+    expect(screen.getByText('Tax clearance certificate')).toBeInTheDocument();
+    expect(screen.getByText('ISO 9001 certificate')).toBeInTheDocument();
+    expect(screen.getByText('I confirm that the documents I uploaded are valid and true.')).toBeInTheDocument();
+
+    completeGate();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
+    expect(screen.getByText(/Complete all mandatory eligibility requirements before continuing/i)).toBeInTheDocument();
+
+    fireEvent.change(uploadInputByText('Average annual turnover'), { target: { files: [new File(['accounts'], 'audited-accounts.pdf', { type: 'application/pdf' })] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(1));
+    fireEvent.change(uploadInputByText('Upload license evidence'), { target: { files: [new File(['license'], 'tmda-license.pdf', { type: 'application/pdf' })] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
+    fireEvent.change(uploadInputByText('Tax clearance certificate'), { target: { files: [new File(['tax'], 'tax-clearance.pdf', { type: 'application/pdf' })] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(3));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(1, 'bid-1', expect.objectContaining({
+      documentType: 'ADMIN_FINANCIAL_CAPACITY_AVERAGE_ANNUAL_TURNOVER',
+      envelope: 'ADMINISTRATIVE',
+      metadata: expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload', fieldId: 'goods.financialRequirement.fin-1.evidenceUpload' })
+    }));
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(2, 'bid-1', expect.objectContaining({
+      envelope: 'ADMINISTRATIVE',
+      metadata: expect.objectContaining({ parentRequirementKey: 'goods.regulatoryLicense.lic-1', fieldId: 'goods.regulatoryLicense.lic-1', evidenceKey: 'licenseEvidence' })
+    }));
+    expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(3, 'bid-1', expect.objectContaining({
+      documentType: 'ADMIN_ELIGIBILITY_TAX_CLEARANCE_CERTIFICATE',
+      envelope: 'ADMINISTRATIVE',
+      metadata: expect.objectContaining({ requirementKey: 'goods.eligibilityRequirement.elig-1', fieldId: 'goods.eligibilityRequirement.elig-1' })
+    }));
+  });
+
+  it('does not render a hero Review Submission shortcut', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await openEligibilityStep();
+    const heroActions = container.querySelector('.hero-action-stack');
+    expect(heroActions).toBeInTheDocument();
+    expect(within(heroActions as HTMLElement).queryByText('Review Submission')).not.toBeInTheDocument();
+    expect(biddingApi.submitBid).not.toHaveBeenCalled();
+  });
+
+  it('uses the progress Review Submission action as a jump to the review step after the current gate is complete', async () => {
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await openEligibilityStep();
+    completeGate();
+    openProgressStep('Review Submission');
 
     expect(screen.getByRole('heading', { name: 'Review Submission' })).toBeInTheDocument();
     expect(biddingApi.submitBid).not.toHaveBeenCalled();
@@ -590,7 +743,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.change(screen.getByLabelText('Product compliance statement'), { target: { value: 'Compliant laptop specification.' } });
@@ -691,7 +844,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -759,7 +912,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Confirm eligibility to participate')).toBeInTheDocument();
+    await openEligibilityStep();
+    expect(screen.queryByText('Confirm eligibility to participate')).not.toBeInTheDocument();
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -804,7 +958,22 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
     vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
     vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(bidDto());
-    vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(bidDto());
+    const uploadedDocuments: BidDto['documents'] = [];
+    vi.spyOn(biddingApi, 'uploadDocuments').mockImplementation(async (_bidId, input) => {
+      input.files.forEach((file) => {
+        uploadedDocuments.push({
+          id: `bid-doc-${uploadedDocuments.length + 1}`,
+          documentId: `doc-${uploadedDocuments.length + 1}`,
+          name: file.name,
+          documentType: input.documentType,
+          envelope: input.envelope,
+          reviewStatus: 'UPLOADED',
+          checksum: `${uploadedDocuments.length}`.padStart(64, 'b'),
+          metadata: input.metadata ?? {}
+        });
+      });
+      return bidDto({ documents: uploadedDocuments });
+    });
 
     render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
@@ -812,7 +981,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Confirm eligibility to participate')).toBeInTheDocument();
+    await openEligibilityStep();
+    expect(screen.queryByText('Confirm eligibility to participate')).not.toBeInTheDocument();
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -902,16 +1072,23 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Medical devices dealer license')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Medical devices dealer license status'), { target: { value: 'Valid' } });
-    fireEvent.change(screen.getByLabelText('Medical devices dealer license expiry or validity'), { target: { value: '2027-12-31' } });
+    await openEligibilityStep();
+    expect(screen.getByText('Financial capacity evidence')).toBeInTheDocument();
+    expect(screen.getByText('Annual turnover')).toBeInTheDocument();
+    expect(screen.getByText('Medical devices dealer license')).toBeInTheDocument();
     const licenseUpload = screen.getByText('Upload license evidence').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
     const licenseFile = new File(['license'], 'tmda-license.pdf', { type: 'application/pdf' });
     fireEvent.change(licenseUpload!, { target: { files: [licenseFile] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
+    const financialUpload = uploadInputByText('Annual turnover');
+    const financialFile = new File(['accounts'], 'audited-accounts.pdf', { type: 'application/pdf' });
+    fireEvent.change(financialUpload!, { target: { files: [financialFile] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
 
     completeGate();
+    await waitFor(() => expect(screen.getByText('Administrative requirements complete. You can continue to the bid workflow.')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
     expect(container.querySelector('.goods-compliance-card')).toBeInTheDocument();
     expect(container.querySelector('.goods-product-detail-card')).toBeInTheDocument();
     expect(container.querySelector('.premium-response-matrix')).not.toBeInTheDocument();
@@ -927,18 +1104,13 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     expect(screen.getByText('Goods offer rows')).toBeInTheDocument();
     expect(container.querySelector('.goods-offer-row')).toBeInTheDocument();
-    expect(screen.getByText('Financial capacity requirements')).toBeInTheDocument();
+    expect(screen.queryByText('Financial capacity requirements')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Bid status for goods item 1'), { target: { value: 'Bid' } });
     fireEvent.change(screen.getByLabelText('Unit price for Laptop'), { target: { value: '2500000' } });
     fireEvent.change(screen.getByLabelText('Tax included for goods item 1'), { target: { value: 'Yes' } });
     fireEvent.change(screen.getByLabelText('Bid Validity Period (days)'), { target: { value: '120' } });
     fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'TZS' } });
     fireEvent.click(screen.getByLabelText('I accept the delivery terms defined in the tender.'));
-    fireEvent.change(screen.getByLabelText('Annual turnover Response / value'), { target: { value: 'TZS 900M average annual turnover' } });
-    const financialUpload = screen.getByText('Upload financial evidence').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
-    const financialFile = new File(['accounts'], 'audited-accounts.pdf', { type: 'application/pdf' });
-    fireEvent.change(financialUpload!, { target: { files: [financialFile] } });
-    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
 
     const updateCallsBeforeFinal = vi.mocked(biddingApi.updateBid).mock.calls.length;
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
@@ -946,9 +1118,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
     expect(savedPayload?.responses).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ requirementKey: 'goods.regulatoryLicense.lic-1', response: { value: expect.objectContaining({ status: 'Valid', expiryDate: '2027-12-31' }) } }),
         expect.objectContaining({ requirementKey: 'goods.productDetails.line-1', response: { value: expect.objectContaining({ supplierProduct: 'ThinkPad T14', brand: 'Lenovo', modelNumber: 'T14-G6', countryOfOrigin: 'China' }) } }),
-        expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1', response: { value: expect.objectContaining({ responseValue: 'TZS 900M average annual turnover' }) } }),
         expect.objectContaining({ requirementKey: 'commercialItems.line-1.unitRate', response: { value: expect.objectContaining({ status: 'Bid', unitPrice: 2500000, taxIncluded: 'Yes' }) } }),
         expect.objectContaining({ requirementKey: 'goods.commercial.bidValidity', response: { value: 120 } }),
         expect.objectContaining({ requirementKey: 'goods.commercial.currency', response: { value: 'TZS' } }),
@@ -960,8 +1130,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       metadata: expect.objectContaining({ parentRequirementKey: 'goods.regulatoryLicense.lic-1', fieldId: 'administrative.license.tmda', evidenceKey: 'licenseEvidence' })
     }));
     expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(2, 'bid-1', expect.objectContaining({
-      envelope: 'FINANCIAL',
-      metadata: expect.objectContaining({ parentRequirementKey: 'goods.financialRequirement.fin-1', fieldId: 'financial.turnover', evidenceKey: 'evidenceUpload' })
+      envelope: 'ADMINISTRATIVE',
+      documentType: 'ADMIN_FINANCIAL_CAPACITY_ANNUAL_TURNOVER',
+      metadata: expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload', fieldId: 'financial.turnover.evidenceUpload' })
     }));
   });
 
@@ -1537,9 +1708,10 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     completeGate();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    await waitFor(() => expect(screen.getByText('Administrative requirements complete. You can continue to the bid workflow.')).toBeInTheDocument());
+    openProgressStep('Review Submission');
 
     expect(screen.getByText('Supplier Bid Submission Review')).toBeInTheDocument();
     const reviewDocument = document.querySelector('.bid-response-document') as HTMLElement;
@@ -1581,8 +1753,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    await openEligibilityStep();
+    completeGate();
+    openProgressStep('Review Submission');
     fireEvent.click(screen.getByRole('button', { name: 'Download HTML' }));
 
     expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
@@ -1614,8 +1787,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    await openEligibilityStep();
+    completeGate();
+    openProgressStep('Review Submission');
     fireEvent.click(screen.getByRole('button', { name: 'Print / Save PDF' }));
 
     expect(open).toHaveBeenCalledWith('', '_blank');
@@ -1629,8 +1803,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    await openEligibilityStep();
+    completeGate();
+    openProgressStep('Review Submission');
 
     const productRow = screen.getByText('Product compliance statement').closest('tr') as HTMLTableRowElement;
     fireEvent.click(within(productRow).getByRole('button', { name: 'Change' }));
@@ -1649,8 +1824,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: /Review Submission/i })[0]);
+    await openEligibilityStep();
+    completeGate();
+    openProgressStep('Review Submission');
 
     expect(screen.getByText('Supplier Bid Submission Review')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
@@ -1672,9 +1848,10 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
+    await openEligibilityStep();
     expect(progressStepLabels()).toContain('Supplier Declaration and Submit');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    completeGate();
+    openProgressStep('Review Submission');
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Ready to seal')).toBeInTheDocument();
@@ -1727,8 +1904,11 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review Submission' })[0]);
+    await openEligibilityStep();
+    completeGate();
+    await waitFor(() => expect(screen.getByText('Administrative requirements complete. You can continue to the bid workflow.')).toBeInTheDocument());
+    openProgressStep('Review Submission');
+    expect(await screen.findByRole('heading', { name: 'Review Submission' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     checkCard('I confirm the bid is accurate and complete');
     checkCard('I accept the tender and contract terms');
@@ -1764,8 +1944,31 @@ function completeGate() {
   [
     'Confirm eligibility to participate',
     'Confirm tax and statutory compliance',
-    'Confirm mandatory documents are attached'
-  ].forEach(checkCard);
+    'Confirm mandatory documents are attached',
+    'I confirm that the documents I uploaded are valid and true.',
+    'I understand that false or misleading documents may lead to disqualification.'
+  ].forEach(checkCardIfPresent);
+}
+
+async function openEligibilityStep() {
+  await waitFor(() => {
+    expect(
+      screen.queryByRole('heading', { name: 'Bid Information' }) ||
+        screen.queryByRole('heading', { name: 'Eligibility and Document Requirements' }) ||
+        screen.queryByText('Eligibility and administrative evidence')
+    ).toBeTruthy();
+  });
+
+  if (screen.queryByRole('heading', { name: 'Bid Information' })) {
+    await waitFor(() => expect((screen.getByLabelText('Name of bidder') as HTMLInputElement).value).toBeTruthy());
+    await waitFor(() => expect((screen.getByLabelText('Bid reference number') as HTMLInputElement).value).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('Contact person name'), { target: { value: 'Jane Supplier' } });
+    fireEvent.change(screen.getByLabelText('Contact person email'), { target: { value: 'jane@supplier.example' } });
+    fireEvent.change(screen.getByLabelText('Contact person phone number'), { target: { value: '+255700111222' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  }
+
+  expect(await screen.findByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
 }
 
 function openProgressStep(label: string) {
@@ -1788,6 +1991,20 @@ function checkCard(label: string) {
     .find(Boolean);
   if (!checkbox) throw new Error(`Checkbox not found for ${label}`);
   if (!checkbox.checked) fireEvent.click(checkbox);
+}
+
+function checkCardIfPresent(label: string) {
+  if (!screen.queryByText(label)) return;
+  checkCard(label);
+}
+
+function uploadInputByText(label: string) {
+  const input = screen
+    .getAllByText(label)
+    .map((element) => element.closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null)
+    .find(Boolean);
+  if (!input) throw new Error(`Upload input not found for ${label}`);
+  return input;
 }
 
 function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?: BidSubmissionSchemaStepDto[] } = {}): BidSubmissionSchemaDto {
@@ -1964,7 +2181,6 @@ function worksCapacityBidSchema(): BidSubmissionSchemaDto {
     ]
   });
 }
-
 function worksDeclarationFields(): BidSubmissionSchemaFieldDto[] {
   return [
     field('works.declaration.signatoryName', 'Authorized Signatory Name', 'text', 'declarations', 'text', 'COMBINED', true, 'works.declaration.signatoryName', { control: 'worksDeclaration' }),

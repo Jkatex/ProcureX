@@ -162,6 +162,7 @@ describe('TopBar platform apps drawer', () => {
     expect(within(drawer!).getByText('Communication Center')).toBeInTheDocument();
     expect(within(drawer!).getByText('Evaluation')).toBeInTheDocument();
     expect(within(drawer!).getByText('Awarding and Contract')).toBeInTheDocument();
+    expect(within(drawer!).getByText('Post-award')).toBeInTheDocument();
     expect(within(drawer!).getByText('Records and History')).toBeInTheDocument();
   });
 

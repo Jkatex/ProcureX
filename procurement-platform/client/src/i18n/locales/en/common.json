@@ -87,7 +87,7 @@
         "description": "Awards, negotiations, signatures"
       },
       "postAward": {
-        "title": "Post Award",
+        "title": "Post-award",
         "description": "Delivery, invoices, payments, close-out"
       },
       "records": {
@@ -346,7 +346,7 @@
       "subtitle": "Review locked award terms, negotiate clauses, upload pre-contract documents, and prepare signatures."
     },
     "postAward": {
-      "title": "Post-Award Tracking",
+      "title": "Post-award",
       "subtitle": "Track purchase orders, delivery milestones, invoices, payment status, and performance records."
     },
     "communication": {

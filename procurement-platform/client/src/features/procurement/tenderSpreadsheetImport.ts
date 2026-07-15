@@ -47,8 +47,11 @@ function readFileArrayBuffer(file: File) {
   });
 }
 
-export function downloadTenderSpreadsheetTemplate(fileName: string, rows: TenderSpreadsheetRow[]) {
+export function downloadTenderSpreadsheetTemplate(fileName: string, rows: TenderSpreadsheetRow[], columnWidths?: Array<{ wch: number }>) {
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
+  if (columnWidths?.length) {
+    worksheet['!cols'] = columnWidths;
+  }
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
   const data = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });

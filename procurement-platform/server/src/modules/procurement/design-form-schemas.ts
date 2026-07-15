@@ -536,7 +536,7 @@ const schemaSections: Record<FormSchemaType, Omit<DesignFormSchemaDto, 'schemaVe
               { id: 'description', label: 'Description', type: 'richtext' },
               { id: 'submissionTimeline', label: 'Submission Timeline', type: 'text', placeholder: 'e.g. 2 weeks or 2026-06-30' },
               { id: 'formatRequired', label: 'Format Required', type: 'select', options: ['PDF', 'Word', 'Excel', 'PowerPoint', 'Hard copy', 'Soft copy', 'Other'] },
-              { id: 'reviewer', label: 'Reviewer', type: 'select-custom-prompt', options: ['Project Manager', 'Supervising Officer', 'Accounting Officer', 'Buyer', 'User Department', 'Other'] },
+              { id: 'submissionChannel', label: 'Submission Channel', type: 'select-custom-prompt', options: ['Procurement portal', 'Email', 'Physical submission', 'Project meeting', 'Other'] },
               { id: 'mandatory', label: 'Mandatory', type: 'toggle' }
             ]
           },

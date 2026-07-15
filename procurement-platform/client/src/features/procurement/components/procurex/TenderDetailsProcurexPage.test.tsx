@@ -106,6 +106,16 @@ const buyerTender: TenderDetail = {
   activity: { marketplaceViews: 12, documentDownloads: 4, clarifications: 0 }
 };
 
+const documentCardTender: TenderDetail = {
+  ...buyerTender,
+  id: 'service-tender-1',
+  reference: 'PX-2026-SVC-001',
+  title: 'Facilities management services',
+  type: 'SERVICE',
+  category: 'Non Consultancy',
+  categories: ['Non Consultancy']
+};
+
 describe('TenderDetailsProcurexPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -128,18 +138,23 @@ describe('TenderDetailsProcurexPage', () => {
     );
 
     expect(await screen.findAllByRole('heading', { name: 'Supply of medical equipment' })).toHaveLength(2);
-    expect(screen.getByText('Active tender')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Document' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download Document' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create Amendment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open Evaluation' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Procurement details', selected: true })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Tender activity' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Customer Information' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Purchase Information' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Tender Documentation' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Goods tender summary')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Goods Details' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Product Specifications' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Financial Capacity Requirements' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Eligibility Requirements' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Evaluation Criteria' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Customer Information' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Diagnostic kit').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Tender document').length).toBeGreaterThan(0);
+    expect(screen.getByText('2 Set')).toBeInTheDocument();
+    expect(screen.getByText('Tax clearance required')).toBeInTheDocument();
+    expect(screen.getByText('Technical responsiveness')).toBeInTheDocument();
     expect(screen.queryByText('Marketplace views')).not.toBeInTheDocument();
     expect(screen.queryByText('Document downloads')).not.toBeInTheDocument();
     expect(screen.queryByText('Time to close')).not.toBeInTheDocument();
@@ -230,16 +245,13 @@ describe('TenderDetailsProcurexPage', () => {
     await user.click(screen.getByRole('button', { name: 'Download Document' }));
 
     expect(getDocument).not.toHaveBeenCalled();
-    expect(html2PdfMock.worker.set).toHaveBeenCalledWith(expect.objectContaining({ filename: 'PX-2026-001-tender-pack.pdf' }));
-    expect(pdfSourceText()).toContain('Deliver to buyer stores');
+    await waitFor(() => expect(html2PdfMock.worker.set).toHaveBeenCalledWith(expect.objectContaining({ filename: 'Tender_PX-2026-001_Goods.pdf' })));
+    expect(pdfSourceText()).toContain('Goods Details');
     expect(pdfSourceText()).toContain('Tax clearance required');
     expect(pdfSourceText()).toContain('Technical responsiveness');
-    expect(pdfSourceText()).toContain('Four hour support window');
-    expect(pdfSourceText()).toContain('Site inspection');
     expect(pdfSourceText()).toContain('Diagnostic kit');
-    expect(pdfSourceText()).toContain('Pricing schedule');
     expect(download.click).toHaveBeenCalled();
-    expect(download.downloads.at(-1)).toBe('PX-2026-001-tender-pack.pdf');
+    expect(download.downloads.at(-1)).toBe('Tender_PX-2026-001_Goods.pdf');
     expect(download.blobs.at(-1)?.type).toBe('application/pdf');
     expect(recordDownload).not.toHaveBeenCalled();
   });
@@ -264,13 +276,13 @@ describe('TenderDetailsProcurexPage', () => {
     await user.click(button);
 
     expect(getDocument).not.toHaveBeenCalled();
-    expect(download.downloads.at(-1)).toBe('PX-2026-001-tender-pack.pdf');
+    await waitFor(() => expect(download.downloads.at(-1)).toBe('Tender_PX-2026-001_Goods.pdf'));
     expect(download.blobs.at(-1)?.type).toBe('application/pdf');
   });
 
   it('downloads the selected document from document cards', async () => {
     const user = userEvent.setup();
-    vi.spyOn(procurementApi, 'getTenderDetail').mockResolvedValue(buyerTender);
+    vi.spyOn(procurementApi, 'getTenderDetail').mockResolvedValue(documentCardTender);
     mockBrowserDownload();
     const getDocument = vi.spyOn(apiClient, 'get').mockResolvedValue({
       data: new Blob(['xlsx'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
@@ -278,7 +290,7 @@ describe('TenderDetailsProcurexPage', () => {
     });
 
     render(
-      <MemoryRouter initialEntries={['/procurement/tender-details?tenderId=tender-1']}>
+      <MemoryRouter initialEntries={['/procurement/tender-details?tenderId=service-tender-1']}>
         <TenderDetailsProcurexPage />
       </MemoryRouter>
     );
