@@ -23,6 +23,8 @@ import {
   signInSchema,
   signatureKeyphraseOnlySchema,
   signatureRequestSchema,
+  profileContactChangeStartSchema,
+  profileContactChangeVerifySchema,
   startRegistrationSchema,
   verificationDraftSchema,
   verificationSubmitSchema,
@@ -426,6 +428,24 @@ export class ModuleController {
   updateProfile: RequestHandler = async (req, res, next) => {
     try {
       res.json(await this.service.updateProfile(bearerToken(req), profileUpdateSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  startProfileContactChange: RequestHandler = async (req, res, next) => {
+    try {
+      const input = profileContactChangeStartSchema.parse(req.body);
+      res.json(await this.service.startProfileContactChange(bearerToken(req), input, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyProfileContactChange: RequestHandler = async (req, res, next) => {
+    try {
+      const input = profileContactChangeVerifySchema.parse(req.body);
+      res.json(await this.service.verifyProfileContactChange(bearerToken(req), input.challengeId, input.code, this.auditContext(req)));
     } catch (error) {
       next(error);
     }

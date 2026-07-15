@@ -1,4 +1,5 @@
 import { apiClient } from '@/shared/api/http';
+import type { SessionUser } from '@/shared/types/domain';
 import type { TanzaniaLocationSelection } from '@procurex/shared';
 import type {
   BusinessRegistrationSource,
@@ -110,6 +111,22 @@ export const identityApi = {
   },
   async updateProfile(input: { profile: Record<string, unknown>; documents?: Record<string, unknown>[] }) {
     const response = await apiClient.put<VerificationProfile>('/api/identity/profile', input);
+    return response.data;
+  },
+  async startProfileContactChange(input: { field: 'email' | 'phone'; value: string }) {
+    const response = await apiClient.post<{
+      challengeId: string;
+      field: 'email' | 'phone';
+      target: string;
+      expiresAt: string;
+      resendAvailableAt: string;
+      maxAttempts: number;
+      devCode?: string;
+    }>('/api/identity/profile/contact-change/start', input);
+    return response.data;
+  },
+  async verifyProfileContactChange(input: { challengeId: string; code: string }) {
+    const response = await apiClient.post<{ user: SessionUser; verification: VerificationProfile }>('/api/identity/profile/contact-change/verify', input);
     return response.data;
   },
   async uploadProfileImage(file: File, imageRole?: string) {

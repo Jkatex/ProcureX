@@ -11,10 +11,17 @@ export type DbContext = {
   capabilities?: string[];
 };
 
+type DbContextTransactionOptions = {
+  maxWait?: number;
+  timeout?: number;
+  isolationLevel?: Prisma.TransactionIsolationLevel;
+};
+
 export async function withDbContext<T>(
   context: DbContext,
   work: (tx: TransactionClient) => Promise<T>,
-  client: PrismaClient = defaultPrisma
+  client: PrismaClient = defaultPrisma,
+  options?: DbContextTransactionOptions
 ): Promise<T> {
   return client.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.current_user_id', ${context.userId ?? ''}, true)`;
@@ -23,6 +30,5 @@ export async function withDbContext<T>(
     await tx.$executeRaw`SELECT set_config('app.current_capabilities', ${(context.capabilities ?? []).join(',')}, true)`;
 
     return work(tx);
-  });
+  }, options);
 }
-

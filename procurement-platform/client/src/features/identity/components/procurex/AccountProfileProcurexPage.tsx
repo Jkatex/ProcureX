@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import { setSessionUser } from '@/features/auth/slice';
@@ -52,6 +53,19 @@ type ProfileDocumentRow = {
   type: string;
   name: string;
   fileName: string;
+};
+
+type ContactChangeField = 'email' | 'phone';
+
+type ContactChangeState = {
+  field: ContactChangeField;
+  value: string;
+  code: string;
+  challengeId?: string;
+  target?: string;
+  expiresAt?: string;
+  devCode?: string;
+  error?: string;
 };
 
 type TaxonomyResponse = {
@@ -222,6 +236,8 @@ export function AccountProfileProcurexPage() {
   const [businessCategoryOptions, setBusinessCategoryOptions] = useState<string[]>(fallbackBusinessCategories);
   const [statusMessage, setStatusMessage] = useState<CreateNotificationInput | null>(null);
   const [loading, setLoading] = useState(false);
+  const [contactChange, setContactChange] = useState<ContactChangeState | null>(null);
+  const [contactChangeLoading, setContactChangeLoading] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const headerRef = useRef<HTMLElement | null>(null);
 
@@ -378,13 +394,93 @@ export function AccountProfileProcurexPage() {
     setDocuments((current) => current.filter((row) => row.id !== rowId));
   }
 
+  function openContactChange(field: ContactChangeField) {
+    setContactChange({
+      field,
+      value: field === 'email' ? profile.emailAddress : profile.phoneNumber,
+      code: ''
+    });
+  }
+
+  async function startContactChange() {
+    if (!contactChange) return;
+    setContactChangeLoading(true);
+    setContactChange((current) => (current ? { ...current, error: undefined } : current));
+
+    try {
+      const started = await identityApi.startProfileContactChange({
+        field: contactChange.field,
+        value: contactChange.value
+      });
+      setContactChange((current) =>
+        current
+          ? {
+              ...current,
+              challengeId: started.challengeId,
+              target: started.target,
+              expiresAt: started.expiresAt,
+              devCode: started.devCode,
+              code: '',
+              error: undefined
+            }
+          : current
+      );
+    } catch (error) {
+      const notification = notificationFromApiError(error, {
+        title: 'Verification code could not be sent',
+        fallback: 'Could not send the verification code.'
+      });
+      setContactChange((current) => (current ? { ...current, error: notification.message } : current));
+    } finally {
+      setContactChangeLoading(false);
+    }
+  }
+
+  async function verifyContactChange() {
+    if (!contactChange?.challengeId) return;
+    setContactChangeLoading(true);
+    setContactChange((current) => (current ? { ...current, error: undefined } : current));
+
+    try {
+      const result = await identityApi.verifyProfileContactChange({
+        challengeId: contactChange.challengeId,
+        code: contactChange.code
+      });
+      dispatch(setSessionUser(result.user));
+      setVerification(result.verification);
+      const updatedProfile = objectValue(result.verification.payload.profile);
+      setProfile((current) => ({
+        ...current,
+        emailAddress: stringValue(updatedProfile.emailAddress, result.user.email),
+        phoneNumber: stringValue(updatedProfile.phoneNumber, result.user.phone ?? current.phoneNumber)
+      }));
+      const label = contactChange.field === 'email' ? 'Email address' : 'Phone number';
+      notifySuccess(`${label} verified`, `${label} updated after code verification.`);
+      setContactChange(null);
+    } catch (error) {
+      const notification = notificationFromApiError(error, {
+        title: 'Verification failed',
+        fallback: 'Could not verify this contact change.'
+      });
+      setContactChange((current) => (current ? { ...current, error: notification.message } : current));
+    } finally {
+      setContactChangeLoading(false);
+    }
+  }
+
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setStatusMessage(null);
 
     try {
-      const { location: profileLocation, ...profileWithoutLocation } = profile;
+      const {
+        location: profileLocation,
+        emailAddress: _emailAddress,
+        phoneNumber: _phoneNumber,
+        displayName: _displayName,
+        ...profileWithoutLocation
+      } = profile;
       const saved = await identityApi.updateProfile({
         profile: {
           ...profileWithoutLocation,
@@ -595,14 +691,18 @@ export function AccountProfileProcurexPage() {
                   <span className="form-label">Full Name *</span>
                   <input className="form-input" value={profile.fullName} onChange={(event) => updateProfileField('fullName', event.target.value)} />
                 </label>
-                <label className="form-group iam-profile-field">
-                  <span className="form-label">Email Address *</span>
-                  <input className="form-input" type="email" value={profile.emailAddress} onChange={(event) => updateProfileField('emailAddress', event.target.value)} />
-                </label>
-                <label className="form-group iam-profile-field">
-                  <span className="form-label">Phone Number *</span>
-                  <input className="form-input" type="tel" value={profile.phoneNumber} onChange={(event) => updateProfileField('phoneNumber', event.target.value)} />
-                </label>
+                <ContactDisplayRow
+                  label="Email Address *"
+                  value={profile.emailAddress}
+                  hint="Verified by code before account email changes."
+                  onEdit={() => openContactChange('email')}
+                />
+                <ContactDisplayRow
+                  label="Phone Number *"
+                  value={profile.phoneNumber}
+                  hint="Verified by code before account phone changes."
+                  onEdit={() => openContactChange('phone')}
+                />
                 <label className="form-group iam-profile-field">
                   <span className="form-label">Country *</span>
                   <select className="form-input" value={profile.country} onChange={(event) => updateProfileField('country', event.target.value)}>
@@ -648,7 +748,8 @@ export function AccountProfileProcurexPage() {
               <div className="iam-form-grid">
                 <label className="form-group iam-profile-field">
                   <span className="form-label">Display / Legal Name *</span>
-                  <input className="form-input" value={profile.displayName} onChange={(event) => updateProfileField('displayName', event.target.value)} />
+                  <input className="form-input" aria-label="Display / Legal Name *" value={profile.displayName} disabled readOnly />
+                  <small className="form-hint">Legal name changes require identity verification or admin review.</small>
                 </label>
                 <label className="form-group iam-profile-field">
                   <span className="form-label">Professional Title</span>
@@ -798,10 +899,113 @@ export function AccountProfileProcurexPage() {
                 </div>
               </section>
             ) : null}
+            {contactChange ? (
+              <ContactChangeDialog
+                state={contactChange}
+                loading={contactChangeLoading}
+                onChange={setContactChange}
+                onCancel={() => setContactChange(null)}
+                onStart={() => void startContactChange()}
+                onVerify={() => void verifyContactChange()}
+              />
+            ) : null}
           </form>
         </div>
       </div>
     </>
+  );
+}
+
+function ContactDisplayRow({ label, value, hint, onEdit }: { label: string; value: string; hint: string; onEdit: () => void }) {
+  const plainLabel = label.replace('*', '').trim();
+  return (
+    <div className="form-group iam-profile-field">
+      <span className="form-label">{label}</span>
+      <div className="iam-readonly-row">
+        <span>{value || 'Not provided'}</span>
+        <button className="btn btn-secondary btn-sm" type="button" onClick={onEdit} aria-label={`Edit ${plainLabel}`}>
+          <EditRoundedIcon fontSize="small" />
+          Edit
+        </button>
+      </div>
+      <small className="form-hint">{hint}</small>
+    </div>
+  );
+}
+
+function ContactChangeDialog({
+  state,
+  loading,
+  onChange,
+  onCancel,
+  onStart,
+  onVerify
+}: {
+  state: ContactChangeState;
+  loading: boolean;
+  onChange: (next: ContactChangeState) => void;
+  onCancel: () => void;
+  onStart: () => void;
+  onVerify: () => void;
+}) {
+  const label = state.field === 'email' ? 'Email Address' : 'Phone Number';
+  const inputType = state.field === 'email' ? 'email' : 'tel';
+  const codeSent = Boolean(state.challengeId);
+
+  return (
+    <div className="product-spec-modal signature-keyphrase-modal" role="dialog" aria-modal="true" aria-labelledby="contact-change-title">
+      <div className="product-spec-modal-card signature-keyphrase-modal-card">
+        <div className="product-spec-modal-heading signature-keyphrase-modal-heading">
+          <div>
+            <span className="signature-keyphrase-modal-label">Account verification</span>
+            <h4 id="contact-change-title">Edit {label}</h4>
+            <p>{codeSent ? `Enter the code sent to ${state.target}.` : `A verification code will be sent to the new ${label.toLowerCase()}.`}</p>
+          </div>
+          <button className="signature-keyphrase-modal-close" type="button" onClick={onCancel} disabled={loading} aria-label="Close contact change dialog" title="Close">
+            x
+          </button>
+        </div>
+        <label className="signature-keyphrase-modal-label">
+          <span>New {label}</span>
+          <input
+            className="form-input"
+            type={inputType}
+            value={state.value}
+            disabled={loading || codeSent}
+            onChange={(event) => onChange({ ...state, value: event.target.value, error: undefined })}
+          />
+        </label>
+        {codeSent ? (
+          <label className="signature-keyphrase-modal-label">
+            <span>Verification Code</span>
+            <input
+              className="form-input"
+              inputMode="numeric"
+              value={state.code}
+              maxLength={6}
+              disabled={loading}
+              onChange={(event) => onChange({ ...state, code: event.target.value.replace(/\D/g, '').slice(0, 6), error: undefined })}
+            />
+          </label>
+        ) : null}
+        {state.devCode ? <div className="auth-note">Temporary local code: {state.devCode}</div> : null}
+        {state.error ? <div className="auth-note">{state.error}</div> : null}
+        <div className="product-spec-modal-actions">
+          <button className="btn btn-secondary" type="button" onClick={onCancel} disabled={loading}>
+            Cancel
+          </button>
+          {codeSent ? (
+            <button className="btn btn-primary" type="button" onClick={onVerify} disabled={loading || state.code.length !== 6}>
+              {loading ? 'Verifying...' : 'Verify and Update'}
+            </button>
+          ) : (
+            <button className="btn btn-primary" type="button" onClick={onStart} disabled={loading || !state.value.trim()}>
+              {loading ? 'Sending...' : 'Send Code'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

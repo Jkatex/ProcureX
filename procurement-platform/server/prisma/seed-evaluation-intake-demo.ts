@@ -782,7 +782,7 @@ export async function seedEvaluationIntakeDemo() {
 
       await upsertEvaluationWorkspace(db, tender, item);
     }
-  }, prisma);
+  }, prisma, { timeout: 30000 });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

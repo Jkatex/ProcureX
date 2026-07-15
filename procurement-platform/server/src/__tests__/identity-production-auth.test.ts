@@ -119,7 +119,12 @@ class FakeIdentityRepository {
 
   updateUser(id: string, data: Record<string, unknown>) {
     const user = this.users.get(id);
+    const previousEmail = user.email;
     Object.assign(user, data);
+    if (typeof data.email === 'string' && data.email !== previousEmail) {
+      this.usersByEmail.delete(previousEmail);
+      this.usersByEmail.set(data.email.toLowerCase(), user);
+    }
     return Promise.resolve(user);
   }
 
@@ -877,6 +882,92 @@ describe('identity production auth', () => {
         }
       })
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('requires code verification before changing profile email and phone', async () => {
+    const { notifications, repository, service } = makeService();
+    const registration = await service.startRegistration({ email: 'contact-change@example.test', phone: '+255700000073' });
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
+    await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
+    await service.setPassword('contact-change@example.test', 'Strong123!', legalAcceptance());
+    const session = await service.signIn('contact-change@example.test', 'Strong123!');
+
+    await expect(service.startProfileContactChange(undefined, { field: 'email', value: 'missing-session@example.test' })).rejects.toMatchObject({ status: 401 });
+
+    const emailChange = await service.startProfileContactChange(session.token, { field: 'email', value: 'new-contact@example.test' });
+    expect(emailChange).toMatchObject({ field: 'email', target: 'new-contact@example.test', maxAttempts: 5 });
+    expect(notifications.tenderContactVerifications.at(-1)).toMatchObject({ to: 'new-contact@example.test' });
+    await expect(service.verifyProfileContactChange(session.token, emailChange.challengeId, '000000')).rejects.toMatchObject({ status: 400 });
+    expect(repository.users.get(session.user.id).email).toBe('contact-change@example.test');
+
+    const verifiedEmail = await service.verifyProfileContactChange(session.token, emailChange.challengeId, notifications.tenderContactVerifications.at(-1)!.code);
+    expect(verifiedEmail.user.email).toBe('new-contact@example.test');
+    expect(verifiedEmail.verification.payload.profile).toMatchObject({ emailAddress: 'new-contact@example.test' });
+
+    const phoneChange = await service.startProfileContactChange(session.token, { field: 'phone', value: '0712 345 678' });
+    expect(phoneChange).toMatchObject({ field: 'phone', target: '+255712345678', maxAttempts: 5 });
+    expect(notifications.phoneOtps.at(-1)).toMatchObject({ to: '+255712345678' });
+
+    const verifiedPhone = await service.verifyProfileContactChange(session.token, phoneChange.challengeId, notifications.phoneOtps.at(-1)!.code);
+    expect(verifiedPhone.user.phone).toBe('+255712345678');
+    expect(verifiedPhone.verification.payload.profile).toMatchObject({
+      emailAddress: 'new-contact@example.test',
+      phoneNumber: '+255712345678'
+    });
+    expect(repository.auditEvents.some((event) => event.event === 'identity.profile.contact_change_verified')).toBe(true);
+  });
+
+  it('rejects duplicate profile contact changes before sending codes', async () => {
+    const { notifications, service } = makeService();
+    const first = await service.startRegistration({ email: 'first-contact@example.test', phone: '+255700000074' });
+    const firstOtp = await service.verifyOtp(first.challengeId, notifications.phoneOtps[0].code);
+    await service.activateEmail(firstOtp.activationChallengeId, notifications.activations[0].code);
+    await service.setPassword('first-contact@example.test', 'Strong123!', legalAcceptance());
+    const session = await service.signIn('first-contact@example.test', 'Strong123!');
+
+    await service.startRegistration({ email: 'taken-contact@example.test', phone: '+255700000075' });
+
+    await expect(service.startProfileContactChange(session.token, { field: 'email', value: 'taken-contact@example.test' })).rejects.toMatchObject({ status: 409 });
+    await expect(service.startProfileContactChange(session.token, { field: 'phone', value: '+255700000075' })).rejects.toMatchObject({ status: 409 });
+    await expect(service.startProfileContactChange(session.token, { field: 'email', value: 'first-contact@example.test' })).rejects.toMatchObject({ status: 409 });
+    await expect(service.startProfileContactChange(session.token, { field: 'phone', value: '+255700000074' })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('does not let ordinary profile saves overwrite protected account fields', async () => {
+    const { notifications, repository, service } = makeService();
+    const registration = await service.startRegistration({ email: 'protected-profile@example.test', phone: '+255700000076' });
+    const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
+    await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
+    await service.setPassword('protected-profile@example.test', 'Strong123!', legalAcceptance());
+    const session = await service.signIn('protected-profile@example.test', 'Strong123!');
+    await repository.upsertVerificationProfile({
+      userId: session.user.id,
+      organizationId: session.user.organizationId,
+      status: VerificationStatus.DRAFT,
+      payload: {
+        profile: {
+          displayName: 'Protected Legal Name',
+          emailAddress: 'protected-profile@example.test',
+          phoneNumber: '+255700000076'
+        }
+      }
+    });
+
+    const saved = await service.updateProfile(session.token, {
+      profile: {
+        fullName: 'Editable Person Name',
+        displayName: 'Malicious Legal Name',
+        emailAddress: 'attacker@example.test',
+        phoneNumber: '+255799999999'
+      }
+    });
+
+    expect(saved.payload.profile).toMatchObject({
+      fullName: 'Editable Person Name',
+      displayName: 'Protected Legal Name',
+      emailAddress: 'protected-profile@example.test',
+      phoneNumber: '+255700000076'
+    });
   });
 
   it('validates registration emails before persisting a user', async () => {

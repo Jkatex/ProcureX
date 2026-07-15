@@ -62,6 +62,8 @@ const keyphraseRecoveryEmailPurpose = 'KEYPHRASE_RECOVERY_EMAIL';
 const keyphraseRecoveryPhonePurpose = 'KEYPHRASE_RECOVERY_PHONE';
 const tenderContactEmailPurpose = 'TENDER_CONTACT_EMAIL_CODE';
 const tenderContactPhonePurpose = 'TENDER_CONTACT_PHONE_OTP';
+const profileEmailChangePurpose = 'PROFILE_EMAIL_CHANGE';
+const profilePhoneChangePurpose = 'PROFILE_PHONE_CHANGE';
 const sessionDays = 7;
 const maxChallengeAttempts = 5;
 const phoneOtpMinutes = 10;
@@ -101,6 +103,13 @@ export type TenderContactVerificationVerifyDto = {
   channel: TenderContactVerificationChannel;
   target: string;
   verifiedAt: string;
+};
+
+export type ProfileContactChangeField = 'email' | 'phone';
+
+export type ProfileContactChangeStartInput = {
+  field: ProfileContactChangeField;
+  value: string;
 };
 
 type LegalAcceptanceInput = {
@@ -347,6 +356,16 @@ function tenderContactChannelFromPurpose(purpose: string): TenderContactVerifica
   return null;
 }
 
+function profileContactPurpose(field: ProfileContactChangeField) {
+  return field === 'email' ? profileEmailChangePurpose : profilePhoneChangePurpose;
+}
+
+function profileContactFieldFromPurpose(purpose: string): ProfileContactChangeField | null {
+  if (purpose === profileEmailChangePurpose) return 'email';
+  if (purpose === profilePhoneChangePurpose) return 'phone';
+  return null;
+}
+
 function normalizeTenderContactTarget(channel: TenderContactVerificationChannel, rawTarget: string) {
   if (channel === 'email') {
     const email = normalizeEmail(rawTarget);
@@ -357,6 +376,31 @@ function normalizeTenderContactTarget(channel: TenderContactVerificationChannel,
   const phone = normalizePhone(rawTarget);
   assertValidE164Phone(phone);
   return phone;
+}
+
+function normalizeProfileContactTarget(field: ProfileContactChangeField, rawTarget: string) {
+  if (field === 'email') {
+    const email = normalizeEmail(rawTarget);
+    assertValidEmail(email);
+    return email;
+  }
+
+  const phone = normalizePhone(rawTarget);
+  assertValidE164Phone(phone);
+  return phone;
+}
+
+function protectedProfileValues(profile: Record<string, unknown>) {
+  return {
+    ...(profile.emailAddress !== undefined ? { emailAddress: profile.emailAddress } : {}),
+    ...(profile.phoneNumber !== undefined ? { phoneNumber: profile.phoneNumber } : {}),
+    ...(profile.displayName !== undefined ? { displayName: profile.displayName } : {})
+  };
+}
+
+function profileWithoutProtectedAccountFields(profile: Record<string, unknown>) {
+  const { emailAddress: _emailAddress, phoneNumber: _phoneNumber, displayName: _displayName, ...safeProfile } = profile;
+  return safeProfile;
 }
 
 function appPublicUrl() {
@@ -1016,7 +1060,7 @@ export class ModuleService {
     email: string;
     userId?: string | null;
     entityRef?: string | null;
-    purpose: 'registration_start' | 'email_activation' | 'password_reset' | 'keyphrase_recovery';
+    purpose: 'registration_start' | 'email_activation' | 'password_reset' | 'keyphrase_recovery' | 'profile_contact_change';
     audit?: AuthAuditContext;
     unavailableMessage?: string;
   }) {
@@ -1057,7 +1101,7 @@ export class ModuleService {
     phone: string;
     userId?: string | null;
     entityRef?: string | null;
-    purpose: 'registration_start' | 'phone_otp_resend' | 'keyphrase_recovery';
+    purpose: 'registration_start' | 'phone_otp_resend' | 'keyphrase_recovery' | 'profile_contact_change';
     audit?: AuthAuditContext;
     unavailableMessage?: string;
   }) {
@@ -2555,6 +2599,245 @@ export class ModuleService {
     return { recoveries: history.map(recoveryDto) };
   }
 
+  async startProfileContactChange(token: string | undefined, input: ProfileContactChangeStartInput, audit?: AuthAuditContext) {
+    const { user } = await this.requireSession(token);
+    const field = input.field;
+    const target = normalizeProfileContactTarget(field, input.value);
+    const currentTarget = field === 'email' ? normalizeEmail(user.email) : user.phone ? normalizePhone(user.phone) : '';
+
+    if (target === currentTarget) {
+      throw requestError(field === 'email' ? 'This email address is already on your account.' : 'This phone number is already on your account.', 409);
+    }
+
+    if (field === 'email') {
+      const existing = await this.repository.findUserByEmail(target);
+      if (existing && existing.id !== user.id) throw requestError('An account already exists for this email.', 409);
+    } else {
+      const existing = await this.repository.findUserByPhone(target);
+      if (existing && existing.id !== user.id) throw requestError('An account already exists for this phone number.', 409);
+    }
+
+    const purpose = profileContactPurpose(field);
+    const expiresInMinutes = field === 'email' ? activationMinutes : phoneOtpMinutes;
+    let validationMetadata: Record<string, unknown> | undefined;
+
+    if (field === 'email') {
+      let emailValidation: EmailValidationResult;
+      try {
+        emailValidation = await this.validateAuthEmailDelivery({
+          email: target,
+          userId: user.id,
+          purpose: 'profile_contact_change',
+          audit,
+          unavailableMessage: 'Could not verify this email address. Please try again later.'
+        });
+      } catch (error) {
+        if (!localTemporaryAuthCodesEnabled() || (error as Error & { status?: number }).status !== 502) throw error;
+        emailValidation = localEmailValidationFallback();
+      }
+      validationMetadata = { emailValidation: emailValidationMetadata(emailValidation) };
+    } else {
+      const phoneValidation = await this.validateAuthPhoneDelivery({
+        phone: target,
+        userId: user.id,
+        purpose: 'profile_contact_change',
+        audit,
+        unavailableMessage: 'Could not verify this phone number. Please try again later.'
+      });
+      validationMetadata = { phoneValidation: phoneValidationMetadata(phoneValidation) };
+    }
+
+    await this.repository.replacePendingChallenges({ userId: user.id, purpose, target });
+    const code = randomCode();
+    const challenge = await this.repository.createChallenge({
+      userId: user.id,
+      purpose,
+      target,
+      codeHash: sha256(code),
+      expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000),
+      metadata: {
+        field,
+        source: 'account_profile_contact_change',
+        delivery: { channel: field, status: 'pending' },
+        ...(validationMetadata ?? {})
+      }
+    });
+
+    try {
+      const receipt =
+        field === 'email'
+          ? await this.notifications.sendTenderContactVerification({
+              to: target,
+              code,
+              expiresInMinutes,
+              idempotencyKey: `identity-profile-email-change/${challenge.id}`,
+              metadata: { challengeId: challenge.id, userId: user.id }
+            })
+          : await this.notifications.sendPhoneOtp({ to: target, code, expiresInMinutes });
+      const devCode = devCodeFromReceipt(receipt, code) ?? (field === 'email' && localTemporaryAuthCodesEnabled() ? code : undefined);
+      await this.repository.updateChallenge(challenge.id, {
+        metadata: inputJson({
+          ...metadataObject(challenge.metadata),
+          ...(devCode ? { devCode } : {}),
+          delivery: {
+            channel: field === 'phone' ? phoneDeliveryChannel(receipt) : 'email',
+            status: 'sent',
+            ...deliveryMetadata(receipt)
+          }
+        })
+      });
+      await this.recordAuthEvent('identity.profile.contact_change_delivery_succeeded', {
+        ...audit,
+        userId: user.id,
+        ownerOrgId: user.organizationId,
+        entityRef: challenge.id,
+        target,
+        details: { field, provider: receipt.provider, messageId: receipt.messageId }
+      });
+
+      return {
+        challengeId: challenge.id,
+        field,
+        target,
+        expiresAt: challenge.expiresAt.toISOString(),
+        resendAvailableAt: challengeResendAvailableAt(challenge.createdAt, resendCooldownSeconds),
+        maxAttempts: maxChallengeAttempts,
+        ...(devCode ? { devCode } : {})
+      };
+    } catch (error) {
+      if (field === 'email' && localTemporaryAuthCodesEnabled()) {
+        const fallbackChallenge = await this.repository.updateChallenge(challenge.id, {
+          metadata: inputJson({
+            ...metadataObject(challenge.metadata),
+            devCode: code,
+            delivery: {
+              channel: 'email',
+              status: 'local-temporary-code',
+              failedAt: new Date().toISOString(),
+              error: error instanceof Error ? error.message : 'Email delivery failed.'
+            }
+          })
+        });
+        await this.recordAuthEvent('identity.profile.contact_change_delivery_succeeded', {
+          ...audit,
+          userId: user.id,
+          ownerOrgId: user.organizationId,
+          entityRef: challenge.id,
+          target,
+          details: { field, provider: 'local-temporary-code' }
+        });
+        return {
+          challengeId: fallbackChallenge.id,
+          field,
+          target,
+          expiresAt: fallbackChallenge.expiresAt.toISOString(),
+          resendAvailableAt: challengeResendAvailableAt(fallbackChallenge.createdAt, resendCooldownSeconds),
+          maxAttempts: maxChallengeAttempts,
+          devCode: code
+        };
+      }
+
+      await this.markChallengeDeliveryFailed(challenge.id, challenge.metadata, error);
+      await this.recordAuthEvent('identity.profile.contact_change_delivery_failed', {
+        ...audit,
+        userId: user.id,
+        ownerOrgId: user.organizationId,
+        entityRef: challenge.id,
+        target,
+        severity: AuditSeverity.ERROR,
+        details: { field }
+      });
+      throw requestError(field === 'email' ? 'Could not send contact verification email. Please try again later.' : 'Could not send contact verification SMS. Please try again later.', 502);
+    }
+  }
+
+  async verifyProfileContactChange(token: string | undefined, challengeId: string, code: string, audit?: AuthAuditContext) {
+    const session = await this.requireSession(token);
+    const challenge = await this.repository.findChallenge(challengeId);
+    const field = challenge ? profileContactFieldFromPurpose(challenge.purpose) : null;
+    if (!challenge || !field || challenge.userId !== session.user.id) {
+      throw requestError('Contact change verification code was not found.', 404);
+    }
+    if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) {
+      throw requestError('Contact change verification code is no longer valid.', 410);
+    }
+    if (challenge.attempts >= maxChallengeAttempts) {
+      throw requestError('Too many contact change attempts. Please request a new code.', 429);
+    }
+    if (challenge.codeHash !== sha256(code.trim())) {
+      await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.profile.contact_change_failed_attempt', {
+        ...audit,
+        userId: session.user.id,
+        ownerOrgId: session.user.organizationId,
+        entityRef: challenge.id,
+        target: challenge.target,
+        severity: AuditSeverity.WARNING,
+        details: { field }
+      });
+      throw requestError('Contact change verification code is incorrect.', 400);
+    }
+
+    const duplicate = field === 'email' ? await this.repository.findUserByEmail(challenge.target) : await this.repository.findUserByPhone(challenge.target);
+    if (duplicate && duplicate.id !== session.user.id) {
+      throw requestError(field === 'email' ? 'An account already exists for this email.' : 'An account already exists for this phone number.', 409);
+    }
+    if (!challenge.user) throw requestError('Contact change verification code is not linked to a user.', 400);
+
+    const consumed = await this.repository.consumeChallenge(challenge.id);
+    const verifiedAt = consumed.consumedAt ?? new Date();
+    const userMetadata = metadataObject(challenge.user.metadata);
+    const updatedUser = await this.repository.updateUser(session.user.id, {
+      ...(field === 'email' ? { email: challenge.target } : { phone: challenge.target }),
+      metadata: inputJson({
+        ...userMetadata,
+        ...(field === 'email'
+          ? { emailVerified: true, emailVerifiedAt: verifiedAt.toISOString() }
+          : { phoneVerified: true, phoneVerifiedAt: verifiedAt.toISOString() })
+      })
+    });
+
+    const existing = await this.repository.latestVerificationProfile(session.user.id);
+    const existingPayload = metadataObject(existing?.payload);
+    const existingProfile = metadataObject(existingPayload.profile);
+    const payload = inputJson({
+      ...existingPayload,
+      profile: {
+        ...existingProfile,
+        ...(field === 'email' ? { emailAddress: challenge.target } : { phoneNumber: challenge.target })
+      },
+      profileContactChangedAt: verifiedAt.toISOString()
+    });
+    const profile = await this.repository.upsertVerificationProfile({
+      userId: session.user.id,
+      organizationId: session.user.organizationId,
+      status: existing?.status ?? VerificationStatus.DRAFT,
+      registrySource: existing?.registrySource,
+      registryNumber: existing?.registryNumber,
+      payload
+    });
+    await this.repository.createVerificationHistory({
+      verificationProfileId: profile.id,
+      userId: session.user.id,
+      organizationId: session.user.organizationId,
+      status: profile.status,
+      registrySource: profile.registrySource,
+      registryNumber: profile.registryNumber,
+      event: 'profile_contact_changed',
+      payload
+    });
+    await this.recordAuthEvent('identity.profile.contact_change_verified', {
+      ...audit,
+      userId: session.user.id,
+      ownerOrgId: session.user.organizationId,
+      entityRef: challenge.id,
+      target: challenge.target,
+      details: { field, verificationProfileId: profile.id }
+    });
+
+    return { user: toSessionUser(updatedUser), verification: toProfileDto(profile) };
+  }
+
   async saveVerificationDraft(token: string | undefined, input: VerificationPayloadInput, audit?: AuthAuditContext) {
     const { user } = await this.requireSession(token);
     const existing = await this.repository.latestVerificationProfile(user.id);
@@ -2598,14 +2881,19 @@ export class ModuleService {
   async updateProfile(token: string | undefined, input: { profile: Record<string, unknown>; documents?: Record<string, unknown>[] }) {
     const { user } = await this.requireSession(token);
     const existing = await this.repository.latestVerificationProfile(user.id);
-    const profileInput = { ...input.profile };
+    const existingPayload = metadataObject(existing?.payload);
+    const existingProfile = metadataObject(existingPayload.profile);
+    const profileInput: Record<string, unknown> = {
+      ...profileWithoutProtectedAccountFields(input.profile),
+      ...protectedProfileValues(existingProfile)
+    };
     if (profileInput.location !== undefined) {
       profileInput.location = assertValidTanzaniaLocation(profileInput.location);
     }
     const payload = inputJson({
-      ...metadataObject(existing?.payload),
+      ...existingPayload,
       profile: profileInput,
-      documents: input.documents ?? metadataObject(existing?.payload).documents ?? [],
+      documents: input.documents ?? existingPayload.documents ?? [],
       profileSavedAt: new Date().toISOString()
     });
     const profile = await this.repository.upsertVerificationProfile({
