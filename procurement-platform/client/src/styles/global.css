@@ -8,18 +8,8 @@
 
 .post-award-app {
   min-height: calc(100vh - 64px);
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
   background: #eef2f5;
   color: #172331;
-}
-
-.post-award-contracts {
-  min-height: calc(100vh - 64px);
-  padding: 16px;
-  border-right: 1px solid rgba(23, 35, 49, 0.12);
-  background: #f8fafb;
-  overflow: auto;
 }
 
 .post-award-pane-head {
@@ -28,6 +18,11 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.post-award-pane-head-large {
+  align-items: flex-start;
+  margin-bottom: 18px;
 }
 
 .post-award-pane-head span,
@@ -43,17 +38,12 @@
   font-size: 0.96rem;
 }
 
-.post-award-contract-list {
-  display: grid;
-  gap: 8px;
-}
-
-.post-award-contract-card,
 .post-award-action-card {
   width: 100%;
-  display: grid;
-  gap: 5px;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
   border: 1px solid rgba(23, 35, 49, 0.12);
   border-radius: 8px;
   background: #ffffff;
@@ -62,18 +52,15 @@
   cursor: pointer;
 }
 
-.post-award-contract-card.active,
 .post-award-action-card.active {
   border-color: #0f766e;
   box-shadow: inset 3px 0 0 #0f766e;
 }
 
-.post-award-contract-card:hover,
 .post-award-action-card:hover:not(:disabled) {
   border-color: rgba(15, 118, 110, 0.5);
 }
 
-.post-award-contract-card span,
 .post-award-action-card span {
   color: #617181;
   font-size: 0.72rem;
@@ -81,17 +68,16 @@
   letter-spacing: 0;
 }
 
-.post-award-contract-card strong,
 .post-award-action-card strong {
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1.3;
 }
 
-.post-award-contract-card em,
 .post-award-action-card em {
   color: #607080;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   font-style: normal;
+  line-height: 1.45;
 }
 
 .post-award-action-card:disabled {
@@ -100,9 +86,34 @@
 }
 
 .post-award-workspace {
+  width: min(1360px, calc(100% - 32px));
   min-width: 0;
-  padding: 16px;
-  overflow: auto;
+  margin: 0 auto;
+  padding: 28px 0 48px;
+}
+
+.post-award-contract-selector,
+.post-award-stage-panel,
+.post-award-work-panel,
+.post-award-guided-panel,
+.post-award-records-panel,
+.post-award-secondary,
+.post-award-finance-box {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid rgba(23, 35, 49, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.post-award-contract-selector {
+  margin-top: 0;
+}
+
+.post-award-contract-select {
+  width: 100%;
+  min-height: 48px;
+  font-weight: 800;
 }
 
 .post-award-contract-header {
@@ -110,16 +121,18 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px;
+  margin-top: 24px;
+  padding: 32px;
   border: 1px solid rgba(23, 35, 49, 0.12);
   border-radius: 8px;
   background: #ffffff;
 }
 
 .post-award-contract-header h1 {
-  margin: 4px 0 6px;
-  font-size: clamp(1.25rem, 2vw, 1.7rem);
+  margin: 8px 0 10px;
+  font-size: clamp(1.8rem, 3vw, 2.65rem);
   letter-spacing: 0;
+  line-height: 1.08;
 }
 
 .post-award-contract-header span,
@@ -129,12 +142,40 @@
   font-weight: 800;
 }
 
+.post-award-hero-next {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 24px;
+  padding: 14px 18px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 8px;
+  background: #eef8f6;
+}
+
+.post-award-hero-next span {
+  color: #42706c;
+  font-size: 0.75rem;
+}
+
+.post-award-hero-next strong {
+  color: #0f5f59;
+  font-size: 1rem;
+}
+
 .post-award-header-meta {
   min-width: 190px;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.post-award-header-meta small {
+  width: 100%;
+  color: #607080;
+  font-weight: 800;
+  text-align: right;
 }
 
 .post-award-header-meta strong {
@@ -175,10 +216,108 @@
 }
 
 .post-award-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin: 12px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 20px 0;
+}
+
+.post-award-command-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.post-award-command-strip article,
+.post-award-workflow-steps article,
+.post-award-blockers article,
+.post-award-task-panel {
+  border: 1px solid rgba(23, 35, 49, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.post-award-command-strip article {
+  flex: 1 1 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 130px;
+  padding: 22px;
+}
+
+.post-award-command-strip span,
+.post-award-workflow-steps span,
+.post-award-blockers span,
+.post-award-eligible-list span {
+  color: #617181;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.post-award-command-strip strong {
+  color: #172331;
+  font-size: 1.34rem;
+}
+
+.post-award-command-strip p,
+.post-award-blockers p,
+.post-award-form p {
+  margin: 0;
+  color: #5f6f7f;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.post-award-operational-pulse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.post-award-operational-pulse article {
+  flex: 1 1 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 118px;
+  padding: 20px;
+  border: 1px solid rgba(23, 35, 49, 0.09);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.post-award-operational-pulse span {
+  color: #647485;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.post-award-operational-pulse strong {
+  color: #172331;
+  font-size: 1.18rem;
+}
+
+.post-award-operational-pulse p {
+  margin: 0;
+  color: #607083;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.post-award-health-low {
+  box-shadow: inset 4px 0 0 #0f766e;
+}
+
+.post-award-health-medium {
+  box-shadow: inset 4px 0 0 #ca8a04;
+}
+
+.post-award-health-high,
+.post-award-health-critical {
+  box-shadow: inset 4px 0 0 #b91c1c;
 }
 
 .post-award-metrics article,
@@ -204,43 +343,36 @@
   font-size: 1.3rem;
 }
 
-.post-award-console {
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) 330px;
-  gap: 12px;
-  align-items: start;
-}
-
-.post-award-stages,
-.post-award-stage-panel,
-.post-award-actions {
-  padding: 12px;
-  border: 1px solid rgba(23, 35, 49, 0.12);
-  border-radius: 8px;
-  background: #ffffff;
-}
-
 .post-award-stages {
-  display: grid;
-  gap: 6px;
-  position: sticky;
-  top: 12px;
+  display: flex;
+  gap: 14px;
+  margin: 28px 0 24px;
+  padding: 8px 0 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
 }
 
 .post-award-stages button {
+  flex: 0 0 230px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: #f4f6f8;
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid rgba(23, 35, 49, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
   color: #203040;
   font-weight: 900;
   text-align: left;
   cursor: pointer;
+  scroll-snap-align: start;
+}
+
+.post-award-stages button span:first-child {
+  color: #8da0af;
+  font-size: 0.75rem;
 }
 
 .post-award-stages button.active {
@@ -249,15 +381,135 @@
   color: #0f5f59;
 }
 
-.post-award-stages button strong {
-  min-width: 24px;
-  text-align: right;
+.post-award-stages button strong,
+.post-award-stages button em {
+  min-width: 0;
+}
+
+.post-award-stages button em {
+  color: #607080;
+  font-size: 0.82rem;
+  font-style: normal;
 }
 
 .post-award-table-wrap {
   overflow: auto;
   border: 1px solid rgba(23, 35, 49, 0.1);
   border-radius: 8px;
+}
+
+.post-award-workflow-steps {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.post-award-workflow-steps article {
+  flex: 0 0 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 128px;
+  padding: 18px;
+}
+
+.post-award-workflow-steps strong {
+  color: #172331;
+  font-size: 0.94rem;
+}
+
+.post-award-workflow-steps em,
+.post-award-eligible-list em {
+  color: #607080;
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.post-award-blockers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.post-award-blockers article {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  background: #fff8f1;
+}
+
+.post-award-task-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.post-award-finance-box {
+  background: #f9fbfc;
+}
+
+.post-award-finance-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.post-award-finance-metrics article {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid rgba(23, 35, 49, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.post-award-finance-metrics span {
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.post-award-finance-metrics strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.post-award-eligible-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.post-award-eligible-list article {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid rgba(23, 35, 49, 0.08);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.post-award-eligible-list span {
+  grid-column: 1 / -1;
+}
+
+.post-award-eligible-list small {
+  grid-column: 1 / -1;
+  color: #8a4b12;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .post-award-table {
@@ -293,21 +545,18 @@
   font-size: 0.76rem;
 }
 
-.post-award-actions {
-  position: sticky;
-  top: 12px;
-}
-
 .post-award-action-list {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .post-award-form {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 18px;
   border-top: 1px solid rgba(23, 35, 49, 0.1);
 }
 
@@ -317,8 +566,9 @@
 }
 
 .post-award-form label {
-  display: grid;
-  gap: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
   color: #455565;
   font-size: 0.78rem;
   font-weight: 900;
@@ -367,57 +617,97 @@
 }
 
 .post-award-secondary {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(23, 35, 49, 0.1);
+  background: #fbfcfd;
 }
 
 .post-award-secondary-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.post-award-secondary-grid article {
+  flex: 1 1 180px;
+}
+
+.post-award-panel-intro {
+  margin-bottom: 18px;
+}
+
+.post-award-panel-intro span {
+  color: #617181;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.post-award-panel-intro h2 {
+  margin: 6px 0 8px;
+  font-size: clamp(1.4rem, 2vw, 1.9rem);
+  letter-spacing: 0;
+}
+
+.post-award-panel-intro p {
+  max-width: 820px;
+  margin: 0;
+  color: #607080;
+  line-height: 1.55;
+}
+
+.post-award-role-toggle {
+  display: inline-flex;
   gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  border: 1px solid rgba(23, 35, 49, 0.1);
+  border-radius: 8px;
+  background: #f4f7f8;
+}
+
+.post-award-role-toggle button {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #536475;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.post-award-role-toggle button.active {
+  border-color: rgba(15, 118, 110, 0.25);
+  background: #ffffff;
+  color: #0f5f59;
+}
+
+.post-award-guided-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 @media (max-width: 1180px) {
-  .post-award-app {
-    grid-template-columns: 1fr;
-  }
-
-  .post-award-contracts {
-    min-height: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(23, 35, 49, 0.12);
-  }
-
-  .post-award-contract-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .post-award-console {
-    grid-template-columns: 1fr;
-  }
-
-  .post-award-stages,
-  .post-award-actions {
-    position: static;
-  }
-
-  .post-award-stages {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .post-award-workspace {
+    width: min(100% - 24px, 1120px);
   }
 }
 
 @media (max-width: 760px) {
-  .post-award-workspace,
-  .post-award-contracts {
-    padding: 10px;
+  .post-award-workspace {
+    width: min(100% - 20px, 100%);
+    padding: 14px 0 32px;
   }
 
-  .post-award-contract-list,
-  .post-award-metrics,
-  .post-award-stages,
-  .post-award-secondary-grid {
-    grid-template-columns: 1fr;
+  .post-award-contract-selector,
+  .post-award-contract-header,
+  .post-award-stage-panel,
+  .post-award-work-panel,
+  .post-award-guided-panel,
+  .post-award-records-panel,
+  .post-award-secondary,
+  .post-award-finance-box {
+    padding: 18px;
   }
 
   .post-award-contract-header {
@@ -430,6 +720,19 @@
 
   .post-award-header-meta strong {
     text-align: left;
+  }
+
+  .post-award-stages button,
+  .post-award-workflow-steps article {
+    flex-basis: 82vw;
+  }
+
+  .post-award-role-toggle {
+    width: 100%;
+  }
+
+  .post-award-role-toggle button {
+    flex: 1;
   }
 }
 

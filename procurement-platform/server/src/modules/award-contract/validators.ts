@@ -20,6 +20,7 @@ const optionalNote = z.string().trim().max(2000).optional().default('');
 const jsonObjectSchema = z.record(z.string(), z.unknown()).optional().default({});
 const statusTextSchema = z.string().trim().min(1).max(80).regex(/^[A-Z][A-Z0-9_ -]*$/).optional();
 const signatureKeyphraseSchema = z.string().min(6).max(128);
+const visibilityScopeSchema = z.enum(['SHARED', 'BUYER_PRIVATE', 'SUPPLIER_PRIVATE']).optional().default('SHARED');
 
 export const moduleStatusQuerySchema = z.object({}).strict();
 
@@ -290,7 +291,7 @@ export const deliveryScheduleBodySchema = z.object({
   unit: z.string().trim().max(80).optional().default(''),
   deliveryLocation: z.string().trim().max(220).optional().default(''),
   plannedDeliveryDate: z.string().trim().date().optional(),
-  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional().default(ContractLifecycleItemStatus.OPEN),
   payload: jsonObjectSchema
 }).strict();
 
@@ -345,13 +346,23 @@ export const worksProgressReportBodySchema = z.object({
   periodStart: z.string().trim().date().optional(),
   periodEnd: z.string().trim().date().optional(),
   progressPercent: z.coerce.number().finite().min(0).max(100).optional(),
+  programmeReference: z.string().trim().max(120).optional().default(''),
   narrative: z.string().trim().max(4000).optional().default(''),
   status: z.string().trim().max(80).optional().default('SUBMITTED'),
+  visibilityScope: visibilityScopeSchema,
+  payload: jsonObjectSchema
+}).strict();
+
+export const worksProgressReviewBodySchema = z.object({
+  status: z.string().trim().min(1).max(80).default('APPROVED'),
+  progressPercent: z.coerce.number().finite().min(0).max(100).optional(),
+  note: optionalNote,
   payload: jsonObjectSchema
 }).strict();
 
 export const boqMeasurementBodySchema = z.object({
   reportId: uuidSchema.optional(),
+  measurementReference: z.string().trim().max(120).optional().default(''),
   boqItemReference: nonEmptyText.max(120),
   description: z.string().trim().max(1000).optional().default(''),
   previousQuantity: z.coerce.number().finite().nonnegative().optional(),
@@ -359,20 +370,72 @@ export const boqMeasurementBodySchema = z.object({
   cumulativeQuantity: z.coerce.number().finite().nonnegative().optional(),
   unitRate: z.coerce.number().finite().nonnegative().optional(),
   amount: z.coerce.number().finite().nonnegative().optional(),
+  certifiedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  certifiedAmount: z.coerce.number().finite().nonnegative().optional(),
   status: z.string().trim().max(80).optional().default('MEASURED'),
+  visibilityScope: visibilityScopeSchema,
+  payload: jsonObjectSchema
+}).strict();
+
+export const boqMeasurementReviewBodySchema = z.object({
+  status: z.string().trim().min(1).max(80).default('APPROVED'),
+  certifiedQuantity: z.coerce.number().finite().nonnegative().optional(),
+  certifiedAmount: z.coerce.number().finite().nonnegative().optional(),
+  note: optionalNote,
   payload: jsonObjectSchema
 }).strict();
 
 export const interimPaymentCertificateBodySchema = z.object({
+  measurementId: uuidSchema.optional(),
   certificateNumber: z.string().trim().max(120).optional().default(''),
+  certificateType: z.string().trim().max(80).optional().default('INTERIM'),
   periodStart: z.string().trim().date().optional(),
   periodEnd: z.string().trim().date().optional(),
   grossAmount: z.coerce.number().finite().nonnegative().optional(),
   deductionsAmount: z.coerce.number().finite().nonnegative().optional(),
+  retentionAmount: z.coerce.number().finite().nonnegative().optional(),
+  advanceRecoveryAmount: z.coerce.number().finite().nonnegative().optional(),
+  liquidatedDamagesAmount: z.coerce.number().finite().nonnegative().optional(),
+  taxWithholdingAmount: z.coerce.number().finite().nonnegative().optional(),
+  otherDeductionsAmount: z.coerce.number().finite().nonnegative().optional(),
+  certifiedAmount: z.coerce.number().finite().nonnegative().optional(),
   netAmount: z.coerce.number().finite().nonnegative().optional(),
   currency: z.string().trim().min(3).max(3).optional().default('TZS'),
   status: z.string().trim().max(80).optional().default('DRAFT'),
   approvedAt: z.string().trim().datetime().optional(),
+  visibilityScope: visibilityScopeSchema,
+  payload: jsonObjectSchema
+}).strict();
+
+export const interimPaymentCertificateCertifyBodySchema = z.object({
+  status: z.string().trim().min(1).max(80).default('CERTIFIED'),
+  grossAmount: z.coerce.number().finite().nonnegative().optional(),
+  retentionAmount: z.coerce.number().finite().nonnegative().optional(),
+  advanceRecoveryAmount: z.coerce.number().finite().nonnegative().optional(),
+  liquidatedDamagesAmount: z.coerce.number().finite().nonnegative().optional(),
+  taxWithholdingAmount: z.coerce.number().finite().nonnegative().optional(),
+  otherDeductionsAmount: z.coerce.number().finite().nonnegative().optional(),
+  deductionsAmount: z.coerce.number().finite().nonnegative().optional(),
+  certifiedAmount: z.coerce.number().finite().nonnegative().optional(),
+  netAmount: z.coerce.number().finite().nonnegative().optional(),
+  note: optionalNote,
+  payload: jsonObjectSchema
+}).strict();
+
+export const worksCompletionCertificateBodySchema = z.object({
+  certificateNumber: z.string().trim().max(120).optional().default(''),
+  certificateType: z.string().trim().min(1).max(80).default('PRACTICAL_COMPLETION'),
+  status: z.string().trim().max(80).optional().default('ISSUED'),
+  progressReportId: uuidSchema.optional(),
+  ipcId: uuidSchema.optional(),
+  completionDate: z.string().trim().date().optional(),
+  defectsSummary: z.string().trim().max(4000).optional().default(''),
+  outstandingWorks: z.string().trim().max(4000).optional().default(''),
+  finalAccountAmount: z.coerce.number().finite().nonnegative().optional(),
+  retentionReleaseAmount: z.coerce.number().finite().nonnegative().optional(),
+  currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+  note: optionalNote,
+  visibilityScope: visibilityScopeSchema,
   payload: jsonObjectSchema
 }).strict();
 
@@ -385,6 +448,23 @@ export const contractDefectBodySchema = z.object({
   dueDate: z.string().trim().date().optional(),
   status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
   closedAt: z.string().trim().datetime().optional(),
+  sourceRecordType: z.string().trim().max(120).optional().default(''),
+  sourceRecordId: uuidSchema.optional(),
+  responsibleRole: z.string().trim().max(80).optional().default('SUPPLIER'),
+  responseDueDate: z.string().trim().date().optional(),
+  visibilityScope: visibilityScopeSchema,
+  note: optionalNote,
+  response: z.string().trim().max(4000).optional().default(''),
+  payload: jsonObjectSchema
+}).strict();
+
+export const contractDefectActionBodySchema = z.object({
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  response: z.string().trim().max(4000).optional().default(''),
+  evidence: z.array(z.unknown()).optional().default([]),
+  verifiedNote: optionalNote,
+  closureNote: optionalNote,
+  dueDate: z.string().trim().date().optional(),
   payload: jsonObjectSchema
 }).strict();
 
@@ -412,17 +492,71 @@ export const serviceReportBodySchema = z.object({
   submittedAt: z.string().trim().datetime().optional(),
   status: z.string().trim().max(80).optional().default('SUBMITTED'),
   summary: z.string().trim().max(4000).optional().default(''),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  visibilityScope: visibilityScopeSchema,
+  correctedAt: z.string().trim().datetime().optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const serviceReportReviewBodySchema = z.object({
+  status: z.string().trim().min(1).max(80).default('APPROVED'),
+  verifiedSlaResult: z.string().trim().max(120).optional().default(''),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  correctionDueDate: z.string().trim().date().optional(),
+  note: optionalNote,
   payload: jsonObjectSchema
 }).strict();
 
 export const serviceCreditBodySchema = z.object({
   serviceLevelId: uuidSchema.optional(),
   periodId: uuidSchema.optional(),
+  serviceReportId: uuidSchema.optional(),
   creditType: z.string().trim().max(120).optional().default('SERVICE_CREDIT'),
   amount: z.coerce.number().finite().nonnegative().optional(),
+  invoiceImpactAmount: z.coerce.number().finite().nonnegative().optional(),
   currency: z.string().trim().min(3).max(3).optional().default('TZS'),
   status: z.string().trim().max(80).optional().default('DRAFT'),
+  decision: z.string().trim().max(80).optional().default(''),
+  visibilityScope: visibilityScopeSchema,
   reason: z.string().trim().max(2000).optional().default(''),
+  payload: jsonObjectSchema
+}).strict();
+
+export const serviceCreditReviewBodySchema = z.object({
+  status: z.string().trim().min(1).max(80).default('APPROVED'),
+  decision: z.string().trim().max(80).optional().default('APPROVED'),
+  amount: z.coerce.number().finite().nonnegative().optional(),
+  invoiceImpactAmount: z.coerce.number().finite().nonnegative().optional(),
+  reason: z.string().trim().max(2000).optional().default(''),
+  payload: jsonObjectSchema
+}).strict();
+
+export const serviceIncidentBodySchema = z.object({
+  incidentReference: z.string().trim().max(120).optional().default(''),
+  incidentType: z.string().trim().max(120).optional().default('INCIDENT'),
+  title: nonEmptyText.max(220),
+  description: z.string().trim().max(4000).optional().default(''),
+  severity: z.string().trim().max(80).optional().default('MINOR'),
+  serviceLevelId: uuidSchema.optional(),
+  periodId: uuidSchema.optional(),
+  serviceReportId: uuidSchema.optional(),
+  occurredAt: z.string().trim().datetime().optional(),
+  dueDate: z.string().trim().date().optional(),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional().default(ContractLifecycleItemStatus.OPEN),
+  responsibleRole: z.string().trim().max(80).optional().default('SUPPLIER'),
+  responseDueDate: z.string().trim().date().optional(),
+  visibilityScope: visibilityScopeSchema,
+  response: z.string().trim().max(4000).optional().default(''),
+  payload: jsonObjectSchema
+}).strict();
+
+export const serviceIncidentActionBodySchema = z.object({
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  response: z.string().trim().max(4000).optional().default(''),
+  evidence: z.array(z.unknown()).optional().default([]),
+  verifiedNote: optionalNote,
+  closureNote: optionalNote,
+  dueDate: z.string().trim().date().optional(),
   payload: jsonObjectSchema
 }).strict();
 
@@ -432,17 +566,36 @@ export const consultancyDeliverableBodySchema = z.object({
   description: z.string().trim().max(4000).optional().default(''),
   dueDate: z.string().trim().date().optional(),
   paymentEligible: z.boolean().optional().default(false),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  approvalStatus: z.string().trim().max(80).optional().default(''),
+  isFinalReport: z.boolean().optional().default(false),
+  visibilityScope: visibilityScopeSchema,
   status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+  payload: jsonObjectSchema
+}).strict();
+
+export const consultancyDeliverableReviewBodySchema = z.object({
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional().default(ContractLifecycleItemStatus.APPROVED),
+  paymentEligible: z.boolean().optional(),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  approvalStatus: z.string().trim().max(80).optional().default(''),
+  note: optionalNote,
+  visibilityScope: visibilityScopeSchema,
   payload: jsonObjectSchema
 }).strict();
 
 export const deliverableVersionBodySchema = z.object({
   deliverableId: uuidSchema.optional(),
+  previousVersionId: uuidSchema.optional(),
   versionNo: z.coerce.number().int().min(1).optional(),
   documentId: uuidSchema.optional(),
   submittedAt: z.string().trim().datetime().optional(),
   status: z.string().trim().max(80).optional().default('SUBMITTED'),
   note: optionalNote,
+  revisionReason: z.string().trim().max(2000).optional().default(''),
+  correctionDueDate: z.string().trim().date().optional(),
+  correctedAt: z.string().trim().datetime().optional(),
+  visibilityScope: visibilityScopeSchema,
   payload: jsonObjectSchema
 }).strict();
 
@@ -451,6 +604,44 @@ export const deliverableReviewBodySchema = z.object({
   decision: z.string().trim().max(80).optional().default('REVISION_REQUESTED'),
   reviewedAt: z.string().trim().datetime().optional(),
   comments: z.string().trim().max(4000).optional().default(''),
+  commentSummary: z.string().trim().max(1000).optional().default(''),
+  buyerPrivateNotes: z.string().trim().max(4000).optional().default(''),
+  paymentEligible: z.boolean().optional().default(false),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  revisionDueDate: z.string().trim().date().optional(),
+  visibilityScope: visibilityScopeSchema,
+  payload: jsonObjectSchema
+}).strict();
+
+export const deliverableReviewPaymentEligibilityBodySchema = z.object({
+  paymentEligible: z.boolean().optional().default(true),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  decision: z.string().trim().max(80).optional().default('APPROVED'),
+  note: optionalNote,
+  visibilityScope: visibilityScopeSchema,
+  payload: jsonObjectSchema
+}).strict();
+
+export const consultancyFinalReportBodySchema = z.object({
+  reportReference: z.string().trim().max(120).optional().default(''),
+  deliverableId: uuidSchema.optional(),
+  versionId: uuidSchema.optional(),
+  documentId: uuidSchema.optional(),
+  submittedAt: z.string().trim().datetime().optional(),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional().default(ContractLifecycleItemStatus.SUBMITTED),
+  summary: z.string().trim().max(4000).optional().default(''),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  paymentEligible: z.boolean().optional().default(false),
+  visibilityScope: visibilityScopeSchema,
+  payload: jsonObjectSchema
+}).strict();
+
+export const consultancyFinalReportReviewBodySchema = z.object({
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional().default(ContractLifecycleItemStatus.APPROVED),
+  acceptedAmount: z.coerce.number().finite().nonnegative().optional(),
+  paymentEligible: z.boolean().optional().default(true),
+  note: optionalNote,
+  visibilityScope: visibilityScopeSchema,
   payload: jsonObjectSchema
 }).strict();
 
@@ -509,6 +700,100 @@ export const contractManagementPlanBodySchema = z
     monitoringPlan: z.string().trim().max(4000).optional().default(''),
     reportingPlan: z.string().trim().max(4000).optional().default(''),
     communicationPlan: z.string().trim().max(4000).optional().default(''),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractManagementPlanDraftBodySchema = z
+  .object({
+    overwrite: z.boolean().optional().default(false),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractNoticeBodySchema = z
+  .object({
+    noticeType: z.string().trim().min(1).max(120).optional().default('ORDINARY_MESSAGE'),
+    title: nonEmptyText.max(220),
+    body: z.string().trim().max(8000).optional().default(''),
+    status: z.string().trim().min(1).max(80).optional().default('SENT'),
+    senderRole: z.string().trim().max(80).optional().default('BUYER'),
+    recipientRole: z.string().trim().max(80).optional().default('SUPPLIER'),
+    sentAt: z.string().trim().datetime().optional(),
+    receivedAt: z.string().trim().datetime().optional(),
+    dueDate: z.string().trim().date().optional(),
+    relatedRecordType: z.string().trim().max(120).optional().default(''),
+    relatedRecordId: uuidSchema.optional(),
+    visibilityScope: z.enum(['SHARED', 'BUYER_PRIVATE', 'SUPPLIER_PRIVATE']).optional().default('SHARED'),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractNoticeActionBodySchema = z
+  .object({
+    status: z.string().trim().min(1).max(80).optional(),
+    response: z.string().trim().max(8000).optional().default(''),
+    note: optionalNote,
+    privateNote: z.string().trim().max(4000).optional().default(''),
+    receivedAt: z.string().trim().datetime().optional(),
+    acknowledgedAt: z.string().trim().datetime().optional(),
+    respondedAt: z.string().trim().datetime().optional(),
+    closedAt: z.string().trim().datetime().optional(),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+const meetingActionFields = {
+  title: nonEmptyText.max(220),
+  ownerRole: z.string().trim().max(80).optional().default('SHARED'),
+  status: z.nativeEnum(ContractLifecycleItemStatus).optional().default(ContractLifecycleItemStatus.OPEN),
+  dueDate: z.string().trim().date().optional(),
+  response: z.string().trim().max(8000).optional().default(''),
+  verificationNote: z.string().trim().max(4000).optional().default(''),
+  visibilityScope: z.enum(['SHARED', 'BUYER_PRIVATE', 'SUPPLIER_PRIVATE']).optional().default('SHARED'),
+  note: optionalNote,
+  payload: jsonObjectSchema
+};
+
+export const contractMeetingActionBodySchema = z.object({ meetingId: uuidSchema.optional(), ...meetingActionFields }).strict();
+
+export const contractMeetingBodySchema = z
+  .object({
+    meetingType: z.string().trim().min(1).max(120).optional().default('PROGRESS_MEETING'),
+    title: nonEmptyText.max(220),
+    status: z.nativeEnum(ContractLifecycleItemStatus).optional().default(ContractLifecycleItemStatus.OPEN),
+    meetingDate: z.string().trim().datetime().optional(),
+    participants: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+    agenda: z.string().trim().max(8000).optional().default(''),
+    minutes: z.string().trim().max(8000).optional().default(''),
+    decisions: z.string().trim().max(8000).optional().default(''),
+    visibilityScope: z.enum(['SHARED', 'BUYER_PRIVATE', 'SUPPLIER_PRIVATE']).optional().default('SHARED'),
+    note: optionalNote,
+    actions: z.array(contractMeetingActionBodySchema.omit({ meetingId: true })).optional().default([]),
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractMeetingActionPatchBodySchema = z
+  .object({
+    status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
+    response: z.string().trim().max(8000).optional().default(''),
+    verificationNote: z.string().trim().max(4000).optional().default(''),
+    visibilityScope: z.enum(['SHARED', 'BUYER_PRIVATE', 'SUPPLIER_PRIVATE']).optional(),
+    note: optionalNote,
+    payload: jsonObjectSchema
+  })
+  .strict();
+
+export const contractSecurityActionBodySchema = z
+  .object({
+    verificationStatus: z.string().trim().max(80).optional(),
+    claimStatus: z.string().trim().max(80).optional(),
+    expiryDate: z.string().trim().date().optional(),
+    releasedAt: z.string().trim().datetime().optional(),
+    note: optionalNote,
+    privateNote: z.string().trim().max(4000).optional().default(''),
     payload: jsonObjectSchema
   })
   .strict();
@@ -747,6 +1032,8 @@ export const acceptanceBodySchema = z
   .object({
     deliverableId: uuidSchema.optional(),
     inspectionId: uuidSchema.optional(),
+    goodsReceiptId: uuidSchema.optional(),
+    goodsInspectionId: uuidSchema.optional(),
     certificateNo: z.string().trim().max(120).optional().default(''),
     status: z.nativeEnum(ContractLifecycleItemStatus).optional(),
     acceptedValue: z.coerce.number().finite().nonnegative().optional(),
@@ -925,6 +1212,7 @@ export const goodsInspectionBodySchema = z
   .object({
     milestoneId: uuidSchema.optional(),
     deliverableId: uuidSchema.optional(),
+    goodsReceiptId: uuidSchema.optional(),
     inspectionNo: z.string().trim().max(120).optional(),
     goodsDescription: nonEmptyText.max(1000),
     quantityOrdered: z.coerce.number().finite().nonnegative().optional(),
@@ -946,12 +1234,16 @@ export const threeWayMatchBodySchema = z
     invoiceId: uuidSchema,
     purchaseOrderId: uuidSchema.optional(),
     acceptanceId: uuidSchema.optional(),
+    goodsReceiptId: uuidSchema.optional(),
+    goodsInspectionId: uuidSchema.optional(),
+    scheduleId: uuidSchema.optional(),
     status: z.nativeEnum(InvoiceStatus).optional(),
     poMatched: z.boolean().optional(),
     receiptMatched: z.boolean().optional(),
     invoiceMatched: z.boolean().optional(),
     varianceAmount: z.coerce.number().finite().optional(),
     currency: z.string().trim().min(3).max(3).optional().default('TZS'),
+    mismatchType: z.string().trim().max(120).optional().default(''),
     note: optionalNote,
     payload: jsonObjectSchema
   })

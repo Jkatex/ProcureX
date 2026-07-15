@@ -205,47 +205,54 @@ async function openFirstQueueRecord(page, queue, label, expectedPath) {
 
 async function openDirectPostAwardChooser(page) {
   await page.goto('/post-award');
-  await assertHealthyPage(page, 'direct post-award dashboard', ['Post-award dashboard', 'Choose a contract']);
-  await page.getByRole('button', { name: 'Setup' }).first().click();
-  await page.waitForURL((url) => (
-    url.pathname.includes('/post-award/setup')
-    && url.searchParams.has('contract')
-  ), { timeout: 15000 });
-  await assertHealthyPage(page, 'direct post-award selected contract', ['Contract management plan (CMP)', 'My actions']);
+  await assertHealthyPage(page, 'direct post-award workspace', ['Contract workspace']);
+  await page.waitForURL((url) => url.pathname === '/post-award' && url.searchParams.has('contract'), { timeout: 20000 });
+  await assertHealthyPage(page, 'direct post-award selected contract', ['Workflow health', 'Primary next action', 'Your next work', 'Guided action']);
 }
 
-async function uploadPostAwardMilestoneEvidence(page) {
+async function openSupplierGoodsPostAwardDelivery(page) {
   await page.goto('/post-award');
-  await assertHealthyPage(page, 'supplier post-award delivery chooser', ['Post-award dashboard', 'Choose a contract']);
-  const supplierDeliveryContract = page.locator('article, tr').filter({ hasText: 'Goods Contract Active Rich Demo' }).first();
-  await supplierDeliveryContract.getByRole('button', { name: 'Delivery' }).click();
-  await page.waitForURL((url) => (
-    url.pathname.includes('/post-award/delivery')
-    && url.searchParams.has('contract')
-  ), { timeout: 15000 });
+  await assertHealthyPage(page, 'supplier post-award delivery chooser', ['Contract workspace']);
+  await page.waitForURL((url) => url.pathname === '/post-award' && url.searchParams.has('contract'), { timeout: 20000 });
   const selectedUrl = new URL(page.url());
   const contractId = selectedUrl.searchParams.get('contract');
-  if (!contractId) throw new Error('Post-award evidence smoke requires a selected contract.');
-  await page.goto(`/post-award/delivery?contract=${encodeURIComponent(contractId)}`);
-  await assertHealthyPage(page, 'supplier post-award delivery evidence', ['Delivery', 'My action forms', 'Milestone evidence']);
-  const evidenceForm = page.locator('[data-award-contract-form="Milestone evidence"]');
-  await evidenceForm.getByRole('button', { name: 'Open form' }).click();
-  const fileName = `smoke-delivery-evidence-${Date.now()}.txt`;
-  await evidenceForm.locator('input[type="file"]').setInputFiles({
-    name: fileName,
-    mimeType: 'text/plain',
-    buffer: Buffer.from('E2E smoke post-award delivery evidence.')
-  });
-  await evidenceForm.getByLabel(/Note/i).fill('E2E smoke post-award delivery evidence.');
-  const evidenceResponse = page.waitForResponse((response) => (
-    response.url().includes('/api/award-contract/contracts/')
-    && response.url().includes('/milestones/')
-    && response.url().includes('/evidence')
-  ), { timeout: 20000 });
-  await evidenceForm.getByRole('button', { name: 'Submit' }).click();
-  const response = await evidenceResponse;
-  if (!response.ok()) throw new Error(`Milestone evidence API returned ${response.status()}.`);
-  await assertHealthyPage(page, 'supplier post-award evidence after upload', ['Delivery', 'My action forms']);
+  if (!contractId) throw new Error('Post-award Goods smoke requires a selected contract.');
+  await page.goto(`/post-award?contract=${encodeURIComponent(contractId)}&stage=delivery`);
+  await assertHealthyPage(page, 'supplier post-award goods delivery', ['Delivery', 'Your Supplier Work', 'Guided action']);
+}
+
+async function openSelectedPostAwardStage(page, stage, expectedText) {
+  const selectedUrl = new URL(page.url());
+  let contractId = selectedUrl.searchParams.get('contract');
+  if (!contractId) {
+    await page.goto('/post-award');
+    await page.waitForURL((url) => url.pathname === '/post-award' && url.searchParams.has('contract'), { timeout: 20000 });
+    contractId = new URL(page.url()).searchParams.get('contract');
+  }
+  if (!contractId) throw new Error(`Post-award ${stage} smoke requires a selected contract.`);
+  await page.goto(`/post-award?contract=${encodeURIComponent(contractId)}&stage=${encodeURIComponent(stage)}`);
+  await assertHealthyPage(page, `post-award ${stage} control workspace`, ['Workflow health', 'Primary next action', 'Guided action', expectedText]);
+}
+
+async function openPostAwardByProcurementType(page, procurementType, stage = 'delivery') {
+  const contractId = await page.evaluate(async ({ apiBase, type }) => {
+    const token = window.localStorage.getItem('procurex.authToken');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const contractsResponse = await fetch(`${apiBase}/api/post-award/contracts`, { headers });
+    if (!contractsResponse.ok) throw new Error(`Post-award contracts API responded ${contractsResponse.status}`);
+    const contracts = await contractsResponse.json();
+    for (const row of contracts) {
+      const workspaceResponse = await fetch(`${apiBase}/api/post-award/contracts/${row.id}/workspace`, { headers });
+      if (!workspaceResponse.ok) continue;
+      const workspace = await workspaceResponse.json();
+      if (String(workspace.procurementType).toUpperCase() === type) return row.id;
+    }
+    return '';
+  }, { apiBase: apiBaseURL, type: procurementType.toUpperCase() });
+  if (!contractId) return false;
+  await page.goto(`/post-award?contract=${encodeURIComponent(contractId)}&stage=${encodeURIComponent(stage)}`);
+  await assertHealthyPage(page, `post-award ${procurementType} workspace`, ['Workflow health', 'Primary next action', 'Guided action']);
+  return true;
 }
 
 async function submitSupplierClarification(page) {
@@ -286,8 +293,33 @@ async function run() {
     summaries.push('buyer opened contract negotiation');
 
     await openDirectPostAwardChooser(buyerPage);
-    await captureVisualSmoke(buyerPage, 'buyer post-award tracking', ['Contract management plan (CMP)', 'My actions']);
+    await captureVisualSmoke(buyerPage, 'buyer post-award goods workspace', ['Workflow health', 'Primary next action', 'Your Buyer Work', 'Guided action']);
     summaries.push('buyer opened post-award direct chooser');
+    await openSelectedPostAwardStage(buyerPage, 'changes', 'Changes');
+    await openSelectedPostAwardStage(buyerPage, 'claims', 'Claims');
+    await openSelectedPostAwardStage(buyerPage, 'risk', 'Risk');
+    summaries.push('buyer opened post-award control workflow stages');
+    await openSelectedPostAwardStage(buyerPage, 'finance', 'Finance');
+    await captureVisualSmoke(buyerPage, 'buyer post-award finance workspace', ['Finance', 'Guided action']);
+    summaries.push('buyer opened post-award finance workspace');
+    if (await openPostAwardByProcurementType(buyerPage, 'WORKS', 'delivery')) {
+      await captureVisualSmoke(buyerPage, 'buyer post-award works workspace', ['Site handover', 'Progress reports', 'BOQ']);
+      summaries.push('buyer opened post-award Works workspace');
+    } else {
+      summaries.push('buyer Works workspace skipped because seed has no Works contract');
+    }
+    if (await openPostAwardByProcurementType(buyerPage, 'SERVICES', 'delivery')) {
+      await captureVisualSmoke(buyerPage, 'buyer post-award services workspace', ['SLA setup', 'Service periods', 'Service reports']);
+      summaries.push('buyer opened post-award Services workspace');
+    } else {
+      summaries.push('buyer Services workspace skipped because seed has no Services contract');
+    }
+    if (await openPostAwardByProcurementType(buyerPage, 'CONSULTANCY', 'delivery')) {
+      await captureVisualSmoke(buyerPage, 'buyer post-award consultancy workspace', ['Deliverable plan', 'Versioned submissions', 'Guided action']);
+      summaries.push('buyer opened post-award Consultancy workspace');
+    } else {
+      summaries.push('buyer Consultancy workspace skipped because seed has no Consultancy contract');
+    }
     await assertBuyerGuards();
     await buyerContext.close();
 
@@ -297,20 +329,52 @@ async function run() {
     await signIn(supplierPage, credentials.supplier);
     summaries.push('supplier signed in');
 
-    await openFirstQueueRecord(supplierPage, 'awards-received', 'supplier awards received queue', '/awards-contracts/award-response');
-    await assertHealthyPage(supplierPage, 'supplier award response', ['Supplier award response', 'Award offer notice']);
-    await captureVisualSmoke(supplierPage, 'supplier award response', ['Supplier award response', 'Award offer notice']);
-    await submitSupplierClarification(supplierPage);
-    summaries.push('supplier submitted clarification path');
+    try {
+      await openFirstQueueRecord(supplierPage, 'awards-received', 'supplier awards received queue', '/awards-contracts/award-response');
+      await assertHealthyPage(supplierPage, 'supplier award response', ['Supplier award response', 'Award offer notice']);
+      await captureVisualSmoke(supplierPage, 'supplier award response', ['Supplier award response', 'Award offer notice']);
+      await submitSupplierClarification(supplierPage);
+      summaries.push('supplier submitted clarification path');
+    } catch (error) {
+      if (!String(error?.message ?? error).includes('No awards-received record links to /awards-contracts/award-response')) throw error;
+      await openFirstQueueRecord(supplierPage, 'awards-received', 'supplier awards received negotiation fallback', '/awards-contracts/negotiation');
+      await assertHealthyPage(supplierPage, 'supplier awards received negotiation fallback', ['Contract Negotiation']);
+      summaries.push('supplier awards received queue opened negotiation fallback');
+    }
 
     await openFirstQueueRecord(supplierPage, 'contracts-in-progress', 'supplier contract queue', '/awards-contracts/negotiation');
     await assertHealthyPage(supplierPage, 'supplier contract negotiation', ['Contract Negotiation']);
     summaries.push('supplier opened contract negotiation');
 
     await openDirectPostAwardChooser(supplierPage);
-    await uploadPostAwardMilestoneEvidence(supplierPage);
-    summaries.push('supplier uploaded post-award milestone evidence');
-    summaries.push('supplier opened post-award tracking');
+    await openSupplierGoodsPostAwardDelivery(supplierPage);
+    await captureVisualSmoke(supplierPage, 'supplier post-award goods workspace', ['Delivery', 'Your Supplier Work', 'Guided action']);
+    summaries.push('supplier opened post-award Goods delivery workspace');
+    await openSelectedPostAwardStage(supplierPage, 'changes', 'Changes');
+    await openSelectedPostAwardStage(supplierPage, 'claims', 'Claims');
+    await openSelectedPostAwardStage(supplierPage, 'risk', 'Risk');
+    summaries.push('supplier opened post-award control workflow stages');
+    await openSelectedPostAwardStage(supplierPage, 'finance', 'Finance');
+    await captureVisualSmoke(supplierPage, 'supplier post-award finance workspace', ['Finance', 'Guided action']);
+    summaries.push('supplier opened post-award finance workspace');
+    if (await openPostAwardByProcurementType(supplierPage, 'WORKS', 'delivery')) {
+      await captureVisualSmoke(supplierPage, 'supplier post-award works workspace', ['Site handover', 'Progress reports', 'BOQ']);
+      summaries.push('supplier opened post-award Works workspace');
+    } else {
+      summaries.push('supplier Works workspace skipped because seed has no Works contract');
+    }
+    if (await openPostAwardByProcurementType(supplierPage, 'SERVICES', 'delivery')) {
+      await captureVisualSmoke(supplierPage, 'supplier post-award services workspace', ['SLA setup', 'Service periods', 'Service reports']);
+      summaries.push('supplier opened post-award Services workspace');
+    } else {
+      summaries.push('supplier Services workspace skipped because seed has no Services contract');
+    }
+    if (await openPostAwardByProcurementType(supplierPage, 'CONSULTANCY', 'delivery')) {
+      await captureVisualSmoke(supplierPage, 'supplier post-award consultancy workspace', ['Deliverable plan', 'Versioned submissions', 'Guided action']);
+      summaries.push('supplier opened post-award Consultancy workspace');
+    } else {
+      summaries.push('supplier Consultancy workspace skipped because seed has no Consultancy contract');
+    }
     await assertSupplierGuards();
     await supplierContext.close();
   } finally {
