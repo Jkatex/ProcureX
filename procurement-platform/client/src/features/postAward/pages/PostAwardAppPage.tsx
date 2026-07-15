@@ -59,6 +59,21 @@ function money(value: number | string | null | undefined, currency = 'TZS') {
   return Number.isFinite(numeric) ? `${currency} ${numeric.toLocaleString()}` : `${currency} ${value}`;
 }
 
+function totalContractValue(contracts: PostAwardContractRow[]) {
+  return contracts.reduce((sum, contract) => {
+    const amount = Number(contract.amount);
+    return Number.isFinite(amount) ? sum + amount : sum;
+  }, 0);
+}
+
+function hasElevatedRisk(contract: PostAwardContractRow) {
+  return /critical|high/i.test(contract.riskLevel);
+}
+
+function hasDueDate(contract: PostAwardContractRow) {
+  return Boolean(contract.dueDate);
+}
+
 function badgeTone(value: string) {
   if (/critical|high|blocked|rejected|terminated|failed|open ncr/i.test(value)) return 'error';
   if (/medium|submitted|review|pending|open|waiting|warning/i.test(value)) return 'warning';
@@ -108,11 +123,8 @@ export function PostAwardAppPage() {
         const rows = await postAwardApi.contracts();
         if (cancelled) return;
         setContracts(rows);
-        if (!selectedContractId && rows[0]) {
-          navigate(`/post-award?contract=${encodeURIComponent(rows[0].id)}&stage=delivery`, { replace: true });
-        }
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, 'Post Award contracts could not be loaded.'));
+        if (!cancelled) setError(apiErrorMessage(err, 'Contracts could not be loaded.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -121,7 +133,7 @@ export function PostAwardAppPage() {
     return () => {
       cancelled = true;
     };
-  }, [navigate, selectedContractId]);
+  }, [selectedContractId]);
 
   useEffect(() => {
     if (!selectedContractId) {
@@ -139,7 +151,7 @@ export function PostAwardAppPage() {
           setActiveTask(null);
         }
       } catch (err) {
-        if (!cancelled) setError(apiErrorMessage(err, 'Post Award workspace could not be loaded.'));
+        if (!cancelled) setError(apiErrorMessage(err, 'Contract details could not be loaded.'));
       } finally {
         if (!cancelled) setWorkspaceLoading(false);
       }
@@ -169,6 +181,11 @@ export function PostAwardAppPage() {
     setActiveTask(null);
   }
 
+  function openContractStage(contractId: string, stageId: PostAwardStageId = 'delivery') {
+    navigate(`/post-award?contract=${encodeURIComponent(contractId)}&stage=${stageId}`);
+    setActiveTask(null);
+  }
+
   function selectStage(stageId: PostAwardStageId) {
     setActiveStage(stageId);
     setActiveTask(null);
@@ -182,19 +199,23 @@ export function PostAwardAppPage() {
 
   return (
     <>
-      <WorkspaceTopBar title="Post Award" onNavigate={(pageKey) => navigate(routeFor(pageKey))} />
+      <WorkspaceTopBar title="Contract Tracking" onNavigate={(pageKey) => navigate(routeFor(pageKey))} />
       <main className="post-award-app" data-post-award-app>
         <section className="post-award-workspace">
-          <ContractSelector contracts={contracts} loading={loading} selectedContractId={selectedContractId} onSelect={selectContract} />
-          {error ? <div className="post-award-alert">{error}</div> : null}
-          {!workspace && !workspaceLoading ? (
-            <div className="post-award-empty post-award-empty-large">
-              <strong>Select a contract</strong>
-              <span>Choose a signed or active contract to continue execution.</span>
-            </div>
-          ) : null}
-          {workspace ? (
+          {!selectedContractId ? (
+            <PostAwardEntrance contracts={contracts} loading={loading} error={error} onOpen={openContractStage} />
+          ) : (
             <>
+              <ContractSelector contracts={contracts} loading={loading} selectedContractId={selectedContractId} onSelect={selectContract} />
+              {error ? <div className="post-award-alert">{error}</div> : null}
+              {!workspace && !workspaceLoading ? (
+                <div className="post-award-empty post-award-empty-large">
+                  <strong>Select a contract</strong>
+                  <span>Choose a signed contract to continue.</span>
+                </div>
+              ) : null}
+              {workspace ? (
+                <>
               <PostAwardHero workspace={workspace} readyCount={readyCount} blockedCount={blockedCount} recommendedTask={recommendedTask} />
               <StatusSummary workspace={workspace} queueLength={queue.length} readyCount={readyCount} blockedCount={blockedCount} />
               <OperationalPulse workspace={workspace} />
@@ -214,23 +235,23 @@ export function PostAwardAppPage() {
 
               <section className="post-award-work-panel">
                 <div className="post-award-panel-intro">
-                  <span>Your next work</span>
-                  <h2>{workspace.contract.viewerRole === 'ADMIN' ? `Your ${humanize(adminQueueView)} Work` : `Your ${humanize(workspace.contract.viewerRole)} Work`}</h2>
-                  <p>{recommendedTask ? recommendedTask.detail : 'No role-specific tasks are waiting in this stage.'}</p>
+                  <span>Next task</span>
+                  <h2>{workspace.contract.viewerRole === 'ADMIN' ? `${humanize(adminQueueView)} tasks` : `${humanize(workspace.contract.viewerRole)} tasks`}</h2>
+                  <p>{recommendedTask ? recommendedTask.detail : 'No task is waiting here.'}</p>
                 </div>
                 {workspace.contract.viewerRole === 'ADMIN' ? (
-                  <div className="post-award-role-toggle" role="tablist" aria-label="Post Award role queue">
-                    <button className={adminQueueView === 'BUYER' ? 'active' : ''} type="button" onClick={() => setAdminQueueView('BUYER')}>Buyer work</button>
-                    <button className={adminQueueView === 'SUPPLIER' ? 'active' : ''} type="button" onClick={() => setAdminQueueView('SUPPLIER')}>Supplier work</button>
+                  <div className="post-award-role-toggle" role="tablist" aria-label="Task owner">
+                    <button className={adminQueueView === 'BUYER' ? 'active' : ''} type="button" onClick={() => setAdminQueueView('BUYER')}>Buyer tasks</button>
+                    <button className={adminQueueView === 'SUPPLIER' ? 'active' : ''} type="button" onClick={() => setAdminQueueView('SUPPLIER')}>Supplier tasks</button>
                   </div>
                 ) : null}
-                <TaskQueue title={workspace.contract.viewerRole === 'ADMIN' ? `${humanize(adminQueueView)} queue` : `${humanize(workspace.contract.viewerRole)} queue`} tasks={stageTasks} activeTask={activeTask} onSelect={setActiveTask} />
+                <TaskQueue title={workspace.contract.viewerRole === 'ADMIN' ? `${humanize(adminQueueView)} tasks` : `${humanize(workspace.contract.viewerRole)} tasks`} tasks={stageTasks} activeTask={activeTask} onSelect={setActiveTask} />
               </section>
 
-              <section className="post-award-guided-panel" aria-label="Guided Post Award action">
+              <section className="post-award-guided-panel" aria-label="Contract action">
                 <div className="post-award-pane-head post-award-pane-head-large">
                   <div>
-                    <span>Guided action</span>
+                    <span>Action</span>
                     <strong>{activeTask ? activeTask.title : recommendedTask ? recommendedTask.title : 'Choose a task'}</strong>
                   </div>
                   <StatusPill value={activeTask?.owner ?? recommendedTask?.owner ?? workspace.contract.viewerRole} tone="info" />
@@ -239,12 +260,12 @@ export function PostAwardAppPage() {
                   <PostAwardActionForm task={activeTask} workspace={workspace} onSaved={applyWorkspace} />
                 ) : recommendedTask ? (
                   <div className="post-award-empty post-award-guided-empty">
-                    <strong>Recommended guided action</strong>
+                    <strong>Suggested task</strong>
                     <span>{recommendedTask.detail}</span>
-                    <button className="btn btn-primary btn-sm" type="button" onClick={() => setActiveTask(recommendedTask)}>Open guided action</button>
+                    <button className="btn btn-primary btn-sm" type="button" onClick={() => setActiveTask(recommendedTask)}>Start task</button>
                   </div>
                 ) : (
-                  <div className="post-award-empty">Choose a task to open the guided panel.</div>
+                  <div className="post-award-empty">Choose a task to start.</div>
                 )}
               </section>
 
@@ -253,7 +274,7 @@ export function PostAwardAppPage() {
               <section className="post-award-records-panel">
                 <div className="post-award-pane-head post-award-pane-head-large">
                   <div>
-                    <span>Current stage records</span>
+                    <span>Saved items</span>
                     <strong>{activeSection?.label}</strong>
                   </div>
                   <StatusPill value={`${activeStageRecords.length} records`} tone="info" />
@@ -262,29 +283,150 @@ export function PostAwardAppPage() {
               </section>
 
               <SecondaryRegisters workspace={workspace} />
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
         </section>
       </main>
     </>
   );
 }
 
+function PostAwardEntrance({ contracts, loading, error, onOpen }: { contracts: PostAwardContractRow[]; loading: boolean; error: string; onOpen: (contractId: string, stageId?: PostAwardStageId) => void }) {
+  const currency = contracts.find((contract) => contract.currency)?.currency ?? 'TZS';
+  const activeCount = contracts.filter((contract) => /active|in progress|signed/i.test(contract.status)).length;
+  const highRiskCount = contracts.filter(hasElevatedRisk).length;
+  const dueCount = contracts.filter(hasDueDate).length;
+  const buyerCount = contracts.filter((contract) => contract.viewerRole === 'BUYER').length;
+  const supplierCount = contracts.filter((contract) => contract.viewerRole === 'SUPPLIER').length;
+
+  return (
+    <div className="post-award-entrance">
+      <section className="procurement-hero evaluation-hero-panel award-hero-panel post-award-entrance-hero">
+        <div>
+          <span className="section-kicker">Track signed contracts</span>
+          <h1>Contract tracking</h1>
+          <p>Follow signed contracts from setup to delivery, payment, changes, close-out, and performance.</p>
+        </div>
+        <div className="evaluation-hero-stats">
+          <div>
+            <strong>{loading ? '...' : contracts.length}</strong>
+            <span>Contracts</span>
+          </div>
+          <div>
+            <strong>{loading ? '...' : buyerCount}</strong>
+            <span>Buyer side</span>
+          </div>
+          <div>
+            <strong>{loading ? '...' : supplierCount}</strong>
+            <span>Supplier side</span>
+          </div>
+        </div>
+      </section>
+
+      {error ? <div className="post-award-alert post-award-entrance-alert">{error}</div> : null}
+
+      <section className="post-award-entrance-summary" aria-label="Contract summary">
+        <article>
+          <span>Active contracts</span>
+          <strong>{activeCount}</strong>
+          <p>Contracts you can track now.</p>
+        </article>
+        <article>
+          <span>Need attention</span>
+          <strong>{highRiskCount}</strong>
+          <p>Contracts marked high or critical risk.</p>
+        </article>
+        <article>
+          <span>Due soon</span>
+          <strong>{dueCount}</strong>
+          <p>Contracts with a due date.</p>
+        </article>
+        <article>
+          <span>Total value</span>
+          <strong>{money(totalContractValue(contracts), currency)}</strong>
+          <p>Total value of contracts shown here.</p>
+        </article>
+      </section>
+
+      <section className="post-award-contract-selector post-award-entrance-contracts" aria-label="Contracts">
+        <div className="post-award-pane-head post-award-pane-head-large">
+          <div>
+            <span>Signed contracts</span>
+            <strong>Choose a contract</strong>
+          </div>
+          <StatusPill value={loading ? 'Loading' : `${contracts.length} contracts`} tone="info" />
+        </div>
+        {loading ? <div className="post-award-empty">Loading contracts...</div> : null}
+        {!loading && !error && contracts.length === 0 ? (
+          <div className="post-award-empty post-award-empty-large">
+            <strong>No contracts ready yet</strong>
+            <span>Finish signing before a contract appears here.</span>
+          </div>
+        ) : null}
+        {contracts.length ? (
+          <div className="post-award-entrance-table-wrap">
+            <table className="post-award-table post-award-entrance-table">
+              <thead>
+                <tr>
+                  <th>Contract</th>
+                  <th>Role</th>
+                  <th>With</th>
+                  <th>Status</th>
+                  <th>Risk</th>
+                  <th>Due / step</th>
+                  <th>Value</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contracts.map((contract) => (
+                  <tr key={contract.id}>
+                    <td>
+                      <strong>{contract.title}</strong>
+                      <span>{contract.reference}</span>
+                    </td>
+                    <td><StatusPill value={contract.viewerRole} tone="info" /></td>
+                    <td>{contract.viewerRole === 'SUPPLIER' ? contract.buyerName : contract.supplierName ?? 'Supplier pending'}</td>
+                    <td><StatusPill value={contract.status} /></td>
+                    <td><StatusPill value={contract.riskLevel || 'Normal'} /></td>
+                    <td>{contract.dueDate ? dateLabel(contract.dueDate) : contract.stage}</td>
+                    <td>{money(contract.amount, contract.currency)}</td>
+                    <td>
+                      <div className="inline-actions post-award-entrance-actions">
+                        <button className="btn btn-primary btn-sm" type="button" onClick={() => onOpen(contract.id)}>Open</button>
+                        <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpen(contract.id, 'setup')}>Setup</button>
+                        <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpen(contract.id, 'delivery')}>Delivery</button>
+                        <button className="btn btn-secondary btn-sm" type="button" onClick={() => onOpen(contract.id, 'finance')}>Finance</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
 function ContractSelector({ contracts, loading, selectedContractId, onSelect }: { contracts: PostAwardContractRow[]; loading: boolean; selectedContractId: string; onSelect: (contractId: string) => void }) {
   const selected = contracts.find((contract) => contract.id === selectedContractId) ?? contracts[0];
   return (
-    <section className="post-award-contract-selector" aria-label="Post Award contracts">
+    <section className="post-award-contract-selector" aria-label="Contracts">
       <div className="post-award-pane-head post-award-pane-head-large">
         <div>
-          <span>Contract workspace</span>
+          <span>Selected contract</span>
           <strong>{selected ? selected.title : 'Choose a contract'}</strong>
         </div>
         <StatusPill value={`${contracts.length} contracts`} tone="info" />
       </div>
       {loading ? <div className="post-award-empty">Loading contracts...</div> : null}
-      {!loading && contracts.length === 0 ? <div className="post-award-empty">No signed or active contracts are ready for Post Award.</div> : null}
+      {!loading && contracts.length === 0 ? <div className="post-award-empty">No signed contracts are ready yet.</div> : null}
       {contracts.length ? (
-        <select className="form-input post-award-contract-select" value={selectedContractId || selected?.id || ''} onChange={(event) => onSelect(event.target.value)} aria-label="Select post-award contract">
+        <select className="form-input post-award-contract-select" value={selectedContractId || selected?.id || ''} onChange={(event) => onSelect(event.target.value)} aria-label="Select contract">
           {contracts.map((contract) => (
             <option value={contract.id} key={contract.id}>
               {contract.reference} - {contract.title}
@@ -304,15 +446,15 @@ function PostAwardHero({ workspace, readyCount, blockedCount, recommendedTask }:
         <h1>{workspace.contract.title}</h1>
         <p>{workspace.contract.buyerName} / {workspace.contract.supplierName ?? 'Supplier pending'}</p>
         <div className="post-award-hero-next">
-          <span>Primary next action</span>
-          <strong>{recommendedTask ? `${humanize(recommendedTask.owner)} action ready` : 'No action waiting'}</strong>
+          <span>Next task</span>
+          <strong>{recommendedTask ? `${humanize(recommendedTask.owner)} task ready` : 'No task waiting'}</strong>
         </div>
       </div>
       <div className="post-award-header-meta">
         <StatusPill value={workspace.contract.status} />
         <StatusPill value={workspace.contract.viewerRole} tone="info" />
         <strong>{money(workspace.contract.amount, workspace.contract.currency)}</strong>
-        <small>{readyCount} ready / {blockedCount} blocked</small>
+        <small>{readyCount} ready / {blockedCount} stuck</small>
       </div>
     </header>
   );
@@ -322,24 +464,24 @@ function StatusSummary({ workspace, queueLength, readyCount, blockedCount }: { w
   return (
     <section className="post-award-command-strip">
       <article className={`post-award-health post-award-health-${workspace.health.level.toLowerCase()}`}>
-        <span>Workflow health</span>
+        <span>Overall status</span>
         <strong>{workspace.health.label}</strong>
         <p>{workspace.health.summary}</p>
       </article>
       <article>
-        <span>Ready actions</span>
+        <span>Ready tasks</span>
         <strong>{readyCount}</strong>
-        <p>{queueLength ? 'Open the next guided task from your queue.' : 'No role-specific tasks are due.'}</p>
+        <p>{queueLength ? 'Open the next task assigned to you.' : 'No tasks are due.'}</p>
       </article>
       <article>
-        <span>Blockers</span>
+        <span>Problems</span>
         <strong>{blockedCount}</strong>
-        <p>{blockedCount ? 'Resolve blockers before the next controlled step.' : 'No blocker on your current queue.'}</p>
+        <p>{blockedCount ? 'Fix these before the next step.' : 'No problems in your task list.'}</p>
       </article>
       <article>
-        <span>Invoice eligibility</span>
+        <span>Ready to invoice</span>
         <strong>{workspace.financialEligibility.invoiceableRecords.length}</strong>
-        <p>{money(workspace.financialEligibility.payableAmount, workspace.financialEligibility.currency)} payable in review.</p>
+        <p>{money(workspace.financialEligibility.payableAmount, workspace.financialEligibility.currency)} ready for review.</p>
       </article>
     </section>
   );
@@ -347,7 +489,7 @@ function StatusSummary({ workspace, queueLength, readyCount, blockedCount }: { w
 
 function StageStepper({ sections, activeStage, tasks, onSelect }: { sections: PostAwardWorkspace['workflowSections']; activeStage: PostAwardStageId; tasks: PostAwardTask[]; onSelect: (stageId: PostAwardStageId) => void }) {
   return (
-    <nav className="post-award-stages" aria-label="Post Award workflow">
+    <nav className="post-award-stages" aria-label="Contract steps">
       {sections.map((section, index) => {
         const openTasks = tasks.filter((task) => task.sectionId === section.id && task.status !== 'DONE').length;
         return (
@@ -410,7 +552,7 @@ function TaskQueue({ title, tasks, activeTask, onSelect }: { title: string; task
         <span>{title}</span>
         <strong>{tasks.length}</strong>
       </div>
-      {visible.length === 0 ? <div className="post-award-empty">Nothing waiting in this area.</div> : null}
+      {visible.length === 0 ? <div className="post-award-empty">No tasks here.</div> : null}
       <div className="post-award-action-list">
         {visible.map((task) => (
           <button
@@ -438,16 +580,16 @@ function FinancialEligibility({ workspace }: { workspace: PostAwardWorkspace }) 
   return (
     <section className="post-award-finance-box">
       <div className="post-award-pane-head">
-        <span>Financial eligibility</span>
+        <span>Payments</span>
         <strong>{finance.invoiceableRecords.length + finance.paymentQueue.length}</strong>
       </div>
       <div className="post-award-finance-metrics">
-        <article><span>Payable</span><strong>{money(finance.payableAmount, finance.currency)}</strong></article>
+        <article><span>Ready to pay</span><strong>{money(finance.payableAmount, finance.currency)}</strong></article>
         <article><span>Paid</span><strong>{money(finance.paidAmount, finance.currency)}</strong></article>
-        <article><span>Retention open</span><strong>{money(finance.retentionSummary.remainingRetention, finance.retentionSummary.currency)}</strong></article>
-        <article><span>Advance open</span><strong>{money(finance.advanceRecoverySummary.outstandingAmount, finance.advanceRecoverySummary.currency)}</strong></article>
-        <article><span>Deductions pending</span><strong>{money(finance.deductionSummary.pendingDeductionsAmount, finance.deductionSummary.currency)}</strong></article>
-        <article><span>Receipt pending</span><strong>{finance.supplierReceiptPending}</strong></article>
+        <article><span>Held back</span><strong>{money(finance.retentionSummary.remainingRetention, finance.retentionSummary.currency)}</strong></article>
+        <article><span>Advance left</span><strong>{money(finance.advanceRecoverySummary.outstandingAmount, finance.advanceRecoverySummary.currency)}</strong></article>
+        <article><span>Deductions</span><strong>{money(finance.deductionSummary.pendingDeductionsAmount, finance.deductionSummary.currency)}</strong></article>
+        <article><span>Receipts needed</span><strong>{finance.supplierReceiptPending}</strong></article>
       </div>
       {finance.paymentQueue.length ? (
         <div className="post-award-eligible-list">
@@ -473,7 +615,7 @@ function FinancialEligibility({ workspace }: { workspace: PostAwardWorkspace }) 
           ))}
         </div>
       ) : (
-        <div className="post-award-empty">No accepted or certified execution item is invoiceable yet.</div>
+        <div className="post-award-empty">Nothing is ready to invoice yet.</div>
       )}
     </section>
   );
@@ -489,49 +631,49 @@ function OperationalPulse({ workspace }: { workspace: PostAwardWorkspace }) {
   return (
     <section className="post-award-operational-pulse">
       <article>
-        <span>Activation readiness</span>
-        <strong>{operational.ready ? 'Ready' : `${operational.blockers.length} blockers`}</strong>
-        <p>{operational.activationItems.approved}/{operational.activationItems.total} checklist items cleared</p>
+        <span>Setup</span>
+        <strong>{operational.ready ? 'Ready' : `${operational.blockers.length} problems`}</strong>
+        <p>{operational.activationItems.approved}/{operational.activationItems.total} items done</p>
       </article>
       <article>
-        <span>Formal notices</span>
+        <span>Notices</span>
         <strong>{notices.openNotices}</strong>
-        <p>{notices.awaitingAcknowledgement} acknowledgement / {notices.awaitingResponse} response</p>
+        <p>{notices.awaitingAcknowledgement} to acknowledge / {notices.awaitingResponse} to answer</p>
       </article>
       <article>
-        <span>Meeting actions</span>
+        <span>Meeting tasks</span>
         <strong>{meetings.openActions}</strong>
         <p>{meetings.supplierActions} supplier / {meetings.buyerActions} buyer</p>
       </article>
       <article>
         <span>Guarantees</span>
         <strong>{securities.expired ? `${securities.expired} expired` : `${securities.expiringSoon} expiring`}</strong>
-        <p>{securities.unresolved} unresolved securities or insurance records</p>
+        <p>{securities.unresolved} guarantee or insurance items need review</p>
       </article>
       <article>
         <span>Warranty</span>
         <strong>{warranty.open}</strong>
-        <p>{warranty.awaitingSupplier} supplier / {warranty.awaitingBuyer} buyer actions</p>
+        <p>{warranty.awaitingSupplier} supplier / {warranty.awaitingBuyer} buyer tasks</p>
       </article>
       <article>
-        <span>Closeout wizard</span>
-        <strong>{closeout.ready ? 'Clear' : `${closeout.blockers.length} blockers`}</strong>
-        <p>{closeout.steps.filter((step) => step.status === 'DONE').length}/{closeout.steps.length} steps confirmed</p>
+        <span>Close-out</span>
+        <strong>{closeout.ready ? 'Clear' : `${closeout.blockers.length} problems`}</strong>
+        <p>{closeout.steps.filter((step) => step.status === 'DONE').length}/{closeout.steps.length} steps done</p>
       </article>
     </section>
   );
 }
 
 function RecordTable({ records }: { records: PostAwardRecord[] }) {
-  if (records.length === 0) return <div className="post-award-empty">No records in this work area yet.</div>;
+  if (records.length === 0) return <div className="post-award-empty">No saved items here yet.</div>;
   return (
     <div className="post-award-table-wrap">
       <table className="post-award-table">
         <thead>
           <tr>
-            <th>Record</th>
+            <th>Item</th>
             <th>Status</th>
-            <th>Due / Created</th>
+            <th>Date</th>
             <th>Amount</th>
             <th>Note</th>
           </tr>
@@ -559,7 +701,7 @@ function SecondaryRegisters({ workspace }: { workspace: PostAwardWorkspace }) {
   return (
     <section className="post-award-secondary">
       <div className="post-award-pane-head">
-        <span>Registers and history</span>
+        <span>More saved items</span>
         <strong>{workspace.secondary.reduce((total, item) => total + item.count, 0) + workspace.timeline.length}</strong>
       </div>
       <div className="post-award-secondary-grid">
@@ -594,7 +736,7 @@ function PostAwardActionForm({ task, workspace, onSaved }: { task: PostAwardTask
       const next = await saveAction(task.actionKey, contractId, payload, workspace);
       onSaved(next);
     } catch (error) {
-      setMessage(apiErrorMessage(error, 'Post Award action could not be saved.'));
+      setMessage(apiErrorMessage(error, 'This task could not be saved.'));
     } finally {
       setSaving(false);
     }
@@ -606,7 +748,7 @@ function PostAwardActionForm({ task, workspace, onSaved }: { task: PostAwardTask
         <h2>{task.title}</h2>
         <p>{task.detail}</p>
       </div>
-      {blocked ? <div className="post-award-alert">This action is blocked until its prerequisite is complete.</div> : null}
+      {blocked ? <div className="post-award-alert">Finish the earlier step before saving this task.</div> : null}
       <FieldsForAction actionKey={task.actionKey} workspace={workspace} />
       {message ? <p className="post-award-form-error">{message}</p> : null}
       <button className="btn btn-primary btn-sm" type="submit" disabled={saving || blocked}>{saving ? 'Saving...' : 'Save action'}</button>
@@ -666,8 +808,6 @@ function FieldsForAction({ actionKey, workspace }: { actionKey: string; workspac
   const payments = finance.filter((record) => record.type === 'payment');
   const initiatedPayments = payments.filter((record) => ['REVIEW', 'MATCHED'].includes(String(record.status).toUpperCase()));
   const paidPayments = payments.filter((record) => String(record.status).toUpperCase() === 'PAID');
-  const penalties = finance.filter((record) => record.type === 'penalty');
-  const openPenalties = penalties.filter((record) => !['APPROVED', 'APPLIED', 'CLOSED', 'REJECTED'].includes(String(record.status).toUpperCase()));
   const acceptances = inspections.filter((record) => record.type === 'acceptance');
   const activationItems = workspace.workflowSections.find((stage) => stage.id === 'setup')?.records.filter((record) => record.type === 'activation_item') ?? [];
   const changeRequests = changes.filter((record) => record.type === 'change_request');

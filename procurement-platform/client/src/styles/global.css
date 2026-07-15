@@ -116,6 +116,93 @@
   font-weight: 800;
 }
 
+.post-award-entrance {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.post-award-entrance-hero {
+  margin: 0;
+}
+
+.post-award-entrance-hero h1 {
+  text-transform: none;
+}
+
+.post-award-entrance-alert {
+  margin: 0;
+}
+
+.post-award-entrance-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.post-award-entrance-summary article {
+  display: flex;
+  min-width: 0;
+  min-height: 112px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(23, 35, 49, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.post-award-entrance-summary span {
+  color: #5c6b7a;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.post-award-entrance-summary strong {
+  min-width: 0;
+  color: #07131f;
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.post-award-entrance-summary p {
+  margin: 0;
+  color: #5f6f7f;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.post-award-entrance-contracts {
+  margin-top: 0;
+}
+
+.post-award-entrance-table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(23, 35, 49, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.post-award-entrance-table {
+  min-width: 1080px;
+}
+
+.post-award-entrance-table td {
+  vertical-align: middle;
+}
+
+.post-award-entrance-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.post-award-entrance-actions .btn {
+  min-height: 34px;
+  white-space: nowrap;
+}
+
 .post-award-contract-header {
   display: flex;
   align-items: flex-start;
@@ -691,6 +778,10 @@
   .post-award-workspace {
     width: min(100% - 24px, 1120px);
   }
+
+  .post-award-entrance-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -708,6 +799,10 @@
   .post-award-secondary,
   .post-award-finance-box {
     padding: 18px;
+  }
+
+  .post-award-entrance-summary {
+    grid-template-columns: 1fr;
   }
 
   .post-award-contract-header {

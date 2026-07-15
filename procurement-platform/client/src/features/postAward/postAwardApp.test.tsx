@@ -279,6 +279,7 @@ function workspace(overrides: Partial<PostAwardWorkspace> = {}): PostAwardWorksp
 
 describe('PostAwardAppPage', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(postAwardApi.contracts).mockResolvedValue([row()]);
     vi.mocked(postAwardApi.workspace).mockResolvedValue(workspace());
     vi.mocked(postAwardApi.createDeliverySchedule).mockResolvedValue(workspace());
@@ -329,15 +330,73 @@ describe('PostAwardAppPage', () => {
     vi.mocked(postAwardApi.controlTermination).mockResolvedValue(workspace());
   });
 
+  it('shows the post-award entrance at the root route without auto-opening a contract', async () => {
+    renderPostAward('/post-award');
+
+    expect(await screen.findByRole('heading', { name: 'Contract tracking' })).toBeInTheDocument();
+    expect(screen.getByText('Track signed contracts')).toBeInTheDocument();
+    expect(screen.getByText('Clinic delivery contract')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/post-award');
+    expect(postAwardApi.workspace).not.toHaveBeenCalled();
+  });
+
+  it('opens a selected contract workspace from the entrance page', async () => {
+    const user = userEvent.setup();
+    renderPostAward('/post-award');
+
+    const chooser = await screen.findByLabelText('Contracts');
+    const contractRow = within(chooser).getByText('Clinic delivery contract').closest('tr') as HTMLElement;
+    await user.click(within(contractRow).getByRole('button', { name: 'Open' }));
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/post-award?contract=contract-1&stage=delivery'));
+  });
+
+  it.each([
+    ['Setup', 'setup'],
+    ['Delivery', 'delivery'],
+    ['Finance', 'finance']
+  ])('opens the %s quick page from the entrance page', async (label, stage) => {
+    const user = userEvent.setup();
+    renderPostAward('/post-award');
+
+    const chooser = await screen.findByLabelText('Contracts');
+    const contractRow = within(chooser).getByText('Clinic delivery contract').closest('tr') as HTMLElement;
+    await user.click(within(contractRow).getByRole('button', { name: label }));
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/post-award?contract=contract-1&stage=${stage}`));
+  });
+
+  it('shows an empty entrance state when no contracts are ready', async () => {
+    vi.mocked(postAwardApi.contracts).mockResolvedValue([]);
+
+    renderPostAward('/post-award');
+
+    expect(await screen.findByRole('heading', { name: 'Contract tracking' })).toBeInTheDocument();
+    expect(screen.getByText('No contracts ready yet')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/post-award');
+    expect(postAwardApi.workspace).not.toHaveBeenCalled();
+  });
+
+  it('shows an entrance error state when contracts cannot load', async () => {
+    vi.mocked(postAwardApi.contracts).mockRejectedValue(new Error('Contracts could not load'));
+
+    renderPostAward('/post-award');
+
+    expect(await screen.findByText('Contracts could not be loaded.')).toBeInTheDocument();
+    expect(screen.getByText('Choose a contract')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/post-award');
+    expect(postAwardApi.workspace).not.toHaveBeenCalled();
+  });
+
   it('loads the canonical task workspace for a buyer and saves a goods schedule', async () => {
     const user = userEvent.setup();
     renderPostAward();
 
     expect(await screen.findByRole('heading', { name: 'Clinic delivery contract' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Select post-award contract')).toBeInTheDocument();
-    expect(screen.getByText('Primary next action')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Your Buyer Work' })).toBeInTheDocument();
-    expect(screen.getByText('Workflow health')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select contract')).toBeInTheDocument();
+    expect(screen.getAllByText('Next task').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Buyer tasks' })).toBeInTheDocument();
+    expect(screen.getByText('Overall status')).toBeInTheDocument();
     expect(screen.getByText('Delivery schedule')).toBeInTheDocument();
     expect(screen.getAllByText('Create goods delivery schedule').length).toBeGreaterThan(0);
 
@@ -410,7 +469,7 @@ describe('PostAwardAppPage', () => {
 
     renderPostAward();
 
-    expect(await screen.findByRole('heading', { name: 'Your Supplier Work' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Supplier tasks' })).toBeInTheDocument();
     expect((await screen.findAllByText('Submit dispatch notice')).length).toBeGreaterThan(0);
     expect(screen.queryByText('Approve and record payment')).not.toBeInTheDocument();
     expect(screen.queryByText('Buyer private payment control.')).not.toBeInTheDocument();
