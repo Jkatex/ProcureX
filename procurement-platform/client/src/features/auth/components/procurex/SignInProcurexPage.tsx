@@ -30,7 +30,9 @@ function demoSignInConfig() {
 }
 
 function isLockedAccountError(error: unknown) {
-  const message = String(error ?? '').toLowerCase();
+  const response = error as { response?: { status?: number; data?: { message?: unknown; error?: unknown } }; message?: unknown };
+  const message = String(response.response?.data?.message ?? response.response?.data?.error ?? response.message ?? error ?? '').toLowerCase();
+  if (response.response?.status === 423) return true;
   return message.includes('locked') || message.includes('suspended') || message.includes('disabled account');
 }
 

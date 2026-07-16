@@ -1,3 +1,5 @@
+import type { SupportedLanguage } from '@procurex/shared';
+
 export const moduleDefinition = {
   key: 'documents',
   name: 'Documents',
@@ -15,6 +17,7 @@ export type DocumentRequestContext = {
   userId?: string;
   organizationId?: string;
   isAdmin?: boolean;
+  language?: SupportedLanguage;
 };
 
 export type DocumentContent = {
@@ -80,7 +83,7 @@ export type OfficialTemplateDto = {
   documentType: OfficialDocumentType;
   procurementType: OfficialProcurementType | null;
   jurisdiction: 'TZ';
-  language: 'en';
+  language: SupportedLanguage;
   version: string;
   sourceAuthority: 'PPRA';
   sourceUrl: string;
@@ -92,6 +95,7 @@ export type OfficialDocumentGenerateInput = {
   templateCode?: string;
   documentType: OfficialDocumentType;
   procurementType?: OfficialProcurementType;
+  language?: SupportedLanguage;
   sourceModule: string;
   sourceEntityType: string;
   sourceEntityId: string;

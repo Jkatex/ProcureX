@@ -51,6 +51,7 @@ function friendlyAuthError(context: AuthErrorContext, status?: number, message =
   const normalized = message.toLowerCase();
 
   if (isNetworkUnavailable(message)) return { key: 'auth.alerts.networkUnavailable' };
+  if (context === 'sign-in' && /invalid email|invalid password|email or password|wrong password/i.test(message)) return { key: 'auth.alerts.invalidCredentials' };
   if (status === 502) return deliveryFailureMessage(context);
   if (status === 429) return { key: normalized.includes('wait') ? 'auth.alerts.rateLimitWait' : 'auth.alerts.rateLimit' };
   if (status === 403) return { key: 'auth.alerts.securityFailed' };

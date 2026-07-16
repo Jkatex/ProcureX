@@ -9,8 +9,8 @@ export function LanguageSwitcher() {
   const language = i18n.language === 'sw' ? 'sw' : 'en';
 
   async function handleChange(nextLanguage: SupportedLanguage) {
-    await i18n.changeLanguage(nextLanguage);
     persistLanguage(nextLanguage);
+    await i18n.changeLanguage(nextLanguage);
     if (!store.getState().auth.isAuthenticated) return;
     try {
       await accountApi.updatePreferences({ preferredLanguage: nextLanguage });

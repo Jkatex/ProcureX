@@ -43,6 +43,45 @@ function safeFilename(value: string) {
   return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-').replace(/^-+|-+$/g, '') || 'document';
 }
 
+function documentCopy(language: 'en' | 'sw' | undefined) {
+  if (language === 'sw') {
+    return {
+      securePreview: 'Muonekano huu salama umetengenezwa kutoka rekodi ya waraka wa ProcureX.',
+      documentName: 'Jina la waraka',
+      documentType: 'Aina ya waraka',
+      objectKey: 'Ufunguo wa hifadhi',
+      checksum: 'Checksum',
+      created: 'Imeundwa',
+      metadata: 'Metadata',
+      notRecorded: 'Haijarekodiwa',
+      blockingValidationReport: 'Ripoti ya Uthibitishaji Inayozuia',
+      validationBlocked: 'Utengenezaji rasmi umezuiwa kwa sababu taarifa za lazima za mtiririko hazijakamilika',
+      officialReadyDocument: 'Waraka wa mzunguko wa ununuzi ulio tayari kwa matumizi rasmi',
+      validationRequired: 'RASIMU - UTHIBITISHAJI UNAHITAJIKA',
+      draftUnsigned: 'RASIMU - HAIJASAINIWA',
+      watermarkValidation: 'UTHIBITISHAJI UNAHITAJIKA',
+      watermarkDraft: 'RASIMU'
+    };
+  }
+  return {
+    securePreview: 'This secure preview is generated from the ProcureX document record.',
+    documentName: 'Document name',
+    documentType: 'Document type',
+    objectKey: 'Object key',
+    checksum: 'Checksum',
+    created: 'Created',
+    metadata: 'Metadata',
+    notRecorded: 'Not recorded',
+    blockingValidationReport: 'Blocking Validation Report',
+    validationBlocked: 'Official-ready generation blocked by missing required workflow data',
+    officialReadyDocument: 'Official-ready procurement lifecycle document',
+    validationRequired: 'DRAFT - VALIDATION REQUIRED',
+    draftUnsigned: 'DRAFT - UNSIGNED',
+    watermarkValidation: 'VALIDATION REQUIRED',
+    watermarkDraft: 'DRAFT'
+  };
+}
+
 function objectPayload(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
@@ -79,13 +118,14 @@ export class ModuleRepository {
     if (!this.canReadDocument(document, context)) throw requestError('Document is not visible to this organization.', 403);
 
     const metadata = objectPayload(document.metadata);
+    const copy = documentCopy(context.language);
     const rows = [
-      ['Document name', document.name],
-      ['Document type', document.documentType],
-      ['Object key', document.objectKey],
-      ['Checksum', document.checksum ?? 'Not recorded'],
-      ['Created', document.createdAt.toISOString()],
-      ['Metadata', JSON.stringify(metadata)]
+      [copy.documentName, document.name],
+      [copy.documentType, document.documentType],
+      [copy.objectKey, document.objectKey],
+      [copy.checksum, document.checksum ?? copy.notRecorded],
+      [copy.created, document.createdAt.toISOString()],
+      [copy.metadata, JSON.stringify(metadata)]
     ];
     return {
       filename: `${safeFilename(document.name)}.html`,
@@ -95,7 +135,7 @@ export class ModuleRepository {
           <head><meta charset="utf-8"><title>${escapeHtml(document.name)}</title></head>
           <body style="font-family: Arial, sans-serif; color: #172033; max-width: 820px; margin: 32px auto; line-height: 1.5;">
             <h1>${escapeHtml(document.name)}</h1>
-            <p>This secure preview is generated from the ProcureX document record.</p>
+            <p>${escapeHtml(copy.securePreview)}</p>
             <table style="width:100%;border-collapse:collapse;">
               <tbody>${rows.map(([label, value]) => `<tr><th style="text-align:left;border:1px solid #d8dee8;padding:10px;width:180px;">${escapeHtml(label)}</th><td style="border:1px solid #d8dee8;padding:10px;">${escapeHtml(value)}</td></tr>`).join('')}</tbody>
             </table>
@@ -104,8 +144,8 @@ export class ModuleRepository {
     };
   }
 
-  async listOfficialTemplates(query: { documentType?: string; procurementType?: string } = {}): Promise<OfficialTemplateDto[]> {
-    return listOfficialTemplateDtos().filter((template) => {
+  async listOfficialTemplates(query: { documentType?: string; procurementType?: string; language?: 'en' | 'sw' } = {}): Promise<OfficialTemplateDto[]> {
+    return listOfficialTemplateDtos(query.language ?? 'en').filter((template) => {
       if (query.documentType && template.documentType !== query.documentType) return false;
       if (query.procurementType && template.procurementType !== query.procurementType) return false;
       return true;
@@ -120,7 +160,8 @@ export class ModuleRepository {
     const template = findOfficialTemplate({
       templateCode: input.templateCode,
       documentType: input.documentType,
-      procurementType
+      procurementType,
+      language: input.language ?? context.language ?? 'en'
     });
     if (!template) throw requestError('No official document template matches the requested document type and procurement type.', 404);
 
@@ -129,13 +170,12 @@ export class ModuleRepository {
     const versionNo = await this.nextOfficialVersionNo(input);
     const generatedAt = new Date();
     const status: OfficialDocumentStatus = 'DRAFT';
+    const copy = documentCopy(template.language);
     const pdf = await renderOfficialPdf({
-      title: validationWarnings.length ? `Blocking Validation Report - ${template.name}` : `${template.name} - ${source.title}`,
-      subtitle: validationWarnings.length
-        ? 'Official-ready generation blocked by missing required workflow data'
-        : 'Official-ready procurement lifecycle document',
+      title: validationWarnings.length ? `${copy.blockingValidationReport} - ${template.name}` : `${template.name} - ${source.title}`,
+      subtitle: validationWarnings.length ? copy.validationBlocked : copy.officialReadyDocument,
       reference: source.reference,
-      status: validationWarnings.length ? 'DRAFT - VALIDATION REQUIRED' : 'DRAFT - UNSIGNED',
+      status: validationWarnings.length ? copy.validationRequired : copy.draftUnsigned,
       generatedAt,
       metadataRows: documentControlRows({
         template,
@@ -147,7 +187,7 @@ export class ModuleRepository {
       }),
       validationWarnings: validationWarnings.length ? validationWarningRows(validationWarnings) : undefined,
       sections: buildOfficialPdfSections(template, source),
-      watermark: validationWarnings.length ? 'VALIDATION REQUIRED' : 'DRAFT'
+      watermark: validationWarnings.length ? copy.watermarkValidation : copy.watermarkDraft
     });
     const stored = await storeOfficialPdf({
       body: pdf,

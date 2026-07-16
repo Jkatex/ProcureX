@@ -19,6 +19,14 @@ describe('official document templates', () => {
     }
   });
 
+  it('selects Swahili template variants when requested', () => {
+    const template = findOfficialTemplate({ documentType: 'TENDER_DOCUMENT', procurementType: 'GOODS', language: 'sw' });
+
+    expect(template?.code).toBe('TZ-PPRA-TENDER-GOODS-SW-1');
+    expect(template?.name).toBe('Waraka wa Zabuni ya Bidhaa');
+    expect(template?.language).toBe('sw');
+  });
+
   it('has at least one template for every official document type', () => {
     for (const documentType of officialDocumentTypes) {
       expect(officialTemplateDefinitions.some((template) => template.documentType === documentType)).toBe(true);

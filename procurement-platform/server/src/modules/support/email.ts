@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import type { SupportTicketPriority } from '@prisma/client';
+import { resolveSupportedLanguage, type SupportedLanguage } from '@procurex/shared';
 
 export type SupportEmailTicketInput = {
   id: string;
@@ -12,6 +13,7 @@ export type SupportEmailTicketInput = {
   ownerName?: string | null;
   ownerOrgId?: string | null;
   organizationName?: string | null;
+  language?: SupportedLanguage;
 };
 
 export type PublicContactEmailInput = {
@@ -21,6 +23,7 @@ export type PublicContactEmailInput = {
   organization?: string;
   requestType: string;
   message: string;
+  language?: SupportedLanguage;
 };
 
 export type SupportEmailSender = {
@@ -44,57 +47,89 @@ function deliveryConfigError(message: string) {
   return error;
 }
 
-function line(label: string, value: unknown) {
-  const text = value === undefined || value === null || value === '' ? 'Not provided' : String(value);
+function notProvided(language: SupportedLanguage) {
+  return language === 'sw' ? 'Haijatolewa' : 'Not provided';
+}
+
+function line(label: string, value: unknown, language: SupportedLanguage) {
+  const text = value === undefined || value === null || value === '' ? notProvided(language) : String(value);
   return `${label}: ${text}`;
 }
 
+const labels = {
+  en: {
+    ticketIntro: 'A signed-in ProcureX user created a support ticket.',
+    ticketId: 'Ticket ID',
+    subject: 'Subject',
+    category: 'Category',
+    priority: 'Priority',
+    userId: 'User ID',
+    userEmail: 'User email',
+    userName: 'User name',
+    orgId: 'Organization ID',
+    organization: 'Organization',
+    description: 'Description:',
+    contactIntro: 'A public ProcureX contact request was submitted.',
+    fullName: 'Full name',
+    email: 'Email',
+    phone: 'Phone',
+    requestType: 'Request type',
+    message: 'Message:'
+  },
+  sw: {
+    ticketIntro: 'Mtumiaji aliyeingia ProcureX ametengeneza ombi la msaada.',
+    ticketId: 'Namba ya ombi',
+    subject: 'Mada',
+    category: 'Kategoria',
+    priority: 'Kipaumbele',
+    userId: 'Namba ya mtumiaji',
+    userEmail: 'Barua pepe ya mtumiaji',
+    userName: 'Jina la mtumiaji',
+    orgId: 'Namba ya shirika',
+    organization: 'Shirika',
+    description: 'Maelezo:',
+    contactIntro: 'Ombi la mawasiliano la umma la ProcureX limewasilishwa.',
+    fullName: 'Jina kamili',
+    email: 'Barua pepe',
+    phone: 'Simu',
+    requestType: 'Aina ya ombi',
+    message: 'Ujumbe:'
+  }
+};
+
 export class SmtpSupportEmailSender implements SupportEmailSender {
-  private readonly transporter: Transporter;
+  private transporter?: Transporter;
+  private readonly user: string;
+  private readonly pass: string;
   private readonly from: string;
   private readonly to: string;
   private readonly replyTo?: string;
 
   constructor(private readonly config = process.env) {
-    const user = config.SMTP_USER?.trim();
-    const pass = config.SMTP_PASS?.trim();
-    this.from = config.SMTP_FROM?.trim() || user || '';
+    this.user = config.SMTP_USER?.trim() ?? '';
+    this.pass = config.SMTP_PASS?.trim() ?? '';
+    this.from = config.SMTP_FROM?.trim() || this.user || '';
     this.to = config.SUPPORT_EMAIL_TO?.trim() || 'procurexsupport@gmail.com';
-    this.replyTo = config.SMTP_REPLY_TO?.trim() || user || undefined;
-
-    if (!user || !pass) {
-      throw deliveryConfigError('SMTP user and password are not configured.');
-    }
-    if (!this.from) {
-      throw deliveryConfigError('SMTP sender is not configured.');
-    }
-    if (!this.to) {
-      throw deliveryConfigError('Support recipient email is not configured.');
-    }
-
-    this.transporter = nodemailer.createTransport({
-      host: config.SMTP_HOST?.trim() || 'smtp.gmail.com',
-      port: numberConfig(config.SMTP_PORT, 587),
-      secure: boolConfig(config.SMTP_SECURE, false),
-      auth: { user, pass }
-    });
+    this.replyTo = config.SMTP_REPLY_TO?.trim() || this.user || undefined;
   }
 
   async sendTicketCreated(input: SupportEmailTicketInput) {
+    const language = resolveSupportedLanguage(input.language);
+    const copy = labels[language];
     const text = [
-      'A signed-in ProcureX user created a support ticket.',
+      copy.ticketIntro,
       '',
-      line('Ticket ID', input.id),
-      line('Subject', input.subject),
-      line('Category', input.category),
-      line('Priority', input.priority),
-      line('User ID', input.ownerUserId),
-      line('User email', input.ownerEmail),
-      line('User name', input.ownerName),
-      line('Organization ID', input.ownerOrgId),
-      line('Organization', input.organizationName),
+      line(copy.ticketId, input.id, language),
+      line(copy.subject, input.subject, language),
+      line(copy.category, input.category, language),
+      line(copy.priority, input.priority, language),
+      line(copy.userId, input.ownerUserId, language),
+      line(copy.userEmail, input.ownerEmail, language),
+      line(copy.userName, input.ownerName, language),
+      line(copy.orgId, input.ownerOrgId, language),
+      line(copy.organization, input.organizationName, language),
       '',
-      'Description:',
+      copy.description,
       input.description
     ].join('\n');
 
@@ -106,16 +141,18 @@ export class SmtpSupportEmailSender implements SupportEmailSender {
   }
 
   async sendPublicContact(input: PublicContactEmailInput) {
+    const language = resolveSupportedLanguage(input.language);
+    const copy = labels[language];
     const text = [
-      'A public ProcureX contact request was submitted.',
+      copy.contactIntro,
       '',
-      line('Full name', input.fullName),
-      line('Email', input.email),
-      line('Phone', input.phone),
-      line('Organization', input.organization),
-      line('Request type', input.requestType),
+      line(copy.fullName, input.fullName, language),
+      line(copy.email, input.email, language),
+      line(copy.phone, input.phone, language),
+      line(copy.organization, input.organization, language),
+      line(copy.requestType, input.requestType, language),
       '',
-      'Message:',
+      copy.message,
       input.message
     ].join('\n');
 
@@ -127,7 +164,7 @@ export class SmtpSupportEmailSender implements SupportEmailSender {
   }
 
   private async send(input: { subject: string; text: string; replyTo?: string }) {
-    await this.transporter
+    await this.getTransporter()
       .sendMail({
         from: this.from,
         to: this.to,
@@ -138,5 +175,25 @@ export class SmtpSupportEmailSender implements SupportEmailSender {
       .catch((error: unknown) => {
         throw deliveryConfigError(error instanceof Error ? error.message : 'Support email request failed.');
       });
+  }
+
+  private getTransporter() {
+    if (!this.user || !this.pass) {
+      throw deliveryConfigError('SMTP user and password are not configured.');
+    }
+    if (!this.from) {
+      throw deliveryConfigError('SMTP sender is not configured.');
+    }
+    if (!this.to) {
+      throw deliveryConfigError('Support recipient email is not configured.');
+    }
+
+    this.transporter ??= nodemailer.createTransport({
+      host: this.config.SMTP_HOST?.trim() || 'smtp.gmail.com',
+      port: numberConfig(this.config.SMTP_PORT, 587),
+      secure: boolConfig(this.config.SMTP_SECURE, false),
+      auth: { user: this.user, pass: this.pass }
+    });
+    return this.transporter;
   }
 }

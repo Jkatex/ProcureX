@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 import { AuditSeverity, type Prisma } from '@prisma/client';
 import type { Request } from 'express';
+import type { SupportedLanguage } from '@procurex/shared';
+import { requestLanguage } from './localization.js';
 
 export type RequestAuditContext = {
   ipAddress?: string;
   userAgent?: string;
   path?: string;
   method?: string;
+  language?: SupportedLanguage;
 };
 
 export type AuditEventInput = RequestAuditContext & {
@@ -28,7 +31,8 @@ export function requestAuditContext(req: Request): RequestAuditContext {
     ipAddress: req.ip,
     userAgent: req.header('user-agent') ?? undefined,
     path: req.path,
-    method: req.method
+    method: req.method,
+    language: requestLanguage(req)
   };
 }
 

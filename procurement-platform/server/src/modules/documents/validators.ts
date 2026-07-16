@@ -12,7 +12,8 @@ export const documentParamsSchema = z
 export const officialTemplateQuerySchema = z
   .object({
     documentType: z.enum(officialDocumentTypes).optional(),
-    procurementType: z.enum(officialProcurementTypes).optional()
+    procurementType: z.enum(officialProcurementTypes).optional(),
+    language: z.enum(['en', 'sw']).optional()
   })
   .passthrough();
 
@@ -21,6 +22,7 @@ export const officialGenerateBodySchema = z
     templateCode: z.string().trim().min(1).max(120).optional(),
     documentType: z.enum(officialDocumentTypes),
     procurementType: z.enum(officialProcurementTypes).optional(),
+    language: z.enum(['en', 'sw']).optional(),
     sourceModule: z.string().trim().min(1).max(80),
     sourceEntityType: z.string().trim().min(1).max(80),
     sourceEntityId: z.string().trim().min(1).max(120)

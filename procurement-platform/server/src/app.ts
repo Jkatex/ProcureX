@@ -2,6 +2,7 @@ import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import helmet from 'helmet';
 import { registeredModules } from './modules/index.js';
+import { localizedMessage, requestLanguage } from './modules/shared/localization.js';
 import { securityConfig, validateProductionSecurityConfig } from './security/config.js';
 
 function requestError(message: string, status = 403) {
@@ -69,11 +70,13 @@ export function createApp() {
     res.status(404).json({ error: 'not_found' });
   });
 
-  const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+  const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     const status = typeof error?.status === 'number' ? error.status : 500;
+    const language = requestLanguage(req);
+    const fallback = status === 500 ? 'Unexpected server error.' : String(error?.message ?? 'Request failed.');
     res.status(status).json({
       error: status === 500 ? 'internal_error' : 'request_error',
-      message: status === 500 ? 'Unexpected server error.' : String(error?.message ?? 'Request failed.')
+      message: localizedMessage(fallback, language)
     });
   };
 

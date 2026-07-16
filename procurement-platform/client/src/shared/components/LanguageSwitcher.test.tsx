@@ -26,8 +26,7 @@ describe('LanguageSwitcher', () => {
     const user = userEvent.setup();
     renderSwitcher();
 
-    await user.click(screen.getByRole('combobox'));
-    await user.click(screen.getByRole('option', { name: /swahili|kiswahili/i }));
+    await user.selectOptions(screen.getByRole('combobox'), screen.getByRole('option', { name: /swahili|kiswahili/i }));
 
     expect(window.localStorage.getItem('procurex.language')).toBe('sw');
     expect(document.documentElement.lang).toBe('sw');

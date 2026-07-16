@@ -89,7 +89,7 @@ export class ModuleService {
   }
 
   async publicContact(input: PublicContactInput, audit?: RequestAuditContext) {
-    await this.supportEmail.sendPublicContact(input);
+    await this.supportEmail.sendPublicContact({ ...input, language: audit?.language });
     await this.repository.createAuditEvent({
       event: 'support.public_contact.sent',
       entityType: 'support_contact',
@@ -159,7 +159,8 @@ export class ModuleService {
         ownerEmail: user.email ?? null,
         ownerName: user.displayName ?? ticket.ownerUser.displayName ?? null,
         ownerOrgId: ticket.ownerOrgId,
-        organizationName: ticket.ownerOrg?.name ?? null
+        organizationName: ticket.ownerOrg?.name ?? null,
+        language: audit?.language
       });
     } catch (error) {
       console.warn(error instanceof Error ? error.message : 'Support ticket email failed.');

@@ -469,9 +469,10 @@ export class ModuleController {
     try {
       const params = idParamsSchema.safeParse(req.params);
       if (!params.success) throw requestError('Invalid award notice id.');
+      const context = await this.requirePermissionContext(req, 'award.respond');
       const body = awardNoticeResponseBodySchema.safeParse(req.body);
       if (!body.success) throw requestError('Invalid award notice response payload.');
-      res.json(await this.service.respondToNotice(params.data.id, body.data, await this.requirePermissionContext(req, 'award.respond')));
+      res.json(await this.service.respondToNotice(params.data.id, body.data, context));
     } catch (error) {
       next(error);
     }

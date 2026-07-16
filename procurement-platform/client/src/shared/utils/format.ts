@@ -1,7 +1,7 @@
-import type { SupportedLanguage } from '@/i18n';
+import { localeForLanguage, type SupportedLanguage } from '@procurex/shared';
 
 export function formatMoney(value: number, currency = 'TZS', language: SupportedLanguage = 'en') {
-  return new Intl.NumberFormat(language === 'sw' ? 'sw-TZ' : 'en-TZ', {
+  return new Intl.NumberFormat(localeForLanguage(language), {
     style: 'currency',
     currency,
     maximumFractionDigits: 0
@@ -9,7 +9,7 @@ export function formatMoney(value: number, currency = 'TZS', language: Supported
 }
 
 export function formatDate(value: string, language: SupportedLanguage = 'en') {
-  return new Intl.DateTimeFormat(language === 'sw' ? 'sw-TZ' : 'en-TZ', {
+  return new Intl.DateTimeFormat(localeForLanguage(language), {
     month: 'short',
     day: 'numeric',
     year: 'numeric'

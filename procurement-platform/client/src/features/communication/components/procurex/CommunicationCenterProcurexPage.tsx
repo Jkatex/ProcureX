@@ -685,39 +685,6 @@ export function CommunicationCenterProcurexPage() {
                       <span>Message</span>
                       <textarea className="form-input" rows={6} value={compose.body} onChange={(event) => setCompose((current) => ({ ...current, body: event.target.value }))} placeholder="Write your message" required />
                     </label>
-                    <div className="span-2 communication-compose-attachments">
-                      <div>
-                        <span className="form-label">Attachments</span>
-                        <label className="btn btn-secondary communication-file-button">
-                          Add files
-                          <input type="file" multiple onChange={addAttachments} hidden />
-                        </label>
-                      </div>
-                      {loadingAttachmentCount ? (
-                        <span className="communication-attachment-loading-note" role="status">
-                          Loading {loadingAttachmentCount} attachment{loadingAttachmentCount === 1 ? '' : 's'}. Send unlocks when every file is ready.
-                        </span>
-                      ) : null}
-                      {compose.attachments.length ? (
-                        <div className="communication-attachment-list" aria-label="Selected attachments">
-                          {compose.attachments.map((attachment) => (
-                            <span className="communication-attachment-item" key={attachment.id}>
-                              <span className="communication-attachment-name">{attachment.name}</span>
-                              <span className="communication-attachment-size">{formatFileSize(attachment.size)}</span>
-                              <span className={`communication-attachment-status is-${attachment.status}`}>{attachmentStatusLabel(attachment)}</span>
-                              {attachment.status === 'loading' ? (
-                                <span className="communication-attachment-progress" aria-label={`${attachment.name} loading progress`}>
-                                  <span style={{ width: `${Math.max(4, attachment.progress)}%` }} />
-                                </span>
-                              ) : null}
-                              <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
-                                x
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
                     {!supportCompose ? (
                       <div className="span-2 communication-compose-attachments">
                         <div>
@@ -731,14 +698,25 @@ export function CommunicationCenterProcurexPage() {
                           <div className="communication-attachment-list" aria-label="Selected attachments">
                             {compose.attachments.map((attachment) => (
                               <span className="communication-attachment-item" key={attachment.id}>
-                                <span>{attachment.name}</span>
-                                <em>{formatFileSize(attachment.size)}</em>
+                                <span className="communication-attachment-name">{attachment.name}</span>
+                                <span className="communication-attachment-size">{formatFileSize(attachment.size)}</span>
+                                <span className={`communication-attachment-status is-${attachment.status}`}>{attachmentStatusLabel(attachment)}</span>
+                                {attachment.status === 'loading' ? (
+                                  <span className="communication-attachment-progress" aria-label={`${attachment.name} loading progress`}>
+                                    <span style={{ width: `${Math.max(4, attachment.progress)}%` }} />
+                                  </span>
+                                ) : null}
                                 <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => removeAttachment(attachment.id)}>
                                   x
                                 </button>
                               </span>
                             ))}
                           </div>
+                        ) : null}
+                        {loadingAttachmentCount ? (
+                          <span className="communication-attachment-loading-note" role="status">
+                            Loading {loadingAttachmentCount} attachment{loadingAttachmentCount === 1 ? '' : 's'}. Send unlocks when every file is ready.
+                          </span>
                         ) : null}
                       </div>
                     ) : null}

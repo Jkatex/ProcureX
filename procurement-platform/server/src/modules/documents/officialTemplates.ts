@@ -5,6 +5,7 @@ import type {
   OfficialTemplateField,
   OfficialTemplateSection
 } from './types.js';
+import { resolveSupportedLanguage, type SupportedLanguage } from '@procurex/shared';
 
 const ppraPublicationsUrl = 'https://www.ppra.go.tz/publications';
 const ppraFormsUrl = 'https://www.ppra.go.tz/publications/procedural-forms-english';
@@ -42,7 +43,7 @@ const baseRequired = [required.title, required.reference, required.ownerName];
 const tenderRequired = [...baseRequired, required.procurementType, required.closingDate];
 const contractRequired = [...baseRequired, required.contractRef];
 
-export const officialTemplateDefinitions: OfficialTemplateDefinition[] = [
+const englishOfficialTemplateDefinitions: OfficialTemplateDefinition[] = [
   template({
     code: 'TZ-PPRA-APP-EN-1',
     name: 'Annual Procurement Plan',
@@ -371,15 +372,168 @@ export const officialTemplateDefinitions: OfficialTemplateDefinition[] = [
   })
 ];
 
-export function listOfficialTemplateDtos() {
-  return officialTemplateDefinitions.map(toTemplateDto);
+const templateNameSw: Record<string, string> = {
+  'Annual Procurement Plan': 'Mpango wa Mwaka wa Ununuzi',
+  'Procurement Plan Extract': 'Dondoo la Mpango wa Ununuzi',
+  'Goods Tender Document': 'Waraka wa Zabuni ya Bidhaa',
+  'Works Tender Document': 'Waraka wa Zabuni ya Kazi',
+  'Non-Consultancy Services Tender Document': 'Waraka wa Zabuni ya Huduma Zisizo za Ushauri',
+  'Consultancy Services Request for Proposals': 'Ombi la Mapendekezo ya Huduma za Ushauri',
+  'Specific Tender Notice': 'Tangazo Maalumu la Zabuni',
+  'Tender Addendum or Amendment': 'Nyongeza au Marekebisho ya Zabuni',
+  'Bid Submission Receipt': 'Risiti ya Kuwasilisha Zabuni',
+  'Sealed Bid Record': 'Rekodi ya Zabuni Iliyofungwa',
+  'Bid Opening Record': 'Rekodi ya Ufunguzi wa Zabuni',
+  'Evaluation Report': 'Ripoti ya Tathmini',
+  'Consultancy Technical and Financial Evaluation Report': 'Ripoti ya Tathmini ya Kiufundi na Kifedha ya Ushauri',
+  'Award Recommendation': 'Pendekezo la Tuzo',
+  'Request for Approval of Award': 'Ombi la Kuidhinisha Tuzo',
+  'Intention or Notice of Award': 'Tangazo la Nia au Tuzo',
+  'Award Response Record': 'Rekodi ya Jibu la Tuzo',
+  'Negotiation Plan': 'Mpango wa Majadiliano',
+  'Negotiation Record': 'Rekodi ya Majadiliano',
+  'Draft or Final Contract': 'Rasimu au Mkataba wa Mwisho',
+  'Contract Version Certificate': 'Cheti cha Toleo la Mkataba',
+  'Contract Signature Certificate': 'Cheti cha Saini ya Mkataba',
+  'Purchase Order': 'Oda ya Ununuzi',
+  'Delivery, Inspection, and Acceptance Certificate': 'Cheti cha Uwasilishaji, Ukaguzi, na Kukubali',
+  'Invoice and Payment Certificate': 'Cheti cha Ankara na Malipo',
+  'Variation or Amendment Request': 'Ombi la Mabadiliko au Marekebisho',
+  'Closeout and Final Acceptance Certificate': 'Cheti cha Kufunga na Kukubali Mwisho',
+  'Procurement Record Archive Report': 'Ripoti ya Jalada la Rekodi za Ununuzi',
+  'Official Record Certificate': 'Cheti cha Rekodi Rasmi'
+};
+
+const titleSw: Record<string, string> = {
+  'Cover and Approval Status': 'Jalada na Hali ya Idhini',
+  'Legal and Institutional Basis': 'Msingi wa Kisheria na Kitaasisi',
+  'Plan Summary': 'Muhtasari wa Mpango',
+  'Procurement Plan Schedule': 'Ratiba ya Mpango wa Ununuzi',
+  'Budget and Source of Funds': 'Bajeti na Chanzo cha Fedha',
+  'Procurement Method Justification': 'Uhalali wa Mbinu ya Ununuzi',
+  'Planning Risks and Dependencies': 'Hatari na Tegemezi za Mipango',
+  'Review, Approval, and Audit Trail': 'Ukaguzi, Idhini, na Historia ya Ukaguzi',
+  'Extract Identification': 'Utambulisho wa Dondoo',
+  'Procurement Activity Details': 'Maelezo ya Shughuli ya Ununuzi',
+  'Tender or Workflow Linkage': 'Uunganisho wa Zabuni au Mtiririko wa Kazi',
+  'Implementation Schedule': 'Ratiba ya Utekelezaji',
+  'Certification and Audit Trail': 'Uthibitisho na Historia ya Ukaguzi',
+  'Cover Page and Invitation': 'Ukurasa wa Jalada na Mwaliko',
+  'Instructions to Tenderers': 'Maelekezo kwa Wazabuni',
+  'Tender Data Sheet': 'Jedwali la Taarifa za Zabuni',
+  'Schedule of Requirements': 'Ratiba ya Mahitaji',
+  'Technical Specifications': 'Vipimo vya Kiufundi',
+  'Delivery and Completion Schedule': 'Ratiba ya Uwasilishaji na Kukamilisha',
+  'Price Schedule': 'Ratiba ya Bei',
+  'Eligibility and Qualification Requirements': 'Mahitaji ya Sifa na Ustahiki',
+  'Evaluation and Award Criteria': 'Vigezo vya Tathmini na Tuzo',
+  'General and Special Conditions of Contract': 'Masharti ya Jumla na Maalumu ya Mkataba',
+  'Tender Forms and Declarations': 'Fomu na Matamko ya Zabuni',
+  'Annexes and Attachments': 'Viambatisho na Nyaraka',
+  'Scope of Works': 'Wigo wa Kazi',
+  'Drawings, Specifications, and Site Information': 'Michoro, Vipimo, na Taarifa za Eneo',
+  'Bill of Quantities and Pricing Schedule': 'Mchanganuo wa Kiasi na Ratiba ya Bei',
+  'Programme, Milestones, and Completion Period': 'Programu, Hatua Kuu, na Muda wa Kukamilisha',
+  'Personnel, Plant, Equipment, and Methodology': 'Wafanyakazi, Mitambo, Vifaa, na Mbinu',
+  'Scope of Services': 'Wigo wa Huduma',
+  'Service Levels and Performance Standards': 'Viwango vya Huduma na Utendaji',
+  'Personnel, Equipment, and Mobilisation': 'Wafanyakazi, Vifaa, na Uhamasishaji',
+  'Deliverables, Reporting, and Records': 'Matokeo, Ripoti, na Rekodi',
+  'Cover Page and Letter of Invitation': 'Ukurasa wa Jalada na Barua ya Mwaliko',
+  'Instructions to Consultants': 'Maelekezo kwa Washauri',
+  'Proposal Data Sheet': 'Jedwali la Taarifa za Pendekezo',
+  'Terms of Reference': 'Hadidu za Rejea',
+  'Key Experts and Staffing Requirements': 'Wataalamu Muhimu na Mahitaji ya Watumishi',
+  'Technical Proposal Structure': 'Muundo wa Pendekezo la Kiufundi',
+  'Financial Proposal Structure': 'Muundo wa Pendekezo la Kifedha',
+  'Technical and Financial Evaluation Criteria': 'Vigezo vya Tathmini ya Kiufundi na Kifedha',
+  'Negotiation and Award Process': 'Mchakato wa Majadiliano na Tuzo',
+  'Draft Contract Conditions': 'Masharti ya Rasimu ya Mkataba',
+  'Proposal Forms and Declarations': 'Fomu na Matamko ya Pendekezo',
+  'Annexes and Background Documents': 'Viambatisho na Nyaraka za Msingi',
+  'Notice Identification': 'Utambulisho wa Tangazo',
+  'Communication and Clarification': 'Mawasiliano na Ufafanuzi',
+  'Integrity and Audit Statement': 'Tamko la Uadilifu na Ukaguzi',
+  'Addendum Identification': 'Utambulisho wa Nyongeza',
+  'Background and Reason for Amendment': 'Historia na Sababu ya Marekebisho',
+  'Detailed Amendments': 'Marekebisho ya Kina',
+  'Effect on Tender Documents': 'Athari kwa Nyaraka za Zabuni',
+  'Submission Instructions After Addendum': 'Maelekezo ya Kuwasilisha Baada ya Nyongeza',
+  'Tenderer Acknowledgement': 'Uthibitisho wa Mzabuni',
+  'Record Identification': 'Utambulisho wa Rekodi',
+  'Certification and Signatures': 'Uthibitisho na Saini',
+  'Evaluation Report Identification': 'Utambulisho wa Ripoti ya Tathmini',
+  'Procurement Background': 'Historia ya Ununuzi',
+  'Evaluation Committee Recommendation': 'Pendekezo la Kamati ya Tathmini',
+  'Annexes and Audit Trail': 'Viambatisho na Historia ya Ukaguzi',
+  'Award Document Identification': 'Utambulisho wa Waraka wa Tuzo',
+  'Evaluation and Procurement Background': 'Historia ya Tathmini na Ununuzi',
+  'Approval Route and Conditions': 'Njia na Masharti ya Idhini',
+  'Integrity and Audit Trail': 'Uadilifu na Historia ya Ukaguzi',
+  'Negotiation Document Identification': 'Utambulisho wa Waraka wa Majadiliano',
+  'Outcome and Contract Impact': 'Matokeo na Athari kwa Mkataba',
+  'Contract Document Identification': 'Utambulisho wa Waraka wa Mkataba',
+  'Contract Price and Payment': 'Bei ya Mkataba na Malipo',
+  'Execution and Signature Blocks': 'Utekelezaji na Sehemu za Saini',
+  'Version Integrity and Audit Trail': 'Uadilifu wa Toleo na Historia ya Ukaguzi',
+  'Post-Award Document Identification': 'Utambulisho wa Waraka wa Baada ya Tuzo',
+  'Exceptions, Reservations, and Follow-up Actions': 'Tofauti, Masharti, na Hatua za Ufuatiliaji',
+  'Official Record Identification': 'Utambulisho wa Rekodi Rasmi',
+  'Record Certification': 'Uthibitisho wa Rekodi'
+};
+
+const fieldLabelSw: Record<string, string> = {
+  'Document title': 'Kichwa cha waraka',
+  'Reference number': 'Namba ya rejea',
+  'Procuring entity': 'Taasisi nunuzi',
+  'Procurement type': 'Aina ya ununuzi',
+  'Submission closing date': 'Tarehe ya mwisho ya kuwasilisha',
+  'Financial year': 'Mwaka wa fedha',
+  'Schedule lines or items': 'Mistari au vipengele vya ratiba',
+  'Supplier or bidder name': 'Jina la mzabuni',
+  Amount: 'Kiasi',
+  'Contract reference': 'Rejea ya mkataba',
+  'Tender reference': 'Rejea ya zabuni'
+};
+
+const descriptionReplacements: Array<[RegExp, string]> = [
+  [/\bOfficial-ready\b/g, 'Tayari kwa matumizi rasmi'],
+  [/\bofficial-ready\b/g, 'tayari kwa matumizi rasmi'],
+  [/\bprocurement\b/gi, 'ununuzi'],
+  [/\btender\b/gi, 'zabuni'],
+  [/\bbid\b/gi, 'zabuni ya mzabuni'],
+  [/\bcontract\b/gi, 'mkataba'],
+  [/\baward\b/gi, 'tuzo'],
+  [/\bevaluation\b/gi, 'tathmini'],
+  [/\brecord\b/gi, 'rekodi'],
+  [/\bdocument\b/gi, 'waraka'],
+  [/\bdocuments\b/gi, 'nyaraka'],
+  [/\bapproval\b/gi, 'idhini'],
+  [/\baudit\b/gi, 'ukaguzi'],
+  [/\bsignature\b/gi, 'saini'],
+  [/\bpayment\b/gi, 'malipo'],
+  [/\binvoice\b/gi, 'ankara'],
+  [/\bsupplier\b/gi, 'mzabuni'],
+  [/\bbuyer\b/gi, 'mnunuzi']
+];
+
+export const officialTemplateDefinitions: OfficialTemplateDefinition[] = [
+  ...englishOfficialTemplateDefinitions,
+  ...englishOfficialTemplateDefinitions.map(toSwahiliTemplate)
+];
+
+export function listOfficialTemplateDtos(language: SupportedLanguage = 'en') {
+  const resolved = resolveSupportedLanguage(language);
+  return officialTemplateDefinitions.filter((template) => template.language === resolved).map(toTemplateDto);
 }
 
 export function findOfficialTemplate(input: {
   templateCode?: string;
   documentType: OfficialDocumentType;
   procurementType?: OfficialProcurementType | null;
+  language?: SupportedLanguage;
 }) {
+  const language = resolveSupportedLanguage(input.language);
   if (input.templateCode) {
     return officialTemplateDefinitions.find((templateDefinition) => templateDefinition.code === input.templateCode) ?? null;
   }
@@ -387,13 +541,13 @@ export function findOfficialTemplate(input: {
   const requestedType = input.procurementType ?? null;
   return (
     officialTemplateDefinitions.find(
-      (templateDefinition) => templateDefinition.documentType === input.documentType && templateDefinition.procurementType === requestedType
+      (templateDefinition) => templateDefinition.language === language && templateDefinition.documentType === input.documentType && templateDefinition.procurementType === requestedType
     ) ??
     officialTemplateDefinitions.find(
-      (templateDefinition) => templateDefinition.documentType === input.documentType && templateDefinition.procurementType === 'MIXED'
+      (templateDefinition) => templateDefinition.language === language && templateDefinition.documentType === input.documentType && templateDefinition.procurementType === 'MIXED'
     ) ??
     officialTemplateDefinitions.find(
-      (templateDefinition) => templateDefinition.documentType === input.documentType && templateDefinition.procurementType === 'NOT_APPLICABLE'
+      (templateDefinition) => templateDefinition.language === language && templateDefinition.documentType === input.documentType && templateDefinition.procurementType === 'NOT_APPLICABLE'
     ) ??
     null
   );
@@ -414,6 +568,29 @@ export function toTemplateDto(templateDefinition: OfficialTemplateDefinition): O
     sections: templateDefinition.sections,
     requiredFields: templateDefinition.requiredFields
   };
+}
+
+function toSwahiliTemplate(templateDefinition: OfficialTemplateDefinition): OfficialTemplateDefinition {
+  return {
+    ...templateDefinition,
+    code: templateDefinition.code.replace(/-EN-(\d+)$/, '-SW-$1'),
+    name: templateNameSw[templateDefinition.name] ?? swText(templateDefinition.name),
+    description: swText(templateDefinition.description),
+    language: 'sw',
+    sections: templateDefinition.sections.map((item) => ({
+      ...item,
+      title: titleSw[item.title] ?? swText(item.title),
+      description: swText(item.description)
+    })),
+    requiredFields: templateDefinition.requiredFields.map((item) => ({
+      ...item,
+      label: fieldLabelSw[item.label] ?? swText(item.label)
+    }))
+  };
+}
+
+function swText(value: string) {
+  return descriptionReplacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
 }
 
 function tenderTemplate(

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { Resend, type CreateEmailOptions, type CreateEmailRequestOptions } from 'resend';
+import { resolveSupportedLanguage, type SupportedLanguage } from '@procurex/shared';
 import { isProductionRuntime } from '../../security/config.js';
 
 export type DeliveryReceipt = {
@@ -19,10 +20,12 @@ type EmailCodeInput = DeliveryInput & {
   code: string;
   expiresInMinutes: number;
   actionUrl?: string;
+  language?: SupportedLanguage;
 };
 
 type SecurityNoticeInput = DeliveryInput & {
   to: string;
+  language?: SupportedLanguage;
 };
 
 export type EmailSendInput = DeliveryInput & {
@@ -61,7 +64,7 @@ export type BeemWhatsAppSessionInput = DeliveryInput & {
 };
 
 export type IdentityNotificationProvider = {
-  sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt>;
+  sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }): Promise<DeliveryReceipt>;
   sendEmailActivation(input: EmailCodeInput): Promise<DeliveryReceipt>;
   sendTenderContactVerification(input: EmailCodeInput): Promise<DeliveryReceipt>;
   sendPasswordReset(input: EmailCodeInput): Promise<DeliveryReceipt>;
@@ -163,9 +166,29 @@ function metaWhatsAppError(body: Record<string, unknown>) {
   return firstString(body.message, body.error);
 }
 
+function emailLanguage(input: { language?: SupportedLanguage }) {
+  return resolveSupportedLanguage(input.language);
+}
+
 function activationEmailContent(input: EmailCodeInput) {
-  const actionText = input.actionUrl ? `\n\nOpen this link to continue: ${input.actionUrl}` : '';
-  const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Continue in ProcureX</a></p>` : '';
+  const language = emailLanguage(input);
+  const actionText = input.actionUrl
+    ? language === 'sw'
+      ? `\n\nFungua kiungo hiki ili kuendelea: ${input.actionUrl}`
+      : `\n\nOpen this link to continue: ${input.actionUrl}`
+    : '';
+  const actionHtml = input.actionUrl
+    ? language === 'sw'
+      ? `<p><a href="${input.actionUrl}">Endelea kwenye ProcureX</a></p>`
+      : `<p><a href="${input.actionUrl}">Continue in ProcureX</a></p>`
+    : '';
+  if (language === 'sw') {
+    return {
+      subject: 'Washa akaunti yako ya ProcureX',
+      text: `Msimbo wako wa kuanzisha akaunti ya ProcureX ni ${input.code}. Unaisha baada ya dakika ${input.expiresInMinutes}.${actionText}`,
+      html: `<p>Msimbo wako wa kuanzisha akaunti ya ProcureX ni <strong>${input.code}</strong>.</p><p>Unaisha baada ya dakika ${input.expiresInMinutes}.</p>${actionHtml}`
+    };
+  }
   return {
     subject: 'Activate your ProcureX account',
     text: `Your ProcureX activation code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
@@ -174,6 +197,13 @@ function activationEmailContent(input: EmailCodeInput) {
 }
 
 function tenderContactVerificationEmailContent(input: EmailCodeInput) {
+  if (emailLanguage(input) === 'sw') {
+    return {
+      subject: 'Thibitisha barua pepe ya mawasiliano ya zabuni ya ProcureX',
+      text: `Msimbo wako wa kuthibitisha barua pepe ya mawasiliano ya zabuni ya ProcureX ni ${input.code}. Unaisha baada ya dakika ${input.expiresInMinutes}.`,
+      html: `<p>Msimbo wako wa kuthibitisha barua pepe ya mawasiliano ya zabuni ya ProcureX ni <strong>${input.code}</strong>.</p><p>Unaisha baada ya dakika ${input.expiresInMinutes}.</p>`
+    };
+  }
   return {
     subject: 'Verify your ProcureX tender contact email',
     text: `Your ProcureX tender contact verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`,
@@ -182,8 +212,24 @@ function tenderContactVerificationEmailContent(input: EmailCodeInput) {
 }
 
 function passwordResetEmailContent(input: EmailCodeInput) {
-  const actionText = input.actionUrl ? `\n\nOpen this link to reset your password: ${input.actionUrl}` : '';
-  const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Reset your password</a></p>` : '';
+  const language = emailLanguage(input);
+  const actionText = input.actionUrl
+    ? language === 'sw'
+      ? `\n\nFungua kiungo hiki ili kuweka upya nenosiri lako: ${input.actionUrl}`
+      : `\n\nOpen this link to reset your password: ${input.actionUrl}`
+    : '';
+  const actionHtml = input.actionUrl
+    ? language === 'sw'
+      ? `<p><a href="${input.actionUrl}">Weka upya nenosiri lako</a></p>`
+      : `<p><a href="${input.actionUrl}">Reset your password</a></p>`
+    : '';
+  if (language === 'sw') {
+    return {
+      subject: 'Weka upya nenosiri lako la ProcureX',
+      text: `Msimbo wako wa kuweka upya nenosiri la ProcureX ni ${input.code}. Unaisha baada ya dakika ${input.expiresInMinutes}.${actionText}`,
+      html: `<p>Msimbo wako wa kuweka upya nenosiri la ProcureX ni <strong>${input.code}</strong>.</p><p>Unaisha baada ya dakika ${input.expiresInMinutes}.</p>${actionHtml}`
+    };
+  }
   return {
     subject: 'Reset your ProcureX password',
     text: `Your ProcureX password reset code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
@@ -192,8 +238,24 @@ function passwordResetEmailContent(input: EmailCodeInput) {
 }
 
 function keyphraseRecoveryEmailContent(input: EmailCodeInput) {
-  const actionText = input.actionUrl ? `\n\nOpen this link to continue: ${input.actionUrl}` : '';
-  const actionHtml = input.actionUrl ? `<p><a href="${input.actionUrl}">Recover your keyphrase</a></p>` : '';
+  const language = emailLanguage(input);
+  const actionText = input.actionUrl
+    ? language === 'sw'
+      ? `\n\nFungua kiungo hiki ili kuendelea: ${input.actionUrl}`
+      : `\n\nOpen this link to continue: ${input.actionUrl}`
+    : '';
+  const actionHtml = input.actionUrl
+    ? language === 'sw'
+      ? `<p><a href="${input.actionUrl}">Rejesha kaulisiri yako</a></p>`
+      : `<p><a href="${input.actionUrl}">Recover your keyphrase</a></p>`
+    : '';
+  if (language === 'sw') {
+    return {
+      subject: 'Rejesha kaulisiri yako ya saini ya ProcureX',
+      text: `Msimbo wako wa kurejesha kaulisiri ya saini ya ProcureX ni ${input.code}. Unaisha baada ya dakika ${input.expiresInMinutes}.${actionText}`,
+      html: `<p>Msimbo wako wa kurejesha kaulisiri ya saini ya ProcureX ni <strong>${input.code}</strong>.</p><p>Unaisha baada ya dakika ${input.expiresInMinutes}.</p>${actionHtml}`
+    };
+  }
   return {
     subject: 'Recover your ProcureX signing keyphrase',
     text: `Your ProcureX signing keyphrase recovery code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.${actionText}`,
@@ -201,7 +263,14 @@ function keyphraseRecoveryEmailContent(input: EmailCodeInput) {
   };
 }
 
-function keyphraseRecoveryCompletedEmailContent() {
+function keyphraseRecoveryCompletedEmailContent(input: SecurityNoticeInput) {
+  if (emailLanguage(input) === 'sw') {
+    return {
+      subject: 'Kaulisiri ya saini ya ProcureX imerejeshwa',
+      text: 'Urejeshaji wa kaulisiri yako ya saini ya ProcureX umekamilika. Kitambulisho cha zamani cha saini kimebatilishwa, kitambulisho kipya cha saini kimetengenezwa, na vipindi hai vimefungwa. Ingia tena ili kuendelea.',
+      html: '<p>Urejeshaji wa kaulisiri yako ya saini ya ProcureX umekamilika.</p><p>Kitambulisho cha zamani cha saini kimebatilishwa, kitambulisho kipya cha saini kimetengenezwa, na vipindi hai vimefungwa. Ingia tena ili kuendelea.</p>'
+    };
+  }
   return {
     subject: 'ProcureX signing keyphrase recovered',
     text: 'Your ProcureX signing keyphrase recovery is complete. The old active signing credential was revoked, a new signing credential was created, and active sessions were ended. Sign in again to continue.',
@@ -307,7 +376,7 @@ export class ResendEmailProvider {
   sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput) {
     return this.send({
       to: input.to,
-      ...keyphraseRecoveryCompletedEmailContent(),
+      ...keyphraseRecoveryCompletedEmailContent(input),
       idempotencyKey: input.idempotencyKey,
       metadata: { category: 'identity_keyphrase_recovery_completed', ...(input.metadata ?? {}) }
     });
@@ -403,7 +472,7 @@ export class SmtpEmailProvider {
   sendKeyphraseRecoveryCompleted(input: SecurityNoticeInput) {
     return this.send({
       to: input.to,
-      ...keyphraseRecoveryCompletedEmailContent(),
+      ...keyphraseRecoveryCompletedEmailContent(input),
       idempotencyKey: input.idempotencyKey,
       metadata: { category: 'identity_keyphrase_recovery_completed', ...(input.metadata ?? {}) }
     });
@@ -457,10 +526,13 @@ export class BeemSmsProvider {
     return { provider: 'beem-sms', messageId: beemMessageId(body), providerMetadata: body };
   }
 
-  sendOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+  sendOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }) {
     return this.send({
       to: input.to,
-      message: `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`
+      message:
+        emailLanguage(input) === 'sw'
+          ? `Msimbo wako wa uthibitishaji wa ProcureX ni ${input.code}. Unaisha baada ya dakika ${input.expiresInMinutes}.`
+          : `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`
     });
   }
 }
@@ -513,10 +585,13 @@ export class BriqSmsProvider {
     return { provider: 'briq-sms', messageId: briqMessageId(body), providerMetadata: body };
   }
 
-  sendOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+  sendOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }) {
     return this.send({
       to: input.to,
-      message: `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`
+      message:
+        emailLanguage(input) === 'sw'
+          ? `Msimbo wako wa uthibitishaji wa ProcureX ni ${input.code}. Unaisha baada ya dakika ${input.expiresInMinutes}.`
+          : `Your ProcureX verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.`
     });
   }
 }
@@ -636,7 +711,7 @@ export class MetaWhatsAppOtpProvider {
     }
   }
 
-  async sendOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
+  async sendOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }): Promise<DeliveryReceipt> {
     const to = normalizeRecipient(input.to);
     if (this.allowedTestRecipients.length > 0 && !this.allowedTestRecipients.includes(to)) {
       throw deliveryConfigError('WhatsApp test recipient is not allowed.');
@@ -693,7 +768,7 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
 
   constructor(private readonly config = process.env) {}
 
-  sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+  sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }) {
     const provider = (this.config.IDENTITY_SMS_PROVIDER || 'beem').trim().toLowerCase();
     if (provider === 'briq') {
       this.briqSms ??= new BriqSmsProvider(this.config);
@@ -706,7 +781,7 @@ export class ProductionIdentityNotifications implements IdentityNotificationProv
     throw deliveryConfigError(`Unsupported identity SMS provider: ${provider}.`);
   }
 
-  sendWhatsAppOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+  sendWhatsAppOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }) {
     this.metaWhatsAppOtp ??= new MetaWhatsAppOtpProvider(this.config);
     return this.metaWhatsAppOtp.sendOtp(input);
   }
@@ -765,7 +840,7 @@ export class RoutedIdentityNotifications implements IdentityNotificationProvider
     }
   }
 
-  sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }) {
+  sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }) {
     if (this.phoneProvider === 'dev-console') return this.devConsole!.sendPhoneOtp(input);
     if (this.phoneProvider === 'whatsapp') return this.production.sendWhatsAppOtp(input);
     if (this.phoneProvider !== 'sms') throw deliveryConfigError(`Unsupported identity phone provider: ${this.phoneProvider}.`);
@@ -838,7 +913,7 @@ export class DevConsoleIdentityNotifications implements IdentityNotificationProv
     }
   }
 
-  async sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number }): Promise<DeliveryReceipt> {
+  async sendPhoneOtp(input: { to: string; code: string; expiresInMinutes: number; language?: SupportedLanguage }): Promise<DeliveryReceipt> {
     console.info(`[identity:dev-console] phone OTP for ${input.to}: ${input.code} (expires in ${input.expiresInMinutes} minutes)`);
     return { provider: 'dev-console' };
   }

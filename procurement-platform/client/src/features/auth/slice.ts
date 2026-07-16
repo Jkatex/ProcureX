@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, apiRawErrorMessage } from '@/shared/api/errors';
 import { clearStoredAuthToken, getStoredAuthToken, storeAuthToken } from '@/shared/api/authToken';
 import type { SessionUser } from '@/shared/types/domain';
 import { authApi, type AuthSessionResponse, type SessionResponse } from './api';
@@ -33,7 +33,7 @@ export const signInWithCredentials = createAsyncThunk<AuthSessionResponse, { ema
     try {
       return await authApi.signIn(input);
     } catch (error) {
-      return rejectWithValue(apiErrorMessage(error, 'Sign-in failed.'));
+      return rejectWithValue(apiRawErrorMessage(error) || apiErrorMessage(error, 'Sign-in failed.'));
     }
   }
 );

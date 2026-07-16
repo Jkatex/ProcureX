@@ -1,15 +1,14 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { resolveSupportedLanguage, supportedLanguages, type SupportedLanguage } from '@procurex/shared';
 import en from './locales/en/common.json';
 import sw from './locales/sw/common.json';
 
-export const supportedLanguages = ['en', 'sw'] as const;
-export type SupportedLanguage = (typeof supportedLanguages)[number];
+export { supportedLanguages };
+export type { SupportedLanguage };
 
 const storedLanguage = typeof window !== 'undefined' ? window.localStorage.getItem('procurex.language') : null;
-const initialLanguage = supportedLanguages.includes(storedLanguage as SupportedLanguage)
-  ? (storedLanguage as SupportedLanguage)
-  : 'en';
+const initialLanguage = resolveSupportedLanguage(storedLanguage);
 
 void i18n.use(initReactI18next).init({
   resources: {
@@ -50,6 +49,13 @@ export function ensureProcurexStaticNamespace(language: SupportedLanguage) {
 export function persistLanguage(language: SupportedLanguage) {
   window.localStorage.setItem('procurex.language', language);
   document.documentElement.lang = language;
+}
+
+export function currentRequestLanguage(): SupportedLanguage {
+  if (typeof window === 'undefined') return resolveSupportedLanguage(i18n.language);
+  return resolveSupportedLanguage(
+    window.localStorage.getItem('procurex.language') || document.documentElement.lang || i18n.language
+  );
 }
 
 document.documentElement.lang = initialLanguage;

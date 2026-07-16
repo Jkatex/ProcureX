@@ -165,12 +165,16 @@ describe('support module', () => {
 
   it('creates, comments, scopes, and audits support tickets', async () => {
     const { repository, service, supportEmail } = makeService();
-    const ticket = await service.createTicket('buyer', {
-      subject: 'Tender access',
-      category: 'Technical',
-      priority: SupportTicketPriority.HIGH,
-      description: 'I cannot open the tender workspace.'
-    });
+    const ticket = await service.createTicket(
+      'buyer',
+      {
+        subject: 'Tender access',
+        category: 'Technical',
+        priority: SupportTicketPriority.HIGH,
+        description: 'I cannot open the tender workspace.'
+      },
+      { language: 'sw' }
+    );
 
     await service.addComment('buyer', ticket.id, { body: 'Please check my workspace.' });
     const updated = await service.updateStatus('buyer', ticket.id, SupportTicketStatus.RESOLVED);
@@ -187,7 +191,8 @@ describe('support module', () => {
       ownerUserId: 'user-1',
       ownerEmail: 'buyer@example.test',
       organizationName: 'Owner Org',
-      subject: 'Tender access'
+      subject: 'Tender access',
+      language: 'sw'
     });
     await expect(service.getTicket('outsider', ticket.id)).rejects.toMatchObject({ status: 403 });
     await expect(service.getTicket('admin', ticket.id)).resolves.toMatchObject({ id: ticket.id });
@@ -212,21 +217,25 @@ describe('support module', () => {
     const { repository, service, supportEmail } = makeService();
 
     await expect(
-      service.publicContact({
-        fullName: 'Public User',
-        email: 'public@example.test',
-        phone: '+255700000001',
-        organization: 'Public Org',
-        requestType: 'General support',
-        message: 'I need help before creating an account.'
-      })
+      service.publicContact(
+        {
+          fullName: 'Public User',
+          email: 'public@example.test',
+          phone: '+255700000001',
+          organization: 'Public Org',
+          requestType: 'General support',
+          message: 'I need help before creating an account.'
+        },
+        { language: 'sw' }
+      )
     ).resolves.toEqual({ status: 'sent' });
 
     expect(supportEmail.contacts).toEqual([
       expect.objectContaining({
         fullName: 'Public User',
         email: 'public@example.test',
-        message: 'I need help before creating an account.'
+        message: 'I need help before creating an account.',
+        language: 'sw'
       })
     ]);
     expect(repository.auditEvents.map((event) => event.event)).toContain('support.public_contact.sent');

@@ -307,8 +307,10 @@ function TenderReviewDetailView({
         <div><span>Submitted</span><strong>{formatDate(tender.submittedAt)}</strong></div>
         <div><span>Attempts</span><strong>{tender.reviewAttempts}</strong></div>
       </div>
+      {tender.description ? <p className="admin-tender-review-description">{tender.description}</p> : null}
 
       <div className="admin-tender-review-document-shell supplier-tender-detail-page">
+        <h2 className="sr-only">List of Goods and Product Specifications</h2>
         <SupplierProcurementDetails tender={tender} onOpenDocument={handleOpenDocument} onDownloadDocument={handleDownloadDocument} />
       </div>
 

@@ -1,6 +1,7 @@
 import { AuditSeverity, VerificationStatus } from '@prisma/client';
 import type { Request, RequestHandler } from 'express';
 import { verifyTurnstileToken } from '../../security/turnstile.js';
+import { requestLanguage } from '../shared/localization.js';
 import { ModuleService } from './service.js';
 import {
   activateEmailSchema,
@@ -50,7 +51,8 @@ export class ModuleController {
   private auditContext(req: Request) {
     return {
       ipAddress: req.ip,
-      userAgent: req.header('user-agent') ?? undefined
+      userAgent: req.header('user-agent') ?? undefined,
+      language: requestLanguage(req)
     };
   }
 

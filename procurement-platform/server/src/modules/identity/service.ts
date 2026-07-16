@@ -8,7 +8,7 @@ import {
   VerificationStatus,
   type Prisma
 } from '@prisma/client';
-import { isValidTanzaniaLocation, type PermissionName, type ScreeningStatus, type TanzaniaLocationSelection } from '@procurex/shared';
+import { isValidTanzaniaLocation, type PermissionName, type ScreeningStatus, type SupportedLanguage, type TanzaniaLocationSelection } from '@procurex/shared';
 import { assertPermission, computeAccessContext } from '../../security/accessPolicy.js';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
@@ -151,6 +151,7 @@ type RegistrySource = 'TRA' | 'BRELA';
 type AuthAuditContext = {
   ipAddress?: string;
   userAgent?: string;
+  language?: SupportedLanguage;
 };
 
 type AuthAuditInput = AuthAuditContext & {
@@ -282,6 +283,10 @@ function userLocation(user: { metadata?: unknown }) {
 
 function supportedLanguage(value: unknown): 'en' | 'sw' {
   return value === 'sw' ? 'sw' : 'en';
+}
+
+function notificationLanguage(audit?: AuthAuditContext, user?: { preferences?: { preferredLanguage?: string } | null }) {
+  return supportedLanguage(audit?.language ?? user?.preferences?.preferredLanguage);
 }
 
 function preferenceDto(preference?: { preferredLanguage: string; timezone: string } | null) {
@@ -1214,7 +1219,7 @@ export class ModuleService {
     });
 
     try {
-      const receipt = await this.notifications.sendPhoneOtp({ to: phone, code, expiresInMinutes: phoneOtpMinutes });
+      const receipt = await this.notifications.sendPhoneOtp({ to: phone, code, expiresInMinutes: phoneOtpMinutes, language: notificationLanguage(audit) });
       const devCode = devCodeFromReceipt(receipt, code);
       await this.repository.updateChallenge(challenge.id, {
         metadata: inputJson({
@@ -1317,6 +1322,7 @@ export class ModuleService {
         to: email,
         code: activationCode,
         expiresInMinutes: activationMinutes,
+        language: notificationLanguage(audit),
         idempotencyKey: `identity-email-activation/${activation.id}`
       });
       const devCode = devCodeFromReceipt(receipt, activationCode) ?? (localTemporaryAuthCodesEnabled() ? activationCode : undefined);
@@ -1671,6 +1677,7 @@ export class ModuleService {
         code,
         expiresInMinutes: passwordResetMinutes,
         actionUrl: passwordResetActionUrl(challenge.id, code),
+        language: notificationLanguage(audit),
         idempotencyKey: `identity-password-reset/${challenge.id}`
       });
       await this.repository.updateChallenge(challenge.id, {
@@ -1932,10 +1939,11 @@ export class ModuleService {
               to: target,
               code,
               expiresInMinutes,
+              language: notificationLanguage(audit, session.user),
               idempotencyKey: `procurement-tender-contact-email/${challenge.id}`,
               metadata: { challengeId: challenge.id, userId: session.user.id }
             })
-          : await this.notifications.sendPhoneOtp({ to: target, code, expiresInMinutes });
+          : await this.notifications.sendPhoneOtp({ to: target, code, expiresInMinutes, language: notificationLanguage(audit, session.user) });
       const devCode = devCodeFromReceipt(receipt, code) ?? (channel === 'email' && localTemporaryAuthCodesEnabled() ? code : undefined);
       await this.repository.updateChallenge(challenge.id, {
         metadata: inputJson({
@@ -2381,6 +2389,7 @@ export class ModuleService {
         code,
         expiresInMinutes: passwordResetMinutes,
         actionUrl: keyphraseRecoveryActionUrl(recovery.id, code),
+        language: notificationLanguage(audit),
         idempotencyKey: `identity-keyphrase-recovery/${challenge.id}`,
         metadata: { recoveryId: recovery.id }
       });
@@ -2458,7 +2467,7 @@ export class ModuleService {
       expiresAt: new Date(Date.now() + phoneOtpMinutes * 60 * 1000),
       metadata: { recoveryId, delivery: { channel: phoneProviderChannel(), status: 'pending' } }
     });
-    const receipt = await this.notifications.sendPhoneOtp({ to: phone, code: phoneCode, expiresInMinutes: phoneOtpMinutes });
+    const receipt = await this.notifications.sendPhoneOtp({ to: phone, code: phoneCode, expiresInMinutes: phoneOtpMinutes, language: notificationLanguage(audit) });
     await this.repository.updateChallenge(phoneChallenge.id, {
       metadata: inputJson({
         ...metadataObject(phoneChallenge.metadata),
@@ -2564,6 +2573,7 @@ export class ModuleService {
     try {
       const receipt = await this.notifications.sendKeyphraseRecoveryCompleted({
         to: recovery.user.email,
+        language: notificationLanguage(audit),
         idempotencyKey: `identity-keyphrase-recovery-completed/${recovery.id}`,
         metadata: { recoveryId: recovery.id }
       });
@@ -2670,10 +2680,11 @@ export class ModuleService {
               to: target,
               code,
               expiresInMinutes,
+              language: notificationLanguage(audit, user),
               idempotencyKey: `identity-profile-email-change/${challenge.id}`,
               metadata: { challengeId: challenge.id, userId: user.id }
             })
-          : await this.notifications.sendPhoneOtp({ to: target, code, expiresInMinutes });
+          : await this.notifications.sendPhoneOtp({ to: target, code, expiresInMinutes, language: notificationLanguage(audit, user) });
       const devCode = devCodeFromReceipt(receipt, code) ?? (field === 'email' && localTemporaryAuthCodesEnabled() ? code : undefined);
       await this.repository.updateChallenge(challenge.id, {
         metadata: inputJson({

@@ -215,6 +215,29 @@ describe('Resend and Beem identity delivery integrations', () => {
     ).rejects.toThrow(/domain not verified/);
   });
 
+  it('sends Swahili identity email content when requested', async () => {
+    const provider = new ResendEmailProvider({
+      RESEND_API_KEY: 'resend-key',
+      RESEND_FROM: 'ProcureX <no-reply@procurex.test>'
+    } as NodeJS.ProcessEnv);
+
+    await provider.sendPasswordReset({
+      to: 'owner@example.test',
+      code: '123456',
+      expiresInMinutes: 30,
+      language: 'sw',
+      actionUrl: 'https://app.procurex.test/forgot-password?challengeId=challenge-2#code=123456'
+    });
+
+    expect(resendMocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Weka upya nenosiri lako la ProcureX',
+        text: expect.stringContaining('Msimbo wako wa kuweka upya nenosiri la ProcureX ni 123456')
+      }),
+      undefined
+    );
+  });
+
   it('sends activation email through Gmail SMTP with reply-to and message receipt', async () => {
     const provider = new SmtpEmailProvider(smtpConfig());
 
@@ -304,6 +327,16 @@ describe('Resend and Beem identity delivery integrations', () => {
       recipients: [{ recipient_id: 1, dest_addr: '255700000001' }]
     });
     expect(receipt).toMatchObject({ provider: 'beem-sms', messageId: '67' });
+  });
+
+  it('formats Swahili SMS OTP copy when requested', async () => {
+    const fetchMock = mockJsonFetch({ successful: true, request_id: 67, code: 100 });
+    const provider = new BeemSmsProvider(beemConfig());
+
+    await provider.sendOtp({ to: '+255700000001', code: '123456', expiresInMinutes: 10, language: 'sw' });
+
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(options.body as string).message).toBe('Msimbo wako wa uthibitishaji wa ProcureX ni 123456. Unaisha baada ya dakika 10.');
   });
 
   it('formats Briq SMS requests with API key, sender ID, and recipients without leading plus', async () => {

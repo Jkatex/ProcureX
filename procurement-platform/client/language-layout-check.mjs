@@ -1,6 +1,21 @@
 import { chromium } from 'playwright';
 
-const routes = ['/sign-in', '/register', '/dashboard', '/procurement/create-tender', '/evaluation'];
+const routes = [
+  '/',
+  '/sign-in',
+  '/register',
+  '/dashboard',
+  '/procurement/marketplace',
+  '/procurement/create-tender',
+  '/bidding',
+  '/evaluation',
+  '/awards-contracts',
+  '/post-award',
+  '/communication',
+  '/records',
+  '/support',
+  '/admin'
+];
 const viewports = [
   { name: 'desktop', width: 1366, height: 900 },
   { name: 'mobile', width: 360, height: 800 }

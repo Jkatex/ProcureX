@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { hydrateAuthSession } from '@/features/auth/slice';
+import { DomLocalization } from '@/i18n/DomLocalization';
 import { NotificationToastHost } from '@/features/notifications/NotificationToastHost';
 import { CookieConsentBanner } from '@/features/support/components/CookieConsentBanner';
 import { router } from './router';
@@ -22,6 +23,7 @@ export function App() {
   return (
     <>
       <RouterProvider router={router} />
+      <DomLocalization />
       <NotificationToastHost />
       <CookieConsentBanner />
     </>

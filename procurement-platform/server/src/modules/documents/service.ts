@@ -23,7 +23,7 @@ export class ModuleService {
     return this.repository.content(id, context);
   }
 
-  officialTemplates(query: { documentType?: string; procurementType?: string }) {
+  officialTemplates(query: { documentType?: string; procurementType?: string; language?: 'en' | 'sw' }) {
     return this.repository.listOfficialTemplates(query);
   }
 
