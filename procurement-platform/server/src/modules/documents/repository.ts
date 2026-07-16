@@ -119,6 +119,16 @@ export class ModuleRepository {
 
     const metadata = objectPayload(document.metadata);
     const copy = documentCopy(context.language);
+    const contentBase64 = typeof metadata.contentBase64 === 'string' ? metadata.contentBase64 : '';
+    const mimeType = typeof metadata.mimeType === 'string' && metadata.mimeType.trim() ? metadata.mimeType.trim() : '';
+    if (contentBase64 && mimeType) {
+      return {
+        filename: safeFilename(document.name),
+        contentType: mimeType,
+        body: Buffer.from(contentBase64, 'base64')
+      };
+    }
+
     const rows = [
       [copy.documentName, document.name],
       [copy.documentType, document.documentType],

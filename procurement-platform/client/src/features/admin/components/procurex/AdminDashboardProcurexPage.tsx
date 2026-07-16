@@ -95,9 +95,6 @@ export function AdminDashboardProcurexPage() {
                 <button className="btn btn-primary" type="button" disabled={loading} onClick={() => void loadDashboard()}>
                   Refresh
                 </button>
-                <button className="btn btn-secondary" type="button" onClick={() => navigate('/admin/search')}>
-                  Search Platform
-                </button>
               </div>
             </div>
             <div className="dashboard-reference-visual" aria-label="Platform admin overview">
@@ -232,7 +229,7 @@ export function AdminDashboardProcurexPage() {
                 </div>
                 <div className="dashboard-activity-feed">
                   {evaluationOversight.map((item) => (
-                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/search')}>
+                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/analytics')}>
                       <div>
                         <strong>{item.reference} / {item.tenderTitle}</strong>
                         <span>{item.buyer} / {displayLabel(item.status)} / {displayLabel(item.stage)}</span>
@@ -255,7 +252,7 @@ export function AdminDashboardProcurexPage() {
                 </div>
                 <div className="dashboard-activity-feed">
                   {exceptionLog.map((item) => (
-                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/compliance')}>
+                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/audit')}>
                       <div>
                         <strong>{item.title}</strong>
                         <span>{item.owner} / {item.summary}</span>
@@ -278,7 +275,7 @@ export function AdminDashboardProcurexPage() {
                 </div>
                 <div className="dashboard-activity-feed">
                   {checklistPreview.map((item) => (
-                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/compliance')}>
+                    <button className="dashboard-activity-item" type="button" key={item.id} onClick={() => navigate('/admin/audit')}>
                       <div>
                         <strong>{item.code}</strong>
                         <span>{item.title}</span>
@@ -354,21 +351,18 @@ function fallbackMetrics(counts: Record<string, number>) {
 
 function platformStatusRows(counts: Record<string, number>) {
   return [
-    { label: 'Active tenders', value: counts.activeTenders ?? counts.tenders ?? 0, route: '/admin/search' },
-    { label: 'Pending reviews', value: counts.pendingReviews ?? 0, route: '/admin/compliance' },
-    { label: 'Flagged issues', value: counts.flaggedIssues ?? 0, route: '/admin/compliance' },
-    { label: 'Evaluation drafts', value: counts.evaluationDrafts ?? 0, route: '/admin/search' },
+    { label: 'Active tenders', value: counts.activeTenders ?? counts.tenders ?? 0, route: '/admin/tender-review' },
+    { label: 'Pending reviews', value: counts.pendingReviews ?? 0, route: '/admin/audit' },
+    { label: 'Flagged issues', value: counts.flaggedIssues ?? 0, route: '/admin/audit' },
+    { label: 'Evaluation drafts', value: counts.evaluationDrafts ?? 0, route: '/admin/analytics' },
     { label: 'Audit events today', value: counts.auditEventsToday ?? 0, route: '/admin/audit' }
   ];
 }
 
 function appBackendHint(app: AdminApp, counts: Record<string, number>) {
   if (app.route === '/admin') return `${compactNumber(counts.openCases ?? 0)} open cases`;
-  if (app.route === '/admin/search') return `${compactNumber((counts.tenders ?? 0) + (counts.bids ?? 0) + (counts.contracts ?? 0))} searchable procurement records`;
   if (app.route === '/admin/users') return `${compactNumber(counts.users ?? 0)} users`;
-  if (app.route === '/admin/compliance') return `${compactNumber(counts.rules ?? 0)} rules`;
   if (app.route === '/admin/analytics') return `${compactNumber(counts.auditEvents ?? 0)} audit events in analytics`;
   if (app.route === '/admin/audit') return `${compactNumber(counts.auditEvents ?? 0)} audit events`;
-  if (app.route === '/admin/datastore') return 'Global and user-scoped JSON keys';
   return app.backend.endpoint;
 }

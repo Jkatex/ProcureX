@@ -10967,9 +10967,7 @@ ul.closure-checklist {
 }
 /* Admin panel redesign */
 body[data-page="admin-dashboard"],
-body[data-page="admin-search"],
 body[data-page="admin-users"],
-body[data-page="admin-compliance"],
 body[data-page="admin-analytics"],
 body[data-page="admin-audit"] {
     --px-hero-image: var(--px-visual-eval);

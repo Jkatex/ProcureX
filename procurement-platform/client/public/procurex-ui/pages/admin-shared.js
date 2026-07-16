@@ -240,9 +240,7 @@
     function renderAdminSidebar(activePage = 'admin-dashboard') {
         const items = [
             ['admin-dashboard', 'Command Center'],
-            ['admin-search', 'Deep Search'],
             ['admin-users', 'User Management'],
-            ['admin-compliance', 'Compliance Rules'],
             ['admin-analytics', 'Platform Analytics'],
             ['admin-audit', 'Full Audit Trail']
         ];

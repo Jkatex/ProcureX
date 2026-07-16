@@ -194,7 +194,6 @@ describe('TopBar platform apps drawer', () => {
     renderTopBar({ ...demoUsers.admin, organizationId: 'org-admin' });
 
     expect(screen.getByRole('link', { name: /Command Center/i })).toHaveAttribute('href', '/admin');
-    expect(screen.getByRole('link', { name: /Deep Search/i })).toHaveAttribute('href', '/admin/search');
     expect(screen.getByRole('link', { name: /Communication/i })).toHaveAttribute('href', '/admin/communication');
     expect(screen.queryByRole('link', { name: /Marketplace/i })).not.toBeInTheDocument();
 

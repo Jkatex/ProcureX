@@ -14,6 +14,18 @@ import { biddingApi } from '../../api';
 import type { BidDocumentEnvelope, BidDto, BidSampleDto, BidSubmissionSchemaDto, BidSubmissionSchemaFieldDto, BidSubmissionSection, BidSubmissionSchemaStepDto, BidSubmissionStepId } from '../../types';
 import { BiddingWorkspaceProcurexPage } from './BiddingWorkspaceProcurexPage';
 
+const html2PdfMock = vi.hoisted(() => {
+  const worker = {
+    set: vi.fn(),
+    from: vi.fn(),
+    outputPdf: vi.fn()
+  };
+  return {
+    factory: vi.fn(() => worker),
+    worker
+  };
+});
+
 vi.mock('@/features/procurement/hooks', () => ({
   useTenderDetail: vi.fn()
 }));
@@ -24,6 +36,16 @@ vi.mock('@/features/identity/api', () => ({
     getProfileImageBlob: vi.fn()
   }
 }));
+
+vi.mock('html2pdf.js', () => ({
+  default: html2PdfMock.factory
+}));
+
+function resetHtml2PdfMock() {
+  html2PdfMock.worker.set.mockReset().mockReturnValue(html2PdfMock.worker);
+  html2PdfMock.worker.from.mockReset().mockReturnValue(html2PdfMock.worker);
+  html2PdfMock.worker.outputPdf.mockReset().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
+}
 
 function createBidWorkspaceStore() {
   const store = configureStore({ reducer: { auth: authReducer, notifications: notificationsReducer } });
@@ -49,6 +71,7 @@ function renderWorkspaceWithNotifications() {
 describe('BiddingWorkspaceProcurexPage document upload', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetHtml2PdfMock();
     vi.spyOn(biddingApi, 'getTenderSchema').mockResolvedValue(bidSchema());
     vi.mocked(useTenderDetail).mockReturnValue({
       data: tenderDetail(),
@@ -119,13 +142,6 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
     await waitFor(() => expect(biddingApi.updateBid).toHaveBeenCalled());
     const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls[0][1];
-    expect(savedPayload.responses).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          requirementKey: 'productCompliance'
-        })
-      ])
-    );
     expect(savedPayload.documents).toEqual([
       expect.objectContaining({
         documentId: 'doc-1',
@@ -162,12 +178,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
     );
 
     await openEligibilityStep();
-    const uploadInput = screen
-      .getByText('Eligibility and administrative evidence')
-      .closest('label')
-      ?.querySelector('input[type="file"]') as HTMLInputElement | null;
-
-    fireEvent.change(uploadInput!, { target: { files: [new File(['bad'], 'bad.exe', { type: 'application/x-msdownload' })] } });
+    fireEvent.change(uploadInputByText('Upload eligibility evidence'), { target: { files: [new File(['bad'], 'bad.exe', { type: 'application/x-msdownload' })] } });
 
     expect(await screen.findByText('Document upload failed.')).toBeInTheDocument();
     expect(screen.queryByText('Unsupported bid document file type.')).not.toBeInTheDocument();
@@ -177,6 +188,7 @@ describe('BiddingWorkspaceProcurexPage document upload', () => {
 describe('BiddingWorkspaceProcurexPage sample tracking', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetHtml2PdfMock();
     vi.spyOn(biddingApi, 'getTenderSchema').mockResolvedValue(bidSchema());
     vi.mocked(useTenderDetail).mockReturnValue({
       data: tenderDetail(),
@@ -327,6 +339,7 @@ describe('BiddingWorkspaceProcurexPage sample tracking', () => {
 describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetHtml2PdfMock();
     vi.spyOn(biddingApi, 'getTenderSchema').mockResolvedValue(bidSchema());
     vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(null);
     vi.spyOn(biddingApi, 'submitBid').mockResolvedValue({ receiptRef: 'BID-PX-1', receiptHash: 'hash-1', createdAt: '2026-07-09T10:30:00.000Z', bid: bidDto({ status: 'SUBMITTED' }) });
@@ -454,7 +467,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     const heroActions = container.querySelector('.hero-action-stack');
     expect(heroActions).toBeInTheDocument();
     expect(within(heroActions as HTMLElement).getByText('View Tender Details')).toBeInTheDocument();
-    expect(within(heroActions as HTMLElement).getByText('Ask Buyer')).toBeInTheDocument();
+    expect(within(heroActions as HTMLElement).queryByText('Ask Buyer')).not.toBeInTheDocument();
     expect(within(heroActions as HTMLElement).getByText('Save Draft')).toBeInTheDocument();
     expect(within(heroActions as HTMLElement).queryByText('Review Submission')).not.toBeInTheDocument();
 
@@ -480,6 +493,35 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     const notices: Array<Record<string, unknown>> = [];
     const listener = (event: Event) => notices.push((event as CustomEvent<Record<string, unknown>>).detail);
     window.addEventListener('procurex:notify', listener);
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.requiredUpload', 'Required field', 'file', 'administrative', 'attachment', 'ADMINISTRATIVE', true, 'required-upload', {
+              documentType: 'ADMIN_REQUIRED'
+            })
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [goodsProductSpecificationField()])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(
+      bidDto({
+        documents: [
+          {
+            id: 'bid-doc-required',
+            documentId: 'doc-required',
+            name: 'required.pdf',
+            documentType: 'ADMIN_REQUIRED',
+            envelope: 'ADMINISTRATIVE',
+            reviewStatus: 'UPLOADED',
+            checksum: 'r'.repeat(64),
+            metadata: { requirementKey: 'required-upload', fieldId: 'administrative.requiredUpload' }
+          }
+        ]
+      })
+    );
     const { container } = renderWorkspaceWithNotifications();
 
     await openEligibilityStep();
@@ -494,7 +536,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             title: 'Notice',
             presentation: 'bidNotice',
             autoDismissMs: 3000,
-            message: expect.stringMatching(/Complete all mandatory eligibility requirements before continuing.*Incomplete: Confirm tax and statutory compliance \(Confirmation\)/i)
+            message: 'Complete all mandatory eligibility requirements before continuing. Incomplete: Required field (Document upload)'
           })
         ])
       )
@@ -504,6 +546,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Technical Response/i })[0]);
     expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
 
+    fireEvent.change(uploadInputByText('Upload mandatory evidence'), { target: { files: [new File(['required'], 'required.pdf', { type: 'application/pdf' })] } });
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
@@ -522,7 +566,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
               documentType: 'ADMIN_REQUIRED'
             })
           ]),
-          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')])
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [goodsProductSpecificationField()])
         ]
       })
     );
@@ -566,7 +610,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
               documentType: 'ADMINISTRATIVE_EVIDENCE'
             })
           ]),
-          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [goodsProductSpecificationField()]),
           step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
         ]
       })
@@ -575,21 +619,20 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     const { container } = renderWorkspaceWithNotifications();
 
     await openEligibilityStep();
-    expect(screen.getByText('Eligibility and document requirements')).toBeInTheDocument();
     expect(screen.getByText('1. Regulatory license requirements')).toBeInTheDocument();
-    expect(screen.getByText('Regulatory license evidence')).toBeInTheDocument();
+    expect(screen.getByText('Regulatory licence response')).toBeInTheDocument();
     expect(screen.getByText('Shipping Agency License')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Permit / license' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Status' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Evidence' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Shipping Agency License status')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Licence requirement' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Possession status' })).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader', { name: 'Evidence' }).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Shipping Agency License possession status')).toBeInTheDocument();
     expect(screen.getByText('Bid submission documents')).toBeInTheDocument();
     expect(screen.getByText('Signed bid submission form')).toBeInTheDocument();
-    expect(screen.getByText('Other eligibility documents')).toBeInTheDocument();
+    expect(screen.getByText('Other eligibility response')).toBeInTheDocument();
     expect(screen.getByText('Eligibility and administrative evidence')).toBeInTheDocument();
-    expect(screen.getByText('4. Eligibility declarations/confirmations')).toBeInTheDocument();
-    expect(screen.getByText('I confirm that the documents I uploaded are valid and true.')).toBeInTheDocument();
-    expect(screen.getByText('I understand that false or misleading documents may lead to disqualification.')).toBeInTheDocument();
+    expect(screen.queryByText('Eligibility declarations/confirmations')).not.toBeInTheDocument();
+    expect(screen.queryByText('I confirm that the documents I uploaded are valid and true.')).not.toBeInTheDocument();
+    expect(screen.queryByText('I understand that false or misleading documents may lead to disqualification.')).not.toBeInTheDocument();
     expect(screen.queryByText('Administrative confirmations')).not.toBeInTheDocument();
     expect(screen.queryByText('Administrative compliance')).not.toBeInTheDocument();
     expect(screen.queryByText('Confirm eligibility to participate')).not.toBeInTheDocument();
@@ -598,8 +641,8 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.queryByText('Confirm similar project evidence')).not.toBeInTheDocument();
     expect(screen.queryByText('Confirm that similar completed project evidence is completed in the technical capacity response.')).not.toBeInTheDocument();
     expect(screen.queryByText('I confirm and accept this requirement.')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.bid-gate-group').length).toBeGreaterThanOrEqual(4);
-    expect(container.querySelectorAll('.bid-declaration-check').length).toBe(2);
+    expect(container.querySelectorAll('.bid-gate-group').length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll('.bid-declaration-check').length).toBe(0);
   });
 
   it('derives goods eligibility uploads from financial, regulatory, and other eligibility tender requirements', async () => {
@@ -624,7 +667,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
           step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
             field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible')
           ]),
-          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [goodsProductSpecificationField()]),
           step('goodsFinancial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
             field('financial.unitRate', 'Unit rate for Laptop', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'unitRate', {
               itemId: 'line-1',
@@ -665,26 +708,29 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
 
     await openEligibilityStep();
-    expect(screen.getByText('Financial capacity evidence')).toBeInTheDocument();
+    expect(screen.getByText('Financial capacity response')).toBeInTheDocument();
     expect(screen.getByText('Average annual turnover')).toBeInTheDocument();
     expect(screen.getByText(/Evidence required: Audited accounts/)).toBeInTheDocument();
-    expect(screen.getByText('Regulatory license evidence')).toBeInTheDocument();
+    expect(screen.getByText('Regulatory licence response')).toBeInTheDocument();
     expect(screen.getByText('Medical devices dealer license')).toBeInTheDocument();
-    expect(screen.getByText('Other eligibility documents')).toBeInTheDocument();
+    expect(screen.getByText('Other eligibility response')).toBeInTheDocument();
     expect(screen.getByText('Tax clearance certificate')).toBeInTheDocument();
     expect(screen.getByText('ISO 9001 certificate')).toBeInTheDocument();
-    expect(screen.getByText('I confirm that the documents I uploaded are valid and true.')).toBeInTheDocument();
+    expect(screen.queryByText('I confirm that the documents I uploaded are valid and true.')).not.toBeInTheDocument();
 
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
     expect(screen.getByText(/Complete all mandatory eligibility requirements before continuing/i)).toBeInTheDocument();
 
-    fireEvent.change(uploadInputByText('Average annual turnover'), { target: { files: [new File(['accounts'], 'audited-accounts.pdf', { type: 'application/pdf' })] } });
+    fireEvent.change(screen.getByLabelText('Average annual turnover Supplier declared value'), { target: { value: 'TZS 650M' } });
+    fireEvent.change(uploadInputByText('Upload financial evidence'), { target: { files: [new File(['accounts'], 'audited-accounts.pdf', { type: 'application/pdf' })] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText('Medical devices dealer license possession status'), { target: { value: 'Yes' } });
     fireEvent.change(uploadInputByText('Upload license evidence'), { target: { files: [new File(['license'], 'tmda-license.pdf', { type: 'application/pdf' })] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
-    fireEvent.change(uploadInputByText('Tax clearance certificate'), { target: { files: [new File(['tax'], 'tax-clearance.pdf', { type: 'application/pdf' })] } });
+    fireEvent.change(screen.getByLabelText('Tax clearance certificate confirmation'), { target: { value: 'Yes' } });
+    fireEvent.change(uploadInputByText('Upload eligibility evidence'), { target: { files: [new File(['tax'], 'tax-clearance.pdf', { type: 'application/pdf' })] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(3));
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
@@ -692,7 +738,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(1, 'bid-1', expect.objectContaining({
       documentType: 'ADMIN_FINANCIAL_CAPACITY_AVERAGE_ANNUAL_TURNOVER',
       envelope: 'ADMINISTRATIVE',
-      metadata: expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload', fieldId: 'goods.financialRequirement.fin-1.evidenceUpload' })
+      metadata: expect.objectContaining({ parentRequirementKey: 'goods.financialRequirement.fin-1', fieldId: 'goods.financialRequirement.fin-1', evidenceKey: 'evidenceUpload' })
     }));
     expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(2, 'bid-1', expect.objectContaining({
       envelope: 'ADMINISTRATIVE',
@@ -701,7 +747,97 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(3, 'bid-1', expect.objectContaining({
       documentType: 'ADMIN_ELIGIBILITY_TAX_CLEARANCE_CERTIFICATE',
       envelope: 'ADMINISTRATIVE',
-      metadata: expect.objectContaining({ requirementKey: 'goods.eligibilityRequirement.elig-1', fieldId: 'goods.eligibilityRequirement.elig-1' })
+      metadata: expect.objectContaining({ parentRequirementKey: 'goods.eligibilityRequirement.elig-1', fieldId: 'goods.eligibilityRequirement.elig-1', evidenceKey: 'evidenceUpload' })
+    }));
+  });
+
+  it('shows existing uploaded files inside upload cards while allowing another upload', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({
+        requirements: {
+          financialRequirements: [{ id: 'fin-1', requirementType: 'Financial capacity requirement 1', minimumValue: 'TZS 500M', period: 'Last 6 months', evidenceRequired: 'Audited accounts', mandatory: true }]
+        }
+      }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible')
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')]),
+          step('goodsFinancial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
+            field('financial.unitRate', 'Unit rate for Laptop', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'unitRate', {
+              itemId: 'line-1',
+              itemNo: '1',
+              description: 'Laptop',
+              quantity: 1,
+              unit: 'Each',
+              min: 0
+            })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(
+      bidDto({
+        documents: [
+          {
+            id: 'bid-doc-1',
+            documentId: 'doc-1',
+            name: 'Barua_ya_Maombi_ya_Mkopo.pdf',
+            documentType: 'ADMIN_FINANCIAL_CAPACITY_FINANCIAL_CAPACITY_REQUIREMENT_1',
+            envelope: 'ADMINISTRATIVE',
+            reviewStatus: 'UPLOADED',
+            checksum: 'a'.repeat(64),
+            metadata: {
+              requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload',
+              fieldId: 'goods.financialRequirement.fin-1.evidenceUpload'
+            }
+          }
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await openEligibilityStep();
+    const uploadCard = screen
+      .getAllByText('Uploaded: Barua_ya_Maombi_ya_Mkopo.pdf')
+      .map((element) => element.closest('label'))
+      .find(Boolean);
+    expect(uploadCard).not.toBeNull();
+    expect(within(uploadCard as HTMLElement).getByText('Uploaded: Barua_ya_Maombi_ya_Mkopo.pdf')).toBeInTheDocument();
+    expect(within(uploadCard as HTMLElement).getByText('Upload another file')).toBeInTheDocument();
+    expect(within(uploadCard as HTMLElement).queryByText('No file selected yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No files selected')).not.toBeInTheDocument();
+    const input = within(uploadCard as HTMLElement).getByLabelText('Upload financial evidence') as HTMLInputElement;
+    expect(input).toHaveClass('bid-upload-input');
+    expect(input).toHaveClass('sr-only');
+
+    fireEvent.change(input, { target: { files: [new File(['updated'], 'updated-accounts.pdf', { type: 'application/pdf' })] } });
+
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(1));
+    expect(biddingApi.uploadDocuments).toHaveBeenCalledWith('bid-1', expect.objectContaining({
+      documentType: 'ADMIN_FINANCIAL_CAPACITY_FINANCIAL_CAPACITY_REQUIREMENT_1',
+      envelope: 'ADMINISTRATIVE',
+      metadata: expect.objectContaining({
+        requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload',
+        fieldId: 'goods.financialRequirement.fin-1',
+        parentRequirementKey: 'goods.financialRequirement.fin-1',
+        evidenceKey: 'evidenceUpload'
+      })
     }));
   });
 
@@ -746,7 +882,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     await openEligibilityStep();
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    fireEvent.change(screen.getByLabelText('Product compliance statement'), { target: { value: 'Compliant laptop specification.' } });
+    completeDefaultGoodsTechnicalResponse('Compliant laptop specification.');
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(screen.getByRole('heading', { name: 'Quantity Schedule / Financial Offer' })).toBeInTheDocument();
@@ -761,13 +897,10 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(standaloneFinancialInput).toBeInTheDocument();
     expect(screen.queryByText('Quoted unit price')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Bid status for goods item 1'), { target: { value: 'Bid' } });
     fireEvent.change(screen.getByLabelText('Unit price for Laptop'), { target: { value: '2500000' } });
-    fireEvent.change(screen.getByLabelText('Tax included for goods item 1'), { target: { value: 'Yes' } });
-    fireEvent.change(screen.getByLabelText('Discount for goods item 1'), { target: { value: '500000' } });
     fireEvent.change(standaloneFinancialInput!, { target: { value: '85' } });
 
-    expect(screen.getAllByText('TZS 2,000,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('TZS 2,500,000').length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole('button', { name: 'Save Draft' })[0]);
 
     await waitFor(() => expect(biddingApi.saveTenderDraft).toHaveBeenCalled());
@@ -778,10 +911,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
           requirementKey: 'unitRate',
           response: {
             value: expect.objectContaining({
-              status: 'Bid',
-              unitPrice: 2500000,
-              taxIncluded: 'Yes',
-              discount: '500000'
+              unitPrice: 2500000
             })
           }
         }),
@@ -792,7 +922,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       ])
     );
     expect(savedPayload.financial.items).toEqual([
-      expect.objectContaining({ id: 'line-1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000, total: 2000000 })
+      expect.objectContaining({ id: 'line-1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000, total: 2500000 })
     ]);
   });
 
@@ -848,16 +978,16 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    expect(screen.getByText('Tenderer template')).toBeInTheDocument();
-    expect(screen.getByText('Download CSV response template')).toBeInTheDocument();
-    expect(screen.getByText('Need clarification about product specifications?')).toBeInTheDocument();
+    expect(screen.queryByText('Tenderer template')).not.toBeInTheDocument();
+    expect(screen.queryByText('Download CSV response template')).not.toBeInTheDocument();
+    expect(screen.queryByText('Need clarification about product specifications?')).not.toBeInTheDocument();
     expect(container.querySelector('.goods-compliance-card')).toBeInTheDocument();
     expect(container.querySelector('.premium-response-matrix')).not.toBeInTheDocument();
     expect(screen.getByText('Item 1')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Laptop' })).toBeInTheDocument();
     expect(screen.getByText('Processor: Core i7 / RAM: 16GB / Storage: 512GB SSD')).toBeInTheDocument();
     expect(screen.queryByText(/0934e352-111f-443f-8877-63477037937e/i)).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Compliant' } });
+    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Comply' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Supplier offered specification'), { target: { value: 'Core i7, 16GB RAM, 512GB SSD' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Evidence / attachment reference'), { target: { value: 'brochure.pdf' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Deviations / comments'), { target: { value: 'No deviations.' } });
@@ -870,7 +1000,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
           requirementKey: 'goods.productSpecification.line-1',
           response: {
             value: expect.objectContaining({
-              complianceStatus: 'Compliant',
+              complianceStatus: 'Comply',
               offeredSpecification: 'Core i7, 16GB RAM, 512GB SSD',
               evidenceReference: 'brochure.pdf',
               deviations: 'No deviations.'
@@ -881,7 +1011,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
   });
 
-  it('imports goods technical response CSV rows by requirement key', async () => {
+  it('does not render unspecified goods technical CSV import/export controls', async () => {
     vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
       bidSchema({
         steps: [
@@ -917,17 +1047,9 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    const csv = [
-      'requirementKey,fieldId,itemNo,requestedProduct,buyerSpecification,complianceStatus,offeredSpecification,evidenceReference,deviations',
-      'goods.productSpecification.line-1,technical.productSpec.line1,1,Laptop,Core i7 laptop,Compliant,"Core i7, 16GB RAM",catalogue.pdf,None'
-    ].join('\n');
-    const importInput = screen.getByLabelText('Import goods technical response CSV') as HTMLInputElement;
-    fireEvent.change(importInput, { target: { files: [new File([csv], 'goods-response.csv', { type: 'text/csv' })] } });
-
-    await waitFor(() => expect(screen.getByLabelText('Product specification response - Laptop Supplier offered specification')).toHaveValue('Core i7, 16GB RAM'));
-    expect(screen.getByLabelText('Product specification response - Laptop Compliance')).toHaveValue('Compliant');
-    expect(screen.getByLabelText('Product specification response - Laptop Evidence / attachment reference')).toHaveValue('catalogue.pdf');
-    expect(screen.getByLabelText('Product specification response - Laptop Deviations / comments')).toHaveValue('None');
+    expect(screen.queryByLabelText('Import goods technical response CSV')).not.toBeInTheDocument();
+    expect(screen.queryByText('Download CSV Template')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Product specification response - Laptop Supplier offered specification')).toBeInTheDocument();
   });
 
   it('uploads goods technical evidence through existing document metadata', async () => {
@@ -1009,7 +1131,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     });
   });
 
-  it('renders newly created goods schema controls and saves license, product detail, financial, and upload metadata', async () => {
+  it('renders newly created goods schema controls and saves license, product specification, financial, and upload metadata', async () => {
     vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
       bidSchema({
         steps: [
@@ -1031,13 +1153,6 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
               buyerSpecification: 'Core i7 laptop',
               quantity: 1,
               unit: 'Each'
-            }),
-            field('technical.productDetails.line1', 'Offered product details - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productDetails.line-1', {
-              control: 'goodsProductDetails',
-              itemNo: '1',
-              requestedProduct: 'Laptop',
-              quantity: 1,
-              unit: 'Each'
             })
           ]),
           step('goodsFinancial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
@@ -1051,6 +1166,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
             }),
             field('financial.turnover', 'Annual turnover', 'table', 'financial', 'structured', 'FINANCIAL', false, 'goods.financialRequirement.fin-1', {
               control: 'goodsFinancialRequirement',
+              evidenceRequired: 'Audited accounts',
               prompt: 'Audited accounts for the last two years'
             }),
             field('goods.commercial.bidValidity', 'Bid Validity Period (days)', 'number', 'financial', 'number', 'FINANCIAL', true, 'goods.commercial.bidValidity', { control: 'goodsCommercialTerms' }),
@@ -1073,14 +1189,15 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
 
     await openEligibilityStep();
-    expect(screen.getByText('Financial capacity evidence')).toBeInTheDocument();
+    expect(screen.getByText('Financial capacity response')).toBeInTheDocument();
     expect(screen.getByText('Annual turnover')).toBeInTheDocument();
     expect(screen.getByText('Medical devices dealer license')).toBeInTheDocument();
     const licenseUpload = screen.getByText('Upload license evidence').closest('label')?.querySelector('input[type="file"]') as HTMLInputElement | null;
     const licenseFile = new File(['license'], 'tmda-license.pdf', { type: 'application/pdf' });
     fireEvent.change(licenseUpload!, { target: { files: [licenseFile] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
-    const financialUpload = uploadInputByText('Annual turnover');
+    fireEvent.change(screen.getByLabelText('Annual turnover Supplier declared value'), { target: { value: 'TZS 800M' } });
+    const financialUpload = uploadInputByText('Upload financial evidence');
     const financialFile = new File(['accounts'], 'audited-accounts.pdf', { type: 'application/pdf' });
     fireEvent.change(financialUpload!, { target: { files: [financialFile] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(2));
@@ -1090,24 +1207,16 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
     expect(container.querySelector('.goods-compliance-card')).toBeInTheDocument();
-    expect(container.querySelector('.goods-product-detail-card')).toBeInTheDocument();
+    expect(container.querySelector('.goods-product-detail-card')).not.toBeInTheDocument();
     expect(container.querySelector('.premium-response-matrix')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Compliant' } });
+    fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Comply' } });
     fireEvent.change(screen.getByLabelText('Product specification response - Laptop Supplier offered specification'), { target: { value: 'Core i7, 16GB RAM' } });
-    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Supplier Product'), { target: { value: 'ThinkPad T14' } });
-    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Brand'), { target: { value: 'Lenovo' } });
-    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Model Number'), { target: { value: 'T14-G6' } });
-    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Country of Origin'), { target: { value: 'China' } });
-    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Delivery Time'), { target: { value: '30 days' } });
-    fireEvent.change(screen.getByLabelText('Offered product details - Laptop Warranty Period'), { target: { value: '24 months' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(screen.getByText('Goods offer rows')).toBeInTheDocument();
     expect(container.querySelector('.goods-offer-row')).toBeInTheDocument();
     expect(screen.queryByText('Financial capacity requirements')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Bid status for goods item 1'), { target: { value: 'Bid' } });
     fireEvent.change(screen.getByLabelText('Unit price for Laptop'), { target: { value: '2500000' } });
-    fireEvent.change(screen.getByLabelText('Tax included for goods item 1'), { target: { value: 'Yes' } });
     fireEvent.change(screen.getByLabelText('Bid Validity Period (days)'), { target: { value: '120' } });
     fireEvent.change(screen.getByLabelText('Currency'), { target: { value: 'TZS' } });
     fireEvent.click(screen.getByLabelText('I accept the delivery terms defined in the tender.'));
@@ -1118,12 +1227,16 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
     expect(savedPayload?.responses).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ requirementKey: 'goods.productDetails.line-1', response: { value: expect.objectContaining({ supplierProduct: 'ThinkPad T14', brand: 'Lenovo', modelNumber: 'T14-G6', countryOfOrigin: 'China' }) } }),
-        expect.objectContaining({ requirementKey: 'commercialItems.line-1.unitRate', response: { value: expect.objectContaining({ status: 'Bid', unitPrice: 2500000, taxIncluded: 'Yes' }) } }),
+        expect.objectContaining({ requirementKey: 'goods.productSpecification.line-1', response: { value: expect.objectContaining({ complianceStatus: 'Comply', offeredSpecification: 'Core i7, 16GB RAM' }) } }),
+        expect.objectContaining({ requirementKey: 'commercialItems.line-1.unitRate', response: { value: expect.objectContaining({ unitPrice: 2500000 }) } }),
         expect.objectContaining({ requirementKey: 'goods.commercial.bidValidity', response: { value: 120 } }),
         expect.objectContaining({ requirementKey: 'goods.commercial.currency', response: { value: 'TZS' } }),
         expect.objectContaining({ requirementKey: 'goods.commercial.deliveryTermsAccepted', response: { value: true } })
       ])
+    );
+    const removedProductDetailsKey = ['goods.product', 'Details.line-1'].join('');
+    expect(savedPayload?.responses).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ requirementKey: removedProductDetailsKey })])
     );
     expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(1, 'bid-1', expect.objectContaining({
       envelope: 'ADMINISTRATIVE',
@@ -1132,7 +1245,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(biddingApi.uploadDocuments).toHaveBeenNthCalledWith(2, 'bid-1', expect.objectContaining({
       envelope: 'ADMINISTRATIVE',
       documentType: 'ADMIN_FINANCIAL_CAPACITY_ANNUAL_TURNOVER',
-      metadata: expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload', fieldId: 'financial.turnover.evidenceUpload' })
+      metadata: expect.objectContaining({ parentRequirementKey: 'goods.financialRequirement.fin-1', fieldId: 'financial.turnover', evidenceKey: 'evidenceUpload' })
     }));
   });
 
@@ -1193,7 +1306,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     const { container } = renderWorkspaceWithNotifications();
 
-    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -1316,7 +1429,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
     completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -1437,7 +1550,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
     completeGate();
     openProgressStep('Technical Proposal and Work Program');
 
@@ -1489,7 +1602,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
     completeGate();
     openProgressStep('Financial Proposal / BOQ Pricing');
 
@@ -1628,7 +1741,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Eligibility and document requirements')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Eligibility and Document Requirements' })).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('I confirm and accept this requirement.'));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -1649,8 +1762,10 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(within(submitStrip).queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
 
     fireEvent.click(within(submitStrip).getByRole('button', { name: 'Submit Bid' }));
-    await waitFor(() => expect(biddingApi.submitBid).not.toHaveBeenCalled());
-    expect(screen.getByText(/Complete required sections before submitting:/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(biddingApi.submitBid).not.toHaveBeenCalled();
+      expect(workspaceStatus()).toMatch(/Complete required sections before submitting:/);
+    });
 
     openProgressStep('Declaration and Submission');
     fireEvent.change(screen.getByLabelText('Authorized Signatory Name'), { target: { value: 'Asha Contractor' } });
@@ -1713,24 +1828,25 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     await waitFor(() => expect(screen.getByText('Administrative requirements complete. You can continue to the bid workflow.')).toBeInTheDocument());
     openProgressStep('Review Submission');
 
-    expect(screen.getByText('Supplier Bid Submission Review')).toBeInTheDocument();
+    expect(screen.getByText('BID SUBMISSION — GOODS PROCUREMENT')).toBeInTheDocument();
     const reviewDocument = document.querySelector('.bid-response-document') as HTMLElement;
     expect(reviewDocument).toBeInTheDocument();
-    expect(within(reviewDocument).getByText('Eligibility and Document Requirements')).toBeInTheDocument();
-    expect(within(reviewDocument).getByText('Technical Response')).toBeInTheDocument();
-    expect(within(reviewDocument).getByText('Quantity Schedule / Financial Offer')).toBeInTheDocument();
-    expect(within(reviewDocument).getByText('Supplier Declaration and Submit')).toBeInTheDocument();
-    expect(screen.getByText('Bid submission completeness checklist')).toBeInTheDocument();
-    expect(screen.getByText('Bid submission review preview')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download HTML' })).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Bid Submission Summary')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Bidder Information')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Eligibility and Documentary Requirements Response Schedule')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Technical Offer and Specification Compliance Schedule')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Quantity Schedule and Financial Offer')).toBeInTheDocument();
+    expect(within(reviewDocument).getByText('Attachments and Evidence Register')).toBeInTheDocument();
+    expect(screen.getByText('Document completeness summary')).toBeInTheDocument();
+    expect(screen.getByText('Official goods bid submission document')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Print / Save PDF' })).toBeInTheDocument();
-    expect(screen.getByLabelText('I have reviewed the completeness checklist and corrected any incomplete bid sections.')).toBeInTheDocument();
-    expect(screen.getAllByText('Complete').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Missing').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: 'Replace file' }).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText('I have reviewed the completeness checklist and corrected any incomplete bid sections.')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Pending required response|Not complete|Awaiting/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Change' }).length).toBeGreaterThan(0);
   });
 
-  it('downloads the review submission document as clean standalone HTML', async () => {
+  it('downloads the review submission document as a clean official PDF', async () => {
     const captured: { anchor?: HTMLAnchorElement; blob?: Blob } = {};
     const createObjectUrl = vi.fn((blob: Blob | MediaSource) => {
       captured.blob = blob as Blob;
@@ -1756,19 +1872,24 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     await openEligibilityStep();
     completeGate();
     openProgressStep('Review Submission');
-    fireEvent.click(screen.getByRole('button', { name: 'Download HTML' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download PDF' }));
 
+    await waitFor(() => expect(html2PdfMock.worker.outputPdf).toHaveBeenCalledWith('blob'));
+    expect(html2PdfMock.worker.set).toHaveBeenCalledWith(expect.objectContaining({
+      filename: expect.stringMatching(/^Bid_px-bid-px-2026-001-[a-z0-9]+_px-2026-001_DRAFT\.pdf$/)
+    }));
+    const pdfSource = html2PdfMock.worker.from.mock.calls.at(-1)?.[0] as HTMLElement | undefined;
+    expect(pdfSource?.textContent).toContain('BID SUBMISSION — GOODS PROCUREMENT');
+    expect(pdfSource?.textContent).toContain('DRAFT — NOT SUBMITTED');
+    expect(pdfSource?.textContent).toContain('Supply of laptops');
+    expect(pdfSource?.outerHTML).not.toContain('bid-review-edit-button');
     expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
     if (!captured.anchor) throw new Error('Expected the review download to create an anchor element.');
-    expect(captured.anchor.download).toMatch(/-review\.html$/);
+    expect(captured.anchor.download).toMatch(/^Bid_px-bid-px-2026-001-[a-z0-9]+_px-2026-001_DRAFT\.pdf$/);
     expect(anchorClick).toHaveBeenCalled();
     expect(revokeObjectUrl).toHaveBeenCalledWith('blob:bid-review');
-    if (!captured.blob) throw new Error('Expected the review download to create an HTML blob.');
-    const exportedHtml = await readBlobText(captured.blob);
-    expect(exportedHtml).toContain('Supplier Bid Submission Review');
-    expect(exportedHtml).toContain('Supply of laptops');
-    expect(exportedHtml).not.toContain('bid-review-edit-button');
-    expect(exportedHtml).not.toContain('Edits enabled');
+    if (!captured.blob) throw new Error('Expected the review download to create a PDF blob.');
+    expect(captured.blob.type).toBe('application/pdf');
   });
 
   it('opens the review submission document for print and PDF saving', async () => {
@@ -1793,7 +1914,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Print / Save PDF' }));
 
     expect(open).toHaveBeenCalledWith('', '_blank');
-    expect(write).toHaveBeenCalledWith(expect.stringContaining('Supplier Bid Submission Review'));
+    expect(write).toHaveBeenCalledWith(expect.stringContaining('BID SUBMISSION — GOODS PROCUREMENT'));
   });
 
   it('uses review Change actions to navigate back to the editable technical source field', async () => {
@@ -1807,11 +1928,15 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     openProgressStep('Review Submission');
 
-    const productRow = screen.getByText('Product compliance statement').closest('tr') as HTMLTableRowElement;
-    fireEvent.click(within(productRow).getByRole('button', { name: 'Change' }));
+    const productAction = screen
+      .getAllByText('Product specification response - Laptop')
+      .map((element) => element.closest('.bid-review-action-row') as HTMLElement | null)
+      .find(Boolean);
+    if (!productAction) throw new Error('Expected product specification action row.');
+    fireEvent.click(within(productAction).getByRole('button', { name: 'Change' }));
 
     expect(screen.getByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Product compliance statement')).toBeInTheDocument();
+    expect(screen.getByLabelText('Product specification response - Laptop Compliance')).toBeInTheDocument();
     expect(screen.getByText('Jumped to the source field. Update it, then return to Review Submission.')).toBeInTheDocument();
   });
 
@@ -1828,7 +1953,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     completeGate();
     openProgressStep('Review Submission');
 
-    expect(screen.getByText('Supplier Bid Submission Review')).toBeInTheDocument();
+    expect(screen.getByText('BID SUBMISSION — GOODS PROCUREMENT')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Replace file' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Read only').length).toBeGreaterThan(0);
@@ -1858,6 +1983,96 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(screen.getByRole('button', { name: 'Submit Sealed Bid' })).toBeInTheDocument();
   });
 
+  it('completes a fresh goods bid from bid information through final submitted receipt', async () => {
+    const draft = bidDto();
+    const submitted = bidDto({
+      status: 'SUBMITTED',
+      totalAmount: 2500000,
+      receipt: { receiptRef: 'BID-PX-FRESH', receiptHash: 'hash-fresh-goods', createdAt: '2026-07-09T10:45:00.000Z' }
+    });
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(draft);
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(draft);
+    vi.mocked(biddingApi.submitBid).mockResolvedValue({ receiptRef: 'BID-PX-FRESH', receiptHash: 'hash-fresh-goods', createdAt: '2026-07-09T10:45:00.000Z', bid: submitted });
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await completeBasicGoodsBidToDeclaration();
+    await signAndSubmitGoodsBid('fresh-goods-keyphrase');
+
+    expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
+    expect(screen.getAllByText('hash-fresh-goods').length).toBeGreaterThan(0);
+    expect(biddingApi.submitBid).toHaveBeenCalledWith('bid-1', { signatureKeyphrase: 'fresh-goods-keyphrase' });
+    const savedPayload = vi.mocked(biddingApi.saveTenderDraft).mock.calls.at(-1)?.[1];
+    expect(savedPayload?.responses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          requirementKey: 'goods.productSpecification.line-1',
+          response: { value: expect.objectContaining({ complianceStatus: 'Comply', offeredSpecification: 'Offered laptops comply with the stated requirements.' }) }
+        }),
+        expect.objectContaining({ requirementKey: 'unitRate', response: { value: expect.objectContaining({ unitPrice: 2500000 }) } }),
+        expect.objectContaining({ requirementKey: 'confirmAccuracy', response: { value: true } }),
+        expect.objectContaining({ requirementKey: 'acceptTerms', response: { value: true } }),
+        expect.objectContaining({ requirementKey: 'noConflict', response: { value: true } })
+      ])
+    );
+    expect(savedPayload?.totalAmount).toBe(2500000);
+  });
+
+  it('completes a sample-required goods bid and submits after sample tracking is recorded', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetailWithSamples(),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(bidSchema({ withSamples: true }));
+    const draft = bidDto();
+    const sample = sampleDto({ trackingStatus: 'SUBMITTED', submittedAt: '2026-07-09T10:15:00.000Z' });
+    const submitted = bidDto({
+      status: 'SUBMITTED',
+      totalAmount: 2500000,
+      receipt: { receiptRef: 'BID-PX-SAMPLE', receiptHash: 'hash-sample-goods', createdAt: '2026-07-09T11:00:00.000Z' }
+    });
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(draft);
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(draft);
+    vi.spyOn(biddingApi, 'createSample').mockResolvedValue(sample);
+    vi.spyOn(biddingApi, 'listSamples').mockResolvedValue([sample]);
+    vi.mocked(biddingApi.submitBid).mockResolvedValue({ receiptRef: 'BID-PX-SAMPLE', receiptHash: 'hash-sample-goods', createdAt: '2026-07-09T11:00:00.000Z', bid: submitted });
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await completeBasicGoodsBidToFinancialOffer();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('heading', { name: 'Sample Submission', level: 2 })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Courier'), { target: { value: 'DHL' } });
+    fireEvent.change(screen.getByLabelText('Tracking number'), { target: { value: 'DHL-123' } });
+    fireEvent.click(screen.getByLabelText('Mark sample as submitted'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add sample record' }));
+    expect(await screen.findByText('Sample record added and marked as submitted.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('heading', { name: 'Review Submission' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('heading', { name: 'Supplier Declaration and Submit' })).toBeInTheDocument();
+    await completeGoodsDeclarations();
+    await signAndSubmitGoodsBid('sample-goods-keyphrase');
+
+    expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
+    expect(screen.getAllByText('hash-sample-goods').length).toBeGreaterThan(0);
+    expect(biddingApi.createSample).toHaveBeenCalledWith('bid-1', expect.objectContaining({ sampleName: 'Laptop sample', trackingStatus: 'SUBMITTED' }));
+    expect(biddingApi.submitBid).toHaveBeenCalledWith('bid-1', { signatureKeyphrase: 'sample-goods-keyphrase' });
+    const finalDraftPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1] ?? vi.mocked(biddingApi.saveTenderDraft).mock.calls.at(-1)?.[1];
+    expect(finalDraftPayload?.workspaceState?.samples).toEqual([expect.objectContaining({ sampleName: 'Laptop sample', trackingStatus: 'SUBMITTED' })]);
+  });
+
   it('renders receipt in the final panel after successful submit', async () => {
     const createObjectUrl = vi.fn(() => 'blob:bid-record');
     const revokeObjectUrl = vi.fn();
@@ -1869,7 +2084,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     const draft = bidDto({
       payload: {
         administrative: { eligible: true, taxCompliant: true, documentsConfirmed: true },
-        technical: { productCompliance: 'Compliant product response.' },
+        technical: { 'goods.productSpecification.line-1': { complianceStatus: 'Comply', offeredSpecification: 'Compliant product response.' } },
         financial: { items: [{ id: 'line-1', itemNo: '1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000 }] },
         declarations: { confirmAccuracy: false, acceptTerms: false, noConflict: true }
       },
@@ -1912,10 +2127,14 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     checkCard('I confirm the bid is accurate and complete');
     checkCard('I accept the tender and contract terms');
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Sealed Bid' }));
+    await signAndSubmitGoodsBid('receipt-keyphrase');
 
+    await waitFor(() => expect(biddingApi.updateBid).toHaveBeenCalled());
+    const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
+    expect(savedPayload?.administrative).toEqual(expect.objectContaining({ contactName: 'Jane Supplier' }));
+    expect(savedPayload?.administrative).not.toHaveProperty('administrative');
     expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
-    expect(screen.getByText('hash-1')).toBeInTheDocument();
+    expect(screen.getAllByText('hash-1').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Save Draft' })).toBeDisabled();
     const downloadButton = screen.getByRole('button', { name: 'Download submitted bid record' });
     const printButton = screen.getByRole('button', { name: 'Print submission receipt' });
@@ -1931,6 +2150,58 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     fireEvent.click(printButton);
     expect(print).toHaveBeenCalled();
+  });
+
+  it('surfaces backend submit blockers instead of the generic fallback', async () => {
+    const blocker = 'Complete required bid sections before submitting: technical.goods.productSpecification.line-1.';
+    const draft = bidDto({
+      payload: {
+        administrative: { eligible: true, taxCompliant: true, documentsConfirmed: true },
+        technical: { 'goods.productSpecification.line-1': { complianceStatus: 'Comply', offeredSpecification: 'Compliant product response.' } },
+        financial: { items: [{ id: 'line-1', itemNo: '1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000 }] },
+        declarations: { confirmAccuracy: false, acceptTerms: false, noConflict: true }
+      },
+      documents: [
+        {
+          id: 'bid-doc-1',
+          documentId: 'doc-1',
+          name: 'eligibility.pdf',
+          documentType: 'ADMINISTRATIVE_EVIDENCE',
+          envelope: 'ADMINISTRATIVE',
+          reviewStatus: 'UPLOADED',
+          checksum: 'a'.repeat(64),
+          metadata: { requirementKey: 'eligibility', size: 12, mimeType: 'application/pdf' }
+        }
+      ],
+      responses: [{ requirementKey: 'unitRate', response: { value: 2500000 } }]
+    });
+    vi.mocked(biddingApi.getTenderDraft).mockResolvedValue(draft);
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(draft);
+    vi.mocked(biddingApi.submitBid).mockRejectedValue({
+      response: { status: 400, data: { message: blocker } },
+      message: 'Request failed with status code 400'
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await openEligibilityStep();
+    completeGate();
+    openProgressStep('Review Submission');
+    expect(await screen.findByRole('heading', { name: 'Review Submission' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    checkCard('I confirm the bid is accurate and complete');
+    checkCard('I accept the tender and contract terms');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Sealed Bid' }));
+    fireEvent.change(await screen.findByLabelText('Signature keyphrase'), { target: { value: 'Signing123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit bid' }));
+
+    await waitFor(() => expect(biddingApi.submitBid).toHaveBeenCalled());
+    await waitFor(() => expect(container.querySelector('[data-bid-workspace-status]')).toHaveTextContent(blocker));
+    expect(container.querySelector('[data-bid-workspace-status]')).not.toHaveTextContent('Bid could not be submitted.');
   });
 });
 
@@ -1948,6 +2219,73 @@ function completeGate() {
     'I confirm that the documents I uploaded are valid and true.',
     'I understand that false or misleading documents may lead to disqualification.'
   ].forEach(checkCardIfPresent);
+}
+
+function completeDefaultGoodsTechnicalResponse(offeredSpecification = 'Offered laptops comply with the stated requirements.') {
+  fireEvent.change(screen.getByLabelText('Product specification response - Laptop Compliance'), { target: { value: 'Comply' } });
+  fireEvent.change(screen.getByLabelText('Product specification response - Laptop Supplier offered specification'), { target: { value: offeredSpecification } });
+}
+
+async function completeBasicGoodsBidToFinancialOffer() {
+  await openEligibilityStep();
+  completeGate();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  expect(await screen.findByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
+  completeDefaultGoodsTechnicalResponse();
+  await waitFor(() => expect(screen.getByLabelText('Product specification response - Laptop Supplier offered specification')).toHaveValue('Offered laptops comply with the stated requirements.'));
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  expect(await screen.findByRole('heading', { name: 'Quantity Schedule / Financial Offer' })).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Unit price for Laptop'), { target: { value: '2500000' } });
+  await waitFor(() => expect(screen.getAllByText('TZS 2,500,000').length).toBeGreaterThan(0));
+}
+
+async function completeBasicGoodsBidToDeclaration() {
+  await completeBasicGoodsBidToFinancialOffer();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  expect(await screen.findByRole('heading', { name: 'Review Submission' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  expect(await screen.findByRole('heading', { name: 'Supplier Declaration and Submit' })).toBeInTheDocument();
+  await completeGoodsDeclarations();
+}
+
+async function completeGoodsDeclarations() {
+  const labels = [
+    'I confirm the bid is accurate and complete',
+    'I accept the tender and contract terms',
+    'I declare no conflict of interest',
+    'I confirm anti-corruption compliance'
+  ];
+  labels.forEach(checkCard);
+  await waitFor(() => {
+    labels.forEach((label) => expect(checkboxInputByText(label)).toBeChecked());
+  });
+}
+
+async function signAndSubmitGoodsBid(signatureKeyphrase: string) {
+  const submitButton =
+    (screen.getAllByRole('button', { name: 'Submit Sealed Bid' }).find((button) => !(button as HTMLButtonElement).disabled) as HTMLButtonElement | undefined) ??
+    (screen.getByRole('button', { name: 'Submit Sealed Bid' }) as HTMLButtonElement);
+  fireEvent.click(submitButton);
+  await waitFor(() => {
+    const dialog = screen.queryByRole('dialog');
+    if (!dialog) {
+      const buttons = screen
+        .queryAllByRole('button', { name: 'Submit Sealed Bid' })
+        .map((button) => `disabled=${String((button as HTMLButtonElement).disabled)} class=${button.getAttribute('class') ?? ''}`)
+        .join(' | ');
+      throw new Error(`Signature dialog did not open. status="${workspaceStatus()}" buttons="${buttons}"`);
+    }
+    expect(dialog).toBeInTheDocument();
+  });
+  const dialog = screen.getByRole('dialog');
+  expect(within(dialog).getByText('Submit sealed bid')).toBeInTheDocument();
+  fireEvent.change(within(dialog).getByLabelText('Signature keyphrase'), { target: { value: signatureKeyphrase } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Submit bid' }));
+  await waitFor(() => expect(biddingApi.submitBid).toHaveBeenCalled());
+}
+
+function workspaceStatus() {
+  return document.querySelector('[data-bid-workspace-status]')?.textContent ?? '';
 }
 
 async function openEligibilityStep() {
@@ -1981,6 +2319,11 @@ function openProgressStep(label: string) {
 }
 
 function checkCard(label: string) {
+  const checkbox = checkboxInputByText(label);
+  if (!checkbox.checked) fireEvent.click(checkbox);
+}
+
+function checkboxInputByText(label: string) {
   const checkbox = screen
     .getAllByText(label)
     .map((element) => {
@@ -1990,7 +2333,7 @@ function checkCard(label: string) {
     })
     .find(Boolean);
   if (!checkbox) throw new Error(`Checkbox not found for ${label}`);
-  if (!checkbox.checked) fireEvent.click(checkbox);
+  return checkbox;
 }
 
 function checkCardIfPresent(label: string) {
@@ -2007,6 +2350,17 @@ function uploadInputByText(label: string) {
   return input;
 }
 
+function goodsProductSpecificationField() {
+  return field('technical.productSpec.line1', 'Product specification response - Laptop', 'table', 'technical', 'structured', 'TECHNICAL', true, 'goods.productSpecification.line-1', {
+    control: 'goodsProductSpecification',
+    itemNo: '1',
+    requestedProduct: 'Laptop',
+    buyerSpecification: 'Core i7 laptop',
+    quantity: 1,
+    unit: 'Each'
+  });
+}
+
 function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?: BidSubmissionSchemaStepDto[] } = {}): BidSubmissionSchemaDto {
   const { tenderType = 'GOODS', withSamples = false } = options;
   const administrative = step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
@@ -2018,7 +2372,7 @@ function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?
     })
   ]);
   const goodsTechnical = [
-    field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance'),
+    goodsProductSpecificationField(),
     field('technical.productEvidence', 'Product brochures, catalogues, and specification evidence', 'file', 'technical', 'attachment', 'TECHNICAL', false, 'goods-technical', {
       documentType: 'TECHNICAL_PRODUCT_BROCHURES'
     })
@@ -2113,7 +2467,6 @@ function bidSchema(options: { tenderType?: string; withSamples?: boolean; steps?
     steps
   };
 }
-
 function worksCapacityBidSchema(): BidSubmissionSchemaDto {
   return bidSchema({
     tenderType: 'WORKS',
@@ -2221,7 +2574,6 @@ function field(
     validation
   };
 }
-
 function tenderDetail(patch: Partial<TenderDetail> = {}): TenderDetail {
   return {
     id: 'tender-1',
@@ -2330,13 +2682,4 @@ function sampleDto(patch: Partial<BidSampleDto> = {}): BidSampleDto {
     updatedAt: '2026-07-09T10:00:00.000Z',
     ...patch
   };
-}
-
-function readBlobText(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsText(blob);
-  });
 }

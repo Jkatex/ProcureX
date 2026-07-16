@@ -510,9 +510,7 @@ export function RecordsHistoryProcurexPage() {
                   <ChartCard title={t('recordsApp.charts.cards.tendersByStatus')} points={charts.tendersByStatus} />
                   <ChartCard title={t('recordsApp.charts.cards.recordsByMonth')} points={charts.procurementRecordsByMonth} wide />
                   <ChartCard title={t('recordsApp.charts.cards.contractValueByCategory')} points={charts.contractValueByCategory} money />
-                  <ChartCard title={t('recordsApp.charts.cards.supplierParticipation')} points={charts.supplierParticipation} />
                   <ChartCard title={t('recordsApp.charts.cards.awardVsCancellationTrend')} points={charts.awardVsCancellationTrend} secondaryLabel={t('recordsApp.charts.cancelled')} />
-                  <ChartCard title={t('recordsApp.charts.cards.complianceCompletionSummary')} points={charts.complianceCompletionSummary} />
                 </section>
               </section>
             )}

@@ -115,12 +115,9 @@ describe('compliance admin service', () => {
 
     expect(result.items.map((item) => item.route)).toEqual([
       '/admin',
-      '/admin/search',
       '/admin/users',
-      '/admin/compliance',
       '/admin/analytics',
       '/admin/audit',
-      '/admin/datastore',
       '/admin/tender-review',
       '/admin/communication',
       '/admin/profile'

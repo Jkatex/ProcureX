@@ -65,9 +65,7 @@ const pageToRoute: Record<string, string> = {
   'communication-center': '/communication',
   'records-history': '/records',
   'admin-dashboard': '/admin',
-  'admin-search': '/admin/search',
   'admin-users': '/admin/users',
-  'admin-compliance': '/admin/compliance',
   'admin-analytics': '/admin/analytics',
   'admin-audit': '/admin/audit'
 };

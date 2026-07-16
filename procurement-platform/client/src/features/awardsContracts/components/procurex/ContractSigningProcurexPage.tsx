@@ -283,7 +283,7 @@ export function ContractSigningProcurexPage() {
                       <td>
                         <div className="inline-actions">
                           <a className="btn btn-secondary btn-sm" href={officialDocument.contentUrl} target="_blank" rel="noreferrer">Open</a>
-                          <a className="btn btn-secondary btn-sm" href={officialDocument.contentUrl} download>Download</a>
+                          <a className="btn btn-secondary btn-sm" href={`${officialDocument.contentUrl}?download=true`} download>Download</a>
                         </div>
                       </td>
                     </tr>

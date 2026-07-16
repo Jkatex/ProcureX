@@ -58,7 +58,6 @@ export function TopBar() {
           {isAdmin ? (
             <>
               <NavLink to="/admin">{t('admin.commandCenter')}</NavLink>
-              <NavLink to="/admin/search">{t('admin.deepSearch')}</NavLink>
               <NavLink to="/admin/communication">{t('nav.communication')}</NavLink>
             </>
           ) : (

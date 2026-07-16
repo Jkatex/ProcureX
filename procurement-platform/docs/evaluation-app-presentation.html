@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProcureX Evaluation App Explanation</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm;
+    }
+
+    body {
+      margin: 0;
+      background: #f4f7fb;
+      color: #172033;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 42px 52px 54px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.1;
+      color: #0b3b5d;
+    }
+
+    h2 {
+      margin: 30px 0 10px;
+      font-size: 21px;
+      color: #0f4f73;
+      border-bottom: 1px solid #d8e4ee;
+      padding-bottom: 7px;
+    }
+
+    h3 {
+      margin: 20px 0 8px;
+      font-size: 16px;
+      color: #19324a;
+    }
+
+    p {
+      margin: 8px 0;
+    }
+
+    ul,
+    ol {
+      margin: 8px 0 12px 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    code {
+      background: #eef5f9;
+      color: #0d3d5c;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.94em;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 12px;
+      color: #4f6476;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .lead {
+      font-size: 18px;
+      color: #314456;
+      margin-bottom: 18px;
+    }
+
+    .callout {
+      border-left: 4px solid #0f7aa5;
+      background: #edf8fc;
+      padding: 14px 16px;
+      margin: 18px 0;
+      color: #14394f;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      border: 1px solid #d9e5ee;
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfdff;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .path {
+      overflow-wrap: anywhere;
+      color: #0b5f86;
+      font-weight: 700;
+    }
+
+    .footer-note {
+      margin-top: 34px;
+      color: #5e6f7f;
+      font-size: 13px;
+      border-top: 1px solid #d8e4ee;
+      padding-top: 12px;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      main {
+        max-width: none;
+        padding: 0;
+      }
+
+      h2 {
+        break-after: avoid;
+      }
+
+      .card,
+      .callout {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="eyebrow">Presentation Notes</span>
+    <h1>ProcureX Evaluation App Explanation</h1>
+    <p class="lead">The Evaluation app is the buyer workspace for reviewing submitted bids after a tender has closed. It brings together tender requirements, supplier bid documents, scoring, ranking, recommendation, audit history, and final signed completion.</p>
+
+    <div class="callout">Evaluation starts after bidding closes. The buyer reviews submitted bids, scores suppliers, selects a recommended bidder, signs the completed evaluation, and the system prepares the recommendation for Awarding and Contracts.</div>
+
+    <h2>What The Evaluation App Does</h2>
+    <ul>
+      <li>Shows tenders that are ready for evaluation.</li>
+      <li>Shows saved evaluation drafts and completed evaluation records.</li>
+      <li>Opens a detailed evaluation workspace for one tender.</li>
+      <li>Displays submitted supplier bids, bid receipts, documents, responses, and financial amounts.</li>
+      <li>Loads the evaluation criteria configured during tender creation.</li>
+      <li>Lets the buyer score each supplier and mark one supplier as <code>RECOMMENDED</code>.</li>
+      <li>Requires a digital signature keyphrase to complete the evaluation.</li>
+      <li>Creates or updates an award recommendation so Awards and Contracts can continue the process.</li>
+    </ul>
+
+    <h2>Main User Flow</h2>
+    <ol>
+      <li>Buyer signs in and opens <code>/evaluation</code>.</li>
+      <li>The frontend loads dashboard counts, ready tenders, saved drafts, and records.</li>
+      <li>The buyer opens a ready tender and reviews submitted bids.</li>
+      <li>The buyer enters scores, comments, manual review decisions, and ranking.</li>
+      <li>The buyer selects the recommended supplier.</li>
+      <li>The buyer completes the evaluation using the signing keyphrase.</li>
+      <li>The backend stores the completed evaluation and audit trail.</li>
+      <li>The backend creates an <code>AwardRecommendation</code>.</li>
+      <li>Awards and Contracts shows the recommendation under award decisions.</li>
+    </ol>
+
+    <h2>Frontend Files</h2>
+    <div class="grid">
+      <section class="card">
+        <h3>Route And Page</h3>
+        <p class="path">client/src/app/router.tsx</p>
+        <p>Registers <code>/evaluation</code> as the protected Evaluation route.</p>
+        <p class="path">client/src/features/procurexPageRegistry.tsx</p>
+        <p>Maps <code>bid-evaluation</code> to the Evaluation page component.</p>
+      </section>
+      <section class="card">
+        <h3>Main UI</h3>
+        <p class="path">client/src/features/evaluation/components/procurex/BidEvaluationProcurexPage.tsx</p>
+        <p>Main screen for dashboard, tenders, workspace, scoring, ranking, report, and completion.</p>
+      </section>
+      <section class="card">
+        <h3>API Client</h3>
+        <p class="path">client/src/features/evaluation/api/index.ts</p>
+        <p>Calls the backend endpoints for dashboard, records, drafts, ready tenders, workspace load, and workspace save.</p>
+      </section>
+      <section class="card">
+        <h3>Types</h3>
+        <p class="path">client/src/features/evaluation/types.ts</p>
+        <p>Defines frontend contracts for workspaces, bids, scores, rankings, records, and save payloads.</p>
+      </section>
+    </div>
+
+    <h2>Backend Files</h2>
+    <div class="grid">
+      <section class="card">
+        <h3>Mounting And Routes</h3>
+        <p class="path">server/src/app.ts</p>
+        <p>Mounts the evaluation router and the <code>/api/evaluations</code> alias used by the frontend.</p>
+        <p class="path">server/src/modules/evaluation/routes.ts</p>
+        <p>Defines the evaluation HTTP endpoints.</p>
+      </section>
+      <section class="card">
+        <h3>Controller And Validation</h3>
+        <p class="path">server/src/modules/evaluation/controller.ts</p>
+        <p>Handles requests, permissions, and response flow.</p>
+        <p class="path">server/src/modules/evaluation/validators.ts</p>
+        <p>Validates query parameters and workspace save payloads.</p>
+      </section>
+      <section class="card">
+        <h3>Service</h3>
+        <p class="path">server/src/modules/evaluation/service.ts</p>
+        <p>Builds frontend-ready DTOs for dashboard, ready tenders, workspace, bids, criteria, ranking, and audit.</p>
+      </section>
+      <section class="card">
+        <h3>Repository</h3>
+        <p class="path">server/src/modules/evaluation/repository.ts</p>
+        <p>Core logic for finding ready tenders, creating workspaces, saving scores, completing evaluation, signing completion, auditing, and creating award recommendations.</p>
+      </section>
+    </div>
+
+    <h2>Database Files</h2>
+    <p class="path">server/prisma/schema.prisma</p>
+    <p>Main evaluation models:</p>
+    <ul>
+      <li><code>EvaluationWorkspace</code>: one workspace per tender.</li>
+      <li><code>EvaluationCriterion</code>: scoring criteria.</li>
+      <li><code>EvaluationScore</code>: score and comment records.</li>
+      <li><code>AwardRecommendation</code>: recommendation used by Awards and Contracts.</li>
+      <li><code>WorkflowAssignment</code>: evaluation workflow user assignments.</li>
+    </ul>
+
+    <h2>Demo And Test Files</h2>
+    <ul>
+      <li><code>server/prisma/seed-evaluation-intake-demo.ts</code>: creates the evaluation demo data.</li>
+      <li><code>client/e2e/evaluation-workspace-flow.mjs</code>: automated UI workflow for the Evaluation app.</li>
+      <li><code>server/src/modules/evaluation/__tests__/service.test.ts</code>: backend readiness and workspace tests.</li>
+      <li><code>server/src/modules/evaluation/seed-evaluation-intake-demo.test.ts</code>: verifies demo seed data.</li>
+    </ul>
+
+    <h2>How Evaluation Connects To Awarding</h2>
+    <p>When a buyer saves evaluation decisions and one bid is marked <code>RECOMMENDED</code>, the backend creates or updates an <code>AwardRecommendation</code>. Awards and Contracts reads that recommendation and shows it in the buyer queue called <code>awarding-in-progress</code>, displayed as Award Decisions.</p>
+
+    <div class="callout">The Evaluation app does not stop at scoring. It prepares the official award recommendation record, which becomes the source for the Awarding and Contracts workflow.</div>
+
+    <h2>Demo Script</h2>
+    <ol>
+      <li>Sign in as <code>evaluation-buyer@procurex.tz</code>.</li>
+      <li>Open Evaluation from the dashboard or go to <code>/evaluation</code>.</li>
+      <li>Show ready tenders, drafts, locked tenders, and records.</li>
+      <li>Open a ready tender.</li>
+      <li>Show supplier bid tabs and submitted bid details.</li>
+      <li>Show evaluation criteria and scoring.</li>
+      <li>Show ranking and recommendation.</li>
+      <li>Explain completion requires the signing keyphrase.</li>
+      <li>Explain that Awards and Contracts continues from the recommendation.</li>
+    </ol>
+
+    <h2>One-Line Summary</h2>
+    <p><strong>The Evaluation app turns closed tenders and submitted bids into a signed, auditable evaluation result and prepares the recommended supplier for award approval.</strong></p>
+
+    <p class="footer-note">Prepared from the local ProcureX implementation. No application code was changed.</p>
+  </main>
+</body>
+</html>

@@ -37,8 +37,7 @@
     "workspace": "Workspace navigation"
   },
   "admin": {
-    "commandCenter": "Command Center",
-    "deepSearch": "Deep Search"
+    "commandCenter": "Command Center"
   },
   "loading": {
     "title": "Loading ProcureX...",
@@ -361,17 +360,9 @@
       "title": "Admin Dashboard",
       "subtitle": "Oversee platform activity, compliance queues, verification status, exceptions, and audit events."
     },
-    "adminSearch": {
-      "title": "Admin Deep Search",
-      "subtitle": "Search tenders, bids, users, documents, audit evidence, evaluations, and compliance cases."
-    },
     "adminUsers": {
       "title": "User Management",
       "subtitle": "Review accounts, organization profiles, capabilities, verification status, and access metadata."
-    },
-    "adminCompliance": {
-      "title": "Compliance Rules",
-      "subtitle": "Maintain method thresholds, review rules, checklists, escalation paths, and exception queues."
     },
     "adminAnalytics": {
       "title": "Platform Analytics",

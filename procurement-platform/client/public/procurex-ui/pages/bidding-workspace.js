@@ -2847,55 +2847,6 @@ function renderBidWorkspaceResponseReviewPlaceholder() {
     `;
 }
 
-function renderGoodsBidProductDetailResponse(tender = {}, draft = {}) {
-    const rows = getGoodsBidQuantityRows(tender);
-    if (!rows.length) {
-        return '<div class="scope-empty">No goods line items were configured for supplier technical product details.</div>';
-    }
-
-    return `
-        <section class="bid-dynamic-group goods-product-detail-response">
-            <div class="bid-dynamic-group-heading">
-                <div>
-                    <h3>Offered product details</h3>
-                    <p>Provide the supplier product identity and delivery details for each requested goods line before pricing.</p>
-                </div>
-                <span class="badge badge-warning">${rows.length} product detail${rows.length === 1 ? '' : 's'}</span>
-            </div>
-            <div class="bid-requirement-list">
-                ${rows.map((item, index) => {
-                    const baseId = `goods-line-${index}`;
-                    const qty = parseBidWorkspaceNumber(item.quantity || item.qty) || 1;
-                    const unit = item.unitOfMeasure || item.unit || 'Unit';
-                    return `
-                        <article class="bid-requirement-card goods-product-detail-card">
-                            <div class="bid-response-card-heading">
-                                <div>
-                                    <span class="section-kicker">Requested goods line ${index + 1}</span>
-                                    <h3>${escapeBidWorkspaceHtml(getGoodsBidItemDescription(item, index))}</h3>
-                                    <p>${qty} ${escapeBidWorkspaceHtml(unit)} requested. Confirm the exact offered product and supporting details.</p>
-                                </div>
-                                <em class="badge badge-warning">Technical details required</em>
-                            </div>
-                            <div class="goods-line-detail-grid">
-                                <div class="form-group"><label class="form-label">Supplier Product</label><input class="form-input" data-bid-response="${baseId}-product-name" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-product-name`))}" placeholder="Product name offered"></div>
-                                <div class="form-group"><label class="form-label">Brand</label><input class="form-input" data-bid-response="${baseId}-brand" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-brand`))}"></div>
-                                <div class="form-group"><label class="form-label">Model Number</label><input class="form-input" data-bid-response="${baseId}-model" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-model`))}"></div>
-                                <div class="form-group"><label class="form-label">Country of Origin</label><input class="form-input" data-bid-response="${baseId}-origin" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-origin`))}" placeholder="Country"></div>
-                                <div class="form-group"><label class="form-label">Quantity Offered</label><input class="form-input" type="number" min="0" data-bid-response="${baseId}-quantity-offered" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-quantity-offered`) || qty)}"></div>
-                                <div class="form-group"><label class="form-label">Delivery Time</label><input class="form-input" data-bid-response="${baseId}-delivery-time" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-delivery-time`))}" placeholder="e.g. 30 days"></div>
-                                <div class="form-group"><label class="form-label">Warranty Period</label><input class="form-input" data-bid-response="${baseId}-warranty" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-warranty`))}" placeholder="e.g. 24 months"></div>
-                                <div class="form-group wide"><label class="form-label">Deviations / Comments</label><textarea class="form-input" rows="2" data-bid-response="${baseId}-deviations">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-deviations`))}</textarea></div>
-                                <div class="form-group"><label class="form-label">Attach Brochure</label><div class="bid-upload-response" data-bid-upload-control><input class="form-input" type="file" data-bid-file-input accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"><input type="hidden" data-bid-response="${baseId}-brochure" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-brochure`))}"><small data-bid-file-name>${getBidWorkspaceSavedResponse(draft, `${baseId}-brochure`) ? `Selected: ${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-brochure`))}` : 'No file selected yet.'}</small></div></div>
-                            </div>
-                        </article>
-                    `;
-                }).join('')}
-            </div>
-        </section>
-    `;
-}
-
 function renderGoodsBidTechnicalResponse(tender = {}, draft = {}) {
     const specifications = getGoodsBidSpecificationCards(tender);
 
@@ -2946,7 +2897,6 @@ function renderGoodsBidTechnicalResponse(tender = {}, draft = {}) {
                 `;
             }).join('') : '<div class="scope-empty">No buyer technical specification cards were configured for this goods tender.</div>'}
         </div>
-        ${renderGoodsBidProductDetailResponse(tender, draft)}
     `;
 }
 

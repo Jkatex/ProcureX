@@ -356,7 +356,7 @@ export function CreateTenderProcurexPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { notifyError, notifyInfo, notifySuccess, notifyWarning } = useNotifications();
+  const { notifyError, notifySuccess, notifyWarning } = useNotifications();
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
   const [activeStep, setActiveStep] = useState(0);
   const [validationMessage, setValidationMessage] = useState('');
@@ -614,9 +614,8 @@ export function CreateTenderProcurexPage() {
       }));
       const label = channel === 'email' ? 'Email' : 'Phone';
       if (result.devCode) {
-        notifyInfo(`${label} verification code`, `${label} verification code: ${result.devCode}`, {
-          reason: 'Local development returned a temporary code for testing.',
-          autoDismissMs: 30_000
+        notifySuccess(`${label} verification started`, 'Enter the verification code to confirm this tender contact.', {
+          reason: 'A verification challenge was created for this tender contact.'
         });
       } else {
         notifySuccess(`${label} code sent`, `A verification code was sent to ${result.target}.`, {

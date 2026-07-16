@@ -37,8 +37,7 @@
     "workspace": "Urambazaji wa eneo la kazi"
   },
   "admin": {
-    "commandCenter": "Kituo cha Amri",
-    "deepSearch": "Utafutaji wa Kina"
+    "commandCenter": "Kituo cha Amri"
   },
   "loading": {
     "title": "Inapakia ProcureX...",
@@ -361,17 +360,9 @@
       "title": "Dashibodi ya Msimamizi",
       "subtitle": "Simamia shughuli za jukwaa, foleni za uzingatiaji, hali ya uthibitishaji, tofauti, na matukio ya ukaguzi."
     },
-    "adminSearch": {
-      "title": "Utafutaji wa Kina wa Msimamizi",
-      "subtitle": "Tafuta zabuni, mawasilisho, watumiaji, nyaraka, vielelezo vya ukaguzi, tathmini, na masuala ya uzingatiaji."
-    },
     "adminUsers": {
       "title": "Usimamizi wa Watumiaji",
       "subtitle": "Hakiki akaunti, wasifu wa mashirika, uwezo, hali ya uthibitishaji, na taarifa za ufikiaji."
-    },
-    "adminCompliance": {
-      "title": "Kanuni za Uzingatiaji",
-      "subtitle": "Tunza viwango vya mbinu, sheria za ukaguzi, orodha za ukaguzi, njia za kupandisha suala, na foleni za tofauti."
     },
     "adminAnalytics": {
       "title": "Takwimu za Jukwaa",

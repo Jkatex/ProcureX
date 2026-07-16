@@ -632,6 +632,8 @@ export class ModuleController {
   respondToTermination = this.controlRecordMutation('controlTermination', 'respond', 'contract.track', 'Invalid termination response payload.');
   decideTermination = this.controlRecordMutation('controlTermination', 'decide', 'contract.manage', 'Invalid termination decision payload.');
   settleTermination = this.controlRecordMutation('controlTermination', 'settle', 'contract.manage', 'Invalid termination settlement payload.');
+  rejectTermination = this.controlRecordMutation('controlTermination', 'reject', 'contract.manage', 'Invalid termination rejection payload.');
+  terminateContract = this.controlRecordMutation('controlTermination', 'terminate', 'contract.manage', 'Invalid contract termination payload.');
   closeTermination = this.controlRecordMutation('controlTermination', 'close', 'contract.manage', 'Invalid termination closeout payload.');
 
   upsertCloseout: RequestHandler = async (req, res, next) => {

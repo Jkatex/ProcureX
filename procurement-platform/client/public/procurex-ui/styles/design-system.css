@@ -4821,10 +4821,6 @@ ul.closure-checklist {
     max-width: 360px;
 }
 
-.admin-search-entry-panel .record-summary {
-    margin-top: 12px;
-}
-
 .admin-monitor-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -4841,8 +4837,7 @@ ul.closure-checklist {
     font-size: 15px;
 }
 
-.admin-monitor-row p,
-.admin-search-table td span {
+.admin-monitor-row p {
     margin: 0;
     color: var(--text-secondary);
     font-size: 12px;
@@ -4853,26 +4848,6 @@ ul.closure-checklist {
     flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
-}
-
-.admin-search-filter-grid {
-    grid-template-columns: minmax(260px, 2fr) repeat(auto-fit, minmax(150px, 1fr));
-}
-
-.admin-search-quick-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-}
-
-.admin-search-table td strong {
-    display: block;
-    color: var(--text-primary);
-}
-
-.admin-search-table td {
-    vertical-align: top;
 }
 
 .evaluation-evidence-search {
@@ -25453,9 +25428,7 @@ textarea:focus-visible,
 }
 /* Admin panel redesign */
 body[data-page="admin-dashboard"],
-body[data-page="admin-search"],
 body[data-page="admin-users"],
-body[data-page="admin-compliance"],
 body[data-page="admin-analytics"],
 body[data-page="admin-audit"] {
     --px-hero-image: var(--px-visual-eval);

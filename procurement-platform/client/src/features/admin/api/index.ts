@@ -52,22 +52,6 @@ export type ComplianceCase = {
   createdAt: string;
 };
 
-export type ComplianceRule = {
-  id: string;
-  ownerOrgId: string | null;
-  code: string;
-  title: string;
-  description: string | null;
-  severity: string;
-  status: string;
-  condition: Record<string, unknown>;
-  payload: Record<string, unknown>;
-  createdByUserId: string | null;
-  availableActions: string[];
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type AdminAction = {
   id: string;
   actionType: string;
@@ -151,21 +135,6 @@ export type AdminDashboard = {
   generatedAt: string;
 };
 
-export type SearchResult = {
-  id: string;
-  type: string;
-  title: string;
-  subtitle: string;
-  status?: string;
-  stage?: string | null;
-  party?: string | null;
-  amount?: string | null;
-  summary?: string | null;
-  routeHint?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
 export type AdminAnalytics = {
   totals: Record<string, number>;
   range: { from: string | null; to: string | null };
@@ -187,86 +156,11 @@ export type AdminAnalytics = {
   generatedAt: string;
 };
 
-export type DataStoreScope = 'GLOBAL' | 'USER';
-
-export type DataStoreEntry = {
-  id: string;
-  scope: DataStoreScope;
-  ownerUser: { id: string; displayName: string; email: string } | null;
-  namespace: string;
-  key: string;
-  value: unknown;
-  encrypted: boolean;
-  createdByUser: { id: string; displayName: string; email: string } | null;
-  updatedByUser: { id: string; displayName: string; email: string } | null;
-  deletedByUser?: { id: string; displayName: string; email: string } | null;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string | null;
-  availableActions?: string[];
-};
-
-export type DataStoreEntryVersion = {
-  id: string;
-  entryId: string;
-  action: string;
-  previousValue: unknown;
-  nextValue: unknown;
-  actorUser: { id: string; displayName: string; email: string } | null;
-  createdAt: string;
-};
-
-export type DataStoreNamespace = {
-  namespace: string;
-  scope: DataStoreScope;
-  total: number;
-  updatedAt: string | null;
-};
-
-export type DataStoreParams = {
-  scope?: DataStoreScope;
-  namespace?: string;
-  ownerUserId?: string;
-  q?: string;
-  page?: number;
-  pageSize?: number;
-};
-
-export type DataStoreEntryInput = {
-  scope?: DataStoreScope;
-  ownerUserId?: string | null;
-  namespace: string;
-  key: string;
-  value: unknown;
-  encrypted?: boolean;
-};
-
 export type AdminUserListParams = {
   q?: string;
   verificationStatus?: string;
   accountType?: string;
   role?: string;
-  page?: number;
-  pageSize?: number;
-};
-
-export type AdminSearchParams = {
-  q?: string;
-  type?: string;
-  status?: string;
-  stage?: string;
-  from?: string;
-  to?: string;
-  minAmount?: number;
-  maxAmount?: number;
-  flaggedOnly?: boolean;
-  page?: number;
-  pageSize?: number;
-};
-
-export type ComplianceCaseParams = {
-  status?: string;
-  severity?: string;
   page?: number;
   pageSize?: number;
 };
@@ -286,17 +180,6 @@ export type AuditParams = {
 export type AnalyticsParams = {
   from?: string;
   to?: string;
-};
-
-export type ComplianceRuleInput = {
-  ownerOrgId?: string | null;
-  code: string;
-  title: string;
-  description?: string | null;
-  severity?: string;
-  status?: string;
-  condition?: Record<string, unknown>;
-  payload?: Record<string, unknown>;
 };
 
 export type WorkflowRecord = Record<string, unknown> & {
@@ -350,30 +233,6 @@ export const adminApi = {
   },
   async inviteUser(input: { email: string; displayName: string; accountType?: 'USER' | 'ADMIN'; note?: string }) {
     const response = await apiClient.post<AdminUser>('/api/compliance-admin/users/invite', input);
-    return response.data;
-  },
-  async search(params?: AdminSearchParams) {
-    const response = await apiClient.get<PageDto<SearchResult>>('/api/compliance-admin/search', { params });
-    return response.data;
-  },
-  async listComplianceCases(params?: ComplianceCaseParams) {
-    const response = await apiClient.get<PageDto<ComplianceCase>>('/api/compliance-admin/compliance/cases', { params });
-    return response.data;
-  },
-  async updateComplianceCase(id: string, input: Partial<Pick<ComplianceCase, 'status' | 'severity' | 'owner' | 'payload'>>) {
-    const response = await apiClient.patch<ComplianceCase>(`/api/compliance-admin/compliance/cases/${id}`, input);
-    return response.data;
-  },
-  async listComplianceRules(params?: Pick<ComplianceCaseParams, 'status' | 'severity' | 'page' | 'pageSize'>) {
-    const response = await apiClient.get<PageDto<ComplianceRule>>('/api/compliance-admin/compliance/rules', { params });
-    return response.data;
-  },
-  async createComplianceRule(input: ComplianceRuleInput) {
-    const response = await apiClient.post<ComplianceRule>('/api/compliance-admin/compliance/rules', input);
-    return response.data;
-  },
-  async updateComplianceRule(id: string, input: Partial<ComplianceRuleInput>) {
-    const response = await apiClient.patch<ComplianceRule>(`/api/compliance-admin/compliance/rules/${id}`, input);
     return response.data;
   },
   async complianceReviews(params?: WorkflowListParams) {
@@ -442,46 +301,6 @@ export const adminApi = {
   },
   async undoAction(id: string, input: { note?: string } = {}) {
     const response = await apiClient.post<AdminAction>(`/api/compliance-admin/actions/${id}/undo`, input);
-    return response.data;
-  },
-  async listDataStoreNamespaces(params?: Pick<DataStoreParams, 'scope' | 'q'>) {
-    const response = await apiClient.get<{ items: DataStoreNamespace[]; generatedAt: string }>('/api/compliance-admin/datastore/namespaces', { params });
-    return response.data;
-  },
-  async listDataStoreEntries(params?: DataStoreParams) {
-    const response = await apiClient.get<PageDto<DataStoreEntry>>('/api/compliance-admin/datastore/entries', { params });
-    return response.data;
-  },
-  async getDataStoreEntry(id: string) {
-    const response = await apiClient.get<DataStoreEntry>(`/api/compliance-admin/datastore/entries/${id}`);
-    return response.data;
-  },
-  async listDataStoreEntryVersions(id: string) {
-    const response = await apiClient.get<{ items: DataStoreEntryVersion[]; generatedAt: string }>(`/api/compliance-admin/datastore/entries/${id}/versions`);
-    return response.data;
-  },
-  async createDataStoreEntry(input: DataStoreEntryInput) {
-    const response = await apiClient.post<DataStoreEntry>('/api/compliance-admin/datastore/entries', input);
-    return response.data;
-  },
-  async updateDataStoreEntry(id: string, input: Partial<Omit<DataStoreEntryInput, 'scope' | 'ownerUserId'>>) {
-    const response = await apiClient.patch<DataStoreEntry>(`/api/compliance-admin/datastore/entries/${id}`, input);
-    return response.data;
-  },
-  async deleteDataStoreEntry(id: string) {
-    const response = await apiClient.delete<DataStoreEntry>(`/api/compliance-admin/datastore/entries/${id}`, { data: { confirm: 'DELETE' } });
-    return response.data;
-  },
-  async restoreDataStoreEntry(id: string, input: { note?: string } = {}) {
-    const response = await apiClient.post<DataStoreEntry>(`/api/compliance-admin/datastore/entries/${id}/restore`, input);
-    return response.data;
-  },
-  async restoreDataStoreVersion(id: string, input: { note?: string } = {}) {
-    const response = await apiClient.post<DataStoreEntry>(`/api/compliance-admin/datastore/versions/${id}/restore`, input);
-    return response.data;
-  },
-  async exportDataStoreEntries(params?: DataStoreParams) {
-    const response = await apiClient.get<PageDto<DataStoreEntry>>('/api/compliance-admin/datastore/entries/export', { params });
     return response.data;
   },
   async updateProfilePreferences(input: { preferredLanguage?: string; timezone?: string; metadata?: Record<string, unknown>; note?: string }) {

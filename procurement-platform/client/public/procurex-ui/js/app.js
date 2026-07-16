@@ -256,17 +256,9 @@ class ProcureXApp {
                 <span class="app-menu-icon">${this.getAppMenuIcon('insights')}</span>
                 <span><strong>Command Center</strong><em>Admin KPIs, queues, and oversight</em></span>
             </button>
-            <button class="app-menu-card app-menu-procurement" data-navigate="admin-search">
-                <span class="app-menu-icon">${this.getAppMenuIcon('search')}</span>
-                <span><strong>Admin Deep Search</strong><em>Tenders, bids, users, evidence, evaluations</em></span>
-            </button>
             <button class="app-menu-card app-menu-iam" data-navigate="admin-users">
                 <span class="app-menu-icon">${this.getAppMenuIcon('iam')}</span>
                 <span><strong>User Management</strong><em>Accounts, roles, and verification</em></span>
-            </button>
-            <button class="app-menu-card app-menu-evaluation" data-navigate="admin-compliance">
-                <span class="app-menu-icon">${this.getAppMenuIcon('evaluation')}</span>
-                <span><strong>Compliance Rules</strong><em>Thresholds, checklists, and alerts</em></span>
             </button>
             <button class="app-menu-card app-menu-insights" data-navigate="admin-analytics">
                 <span class="app-menu-icon">${this.getAppMenuIcon('insights')}</span>
@@ -359,9 +351,7 @@ class ProcureXApp {
             'app-launcher': 'Apps',
             'workspace-dashboard': 'Dashboard',
             'admin-dashboard': 'Admin',
-            'admin-search': 'Admin Deep Search',
             'admin-users': 'Admin User Management',
-            'admin-compliance': 'Admin Compliance Rules',
             'admin-analytics': 'Admin Analytics',
             'admin-audit': 'Admin Audit Trail',
             'account-profile': 'Registration and Verification',
@@ -441,9 +431,7 @@ class ProcureXApp {
             'procurement-planning-risks-alerts': 'tender-planning',
             'procurement-planning-reports': 'tender-planning',
             'admin-dashboard': null,
-            'admin-search': 'admin-dashboard',
             'admin-users': 'admin-dashboard',
-            'admin-compliance': 'admin-dashboard',
             'admin-analytics': 'admin-dashboard',
             'admin-audit': 'admin-dashboard',
             'buyer-dashboard': 'workspace-dashboard',
@@ -489,9 +477,7 @@ class ProcureXApp {
             'workspace-dashboard': 'Dashboard',
             'procurement-dashboard': 'Dashboard',
             'admin-dashboard': 'Admin Dashboard',
-            'admin-search': 'Admin Deep Search',
             'admin-users': 'User Management',
-            'admin-compliance': 'Compliance Rules',
             'admin-analytics': 'Platform Analytics',
             'admin-audit': 'Full Audit Trail',
             'buyer-dashboard': 'Dashboard',
@@ -2146,9 +2132,7 @@ class ProcureXApp {
             'procurement-planning-risks-alerts',
             'procurement-planning-reports',
             'admin-dashboard',
-            'admin-search',
             'admin-users',
-            'admin-compliance',
             'admin-analytics',
             'admin-audit',
             'procurement-guide',

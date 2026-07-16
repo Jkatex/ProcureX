@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildOfficialPdfSections, validateOfficialSource, type OfficialSourceSnapshot } from '../officialDocumentBuilder.js';
 import { renderOfficialPdf } from '../officialPdfRenderer.js';
+import { ModuleRepository } from '../repository.js';
 import { sha256 } from '../officialStorage.js';
 import { findOfficialTemplate, officialTemplateDefinitions } from '../officialTemplates.js';
 import { officialDocumentTypes, type OfficialProcurementType } from '../types.js';
@@ -31,6 +32,40 @@ describe('official document templates', () => {
     for (const documentType of officialDocumentTypes) {
       expect(officialTemplateDefinitions.some((template) => template.documentType === documentType)).toBe(true);
     }
+  });
+});
+
+describe('document content delivery', () => {
+  it('serves stored PDF content as binary application/pdf', async () => {
+    const pdf = Buffer.from('%PDF-1.4 signed contract');
+    const repository = new ModuleRepository({
+      documentObject: {
+        findUnique: async () => ({
+          id: 'doc-1',
+          ownerOrgId: 'org-1',
+          name: 'PX-C-1-signed-contract-v1.pdf',
+          documentType: 'CONTRACT_DOCUMENT',
+          objectKey: 'official-documents/contract.pdf',
+          checksum: sha256(pdf),
+          metadata: {
+            mimeType: 'application/pdf',
+            contentBase64: pdf.toString('base64')
+          },
+          createdAt: new Date('2026-07-14T00:00:00.000Z'),
+          tenderDocuments: [],
+          bidDocuments: [],
+          contractVersions: [],
+          contractMilestoneEvidence: [],
+          terminationEvidence: []
+        })
+      }
+    } as any);
+
+    await expect(repository.content('doc-1', { userId: 'user-1', organizationId: 'org-1', isAdmin: false })).resolves.toMatchObject({
+      filename: 'PX-C-1-signed-contract-v1.pdf',
+      contentType: 'application/pdf',
+      body: pdf
+    });
   });
 });
 

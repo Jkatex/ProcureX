@@ -367,7 +367,7 @@ export class ModuleService {
           stage: item.kind,
           party: item.country ?? null,
           summary: item.taxId ? `Tax ID ${item.taxId}` : 'Organization registry record.',
-          routeHint: '/admin/search',
+          routeHint: '/admin/users',
           createdAt: item.createdAt.toISOString(),
           updatedAt: item.updatedAt.toISOString()
         })),
@@ -441,7 +441,7 @@ export class ModuleService {
           stage: item.documentType,
           party: item.ownerOrg?.name ?? item.uploadedByUser?.displayName ?? null,
           summary: item.uploadedByUser?.email ? `Uploaded by ${item.uploadedByUser.email}.` : 'Document object.',
-          routeHint: '/admin/search',
+          routeHint: '/records',
           createdAt: item.createdAt.toISOString()
         })),
         ...(result.evaluations ?? []).map((item) => ({
@@ -478,7 +478,7 @@ export class ModuleService {
           stage: item.severity,
           party: item.ownerOrg?.name ?? item.owner ?? null,
           summary: payloadSummary(jsonObject(item.payload)) || 'Compliance case.',
-          routeHint: '/admin/compliance',
+          routeHint: '/admin/audit',
           createdAt: item.createdAt.toISOString()
         }))
       ];

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { store } from '@/app/store';
 import { procurexTheme } from '@/styles/mui-theme';
+import { clearNotifications } from '@/features/notifications/slice';
 import { resetCreateTenderDrafts } from '../../slice';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 import { CreateTenderProcurexPage } from './CreateTenderProcurexPage';
@@ -159,6 +160,7 @@ function emptyMarketplaceResponse() {
 beforeEach(() => {
   vi.clearAllMocks();
   store.dispatch(resetCreateTenderDrafts());
+  store.dispatch(clearNotifications());
   window.localStorage.clear();
   const contactChallenges = new Map<string, { channel: 'email' | 'phone'; target: string }>();
   procurementApiMock.startContactVerification.mockImplementation(async ({ channel, target }: { channel: 'email' | 'phone'; target: string }) => {
@@ -399,6 +401,23 @@ describe('CreateTenderProcurexPage', () => {
 
     expect(screen.queryByText('Email verified')).not.toBeInTheDocument();
     expect(screen.getByText('Contact verified')).toBeInTheDocument();
+  });
+
+  it('hides temporary tender contact verification codes from notifications', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.type(screen.getByLabelText('Contact email'), 'buyer@example.go.tz');
+    await user.click(screen.getByRole('button', { name: 'Verify Email' }));
+
+    expect(await screen.findByLabelText('Email verification code')).toBeInTheDocument();
+    await waitFor(() => {
+      const notifications = store.getState().notifications.items;
+      expect(notifications.some((notification) => notification.title === 'Email verification started')).toBe(true);
+      expect(notifications.some((notification) => notification.message === 'Enter the verification code to confirm this tender contact.')).toBe(true);
+      expect(notifications.every((notification) => !`${notification.title} ${notification.message} ${notification.reason ?? ''}`.includes('123456'))).toBe(true);
+      expect(notifications.every((notification) => !notification.message.includes('Email verification code:'))).toBe(true);
+    });
   });
 
   it('blocks Continue until minimum Basic Information fields are complete', async () => {

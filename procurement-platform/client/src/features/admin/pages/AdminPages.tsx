@@ -1,10 +1,7 @@
 export { AdminDashboardProcurexPage as AdminDashboardPage } from '@/features/admin/components/procurex/AdminDashboardProcurexPage';
-export { AdminSearchProcurexPage as AdminSearchPage } from '@/features/admin/components/procurex/AdminSearchProcurexPage';
 export { AdminUsersProcurexPage as AdminUsersPage } from '@/features/admin/components/procurex/AdminUsersProcurexPage';
-export { AdminComplianceProcurexPage as AdminCompliancePage } from '@/features/admin/components/procurex/AdminComplianceProcurexPage';
 export { AdminAnalyticsProcurexPage as AdminAnalyticsPage } from '@/features/admin/components/procurex/AdminAnalyticsProcurexPage';
 export { AdminAuditProcurexPage as AdminAuditPage } from '@/features/admin/components/procurex/AdminAuditProcurexPage';
-export { AdminDatastoreProcurexPage as AdminDatastorePage } from '@/features/admin/components/procurex/AdminDatastoreProcurexPage';
 export { AdminTenderReviewProcurexPage as AdminTenderReviewPage } from '@/features/admin/components/procurex/AdminTenderReviewProcurexPage';
 export { AdminCommunicationProcurexPage as AdminCommunicationPage } from '@/features/admin/components/procurex/AdminCommunicationProcurexPage';
 export { AdminProfileProcurexPage as AdminProfilePage } from '@/features/admin/components/procurex/AdminProfileProcurexPage';

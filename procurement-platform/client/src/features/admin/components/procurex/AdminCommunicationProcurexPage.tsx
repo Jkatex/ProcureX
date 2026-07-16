@@ -1012,7 +1012,7 @@ function resolveMessageAction(message: CommunicationMailboxMessage, admin = fals
   const tenderId = message.tenderId ? encodeURIComponent(message.tenderId) : '';
   const text = `${message.category} ${message.subject} ${message.body} ${message.status}`.toLowerCase();
   const adminTenderRoute = message.tenderReference || message.tenderId
-    ? `/admin/search?query=${encodeURIComponent(message.tenderReference ?? message.tenderId ?? '')}`
+    ? `/admin/tender-review?query=${encodeURIComponent(message.tenderReference ?? message.tenderId ?? '')}`
     : '';
 
   if (admin && adminTenderRoute) return { label: 'Open Tender Record', route: adminTenderRoute };
