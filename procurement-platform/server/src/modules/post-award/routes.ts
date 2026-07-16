@@ -128,6 +128,8 @@ export function createModuleRouter() {
   router.patch('/contracts/:contractId/terminations/:recordId/respond', controller.respondToTermination);
   router.patch('/contracts/:contractId/terminations/:recordId/decide', controller.decideTermination);
   router.patch('/contracts/:contractId/terminations/:recordId/settle', controller.settleTermination);
+  router.patch('/contracts/:contractId/terminations/:recordId/reject', controller.rejectTermination);
+  router.patch('/contracts/:contractId/terminations/:recordId/terminate', controller.terminateContract);
   router.patch('/contracts/:contractId/terminations/:recordId/close', controller.closeTermination);
   router.post('/contracts/:contractId/notices', controller.createContractNotice);
   router.patch('/contracts/:contractId/notices/:recordId/acknowledge', controller.acknowledgeContractNotice);

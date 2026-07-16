@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { prisma } from '../../db/prisma.js';
-import { AWARD_CONTRACT_DEMO_PREFIX, seedAwardContractDemo } from '../../../prisma/seed-award-contract-demo.js';
+import { AWARD_CONTRACT_DEMO_PREFIX, POST_AWARD_DEMO_CONTRACT_REFERENCE, seedAwardContractDemo } from '../../../prisma/seed-award-contract-demo.js';
 import { ModuleRepository } from './repository.js';
+import { ModuleService as PostAwardService } from '../post-award/service.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -18,7 +19,12 @@ describeDb('award-contract demo seed', () => {
     await seedAwardContractDemo();
 
     const contracts = await db.contract.findMany({
-      where: { reference: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } },
+      where: {
+        OR: [
+          { reference: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } },
+          { reference: POST_AWARD_DEMO_CONTRACT_REFERENCE }
+        ]
+      },
       include: {
         clauses: true,
         negotiations: true,
@@ -41,7 +47,7 @@ describeDb('award-contract demo seed', () => {
     expect(contracts.length).toBeGreaterThanOrEqual(12);
     expect(new Set(contracts.map((contract: any) => contract.status)).size).toBeGreaterThanOrEqual(12);
 
-    const rich = contracts.find((contract: any) => contract.reference === `${AWARD_CONTRACT_DEMO_PREFIX}-CONTRACT-ACTIVE-GOODS`);
+    const rich = contracts.find((contract: any) => contract.reference === POST_AWARD_DEMO_CONTRACT_REFERENCE);
     expect(rich).toBeTruthy();
     expect(rich?.clauses.length).toBeGreaterThan(0);
     expect(rich?.negotiations.length).toBeGreaterThan(0);
@@ -89,6 +95,25 @@ describeDb('award-contract demo seed', () => {
     expect(demoDashboard.queues['contract-signing'].length).toBeGreaterThan(0);
     expect(demoDashboard.queues).not.toHaveProperty('active-contracts');
     expect(demoDashboard.queues).not.toHaveProperty('closed-contracts');
+    const postAwardContext = { userId: demoUser!.id, organizationId: demoOrgId, isAdmin: false };
+    const postAwardService = new PostAwardService();
+    const postAwardRows = await postAwardService.contracts(postAwardContext);
+    const postAwardContract = postAwardRows.find((row) => row.reference === POST_AWARD_DEMO_CONTRACT_REFERENCE);
+    expect(postAwardContract).toMatchObject({
+      reference: POST_AWARD_DEMO_CONTRACT_REFERENCE,
+      status: 'ACTIVE',
+      viewerRole: 'SUPPLIER'
+    });
+    const postAwardWorkspace = await postAwardService.workspace(postAwardContract!.id, postAwardContext);
+    expect(postAwardWorkspace.procurementType).toBe('GOODS');
+    expect(postAwardWorkspace.workflowSections.length).toBeGreaterThan(0);
+    expect(postAwardWorkspace.buyerTasks.length).toBeGreaterThan(0);
+    expect(postAwardWorkspace.supplierTasks.length).toBeGreaterThan(0);
+    expect(postAwardWorkspace.detail?.milestones.length).toBeGreaterThan(0);
+    expect(postAwardWorkspace.detail?.inspections.length).toBeGreaterThan(0);
+    expect(postAwardWorkspace.detail?.invoices.length).toBeGreaterThanOrEqual(7);
+    expect(postAwardWorkspace.detail?.risks.length).toBeGreaterThan(0);
+    expect(postAwardWorkspace.detail?.variations.length).toBeGreaterThan(0);
     await expect(db.user.count({ where: { email: 'award-demo@procurex.tz' } })).resolves.toBe(0);
     await expect(
       db.user.count({

@@ -42,6 +42,7 @@ const scrypt = promisify(scryptCallback);
 
 export const AWARD_CONTRACT_DEMO_DATASET = 'award-contract-full';
 export const AWARD_CONTRACT_DEMO_PREFIX = 'PX-DEMO-AC';
+export const POST_AWARD_DEMO_CONTRACT_REFERENCE = 'PX-DEMO-POST-AWARD-CONTRACT-ACTIVE-GOODS';
 const MAIN_DEMO_USER_EMAIL = 'demo@procurex.tz';
 const MAIN_DEMO_ORGANIZATION_NAME = 'Kilimanjaro Supplies Limited';
 
@@ -127,6 +128,7 @@ async function resetDemoDataset(db: AnyDb) {
     where: {
       OR: [
         { reference: { startsWith: AWARD_CONTRACT_DEMO_PREFIX } },
+        { reference: POST_AWARD_DEMO_CONTRACT_REFERENCE },
         ...(demoOrganizationIds.length ? [{ buyerOrgId: { in: demoOrganizationIds } }, { supplierOrgId: { in: demoOrganizationIds } }] : [])
       ]
     },
@@ -865,9 +867,12 @@ async function createNoticeAndContract(
   noticeStatus: AwardNoticeStatus
 ) {
   const buyer = buyerForScenario(actors, scenario);
+  const contractReference = scenario.key === 'ACTIVE-GOODS'
+    ? POST_AWARD_DEMO_CONTRACT_REFERENCE
+    : ref(`CONTRACT-${scenario.key}`);
   const contract = await db.contract.create({
     data: {
-      reference: ref(`CONTRACT-${scenario.key}`),
+      reference: contractReference,
       tenderId: base.tender.id,
       awardId: base.recommendation.id,
       buyerOrgId: buyer.org.id,

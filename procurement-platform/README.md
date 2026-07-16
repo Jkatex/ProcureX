@@ -64,7 +64,17 @@ npm run db:seed
 npm run db:cleanup:awards-demo
 ```
 
-The cleanup removes records marked as the `award-contract-full` dataset or references prefixed with `PX-DEMO-AC-`. The default seed no longer recreates populated buyer and supplier award queues, contract formation, post-award tracking, payment, risk, termination, close-out, supplier performance, or compliance demo records.
+The cleanup removes records marked as the `award-contract-full` dataset, references prefixed with `PX-DEMO-AC-`, and the focused post-award reference `PX-DEMO-POST-AWARD-CONTRACT-ACTIVE-GOODS`. The default seed no longer recreates populated buyer and supplier award queues, contract formation, post-award tracking, payment, risk, termination, close-out, supplier performance, or compliance demo records.
+
+To load the optional detailed post-award contract demo:
+
+```powershell
+npm run infra:up
+npm run db:migrate
+npm run db:seed:post-award-demo
+```
+
+The post-award demo seed is idempotent and creates an active goods contract with reference `PX-DEMO-POST-AWARD-CONTRACT-ACTIVE-GOODS`. Sign in as `demo@procurex.tz` with password `Demo123!`, then open Post-Award Tracking to use the seeded contract.
 
 To load the optional award-ready tender with four submitted bids, completed evaluation, source documents, and a recommendation ready for awarding:
 
