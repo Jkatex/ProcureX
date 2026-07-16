@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
-import PieChartRoundedIcon from '@mui/icons-material/PieChartRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -511,9 +510,7 @@ export function RecordsHistoryProcurexPage() {
                   <ChartCard title={t('recordsApp.charts.cards.tendersByStatus')} points={charts.tendersByStatus} />
                   <ChartCard title={t('recordsApp.charts.cards.recordsByMonth')} points={charts.procurementRecordsByMonth} wide />
                   <ChartCard title={t('recordsApp.charts.cards.contractValueByCategory')} points={charts.contractValueByCategory} money />
-                  <ChartCard title={t('recordsApp.charts.cards.supplierParticipation')} points={charts.supplierParticipation} />
                   <ChartCard title={t('recordsApp.charts.cards.awardVsCancellationTrend')} points={charts.awardVsCancellationTrend} secondaryLabel={t('recordsApp.charts.cancelled')} />
-                  <PieChartCard title={t('recordsApp.charts.cards.complianceCompletionSummary')} points={charts.complianceCompletionSummary} />
                 </section>
               </section>
             )}
@@ -845,64 +842,6 @@ function ChartCard({
       ) : (
         <div className="records-chart-placeholder">
           <BarChartRoundedIcon fontSize="small" aria-hidden="true" />
-          <strong>{t('recordsApp.charts.emptyTitle')}</strong>
-          <span>{t('recordsApp.charts.emptyBody')}</span>
-        </div>
-      )}
-    </article>
-  );
-}
-
-const pieColors = ['#008080', '#f59e0b', '#2563eb', '#dc2626', '#7c3aed', '#0f766e'];
-
-function PieChartCard({ title, points }: { title: string; points: ChartPoint[] }) {
-  const { t } = useTranslation();
-  const slices = points.filter((point) => point.value > 0);
-  const total = slices.reduce((sum, point) => sum + point.value, 0);
-  let cursor = 0;
-  const gradient = slices.map((point, index) => {
-    const start = cursor;
-    const end = cursor + (point.value / total) * 100;
-    cursor = end;
-    return `${pieColors[index % pieColors.length]} ${start}% ${end}%`;
-  }).join(', ');
-
-  return (
-    <article className="records-chart-card records-pie-chart-card">
-      <div className="records-chart-heading">
-        <h3>{title}</h3>
-        <span>{slices.length ? t('recordsApp.charts.dataPoints', { count: slices.length }) : t('recordsApp.charts.noDataBadge')}</span>
-      </div>
-      {slices.length ? (
-        <div className="records-pie-chart-content">
-          <div
-            className="records-pie-chart"
-            role="img"
-            aria-label={`${title}: ${slices.map((point) => `${point.label} ${point.value}`).join(', ')}`}
-            style={{ background: `conic-gradient(${gradient})` }}
-          >
-            <div>
-              <strong>{total.toLocaleString()}</strong>
-              <span>Total</span>
-            </div>
-          </div>
-          <div className="records-pie-legend">
-            {slices.map((point, index) => {
-              const percentage = total ? Math.round((point.value / total) * 100) : 0;
-              return (
-                <div className="records-pie-legend-row" key={point.label}>
-                  <i style={{ background: pieColors[index % pieColors.length] }} />
-                  <span>{point.label}</span>
-                  <strong>{percentage}%</strong>
-                  <em>{point.value.toLocaleString()}</em>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="records-chart-placeholder">
-          <PieChartRoundedIcon fontSize="small" aria-hidden="true" />
           <strong>{t('recordsApp.charts.emptyTitle')}</strong>
           <span>{t('recordsApp.charts.emptyBody')}</span>
         </div>
