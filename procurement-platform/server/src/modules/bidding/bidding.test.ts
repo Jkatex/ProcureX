@@ -304,6 +304,7 @@ describe('bid submission schema builder', () => {
     expect(stepFields(schema, 'administrative')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: 'Medical devices dealer license', responseType: 'structured', envelope: 'ADMINISTRATIVE', required: true, validation: expect.objectContaining({ control: 'goodsRegulatoryLicense', issuingAuthority: 'TMDA' }) }),
+        expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1', label: 'Average annual turnover', responseType: 'structured', envelope: 'ADMINISTRATIVE', validation: expect.objectContaining({ control: 'goodsFinancialRequirement', evidenceRequired: 'Audited accounts' }) }),
         expect.objectContaining({ label: 'Manufacturer authorization', type: 'file', envelope: 'ADMINISTRATIVE', required: true }),
         expect.objectContaining({ label: 'Business registration certificate', type: 'file', envelope: 'ADMINISTRATIVE', required: true })
       ])
@@ -311,21 +312,23 @@ describe('bid submission schema builder', () => {
     const technicalFields = stepFields(schema, 'goodsTechnical');
     expect(technicalFields).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ requirementKey: 'goods.productSpecification.spec-1', label: 'Product specification response - Hospital bed', responseType: 'structured', validation: expect.objectContaining({ control: 'goodsProductSpecification', buyerSpecification: 'Adjustable ICU bed with side rails' }) }),
-        expect.objectContaining({ requirementKey: 'goods.productDetails.item-1', label: 'Offered product details - Hospital bed', responseType: 'structured', validation: expect.objectContaining({ control: 'goodsProductDetails', requestedProduct: 'Hospital bed' }) }),
-        expect.objectContaining({ requirementKey: 'evaluationCriteria.criteria-1', label: 'Response for Technical compliance' })
+        expect.objectContaining({ requirementKey: 'goods.productSpecification.spec-1', label: 'Product specification response - Hospital bed', responseType: 'structured', validation: expect.objectContaining({ control: 'goodsProductSpecification', buyerSpecification: 'Adjustable ICU bed with side rails' }) })
       ])
     );
+    const goodsTechnicalKeys = technicalFields.map((field) => field.requirementKey);
+    expect(goodsTechnicalKeys).not.toContain('goods.productDetails.item-1');
+    expect(goodsTechnicalKeys).not.toContain('evaluationCriteria.criteria-1');
     expect(technicalFields.map((field) => `${field.id} ${field.label} ${field.validation.prompt ?? ''}`)).not.toEqual(expect.arrayContaining([expect.stringMatching(/[0-9a-f]{8}-[0-9a-f]{4}/i)]));
     expect(stepFields(schema, 'goodsFinancial')).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ requirementKey: 'commercialItems.item-1.unitRate', label: 'Unit rate for Hospital bed', responseType: 'money' }),
-        expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1', label: 'Average annual turnover', responseType: 'structured', validation: expect.objectContaining({ control: 'goodsFinancialRequirement', evidenceRequired: 'Audited accounts' }) }),
-        expect.objectContaining({ requirementKey: 'goods.commercial.bidValidity', label: 'Bid Validity Period (days)' }),
-        expect.objectContaining({ requirementKey: 'goods.commercial.currency', label: 'Currency' }),
-        expect.objectContaining({ requirementKey: 'goods.commercial.deliveryTermsAccepted', label: 'I accept the delivery terms defined in the tender.' })
+        expect.objectContaining({ requirementKey: 'commercialItems.item-1.unitRate', label: 'Unit rate for Hospital bed', responseType: 'money' })
       ])
     );
+    const goodsFinancialKeys = stepFields(schema, 'goodsFinancial').map((field) => field.requirementKey);
+    expect(goodsFinancialKeys).not.toContain('goods.financialRequirement.fin-1');
+    expect(goodsFinancialKeys).not.toContain('goods.commercial.bidValidity');
+    expect(goodsFinancialKeys).not.toContain('goods.commercial.currency');
+    expect(goodsFinancialKeys).not.toContain('goods.commercial.deliveryTermsAccepted');
     expect(stepFields(schema, 'goodsSamples')).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Top-level sample', required: true })]));
   });
 
@@ -734,11 +737,13 @@ describe('bidding service rules', () => {
         schemaVersion: 'bid-submission-schema-v1',
         missingRequiredFields: expect.arrayContaining([
           expect.objectContaining({ section: 'samples', label: 'Laptop sample', requirementKey: 'sampleRequirements.sample-1' }),
-          expect.objectContaining({ section: 'technical', label: 'Product specification response - Processor speed' }),
-          expect.objectContaining({ section: 'technical', label: 'Offered product details - Line item' })
+          expect.objectContaining({ section: 'technical', label: 'Product specification response - Processor speed' })
         ])
       }
     });
+    expect(result.validation?.missingRequiredFields).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ section: 'technical', label: 'Offered product details - Line item' })])
+    );
     expect(result.validation?.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ section: 'technical', field: 'goods.productSpecification.spec-1', severity: 'warning' }),
@@ -759,7 +764,7 @@ describe('bidding service rules', () => {
   });
 
   it.each([
-    ['goods', { productCompliance: 'All supplied products meet the specification.', approach: 'All supplied products meet the specification.', deliveryPlan: 'Samples and goods will be delivered to the PMU office.' }],
+    ['goods', { 'goods.productSpecification.line-1': { complianceStatus: 'Comply', offeredSpecification: 'All supplied products meet the specification.' }, approach: 'All supplied products meet the specification.', deliveryPlan: 'Samples and goods will be delivered to the PMU office.' }],
     ['works', { methodology: 'We will execute the works using the approved method statement.', workPlan: 'The work programme follows the tender milestones.', approach: 'We will execute the works using the approved method statement.', deliveryPlan: 'The work programme follows the tender milestones.' }],
     ['services', { methodology: 'We will provide the managed service using qualified staff.', sla: 'Monthly SLA reporting will be provided.', approach: 'We will provide the managed service using qualified staff.', deliveryPlan: 'Monthly SLA reporting will be provided.' }],
     ['consultancy', { technicalProposal: 'The team will deliver the assignment according to the TOR.', methodology: 'The methodology follows inception, fieldwork, and reporting.', approach: 'The methodology follows inception, fieldwork, and reporting.', deliveryPlan: 'The team will deliver the assignment according to the TOR.' }]
@@ -934,7 +939,6 @@ describe('bidding service rules', () => {
         ...pricedDraft,
         responses: [
           ...pricedDraft.responses,
-          { requirementKey: 'goods.productDetails.item-1', response: { value: { supplierProduct: 'Medical equipment', brand: 'Acme', modelNumber: 'ME-1' } } },
           { requirementKey: 'evaluationCriteria.financial', response: { value: 85 } }
         ]
       },

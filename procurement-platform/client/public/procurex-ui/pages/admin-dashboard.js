@@ -82,7 +82,6 @@
                                 <p>Compliance oversight for procurement records, buyer evaluation visibility, account verification, and audit evidence. Admin tools inspect and route issues without changing scores, rankings, awards, tenders, or bids.</p>
                             </div>
                             <div class="hero-action-stack">
-                                <button class="btn btn-secondary" type="button" data-navigate="admin-search">Deep Search</button>
                                 <button class="btn btn-primary" type="button" data-navigate="admin-audit">Audit Trail</button>
                             </div>
                         </section>
@@ -127,7 +126,7 @@
                                         <span class="section-kicker">Evaluation oversight</span>
                                         <h2>Buyer drafts visible to admin</h2>
                                     </div>
-                                    <button class="btn btn-secondary btn-sm" type="button" data-navigate="admin-search">Inspect</button>
+                                    <button class="btn btn-secondary btn-sm" type="button" data-navigate="admin-analytics">Inspect</button>
                                 </div>
                                 <div class="admin-mini-list">
                                     ${evaluations.map(renderMiniRecord).join('') || '<div class="scope-empty">No buyer evaluation drafts found.</div>'}

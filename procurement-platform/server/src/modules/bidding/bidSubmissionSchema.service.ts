@@ -71,8 +71,8 @@ export function buildBidSubmissionSchema(tender: TenderSchemaInput): BidSubmissi
     ...technicalFields(workflow, requirements, fields, requirementRows),
     ...workflowResponses.filter((item) => item.section === 'technical'),
     ...documents.filter((item) => item.section === 'technical'),
-    ...dynamicRequirements.filter((item) => item.section === 'technical'),
-    ...criteriaFields(criteria).filter((item) => item.section === 'technical')
+    ...(workflow === 'goods' ? [] : dynamicRequirements.filter((item) => item.section === 'technical')),
+    ...(workflow === 'goods' ? [] : criteriaFields(criteria).filter((item) => item.section === 'technical'))
   ]);
   const financial = uniqueFields([
     ...financialFields(workflow, commercial, fields, requirements),
@@ -198,6 +198,7 @@ function technicalFields(
   const output: BidSubmissionSchemaFieldDto[] = [];
   const keys = technicalKeys(workflow);
   keys.forEach((key) => collectRequirementValue(key, fields[key], output, 'technical', 'TECHNICAL', `requirements.${key}`));
+  if (workflow === 'goods') return output;
 
   for (const row of requirementRows) {
     if (!isTechnicalText(`${row.section} ${payloadSummary(objectPayload(row.payload))}`)) continue;
@@ -246,10 +247,6 @@ function financialFields(workflow: WorkflowType, commercial: CommercialItem[], f
   );
   const financialRows = firstArray(fields.financialOfferRows, fields.commercialPricingRows, fields.financialRequirementRows, objectPayload(requirements[workflow]).financialProposalRows);
   if (!output.length) collectRequirementValue('financial.proposal', financialRows, output, 'financial', 'FINANCIAL', 'requirements.financial');
-  if (workflow === 'goods') {
-    output.push(...goodsFinancialRequirementFields(fields.financialRequirementRows));
-    output.push(...goodsCommercialTermFields());
-  }
   if (workflow === 'consultancy' && !output.length) {
     output.push(field('financial.proposal', 'financial.proposal', 'Financial proposal', 'table', 'financial', true, 'pricing', 'FINANCIAL', 'system', { minRows: 1 }));
   }
@@ -265,10 +262,10 @@ function goodsFinancialRequirementFields(value: unknown) {
       `goods.financialRequirement.${stringValue(row.id) || index + 1}`,
       title,
       'table',
-      'financial',
+      'administrative',
       row.mandatory !== false && row.required !== false,
       'structured',
-      'FINANCIAL',
+      'ADMINISTRATIVE',
       'requirements.goods.financialRequirementRows',
       compact({
         control: 'goodsFinancialRequirement',
@@ -280,14 +277,6 @@ function goodsFinancialRequirementFields(value: unknown) {
       })
     );
   });
-}
-
-function goodsCommercialTermFields() {
-  return [
-    field('goods.commercial.bidValidity', 'goods.commercial.bidValidity', 'Bid Validity Period (days)', 'number', 'financial', false, 'number', 'FINANCIAL', 'requirements.goods.commercialTerms', { control: 'goodsCommercialTerms', min: 1 }),
-    field('goods.commercial.currency', 'goods.commercial.currency', 'Currency', 'select', 'financial', false, 'text', 'FINANCIAL', 'requirements.goods.commercialTerms', { control: 'goodsCommercialTerms', options: ['TZS', 'USD', 'EUR', 'GBP'] }),
-    field('goods.commercial.deliveryTermsAccepted', 'goods.commercial.deliveryTermsAccepted', 'I accept the delivery terms defined in the tender.', 'boolean', 'financial', false, 'boolean', 'FINANCIAL', 'requirements.goods.commercialTerms', { control: 'goodsCommercialTerms' })
-  ];
 }
 
 function documentFields(fields: Record<string, unknown>, requirementRows: Array<{ id: string; section: string; payload: unknown }>, metadata: Record<string, unknown>, workflow: WorkflowType) {
@@ -496,26 +485,19 @@ function sampleFields(requirements: Record<string, unknown>, fields: Record<stri
 }
 
 function workflowResponseFields(fields: Record<string, unknown>, commercial: CommercialItem[], workflow: WorkflowType) {
-  if (workflow === 'goods') return goodsWorkflowFields(fields, commercial);
+  if (workflow === 'goods') return goodsWorkflowFields(fields);
   if (workflow === 'works') return worksWorkflowFields(fields);
   if (workflow === 'services') return serviceWorkflowFields(fields);
   if (workflow === 'consultancy') return consultancyWorkflowFields(fields);
   return [];
 }
 
-function goodsWorkflowFields(fields: Record<string, unknown>, commercial: CommercialItem[]) {
+function goodsWorkflowFields(fields: Record<string, unknown>) {
   const output: BidSubmissionSchemaFieldDto[] = [];
-  const specificationRows = productSpecificationRows(fields.productSpecificationTemplate);
-  const rows = specificationRows.length
-    ? specificationRows
-    : commercial.map((item, index) => ({
-        id: item.id || `commercial-${index + 1}`,
-        itemNo: item.itemNo || String(index + 1),
-        productName: item.description,
-        quantity: item.quantity,
-        unit: item.unit,
-        mandatory: false
-      }));
+  const rows = uniqueProductSpecificationRows([
+    ...productSpecificationRows(fields.productSpecificationTemplate),
+    ...productSpecificationRows(fields.technicalSpecificationRows)
+  ]);
 
   rows.forEach((row, index) => {
     const title = stringValue(row.productName ?? row.requestedProduct ?? row.productDescription ?? row.itemDescription ?? row.description ?? row.specificationName) || `Product specification ${index + 1}`;
@@ -538,41 +520,16 @@ function goodsWorkflowFields(fields: Record<string, unknown>, commercial: Commer
           buyerSpecification: buyerSpecification || undefined,
           quantity: numberValue(row.quantity),
           unit: stringValue(row.unit ?? row.unitOfMeasure) || undefined,
+          attachmentPolicy: stringValue(row.attachmentPolicy ?? row.evidencePolicy ?? row.technicalEvidencePolicy) || undefined,
+          evidenceRequired: stringValue(row.evidenceRequired ?? row.evidence ?? row.documentName ?? row.documentTitle) || undefined,
+          requiresUpload: row.requiresUpload === true || row.documentRequired === true || undefined,
+          documentType: stringValue(row.documentType ?? row.evidenceDocumentType) || undefined,
           prompt: payloadSummary(row)
         })
       )
     );
   });
 
-  commercial.forEach((item, index) => {
-    const key = safeKey(item.id || String(index + 1));
-    output.push(
-      field(
-        `goods.productDetails.${key}`,
-        `goods.productDetails.${item.id || index + 1}`,
-        `Offered product details - ${item.description}`,
-        'table',
-        'technical',
-        true,
-        'structured',
-        'TECHNICAL',
-        'commercialItems',
-        compact({
-          control: 'goodsProductDetails',
-          itemId: item.id,
-          itemNo: item.itemNo || String(index + 1),
-          requestedProduct: item.description,
-          quantity: item.quantity,
-          unit: item.unit || undefined,
-          rowIndex: index + 1,
-          prompt: `${item.quantity ?? 1} ${item.unit || 'Unit'} requested. Confirm the exact offered product and supporting details.`
-        })
-      )
-    );
-  });
-
-  collectWorkflowText(fields.deliveryRequirements ?? fields.deliverySchedule, output, 'goods.deliveryPlan', 'Delivery and logistics response', 'goodsDeliveryPlan', true);
-  collectWorkflowText(fields.warrantyRequirements ?? fields.afterSalesRequirements, output, 'goods.warrantyAfterSales', 'Warranty and after-sales response', 'goodsWarranty', false);
   return output;
 }
 
@@ -587,7 +544,8 @@ function goodsSpecificationText(row: Record<string, unknown>, title: string) {
 
 function goodsAdministrativeFields(fields: Record<string, unknown>, workflow: WorkflowType) {
   if (workflow !== 'goods') return [];
-  return regulatoryLicenseRows(fields.regulatoryLicenseRequirementRows).map((row, index) => {
+  const financialFields = goodsFinancialRequirementFields(fields.financialRequirementRows);
+  const licenseFields = regulatoryLicenseRows(fields.regulatoryLicenseRequirementRows).map((row, index) => {
     const title = payloadTitle(row, `Regulatory license ${index + 1}`);
     return field(
       `goods.regulatoryLicense.${safeKey(stringValue(row.id) || String(index + 1))}`,
@@ -609,6 +567,7 @@ function goodsAdministrativeFields(fields: Record<string, unknown>, workflow: Wo
       })
     );
   });
+  return [...financialFields, ...licenseFields];
 }
 
 function worksWorkflowFields(fields: Record<string, unknown>) {
@@ -709,6 +668,17 @@ function productSpecificationRows(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(payload.rows)) return payload.rows.filter(isRecord).map((row) => objectPayload(row.values ?? row));
   if (Array.isArray(payload.items)) return payload.items.filter(isRecord);
   return [];
+}
+
+function uniqueProductSpecificationRows(rows: Record<string, unknown>[]) {
+  const seen = new Set<string>();
+  return rows.filter((row, index) => {
+    const key = stringValue(row.id ?? row.specificationId ?? row.sourceSpecificationId ?? row.sourceItemId ?? row.itemId)
+      || `${stringValue(row.itemNo ?? row.itemNumber) || index + 1}:${payloadTitle(row, `spec-${index + 1}`)}:${goodsSpecificationText(row, '')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function financialRequirementRows(value: unknown): Record<string, unknown>[] {
@@ -925,7 +895,7 @@ function requirementFields(requirements: Record<string, unknown>, workflow: Work
 }
 
 function technicalKeys(workflow: WorkflowType) {
-  if (workflow === 'goods') return ['technicalSpecificationRows', 'deliveryRequirements', 'deliverySchedule', 'warrantyRequirements', 'afterSalesRequirements'];
+  if (workflow === 'goods') return [];
   if (workflow === 'works') return ['scopeSummary', 'mainConstructionActivities', 'technicalSpecificationRows', 'technicalSpecificationDocuments', 'drawingDesignRows', 'siteVisitRequirement', 'worksMilestoneRows', 'personnelRequirementRows', 'equipmentRequirementRows', 'experienceRequirements', 'hseRequirements', 'esRequirementCards'];
   if (workflow === 'services') return ['scopeOfServices', 'serviceRequirements', 'serviceScheduleRows', 'serviceDeliverables', 'serviceMilestones', 'slaRows', 'slaRequirement', 'personnelRequirementRows', 'equipmentRequirementRows', 'reportingRequirements', 'esRequirementCards'];
   if (workflow === 'consultancy') return ['torRows', 'backgroundNarrative', 'consultancyGeneralObjective', 'methodologyRows', 'workPlanRows', 'specificObjectiveRows', 'assignmentActivityRows', 'consultantResponsibilityRows', 'deliverableRows', 'reportingRequirementRows', 'keyExpertRows', 'entityBackgroundCards', 'externalReferenceRows'];

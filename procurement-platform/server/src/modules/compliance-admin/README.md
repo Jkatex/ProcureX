@@ -39,20 +39,14 @@ The token must resolve to an active, unexpired session whose user has `accountTy
 `GET /api/compliance-admin/apps` exposes the live admin app list:
 
 - Command Center -> `/admin`, backed by `/api/compliance-admin/dashboard`
-- Deep Search -> `/admin/search`, backed by `/api/compliance-admin/search`
 - User Management -> `/admin/users`, backed by `/api/compliance-admin/users` and identity verification admin APIs
-- Compliance Rules -> `/admin/compliance`, backed by compliance cases and rules APIs
 - Platform Analytics -> `/admin/analytics`, backed by `/api/compliance-admin/analytics`
 - Full Audit Trail -> `/admin/audit`, backed by `/api/compliance-admin/audit/events`
-- Data Store -> `/admin/datastore`, backed by `/api/compliance-admin/datastore`
+- Tender Review -> `/admin/tender-review`, backed by procurement admin tender review APIs
 - Communication Center -> `/admin/communication`, backed by the communication module
 - Admin Profile -> `/admin/profile`, backed by identity profile APIs
 
 The app registry is static metadata enriched with the request timestamp. Data counts and status hints are loaded from the relevant live endpoints in the React admin pages.
-
-## Data Store
-
-The admin data store follows the DHIS2 namespace/key JSON model. Entries are stored in `content.data_store_entries` with either `GLOBAL` scope or `USER` scope. All datastore endpoints require active platform-admin sessions and create audit/admin records for create, update, delete, and export operations.
 
 ## Database
 

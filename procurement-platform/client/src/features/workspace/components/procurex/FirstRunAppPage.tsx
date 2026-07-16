@@ -25,9 +25,7 @@ type AppRouteKey =
   | 'bidding-workspace'
   | 'workspace-dashboard'
   | 'admin-dashboard'
-  | 'admin-search'
   | 'admin-users'
-  | 'admin-compliance'
   | 'admin-analytics'
   | 'admin-audit'
   | 'sign-in';
@@ -100,9 +98,7 @@ export type FirstRunPageKey =
   | 'post-award-tracking'
   | 'records-history'
   | 'admin-dashboard'
-  | 'admin-search'
   | 'admin-users'
-  | 'admin-compliance'
   | 'admin-analytics'
   | 'admin-audit';
 
@@ -125,9 +121,7 @@ const pageToRoute: Record<AppRouteKey, string> = {
   'bidding-workspace': '/bidding',
   'workspace-dashboard': '/dashboard',
   'admin-dashboard': '/admin',
-  'admin-search': '/admin/search',
   'admin-users': '/admin/users',
-  'admin-compliance': '/admin/compliance',
   'admin-analytics': '/admin/analytics',
   'admin-audit': '/admin/audit',
   'sign-in': '/sign-in'
@@ -146,9 +140,7 @@ const appNavItems: FirstRunNavItem[] = [
 
 const adminNavItems: FirstRunNavItem[] = [
   { label: 'Command Center', page: 'admin-dashboard' },
-  { label: 'Deep Search', page: 'admin-search' },
   { label: 'User Management', page: 'admin-users' },
-  { label: 'Compliance Rules', page: 'admin-compliance' },
   { label: 'Platform Analytics', page: 'admin-analytics' },
   { label: 'Full Audit Trail', page: 'admin-audit' },
   { label: 'User Dashboard', page: 'workspace-dashboard' }
@@ -598,38 +590,9 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     actionKicker: 'Admin navigation',
     actionTitle: 'Oversight areas',
     actions: [
-      { title: 'Deep search', description: 'Search will index users, tenders, bids, and records once they exist.', page: 'admin-search', icon: 'records' },
-      { title: 'Compliance rules', description: 'Review compliance queues after records are submitted.', page: 'admin-compliance', icon: 'evaluation' },
-      { title: 'Audit trail', description: 'Audit events will appear after platform actions occur.', page: 'admin-audit', icon: 'records' }
-    ],
-    navItems: adminNavItems
-  },
-  'admin-search': {
-    title: 'Admin Search',
-    pageKey: 'admin-search',
-    kicker: 'Deep search',
-    heading: 'There are no indexed records to search yet.',
-    body: 'Admin search covers users, tenders, bids, contracts, compliance evidence, and audit entries.',
-    statusLabel: 'Search index empty',
-    visualTitle: 'Nothing indexed yet',
-    visualText: 'The search surface is ready and fills as platform records are indexed.',
-    primaryAction: { label: 'Go to admin', page: 'admin-dashboard' },
-    secondaryAction: { label: 'Go to dashboard', page: 'workspace-dashboard', variant: 'secondary' },
-    stats: [
-      { label: 'Users indexed', value: '0', note: 'Registered accounts.' },
-      { label: 'Tenders indexed', value: '0', note: 'Created tender records.' },
-      { label: 'Contracts indexed', value: '0', note: 'Awarded contract records.' },
-      { label: 'Audit rows', value: '0', note: 'System events.' }
-    ],
-    stepsKicker: 'Search scope',
-    stepsTitle: 'Search fills from platform records',
-    steps: firstRunConfigsPlaceholderSteps(),
-    actionKicker: 'Admin navigation',
-    actionTitle: 'Where to go',
-    actions: [
-      { title: 'Admin command center', description: 'Return to the admin overview.', page: 'admin-dashboard', icon: 'records' },
       { title: 'User management', description: 'Review accounts after users register.', page: 'admin-users', icon: 'iam' },
-      { title: 'Audit trail', description: 'Inspect real platform events when they exist.', page: 'admin-audit', icon: 'records' }
+      { title: 'Platform analytics', description: 'Track platform activity after records are submitted.', page: 'admin-analytics', icon: 'evaluation' },
+      { title: 'Audit trail', description: 'Audit events will appear after platform actions occur.', page: 'admin-audit', icon: 'records' }
     ],
     navItems: adminNavItems
   },
@@ -656,38 +619,9 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     actionKicker: 'Admin navigation',
     actionTitle: 'Review areas',
     actions: [
-      { title: 'Compliance rules', description: 'Review rule queues after evidence is submitted.', page: 'admin-compliance', icon: 'evaluation' },
-      { title: 'Deep search', description: 'Search users and records after indexing.', page: 'admin-search', icon: 'records' },
+      { title: 'Platform analytics', description: 'Track account and platform activity.', page: 'admin-analytics', icon: 'evaluation' },
+      { title: 'Admin command center', description: 'Return to the admin overview.', page: 'admin-dashboard', icon: 'records' },
       { title: 'Audit trail', description: 'Inspect user-related platform events.', page: 'admin-audit', icon: 'records' }
-    ],
-    navItems: adminNavItems
-  },
-  'admin-compliance': {
-    title: 'Admin Compliance',
-    pageKey: 'admin-compliance',
-    kicker: 'Compliance oversight',
-    heading: 'No compliance reviews are pending.',
-    body: 'Compliance queues will populate from submitted verification evidence, tender records, procurement documents, and flagged workflow events.',
-    statusLabel: 'No compliance queue',
-    visualTitle: 'Rules are ready',
-    visualText: 'When records arrive, admin review can inspect evidence and route issues without changing procurement outcomes.',
-    primaryAction: { label: 'Go to admin', page: 'admin-dashboard' },
-    secondaryAction: { label: 'Open audit trail', page: 'admin-audit', variant: 'secondary' },
-    stats: [
-      { label: 'Pending checks', value: '0', note: 'Compliance items awaiting action.' },
-      { label: 'Flagged records', value: '0', note: 'Issues raised for review.' },
-      { label: 'Resolved issues', value: '0', note: 'Completed compliance actions.' },
-      { label: 'Rules active', value: '0', note: 'Configured checks with activity.' }
-    ],
-    stepsKicker: 'Compliance source',
-    stepsTitle: 'Compliance follows submitted evidence',
-    steps: firstRunConfigsPlaceholderSteps(),
-    actionKicker: 'Admin navigation',
-    actionTitle: 'Oversight actions',
-    actions: [
-      { title: 'Deep search', description: 'Find evidence after records are indexed.', page: 'admin-search', icon: 'records' },
-      { title: 'Audit trail', description: 'Inspect the event trail for compliance activity.', page: 'admin-audit', icon: 'records' },
-      { title: 'User management', description: 'Review account verification queues.', page: 'admin-users', icon: 'iam' }
     ],
     navItems: adminNavItems
   },
@@ -715,7 +649,7 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     actionTitle: 'Where data will come from',
     actions: [
       { title: 'Records archive', description: 'Procurement records feed analytics.', page: 'records-history', icon: 'records' },
-      { title: 'Compliance rules', description: 'Compliance outcomes feed trend charts.', page: 'admin-compliance', icon: 'evaluation' },
+      { title: 'User management', description: 'Account activity feeds trend charts.', page: 'admin-users', icon: 'iam' },
       { title: 'Audit trail', description: 'Audit events feed platform activity reports.', page: 'admin-audit', icon: 'records' }
     ],
     navItems: adminNavItems
@@ -743,8 +677,8 @@ const firstRunConfigs: Record<FirstRunPageKey, FirstRunConfig> = {
     actionKicker: 'Admin navigation',
     actionTitle: 'Oversight areas',
     actions: [
-      { title: 'Deep search', description: 'Search indexed audit evidence after activity starts.', page: 'admin-search', icon: 'records' },
-      { title: 'Compliance rules', description: 'Review flagged items that create audit events.', page: 'admin-compliance', icon: 'evaluation' },
+      { title: 'Admin command center', description: 'Return to the admin overview.', page: 'admin-dashboard', icon: 'records' },
+      { title: 'Platform analytics', description: 'Review activity trends created by audit events.', page: 'admin-analytics', icon: 'evaluation' },
       { title: 'User management', description: 'Account reviews will be logged here.', page: 'admin-users', icon: 'iam' }
     ],
     navItems: adminNavItems

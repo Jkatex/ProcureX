@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import '@/i18n';
 import { WelcomePage } from '@/features/public/pages/PublicPages';
 import { CreateTenderPage, MarketplacePage } from '@/features/procurement/pages/ProcurementPages';
-import { AdminCommunicationPage, AdminDashboardPage, AdminDatastorePage, AdminProfilePage } from '@/features/admin/pages/AdminPages';
+import { AdminCommunicationPage, AdminDashboardPage, AdminProfilePage } from '@/features/admin/pages/AdminPages';
 import { store } from './store';
 import { procurexTheme } from '@/styles/mui-theme';
 
@@ -48,10 +48,5 @@ describe('page smoke tests', () => {
 
     renderPage(<AdminProfilePage />);
     expect(screen.getByRole('heading', { name: 'Admin Profile' })).toBeInTheDocument();
-  });
-
-  it('renders the admin datastore page', () => {
-    renderPage(<AdminDatastorePage />);
-    expect(screen.getByRole('heading', { name: 'Admin Data Store' })).toBeInTheDocument();
   });
 });

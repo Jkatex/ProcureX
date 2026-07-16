@@ -42,28 +42,12 @@ export const adminAppDefinitions = [
     backend: { module: 'compliance-admin', endpoint: '/api/compliance-admin/dashboard', status: 'live' }
   },
   {
-    key: 'deep-search',
-    title: 'Deep Search',
-    description: 'Search users, organizations, procurement records, documents, audit events, and archives.',
-    route: '/admin/search',
-    group: 'primary',
-    backend: { module: 'compliance-admin', endpoint: '/api/compliance-admin/search', status: 'live' }
-  },
-  {
     key: 'user-management',
     title: 'User Management',
     description: 'Review verification queues, inspect user registry data, and record account actions.',
     route: '/admin/users',
     group: 'primary',
     backend: { module: 'compliance-admin + identity', endpoint: '/api/compliance-admin/users + /api/identity/admin/verifications', status: 'live' }
-  },
-  {
-    key: 'compliance-rules',
-    title: 'Compliance Rules',
-    description: 'Manage compliance cases, rules, method limits, checklists, standstill settings, and alerts.',
-    route: '/admin/compliance',
-    group: 'primary',
-    backend: { module: 'compliance-admin', endpoint: '/api/compliance-admin/compliance/cases + /api/compliance-admin/compliance/rules', status: 'live' }
   },
   {
     key: 'platform-analytics',
@@ -80,14 +64,6 @@ export const adminAppDefinitions = [
     route: '/admin/audit',
     group: 'primary',
     backend: { module: 'compliance-admin', endpoint: '/api/compliance-admin/audit/events', status: 'live' }
-  },
-  {
-    key: 'data-store',
-    title: 'Data Store',
-    description: 'Manage global and user-scoped JSON namespaces, keys, and configuration values.',
-    route: '/admin/datastore',
-    group: 'primary',
-    backend: { module: 'compliance-admin', endpoint: '/api/compliance-admin/datastore', status: 'live' }
   },
   {
     key: 'tender-review',

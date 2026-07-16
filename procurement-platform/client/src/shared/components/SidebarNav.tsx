@@ -24,9 +24,7 @@ const userLinks = [
 
 const adminLinks = [
   { to: '/admin', labelKey: 'pages.adminDashboard.title', icon: AdminPanelSettingsRoundedIcon },
-  { to: '/admin/search', labelKey: 'pages.adminSearch.title', icon: StoreRoundedIcon },
   { to: '/admin/users', labelKey: 'pages.adminUsers.title', icon: VerifiedUserRoundedIcon },
-  { to: '/admin/compliance', labelKey: 'pages.adminCompliance.title', icon: AccountTreeRoundedIcon },
   { to: '/admin/analytics', labelKey: 'pages.adminAnalytics.title', icon: DashboardRoundedIcon },
   { to: '/admin/audit', labelKey: 'pages.adminAudit.title', icon: FolderRoundedIcon }
 ];
