@@ -228,6 +228,7 @@ function structuredEvidenceSlots(field: BidSubmissionSchemaFieldDto): Structured
 }
 
 function explicitEvidenceRows(control: string): Array<{ key: string; label: string }> {
+  if (control === 'goodsFinancialRequirement') return [{ key: 'evidenceUpload', label: 'Financial evidence' }];
   if (control === 'worksSimilarProject') return [{ key: 'referenceEvidence', label: 'Upload similar project document' }];
   if (control === 'worksPersonnel' || control === 'serviceStaffing' || control === 'consultancyKeyExpert') return [{ key: 'cvEvidence', label: 'CV upload' }];
   if (control === 'worksEquipment' || control === 'serviceEquipment') return [{ key: 'evidenceReference', label: 'Upload Lease / access agreement' }];
@@ -245,17 +246,20 @@ function hasStructuredEvidenceUpload(field: BidSubmissionSchemaFieldDto, slot: S
 function documentMatchesEvidenceSlot(document: BidDocumentInput, field: BidSubmissionSchemaFieldDto, slot: StructuredEvidenceSlot) {
   if (!validEnvelope(document.envelope)) return false;
   const metadata = objectPayload(document.metadata);
+  const fieldKeys = fieldKeyCandidates(field);
+  const evidenceKeys = fieldKeyCandidates(field).map((key) => `${key}.${slot.key}`);
   return (
-    stringEquals(metadata.requirementKey, slot.requirementKey) ||
-    (stringEquals(metadata.parentRequirementKey, field.requirementKey) && stringEquals(metadata.evidenceKey, slot.key)) ||
-    (stringEquals(metadata.fieldId, field.id) && stringEquals(metadata.evidenceKey, slot.key))
+    fieldKeyMatches(metadata.requirementKey, [slot.requirementKey, ...evidenceKeys]) ||
+    (fieldKeyMatches(metadata.parentRequirementKey, fieldKeys) && stringEquals(metadata.evidenceKey, slot.key)) ||
+    (fieldKeyMatches(metadata.fieldId, fieldKeys) && stringEquals(metadata.evidenceKey, slot.key))
   );
 }
 
 function documentMatchesField(document: BidDocumentInput, field: BidSubmissionSchemaFieldDto) {
   if (!validEnvelope(document.envelope)) return false;
   const metadata = objectPayload(document.metadata);
-  if (stringEquals(metadata.requirementKey, field.requirementKey) || stringEquals(metadata.fieldId, field.id)) return true;
+  const fieldKeys = fieldKeyCandidates(field);
+  if (fieldKeyMatches(metadata.requirementKey, fieldKeys) || fieldKeyMatches(metadata.fieldId, fieldKeys)) return true;
   const documentText = normalize(`${document.name} ${document.documentType}`);
   const label = normalize(field.label);
   const requiredType = normalize(stringValue(field.validation.documentType));
@@ -283,18 +287,18 @@ function hasRequiredResponse(field: BidSubmissionSchemaFieldDto, draft: BidDraft
 }
 
 function responseForRequirement(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput): unknown {
-  const exact = draft.responses.find((item) => item.requirementKey === field.requirementKey || item.requirementKey === field.id);
+  const candidates = fieldKeyCandidates(field);
+  const exact = draft.responses.find((item) => fieldKeyMatches(item.requirementKey, candidates));
   if (exact) return exact.response;
-  const normalizedTarget = normalize(field.requirementKey || field.id || field.label);
-  const fuzzy = draft.responses.find((item) => normalize(item.requirementKey) === normalizedTarget);
+  const normalizedTargets = candidates.map(normalize);
+  const fuzzy = draft.responses.find((item) => normalizedTargets.includes(normalize(item.requirementKey)));
   return fuzzy?.response;
 }
 
 function valueForField(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput): unknown {
   const sectionPayload = objectPayload(draft[field.section as keyof Pick<BidDraftInput, 'administrative' | 'technical' | 'financial' | 'declarations'>]);
   const candidates = [
-    field.requirementKey,
-    field.id,
+    ...fieldKeyCandidates(field),
     field.id.split('.').slice(1).join('.'),
     field.requirementKey.split('.').at(-1) ?? '',
     field.id.split('.').at(-1) ?? '',
@@ -310,17 +314,53 @@ function valueForField(field: BidSubmissionSchemaFieldDto, draft: BidDraftInput)
 }
 
 function matchingFinancialRow(field: BidSubmissionSchemaFieldDto, rows: unknown[], financialFields: BidSubmissionSchemaFieldDto[]) {
-  const itemId = stringValue(field.validation.itemId);
+  const itemIds = fieldKeyCandidates(field);
   const itemNo = stringValue(field.validation.itemNo);
   const description = stringValue(field.validation.description || field.label.replace(/^Unit rate for\s+/i, ''));
   const index = financialFields.indexOf(field);
   const candidates = rows.filter(isRecord);
   return (
-    candidates.find((row) => itemId && [row.id, row.itemId, row.commercialItemId, row.requirementKey].some((value) => stringEquals(value, itemId))) ??
+    candidates.find((row) => [row.id, row.itemId, row.commercialItemId, row.requirementKey].some((value) => fieldKeyMatches(value, itemIds))) ??
     candidates.find((row) => itemNo && [row.itemNo, row.itemNumber, row.lineNo].some((value) => stringEquals(value, itemNo))) ??
     candidates.find((row) => description && normalize(`${row.description ?? row.itemDescription ?? row.name ?? ''}`).includes(normalize(description))) ??
     (financialFields.length === rows.length && isRecord(rows[index]) ? rows[index] as Record<string, unknown> : undefined)
   );
+}
+
+function fieldKeyCandidates(field: BidSubmissionSchemaFieldDto) {
+  const base = [
+    field.requirementKey,
+    field.id,
+    field.validation.itemId,
+    field.validation.sourceId,
+    field.validation.originalRequirementKey,
+    ...arrayStringValues(field.validation.aliases)
+  ];
+  const expanded = [...base];
+  for (const alias of base.map(stringValue).filter(Boolean)) {
+    expanded.push(replaceLastSegment(field.requirementKey, alias));
+    expanded.push(replaceLastSegment(field.id, alias));
+  }
+  const suffix = field.requirementKey.split('.').at(-1) || field.id.split('.').at(-1) || '';
+  if (stringValue(field.validation.control) === 'goodsFinancialRequirement' && suffix) {
+    expanded.push(`requirements.goods.fields.financialRequirementRows.${suffix}`);
+  }
+  return Array.from(new Set(expanded.map(stringValue).filter((value): value is string => Boolean(value))));
+}
+
+function fieldKeyMatches(value: unknown, candidates: string[]) {
+  return candidates.some((candidate) => stringEquals(value, candidate));
+}
+
+function replaceLastSegment(value: string, segment: string) {
+  const parts = value.split('.');
+  if (!parts.length) return segment;
+  parts[parts.length - 1] = segment;
+  return parts.join('.');
+}
+
+function arrayStringValues(value: unknown) {
+  return Array.isArray(value) ? value.map(stringValue).filter((item): item is string => Boolean(item)) : [];
 }
 
 function validateFinancialRow(row: Record<string, unknown>, field: BidSubmissionSchemaFieldDto) {

@@ -184,6 +184,20 @@ export const profileUpdateSchema = z
     }
   });
 
+export const profileContactChangeStartSchema = z
+  .object({
+    field: z.enum(['email', 'phone']),
+    value: z.string().min(1).max(320)
+  })
+  .strict();
+
+export const profileContactChangeVerifySchema = z
+  .object({
+    challengeId: z.string().uuid(),
+    code: z.string().regex(/^\d{6}$/)
+  })
+  .strict();
+
 export const preferencesPatchSchema = z.object({
   preferredLanguage: z.enum(['en', 'sw']),
   timezone: z.string().min(1).max(80).optional()

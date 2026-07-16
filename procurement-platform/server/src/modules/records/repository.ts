@@ -1021,13 +1021,14 @@ function groupAwardsAndCancellations(records: RepositoryRecord[]): ChartPointDto
 
 function groupCompliance(records: RepositoryRecord[]): ChartPointDto[] {
   const complianceRecords = records.filter((record) => record.recordType === 'COMPLIANCE');
-  if (complianceRecords.length === 0) return [];
+  const sourceRecords = complianceRecords.length ? complianceRecords : records;
+  if (sourceRecords.length === 0) return [];
 
-  const completed = complianceRecords.filter((record) => isComplianceComplete(record.status)).length;
+  const completed = sourceRecords.filter((record) => isComplianceComplete(record.status)).length;
 
   return [
-    { label: 'Completed evidence', value: completed },
-    { label: 'Pending or not applicable', value: complianceRecords.length - completed }
+    { label: complianceRecords.length ? 'Completed evidence' : 'Completed records', value: completed },
+    { label: complianceRecords.length ? 'Pending or not applicable' : 'Pending records', value: sourceRecords.length - completed }
   ];
 }
 

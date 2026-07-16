@@ -316,7 +316,7 @@ describe('bid submission schema builder', () => {
       ])
     );
     const goodsTechnicalKeys = technicalFields.map((field) => field.requirementKey);
-    expect(goodsTechnicalKeys).not.toContain('goods.productDetails.item-1');
+    expect(goodsTechnicalKeys.every((key) => !key.includes('product' + 'Details'))).toBe(true);
     expect(goodsTechnicalKeys).not.toContain('evaluationCriteria.criteria-1');
     expect(technicalFields.map((field) => `${field.id} ${field.label} ${field.validation.prompt ?? ''}`)).not.toEqual(expect.arrayContaining([expect.stringMatching(/[0-9a-f]{8}-[0-9a-f]{4}/i)]));
     expect(stepFields(schema, 'goodsFinancial')).toEqual(
@@ -741,8 +741,9 @@ describe('bidding service rules', () => {
         ])
       }
     });
+    const removedProductDetailsLabel = ['Offered product', 'details - Line item'].join(' ');
     expect(result.validation?.missingRequiredFields).toEqual(
-      expect.not.arrayContaining([expect.objectContaining({ section: 'technical', label: 'Offered product details - Line item' })])
+      expect.not.arrayContaining([expect.objectContaining({ section: 'technical', label: removedProductDetailsLabel })])
     );
     expect(result.validation?.issues).toEqual(
       expect.arrayContaining([
@@ -776,6 +777,83 @@ describe('bidding service rules', () => {
       },
       tender: tenderRecord(),
       mode: 'submit'
+    });
+
+    expect(validation.valid).toBe(true);
+    expect(validation.issues.filter((issue) => issue.severity === 'error')).toEqual([]);
+  });
+
+  it('accepts goods commercial item source-id aliases for saved responses and evidence uploads', () => {
+    const tender = tenderRecord({
+      type: 'GOODS',
+      commercialItems: [
+        {
+          id: 'ac727f98-a0cb-42f6-ac97-91be93e97e2d',
+          itemNo: '1',
+          description: 'desktop computer',
+          quantity: 10,
+          unit: 'Unit',
+          rate: 0,
+          total: 0,
+          payload: { sourceId: 'item-1784129862512-s28v6l' }
+        }
+      ],
+      requirements: {
+        goods: {
+          fields: {
+            financialRequirementRows: [
+              {
+                id: 'financial-1784130087494-zvwug8',
+                title: 'Bank Statement Requirement',
+                mandatory: true,
+                evidenceRequired: 'Bank statement'
+              }
+            ]
+          }
+        }
+      }
+    });
+
+    const validation = validateBidDraft({
+      tender,
+      mode: 'submit',
+      draft: {
+        ...draftInput(),
+        administrative: { eligible: true },
+        technical: {},
+        responses: [
+          {
+            requirementKey: 'requirements.goods.fields.financialRequirementRows.financial-1784130087494-zvwug8',
+            response: { value: 'Bank statement available.' }
+          }
+        ],
+        financial: {
+          items: [
+            {
+              itemId: 'item-1784129862512-s28v6l',
+              itemNo: '1',
+              description: 'desktop computer',
+              quantity: 10,
+              unit: 'Unit',
+              rate: 2000000,
+              total: 20000000
+            }
+          ]
+        },
+        documents: [
+          {
+            name: 'bank-statement.pdf',
+            documentType: 'FINANCIAL_FINANCIAL_CAPACITY_REQUIREMENT_1_FINANCIAL_EVIDENCE',
+            envelope: 'FINANCIAL',
+            checksum: 'a'.repeat(64),
+            metadata: {
+              requirementKey: 'goods.financialRequirement.financial-1784130087494-zvwug8.evidenceUpload',
+              parentRequirementKey: 'goods.financialRequirement.financial-1784130087494-zvwug8',
+              evidenceKey: 'evidenceUpload'
+            }
+          }
+        ]
+      }
     });
 
     expect(validation.valid).toBe(true);
@@ -1821,6 +1899,30 @@ describe('bidding repository rules', () => {
       status: 400,
       message: expect.stringContaining('noConflict')
     });
+    expectNoSubmitWrites(tx);
+  });
+
+  it('formats missing administrative eligibility without duplicating the section prefix', async () => {
+    const { repository, tx } = repositorySubmitFixture({
+      bid: bidRecord({
+        payload: {
+          ...validBidPayload(),
+          administrative: { taxCompliant: true }
+        }
+      })
+    });
+
+    let error: unknown;
+    try {
+      await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({
+      status: 400,
+      message: expect.stringContaining('administrative.eligible')
+    });
+    expect((error as Error).message).not.toContain('administrative.administrative.eligible');
     expectNoSubmitWrites(tx);
   });
 

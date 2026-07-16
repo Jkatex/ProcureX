@@ -332,6 +332,10 @@ async function deleteByIds(db: AnyDb, model: string, field: string, ids: string[
   await db[model].deleteMany({ where: { [field]: { in: ids } } });
 }
 
+function uniqueIds(ids: Array<string | null | undefined>) {
+  return [...new Set(ids.filter(Boolean))] as string[];
+}
+
 async function resetEvaluationIntakeDemo(db: AnyDb) {
   const tenders = await db.tender.findMany({
     where: {
@@ -342,20 +346,107 @@ async function resetEvaluationIntakeDemo(db: AnyDb) {
     },
     select: {
       id: true,
-      evaluation: { select: { id: true } },
-      bids: { select: { id: true } }
+      contracts: { select: { id: true } },
+      evaluation: {
+        select: {
+          id: true,
+          recommendations: {
+            select: {
+              id: true,
+              notice: { select: { id: true, contractId: true } },
+              contracts: { select: { id: true } }
+            }
+          },
+          awardGroups: {
+            select: {
+              id: true,
+              winners: { select: { contractId: true, noticeId: true } }
+            }
+          }
+        }
+      },
+      bids: { select: { id: true, recommendations: { select: { id: true } } } }
     }
   });
   const tenderIds = tenders.map((tender: any) => tender.id);
   const bidIds = tenders.flatMap((tender: any) => tender.bids.map((bid: any) => bid.id));
   const workspaceIds = tenders.map((tender: any) => tender.evaluation?.id).filter(Boolean);
+  const recommendationIds = uniqueIds([
+    ...tenders.flatMap((tender: any) => tender.evaluation?.recommendations.map((recommendation: any) => recommendation.id) ?? []),
+    ...tenders.flatMap((tender: any) => tender.bids.flatMap((bid: any) => bid.recommendations.map((recommendation: any) => recommendation.id)))
+  ]);
+  const noticeIds = uniqueIds([
+    ...tenders.flatMap((tender: any) => tender.evaluation?.recommendations.map((recommendation: any) => recommendation.notice?.id) ?? []),
+    ...tenders.flatMap((tender: any) => tender.evaluation?.awardGroups.flatMap((group: any) => group.winners.map((winner: any) => winner.noticeId)) ?? [])
+  ]);
+  const contractIds = uniqueIds([
+    ...tenders.flatMap((tender: any) => tender.contracts.map((contract: any) => contract.id)),
+    ...tenders.flatMap((tender: any) => tender.evaluation?.recommendations.flatMap((recommendation: any) => recommendation.contracts.map((contract: any) => contract.id)) ?? []),
+    ...tenders.flatMap((tender: any) => tender.evaluation?.recommendations.map((recommendation: any) => recommendation.notice?.contractId) ?? []),
+    ...tenders.flatMap((tender: any) => tender.evaluation?.awardGroups.flatMap((group: any) => group.winners.map((winner: any) => winner.contractId)) ?? [])
+  ]);
+  const awardGroupIds = uniqueIds(tenders.flatMap((tender: any) => tender.evaluation?.awardGroups.map((group: any) => group.id) ?? []));
+  const terminations = contractIds.length
+    ? await db.contractTermination.findMany({ where: { contractId: { in: contractIds } }, select: { id: true } })
+    : [];
+  const terminationIds = terminations.map((termination: any) => termination.id);
+  const milestones = contractIds.length
+    ? await db.contractMilestone.findMany({ where: { contractId: { in: contractIds } }, select: { id: true } })
+    : [];
+  const milestoneIds = milestones.map((milestone: any) => milestone.id);
+  const invoices = contractIds.length
+    ? await db.invoice.findMany({ where: { contractId: { in: contractIds } }, select: { id: true } })
+    : [];
+  const invoiceIds = invoices.map((invoice: any) => invoice.id);
 
-  await deleteByIds(db, 'awardRecommendation', 'workspaceId', workspaceIds);
+  await deleteByIds(db, 'awardResponse', 'noticeId', noticeIds);
+  await deleteByIds(db, 'awardNotice', 'id', noticeIds);
+
+  await deleteByIds(db, 'urgentAction', 'awardId', recommendationIds);
+  await deleteByIds(db, 'urgentAction', 'noticeId', noticeIds);
+  await deleteByIds(db, 'urgentAction', 'contractId', contractIds);
+  await deleteByIds(db, 'notification', 'awardId', recommendationIds);
+  await deleteByIds(db, 'notification', 'contractId', contractIds);
+
+  await deleteByIds(db, 'paymentConfirmation', 'invoiceId', invoiceIds);
+  await deleteByIds(db, 'paymentApproval', 'invoiceId', invoiceIds);
+  await deleteByIds(db, 'threeWayMatchResult', 'invoiceId', invoiceIds);
+  await deleteByIds(db, 'paymentConfirmation', 'contractId', contractIds);
+  await deleteByIds(db, 'paymentApproval', 'contractId', contractIds);
+  await deleteByIds(db, 'threeWayMatchResult', 'contractId', contractIds);
+  await deleteByIds(db, 'contractPayment', 'contractId', contractIds);
+  await deleteByIds(db, 'invoice', 'contractId', contractIds);
+  await deleteByIds(db, 'purchaseOrder', 'contractId', contractIds);
+
+  await deleteByIds(db, 'terminationNotice', 'terminationId', terminationIds);
+  await deleteByIds(db, 'terminationEvidence', 'terminationId', terminationIds);
+  await deleteByIds(db, 'terminationValuation', 'terminationId', terminationIds);
+  await deleteByIds(db, 'terminationSettlement', 'terminationId', terminationIds);
+  await deleteByIds(db, 'replacementProcurementPlan', 'terminationId', terminationIds);
+  await deleteByIds(db, 'contractMilestoneEvidence', 'milestoneId', milestoneIds);
+  await deleteByIds(db, 'contract', 'id', contractIds);
+
+  await deleteByIds(db, 'awardApprovalStep', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'awardApprovalRoute', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'awardTieBreaker', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'deliveryFeasibilityCheck', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'standstillPeriod', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'awardNotification', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'budgetCommitment', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'budgetCommitment', 'contractId', contractIds);
+  await deleteByIds(db, 'budgetCommitment', 'tenderId', tenderIds);
+
+  await deleteByIds(db, 'awardBidPack', 'awardGroupId', awardGroupIds);
+  await deleteByIds(db, 'awardNegotiation', 'awardGroupId', awardGroupIds);
+  await deleteByIds(db, 'awardClause', 'awardGroupId', awardGroupIds);
+  await deleteByIds(db, 'awardWinner', 'awardGroupId', awardGroupIds);
+  await deleteByIds(db, 'awardGroup', 'id', awardGroupIds);
+  await deleteByIds(db, 'approvalStep', 'recommendationId', recommendationIds);
+  await deleteByIds(db, 'awardRecommendation', 'id', recommendationIds);
   await deleteByIds(db, 'evaluationScore', 'workspaceId', workspaceIds);
   await deleteByIds(db, 'evaluationCriterion', 'workspaceId', workspaceIds);
   await deleteByIds(db, 'workflowAssignment', 'workspaceId', workspaceIds);
   await deleteByIds(db, 'evaluationWorkspace', 'id', workspaceIds);
-  await deleteByIds(db, 'awardRecommendation', 'bidId', bidIds);
   await deleteByIds(db, 'bidDocument', 'bidId', bidIds);
   await deleteByIds(db, 'bidResponse', 'bidId', bidIds);
   await deleteByIds(db, 'bidVersion', 'bidId', bidIds);
@@ -782,7 +873,7 @@ export async function seedEvaluationIntakeDemo() {
 
       await upsertEvaluationWorkspace(db, tender, item);
     }
-  }, prisma);
+  }, prisma, { timeout: 30000 });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

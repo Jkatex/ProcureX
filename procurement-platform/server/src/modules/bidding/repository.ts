@@ -315,7 +315,7 @@ export class ModuleRepository {
 
         const validation = validateBidDraft({ draft: draftFromBidRecord(fullBid), tender: fullBid.tender, samples: fullBid.samples, mode: 'submit' });
         if (!validation.valid) {
-          const fields = validation.issues.filter((issue) => issue.severity === 'error').map((issue) => `${issue.section}.${issue.field}`);
+          const fields = validation.issues.filter((issue) => issue.severity === 'error').map((issue) => validationIssuePath(issue.section, issue.field));
           throw requestError(`Complete required bid sections before submitting: ${fields.join(', ')}.`, 400);
         }
 
@@ -593,6 +593,11 @@ function sampleStatusAuditEvent(status: BidSampleStatus) {
     [BidSampleStatus.REJECTED]: 'bidding.bid_sample_rejected'
   };
   return events[status] ?? null;
+}
+
+function validationIssuePath(section: string, field: string) {
+  if (!field) return section;
+  return field.startsWith(`${section}.`) ? field : `${section}.${field}`;
 }
 
 function buildPayload(draft: BidDraftInput) {

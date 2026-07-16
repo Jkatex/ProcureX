@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { evaluationApi } from '@/features/evaluation/api';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import type {
   EvaluationDashboard,
   EvaluationDecisionStatus,
@@ -412,7 +412,7 @@ export function BidEvaluationProcurexPage() {
       });
     } catch (error) {
       const message = evaluationSaveErrorMessage(error, t('evaluationApp.p5.errors.save'));
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       setWorkspaceError(message);
     } finally {
       setWorkspaceSaving(false);

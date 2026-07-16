@@ -330,6 +330,9 @@ The production deploy job runs after validation on `main` pushes or manual dispa
 | [`procurement-platform/client/README.md`](procurement-platform/client/README.md) | Production React client stack, commands, layout, and product model. |
 | [`procurement-platform/server/README.md`](procurement-platform/server/README.md) | Express server commands and database access model. |
 | [`procurement-platform/docs/architecture.md`](procurement-platform/docs/architecture.md) | End-to-end implementation guide and architecture walkthrough. |
+| [`procurement-platform/docs/system-flow-full-lifecycle.html`](procurement-platform/docs/system-flow-full-lifecycle.html) | Printable HTML flowchart for the complete procurement lifecycle. |
+| [`procurement-platform/docs/system-flow-user-journey.html`](procurement-platform/docs/system-flow-user-journey.html) | Printable HTML guide to guest, supplier, buyer, evaluator, and admin journeys. |
+| [`procurement-platform/docs/system-flow-technical.html`](procurement-platform/docs/system-flow-technical.html) | Printable HTML architecture, API, data, and security flow documentation. |
 | [`procurement-platform/docs/database.md`](procurement-platform/docs/database.md) | Prisma model decisions, migrations, and RLS verification. |
 | [`procurement-platform/docs/ui-parity/README.md`](procurement-platform/docs/ui-parity/README.md) | Static-prototype-to-React parity workflow and screenshot capture. |
 | [`procurement-platform/docker/README.md`](procurement-platform/docker/README.md) | Local infrastructure and Docker notes. |

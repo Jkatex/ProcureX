@@ -434,7 +434,26 @@ export class ModuleService {
 
   async createTermination(contractId: string, input: Parameters<AwardContractService['createTermination']>[1], context: PostAwardRequestContext) {
     await this.ensureAccess(contractId, context, 'BUYER');
-    return workspaceDto(requireContractResult(await this.awardContracts.createTermination(contractId, input, context)));
+    const contract = requireContractResult(await this.awardContracts.createTermination(contractId, input, context));
+    const termination = latestTermination(contract.terminations);
+    if (!termination) return workspaceDto(contract);
+    const refreshed = await this.awardContracts.addTerminationNotice(contractId, termination.id, {
+      noticeType: 'TERMINATION_NOTICE',
+      contractClause: input.contractClause || '',
+      requiredAction: input.cureDeadline
+        ? `Supplier response or cure evidence required by ${input.cureDeadline}.`
+        : 'Supplier response or cure evidence required.',
+      deadline: input.cureDeadline,
+      note: input.reason,
+      payload: {
+        ...(input.payload ?? {}),
+        generatedFrom: 'post-award-termination-start',
+        terminationType: input.terminationType,
+        faultParty: input.faultParty || null,
+        visibilityScope: 'SHARED'
+      }
+    }, context);
+    return workspaceDto(requireContractResult(refreshed));
   }
 
   async controlChangeRequest(contractId: string, recordId: string, action: string, input: ControlWorkflowActionInput, context: PostAwardRequestContext) {
@@ -495,10 +514,17 @@ export class ModuleService {
         payload: { ...input.payload, settlementAmount: input.settlementAmount ?? input.amountApproved ?? null, visibilityScope: input.visibilityScope ?? 'BUYER_PRIVATE' }
       }, context)));
     }
-    const status = action === 'close' ? ContractTerminationStatus.CLOSED : action === 'reject' ? ContractTerminationStatus.REJECTED : ContractTerminationStatus.APPROVED;
+    const status = action === 'terminate'
+      ? ContractTerminationStatus.TERMINATED
+      : action === 'close'
+        ? ContractTerminationStatus.CLOSED
+        : action === 'reject'
+          ? ContractTerminationStatus.REJECTED
+          : ContractTerminationStatus.APPROVED;
     return workspaceDto(requireContractResult(await this.awardContracts.updateTermination(contractId, recordId, {
       status,
       finalDecision: input.decision || input.note || '',
+      terminationEffectiveDate: action === 'terminate' ? new Date().toISOString().slice(0, 10) : undefined,
       signatureKeyphrase: input.signatureKeyphrase,
       payload: { ...input.payload, privateNote: input.privateNote ?? null, visibilityScope: input.visibilityScope ?? 'BUYER_PRIVATE' }
     }, context)));
@@ -586,6 +612,10 @@ export class ModuleService {
 function requireContractResult(contract: ContractDetailDto | null): ContractDetailDto {
   if (!contract) throw requestError('Contract was not found after saving the post-award action.', 404);
   return contract;
+}
+
+function latestTermination(terminations: ContractDetailDto['terminations']) {
+  return [...(terminations ?? [])].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0] ?? null;
 }
 
 function financePenaltyInput(input: FinanceWorkflowActionInput, penaltyType: string): Parameters<AwardContractService['createContractPenalty']>[1] {
@@ -692,6 +722,7 @@ function workspaceDto(contract: ContractDetailDto): PostAwardWorkspaceDto {
       { label: 'Ready to invoice', value: financialEligibility.invoiceableRecords.length, tone: financialEligibility.invoiceableRecords.length ? 'success' : 'warning' },
       { label: 'Health', value: health.label, tone: health.level === 'CRITICAL' || health.level === 'HIGH' ? 'error' : health.level === 'MEDIUM' ? 'warning' : 'success' }
     ],
+    detail: contract,
     stages: visibleStages,
     secondary: [
       scrubSecondary(secondary('termination', 'Termination', typedRecords(contract.terminations, 'termination')), role),
@@ -1659,7 +1690,7 @@ function tasksFor(contract: ContractDetailDto, procurementType: PostAwardProcure
   add('dispute-resolve', 'Resolve or close dispute', 'Buyer records decision, settlement route, closure, or escalation outcome.', 'BUYER', openDisputes.length ? 'High' : 'Medium', openDisputes.length ? 'READY' : 'WAITING', 'dispute-resolve', 'claims', null, 'BUYER_PRIVATE');
   add('termination-create', 'Start termination notice', 'Buyer records contract clause, reason, fault party, cure deadline, and required response.', 'BUYER', openTerminations.length ? 'Critical' : 'Medium', 'READY', 'termination', 'closeout', null, 'BUYER_PRIVATE');
   add('termination-response', 'Respond to termination notice', 'Supplier responds to cure notice, termination reason, and required corrective action.', 'SUPPLIER', terminationNeedsSupplier.length ? 'Critical' : 'Medium', terminationNeedsSupplier.length ? 'READY' : openTerminations.length ? 'WAITING' : 'DONE', 'termination-response', 'closeout');
-  add('termination-decision', 'Decide termination outcome', 'Buyer records final decision, settlement, closure, or rejection after supplier response.', 'BUYER', openTerminations.length ? 'Critical' : 'Medium', openTerminations.length ? 'READY' : 'WAITING', 'termination-decision', 'closeout', null, 'BUYER_PRIVATE');
+  add('termination-decision', 'Decide termination outcome', 'Buyer records final decision, settlement, final termination, closure, or rejection after supplier response.', 'BUYER', openTerminations.length ? 'Critical' : 'Medium', openTerminations.length ? 'READY' : 'WAITING', 'termination-decision', 'closeout', null, 'BUYER_PRIVATE');
   add('notice-create', 'Issue formal notice', 'Record ordinary messages, notices to correct, delay/default notices, variation notices, or termination notices linked to the contract event.', 'BUYER', openNotices.length ? 'Medium' : 'Low', 'READY', 'notice', 'risk');
   add('notice-acknowledge', 'Acknowledge formal notice', 'Recipient acknowledges receipt date and keeps the formal notice audit trail current.', 'SHARED', noticesAwaitingAck.length ? 'High' : 'Medium', noticesAwaitingAck.length ? 'READY' : 'WAITING', 'notice-acknowledge', 'risk', stringValue(noticesAwaitingAck[0]?.dueDate) || null);
   add('notice-respond', 'Respond to formal notice', 'Recipient provides supplier-visible or buyer-visible response and corrective position.', 'SHARED', noticesAwaitingResponse.length ? 'High' : 'Medium', noticesAwaitingResponse.length ? 'READY' : 'WAITING', 'notice-respond', 'risk', stringValue(noticesAwaitingResponse[0]?.dueDate) || null);

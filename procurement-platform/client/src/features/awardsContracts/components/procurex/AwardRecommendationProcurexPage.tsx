@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { awardsContractsApi } from '../../api';
 import type { AwardDecisionDraftInput, AwardRecommendationDetailDto, LifecycleAction } from '../../types';
@@ -185,7 +185,7 @@ export function AwardRecommendationProcurexPage() {
       notifyAward('success', 'Award confirmed', 'The award decision has been confirmed.');
     } catch (error) {
       const message = apiErrorMessage(error, 'The award could not be confirmed.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       notifyAward('error', 'Award not confirmed', message);
     } finally {
       setIsSaving(false);
@@ -212,7 +212,7 @@ export function AwardRecommendationProcurexPage() {
       notifyAward('success', 'Award offer sent', 'The award offer notice was sent to the selected supplier.');
     } catch (error) {
       const message = apiErrorMessage(error, 'Award offer could not be sent.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       notifyAward('error', 'Offer not sent', /open clauses|negotiation points/i.test(message) ? 'Award offer could not be sent. Please try again.' : message);
     }
   }

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { store } from '@/app/store';
 import { procurexTheme } from '@/styles/mui-theme';
+import { clearNotifications } from '@/features/notifications/slice';
 import { resetCreateTenderDrafts } from '../../slice';
 import { MarketplaceProcurexPage } from './MarketplaceProcurexPage';
 import { CreateTenderProcurexPage } from './CreateTenderProcurexPage';
@@ -159,6 +160,7 @@ function emptyMarketplaceResponse() {
 beforeEach(() => {
   vi.clearAllMocks();
   store.dispatch(resetCreateTenderDrafts());
+  store.dispatch(clearNotifications());
   window.localStorage.clear();
   const contactChallenges = new Map<string, { channel: 'email' | 'phone'; target: string }>();
   procurementApiMock.startContactVerification.mockImplementation(async ({ channel, target }: { channel: 'email' | 'phone'; target: string }) => {
@@ -399,6 +401,23 @@ describe('CreateTenderProcurexPage', () => {
 
     expect(screen.queryByText('Email verified')).not.toBeInTheDocument();
     expect(screen.getByText('Contact verified')).toBeInTheDocument();
+  });
+
+  it('hides temporary tender contact verification codes from notifications', async () => {
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await user.type(screen.getByLabelText('Contact email'), 'buyer@example.go.tz');
+    await user.click(screen.getByRole('button', { name: 'Verify Email' }));
+
+    expect(await screen.findByLabelText('Email verification code')).toBeInTheDocument();
+    await waitFor(() => {
+      const notifications = store.getState().notifications.items;
+      expect(notifications.some((notification) => notification.title === 'Email verification started')).toBe(true);
+      expect(notifications.some((notification) => notification.message === 'Enter the verification code to confirm this tender contact.')).toBe(true);
+      expect(notifications.every((notification) => !`${notification.title} ${notification.message} ${notification.reason ?? ''}`.includes('123456'))).toBe(true);
+      expect(notifications.every((notification) => !notification.message.includes('Email verification code:'))).toBe(true);
+    });
   });
 
   it('blocks Continue until minimum Basic Information fields are complete', async () => {
@@ -1897,6 +1916,8 @@ describe('CreateTenderProcurexPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
     expect(await screen.findByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText('Signature keyphrase'), 'Signing123');
     await user.click(screen.getByRole('button', { name: 'Submit tender' }));
 
@@ -1934,6 +1955,39 @@ describe('CreateTenderProcurexPage', () => {
     expect((await screen.findAllByText('Tender requirements are required before publishing.')).length).toBeGreaterThan(0);
     expect(screen.queryByText('Tender could not be submitted for review.')).not.toBeInTheDocument();
     expect(store.getState().notifications.items.some((notification) => notification.message === 'Tender requirements are required before publishing.')).toBe(true);
+  }, 15000);
+
+  it('keeps the submit signature prompt open with friendly feedback when the keyphrase is wrong', async () => {
+    procurementApiMock.publishTender.mockRejectedValueOnce({
+      response: {
+        status: 403,
+        data: {
+          message: 'Invalid keyphrase.'
+        }
+      }
+    });
+    const user = userEvent.setup();
+    renderCreateTender();
+
+    await fillBasicStep(user, 'Wrong Keyphrase Tender');
+    await user.click(screen.getAllByRole('button', { name: 'Continue' })[0]);
+    await addDefaultCategory(user);
+    await completeMinimumGoodsRequirements(user);
+    await user.click(screen.getAllByRole('button', { name: /Tender Review and Publication/ })[0]);
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      await user.click(checkbox);
+    }
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Tender for Review' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Submit Tender for Review' }));
+    expect(await screen.findByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    expect(procurementApiMock.createTender).not.toHaveBeenCalled();
+    expect(procurementApiMock.publishTender).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText('Signature keyphrase'), 'Wrong123');
+    await user.click(screen.getByRole('button', { name: 'Submit tender' }));
+
+    expect(await screen.findAllByText('Wrong or mismatched keyphrase. Check the keyphrase and try again.')).not.toHaveLength(0);
+    expect(screen.getByRole('dialog', { name: 'Submit tender for review' })).toBeInTheDocument();
+    expect(store.getState().notifications.items.some((notification) => notification.message === 'Wrong or mismatched keyphrase. Check the keyphrase and try again.')).toBe(true);
   }, 15000);
 
   it('formats backend draft validation errors before showing submission feedback', async () => {

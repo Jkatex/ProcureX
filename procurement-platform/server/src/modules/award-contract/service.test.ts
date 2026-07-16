@@ -45,7 +45,22 @@ const userId = '22222222-2222-4222-8222-222222222222';
 function makeContractSigningService(credential: any) {
   const updates: any[] = [];
   const contractUpdates: any[] = [];
+  const documentCreates: any[] = [];
+  const contractVersionCreates: any[] = [];
+  const officialVersionCreates: any[] = [];
   const auditEvents: any[] = [];
+  const signedSupplierSignature = {
+    id: '77777777-7777-4777-8777-777777777777',
+    contractId: '44444444-4444-4444-8444-444444444444',
+    signerOrgId: '55555555-5555-4555-8555-555555555555',
+    role: ContractPartyRole.SUPPLIER,
+    status: 'SIGNED',
+    signerName: 'Supplier Signer',
+    signerTitle: 'Managing Director',
+    signedAt: new Date('2026-07-01T09:00:00.000Z'),
+    signatureHash: 'b'.repeat(64),
+    canonicalPayloadHash: 'c'.repeat(64)
+  };
   const signature = {
     id: '33333333-3333-4333-8333-333333333333',
     contractId: '44444444-4444-4444-8444-444444444444',
@@ -72,8 +87,43 @@ function makeContractSigningService(credential: any) {
       findFirst: async () => credential
     },
     contract: {
+      findUnique: async () => ({
+        id: signature.contractId,
+        reference: 'PX-C-1',
+        title: 'Signed Contract',
+        buyerOrgId: organizationId,
+        supplierOrgId: '55555555-5555-4555-8555-555555555555',
+        amount: 1250000,
+        currency: 'TZS',
+        buyerOrg: { id: organizationId, name: 'Buyer Org' },
+        supplierOrg: { id: '55555555-5555-4555-8555-555555555555', name: 'Supplier Org' },
+        tender: { id: 'tender-1', reference: 'PX-T-1', title: 'Tender title', type: 'GOODS' },
+        clauses: [{ title: 'Delivery', category: 'Performance', status: 'ACTIVE', body: 'Deliver on schedule.' }],
+        requiredDocuments: [{ title: 'Performance guarantee', status: 'SUBMITTED', ownerRole: 'SUPPLIER', documentId: 'doc-guarantee' }],
+        versions: [{ versionNo: 1 }],
+        signatures: [signature, signedSupplierSignature]
+      }),
       update: async (input: any) => {
         contractUpdates.push(input);
+        return input;
+      }
+    },
+    documentObject: {
+      create: async (input: any) => {
+        documentCreates.push(input);
+        return { id: 'signed-contract-doc' };
+      }
+    },
+    contractVersion: {
+      create: async (input: any) => {
+        contractVersionCreates.push(input);
+        return input;
+      }
+    },
+    officialDocumentVersion: {
+      findFirst: async () => null,
+      create: async (input: any) => {
+        officialVersionCreates.push(input);
         return input;
       }
     },
@@ -93,6 +143,9 @@ function makeContractSigningService(credential: any) {
     service: new ModuleService(repository),
     updates,
     contractUpdates,
+    documentCreates,
+    contractVersionCreates,
+    officialVersionCreates,
     auditEvents,
     signature
   };
@@ -932,7 +985,7 @@ describe('award-contract module', () => {
       status: 'ACTIVE',
       ...(await createEncryptedSigningCredential('Signing123'))
     };
-    const { service, updates, contractUpdates, auditEvents } = makeContractSigningService(credential);
+    const { service, updates, contractUpdates, documentCreates, contractVersionCreates, officialVersionCreates, auditEvents } = makeContractSigningService(credential);
 
     await expect(
       service.signContractSignature('44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333', contractSignInput('Signing123'), contractContext)
@@ -950,7 +1003,44 @@ describe('award-contract module', () => {
     });
     expect(updates[0].signatureHash).toMatch(/^[a-f0-9]{64}$/);
     expect(contractUpdates[0]).toMatchObject({ data: { status: ContractStatus.SIGNED } });
-    expect(auditEvents[0].data.event).toBe('contract.signature.signed');
+    expect(documentCreates).toHaveLength(1);
+    expect(documentCreates[0].data).toMatchObject({
+      name: 'PX-C-1-signed-contract-v2.pdf',
+      documentType: 'CONTRACT_DOCUMENT',
+      checksum: expect.any(String),
+      metadata: expect.objectContaining({
+        officialSignedContract: true,
+        mimeType: 'application/pdf',
+        contentBase64: expect.any(String),
+        signatures: expect.arrayContaining([
+          expect.objectContaining({ role: ContractPartyRole.BUYER, signerName: 'Contract Signer' }),
+          expect.objectContaining({ role: ContractPartyRole.SUPPLIER, signerName: 'Supplier Signer' })
+        ])
+      })
+    });
+    expect(Buffer.from(documentCreates[0].data.metadata.contentBase64, 'base64').toString('utf8')).toContain('%PDF-');
+    expect(contractVersionCreates).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({
+          contractId: '44444444-4444-4444-8444-444444444444',
+          versionNo: 2,
+          documentId: 'signed-contract-doc',
+          payload: expect.objectContaining({ source: 'contract-final-signature', officialDocument: true })
+        })
+      })
+    ]);
+    expect(officialVersionCreates).toEqual([
+      expect.objectContaining({
+        data: expect.objectContaining({
+          documentObjectId: 'signed-contract-doc',
+          documentType: 'CONTRACT_DOCUMENT',
+          status: 'SIGNED',
+          signatureMetadata: expect.objectContaining({ officialSignedContract: true })
+        })
+      })
+    ]);
+    expect(auditEvents.some((event) => event.data.event === 'contract.signature.signed')).toBe(true);
+    expect(auditEvents.some((event) => event.data.event === 'contract.official_signed_document.generated')).toBe(true);
   });
 
   it('validates post-award contract document upload payloads', () => {

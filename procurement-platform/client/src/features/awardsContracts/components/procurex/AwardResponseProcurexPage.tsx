@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { awardsContractsApi } from '../../api';
 import type { AwardRecommendationDetailDto, LifecycleAction } from '../../types';
@@ -139,7 +139,7 @@ export function AwardResponseProcurexPage() {
       await refreshAwards(recommendationIdForAward(award));
     } catch (error) {
       const message = apiErrorMessage(error, 'The response could not be submitted.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       notifyAward('error', 'Supplier response not sent', message);
     } finally {
       setIsSubmittingResponse(false);

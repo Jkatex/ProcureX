@@ -402,6 +402,119 @@ describe('post-award ModuleService', () => {
     expect(createGoodsReceipt).not.toHaveBeenCalled();
   });
 
+  it('creates a structured termination notice when the buyer starts termination', async () => {
+    const buyerAccess = {
+      viewerRole: 'BUYER',
+      canSubmitSupplierActions: false,
+      canManageBuyerActions: true,
+      readOnlyReason: null
+    };
+    const termination = {
+      id: 'termination-1',
+      terminationType: 'SUPPLIER_DEFAULT',
+      status: 'DRAFT',
+      reason: 'Repeated failed deliveries',
+      contractClause: 'GC 45',
+      faultParty: 'SUPPLIER',
+      noticeDate: null,
+      cureDeadline: '2026-08-01',
+      terminationEffectiveDate: null,
+      supplierResponse: '',
+      finalDecision: '',
+      payload: {},
+      notices: [],
+      evidence: [],
+      valuation: null,
+      settlement: null,
+      replacementProcurement: null,
+      createdAt: '2026-07-20T00:00:00.000Z',
+      updatedAt: '2026-07-20T00:00:00.000Z'
+    };
+    const createTermination = vi.fn().mockResolvedValue(contract({ access: buyerAccess, status: 'TERMINATION_REVIEW', terminations: [termination] }));
+    const addTerminationNotice = vi.fn().mockResolvedValue(contract({
+      access: buyerAccess,
+      status: 'TERMINATION_REVIEW',
+      terminations: [{ ...termination, status: 'NOTICE_ISSUED', notices: [{ id: 'notice-1', title: 'TERMINATION_NOTICE', status: 'OPEN' }] }]
+    }));
+    const service = serviceWithAwardContract({
+      contract: vi.fn().mockResolvedValue(contract({ access: buyerAccess })),
+      createTermination,
+      addTerminationNotice
+    });
+
+    const workspace = await service.createTermination('contract-1', {
+      terminationType: 'SUPPLIER_DEFAULT',
+      reason: 'Repeated failed deliveries',
+      contractClause: 'GC 45',
+      faultParty: 'SUPPLIER',
+      cureDeadline: '2026-08-01',
+      payload: {}
+    } as never, buyerContext);
+
+    expect(createTermination).toHaveBeenCalledWith('contract-1', expect.objectContaining({ reason: 'Repeated failed deliveries' }), buyerContext);
+    expect(addTerminationNotice).toHaveBeenCalledWith('contract-1', 'termination-1', expect.objectContaining({
+      noticeType: 'TERMINATION_NOTICE',
+      contractClause: 'GC 45',
+      deadline: '2026-08-01',
+      note: 'Repeated failed deliveries',
+      requiredAction: expect.stringContaining('2026-08-01')
+    }), buyerContext);
+    expect(workspace.detail?.terminations[0]?.status).toBe('NOTICE_ISSUED');
+    expect(workspace.detail?.terminations[0]?.notices).toHaveLength(1);
+  });
+
+  it('maps post-award termination decisions to reject and final terminated statuses', async () => {
+    const buyerAccess = {
+      viewerRole: 'BUYER',
+      canSubmitSupplierActions: false,
+      canManageBuyerActions: true,
+      readOnlyReason: null
+    };
+    const updateTermination = vi.fn().mockResolvedValue(contract({
+      access: buyerAccess,
+      status: 'TERMINATED',
+      terminations: [{
+        id: 'termination-1',
+        terminationType: 'SUPPLIER_DEFAULT',
+        status: 'TERMINATED',
+        reason: 'Repeated failed deliveries',
+        contractClause: 'GC 45',
+        faultParty: 'SUPPLIER',
+        noticeDate: null,
+        cureDeadline: null,
+        terminationEffectiveDate: '2026-07-20',
+        supplierResponse: 'No cure possible',
+        finalDecision: 'Terminate for default',
+        payload: {},
+        notices: [],
+        evidence: [],
+        valuation: null,
+        settlement: null,
+        replacementProcurement: null,
+        createdAt: '2026-07-20T00:00:00.000Z',
+        updatedAt: '2026-07-20T00:00:00.000Z'
+      }]
+    }));
+    const service = serviceWithAwardContract({
+      contract: vi.fn().mockResolvedValue(contract({ access: buyerAccess })),
+      updateTermination
+    });
+
+    await service.controlTermination('contract-1', 'termination-1', 'reject', { decision: 'Supplier cured default', payload: {} }, buyerContext);
+    await service.controlTermination('contract-1', 'termination-1', 'terminate', { decision: 'Terminate for default', signatureKeyphrase: 'Signing123', payload: {} }, buyerContext);
+
+    expect(updateTermination).toHaveBeenNthCalledWith(1, 'contract-1', 'termination-1', expect.objectContaining({
+      status: 'REJECTED',
+      finalDecision: 'Supplier cured default'
+    }), buyerContext);
+    expect(updateTermination).toHaveBeenNthCalledWith(2, 'contract-1', 'termination-1', expect.objectContaining({
+      status: 'TERMINATED',
+      finalDecision: 'Terminate for default',
+      signatureKeyphrase: 'Signing123',
+      terminationEffectiveDate: expect.any(String)
+    }), buyerContext);
+  });
+
   it('redacts buyer-private finance payloads from supplier workspaces', async () => {
     const service = serviceWithAwardContract({
       contract: vi.fn().mockResolvedValue(contract({

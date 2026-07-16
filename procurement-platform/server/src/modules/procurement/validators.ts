@@ -383,13 +383,47 @@ export const buyerNoticeBodySchema = z
   })
   .strict();
 
-const signatureKeyphraseSchema = z.string().min(6).max(128);
+const signatureKeyphraseSchema = z
+  .string({
+    required_error: 'Digital signature keyphrase is required.',
+    invalid_type_error: 'Digital signature keyphrase is required.'
+  })
+  .superRefine((value, ctx) => {
+    if (!value.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Digital signature keyphrase is required.'
+      });
+      return;
+    }
+    if (value.length < 6) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.too_small,
+        minimum: 6,
+        type: 'string',
+        inclusive: true,
+        message: 'Digital signature keyphrase must contain at least 6 characters.'
+      });
+      return;
+    }
+    if (value.length > 128) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.too_big,
+        maximum: 128,
+        type: 'string',
+        inclusive: true,
+        message: 'Digital signature keyphrase must be 128 characters or fewer.'
+      });
+    }
+  });
 
-export const publishTenderBodySchema = z
+export const requiredSignatureBodySchema = z
   .object({
-    signatureKeyphrase: signatureKeyphraseSchema.optional()
+    signatureKeyphrase: signatureKeyphraseSchema
   })
   .strict();
+
+export const publishTenderBodySchema = requiredSignatureBodySchema;
 
 export const emptyActionBodySchema = z.object({}).strict();
 

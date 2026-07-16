@@ -196,13 +196,13 @@ describe('ProcureX notification cards', () => {
   it('maps common API errors to reasons without generic retry actions', () => {
     expect(notificationFromApiError({ response: { status: 429, data: { message: 'Please wait.' } } })).toMatchObject({
       tone: 'warning',
-      message: 'Request failed.',
+      message: 'Please wait.',
       reason: 'This action was attempted too many times in a short period.',
       action: undefined
     });
     expect(notificationFromApiError({ response: { status: 401, data: { message: 'Session invalid.' } } })).toMatchObject({
       tone: 'warning',
-      message: 'Request failed.',
+      message: 'Session invalid.',
       reason: 'Your session is no longer valid for this request.',
       action: { label: 'Sign in again', to: '/sign-in' }
     });
@@ -227,17 +227,20 @@ describe('ProcureX notification cards', () => {
     expect(notificationFromApiError({ response: { status: 403, data: { message: 'Access denied.' } } })).toMatchObject({
       tone: 'error',
       title: 'Action blocked',
-      message: 'Request failed.',
+      message: 'Access denied.',
       reason: 'Your account, permission, or security check does not allow this action right now.'
     });
   });
 
-  it('keeps backend error text out of user-facing API messages', () => {
+  it('surfaces safe 4xx API messages while keeping server errors generic', () => {
     const error = { response: { status: 400, data: { message: 'Raw backend validation detail.' } } };
+    const serverError = { response: { status: 500, data: { message: 'Database secret detail.' } } };
 
-    expect(apiErrorMessage(error, 'Could not save profile.')).toBe('Could not save profile.');
+    expect(apiErrorMessage(error, 'Could not save profile.')).toBe('Raw backend validation detail.');
+    expect(apiErrorMessage({ response: { status: 409, data: { error: 'The bid submission deadline has passed.' } } }, 'Bid could not be submitted.')).toBe('The bid submission deadline has passed.');
+    expect(apiErrorMessage(serverError, 'Bid could not be submitted.')).toBe('Bid could not be submitted.');
     expect(notificationFromApiError(error, { fallback: 'Could not save profile.' })).toMatchObject({
-      message: 'Could not save profile.',
+      message: 'Raw backend validation detail.',
       reason: 'Some submitted information is incomplete or invalid.'
     });
   });

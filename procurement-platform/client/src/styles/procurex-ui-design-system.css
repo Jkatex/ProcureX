@@ -10840,6 +10840,40 @@ ul.closure-checklist {
     line-height: 1.45;
 }
 
+.supplier-requirement-preview.has-upload {
+    border-color: color-mix(in srgb, var(--success) 42%, var(--border-soft));
+    background: color-mix(in srgb, var(--success) 7%, var(--surface-soft));
+}
+
+.supplier-requirement-preview .bid-upload-action {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.supplier-requirement-preview .bid-upload-action:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.supplier-requirement-preview.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+}
+
+.supplier-requirement-preview.is-disabled .bid-upload-action {
+    cursor: not-allowed;
+}
+
 .clarification-compose {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProcureX System Flow - Full Lifecycle</title>
+  <style>
+    :root {
+      --ink: #182235;
+      --muted: #5c6678;
+      --paper: #ffffff;
+      --page: #eef2f7;
+      --line: #d8e0eb;
+      --soft: #f7fafc;
+      --teal: #0f766e;
+      --green: #2f855a;
+      --blue: #2563eb;
+      --amber: #b7791f;
+      --red: #b91c1c;
+      --violet: #6b46c1;
+      --shadow: 0 18px 50px rgba(24, 34, 53, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font: 15px/1.6 Arial, Helvetica, sans-serif;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 24px auto;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    header {
+      padding: 56px 64px 42px;
+      color: #ffffff;
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.94), rgba(24, 34, 53, 0.96)),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 36%);
+    }
+
+    main {
+      padding: 34px 64px 64px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.18;
+    }
+
+    h1 {
+      max-width: 880px;
+      font-size: clamp(34px, 5vw, 58px);
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-top: 42px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 28px;
+    }
+
+    h3 {
+      margin-top: 28px;
+      font-size: 20px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #edf2f7;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+    }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      max-width: 820px;
+      margin-top: 18px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 18px;
+    }
+
+    .meta-grid,
+    .kpi-grid,
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 26px;
+    }
+
+    .meta-card,
+    .kpi,
+    .module-card,
+    .callout {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .meta-card {
+      padding: 14px;
+      color: rgba(255, 255, 255, 0.92);
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .meta-card strong,
+    .kpi strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 18px 0 4px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      display: block;
+      min-height: 58px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .toc span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .callout {
+      padding: 18px;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--teal);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .kpi {
+      padding: 14px;
+      background: #ffffff;
+    }
+
+    .kpi strong {
+      color: var(--teal);
+    }
+
+    .flow {
+      margin-top: 22px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      border-top: 1px solid var(--line);
+    }
+
+    .lane:first-child {
+      border-top: 0;
+    }
+
+    .lane-title {
+      padding: 18px;
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    .lane-title.public { background: var(--blue); }
+    .lane-title.identity { background: var(--teal); }
+    .lane-title.procurement { background: var(--green); }
+    .lane-title.supplier { background: var(--amber); }
+    .lane-title.evaluation { background: var(--violet); }
+    .lane-title.contract { background: #334155; }
+    .lane-title.governance { background: var(--red); }
+
+    .steps {
+      display: flex;
+      align-items: stretch;
+      gap: 12px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+
+    .step,
+    .decision {
+      position: relative;
+      flex: 0 0 205px;
+      min-height: 116px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .decision {
+      border-color: #f6ad55;
+      background: #fffaf0;
+    }
+
+    .step:not(:last-child)::after,
+    .decision:not(:last-child)::after {
+      content: ">";
+      position: absolute;
+      top: 44px;
+      right: -12px;
+      width: 12px;
+      color: var(--muted);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .step b,
+    .decision b {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .step span,
+    .decision span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.42;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-top: 9px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #edf2f7;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .swimlane {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .swim-card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--teal);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .swim-card h3 {
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    .swim-card ul,
+    .module-card ul {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+
+    .swim-card li,
+    .module-card li {
+      margin: 5px 0;
+      color: var(--muted);
+    }
+
+    .module-card {
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .module-card h3 {
+      margin-top: 0;
+      color: var(--teal);
+      font-size: 16px;
+    }
+
+    .matrix {
+      width: 100%;
+      margin-top: 18px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .matrix th,
+    .matrix td {
+      padding: 12px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .matrix th {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .footer-note {
+      margin-top: 46px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 920px) {
+      .page {
+        width: 100%;
+        margin: 0;
+      }
+
+      header,
+      main {
+        padding-left: 24px;
+        padding-right: 24px;
+      }
+
+      .meta-grid,
+      .kpi-grid,
+      .module-grid,
+      .toc,
+      .summary,
+      .swimlane {
+        grid-template-columns: 1fr;
+      }
+
+      .lane {
+        grid-template-columns: 1fr;
+      }
+
+      .lane-title {
+        padding: 12px 16px;
+      }
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 12mm;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        font-size: 12px;
+      }
+
+      .page {
+        width: auto;
+        margin: 0;
+        box-shadow: none;
+      }
+
+      header {
+        color: var(--ink);
+        background: #ffffff;
+        border-bottom: 2px solid var(--line);
+      }
+
+      .meta-card {
+        color: var(--ink);
+        border-color: var(--line);
+        background: #ffffff;
+      }
+
+      h2 {
+        break-before: page;
+      }
+
+      h2:first-of-type {
+        break-before: auto;
+      }
+
+      .flow,
+      .callout,
+      .swim-card,
+      .module-card {
+        break-inside: avoid;
+      }
+
+      .steps {
+        overflow: visible;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="eyebrow">ProcureX System Documentation</div>
+      <h1>Full Procurement Lifecycle Flow</h1>
+      <p class="lede">
+        A complete HTML flowchart of the ProcureX system from public discovery through identity,
+        tendering, supplier bidding, evaluation, award, contract execution, audit, and administration.
+      </p>
+      <div class="meta-grid">
+        <div class="meta-card"><strong>System</strong>ProcureX procurement platform</div>
+        <div class="meta-card"><strong>Scope</strong>End-to-end business lifecycle</div>
+        <div class="meta-card"><strong>Format</strong>Standalone HTML and CSS</div>
+        <div class="meta-card"><strong>Source</strong>Architecture docs, router, modules, Prisma</div>
+      </div>
+    </header>
+
+    <main>
+      <section id="contents">
+        <h2>Contents</h2>
+        <ol class="toc">
+          <li><a href="#overview">1. Lifecycle Overview<span>Major phases and outcomes</span></a></li>
+          <li><a href="#flowchart">2. Detailed Flowchart<span>Lane-based system flow</span></a></li>
+          <li><a href="#roles">3. Role Participation<span>Guest, buyer, supplier, evaluator, admin</span></a></li>
+          <li><a href="#handoffs">4. Critical Handoffs<span>Where records move between modules</span></a></li>
+          <li><a href="#modules">5. System Boundaries<span>Client, API, data, governance</span></a></li>
+          <li><a href="#phase-detail">6. Phase Deep Dive<span>Inputs, actions, outputs, and owners</span></a></li>
+          <li><a href="#exception-flow">7. Exception Flow<span>Rejected, withdrawn, failed, and delayed work</span></a></li>
+          <li><a href="#evidence-chain">8. Evidence Chain<span>Documents, records, audit, and traceability</span></a></li>
+          <li><a href="#acceptance">9. Reading Checklist<span>How to verify the lifecycle</span></a></li>
+        </ol>
+      </section>
+
+      <section id="overview">
+        <h2>1. Lifecycle Overview</h2>
+        <div class="summary">
+          <div class="callout">
+            <strong>Lifecycle intent</strong>
+            ProcureX organizes procurement around an auditable chain of work. Users discover the
+            platform publicly, verify identity and company details, create or respond to tenders,
+            evaluate bids, recommend awards, form contracts, track delivery, and preserve records
+            for compliance review.
+          </div>
+          <div class="callout">
+            <strong>Core rule</strong>
+            Login account type is only <code>USER</code> or <code>ADMIN</code>. Buyer and supplier
+            behavior is attached to organization capabilities and workflow context rather than
+            hard-coded login roles.
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi"><strong>Entry</strong>Public pages, guest marketplace, support, registration, sign-in.</div>
+          <div class="kpi"><strong>Pre-award</strong>Company verification, tender creation, publication, documents, bidding.</div>
+          <div class="kpi"><strong>Decision</strong>Evaluation workspace, scores, assignments, award recommendation, approvals.</div>
+          <div class="kpi"><strong>Execution</strong>Contracts, signatures, purchase orders, invoices, delivery, closeout, audit.</div>
+        </div>
+      </section>
+
+      <section id="flowchart">
+        <h2>2. Detailed Flowchart</h2>
+        <p>
+          The flow below reads left to right inside each lane. Later lanes depend on records and
+          state produced by earlier lanes, while governance and records remain active across the
+          entire lifecycle.
+        </p>
+
+        <div class="flow" aria-label="Full procurement lifecycle flowchart">
+          <div class="lane">
+            <div class="lane-title public">Public Entry</div>
+            <div class="steps">
+              <div class="step"><b>Welcome</b><span>Visitor lands on public ProcureX pages.</span><span class="tag">/</span></div>
+              <div class="step"><b>Explore Marketplace</b><span>Guest reviews visible opportunities and platform value.</span><span class="tag">/guest-marketplace</span></div>
+              <div class="decision"><b>Choose Path</b><span>Register, sign in, contact support, or continue browsing.</span><span class="tag">Decision</span></div>
+              <div class="step"><b>Register or Sign In</b><span>User enters identity workflow or existing session flow.</span><span class="tag">/register or /sign-in</span></div>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title identity">Identity And Trust</div>
+            <div class="steps">
+              <div class="step"><b>Start Registration</b><span>Account, phone, email, and company intent are captured.</span><span class="tag">/api/identity</span></div>
+              <div class="step"><b>Verify Codes</b><span>OTP and email activation confirm contact ownership.</span><span class="tag">OTP + email</span></div>
+              <div class="step"><b>Set Password</b><span>User completes credentials and can authenticate.</span><span class="tag">Session ready</span></div>
+              <div class="decision"><b>Company Verified?</b><span>Unverified users complete verification before core workspaces.</span><span class="tag">Trust gate</span></div>
+              <div class="step"><b>Verification Review</b><span>Registry lookup, draft submission, and admin decision.</span><span class="tag">/identity/verification</span></div>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title procurement">Buyer Procurement</div>
+            <div class="steps">
+              <div class="step"><b>Workspace</b><span>Verified user enters operational dashboard and apps.</span><span class="tag">/dashboard</span></div>
+              <div class="step"><b>Create Tender</b><span>Buyer organization prepares scope, milestones, requirements, and commercial items.</span><span class="tag">/procurement/create-tender</span></div>
+              <div class="step"><b>Attach Documents</b><span>Tender documents are organized for supplier access and later traceability.</span><span class="tag">Documents</span></div>
+              <div class="decision"><b>Ready To Publish?</b><span>Draft tender is reviewed before supplier-facing publication.</span><span class="tag">Approval point</span></div>
+              <div class="step"><b>Publish Tender</b><span>Opportunity becomes available through marketplace and tender details.</span><span class="tag">/procurement/tender-publication</span></div>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title supplier">Supplier Bidding</div>
+            <div class="steps">
+              <div class="step"><b>Find Tender</b><span>Supplier organization discovers eligible marketplace opportunities.</span><span class="tag">/procurement/marketplace</span></div>
+              <div class="step"><b>Review Details</b><span>Supplier reads requirements, documents, milestones, and commercial needs.</span><span class="tag">/procurement/supplier-tender-detail</span></div>
+              <div class="step"><b>Prepare Bid</b><span>Bid versions, responses, documents, and receipt data are assembled.</span><span class="tag">/bidding</span></div>
+              <div class="decision"><b>Submit Bid?</b><span>Submission creates a controlled bid record owned by supplier and buyer organizations.</span><span class="tag">Deadline gate</span></div>
+              <div class="step"><b>Bid Receipt</b><span>Supplier receives submission confirmation for auditability.</span><span class="tag">Receipt</span></div>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title evaluation">Evaluation And Award</div>
+            <div class="steps">
+              <div class="step"><b>Open Evaluation</b><span>Evaluation workspace gathers submitted bids and criteria.</span><span class="tag">/evaluation</span></div>
+              <div class="step"><b>Assign Reviewers</b><span>Workflow assignments define evaluator, approver, observer, and committee context.</span><span class="tag">Assignments</span></div>
+              <div class="step"><b>Score Criteria</b><span>Evaluators apply structured criteria and produce score records.</span><span class="tag">Scores</span></div>
+              <div class="decision"><b>Recommend Award?</b><span>Recommendation is prepared after evaluation and approval checks.</span><span class="tag">Decision</span></div>
+              <div class="step"><b>Award Recommendation</b><span>Winner, groups, clauses, approvals, and notices move into award-contract flow.</span><span class="tag">/awards-contracts/recommendation</span></div>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title contract">Contract Execution</div>
+            <div class="steps">
+              <div class="step"><b>Award Response</b><span>Supplier responds to award and contract formation begins.</span><span class="tag">/awards-contracts/award-response</span></div>
+              <div class="step"><b>Draft Contract</b><span>Contract parties, clauses, versions, and negotiation records are created.</span><span class="tag">/awards-contracts/drafting</span></div>
+              <div class="step"><b>Negotiate And Sign</b><span>Negotiation, signatures, activation, and baselines formalize the contract.</span><span class="tag">/awards-contracts/signing</span></div>
+              <div class="step"><b>Track Delivery</b><span>Purchase orders, invoices, evidence, inspections, issues, and payments are monitored.</span><span class="tag">/post-award</span></div>
+              <div class="step"><b>Close Out</b><span>Completion, warranty, claims, termination, or closeout evidence is retained.</span><span class="tag">Closeout</span></div>
+            </div>
+          </div>
+
+          <div class="lane">
+            <div class="lane-title governance">Governance And Records</div>
+            <div class="steps">
+              <div class="step"><b>Communication</b><span>Structured messages and attachments support operational collaboration.</span><span class="tag">/communication</span></div>
+              <div class="step"><b>Records History</b><span>Timeline entries preserve procurement activity and decisions.</span><span class="tag">/records</span></div>
+              <div class="step"><b>Audit Events</b><span>System actions and sensitive decisions create traceability records.</span><span class="tag">AuditEvent</span></div>
+              <div class="step"><b>Admin Review</b><span>Compliance users review users, organizations, cases, analytics, and search results.</span><span class="tag">/admin</span></div>
+              <div class="step"><b>RLS Context</b><span>Database access remains organization-aware across sensitive records.</span><span class="tag">Security</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="roles">
+        <h2>3. Role Participation</h2>
+        <div class="swimlane">
+          <div class="swim-card">
+            <h3>Guest</h3>
+            <ul>
+              <li>Views public pages and guest marketplace.</li>
+              <li>Can register, sign in, or contact support.</li>
+              <li>Cannot access protected workspaces.</li>
+            </ul>
+          </div>
+          <div class="swim-card">
+            <h3>Buyer Org</h3>
+            <ul>
+              <li>Creates, reviews, and publishes tenders.</li>
+              <li>Owns tender records through <code>buyerOrgId</code>.</li>
+              <li>Uses evaluation and award workflows after bidding.</li>
+            </ul>
+          </div>
+          <div class="swim-card">
+            <h3>Supplier Org</h3>
+            <ul>
+              <li>Finds tenders and prepares bids.</li>
+              <li>Owns bid records through <code>supplierOrgId</code>.</li>
+              <li>Responds to awards and contract execution tasks.</li>
+            </ul>
+          </div>
+          <div class="swim-card">
+            <h3>Evaluator</h3>
+            <ul>
+              <li>Works from evaluation assignments.</li>
+              <li>Scores criteria and supports recommendations.</li>
+              <li>Is governed by workflow context.</li>
+            </ul>
+          </div>
+          <div class="swim-card">
+            <h3>Admin</h3>
+            <ul>
+              <li>Reviews verification and compliance cases.</li>
+              <li>Uses audit, search, analytics, and user management.</li>
+              <li>Is a platform account, not a buyer or supplier role.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="handoffs">
+        <h2>4. Critical Handoffs</h2>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Handoff</th>
+              <th>Source State</th>
+              <th>Target State</th>
+              <th>Why It Matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Registration to verification</td>
+              <td>Account and session are created.</td>
+              <td>Company profile draft and verification submission.</td>
+              <td>Prevents untrusted accounts from entering sensitive procurement work.</td>
+            </tr>
+            <tr>
+              <td>Tender draft to published tender</td>
+              <td>Buyer creates scope, documents, requirements, milestones, and items.</td>
+              <td>Supplier-facing opportunity in marketplace and tender detail routes.</td>
+              <td>Turns internal planning into controlled public procurement activity.</td>
+            </tr>
+            <tr>
+              <td>Bid submission to evaluation</td>
+              <td>Supplier bid versions, responses, documents, and receipts.</td>
+              <td>Evaluation workspace with assignments, criteria, and scoring.</td>
+              <td>Moves supplier offers into structured, auditable comparison.</td>
+            </tr>
+            <tr>
+              <td>Evaluation to award</td>
+              <td>Scores, review decisions, and recommendation basis.</td>
+              <td>Award recommendation, approval route, notice, and supplier response.</td>
+              <td>Connects decision evidence to award and contract formation.</td>
+            </tr>
+            <tr>
+              <td>Award to contract execution</td>
+              <td>Award winner, clauses, negotiation, and approval records.</td>
+              <td>Contract versions, signatures, milestones, payment, delivery, and closeout.</td>
+              <td>Ensures the awarded outcome remains traceable through delivery.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="modules">
+        <h2>5. System Boundaries</h2>
+        <div class="module-grid">
+          <div class="module-card">
+            <h3>Client</h3>
+            <ul>
+              <li>React and Vite application.</li>
+              <li>Routes public, protected, verified, and admin pages.</li>
+              <li>Feature pages live under <code>client/src/features</code>.</li>
+            </ul>
+          </div>
+          <div class="module-card">
+            <h3>API</h3>
+            <ul>
+              <li>Express app registers domain modules under <code>/api/*</code>.</li>
+              <li>Modules use routes, controllers, services, repositories, validators, and types.</li>
+              <li>Health endpoint reports registered module boundaries.</li>
+            </ul>
+          </div>
+          <div class="module-card">
+            <h3>Data</h3>
+            <ul>
+              <li>Prisma schema models organizations, tenders, bids, evaluation, awards, contracts, and records.</li>
+              <li>PostgreSQL stores canonical lifecycle records.</li>
+              <li>Redis, Elasticsearch, and MinIO support future operational services.</li>
+            </ul>
+          </div>
+          <div class="module-card">
+            <h3>Governance</h3>
+            <ul>
+              <li>Admin routes provide compliance, audit, search, analytics, and user review.</li>
+              <li>Records and audit events preserve timeline evidence.</li>
+              <li>RLS helpers support organization-aware database access.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="phase-detail">
+        <h2>6. Phase Deep Dive</h2>
+        <p>
+          This section expands the lifecycle into implementation-sized phases. Each phase has a
+          starting condition, a working owner, the main actions performed in the system, the records
+          created or changed, and the condition that allows the next phase to begin. This makes the
+          lifecycle easier to explain in a defense, handover, or implementation review because every
+          step has a reason and a durable system output.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>Entry Condition</th>
+              <th>Primary Owner</th>
+              <th>Deep System Behavior</th>
+              <th>Records And Evidence Produced</th>
+              <th>Exit Gate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Public discovery</td>
+              <td>No account or session is required. A visitor arrives through the welcome page, marketplace preview, contact page, policy pages, or a shared link.</td>
+              <td>Guest user and public content module.</td>
+              <td>The system explains what ProcureX does, exposes a safe marketplace preview, shows trust and policy information, and gives a clear path to registration or sign-in. Public routes must not assume organization membership, active verification, or any sensitive procurement data.</td>
+              <td>Usually no private record is created. Contact or support actions may create support records depending on the selected path.</td>
+              <td>The visitor chooses to register, sign in, contact support, or continue browsing.</td>
+            </tr>
+            <tr>
+              <td>Account registration</td>
+              <td>The visitor chooses <code>/register</code> and provides account details.</td>
+              <td>Identity module.</td>
+              <td>The system captures identity inputs, validates contact channels, separates account type from procurement capability, sends or exposes local development OTP/email codes, and prepares the account for activation. At this stage the platform should avoid granting operational permissions before contact and company trust steps are complete.</td>
+              <td>User draft or registration state, phone verification state, email activation state, policy acceptance where applicable, notification delivery records or local development delivery output.</td>
+              <td>Phone/email verification succeeds and the password setup or activation process is complete.</td>
+            </tr>
+            <tr>
+              <td>Authentication and session</td>
+              <td>A returning or newly activated user submits credentials at <code>/sign-in</code>.</td>
+              <td>Identity module and client route guards.</td>
+              <td>The backend verifies credentials and exposes session state. The client uses session information to decide whether public, protected, verified, or admin routes can render. Admin accounts are redirected toward admin surfaces instead of buyer or supplier workspaces.</td>
+              <td>Session information, authentication timestamps, account status checks, and any security-related audit entries required by the implementation.</td>
+              <td>A valid session exists and the user is directed to either verification/profile pages, workspace pages, or admin pages.</td>
+            </tr>
+            <tr>
+              <td>Company verification</td>
+              <td>A user has an account but needs trusted organization context for core procurement work.</td>
+              <td>User, identity module, registry lookup provider, admin reviewer.</td>
+              <td>The user creates or updates a verification draft, performs registry lookup where configured, submits company details, and waits for review. Admin users inspect verification evidence and issue a decision. This phase is essential because ProcureX treats buyer and supplier behavior as organization capability, not as personal account type.</td>
+              <td>Verification draft, registry lookup result, company profile data, admin verification decision, organization membership, organization capability, notification or status updates.</td>
+              <td>The organization context is approved, rejected, or returned for correction. Approved users can enter verified workspaces.</td>
+            </tr>
+            <tr>
+              <td>Workspace entry</td>
+              <td>The user has a valid session and the required verification level for workspace routes.</td>
+              <td>Client router and dashboard module.</td>
+              <td>The system presents the workspace dashboard and app launcher. This is the operating center where users branch into procurement, marketplace, bidding, evaluation, awards, communication, records, support, or profile management. The same human user may see different paths depending on organization capability and workflow assignment.</td>
+              <td>Dashboard summaries, activity counts, notification state, route-level access outcomes, and visible module links.</td>
+              <td>The user chooses a business workflow such as creating a tender, finding a tender, evaluating bids, or reviewing records.</td>
+            </tr>
+            <tr>
+              <td>Procurement planning and tender drafting</td>
+              <td>A buyer-capable organization user opens tender creation.</td>
+              <td>Buyer organization and procurement module.</td>
+              <td>The buyer defines procurement category, title, scope, eligibility requirements, milestones, commercial line items, submission needs, and tender documents. The tender remains an internal controlled record until publication rules are satisfied. Tender ownership is attached to the buying organization, not to a broad buyer login role.</td>
+              <td><code>Tender</code>, <code>TenderCategory</code>, <code>TenderRequirement</code>, <code>TenderMilestone</code>, <code>TenderCommercialItem</code>, <code>TenderDocument</code>, and document object references where used.</td>
+              <td>The tender is complete enough for review, approval, publication, or correction.</td>
+            </tr>
+            <tr>
+              <td>Tender publication</td>
+              <td>A draft tender is ready for supplier visibility.</td>
+              <td>Buyer organization, procurement service, optional reviewer or admin oversight.</td>
+              <td>The system changes the tender from internal preparation to supplier-facing opportunity. Publication makes the tender discoverable through marketplace and tender detail routes. Published records must preserve the exact information suppliers relied on, including documents, deadlines, requirements, and addenda or amendments when present.</td>
+              <td>Published tender state, publication timestamp, visible marketplace record, supplier-facing detail data, tender document package, audit record for publication.</td>
+              <td>Suppliers can discover the opportunity and begin bid preparation before the submission deadline.</td>
+            </tr>
+            <tr>
+              <td>Supplier discovery and bid preparation</td>
+              <td>A supplier-capable organization user opens marketplace or receives an opportunity reference.</td>
+              <td>Supplier organization and bidding module.</td>
+              <td>The supplier reviews eligibility, scope, documents, submission structure, deadlines, and commercial requirements. The system supports bid workspaces where suppliers can prepare versions, attach documents, answer response fields, and move from draft to final submission. Ownership includes both buyer and supplier organization context so access can be reasoned about on both sides.</td>
+              <td><code>Bid</code>, <code>BidVersion</code>, <code>BidDocument</code>, <code>BidResponse</code>, draft status, document upload references, supplier activity history.</td>
+              <td>The supplier submits the bid, withdraws, misses the deadline, or decides not to participate.</td>
+            </tr>
+            <tr>
+              <td>Bid submission and receipt</td>
+              <td>A supplier commits a bid response before the applicable deadline and rules allow submission.</td>
+              <td>Supplier organization and bidding service.</td>
+              <td>The system turns a draft bid into a submitted bid, locks or records the submitted version, stores associated documents and responses, and produces a receipt. The receipt matters because it gives the supplier proof of submission and gives the buyer/evaluation process a reliable intake record.</td>
+              <td>Submitted bid status, final bid version, receipt, submitted-at timestamp, document references, audit trail, communication or notification events where implemented.</td>
+              <td>Submitted bids become available to evaluation intake after the appropriate opening or review condition.</td>
+            </tr>
+            <tr>
+              <td>Evaluation workspace setup</td>
+              <td>Submitted bids exist for a tender and the procurement process moves into evaluation.</td>
+              <td>Evaluation module, buyer organization, assigned evaluators.</td>
+              <td>The system organizes bids into an evaluation workspace. It defines or loads criteria, establishes workflow assignments, and gives evaluators the working surface needed to score and compare bids. The important distinction is that evaluation access is based on assignment and context, not simply buyer or supplier identity.</td>
+              <td><code>EvaluationWorkspace</code>, <code>WorkflowAssignment</code>, <code>EvaluationCriterion</code>, evaluation stages, visibility decisions, audit records.</td>
+              <td>Evaluators are assigned and scoring can begin.</td>
+            </tr>
+            <tr>
+              <td>Scoring and recommendation</td>
+              <td>Evaluation workspace is active and evaluators can inspect submitted bids.</td>
+              <td>Evaluators, approvers, evaluation service, award-contract service.</td>
+              <td>Evaluators score bids against criteria, capture decisions, handle clarifications where supported, and produce recommendation evidence. The award recommendation should be traceable back to scored criteria and bid records so a reviewer can understand why a supplier was recommended.</td>
+              <td><code>EvaluationScore</code>, evaluation notes, recommendation draft, approval steps, award groups, winner references, tie-breaker records where used.</td>
+              <td>A recommendation is approved, rejected, revised, or escalated.</td>
+            </tr>
+            <tr>
+              <td>Award approval and notice</td>
+              <td>A recommended award is ready for approval and supplier notification.</td>
+              <td>Award-contract module, approvers, buyer organization, supplier organization.</td>
+              <td>The system routes the recommendation through approval steps, prepares award notices, records award responses, and establishes the contractual path. This phase turns evaluation evidence into a formal procurement decision.</td>
+              <td><code>AwardRecommendation</code>, <code>AwardApprovalRoute</code>, <code>AwardApprovalStep</code>, <code>AwardNotice</code>, <code>AwardResponse</code>, notifications, audit entries.</td>
+              <td>Award is accepted, declined, disputed, or moved into negotiation and contract formation.</td>
+            </tr>
+            <tr>
+              <td>Contract formation</td>
+              <td>A supplier award response allows contract drafting or negotiation to begin.</td>
+              <td>Buyer organization, supplier organization, award-contract module, documents module.</td>
+              <td>The system creates contract structure, parties, clauses, versions, negotiation records, signatures, activation items, and baseline obligations. Contract versions protect the history of what changed and who agreed to it.</td>
+              <td><code>Contract</code>, <code>ContractParty</code>, <code>ContractClause</code>, <code>ContractVersion</code>, <code>ContractSignature</code>, <code>ContractActivation</code>, required documents, audit trail.</td>
+              <td>The contract is signed, activated, returned for negotiation, cancelled, or escalated.</td>
+            </tr>
+            <tr>
+              <td>Post-award execution</td>
+              <td>A contract is active or ready for execution tracking.</td>
+              <td>Buyer, supplier, post-award module, financial module, documents module.</td>
+              <td>The system tracks purchase orders, invoices, payment schedules, delivery evidence, inspections, acceptance, service levels, defects, change requests, claims, disputes, non-conformance, penalties, extensions, and closeout evidence. This phase is long-running and may involve many loops rather than one straight path.</td>
+              <td>Purchase orders, invoices, contract milestones, deliverables, acceptance records, goods receipts, progress reports, payment certificates, service reports, defects, claims, amendments, closeout records.</td>
+              <td>The contract is completed, closed, terminated, disputed, amended, or placed into warranty or follow-up monitoring.</td>
+            </tr>
+            <tr>
+              <td>Records, audit, and administration</td>
+              <td>Any meaningful procurement action occurs.</td>
+              <td>Records module, communication module, compliance-admin module, database security context.</td>
+              <td>Traceability runs across the whole lifecycle. Communication stores structured messages and attachments. Records provide timeline history. Audit events preserve important system actions. Admin pages allow compliance users to review verification, users, organizations, search, analytics, audit, and compliance cases.</td>
+              <td><code>CommunicationItem</code>, <code>CommunicationAttachment</code>, <code>RecordEntry</code>, <code>AuditEvent</code>, compliance cases, risk signals, admin actions.</td>
+              <td>The organization can defend what happened, when it happened, who acted, and what evidence was available.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="exception-flow">
+        <h2>7. Exception Flow</h2>
+        <p>
+          A procurement platform is not complete if it only documents the happy path. Real procurement
+          work includes rejected verifications, incomplete tenders, missed deadlines, withdrawn bids,
+          evaluation disagreements, award disputes, negotiation failures, delivery problems, payment
+          delays, and contract closeout exceptions. ProcureX keeps these cases inside the lifecycle
+          rather than treating them as invisible side conversations.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Exception</th>
+              <th>Where It Appears</th>
+              <th>System Response</th>
+              <th>Evidence To Preserve</th>
+              <th>Recovery Path</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Verification rejected or returned</td>
+              <td>Identity verification and admin review.</td>
+              <td>User stays out of verified operational routes. Admin decision explains status and the profile can be corrected where rules allow.</td>
+              <td>Submitted details, registry lookup result, reviewer decision, timestamp, and notification.</td>
+              <td>User updates the draft and resubmits, or support/admin resolves the account state.</td>
+            </tr>
+            <tr>
+              <td>Tender draft incomplete</td>
+              <td>Procurement creation and tender review.</td>
+              <td>Tender remains a draft and is not exposed to suppliers. Missing scope, requirements, milestones, documents, or commercial items can be corrected.</td>
+              <td>Draft tender state, validation errors, owner organization, and last modified information.</td>
+              <td>Buyer completes required fields and retries publication or review.</td>
+            </tr>
+            <tr>
+              <td>Tender amended after publication</td>
+              <td>Published tender and supplier detail screens.</td>
+              <td>Amendment records clarify what changed. Suppliers must be able to understand which version or amendment applies to their bid preparation.</td>
+              <td>Original tender, amendment content, affected documents, change timestamp, communication to suppliers.</td>
+              <td>Suppliers continue bid preparation with updated information; evaluation references the applicable tender state.</td>
+            </tr>
+            <tr>
+              <td>Supplier misses deadline</td>
+              <td>Bidding workspace.</td>
+              <td>Submission is blocked or marked late according to platform rules. Draft work remains separate from a valid submitted bid.</td>
+              <td>Deadline, attempted submission time, bid draft state, and any error or status message.</td>
+              <td>Supplier may keep draft history, but the tender moves forward without a valid submission unless an authorized amendment extends time.</td>
+            </tr>
+            <tr>
+              <td>Bid withdrawn or replaced</td>
+              <td>Bidding and evaluation intake.</td>
+              <td>The system must distinguish current submitted version from older draft or withdrawn versions.</td>
+              <td>Bid versions, withdrawal reason where captured, submitted-at and withdrawn-at timestamps.</td>
+              <td>Evaluation uses the valid active submission according to tender rules.</td>
+            </tr>
+            <tr>
+              <td>Evaluator conflict or reassignment</td>
+              <td>Evaluation workspace.</td>
+              <td>Workflow assignments can be changed so the correct people evaluate the right bids. Prior activity should remain attributable.</td>
+              <td>Original assignment, replacement assignment, reason, scores already entered, admin or chair decision.</td>
+              <td>Evaluation continues with corrected assignment context.</td>
+            </tr>
+            <tr>
+              <td>Award recommendation challenged</td>
+              <td>Award recommendation, approval, records, communication.</td>
+              <td>The recommendation can be reviewed, revised, rejected, or escalated. The decision basis remains linked to evaluation evidence.</td>
+              <td>Scores, recommendation notes, approval route, objections, communication, audit events.</td>
+              <td>Approver returns for revision, confirms recommendation, or opens a dispute/compliance path.</td>
+            </tr>
+            <tr>
+              <td>Supplier declines award</td>
+              <td>Award response.</td>
+              <td>The award response is recorded and the buyer can proceed according to procurement rules, such as negotiating with another eligible supplier or re-running a step.</td>
+              <td>Award notice, supplier response, timing, reason, communication, next action.</td>
+              <td>Move to alternate winner, renegotiate, cancel, or re-tender depending on policy.</td>
+            </tr>
+            <tr>
+              <td>Contract negotiation stalls</td>
+              <td>Contract drafting and negotiation.</td>
+              <td>Versions, comments, clauses, and negotiation state show what is unresolved. The system keeps a record of each proposed change.</td>
+              <td>Contract versions, clause changes, negotiation notes, party responses, timestamps.</td>
+              <td>Resolve open clauses, escalate for approval, cancel award, or restart negotiation path.</td>
+            </tr>
+            <tr>
+              <td>Delivery, invoice, or quality issue</td>
+              <td>Post-award execution.</td>
+              <td>The issue is captured as a contract issue, defect, non-conformance, claim, dispute, change request, or payment exception.</td>
+              <td>Delivery evidence, inspection result, invoice, payment certificate, issue record, correspondence, decision trail.</td>
+              <td>Corrective action, acceptance, service credit, claim response, amendment, dispute resolution, or termination.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="evidence-chain">
+        <h2>8. Evidence Chain</h2>
+        <p>
+          The deepest value of the lifecycle is not only that work moves from step to step. The value
+          is that each step leaves evidence behind. Evidence allows a buyer to defend why a tender was
+          published, a supplier to prove a bid was submitted, an evaluator to explain a score, an
+          approver to justify an award, and an auditor to reconstruct the full decision history.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Evidence Layer</th>
+              <th>What It Captures</th>
+              <th>Lifecycle Examples</th>
+              <th>Why It Is Important</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Identity evidence</td>
+              <td>Account details, verification status, organization membership, account type, and capability context.</td>
+              <td>Phone/email verification, registry lookup, company profile, admin verification decision, organization capability.</td>
+              <td>Shows who the user is and which organization they are allowed to represent.</td>
+            </tr>
+            <tr>
+              <td>Tender evidence</td>
+              <td>The buyer's published requirements, documents, deadlines, milestones, and commercial structure.</td>
+              <td>Tender document, requirements, milestones, commercial items, amendments, publication status.</td>
+              <td>Shows what suppliers were asked to respond to and what rules applied.</td>
+            </tr>
+            <tr>
+              <td>Bid evidence</td>
+              <td>The supplier's submitted offer, documents, version history, response fields, and receipt.</td>
+              <td>Bid version, bid response, uploaded bid documents, receipt, submitted timestamp.</td>
+              <td>Shows what the supplier submitted and whether submission was valid.</td>
+            </tr>
+            <tr>
+              <td>Evaluation evidence</td>
+              <td>Criteria, score values, evaluator assignments, review stages, and recommendation reasoning.</td>
+              <td>Evaluation criterion, score, workflow assignment, recommendation notes, tie-breaker data.</td>
+              <td>Shows why one bid was preferred over another.</td>
+            </tr>
+            <tr>
+              <td>Award evidence</td>
+              <td>Recommendation, approvals, notices, supplier response, award clauses, and winner records.</td>
+              <td>Award recommendation, approval step, award notice, award response, winner, approval route.</td>
+              <td>Shows how evaluation became a formal award decision.</td>
+            </tr>
+            <tr>
+              <td>Contract evidence</td>
+              <td>Contract parties, clauses, versions, signatures, activation, obligations, and baseline commitments.</td>
+              <td>Contract version, clause, signature, activation item, required document, baseline obligation.</td>
+              <td>Shows what both parties agreed to and when the agreement became active.</td>
+            </tr>
+            <tr>
+              <td>Execution evidence</td>
+              <td>Delivery, inspection, acceptance, invoices, payments, issues, changes, claims, disputes, and closeout.</td>
+              <td>Goods receipt, progress report, payment certificate, invoice, defect, claim, amendment, closeout record.</td>
+              <td>Shows whether the supplier delivered and whether the buyer accepted and paid correctly.</td>
+            </tr>
+            <tr>
+              <td>Communication evidence</td>
+              <td>Messages, attachments, support exchanges, clarification context, and operational correspondence.</td>
+              <td>Communication item, attachment, support ticket, notification record, supplier or buyer message.</td>
+              <td>Shows the human conversation around formal system actions.</td>
+            </tr>
+            <tr>
+              <td>Audit evidence</td>
+              <td>Important system actions, sensitive decisions, administrative review, and timeline records.</td>
+              <td>Audit event, record entry, admin action, compliance case, risk signal.</td>
+              <td>Shows who did what, when, and under which system context.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="callout">
+          <strong>Deep lifecycle principle</strong>
+          Every major procurement action should answer four questions: who acted, which organization
+          or workflow context allowed the action, what record changed, and which evidence proves that
+          the change was valid. The lifecycle is healthy when those answers can be reconstructed from
+          identity, domain records, communication, documents, and audit history without relying on
+          memory or informal messages outside the platform.
+        </div>
+      </section>
+
+      <section id="acceptance">
+        <h2>9. Reading Checklist</h2>
+        <table class="matrix">
+          <tbody>
+            <tr>
+              <th>Business completeness</th>
+              <td>The flow includes public discovery, identity, buyer tendering, supplier bidding, evaluation, award, contract execution, post-award, records, and admin oversight.</td>
+            </tr>
+            <tr>
+              <th>Implementation alignment</th>
+              <td>Routes and module names match the current router and backend module registry.</td>
+            </tr>
+            <tr>
+              <th>Security alignment</th>
+              <td>The document preserves the account type versus organization capability rule and highlights verification and RLS context.</td>
+            </tr>
+            <tr>
+              <th>Operational use</th>
+              <td>The page is printable, readable without JavaScript, and suitable for stakeholder walkthroughs.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <p class="footer-note">
+        Prepared from ProcureX repository documentation, client route definitions, backend module registration,
+        and Prisma domain model groups. This document is descriptive only and does not change application behavior.
+      </p>
+    </main>
+  </div>
+</body>
+</html>

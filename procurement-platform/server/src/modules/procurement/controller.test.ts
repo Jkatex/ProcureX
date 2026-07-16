@@ -389,7 +389,7 @@ describe('procurement controller validation responses', () => {
     expect(service.updateTenderBuyerNotice).not.toHaveBeenCalled();
   });
 
-  it('returns structured validation errors for non-empty publish bodies', async () => {
+  it('returns structured validation errors for publish bodies without a signing keyphrase', async () => {
     const service = { publishTender: vi.fn() };
     const controller = new ModuleController(service as any);
     const res = mockResponse();
@@ -398,7 +398,26 @@ describe('procurement controller validation responses', () => {
     await controller.publishTender(
       mockRequest({
         params: { tenderId: validTenderId },
-        body: { status: 'OPEN' }
+        body: {}
+      }) as any,
+      res as any,
+      next
+    );
+
+    expectValidationResponse(res, next);
+    expect(service.publishTender).not.toHaveBeenCalled();
+  });
+
+  it('returns structured validation errors for unexpected publish body fields', async () => {
+    const service = { publishTender: vi.fn() };
+    const controller = new ModuleController(service as any);
+    const res = mockResponse();
+    const next = vi.fn();
+
+    await controller.publishTender(
+      mockRequest({
+        params: { tenderId: validTenderId },
+        body: { signatureKeyphrase: 'Signing123', status: 'OPEN' }
       }) as any,
       res as any,
       next
@@ -423,7 +442,11 @@ describe('procurement controller validation responses', () => {
     const res = mockResponse();
     const next = vi.fn();
 
-    await controller.publishTender(mockRequest({ params: { tenderId: validTenderId }, body: {}, token: 'token-1' }) as any, res as any, next);
+    await controller.publishTender(
+      mockRequest({ params: { tenderId: validTenderId }, body: { signatureKeyphrase: 'Signing123' }, token: 'token-1' }) as any,
+      res as any,
+      next
+    );
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({

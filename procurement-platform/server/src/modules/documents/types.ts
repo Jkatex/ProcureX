@@ -20,7 +20,7 @@ export type DocumentRequestContext = {
 export type DocumentContent = {
   filename: string;
   contentType: string;
-  body: string;
+  body: string | Buffer;
 };
 
 export const officialDocumentStatuses = ['DRAFT', 'PENDING_APPROVAL', 'SIGNED', 'OFFICIAL', 'VOID'] as const;

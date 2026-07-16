@@ -24,6 +24,8 @@ import { prisma } from '../../db/prisma.js';
 import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import { buildBidSubmissionSchema } from '../bidding/bidSubmissionSchema.service.js';
 import { signCanonicalPayloadHash } from '../identity/signing.js';
+import { renderOfficialPdf, type OfficialPdfSection } from '../documents/officialPdfRenderer.js';
+import { storeOfficialPdf } from '../documents/officialStorage.js';
 import type {
   AwardContractRequestContext,
   AwardDecisionDraftInput,
@@ -1112,6 +1114,76 @@ function contractDocumentDto(document: ContractDocumentRecord, sourceLabel: stri
     contentUrl: `/api/documents/${document.id}/content`,
     sourceLabel
   };
+}
+
+type SignedContractSignatureRow = {
+  role: string;
+  signerName: string;
+  signerTitle: string;
+  signedAt: string;
+  signatureHash: string;
+  canonicalPayloadHash: string;
+};
+
+function signedContractPdfSections(contract: any, signatures: SignedContractSignatureRow[]): OfficialPdfSection[] {
+  const amount = decimalToNumber(contract.amount);
+  return [
+    {
+      title: 'Contract Summary',
+      intro: 'This official signed contract document was generated automatically after all required ProcureX digital signatures were completed.',
+      rows: [
+        { label: 'Contract title', value: String(contract.title ?? '') },
+        { label: 'Contract reference', value: String(contract.reference ?? '') },
+        { label: 'Buyer', value: String(contract.buyerOrg?.name ?? 'Buyer organization') },
+        { label: 'Supplier', value: String(contract.supplierOrg?.name ?? 'Supplier organization') },
+        { label: 'Tender reference', value: String(contract.tender?.reference ?? 'Not linked') },
+        { label: 'Tender title', value: String(contract.tender?.title ?? 'Not linked') },
+        { label: 'Contract value', value: amount === null ? 'Not priced' : `${String(contract.currency ?? 'TZS')} ${amount.toLocaleString()}` }
+      ]
+    },
+    {
+      title: 'Scope, Clauses, and Contract Conditions',
+      intro: 'The clauses below form part of the signed agreement and are preserved with this generated version.',
+      rows: (contract.clauses ?? []).length
+        ? (contract.clauses ?? []).map((clause: any) => ({
+            label: String(clause.title ?? clause.clauseKey ?? 'Contract clause'),
+            value: [clause.category, clause.status, clause.body || clause.note].filter(Boolean).map(String).join('; ')
+          }))
+        : [{ label: 'Clauses', value: 'No contract clauses were recorded.' }]
+    },
+    {
+      title: 'Required Documents',
+      intro: 'Required contract documents recorded at the time of signature.',
+      rows: (contract.requiredDocuments ?? []).length
+        ? (contract.requiredDocuments ?? []).map((document: any) => ({
+            label: String(document.title ?? document.documentType ?? 'Required document'),
+            value: [document.status, document.ownerRole, document.documentId ? `document ${document.documentId}` : null].filter(Boolean).map(String).join('; ')
+          }))
+        : [{ label: 'Required documents', value: 'No required documents were recorded.' }]
+    },
+    {
+      title: 'Buyer and Supplier Digital Signatures',
+      intro: 'These rows are the visible electronic signature evidence captured by ProcureX for the buyer and supplier.',
+      rows: signatures.flatMap((signature) => [
+        { label: `${signature.role} signer`, value: `${signature.signerName}${signature.signerTitle ? `, ${signature.signerTitle}` : ''}` },
+        { label: `${signature.role} signed at`, value: signature.signedAt || 'Not recorded' },
+        { label: `${signature.role} signature hash`, value: signature.signatureHash || 'Not recorded' },
+        { label: `${signature.role} payload hash`, value: signature.canonicalPayloadHash || 'Not recorded' }
+      ])
+    },
+    {
+      title: 'Integrity and Version Control',
+      intro: 'This generated PDF is linked as the latest contract version and can be opened or downloaded from the official contract document panel.',
+      rows: [
+        { label: 'Latest previous version', value: String(contract.versions?.[0]?.versionNo ?? 'None') },
+        { label: 'Signature count', value: String(signatures.length) }
+      ]
+    }
+  ];
+}
+
+function shortHash(value: string) {
+  return value ? `${value.slice(0, 12)}...${value.slice(-8)}` : 'not recorded';
 }
 
 function awardDecisionDraftPayload(input: AwardDecisionDraftInput): Record<string, unknown> {
@@ -4230,13 +4302,167 @@ export class ModuleRepository {
           status: { not: SignatureStatus.SIGNED }
         }
       });
-      if (pending === 0) await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.SIGNED } });
+      if (pending === 0) {
+        await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.SIGNED } });
+        await this.createOfficialSignedContractDocument(tx, contractId, context.userId ?? null);
+      }
       await this.audit(tx, signature.contract.buyerOrgId, context.userId, 'contract.signature.signed', 'contract', contractId, {
         signatureId: signature.id,
         role: signature.role
       });
     });
     return this.getContract(contractId, context);
+  }
+
+  private async createOfficialSignedContractDocument(tx: Prisma.TransactionClient, contractId: string, generatedByUserId: string | null) {
+    const contract = await tx.contract.findUnique({
+      where: { id: contractId },
+      include: {
+        buyerOrg: { select: { id: true, name: true } },
+        supplierOrg: { select: { id: true, name: true } },
+        tender: { select: { id: true, reference: true, title: true, type: true } },
+        clauses: { orderBy: { createdAt: 'asc' } },
+        requiredDocuments: { orderBy: [{ ownerRole: 'asc' }, { createdAt: 'asc' }] },
+        versions: { orderBy: { versionNo: 'desc' }, take: 1 },
+        signatures: { orderBy: [{ role: 'asc' }, { signedAt: 'asc' }] }
+      }
+    });
+    if (!contract) throw requestError('Contract was not found for signed document generation.', 404);
+    const signedSignatures = contract.signatures.filter((signature) => signature.status === SignatureStatus.SIGNED);
+    if (!signedSignatures.length || signedSignatures.length !== contract.signatures.length) return;
+
+    const versionNo = (contract.versions[0]?.versionNo ?? 0) + 1;
+    const officialVersion = await tx.officialDocumentVersion.findFirst({
+      where: {
+        sourceModule: 'award-contract',
+        sourceEntityType: 'contract',
+        sourceEntityId: contract.id,
+        documentType: 'CONTRACT_DOCUMENT'
+      },
+      orderBy: { versionNo: 'desc' },
+      select: { versionNo: true }
+    });
+    const officialVersionNo = (officialVersion?.versionNo ?? 0) + 1;
+    const generatedAt = new Date();
+    const signatureRows = signedSignatures.map((signature) => ({
+      role: signature.role,
+      signerName: signature.signerName || 'Recorded signer',
+      signerTitle: signature.signerTitle || '',
+      signedAt: signature.signedAt?.toISOString() ?? '',
+      signatureHash: signature.signatureHash || '',
+      canonicalPayloadHash: signature.canonicalPayloadHash || ''
+    }));
+    const signatureSetHash = createHash('sha256').update(canonicalJson(signatureRows)).digest('hex');
+    const pdf = await renderOfficialPdf({
+      title: `Final Signed Contract - ${contract.title}`,
+      subtitle: 'Official signed contract document with ProcureX digital signature evidence',
+      reference: contract.reference,
+      status: 'SIGNED - OFFICIAL',
+      generatedAt,
+      metadataRows: [
+        { label: 'Contract reference', value: contract.reference },
+        { label: 'Contract status', value: ContractStatus.SIGNED },
+        { label: 'Generated by user', value: generatedByUserId ?? 'System' },
+        { label: 'Generated at', value: generatedAt.toISOString() },
+        { label: 'Contract version', value: String(versionNo) },
+        { label: 'Signature set hash', value: signatureSetHash }
+      ],
+      sections: signedContractPdfSections(contract, signatureRows),
+      signatureBlocks: signatureRows.map((signature) =>
+        `${signature.role}: ${signature.signerName}${signature.signerTitle ? `, ${signature.signerTitle}` : ''}; signed ${signature.signedAt}; signature hash ${shortHash(signature.signatureHash)}`
+      ),
+      watermark: 'SIGNED'
+    });
+    const stored = await storeOfficialPdf({
+      body: pdf,
+      sourceModule: 'award-contract',
+      sourceEntityType: 'contract',
+      sourceEntityId: contract.id,
+      documentType: 'CONTRACT_DOCUMENT',
+      versionNo,
+      reference: contract.reference
+    });
+    const filename = `${contract.reference}-signed-contract-v${versionNo}.pdf`;
+    const document = await tx.documentObject.create({
+      data: {
+        ownerOrgId: contract.buyerOrgId,
+        uploadedByUserId: generatedByUserId,
+        name: filename,
+        objectKey: stored.objectKey,
+        documentType: 'CONTRACT_DOCUMENT',
+        checksum: stored.checksum,
+        metadata: {
+          sourceModule: 'award-contract',
+          sourceEntityType: 'contract',
+          sourceEntityId: contract.id,
+          contractId: contract.id,
+          contractReference: contract.reference,
+          officialSignedContract: true,
+          officialDocument: true,
+          mimeType: 'application/pdf',
+          size: stored.sizeBytes,
+          contentBase64: pdf.toString('base64'),
+          signatureSetHash,
+          signatures: signatureRows
+        } as Prisma.InputJsonObject
+      },
+      select: { id: true }
+    });
+    await tx.contractVersion.create({
+      data: {
+        contractId: contract.id,
+        versionNo,
+        documentId: document.id,
+        payload: {
+          source: 'contract-final-signature',
+          generatedAt: generatedAt.toISOString(),
+          documentId: document.id,
+          signatureSetHash,
+          signatureCount: signatureRows.length,
+          officialDocument: true
+        } as Prisma.InputJsonObject
+      }
+    });
+    await tx.officialDocumentVersion.create({
+      data: {
+        templateId: null,
+        documentObjectId: document.id,
+        ownerOrgId: contract.buyerOrgId,
+        generatedByUserId,
+        sourceModule: 'award-contract',
+        sourceEntityType: 'contract',
+        sourceEntityId: contract.id,
+        documentType: 'CONTRACT_DOCUMENT',
+        procurementType: String(contract.tender?.type ?? 'MIXED'),
+        title: contract.title,
+        reference: contract.reference,
+        versionNo: officialVersionNo,
+        templateVersion: 'signed-contract-v1',
+        status: 'SIGNED',
+        contentHash: stored.checksum,
+        pdfObjectKey: stored.objectKey,
+        pdfSizeBytes: stored.sizeBytes,
+        validationWarnings: [] as Prisma.InputJsonArray,
+        approvalMetadata: {} as Prisma.InputJsonObject,
+        signatureMetadata: {
+          officialSignedContract: true,
+          signatureSetHash,
+          signatures: signatureRows
+        } as Prisma.InputJsonObject,
+        metadata: {
+          contractVersionNo: versionNo,
+          documentId: document.id,
+          visibleOrgIds: [contract.buyerOrgId, contract.supplierOrgId].filter(Boolean)
+        } as Prisma.InputJsonObject,
+        generatedAt,
+        officialAt: generatedAt
+      }
+    });
+    await this.audit(tx, contract.buyerOrgId, generatedByUserId ?? undefined, 'contract.official_signed_document.generated', 'contract', contract.id, {
+      documentId: document.id,
+      versionNo,
+      signatureSetHash
+    });
   }
 
   async createMilestone(contractId: string, input: ContractMilestoneInput, context: AwardContractRequestContext) {

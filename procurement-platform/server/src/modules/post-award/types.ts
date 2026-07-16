@@ -1,4 +1,5 @@
 import type { ContractStatus } from '@prisma/client';
+import type { ContractDetailDto } from '../award-contract/types.js';
 
 export const moduleDefinition = {
   key: 'post-award',
@@ -302,6 +303,7 @@ export type PostAwardWorkspaceDto = {
     canSeeSupplierPrivate: boolean;
   };
   metrics: Array<{ label: string; value: string | number; tone?: 'success' | 'warning' | 'error' | 'info' }>;
+  detail?: ContractDetailDto;
   stages: PostAwardStageDto[];
   secondary: PostAwardSecondaryRegisterDto[];
   actions: PostAwardActionDto[];

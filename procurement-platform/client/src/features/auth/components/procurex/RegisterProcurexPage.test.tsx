@@ -118,8 +118,7 @@ describe('RegisterProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await screen.findByRole('heading', { name: 'Verify Your Number' });
-    const phoneCodeToast = await screen.findByText('Phone verification code: 123456');
-    expect(phoneCodeToast.closest('.procurex-toast-host')).toBeInTheDocument();
+    expect(screen.queryByText('Phone verification code: 123456')).not.toBeInTheDocument();
     expect(document.querySelector<HTMLInputElement>('.otp-input-new')!).toHaveAttribute('autocomplete', 'one-time-code');
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
     expect(mockedAuthApi.startRegistration).toHaveBeenCalledWith({ email: 'legal@example.test', phone: '+255700000004', turnstileToken: 'turnstile-token' });
@@ -129,8 +128,7 @@ describe('RegisterProcurexPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
 
     await screen.findByRole('heading', { name: 'Activate Your Email' });
-    const emailCodeToast = await screen.findByText('Email activation code: email-dev-code');
-    expect(emailCodeToast.closest('.procurex-toast-host')).toBeInTheDocument();
+    expect(screen.queryByText('Email activation code: email-dev-code')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Activation Code *')).toHaveAttribute('autocomplete', 'one-time-code');
     fillVisibleInput('text', '87654321');
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Password Setup' }));
@@ -190,6 +188,38 @@ describe('RegisterProcurexPage', () => {
         turnstileToken: 'turnstile-token'
       })
     );
+  });
+
+  it('does not show temporary code notifications for registration resends', async () => {
+    mockedAuthApi.startRegistration.mockResolvedValueOnce({ user: {}, challengeId: 'otp-challenge', expiresAt: '2026-06-06T00:00:00.000Z', devCode: '123456' } as never);
+    mockedAuthApi.resendOtp.mockResolvedValueOnce({ challengeId: 'otp-challenge-2', expiresAt: '2026-06-06T00:05:00.000Z', devCode: '654321' });
+    mockedAuthApi.verifyOtp.mockResolvedValueOnce({ activationChallengeId: 'activation-challenge', expiresAt: '2026-06-06T00:10:00.000Z', devCode: 'email-dev-code' });
+    mockedAuthApi.resendActivation.mockResolvedValueOnce({ activationChallengeId: 'activation-challenge-2', expiresAt: '2026-06-06T00:15:00.000Z', devCode: 'email-resend-code' });
+
+    renderRegisterPage();
+
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="email"]')!, { target: { value: 'resend@example.test' } });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="tel"]')!, { target: { value: '+255700000004' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    await screen.findByRole('heading', { name: 'Verify Your Number' });
+    expect(screen.queryByText('Phone verification code: 123456')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resend Code' }));
+    expect(await screen.findByText('A new verification code has been sent.')).toBeInTheDocument();
+    expect(screen.queryByText('Phone verification code: 654321')).not.toBeInTheDocument();
+
+    fillVisibleInput('text', '123456');
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+    await screen.findByRole('heading', { name: 'Activate Your Email' });
+    expect(screen.queryByText('Email activation code: email-dev-code')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Resend activation email' }));
+    expect(await screen.findByText('A new activation email has been sent.')).toBeInTheDocument();
+    expect(screen.queryByText('Email activation code: email-resend-code')).not.toBeInTheDocument();
   });
 
   it('shows the language switcher and translates registration copy to Swahili', async () => {

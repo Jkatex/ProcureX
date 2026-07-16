@@ -14,6 +14,8 @@ vi.mock('@/features/identity/api', () => ({
   identityApi: {
     getVerificationMe: vi.fn(),
     updateProfile: vi.fn(),
+    startProfileContactChange: vi.fn(),
+    verifyProfileContactChange: vi.fn(),
     uploadProfileImage: vi.fn(),
     getProfileImageBlob: vi.fn(),
     deleteProfileImage: vi.fn()
@@ -93,6 +95,31 @@ function renderPage(profile = verificationProfile) {
     verification: profile
   });
   mockedIdentityApi.updateProfile.mockResolvedValue(profile);
+  mockedIdentityApi.startProfileContactChange.mockResolvedValue({
+    challengeId: '11111111-1111-4111-8111-111111111111',
+    field: 'email',
+    target: 'updated@example.test',
+    expiresAt: '2026-06-18T00:10:00.000Z',
+    resendAvailableAt: '2026-06-18T00:00:30.000Z',
+    maxAttempts: 5,
+    devCode: '123456'
+  });
+  mockedIdentityApi.verifyProfileContactChange.mockResolvedValue({
+    user: {
+      ...demoUsers.user,
+      email: 'updated@example.test'
+    },
+    verification: {
+      ...profile,
+      payload: {
+        ...profile.payload,
+        profile: {
+          ...profile.payload.profile,
+          emailAddress: 'updated@example.test'
+        }
+      }
+    }
+  });
   mockedIdentityApi.uploadProfileImage.mockResolvedValue({ profile, profileImage });
   mockedIdentityApi.getProfileImageBlob.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
   mockedIdentityApi.deleteProfileImage.mockResolvedValue({ profile, profileImage: null });
@@ -174,6 +201,9 @@ describe('AccountProfileProcurexPage', () => {
     expect(payload.profile).not.toHaveProperty('preferredTenderCategories');
     expect(payload.profile).not.toHaveProperty('procurementRole');
     expect(payload.profile).not.toHaveProperty('canCreateTender');
+    expect(payload.profile).not.toHaveProperty('emailAddress');
+    expect(payload.profile).not.toHaveProperty('phoneNumber');
+    expect(payload.profile).not.toHaveProperty('displayName');
   }, 10000);
 
   it('shows the default avatar in account information when no image is uploaded', async () => {
@@ -187,6 +217,70 @@ describe('AccountProfileProcurexPage', () => {
 
     await waitFor(() => expect(mockedIdentityApi.uploadProfileImage).toHaveBeenCalled());
     expect(screen.getByText('Image saved.')).toBeInTheDocument();
+  });
+
+  it('shows email and phone as verified edit rows in account information', async () => {
+    await openTab('Account');
+
+    expect(screen.getByText('supplier@example.test')).toBeInTheDocument();
+    expect(screen.getByText('+255700000001')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Email Address' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Phone Number' })).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('supplier@example.test')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('+255700000001')).not.toBeInTheDocument();
+  });
+
+  it('verifies a new email address before updating the account row', async () => {
+    const user = await openTab('Account');
+    mockedIdentityApi.startProfileContactChange.mockImplementation(async (input) => ({
+      challengeId: '11111111-1111-4111-8111-111111111111',
+      field: input.field,
+      target: input.value,
+      expiresAt: '2026-06-18T00:10:00.000Z',
+      resendAvailableAt: '2026-06-18T00:00:30.000Z',
+      maxAttempts: 5,
+      devCode: '123456'
+    }));
+    mockedIdentityApi.verifyProfileContactChange.mockResolvedValue({
+      user: {
+        ...demoUsers.user,
+        email: 'verified-new@example.test'
+      },
+      verification: {
+        ...verificationProfile,
+        payload: {
+          ...verificationProfile.payload,
+          profile: {
+            ...verificationProfile.payload.profile,
+            emailAddress: 'verified-new@example.test'
+          }
+        }
+      }
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Edit Email Address' }));
+    await user.clear(screen.getByLabelText('New Email Address'));
+    await user.type(screen.getByLabelText('New Email Address'), 'verified-new@example.test');
+    await user.click(screen.getByRole('button', { name: 'Send Code' }));
+
+    await waitFor(() =>
+      expect(mockedIdentityApi.startProfileContactChange).toHaveBeenCalledWith({
+        field: 'email',
+        value: 'verified-new@example.test'
+      })
+    );
+    expect(await screen.findByText('Temporary local code: 123456')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Verification Code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Verify and Update' }));
+
+    await waitFor(() =>
+      expect(mockedIdentityApi.verifyProfileContactChange).toHaveBeenCalledWith({
+        challengeId: '11111111-1111-4111-8111-111111111111',
+        code: '123456'
+      })
+    );
+    expect(await screen.findByText('verified-new@example.test')).toBeInTheDocument();
   });
 
   it('loads uploaded image metadata and can remove the image from the account section', async () => {
@@ -210,6 +304,13 @@ describe('AccountProfileProcurexPage', () => {
 
     await waitFor(() => expect(mockedIdentityApi.deleteProfileImage).toHaveBeenCalled());
     expect(screen.getByText('Image removed.')).toBeInTheDocument();
+  });
+
+  it('locks legal name edits on the user side', async () => {
+    await openTab('Entity');
+
+    expect(screen.getByLabelText('Display / Legal Name *')).toBeDisabled();
+    expect(screen.getByText('Legal name changes require identity verification or admin review.')).toBeInTheDocument();
   });
 
   it('uses the searchable selector for regions of operation', async () => {

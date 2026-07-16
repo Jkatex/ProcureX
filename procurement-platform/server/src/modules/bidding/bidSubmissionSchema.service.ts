@@ -37,6 +37,7 @@ type WorkflowType = 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
 
 type CommercialItem = {
   id: string;
+  sourceId?: string;
   itemNo: string | null;
   description: string;
   quantity: number | null;
@@ -237,6 +238,8 @@ function financialFields(workflow: WorkflowType, commercial: CommercialItem[], f
       compact({
         control: workflow === 'works' ? 'worksBoqCostBreakdown' : undefined,
         itemId: item.id,
+        sourceId: item.sourceId,
+        aliases: commercialItemAliases(item),
         itemNo: item.itemNo,
         description: item.description,
         quantity: item.quantity,
@@ -257,9 +260,10 @@ function financialFields(workflow: WorkflowType, commercial: CommercialItem[], f
 function goodsFinancialRequirementFields(value: unknown) {
   return financialRequirementRows(value).map((row, index) => {
     const title = payloadTitle(row, `Financial capacity requirement ${index + 1}`);
+    const rowId = stringValue(row.id) || String(index + 1);
     return field(
-      `goods.financialRequirement.${safeKey(stringValue(row.id) || String(index + 1))}`,
-      `goods.financialRequirement.${stringValue(row.id) || index + 1}`,
+      `goods.financialRequirement.${safeKey(rowId)}`,
+      `goods.financialRequirement.${rowId}`,
       title,
       'table',
       'administrative',
@@ -269,6 +273,7 @@ function goodsFinancialRequirementFields(value: unknown) {
       'requirements.goods.financialRequirementRows',
       compact({
         control: 'goodsFinancialRequirement',
+        aliases: [`requirements.goods.fields.financialRequirementRows.${rowId}`],
         requirementName: title,
         minimumValue: stringValue(row.minimumValue ?? row.minValue ?? row.value ?? row.threshold) || undefined,
         evidenceRequired: stringValue(row.evidenceRequired ?? row.documentName ?? row.documentTitle) || undefined,
@@ -836,6 +841,7 @@ function collectRequirementValue(key: string, value: unknown, output: BidSubmiss
 function commercialItems(tender: TenderSchemaInput, requirements: Record<string, unknown>, fields: Record<string, unknown>, workflow: WorkflowType): CommercialItem[] {
   const normalized = (tender.commercialItems ?? []).map((item, index) => ({
     id: item.id || `commercial-${index + 1}`,
+    sourceId: commercialItemSourceId(item.payload),
     itemNo: item.itemNo,
     description: item.description,
     quantity: numberValue(item.quantity),
@@ -872,6 +878,7 @@ function commercialItems(tender: TenderSchemaInput, requirements: Record<string,
   const [source, rows] = firstNonEmptyArray(...candidates);
   return rows.filter(isRecord).map((row, index) => ({
     id: stringValue(row.id) || `commercial-${index + 1}`,
+    sourceId: commercialItemSourceId(row),
     itemNo: stringValue(row.itemNo ?? row.itemNumber) || String(index + 1),
     description: stringValue(row.description ?? row.itemDescription ?? row.workItem ?? row.workDescription ?? row.serviceTask ?? row.serviceDescription ?? row.activity ?? row.productName ?? row.name) || `Commercial item ${index + 1}`,
     quantity: numberValue(row.quantity ?? row.qty),
@@ -880,6 +887,18 @@ function commercialItems(tender: TenderSchemaInput, requirements: Record<string,
     total: numberValue(row.total ?? row.totalPrice),
     source
   }));
+}
+
+function commercialItemSourceId(value: unknown) {
+  const payload = objectPayload(value);
+  return stringValue(payload.sourceId ?? payload.originalId ?? payload.itemId ?? payload.lineId) || undefined;
+}
+
+function commercialItemAliases(item: CommercialItem) {
+  const aliases = [item.id, item.sourceId, item.itemNo ? `item-${item.itemNo}` : undefined, item.itemNo ? String(item.itemNo) : undefined]
+    .map((value) => stringValue(value))
+    .filter((value): value is string => Boolean(value));
+  return aliases.length ? Array.from(new Set(aliases)) : undefined;
 }
 
 function requirementFields(requirements: Record<string, unknown>, workflow: WorkflowType) {

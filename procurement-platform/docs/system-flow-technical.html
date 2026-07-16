@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProcureX System Flow - Technical</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5d677a;
+      --paper: #ffffff;
+      --page: #edf2f7;
+      --line: #d8dde8;
+      --soft: #f8fafc;
+      --teal: #0f766e;
+      --blue: #2563eb;
+      --green: #2f855a;
+      --amber: #b7791f;
+      --violet: #6b46c1;
+      --red: #b91c1c;
+      --dark: #334155;
+      --shadow: 0 16px 44px rgba(23, 32, 51, 0.13);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font: 15px/1.6 Arial, Helvetica, sans-serif;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 24px auto;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    header {
+      padding: 54px 64px 40px;
+      color: #ffffff;
+      background: linear-gradient(135deg, #172033, #0f766e);
+    }
+
+    main {
+      padding: 32px 64px 64px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.18;
+    }
+
+    h1 {
+      max-width: 840px;
+      font-size: clamp(34px, 5vw, 56px);
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-top: 42px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 28px;
+    }
+
+    h3 {
+      margin-top: 0;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code,
+    pre {
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #edf2f7;
+      font-size: 0.92em;
+    }
+
+    pre {
+      margin: 14px 0 0;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e5e7eb;
+      overflow-x: auto;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      max-width: 800px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 18px;
+    }
+
+    .meta-grid,
+    .toc,
+    .architecture-grid,
+    .module-grid,
+    .data-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .meta-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .toc {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      padding: 0;
+      list-style: none;
+    }
+
+    .architecture-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      align-items: stretch;
+    }
+
+    .module-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .data-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .meta-card,
+    .toc a,
+    .layer,
+    .module,
+    .data-card,
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .meta-card {
+      padding: 14px;
+      color: rgba(255, 255, 255, 0.92);
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .meta-card strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .toc a {
+      display: block;
+      min-height: 58px;
+      padding: 13px 14px;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .toc span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .layer {
+      position: relative;
+      min-height: 150px;
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .layer:not(:last-child)::after {
+      content: ">";
+      position: absolute;
+      top: 62px;
+      right: -14px;
+      width: 14px;
+      color: var(--muted);
+      font-weight: 900;
+      text-align: center;
+      z-index: 2;
+    }
+
+    .layer h3 {
+      color: var(--teal);
+    }
+
+    .layer ul,
+    .module ul,
+    .data-card ul {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+
+    .layer li,
+    .module li,
+    .data-card li {
+      margin: 5px 0;
+      color: var(--muted);
+    }
+
+    .flow {
+      margin-top: 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      border-top: 1px solid var(--line);
+    }
+
+    .row:first-child {
+      border-top: 0;
+    }
+
+    .row-label {
+      padding: 16px;
+      color: #ffffff;
+      font-weight: 800;
+      background: var(--dark);
+    }
+
+    .row-label.client { background: var(--blue); }
+    .row-label.api { background: var(--teal); }
+    .row-label.data { background: var(--green); }
+    .row-label.security { background: var(--red); }
+
+    .row-steps {
+      display: flex;
+      gap: 12px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+
+    .step {
+      position: relative;
+      flex: 0 0 205px;
+      min-height: 112px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+    }
+
+    .step:not(:last-child)::after {
+      content: ">";
+      position: absolute;
+      top: 42px;
+      right: -12px;
+      width: 12px;
+      color: var(--muted);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .step b {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 13px;
+    }
+
+    .step span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #edf2f7;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .module,
+    .data-card,
+    .note {
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .module {
+      border-top: 5px solid var(--teal);
+    }
+
+    .module h3,
+    .data-card h3 {
+      color: var(--teal);
+    }
+
+    .data-card.identity { border-top: 5px solid var(--blue); }
+    .data-card.procurement { border-top: 5px solid var(--green); }
+    .data-card.award { border-top: 5px solid var(--violet); }
+    .data-card.audit { border-top: 5px solid var(--red); }
+
+    .matrix {
+      width: 100%;
+      margin-top: 18px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .matrix th,
+    .matrix td {
+      padding: 12px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .matrix th {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .footer-note {
+      margin-top: 42px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .page {
+        width: 100%;
+        margin: 0;
+      }
+
+      header,
+      main {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+
+      .meta-grid,
+      .toc,
+      .architecture-grid,
+      .module-grid,
+      .data-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .layer:not(:last-child)::after {
+        display: none;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 12mm;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        font-size: 12px;
+      }
+
+      .page {
+        width: auto;
+        margin: 0;
+        box-shadow: none;
+      }
+
+      header {
+        color: var(--ink);
+        background: #ffffff;
+        border-bottom: 2px solid var(--line);
+      }
+
+      .meta-card {
+        color: var(--ink);
+        border-color: var(--line);
+        background: #ffffff;
+      }
+
+      h2 {
+        break-before: page;
+      }
+
+      h2:first-of-type {
+        break-before: auto;
+      }
+
+      .layer,
+      .flow,
+      .module,
+      .data-card,
+      .note {
+        break-inside: avoid;
+      }
+
+      .row-steps {
+        overflow: visible;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="eyebrow">ProcureX System Documentation</div>
+      <h1>Technical Architecture And Data Flow</h1>
+      <p class="lede">
+        A technical HTML flowchart of how the React client, route guards, Express modules,
+        Prisma data model, storage services, audit records, and row-level security fit together.
+      </p>
+      <div class="meta-grid">
+        <div class="meta-card"><strong>Audience</strong>Engineers and maintainers</div>
+        <div class="meta-card"><strong>Focus</strong>Architecture, APIs, modules, data, security</div>
+        <div class="meta-card"><strong>Format</strong>Standalone HTML and CSS</div>
+        <div class="meta-card"><strong>Runtime</strong>React client plus Express API</div>
+      </div>
+    </header>
+
+    <main>
+      <section id="contents">
+        <h2>Contents</h2>
+        <ol class="toc">
+          <li><a href="#architecture">1. Layer Architecture<span>Client to database path</span></a></li>
+          <li><a href="#request-flow">2. Request Flow<span>Route guard, API, service, repository</span></a></li>
+          <li><a href="#modules">3. API Modules<span>Registered backend boundaries</span></a></li>
+          <li><a href="#data">4. Data Model Groups<span>Prisma lifecycle domains</span></a></li>
+          <li><a href="#security">5. Security Flow<span>Session, verification, RLS, audit</span></a></li>
+          <li><a href="#frontend-deep">6. Frontend Deep Dive<span>Routing, state, pages, and APIs</span></a></li>
+          <li><a href="#backend-deep">7. Backend Deep Dive<span>Module contract and request handling</span></a></li>
+          <li><a href="#storage-deep">8. Storage And Documents<span>Files, documents, and evidence</span></a></li>
+          <li><a href="#testing-deep">9. Testing And Verification<span>Checks, risks, and acceptance</span></a></li>
+          <li><a href="#operations">10. Operations<span>Health, scripts, validation</span></a></li>
+        </ol>
+      </section>
+
+      <section id="architecture">
+        <h2>1. Layer Architecture</h2>
+        <p>
+          ProcureX is implemented as a monorepo with separate client, server, shared contract,
+          documentation, infrastructure, and future intelligence service boundaries.
+        </p>
+
+        <div class="architecture-grid" aria-label="Technical architecture layers">
+          <div class="layer">
+            <h3>React Client</h3>
+            <ul>
+              <li>React 19 and Vite.</li>
+              <li>React Router selects screen surfaces.</li>
+              <li>Feature code under <code>client/src/features</code>.</li>
+            </ul>
+          </div>
+          <div class="layer">
+            <h3>Route Guards</h3>
+            <ul>
+              <li>Public routes render directly.</li>
+              <li>Protected routes require session.</li>
+              <li>Verified routes require trusted organization context.</li>
+              <li>Admin routes require admin account.</li>
+            </ul>
+          </div>
+          <div class="layer">
+            <h3>Express API</h3>
+            <ul>
+              <li>Helmet, CORS, JSON body limits, health endpoint.</li>
+              <li>Modules mounted under <code>/api/*</code>.</li>
+              <li>Central 404 and error response handling.</li>
+            </ul>
+          </div>
+          <div class="layer">
+            <h3>Domain Services</h3>
+            <ul>
+              <li>Routes call controllers.</li>
+              <li>Controllers validate transport concerns.</li>
+              <li>Services orchestrate business behavior.</li>
+              <li>Repositories own persistence access.</li>
+            </ul>
+          </div>
+          <div class="layer">
+            <h3>Data Services</h3>
+            <ul>
+              <li>Prisma and PostgreSQL are model truth.</li>
+              <li>Redis, Elasticsearch, and MinIO support local infrastructure.</li>
+              <li>RLS helpers prepare organization-aware access.</li>
+            </ul>
+          </div>
+        </div>
+
+        <pre>client route -> route guard -> API adapter -> Express router -> controller -> service -> repository -> Prisma -> PostgreSQL</pre>
+      </section>
+
+      <section id="request-flow">
+        <h2>2. Request Flow</h2>
+        <div class="flow" aria-label="Technical request and security flow">
+          <div class="row">
+            <div class="row-label client">Client</div>
+            <div class="row-steps">
+              <div class="step"><b>User Action</b><span>User submits a form, opens a route, uploads a document, or requests data.</span><span class="tag">UI event</span></div>
+              <div class="step"><b>Route Guard</b><span>Public, protected, verified, or admin wrapper decides access.</span><span class="tag">router.tsx</span></div>
+              <div class="step"><b>API Helper</b><span>Feature API client calls the configured backend base URL.</span><span class="tag">Axios</span></div>
+              <div class="step"><b>State Update</b><span>Hooks, slices, and page state update visible screens.</span><span class="tag">Feature state</span></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="row-label api">API</div>
+            <div class="row-steps">
+              <div class="step"><b>Middleware</b><span>Helmet, CORS, JSON parsing, and request body limits run first.</span><span class="tag">app.ts</span></div>
+              <div class="step"><b>Module Router</b><span>Request reaches a registered domain base path.</span><span class="tag">/api/*</span></div>
+              <div class="step"><b>Controller</b><span>HTTP request and response concerns are handled.</span><span class="tag">controller.ts</span></div>
+              <div class="step"><b>Service</b><span>Business behavior, decisions, and cross-record orchestration happen here.</span><span class="tag">service.ts</span></div>
+              <div class="step"><b>Repository</b><span>Persistence reads and writes are isolated from controllers.</span><span class="tag">repository.ts</span></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="row-label data">Data</div>
+            <div class="row-steps">
+              <div class="step"><b>Prisma Client</b><span>Typed access to schema models, relations, and transactions.</span><span class="tag">schema.prisma</span></div>
+              <div class="step"><b>PostgreSQL</b><span>Stores identity, organizations, tenders, bids, evaluation, awards, contracts, records, and audit.</span><span class="tag">Database</span></div>
+              <div class="step"><b>Object Storage</b><span>Document and profile image flows use storage boundaries where implemented.</span><span class="tag">MinIO / S3</span></div>
+              <div class="step"><b>Search / Cache</b><span>Elasticsearch and Redis are local infrastructure boundaries for expansion.</span><span class="tag">Infra</span></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="row-label security">Security</div>
+            <div class="row-steps">
+              <div class="step"><b>Session Context</b><span>Authenticated user context drives client route access and backend actions.</span><span class="tag">Session</span></div>
+              <div class="step"><b>Organization Context</b><span>Buyer and supplier behavior comes from organization capability and membership.</span><span class="tag">Org scope</span></div>
+              <div class="step"><b>RLS Helpers</b><span>Database context utilities support organization-aware data rules.</span><span class="tag">RLS</span></div>
+              <div class="step"><b>Audit Trail</b><span>Records, communication, and audit events preserve traceability.</span><span class="tag">AuditEvent</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="modules">
+        <h2>3. API Modules</h2>
+        <p>
+          Backend modules are registered in <code>server/src/modules/index.ts</code>. Each module
+          follows the consistent implementation shape:
+        </p>
+        <pre>routes.ts -> controller.ts -> service.ts -> repository.ts -> validators.ts -> types.ts</pre>
+
+        <div class="module-grid">
+          <div class="module">
+            <h3>Public And Identity</h3>
+            <ul>
+              <li><code>/api/public</code> public content.</li>
+              <li><code>/api/identity</code> registration, auth, session, verification, profile.</li>
+              <li><code>/api/organization</code> organization membership and capability boundary.</li>
+              <li><code>/api/support</code> support workflows.</li>
+              <li><code>/api/help-centre</code> help catalogue and responses.</li>
+            </ul>
+          </div>
+          <div class="module">
+            <h3>Procurement Lifecycle</h3>
+            <ul>
+              <li><code>/api/procurement</code> tenders, requirements, documents, milestones.</li>
+              <li><code>/api/bidding</code> bid versions, documents, responses, receipts.</li>
+              <li><code>/api/evaluation</code> workspaces, assignments, criteria, scores.</li>
+              <li><code>/api/award-contract</code> recommendations, approvals, contracts.</li>
+              <li><code>/api/post-award</code> delivery and execution tracking.</li>
+            </ul>
+          </div>
+          <div class="module">
+            <h3>Operations And Governance</h3>
+            <ul>
+              <li><code>/api/financial</code> payment and invoice boundaries.</li>
+              <li><code>/api/compliance-admin</code> admin compliance workflows.</li>
+              <li><code>/api/communication</code> communication items and attachments.</li>
+              <li><code>/api/dashboard</code> dashboard summaries.</li>
+              <li><code>/api/records</code> timeline and record history.</li>
+            </ul>
+          </div>
+          <div class="module">
+            <h3>Expansion Boundaries</h3>
+            <ul>
+              <li><code>/api/intelligence</code> risk, matching, analytics, and future ML signals.</li>
+              <li><code>/api/integration</code> external system and registry integration records.</li>
+              <li><code>/api/documents</code> official documents and document object handling.</li>
+              <li><code>/api/evaluations</code> compatibility alias for evaluation router.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="data">
+        <h2>4. Data Model Groups</h2>
+        <div class="data-grid">
+          <div class="data-card identity">
+            <h3>Identity And Organization</h3>
+            <ul>
+              <li><code>User</code>, preferences, policy acceptance, sessions.</li>
+              <li><code>Organization</code>, members, capabilities, profiles.</li>
+              <li>Verification records and admin review context.</li>
+            </ul>
+          </div>
+          <div class="data-card procurement">
+            <h3>Procurement And Bids</h3>
+            <ul>
+              <li><code>Tender</code>, categories, documents, requirements, milestones, commercial items.</li>
+              <li><code>Bid</code>, versions, documents, responses, receipts, samples.</li>
+              <li>Buyer and supplier organization links preserve ownership.</li>
+            </ul>
+          </div>
+          <div class="data-card award">
+            <h3>Evaluation To Contract</h3>
+            <ul>
+              <li><code>EvaluationWorkspace</code>, criteria, scores, assignments.</li>
+              <li>Award groups, winners, notices, responses, approval routes.</li>
+              <li>Contracts, parties, clauses, versions, signatures, milestones.</li>
+            </ul>
+          </div>
+          <div class="data-card audit">
+            <h3>Post-Award And Traceability</h3>
+            <ul>
+              <li>Purchase orders, invoices, payments, delivery evidence, inspections.</li>
+              <li>Claims, changes, disputes, defects, closeout, termination.</li>
+              <li><code>DocumentObject</code>, <code>AuditEvent</code>, communication, records.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="security">
+        <h2>5. Security Flow</h2>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Layer</th>
+              <th>Responsibility</th>
+              <th>Implementation Signal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>HTTP hardening</td>
+              <td>Apply Helmet content security policy, CORS origin checks, JSON size limit, 404 handling, and centralized errors.</td>
+              <td><code>server/src/app.ts</code></td>
+            </tr>
+            <tr>
+              <td>Client access</td>
+              <td>Keep public, protected, verified, and admin-only screens separate at routing level.</td>
+              <td><code>ProtectedRoute</code>, <code>AdminRoute</code></td>
+            </tr>
+            <tr>
+              <td>Account model</td>
+              <td>Restrict login account type to <code>USER</code> and <code>ADMIN</code>; avoid buyer/supplier login roles.</td>
+              <td>Shared contracts and identity rules</td>
+            </tr>
+            <tr>
+              <td>Organization scope</td>
+              <td>Represent buyer and supplier behavior through organization capability, membership, and workflow assignments.</td>
+              <td><code>OrganizationCapability</code>, <code>WorkflowAssignment</code></td>
+            </tr>
+            <tr>
+              <td>Database context</td>
+              <td>Use application context helpers and RLS SQL to support organization-aware database enforcement.</td>
+              <td><code>server/src/db/context.ts</code>, <code>prisma/sql/rls</code></td>
+            </tr>
+            <tr>
+              <td>Traceability</td>
+              <td>Preserve important decisions and user actions through records, communication, document objects, and audit events.</td>
+              <td><code>RecordEntry</code>, <code>CommunicationItem</code>, <code>AuditEvent</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="frontend-deep">
+        <h2>6. Frontend Deep Dive</h2>
+        <p>
+          The frontend is the user's operating surface. It does not own procurement truth by itself;
+          it presents routes, gathers input, calls APIs, renders returned state, and protects routes
+          from users who do not yet have the required session, verification, or admin context.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Frontend Area</th>
+              <th>Responsibility</th>
+              <th>Important Behavior</th>
+              <th>Risk If Broken</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Application entry</td>
+              <td>Bootstraps React, providers, routing, localization, theme, and shared state.</td>
+              <td>The entrypoint should create one coherent app shell and let routing decide which feature page is visible.</td>
+              <td>Users see blank pages, duplicated providers, broken theme, or incorrect localization.</td>
+            </tr>
+            <tr>
+              <td>Router</td>
+              <td>Maps browser paths to public, protected, verified, and admin screens.</td>
+              <td>Routes such as <code>/dashboard</code>, <code>/bidding</code>, <code>/evaluation</code>, and <code>/admin</code> should be guarded at the router layer instead of relying on each page to self-protect.</td>
+              <td>Sensitive screens become reachable without the right session or trusted organization state.</td>
+            </tr>
+            <tr>
+              <td>Page registry</td>
+              <td>Connects stable ProcureX page keys to React components derived from or aligned with the prototype.</td>
+              <td>The registry helps keep route definitions compact and allows UI parity workflows to reason about page names consistently.</td>
+              <td>Screenshot parity, navigation, or route mapping becomes hard to maintain.</td>
+            </tr>
+            <tr>
+              <td>Route guards</td>
+              <td>Protect authenticated routes and redirect users based on session, verification, trust, permission, gate, or admin status.</td>
+              <td>Guards represent product rules such as admin redirect, verified workspace requirement, and support paths for unverified users.</td>
+              <td>Users enter the wrong workspace, become stuck after sign-in, or bypass trust gates.</td>
+            </tr>
+            <tr>
+              <td>Feature API helpers</td>
+              <td>Wrap HTTP calls for identity, procurement, bidding, evaluation, awards, communication, and other features.</td>
+              <td>API helpers hide transport details from pages and keep endpoint paths in the feature boundary.</td>
+              <td>Pages duplicate request logic, error handling becomes inconsistent, and route changes become expensive.</td>
+            </tr>
+            <tr>
+              <td>Feature state and hooks</td>
+              <td>Own local or shared UI state for each domain.</td>
+              <td>Hooks and slices should present a clean interface to pages: load data, submit action, expose status, and show errors.</td>
+              <td>Pages become difficult to test and business state leaks across feature boundaries.</td>
+            </tr>
+            <tr>
+              <td>Prototype compatibility</td>
+              <td>Preserves visual and wording parity with the original static ProcureX reference.</td>
+              <td>Styles and generated/maintained components should keep the production UI recognizable while allowing real routing and data.</td>
+              <td>The production app drifts from approved stakeholder expectations or screenshot references.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <pre>browser path -> router.tsx -> route guard -> Procurex page registry -> feature page -> hook/API helper -> Express API</pre>
+      </section>
+
+      <section id="backend-deep">
+        <h2>7. Backend Deep Dive</h2>
+        <p>
+          The backend is organized around modules so each procurement domain can evolve without one
+          large controller owning the entire platform. The shape is intentionally repetitive:
+          repetition here is a maintainability feature because a developer can open any module and
+          quickly find routes, controllers, services, repositories, validators, and local types.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Backend Piece</th>
+              <th>Primary Job</th>
+              <th>Deep Detail</th>
+              <th>Good Change Pattern</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>app.ts</code></td>
+              <td>Create the Express app.</td>
+              <td>Configures security middleware, CORS, JSON parsing, health response, module mounting, 404 response, and centralized error handler. It should stay focused on application wiring, not domain behavior.</td>
+              <td>Add cross-cutting middleware here only when it applies to the full API surface.</td>
+            </tr>
+            <tr>
+              <td><code>modules/index.ts</code></td>
+              <td>Register module routers and base paths.</td>
+              <td>Defines the API boundary list returned by <code>/health</code>. Adding a module should be explicit so operational tooling and tests can see it.</td>
+              <td>Add a module definition, base path, and router factory together.</td>
+            </tr>
+            <tr>
+              <td><code>routes.ts</code></td>
+              <td>Declare HTTP endpoints.</td>
+              <td>Routes should remain thin. They should connect methods and paths to controller handlers and attach route-specific middleware where appropriate.</td>
+              <td>Add endpoint paths here, then delegate all meaningful work to controllers and services.</td>
+            </tr>
+            <tr>
+              <td><code>controller.ts</code></td>
+              <td>Handle HTTP request/response concerns.</td>
+              <td>Controllers translate HTTP inputs to service calls and service results to HTTP responses. They should not become persistence layers or business policy engines.</td>
+              <td>Parse params/body/query, call validator/service, return status and JSON.</td>
+            </tr>
+            <tr>
+              <td><code>validators.ts</code></td>
+              <td>Validate external input.</td>
+              <td>Validation should fail early and clearly before service logic assumes a stable shape. Zod schemas or local validators protect services from malformed transport data.</td>
+              <td>Define schemas close to the module and keep error messages usable.</td>
+            </tr>
+            <tr>
+              <td><code>service.ts</code></td>
+              <td>Own business behavior and orchestration.</td>
+              <td>Services decide what a user action means in the domain: start registration, publish tender, submit bid, score evaluation, recommend award, create contract, record payment, or open compliance action.</td>
+              <td>Put workflow decisions, domain transitions, and cross-repository coordination here.</td>
+            </tr>
+            <tr>
+              <td><code>repository.ts</code></td>
+              <td>Own persistence access.</td>
+              <td>Repositories isolate Prisma queries, transactions, and database-specific shape. They should not return raw persistence complexity to controllers.</td>
+              <td>Add focused read/write functions and keep query ownership inside the module.</td>
+            </tr>
+            <tr>
+              <td><code>types.ts</code></td>
+              <td>Define module-local contracts.</td>
+              <td>Types define service inputs, outputs, module metadata, statuses, and local vocabulary that should not be duplicated across files.</td>
+              <td>Update types when behavior or DTO shape changes, and move cross-workspace vocabulary to shared contracts when needed.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Lifecycle Domain</th>
+              <th>Primary API Modules</th>
+              <th>Typical Request</th>
+              <th>Service Decision</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Registration and trust</td>
+              <td><code>/api/identity</code>, <code>/api/organization</code></td>
+              <td>Start registration, verify OTP, activate email, set password, submit verification, admin decision.</td>
+              <td>Whether a user can become active, trusted, and attached to a company context.</td>
+            </tr>
+            <tr>
+              <td>Tendering</td>
+              <td><code>/api/procurement</code>, <code>/api/documents</code></td>
+              <td>Create or update tender, attach documents, publish tender, inspect tender details.</td>
+              <td>Whether a tender is complete, owned by the correct buyer organization, and visible to suppliers.</td>
+            </tr>
+            <tr>
+              <td>Bidding</td>
+              <td><code>/api/bidding</code></td>
+              <td>Create bid draft, update response, upload document reference, submit bid, issue receipt.</td>
+              <td>Whether supplier organization can submit, whether deadline/status allows submission, and what version is final.</td>
+            </tr>
+            <tr>
+              <td>Evaluation</td>
+              <td><code>/api/evaluation</code></td>
+              <td>Load workspace, assign evaluators, save criterion score, advance evaluation stage.</td>
+              <td>Whether the actor has workflow assignment and whether the scoring action is valid for the stage.</td>
+            </tr>
+            <tr>
+              <td>Award and contract</td>
+              <td><code>/api/award-contract</code>, <code>/api/post-award</code>, <code>/api/financial</code></td>
+              <td>Create recommendation, approve award, record response, draft/sign contract, create invoice or payment record.</td>
+              <td>Whether evaluation evidence supports award, whether approval is complete, and whether execution records match contract state.</td>
+            </tr>
+            <tr>
+              <td>Governance</td>
+              <td><code>/api/compliance-admin</code>, <code>/api/records</code>, <code>/api/communication</code>, <code>/api/dashboard</code></td>
+              <td>Review compliance, search, inspect audit, send communication, load dashboard summary.</td>
+              <td>Whether the actor has admin or workflow context and how the record should be presented for traceability.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="storage-deep">
+        <h2>8. Storage And Documents</h2>
+        <p>
+          Procurement work depends heavily on documents: tender packages, eligibility files, bid
+          attachments, official generated documents, contract versions, signatures, evidence,
+          invoices, receipts, inspection records, and closeout packages. The system therefore needs
+          a clear distinction between structured database records and binary or generated document
+          content.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Document Type</th>
+              <th>Structured Record</th>
+              <th>Storage Concern</th>
+              <th>Traceability Concern</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Profile image</td>
+              <td>User profile or identity data references image metadata.</td>
+              <td>Profile image storage validates allowed image data, size, and generated storage key behavior.</td>
+              <td>Profile changes should remain attributable to the account and not expose unsafe arbitrary content.</td>
+            </tr>
+            <tr>
+              <td>Tender document</td>
+              <td><code>TenderDocument</code> and related tender fields.</td>
+              <td>Files or generated HTML/PDF output must remain tied to the tender version or publication state.</td>
+              <td>Suppliers and auditors need to know which document defined the opportunity.</td>
+            </tr>
+            <tr>
+              <td>Bid attachment</td>
+              <td><code>BidDocument</code>, <code>BidVersion</code>, and <code>BidResponse</code>.</td>
+              <td>Documents must be associated with the correct supplier organization and bid version.</td>
+              <td>Evaluation should use the submitted evidence, not an overwritten draft after deadline.</td>
+            </tr>
+            <tr>
+              <td>Official procurement document</td>
+              <td><code>DocumentObject</code> and official document module outputs.</td>
+              <td>Generated documents should have stable source data, rendering logic, and object references.</td>
+              <td>Generated output must be reproducible or at least explainable from stored source fields.</td>
+            </tr>
+            <tr>
+              <td>Contract version</td>
+              <td><code>ContractVersion</code>, clauses, parties, signatures, and negotiation records.</td>
+              <td>Each version should preserve the agreed text or generated package that was reviewed.</td>
+              <td>Parties need proof of exactly which contract was signed or negotiated.</td>
+            </tr>
+            <tr>
+              <td>Post-award evidence</td>
+              <td>Goods receipt, inspection, progress report, service report, invoice, payment certificate, claim, or defect record.</td>
+              <td>Evidence may include uploaded files, generated reports, photos, invoices, certificates, or inspection attachments.</td>
+              <td>Payment, acceptance, penalties, claims, and closeout all depend on durable evidence.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <pre>user upload or generated output -> validation -> document metadata -> object key/reference -> domain record -> audit/record timeline</pre>
+
+        <div class="note">
+          <strong>Document design principle:</strong> a file alone is not enough. A procurement
+          document becomes useful only when it is connected to a domain record, owner organization,
+          lifecycle stage, timestamp, and audit trail.
+        </div>
+      </section>
+
+      <section id="testing-deep">
+        <h2>9. Testing And Verification</h2>
+        <p>
+          Technical documentation should explain how the implementation proves it still behaves as
+          described. ProcureX uses targeted server tests, client tests, route guard tests, service
+          tests, seed tests, screenshot parity tools, Prisma validation, and row-level security
+          verification to protect different layers of the system.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Test Layer</th>
+              <th>What It Protects</th>
+              <th>Example Risk</th>
+              <th>Expected Verification</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Module validation tests</td>
+              <td>Backend module registry and consistent module definitions.</td>
+              <td>A module is created but not mounted, or health output no longer reflects API boundaries.</td>
+              <td>Tests confirm module keys, base paths, and app behavior.</td>
+            </tr>
+            <tr>
+              <td>Identity tests</td>
+              <td>Registration, production auth safety, delivery providers, signing, profile image behavior, and verification decisions.</td>
+              <td>Development bypass leaks into production, invalid image data is accepted, or account flow grants access too early.</td>
+              <td>Focused identity tests cover sensitive account and trust behavior.</td>
+            </tr>
+            <tr>
+              <td>Procurement and bidding tests</td>
+              <td>Tender creation, marketplace behavior, bid submission rules, repository logic, and seeded demo workflows.</td>
+              <td>Supplier sees buyer-only data, tender ownership is wrong, or bid version rules regress.</td>
+              <td>Service/repository tests validate ownership and workflow state.</td>
+            </tr>
+            <tr>
+              <td>Evaluation tests</td>
+              <td>Evaluation intake, criteria, scoring, assignments, demo seed readiness, and award handoff.</td>
+              <td>Evaluation cannot load realistic seeded data or scores no longer produce recommendation-ready state.</td>
+              <td>Evaluation service and seed tests protect the end-to-end handoff.</td>
+            </tr>
+            <tr>
+              <td>Awards and post-award tests</td>
+              <td>Award-contract workflows, role access, contract detail, mobile/desktop views, and post-award app behavior.</td>
+              <td>Award action appears to the wrong actor, contract view breaks, or post-award state cannot be navigated.</td>
+              <td>Flow tests and component tests verify user-visible behavior.</td>
+            </tr>
+            <tr>
+              <td>Route guard tests</td>
+              <td>Public, protected, verified, admin, support, and redirect behavior.</td>
+              <td>Unverified users access core workspace or admins land on buyer/supplier routes.</td>
+              <td>Client tests assert routing outcomes under mocked session states.</td>
+            </tr>
+            <tr>
+              <td>UI parity screenshots</td>
+              <td>Visual alignment between static prototype and production React routes.</td>
+              <td>Production screens drift from approved reference UI during implementation.</td>
+              <td>Screenshot capture compares reference and target pages for desktop and mobile.</td>
+            </tr>
+            <tr>
+              <td>Prisma validation and RLS verification</td>
+              <td>Database schema integrity and organization-aware access assumptions.</td>
+              <td>Schema change breaks generated client or data isolation rules become unreliable.</td>
+              <td><code>db:validate</code> and <code>verify:rls</code> confirm database-level expectations.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Acceptance Area</th>
+              <th>Deep Acceptance Criteria</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Route correctness</td>
+              <td>Every user-facing route in the journey docs is public, protected, verified, or admin-only according to the router and product rules.</td>
+            </tr>
+            <tr>
+              <td>Module correctness</td>
+              <td>Every API module named in documentation is registered in the backend module list or clearly described as an expansion boundary.</td>
+            </tr>
+            <tr>
+              <td>Data correctness</td>
+              <td>Every major lifecycle record maps to an actual Prisma model group: identity, organization, tender, bid, evaluation, award, contract, post-award, document, communication, record, or audit.</td>
+            </tr>
+            <tr>
+              <td>Security correctness</td>
+              <td>Documentation must preserve the rule that account type is not procurement capability, and that sensitive work is organization-aware.</td>
+            </tr>
+            <tr>
+              <td>Operational correctness</td>
+              <td>Commands and file references should match workspace scripts and source paths so another engineer can validate the system locally.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="operations">
+        <h2>10. Operations</h2>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Concern</th>
+              <th>Command Or File</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Health check</td>
+              <td><code>GET /health</code></td>
+              <td>Returns service status and registered API modules.</td>
+            </tr>
+            <tr>
+              <td>Local infrastructure</td>
+              <td><code>npm run infra:up</code></td>
+              <td>Starts PostgreSQL, Redis, Elasticsearch, and MinIO with Docker Compose.</td>
+            </tr>
+            <tr>
+              <td>Database validation</td>
+              <td><code>npm run db:validate</code></td>
+              <td>Validates the Prisma schema.</td>
+            </tr>
+            <tr>
+              <td>Database migrations</td>
+              <td><code>npm run db:migrate</code></td>
+              <td>Applies local migrations for development.</td>
+            </tr>
+            <tr>
+              <td>Build order</td>
+              <td><code>npm run build</code></td>
+              <td>Builds shared contracts, then server, then client.</td>
+            </tr>
+            <tr>
+              <td>Verification</td>
+              <td><code>npm test</code> and <code>verify:rls</code></td>
+              <td>Runs server/client tests and database security verification where configured.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <strong>Maintenance rule:</strong> add new behavior inside the domain boundary that owns it.
+          Keep HTTP handling in controllers, business decisions in services, persistence in repositories,
+          shared vocabulary in shared contracts, and model truth in Prisma.
+        </div>
+      </section>
+
+      <p class="footer-note">
+        This technical flow document is descriptive only. It does not introduce public API, database,
+        or runtime behavior changes.
+      </p>
+    </main>
+  </div>
+</body>
+</html>

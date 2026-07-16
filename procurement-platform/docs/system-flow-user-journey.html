@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProcureX System Flow - User Journey</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5d677a;
+      --paper: #ffffff;
+      --page: #edf2f7;
+      --line: #d8dde8;
+      --soft: #f8fafc;
+      --teal: #0f766e;
+      --blue: #2563eb;
+      --green: #2f855a;
+      --amber: #b7791f;
+      --violet: #6b46c1;
+      --red: #b91c1c;
+      --shadow: 0 16px 44px rgba(23, 32, 51, 0.13);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font: 15px/1.62 Arial, Helvetica, sans-serif;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 24px auto;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    header {
+      padding: 54px 64px 38px;
+      background: #ffffff;
+      border-bottom: 8px solid var(--teal);
+    }
+
+    main {
+      padding: 32px 64px 64px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.18;
+    }
+
+    h1 {
+      max-width: 820px;
+      font-size: clamp(34px, 5vw, 56px);
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-top: 40px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 28px;
+    }
+
+    h3 {
+      margin-top: 0;
+      font-size: 18px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #edf2f7;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+    }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: var(--teal);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .meta-grid,
+    .toc,
+    .journey-grid,
+    .route-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .meta-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .toc {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a,
+    .meta-card,
+    .journey-card,
+    .route-card,
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .meta-card {
+      padding: 14px;
+    }
+
+    .meta-card strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--teal);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .toc a {
+      display: block;
+      min-height: 58px;
+      padding: 13px 14px;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .toc span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .journey-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .journey-card {
+      padding: 18px;
+      background: #ffffff;
+      break-inside: avoid;
+    }
+
+    .journey-card.guest { border-top: 5px solid var(--blue); }
+    .journey-card.supplier { border-top: 5px solid var(--amber); }
+    .journey-card.buyer { border-top: 5px solid var(--green); }
+    .journey-card.evaluator { border-top: 5px solid var(--violet); }
+    .journey-card.admin { border-top: 5px solid var(--red); }
+    .journey-card.shared { border-top: 5px solid var(--teal); }
+
+    .persona {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .path {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+      padding-bottom: 4px;
+      overflow-x: auto;
+    }
+
+    .node {
+      position: relative;
+      flex: 0 0 164px;
+      min-height: 104px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+    }
+
+    .node:not(:last-child)::after {
+      content: ">";
+      position: absolute;
+      top: 40px;
+      right: -11px;
+      width: 10px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .node b {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 13px;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.38;
+    }
+
+    .decision {
+      border-color: #f6ad55;
+      background: #fffaf0;
+    }
+
+    .route {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #edf2f7;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .note {
+      margin-top: 22px;
+      padding: 18px;
+      background: #f7fbfb;
+    }
+
+    .note strong {
+      color: var(--teal);
+    }
+
+    .route-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .route-card {
+      padding: 16px;
+      background: #ffffff;
+    }
+
+    .route-card h3 {
+      color: var(--teal);
+      font-size: 16px;
+    }
+
+    .route-card ul {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+
+    .route-card li {
+      margin: 5px 0;
+      color: var(--muted);
+    }
+
+    .matrix {
+      width: 100%;
+      margin-top: 18px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    .matrix th,
+    .matrix td {
+      padding: 12px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .matrix th {
+      width: 24%;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .footer-note {
+      margin-top: 42px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .page {
+        width: 100%;
+        margin: 0;
+      }
+
+      header,
+      main {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+
+      .meta-grid,
+      .toc,
+      .journey-grid,
+      .route-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 12mm;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        font-size: 12px;
+      }
+
+      .page {
+        width: auto;
+        margin: 0;
+        box-shadow: none;
+      }
+
+      h2 {
+        break-before: page;
+      }
+
+      h2:first-of-type {
+        break-before: auto;
+      }
+
+      .journey-card,
+      .route-card,
+      .note {
+        break-inside: avoid;
+      }
+
+      .path {
+        overflow: visible;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="eyebrow">ProcureX System Documentation</div>
+      <h1>User Journey And Screen Flow</h1>
+      <p class="lede">
+        A practical guide to how guests, suppliers, buyers, evaluators, approvers, and admins
+        move through the ProcureX interface from first visit to procurement closeout.
+      </p>
+      <div class="meta-grid">
+        <div class="meta-card"><strong>Audience</strong>Stakeholders, supervisors, support, trainers</div>
+        <div class="meta-card"><strong>Focus</strong>User-facing pages and decisions</div>
+        <div class="meta-card"><strong>Format</strong>Standalone HTML and CSS</div>
+        <div class="meta-card"><strong>Routes</strong>Aligned with React router paths</div>
+      </div>
+    </header>
+
+    <main>
+      <section id="contents">
+        <h2>Contents</h2>
+        <ol class="toc">
+          <li><a href="#journeys">1. Persona Journeys<span>Guest, supplier, buyer, evaluator, admin</span></a></li>
+          <li><a href="#shared">2. Shared Account Path<span>Registration, session, verification</span></a></li>
+          <li><a href="#routes">3. Screen Route Map<span>Important screens and route guards</span></a></li>
+          <li><a href="#decisions">4. Decision Points<span>User choices and system gates</span></a></li>
+          <li><a href="#outcomes">5. Outcomes<span>What each user leaves behind</span></a></li>
+          <li><a href="#persona-detail">6. Persona Deep Dive<span>Goals, emotions, blockers, and success</span></a></li>
+          <li><a href="#screen-narratives">7. Screen Narratives<span>What each major screen is for</span></a></li>
+          <li><a href="#alternate-paths">8. Alternate Paths<span>Unverified, rejected, delayed, and support cases</span></a></li>
+          <li><a href="#checklist">9. Walkthrough Checklist<span>How to present the system flow</span></a></li>
+        </ol>
+      </section>
+
+      <section id="journeys">
+        <h2>1. Persona Journeys</h2>
+        <p>
+          These journeys describe what each user experiences. They intentionally focus on screens,
+          decisions, and outcomes rather than internal API calls.
+        </p>
+
+        <div class="journey-grid">
+          <article class="journey-card guest">
+            <h3>Guest Journey</h3>
+            <p class="persona">A visitor who wants to learn about the platform or preview opportunities.</p>
+            <div class="path">
+              <div class="node"><b>Welcome</b><span>Understand ProcureX and available actions.</span><span class="route">/</span></div>
+              <div class="node"><b>About / Contact</b><span>Read public information or ask for help.</span><span class="route">/about /contact</span></div>
+              <div class="node"><b>Guest Marketplace</b><span>Preview procurement opportunities.</span><span class="route">/guest-marketplace</span></div>
+              <div class="node decision"><b>Join?</b><span>Choose registration or sign-in.</span><span class="route">Decision</span></div>
+              <div class="node"><b>Register</b><span>Start account creation.</span><span class="route">/register</span></div>
+            </div>
+          </article>
+
+          <article class="journey-card supplier">
+            <h3>Supplier Journey</h3>
+            <p class="persona">A company user who searches for tenders, submits bids, and responds to awards.</p>
+            <div class="path">
+              <div class="node"><b>Sign In</b><span>Authenticate into the platform.</span><span class="route">/sign-in</span></div>
+              <div class="node decision"><b>Verified?</b><span>Complete company verification if needed.</span><span class="route">Gate</span></div>
+              <div class="node"><b>Marketplace</b><span>Find available tenders.</span><span class="route">/procurement/marketplace</span></div>
+              <div class="node"><b>Tender Detail</b><span>Review requirements and documents.</span><span class="route">/procurement/supplier-tender-detail</span></div>
+              <div class="node"><b>Bid Workspace</b><span>Prepare responses, documents, and final submission.</span><span class="route">/bidding</span></div>
+              <div class="node"><b>Award Response</b><span>Accept, respond, or continue negotiation after award.</span><span class="route">/awards-contracts/award-response</span></div>
+            </div>
+          </article>
+
+          <article class="journey-card buyer">
+            <h3>Buyer Journey</h3>
+            <p class="persona">A company user who plans, creates, publishes, and manages procurement activities.</p>
+            <div class="path">
+              <div class="node"><b>Dashboard</b><span>Enter the verified workspace.</span><span class="route">/dashboard</span></div>
+              <div class="node"><b>Create Tender</b><span>Define scope, requirements, milestones, and commercial items.</span><span class="route">/procurement/create-tender</span></div>
+              <div class="node"><b>Tender Document</b><span>Review generated or attached tender package.</span><span class="route">/procurement/tender-document</span></div>
+              <div class="node decision"><b>Publish?</b><span>Confirm the tender is ready for supplier visibility.</span><span class="route">Decision</span></div>
+              <div class="node"><b>Publication</b><span>Release the opportunity.</span><span class="route">/procurement/tender-publication</span></div>
+              <div class="node"><b>Awarding</b><span>Move from evaluation result to award and contract work.</span><span class="route">/awards-contracts</span></div>
+            </div>
+          </article>
+
+          <article class="journey-card evaluator">
+            <h3>Evaluator / Approver Journey</h3>
+            <p class="persona">A workflow participant who evaluates bids and supports procurement decisions.</p>
+            <div class="path">
+              <div class="node"><b>Dashboard</b><span>Access assigned procurement work.</span><span class="route">/dashboard</span></div>
+              <div class="node"><b>Evaluation</b><span>Open bid evaluation workspace.</span><span class="route">/evaluation</span></div>
+              <div class="node"><b>Score Bids</b><span>Apply criteria and record structured evaluation decisions.</span><span class="route">Scores</span></div>
+              <div class="node decision"><b>Recommend?</b><span>Confirm evaluation outcome and recommendation basis.</span><span class="route">Decision</span></div>
+              <div class="node"><b>Award Recommendation</b><span>Prepare recommendation and approval handoff.</span><span class="route">/awards-contracts/recommendation</span></div>
+            </div>
+          </article>
+
+          <article class="journey-card admin">
+            <h3>Admin Journey</h3>
+            <p class="persona">A platform compliance account responsible for oversight rather than procurement operation.</p>
+            <div class="path">
+              <div class="node"><b>Admin Dashboard</b><span>Open platform overview.</span><span class="route">/admin</span></div>
+              <div class="node"><b>User Review</b><span>Inspect users, organizations, and verification decisions.</span><span class="route">/admin/users</span></div>
+              <div class="node"><b>Compliance</b><span>Review compliance cases and risk signals.</span><span class="route">/admin/compliance</span></div>
+              <div class="node"><b>Search</b><span>Find procurement, users, records, or operational data.</span><span class="route">/admin/search</span></div>
+              <div class="node"><b>Audit</b><span>Review action history and traceability.</span><span class="route">/admin/audit</span></div>
+            </div>
+          </article>
+
+          <article class="journey-card shared">
+            <h3>Shared Support Journey</h3>
+            <p class="persona">Any authenticated user who needs communication, records, support, or profile management.</p>
+            <div class="path">
+              <div class="node"><b>Profile</b><span>Update account and organization-facing identity details.</span><span class="route">/identity/profile</span></div>
+              <div class="node"><b>Communication</b><span>Use structured messages and attachments.</span><span class="route">/communication</span></div>
+              <div class="node"><b>Records</b><span>Review timeline history and operational records.</span><span class="route">/records</span></div>
+              <div class="node"><b>Support</b><span>Open help, status, or support compose path.</span><span class="route">/help /support</span></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="shared">
+        <h2>2. Shared Account Path</h2>
+        <div class="note">
+          <strong>Shared identity rule:</strong> all protected journeys begin with authentication.
+          Verified operational screens require more than a login session: the user must be attached
+          to a trusted organization context unless the route is intentionally available before full
+          verification, such as identity verification and profile pages.
+        </div>
+
+        <table class="matrix">
+          <tbody>
+            <tr>
+              <th>Start</th>
+              <td>Visitor chooses <code>/register</code> or <code>/sign-in</code>.</td>
+            </tr>
+            <tr>
+              <th>Registration</th>
+              <td>Phone and email verification confirm contact channels before account activation.</td>
+            </tr>
+            <tr>
+              <th>Session</th>
+              <td>The client checks the session endpoint to decide whether the user can continue.</td>
+            </tr>
+            <tr>
+              <th>Verification</th>
+              <td>Company verification connects the user to organization capability and trusted procurement access.</td>
+            </tr>
+            <tr>
+              <th>Workspace</th>
+              <td>Verified users enter <code>/dashboard</code> or <code>/apps</code>; admins are redirected to admin surfaces.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="routes">
+        <h2>3. Screen Route Map</h2>
+        <div class="route-grid">
+          <div class="route-card">
+            <h3>Public</h3>
+            <ul>
+              <li><code>/</code> welcome</li>
+              <li><code>/guest-marketplace</code> public opportunities</li>
+              <li><code>/about</code>, <code>/contact</code>, <code>/privacy</code>, <code>/terms</code></li>
+              <li><code>/register</code>, <code>/sign-in</code></li>
+            </ul>
+          </div>
+          <div class="route-card">
+            <h3>Identity</h3>
+            <ul>
+              <li><code>/identity/verification</code> verification draft and submission</li>
+              <li><code>/identity/profile</code> account profile</li>
+              <li><code>/identity/security/keyphrase</code> security keyphrase</li>
+              <li><code>/forgot-password</code>, <code>/recover-keyphrase</code></li>
+            </ul>
+          </div>
+          <div class="route-card">
+            <h3>Workspace</h3>
+            <ul>
+              <li><code>/dashboard</code> workspace dashboard</li>
+              <li><code>/apps</code> app launcher</li>
+              <li><code>/communication</code> communication center</li>
+              <li><code>/records</code> records history</li>
+            </ul>
+          </div>
+          <div class="route-card">
+            <h3>Procurement</h3>
+            <ul>
+              <li><code>/procurement/create-tender</code></li>
+              <li><code>/procurement/tender-publication</code></li>
+              <li><code>/procurement/tender-details</code></li>
+              <li><code>/procurement/tender-document</code></li>
+              <li><code>/procurement/marketplace</code></li>
+            </ul>
+          </div>
+          <div class="route-card">
+            <h3>Bidding To Contract</h3>
+            <ul>
+              <li><code>/bidding</code></li>
+              <li><code>/evaluation</code></li>
+              <li><code>/awards-contracts</code></li>
+              <li><code>/awards-contracts/recommendation</code></li>
+              <li><code>/post-award</code></li>
+            </ul>
+          </div>
+          <div class="route-card">
+            <h3>Admin</h3>
+            <ul>
+              <li><code>/admin</code> dashboard</li>
+              <li><code>/admin/users</code> user and organization review</li>
+              <li><code>/admin/compliance</code> compliance cases</li>
+              <li><code>/admin/search</code>, <code>/admin/analytics</code>, <code>/admin/audit</code></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="decisions">
+        <h2>4. Decision Points</h2>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Decision</th>
+              <th>User Question</th>
+              <th>System Outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Register or sign in</td>
+              <td>Is the visitor new or returning?</td>
+              <td>New users enter registration; returning users enter session flow.</td>
+            </tr>
+            <tr>
+              <td>Verification required</td>
+              <td>Can this user access verified operational routes?</td>
+              <td>Unverified users remain in identity/profile routes until verification is complete.</td>
+            </tr>
+            <tr>
+              <td>Buyer or supplier work</td>
+              <td>What can the organization do?</td>
+              <td>Capabilities and workflow assignments shape available procurement actions.</td>
+            </tr>
+            <tr>
+              <td>Publish tender</td>
+              <td>Is the buyer ready to expose the tender to suppliers?</td>
+              <td>Tender appears in marketplace and supplier-facing detail screens.</td>
+            </tr>
+            <tr>
+              <td>Submit bid</td>
+              <td>Is the supplier ready to commit the bid response?</td>
+              <td>Bid records, versions, documents, and receipt become evaluation inputs.</td>
+            </tr>
+            <tr>
+              <td>Recommend award</td>
+              <td>Is evaluation complete and defensible?</td>
+              <td>Award recommendation begins award and contract formation screens.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="outcomes">
+        <h2>5. Outcomes</h2>
+        <table class="matrix">
+          <tbody>
+            <tr>
+              <th>Guest</th>
+              <td>Understands the platform and either registers, signs in, or contacts support.</td>
+            </tr>
+            <tr>
+              <th>Supplier</th>
+              <td>Finds opportunities, submits bids, receives receipts, responds to awards, and participates in contract execution.</td>
+            </tr>
+            <tr>
+              <th>Buyer</th>
+              <td>Creates procurement packages, publishes tenders, reviews results, and tracks contract delivery.</td>
+            </tr>
+            <tr>
+              <th>Evaluator</th>
+              <td>Creates transparent scoring evidence and supports a defensible award recommendation.</td>
+            </tr>
+            <tr>
+              <th>Admin</th>
+              <td>Maintains platform trust through verification, compliance, audit, analytics, and search oversight.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="persona-detail">
+        <h2>6. Persona Deep Dive</h2>
+        <p>
+          The user journey is easiest to understand when each user is described by motivation,
+          starting condition, screen sequence, blockers, success state, and the evidence they leave
+          behind. The same platform supports many people, but each person experiences a different
+          slice of the procurement lifecycle.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Persona</th>
+              <th>Goal</th>
+              <th>Starting State</th>
+              <th>Detailed Journey</th>
+              <th>Common Blockers</th>
+              <th>Success State</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>New visitor</td>
+              <td>Understand the platform and decide whether to join.</td>
+              <td>No account, no session, no organization membership.</td>
+              <td>The visitor starts on the welcome page, reads public information, previews opportunities through the guest marketplace, checks terms or privacy if needed, and then chooses registration or sign-in. The journey should feel safe because public pages do not ask the user to understand internal procurement structure before they know what the system does.</td>
+              <td>Unclear platform purpose, uncertainty about eligibility, need for support, or confusion between buyer and supplier capabilities.</td>
+              <td>The visitor either registers, signs in, contacts support, or leaves with a clear understanding of ProcureX.</td>
+            </tr>
+            <tr>
+              <td>New supplier user</td>
+              <td>Become trusted enough to find tenders and submit bids.</td>
+              <td>May have just registered, may not yet be verified, and may not yet have supplier capability attached to the organization.</td>
+              <td>The user completes registration, verifies phone and email, signs in, completes company verification, reaches the dashboard, opens marketplace, chooses a tender, reviews tender details and documents, prepares a bid, attaches required files, submits before deadline, receives a receipt, and later watches for award response or contract tasks.</td>
+              <td>Verification not approved, missing company information, tender not visible due to eligibility or route protection, incomplete bid response, late submission, missing documents.</td>
+              <td>A submitted bid exists, the supplier has proof of submission, and the supplier can participate in award and contract work if selected.</td>
+            </tr>
+            <tr>
+              <td>New buyer user</td>
+              <td>Create a compliant tender and move it into the marketplace.</td>
+              <td>Authenticated user in a verified buyer-capable organization.</td>
+              <td>The buyer enters dashboard, opens tender creation, defines procurement category, scope, requirements, milestones, commercial line items, and documents, reviews the tender package, fixes missing fields, publishes the tender, monitors supplier participation, and later moves submitted bids into evaluation and award work.</td>
+              <td>Organization not verified, buyer capability missing, incomplete tender requirements, missing documents, unclear milestones, review not complete, publication rule not satisfied.</td>
+              <td>A published tender is visible to eligible suppliers and has enough structure to support fair bidding and evaluation.</td>
+            </tr>
+            <tr>
+              <td>Evaluator</td>
+              <td>Score supplier submissions and support a defensible recommendation.</td>
+              <td>Authenticated verified user with workflow assignment to an evaluation workspace.</td>
+              <td>The evaluator enters dashboard or evaluation route, opens assigned evaluation workspace, reviews tender requirements and submitted bid evidence, applies criteria, records scores, participates in review or approval steps, and helps produce an award recommendation. The evaluator does not need to be a buyer or supplier role; assignment is the important access concept.</td>
+              <td>No assignment, conflict of interest, missing criteria, incomplete bid evidence, disagreement between evaluators, unclear scoring notes.</td>
+              <td>Evaluation scores and recommendation evidence are recorded and can be reviewed by approvers or auditors.</td>
+            </tr>
+            <tr>
+              <td>Approver</td>
+              <td>Review the recommendation and decide whether it should proceed.</td>
+              <td>Authenticated user with approval responsibility in the award workflow.</td>
+              <td>The approver reviews the evaluation basis, checks recommendation details, inspects award grouping or winner information, confirms approval steps, and either approves, rejects, returns for revision, or escalates. The approver experience should make the decision basis visible rather than forcing the approver to trust a single summary number.</td>
+              <td>Insufficient evaluation evidence, missing documents, unresolved tie, supplier objection, compliance concern, or approval route mismatch.</td>
+              <td>The award recommendation moves forward with a recorded approval decision or returns to the correct earlier stage.</td>
+            </tr>
+            <tr>
+              <td>Supplier award recipient</td>
+              <td>Respond to the award and complete contract formation.</td>
+              <td>Supplier has a submitted bid selected or recommended for award.</td>
+              <td>The supplier receives or opens award response, reviews award terms, accepts or responds, participates in negotiation, reviews contract clauses, signs when ready, and then performs delivery, invoice, evidence, or service reporting tasks through post-award tracking.</td>
+              <td>Award terms disputed, contract clauses unclear, signing information missing, required documents incomplete, delivery schedule disputed, invoice rejected.</td>
+              <td>Contract is signed and active, with a clear execution path and traceable supplier obligations.</td>
+            </tr>
+            <tr>
+              <td>Platform admin</td>
+              <td>Maintain trust, compliance, and operational visibility.</td>
+              <td>Admin account with access to admin routes.</td>
+              <td>The admin signs in, is directed to admin surfaces, reviews verification queues, checks users and organizations, opens compliance cases, searches platform records, watches analytics, reviews audit events, and supports communication or support escalations. Admin does not act as buyer or supplier; admin is a compliance and platform oversight role.</td>
+              <td>Incomplete verification evidence, suspicious activity, missing audit context, unresolved compliance case, inconsistent organization capability, user support escalation.</td>
+              <td>Verification and compliance decisions are recorded, suspicious cases are managed, and platform trust is improved.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="screen-narratives">
+        <h2>7. Screen Narratives</h2>
+        <p>
+          A screen flow document should explain why each important screen exists. The table below
+          describes the role of each route in the user experience, what the user expects to do there,
+          and what the screen should make clear.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Screen</th>
+              <th>User Intent</th>
+              <th>What The Screen Must Communicate</th>
+              <th>Next Natural Step</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>/</code> Welcome</td>
+              <td>Understand what ProcureX is and where to start.</td>
+              <td>The platform supports transparent procurement, supplier trust, bidding, evaluation, contracts, and auditable records.</td>
+              <td>Open guest marketplace, register, sign in, or read more.</td>
+            </tr>
+            <tr>
+              <td><code>/guest-marketplace</code></td>
+              <td>Preview tender opportunities before committing to an account.</td>
+              <td>There are real procurement opportunities and supplier participation has a clear path.</td>
+              <td>Register as a company user or sign in to participate.</td>
+            </tr>
+            <tr>
+              <td><code>/register</code></td>
+              <td>Create an account and begin trust setup.</td>
+              <td>Registration is the first step, not the final permission grant. Contact verification and company verification still matter.</td>
+              <td>Verify phone/email and complete activation.</td>
+            </tr>
+            <tr>
+              <td><code>/sign-in</code></td>
+              <td>Return to an existing account.</td>
+              <td>Session access depends on valid credentials and account status. The user may be routed to dashboard, profile, verification, or admin.</td>
+              <td>Continue to assigned route after session is established.</td>
+            </tr>
+            <tr>
+              <td><code>/identity/verification</code></td>
+              <td>Prove company or individual business identity.</td>
+              <td>Verified procurement access depends on trusted organization details and admin or registry-backed review.</td>
+              <td>Submit verification and wait for approval, or correct returned information.</td>
+            </tr>
+            <tr>
+              <td><code>/identity/profile</code></td>
+              <td>Review account, organization, trust, and profile details.</td>
+              <td>The profile is where the user understands current status and fixes account-facing information.</td>
+              <td>Return to workspace, continue verification, or manage profile image/details.</td>
+            </tr>
+            <tr>
+              <td><code>/dashboard</code></td>
+              <td>Start daily operational work.</td>
+              <td>The dashboard is a verified workspace summary, not a public landing page. It should show meaningful procurement activity and module access.</td>
+              <td>Open app launcher, procurement, marketplace, evaluation, awards, communication, or records.</td>
+            </tr>
+            <tr>
+              <td><code>/apps</code></td>
+              <td>Choose a module by function.</td>
+              <td>ProcureX is a suite of connected modules, and users can jump to the workflow they are responsible for.</td>
+              <td>Select procurement, bidding, evaluation, awards, records, communication, or admin surfaces where allowed.</td>
+            </tr>
+            <tr>
+              <td><code>/procurement/create-tender</code></td>
+              <td>Build a tender package.</td>
+              <td>The buyer must describe the procurement clearly enough for suppliers to respond and evaluators to score fairly.</td>
+              <td>Review tender document and prepare publication.</td>
+            </tr>
+            <tr>
+              <td><code>/procurement/tender-publication</code></td>
+              <td>Move a tender from internal draft to supplier-facing opportunity.</td>
+              <td>Publication is a serious step because suppliers will rely on the published requirements and deadline.</td>
+              <td>Monitor marketplace visibility and supplier participation.</td>
+            </tr>
+            <tr>
+              <td><code>/procurement/marketplace</code></td>
+              <td>Find tenders as a supplier or inspect opportunities as a workspace user.</td>
+              <td>The marketplace should be searchable and trustworthy, with enough summary detail to choose which tender to inspect.</td>
+              <td>Open tender detail or supplier tender detail.</td>
+            </tr>
+            <tr>
+              <td><code>/bidding</code></td>
+              <td>Prepare and submit a bid.</td>
+              <td>The supplier must understand required responses, documents, status, deadlines, and whether submission is complete.</td>
+              <td>Submit bid and receive receipt, or return to tender detail to review requirements.</td>
+            </tr>
+            <tr>
+              <td><code>/evaluation</code></td>
+              <td>Review submitted bids and score them.</td>
+              <td>The evaluator needs criteria, bid evidence, scoring controls, assignment context, and recommendation status.</td>
+              <td>Complete scoring and move to award recommendation.</td>
+            </tr>
+            <tr>
+              <td><code>/awards-contracts/recommendation</code></td>
+              <td>Translate evaluation result into a recommended award.</td>
+              <td>The award decision must be traceable to evaluation evidence and ready for approval or revision.</td>
+              <td>Send through approval, issue notice, or revise recommendation.</td>
+            </tr>
+            <tr>
+              <td><code>/awards-contracts/award-response</code></td>
+              <td>Let the supplier respond to an award decision.</td>
+              <td>The supplier should see what was awarded, what response is expected, and what contract steps follow.</td>
+              <td>Accept, respond, negotiate, or move to contract drafting.</td>
+            </tr>
+            <tr>
+              <td><code>/awards-contracts/drafting</code> and <code>/awards-contracts/signing</code></td>
+              <td>Prepare, agree, and sign the contract.</td>
+              <td>Parties, clauses, versions, signatures, and unresolved negotiation items must be visible.</td>
+              <td>Activate the contract or return to negotiation.</td>
+            </tr>
+            <tr>
+              <td><code>/post-award</code></td>
+              <td>Track delivery, invoices, evidence, issues, and closeout.</td>
+              <td>Post-award is a long-running execution workspace, not a single confirmation screen.</td>
+              <td>Record delivery, acceptance, payment, issue, amendment, warranty, or closeout activity.</td>
+            </tr>
+            <tr>
+              <td><code>/communication</code></td>
+              <td>Handle structured messages and attachments.</td>
+              <td>Communication is part of the procurement record and should stay connected to operational work.</td>
+              <td>Reply, attach evidence, escalate, or return to the related workflow.</td>
+            </tr>
+            <tr>
+              <td><code>/records</code></td>
+              <td>Review activity history.</td>
+              <td>Records should help the user reconstruct what happened without searching through unrelated screens.</td>
+              <td>Open related workflow item or audit trail.</td>
+            </tr>
+            <tr>
+              <td><code>/admin</code> and admin subroutes</td>
+              <td>Perform platform oversight.</td>
+              <td>Admin screens are for compliance, audit, search, analytics, and verification review, not buyer or supplier operations.</td>
+              <td>Resolve verification, compliance, support, audit, or user management task.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="alternate-paths">
+        <h2>8. Alternate Paths</h2>
+        <p>
+          A training-quality journey document should describe what happens when the user cannot move
+          forward normally. These alternate paths are important because they are often the moments
+          where support teams, administrators, or supervisors need the clearest explanation.
+        </p>
+
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Situation</th>
+              <th>User Experience</th>
+              <th>Reason</th>
+              <th>Support Or Recovery Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Returning user cannot sign in</td>
+              <td>The user stays on sign-in or moves to forgot-password or recover-keyphrase routes.</td>
+              <td>Credentials are wrong, account is locked, session expired, or password/keyphrase recovery is required.</td>
+              <td>Use <code>/forgot-password</code>, <code>/recover-keyphrase</code>, <code>/session-expired</code>, or support depending on the message.</td>
+            </tr>
+            <tr>
+              <td>User is authenticated but unverified</td>
+              <td>The user can reach identity and profile surfaces but cannot enter verified operational routes such as dashboard or marketplace.</td>
+              <td>ProcureX requires trusted organization context before sensitive procurement work.</td>
+              <td>Complete <code>/identity/verification</code>, update draft details, or wait for admin review.</td>
+            </tr>
+            <tr>
+              <td>Admin signs in and expects buyer screens</td>
+              <td>The system redirects admin users to admin surfaces such as <code>/admin</code>.</td>
+              <td>Admin is a platform compliance account, not a buyer or supplier operator.</td>
+              <td>Use admin screens for oversight or sign in with an organization user for buyer/supplier work.</td>
+            </tr>
+            <tr>
+              <td>Supplier cannot find a tender</td>
+              <td>The marketplace does not show the expected opportunity or the tender detail is not available.</td>
+              <td>Tender may not be published, may belong to a restricted state, may be filtered, or user may lack verified access.</td>
+              <td>Confirm tender publication, check filters, verify organization status, or contact the buyer/support channel.</td>
+            </tr>
+            <tr>
+              <td>Buyer cannot publish</td>
+              <td>The user remains in create tender or tender publication screens.</td>
+              <td>Required fields, documents, deadlines, milestones, or review conditions may be incomplete.</td>
+              <td>Complete the missing tender package data and retry publication.</td>
+            </tr>
+            <tr>
+              <td>Supplier cannot submit a bid</td>
+              <td>The bidding workspace blocks submission or indicates incomplete status.</td>
+              <td>Required responses are missing, documents are absent, deadline has passed, or organization status is not valid.</td>
+              <td>Fix missing bid items, upload documents, check deadline, or request support before submission closes.</td>
+            </tr>
+            <tr>
+              <td>Evaluator sees no work</td>
+              <td>The evaluation route loads but no assigned workspace appears.</td>
+              <td>The user may not have a workflow assignment, the tender may not have entered evaluation, or data is not seeded for the scenario.</td>
+              <td>Confirm evaluator assignment, tender stage, and demo data if testing locally.</td>
+            </tr>
+            <tr>
+              <td>Award recommendation cannot proceed</td>
+              <td>Recommendation screen remains in draft, review, or blocked status.</td>
+              <td>Evaluation evidence, approvals, award grouping, winner details, or compliance checks may be incomplete.</td>
+              <td>Return to evaluation, complete approval steps, or escalate to compliance/admin review.</td>
+            </tr>
+            <tr>
+              <td>Contract cannot be signed</td>
+              <td>Contract signing screen shows unresolved contract state or missing action.</td>
+              <td>Negotiation is incomplete, clauses are unresolved, signatures are missing, or required documents are not ready.</td>
+              <td>Resolve negotiation items, finalize version, attach required documents, and retry signing.</td>
+            </tr>
+            <tr>
+              <td>Post-award issue appears</td>
+              <td>Delivery, invoice, evidence, or acceptance cannot move forward normally.</td>
+              <td>Goods or services may not match contract terms, evidence may be missing, invoice may not reconcile, or quality review may fail.</td>
+              <td>Record issue, request correction, open claim/dispute/change request, or update payment/acceptance state.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <strong>Support explanation:</strong> most blocked journeys should be explained as one of
+          four categories: identity not trusted yet, organization capability missing, workflow
+          assignment missing, or business record incomplete. This language helps support teams explain
+          access problems without implying that the system has arbitrary hidden roles.
+        </div>
+      </section>
+
+      <section id="checklist">
+        <h2>9. Walkthrough Checklist</h2>
+        <table class="matrix">
+          <tbody>
+            <tr>
+              <th>Demo order</th>
+              <td>Start public, register/sign in, show verification, enter dashboard, follow buyer and supplier paths, finish with admin audit.</td>
+            </tr>
+            <tr>
+              <th>Key message</th>
+              <td>ProcureX separates account type from procurement capability, so one organization can operate as buyer, supplier, or both.</td>
+            </tr>
+            <tr>
+              <th>Stakeholder focus</th>
+              <td>Each screen exists to move a user toward a clear procurement outcome and create traceable evidence.</td>
+            </tr>
+            <tr>
+              <th>Training focus</th>
+              <td>Explain which routes are public, protected, verified, or admin-only before walking through detailed procurement tasks.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <p class="footer-note">
+        This document is a user-facing journey guide. It intentionally avoids implementation details
+        that belong in the technical system flow document.
+      </p>
+    </main>
+  </div>
+</body>
+</html>

@@ -4,7 +4,7 @@ import html2pdf from 'html2pdf.js';
 import { store } from '@/app/store';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
-import { apiErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
@@ -351,7 +351,7 @@ export function BiddingWorkspaceProcurexPage() {
   }
 
   function draftPayload(): BidDraftPayload {
-    const administrative = schema ? schemaSectionPayload(schema, schemaResponses, 'administrative') : form.administrative;
+    const administrative = schema ? schemaAdministrativePayload(schema, schemaResponses, workflow) : form.administrative;
     const technical = schema ? schemaSectionPayload(schema, schemaResponses, 'technical') : backendTechnicalPayload(workflow, form.technical);
     const responses = schema ? schemaResponseList(schema, schemaResponses) : responseList(workflow, { ...form, technical });
     const financialItems = schema ? schemaFinancialRows(schema, schemaResponses) : form.financial.items.map(withTotal);
@@ -438,7 +438,7 @@ export function BiddingWorkspaceProcurexPage() {
       showBidNotice('success', 'Notice', workflow === 'consultancy' ? 'Technical and financial envelopes sealed. Receipt generated.' : 'Bid package sealed. Receipt generated.');
     } catch (error) {
       const message = errorMessage(error, 'Bid could not be submitted.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       showBidNotice('error', 'Notice', message);
     } finally {
       setSaving(false);
@@ -463,7 +463,7 @@ export function BiddingWorkspaceProcurexPage() {
       setActiveStep(0);
     } catch (error) {
       const message = errorMessage(error, 'Bid could not be withdrawn.');
-      setSignatureError(message);
+      setSignatureError(isKeyphraseApiError(error) ? message : '');
       showBidNotice('error', 'Notice', message);
     } finally {
       setSaving(false);
@@ -1822,9 +1822,10 @@ function AdministrativeUploadField({
         disabled={disabled}
         isUploading={uploadingKey === field.requirementKey}
         metadata={{ fieldId: field.id }}
+        uploadedDocuments={uploaded}
         onFiles={(files, envelope, documentType, requirementKey, requirementLabel, metadata) => onFiles(files, envelope, documentType, requirementKey, requirementLabel || field.label, metadata)}
       />
-      {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : hint ? <span className="form-hint">{hint}</span> : null}
+      {!uploaded.length && hint ? <span className="form-hint">{hint}</span> : null}
     </div>
   );
 }
@@ -2563,21 +2564,18 @@ function WorksDeclarationUpload({ field, documents, disabled, uploadingKey, onFi
   return (
     <div className="form-group">
       <label className="form-label">{field.label}</label>
-      <input
-        className="form-input"
-        type="file"
+      <UploadBox
+        envelope={field.envelope}
+        title={field.label}
+        documentType={documentType}
+        requirementKey={field.requirementKey}
+        disabled={disabled}
+        isUploading={uploadingKey === field.requirementKey}
+        metadata={{ fieldId: field.id }}
+        uploadedDocuments={uploaded}
         accept={accept}
-        aria-label={field.label}
-        disabled={disabled || uploadingKey === field.requirementKey}
-        onChange={(event) => {
-          const input = event.currentTarget;
-          void onFiles(input.files, field.envelope, documentType, field.requirementKey, field.label, { fieldId: field.id }).finally(() => {
-            input.value = '';
-          });
-        }}
+        onFiles={onFiles}
       />
-      {uploadingKey === field.requirementKey ? <small className="form-hint">Uploading...</small> : null}
-      {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : null}
     </div>
   );
 }
@@ -2683,8 +2681,7 @@ function WorksSchemaUpload({ field, documents, disabled, uploadingKey, onFiles, 
   const uploaded = documentsForSchemaField(documents, field);
   return (
     <div className={`form-group ${className}`.trim()}>
-      <UploadBox envelope={field.envelope} title={field.label} documentType={String(field.validation.documentType ?? 'BID_DOCUMENT')} requirementKey={field.requirementKey} disabled={disabled} isUploading={uploadingKey === field.requirementKey} metadata={{ fieldId: field.id }} onFiles={onFiles} />
-      {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : null}
+      <UploadBox envelope={field.envelope} title={field.label} documentType={String(field.validation.documentType ?? 'BID_DOCUMENT')} requirementKey={field.requirementKey} disabled={disabled} isUploading={uploadingKey === field.requirementKey} metadata={{ fieldId: field.id }} uploadedDocuments={uploaded} onFiles={onFiles} />
     </div>
   );
 }
@@ -2864,9 +2861,10 @@ function WorksHseEvidenceUpload({
         disabled={disabled}
         isUploading={uploadingKey === slot.requirementKey}
         metadata={{ parentRequirementKey: field.requirementKey, fieldId: field.id, evidenceKey: slot.key }}
+        uploadedDocuments={uploaded}
         onFiles={onFiles}
       />
-      {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : field.required || uploadField.required ? <span className="form-hint">Required evidence upload.</span> : null}
+      {!uploaded.length && (field.required || uploadField.required) ? <span className="form-hint">Required evidence upload.</span> : null}
     </div>
   );
 }
@@ -3322,9 +3320,10 @@ function GoodsTechnicalUploadSection({
                   disabled={disabled}
                   isUploading={uploadingKey === field.requirementKey}
                   metadata={{ fieldId: field.id }}
+                  uploadedDocuments={uploaded}
                   onFiles={onFiles}
                 />
-                {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : <span className="form-hint">No file selected yet.</span>}
+                {!uploaded.length ? <span className="form-hint">No file selected yet.</span> : null}
               </article>
             );
           })}
@@ -3750,9 +3749,10 @@ function SchemaFieldControl({
           disabled={disabled}
           isUploading={uploadingKey === field.requirementKey}
           metadata={{ fieldId: field.id }}
+          uploadedDocuments={uploaded}
           onFiles={onFiles}
         />
-        {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : hint ? <span className="form-hint">{hint}</span> : null}
+        {!uploaded.length && hint ? <span className="form-hint">{hint}</span> : null}
       </div>
     );
   }
@@ -3935,6 +3935,7 @@ function TechnicalEvidenceUpload({
         disabled={disabled}
         isUploading={uploadingKey === slot.requirementKey}
         metadata={{ parentRequirementKey: field.requirementKey, fieldId: field.id, evidenceKey: slot.key }}
+        uploadedDocuments={uploaded}
         onFiles={onFiles}
       />
       {uploaded.length ? <span className="form-hint">{`Uploaded: ${documentNames(uploaded)}`}</span> : uploadRequired ? <span className="form-hint">Required evidence upload.</span> : null}
@@ -4135,7 +4136,7 @@ function SchemaSubmitPanel({ saving, uploading, isSubmitted, onSave, onSubmit }:
         <strong>Ready to seal</strong>
         <span>The system will check required tender response fields, seal the bid package, and store a receipt.</span>
       </div>
-      <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSave}>
+      <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={() => onSave()}>
         Save Draft
       </button>
       <button className="btn btn-primary" type="button" disabled={saving || uploading || isSubmitted} onClick={() => onSubmit()}>
@@ -4183,6 +4184,8 @@ function UploadBox({
   disabled,
   isUploading,
   metadata = {},
+  uploadedDocuments = [],
+  accept,
   onFiles
 }: {
   envelope: Envelope;
@@ -4192,16 +4195,23 @@ function UploadBox({
   disabled: boolean;
   isUploading: boolean;
   metadata?: UploadMetadata;
+  uploadedDocuments?: BidDocumentState[];
+  accept?: string;
   onFiles: UploadHandler;
 }) {
+  const hasUploadedDocuments = uploadedDocuments.length > 0;
   return (
-    <label className="supplier-requirement-preview">
-      <span>{isUploading ? 'Uploading...' : `${envelope} documents`}</span>
+    <label className={`supplier-requirement-preview ${hasUploadedDocuments ? 'has-upload' : ''} ${disabled ? 'is-disabled' : ''}`}>
+      <span>{isUploading ? 'Uploading...' : hasUploadedDocuments ? 'Uploaded documents' : `${envelope} documents`}</span>
       <strong>{title}</strong>
+      {hasUploadedDocuments ? <small className="form-hint">{`Uploaded: ${documentNames(uploadedDocuments)}`}</small> : null}
+      <span className="bid-upload-action">{hasUploadedDocuments ? 'Upload another file' : 'Browse files'}</span>
       <input
-        className="form-input"
+        className="bid-upload-input sr-only"
         type="file"
         multiple
+        accept={accept}
+        aria-label={title}
         disabled={disabled}
         onChange={(event) => {
           const input = event.currentTarget;
@@ -6008,7 +6018,7 @@ function DeclarationSubmitPanel({ saving, uploading, isSubmitted, form, onPatch,
           <strong>Ready to seal</strong>
           <span>The system will check required responses, seal the bid package, and store a receipt.</span>
         </div>
-        <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={onSave}>
+        <button className="btn btn-secondary" type="button" disabled={saving || uploading || isSubmitted} onClick={() => onSave()}>
           Save Draft
         </button>
         <button className="btn btn-primary" type="button" disabled={saving || uploading || isSubmitted} onClick={() => onSubmit()}>
@@ -6645,6 +6655,14 @@ function schemaResponseList(schema: BidSubmissionSchemaDto, responses: SchemaRes
 function schemaSectionPayload(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, section: 'administrative' | 'technical' | 'financial' | 'declarations') {
   const fields = actionableSchemaFields(schema).filter((field) => field.section === section && field.type !== 'file' && field.responseType !== 'attachment');
   return Object.fromEntries(fields.map((field) => [schemaPayloadKey(field), schemaFieldValue(field, responses)]));
+}
+
+function schemaAdministrativePayload(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, workflow: WorkflowType) {
+  const payload = schemaSectionPayload(schema, responses, 'administrative');
+  const goodsDeclarationFields = actionableSchemaFields(schema).filter(isGoodsEligibilityDeclarationField);
+  const goodsDeclarationsComplete = goodsDeclarationFields.length > 0 && goodsDeclarationFields.every((field) => schemaFieldValue(field, responses) === true);
+  if (workflow === 'goods' && goodsDeclarationsComplete) return { ...payload, eligible: true };
+  return payload;
 }
 
 function schemaPayloadKey(field: BidSubmissionSchemaFieldDto) {
