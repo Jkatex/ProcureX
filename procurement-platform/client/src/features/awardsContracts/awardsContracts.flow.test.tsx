@@ -459,7 +459,7 @@ describe('awards and contracts empty lifecycle flow', () => {
 
     await waitFor(() => expect(screen.getByText('Official contract')).toBeInTheDocument());
     expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/api/documents/official-doc/content');
-    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute('href', '/api/documents/official-doc/content');
+    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute('href', '/api/documents/official-doc/content?download=true');
   });
 
   it('opens active contract tracking from the direct post-award chooser', async () => {

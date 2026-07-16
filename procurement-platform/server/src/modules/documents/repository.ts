@@ -79,6 +79,16 @@ export class ModuleRepository {
     if (!this.canReadDocument(document, context)) throw requestError('Document is not visible to this organization.', 403);
 
     const metadata = objectPayload(document.metadata);
+    const contentBase64 = typeof metadata.contentBase64 === 'string' ? metadata.contentBase64 : '';
+    const mimeType = typeof metadata.mimeType === 'string' && metadata.mimeType.trim() ? metadata.mimeType.trim() : '';
+    if (contentBase64 && mimeType) {
+      return {
+        filename: safeFilename(document.name),
+        contentType: mimeType,
+        body: Buffer.from(contentBase64, 'base64')
+      };
+    }
+
     const rows = [
       ['Document name', document.name],
       ['Document type', document.documentType],
