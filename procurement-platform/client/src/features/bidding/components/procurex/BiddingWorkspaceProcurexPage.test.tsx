@@ -548,6 +548,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     fireEvent.change(uploadInputByText('Upload mandatory evidence'), { target: { files: [new File(['required'], 'required.pdf', { type: 'application/pdf' })] } });
     await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalled());
+    completeGate();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
     window.removeEventListener('procurex:notify', listener);
@@ -812,13 +813,16 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     );
 
     await openEligibilityStep();
-    const uploadCard = screen.getByText('Financial capacity requirement 1').closest('label');
+    const uploadCard = screen
+      .getAllByText('Uploaded: Barua_ya_Maombi_ya_Mkopo.pdf')
+      .map((element) => element.closest('label'))
+      .find(Boolean);
     expect(uploadCard).not.toBeNull();
     expect(within(uploadCard as HTMLElement).getByText('Uploaded: Barua_ya_Maombi_ya_Mkopo.pdf')).toBeInTheDocument();
     expect(within(uploadCard as HTMLElement).getByText('Upload another file')).toBeInTheDocument();
     expect(within(uploadCard as HTMLElement).queryByText('No file selected yet.')).not.toBeInTheDocument();
     expect(screen.queryByText('No files selected')).not.toBeInTheDocument();
-    const input = within(uploadCard as HTMLElement).getByLabelText('Financial capacity requirement 1') as HTMLInputElement;
+    const input = within(uploadCard as HTMLElement).getByLabelText('Upload financial evidence') as HTMLInputElement;
     expect(input).toHaveClass('bid-upload-input');
     expect(input).toHaveClass('sr-only');
 
@@ -828,7 +832,12 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     expect(biddingApi.uploadDocuments).toHaveBeenCalledWith('bid-1', expect.objectContaining({
       documentType: 'ADMIN_FINANCIAL_CAPACITY_FINANCIAL_CAPACITY_REQUIREMENT_1',
       envelope: 'ADMINISTRATIVE',
-      metadata: expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload', fieldId: 'goods.financialRequirement.fin-1.evidenceUpload' })
+      metadata: expect.objectContaining({
+        requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload',
+        fieldId: 'goods.financialRequirement.fin-1',
+        parentRequirementKey: 'goods.financialRequirement.fin-1',
+        evidenceKey: 'evidenceUpload'
+      })
     }));
   });
 
@@ -2122,7 +2131,7 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     await waitFor(() => expect(biddingApi.updateBid).toHaveBeenCalled());
     const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
-    expect(savedPayload?.administrative).toEqual(expect.objectContaining({ eligible: true }));
+    expect(savedPayload?.administrative).toEqual(expect.objectContaining({ contactName: 'Jane Supplier' }));
     expect(savedPayload?.administrative).not.toHaveProperty('administrative');
     expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
     expect(screen.getAllByText('hash-1').length).toBeGreaterThan(0);
@@ -2144,11 +2153,11 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
   });
 
   it('surfaces backend submit blockers instead of the generic fallback', async () => {
-    const blocker = 'Complete required bid sections before submitting: technical.goods.productSpecification.item-1784129862512-s28v6l.';
+    const blocker = 'Complete required bid sections before submitting: technical.goods.productSpecification.line-1.';
     const draft = bidDto({
       payload: {
         administrative: { eligible: true, taxCompliant: true, documentsConfirmed: true },
-        technical: { 'goods.productSpecification.item-1784129862512-s28v6l': { complianceStatus: 'Comply', offeredSpecification: 'Compliant product response.' } },
+        technical: { 'goods.productSpecification.line-1': { complianceStatus: 'Comply', offeredSpecification: 'Compliant product response.' } },
         financial: { items: [{ id: 'line-1', itemNo: '1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000 }] },
         declarations: { confirmAccuracy: false, acceptTerms: false, noConflict: true }
       },
@@ -2219,6 +2228,7 @@ function completeDefaultGoodsTechnicalResponse(offeredSpecification = 'Offered l
 
 async function completeBasicGoodsBidToFinancialOffer() {
   await openEligibilityStep();
+  completeGate();
   fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
   expect(await screen.findByRole('heading', { name: 'Technical Response' })).toBeInTheDocument();
   completeDefaultGoodsTechnicalResponse();
