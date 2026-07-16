@@ -1998,6 +1998,10 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     fireEvent.change(await screen.findByLabelText('Signature keyphrase'), { target: { value: 'Signing123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit bid' }));
 
+    await waitFor(() => expect(biddingApi.updateBid).toHaveBeenCalled());
+    const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
+    expect(savedPayload?.administrative).toEqual(expect.objectContaining({ eligible: true }));
+    expect(savedPayload?.administrative).not.toHaveProperty('administrative');
     expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
     expect(screen.getByText('hash-1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Draft' })).toBeDisabled();

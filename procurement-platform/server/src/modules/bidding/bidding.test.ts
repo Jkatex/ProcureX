@@ -1901,6 +1901,30 @@ describe('bidding repository rules', () => {
     expectNoSubmitWrites(tx);
   });
 
+  it('formats missing administrative eligibility without duplicating the section prefix', async () => {
+    const { repository, tx } = repositorySubmitFixture({
+      bid: bidRecord({
+        payload: {
+          ...validBidPayload(),
+          administrative: { taxCompliant: true }
+        }
+      })
+    });
+
+    let error: unknown;
+    try {
+      await repository.submit({ bidId: 'bid-1', supplierOrgId: 'supplier-org-1', userId: 'user-1' });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({
+      status: 400,
+      message: expect.stringContaining('administrative.eligible')
+    });
+    expect((error as Error).message).not.toContain('administrative.administrative.eligible');
+    expectNoSubmitWrites(tx);
+  });
+
   it('aborts transactional submit before writes when a required sample is missing', async () => {
     const { repository, tx } = repositorySubmitFixture({
       bid: bidRecord({

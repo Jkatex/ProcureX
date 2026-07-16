@@ -348,7 +348,7 @@ export function BiddingWorkspaceProcurexPage() {
   }
 
   function draftPayload(): BidDraftPayload {
-    const administrative = schema ? schemaSectionPayload(schema, schemaResponses, 'administrative') : form.administrative;
+    const administrative = schema ? schemaAdministrativePayload(schema, schemaResponses, workflow) : form.administrative;
     const technical = schema ? schemaSectionPayload(schema, schemaResponses, 'technical') : backendTechnicalPayload(workflow, form.technical);
     const responses = schema ? schemaResponseList(schema, schemaResponses) : responseList(workflow, { ...form, technical });
     const financialItems = schema ? schemaFinancialRows(schema, schemaResponses) : form.financial.items.map(withTotal);
@@ -5620,6 +5620,14 @@ function schemaResponseList(schema: BidSubmissionSchemaDto, responses: SchemaRes
 function schemaSectionPayload(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, section: 'administrative' | 'technical' | 'financial' | 'declarations') {
   const fields = actionableSchemaFields(schema).filter((field) => field.section === section && field.type !== 'file' && field.responseType !== 'attachment');
   return Object.fromEntries(fields.map((field) => [schemaPayloadKey(field), schemaFieldValue(field, responses)]));
+}
+
+function schemaAdministrativePayload(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, workflow: WorkflowType) {
+  const payload = schemaSectionPayload(schema, responses, 'administrative');
+  const goodsDeclarationFields = actionableSchemaFields(schema).filter(isGoodsEligibilityDeclarationField);
+  const goodsDeclarationsComplete = goodsDeclarationFields.length > 0 && goodsDeclarationFields.every((field) => schemaFieldValue(field, responses) === true);
+  if (workflow === 'goods' && goodsDeclarationsComplete) return { ...payload, eligible: true };
+  return payload;
 }
 
 function schemaPayloadKey(field: BidSubmissionSchemaFieldDto) {
