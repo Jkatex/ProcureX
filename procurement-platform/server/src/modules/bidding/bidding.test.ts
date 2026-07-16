@@ -777,6 +777,87 @@ describe('bidding service rules', () => {
     expect(validation.issues.filter((issue) => issue.severity === 'error')).toEqual([]);
   });
 
+  it('accepts goods commercial item source-id aliases for saved responses and evidence uploads', () => {
+    const tender = tenderRecord({
+      type: 'GOODS',
+      commercialItems: [
+        {
+          id: 'ac727f98-a0cb-42f6-ac97-91be93e97e2d',
+          itemNo: '1',
+          description: 'desktop computer',
+          quantity: 10,
+          unit: 'Unit',
+          rate: 0,
+          total: 0,
+          payload: { sourceId: 'item-1784129862512-s28v6l' }
+        }
+      ],
+      requirements: {
+        goods: {
+          fields: {
+            financialRequirementRows: [
+              {
+                id: 'financial-1784130087494-zvwug8',
+                title: 'Bank Statement Requirement',
+                mandatory: true,
+                evidenceRequired: 'Bank statement'
+              }
+            ]
+          }
+        }
+      }
+    });
+
+    const validation = validateBidDraft({
+      tender,
+      mode: 'submit',
+      draft: {
+        ...draftInput(),
+        administrative: { eligible: true },
+        technical: {},
+        responses: [
+          {
+            requirementKey: 'goods.productDetails.ac727f98-a0cb-42f6-ac97-91be93e97e2d',
+            response: { value: { supplierProduct: 'fujyf', brand: 'yjtyj', modelNumber: '9', deliveryTime: '30', warrantyPeriod: '24' } }
+          },
+          {
+            requirementKey: 'requirements.goods.fields.financialRequirementRows.financial-1784130087494-zvwug8',
+            response: { value: 'Bank statement available.' }
+          }
+        ],
+        financial: {
+          items: [
+            {
+              itemId: 'item-1784129862512-s28v6l',
+              itemNo: '1',
+              description: 'desktop computer',
+              quantity: 10,
+              unit: 'Unit',
+              rate: 2000000,
+              total: 20000000
+            }
+          ]
+        },
+        documents: [
+          {
+            name: 'bank-statement.pdf',
+            documentType: 'FINANCIAL_FINANCIAL_CAPACITY_REQUIREMENT_1_FINANCIAL_EVIDENCE',
+            envelope: 'FINANCIAL',
+            checksum: 'a'.repeat(64),
+            metadata: {
+              requirementKey: 'goods.financialRequirement.financial-1784130087494-zvwug8.evidenceUpload',
+              parentRequirementKey: 'goods.financialRequirement.financial-1784130087494-zvwug8',
+              evidenceKey: 'evidenceUpload'
+            }
+          }
+        ]
+      }
+    });
+
+    expect(validation.valid).toBe(true);
+    expect(validation.issues.filter((issue) => issue.severity === 'error')).toEqual([]);
+  });
+
   it('validates required schema documents against uploaded bid documents', () => {
     const tender = tenderRecord({
       type: 'GOODS',
