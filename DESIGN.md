@@ -18,6 +18,232 @@ Signing keyphrase: SupplierSigning123!
 | Maji Advisory Partners Ltd | `maji-advisory-partners-ltd@evaluation-demo.procurex.tz` | `0693683747` |
 | Nile Basin Consulting Ltd | `nile-basin-consulting-ltd@evaluation-demo.procurex.tz` | `0693683748` |
 
+
+
+We used this stack because ProcureX is not just a brochure site; it is a secure, data-heavy procurement workflow system with users, organizations, tenders, bids, evaluations, contracts, audit trails, documents, and admin controls.
+
+**Frontend**
+- **React + TypeScript**: good for building a large interactive UI with reusable components and safer code.
+- **Vite**: fast development server and build tool, which makes frontend work quicker.
+- **Redux Toolkit**: manages shared app state like authentication, session user, workspace data, and route behavior.
+- **React Router**: supports many pages and protected routes across buyer, supplier, admin, and public workflows.
+- **MUI + Emotion**: gives us ready-made accessible UI components and consistent styling.
+- **i18next**: supports localization, especially English/Swahili language needs.
+- **Axios**: handles API calls cleanly and attaches the auth bearer token automatically.
+- **Recharts**: supports dashboards, analytics, summaries, and procurement visualizations.
+
+**Backend**
+- **Node.js + Express**: simple, flexible API foundation for modular business logic.
+- **TypeScript**: keeps backend code safer and easier to maintain as modules grow.
+- **Prisma**: gives us a typed database model, migrations, and safer database queries.
+- **Zod**: validates request bodies before they reach business logic.
+- **Helmet + CORS**: adds basic API security and controls browser access.
+- **Nodemailer / Resend**: supports account verification, password reset, and notification emails.
+
+**Database And Infrastructure**
+- **PostgreSQL**: strong relational database for structured procurement data, relationships, transactions, and audit records.
+- **Prisma migrations**: version-control the database structure so changes are repeatable.
+- **Redis**: useful for rate limiting, caching, and short-lived infrastructure needs.
+- **Elasticsearch**: supports fast search across tenders, records, suppliers, documents, and admin data.
+- **MinIO / S3 SDK**: stores uploaded documents and procurement files in an object-storage style.
+- **Docker Compose**: makes local infrastructure easier to run consistently.
+
+**Testing And Quality**
+- **Vitest**: fast unit and integration testing.
+- **React Testing Library**: tests frontend behavior from the user’s point of view.
+- **Supertest**: tests Express API endpoints.
+- **Playwright**: supports end-to-end and screenshot-based UI verification.
+- **ESLint**: catches code quality issues early.
+
+**Project Structure**
+- **npm workspaces / monorepo**: keeps `client`, `server`, and `shared` contracts in one coordinated project.
+- **Shared TypeScript package**: avoids duplicating important domain rules between frontend and backend.
+
+In short: we chose these technologies because ProcureX needs a reliable full-stack foundation for secure authentication, complex procurement workflows, document handling, search, dashboards, auditability, and long-term maintainability.
+
+Run these from:
+
+```powershell
+cd "C:\Users\David\Documents\PROCUREX\New folder\proc-system\procurement-platform"
+```
+
+**Setup**
+
+```powershell
+npm install
+npm run infra:up
+npm run db:migrate
+npm run db:seed
+```
+
+**Run Project**
+
+```powershell
+npm run dev
+```
+
+Or separately:
+
+```powershell
+npm run dev:server
+npm run dev:client
+```
+
+Using example env files:
+
+```powershell
+npm run dev:server:example
+npm run dev:client:example
+```
+
+**Database / Prisma**
+
+```powershell
+npm run db:validate
+npm run db:migrate
+npm run db:deploy
+npm run db:seed
+npm run db:generate
+```
+
+Prisma Studio:
+
+```powershell
+cd server
+npx prisma studio --schema prisma/schema.prisma
+```
+
+**Demo Seed Data**
+
+```powershell
+npm run db:seed:evaluation-intake-demo
+npm run db:seed:marketplace-demo
+npm run db:seed:award-ready-demo
+npm run db:seed:hassan-award-demo
+npm run db:seed:demo-evaluation-award
+npm run db:seed:awards-demo
+```
+
+**Cleanup**
+
+```powershell
+npm run db:cleanup:awards-demo
+npm run db:cleanup:demo-admin
+npm run infra:down
+```
+
+**Build**
+
+```powershell
+npm run build
+npm run build:client
+```
+
+**Tests**
+
+```powershell
+npm test
+npm run test:client
+npm run test:e2e:evaluation
+```
+
+**Lint / Validation**
+
+```powershell
+npm run lint:client
+npm --workspace server run verify:rls
+npm --workspace server run validate:help-centre
+```
+
+**Client-Only Useful Commands**
+
+```powershell
+npm --workspace client run dev
+npm --workspace client run build
+npm --workspace client run preview
+npm --workspace client run test
+npm --workspace client run lint
+```
+
+**Server-Only Useful Commands**
+
+```powershell
+npm --workspace server run dev
+npm --workspace server run build
+npm --workspace server run start
+npm --workspace server run test
+```
+Implemented security in ProcureX includes:
+
+**Authentication Security**
+- Passwords are hashed with `scrypt` and random salt.
+- Password comparison uses `timingSafeEqual`.
+- Sessions use random 32-byte opaque tokens.
+- Only the SHA-256 hash of the session token is stored in the database.
+- Sessions expire after 7 days.
+- Logout revokes the session.
+- Password reset revokes active sessions.
+
+**Bot / Abuse Protection**
+- Public auth routes use Cloudflare Turnstile.
+- Sign-in, registration, password reset, and keyphrase recovery are rate-limited.
+- Rate limit uses Redis in production, memory fallback in local dev.
+- Rate-limit events are audited.
+
+**API Security**
+- `helmet` is enabled.
+- Content Security Policy is configured.
+- CORS only allows configured origins.
+- JSON body size limit is configured.
+- Production startup validates required security env vars and blocks unsafe local providers.
+
+**Authorization**
+- Protected routes require bearer-token sessions.
+- Admin-only actions use `requireAdmin`.
+- Permission-based actions use `requirePermission`.
+- Access is computed from account type, verification status, organization capabilities, trust tier, risk level, and screening status.
+- Feature gates are generated from the same access policy.
+
+**Database Security**
+- PostgreSQL Row Level Security is enabled and forced on many tables.
+- Policies isolate data by user, organization, admin status, and organization capability.
+- Tender and bid policies separate buyer, supplier, public marketplace, and admin access.
+- DB context sets `app.current_user_id`, `app.current_organization_id`, `app.current_account_type`, and capabilities for RLS checks.
+
+**Validation Security**
+- Zod validates request bodies.
+- Emails, UUIDs, OTP codes, passwords, keyphrases, recovery IDs, and verification payloads are checked before service logic.
+- Unknown fields are rejected in strict schemas for sensitive flows.
+
+**Keyphrase / Digital Signature Security**
+- Keyphrase is never stored.
+- Ed25519 key pair is generated for signing.
+- Private key is encrypted with AES-256-GCM.
+- Encryption key is derived from the keyphrase using `scrypt`.
+- Signing uses canonical payload hashes.
+- Forgotten keyphrase recovery rotates to a new signing key instead of recovering the old one.
+- Keyphrase recovery requires email + phone verification and revokes active sessions.
+
+**Audit Security**
+- Sign-in success/failure, sign-out, rate limits, password reset, keyphrase events, verification, procurement, contract, and admin actions are written to audit events.
+- Sensitive audit metadata hashes IP/user-agent in several places instead of storing raw values.
+
+**Upload Security**
+- Profile image upload is limited to one file.
+- File size limit defaults to 2 MB.
+- Allowed types are PNG, JPG/JPEG, and WebP.
+- Dangerous extensions and MIME types are blocked.
+- Magic bytes are checked.
+- Filenames are sanitized.
+- Local file paths are normalized and checked to prevent path traversal.
+
+**Client-Side Session Handling**
+- Auth token is stored in localStorage as `procurex.authToken`.
+- Axios automatically sends it as `Authorization: Bearer <token>`.
+- Failed session hydration clears the token and marks the session as expired.
+
+A small caveat: the client stores the bearer token in `localStorage`, which is simple but more exposed to XSS than an HttpOnly secure cookie. The backend mitigates with CSP and other controls, but that storage choice is still worth noting.
+
 version: alpha
 name: Apple
 description: A photography-first interface that turns marketing into a museum gallery. Edge-to-edge product tiles alternate light and dark canvases, framed by SF Pro Display headlines with negative letter-spacing and a single Action Blue (#0066cc) interactive color. UI chrome recedes so the product can speak — no decorative gradients, no shadows on chrome, only the one signature drop-shadow under product imagery resting on a surface.

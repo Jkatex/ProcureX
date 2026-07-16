@@ -48,6 +48,9 @@ export function isKeyphraseApiError(error: unknown) {
 
 export function apiErrorMessage(error: unknown, fallback = 'Request failed.') {
   if (isKeyphraseApiError(error)) return keyphraseErrorMessage;
+  const status = apiStatus(error);
+  const rawMessage = rawApiMessage(error).trim();
+  if (status && status >= 400 && status < 500 && rawMessage && !isNetworkUnavailable(rawMessage)) return rawMessage;
   return fallback;
 }
 
@@ -55,7 +58,7 @@ export function notificationFromApiError(error: unknown, context: ApiErrorNotifi
   const status = apiStatus(error);
   const rawMessage = rawApiMessage(error);
   const isKeyphraseError = isKeyphraseErrorMessage(rawMessage);
-  const message = isKeyphraseError ? keyphraseErrorMessage : context.fallback ?? 'Request failed.';
+  const message = isKeyphraseError ? keyphraseErrorMessage : apiErrorMessage(error, context.fallback ?? 'Request failed.');
   const title = isKeyphraseError ? keyphraseErrorTitle : context.title ?? titleForStatus(status, rawMessage);
   const mapped = errorGuidance(status, rawMessage);
 

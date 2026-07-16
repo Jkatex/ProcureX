@@ -705,6 +705,88 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     }));
   });
 
+  it('shows existing uploaded files inside upload cards while allowing another upload', async () => {
+    vi.mocked(useTenderDetail).mockReturnValue({
+      data: tenderDetail({
+        requirements: {
+          financialRequirements: [{ id: 'fin-1', requirementType: 'Financial capacity requirement 1', minimumValue: 'TZS 500M', period: 'Last 6 months', evidenceRequired: 'Audited accounts', mandatory: true }]
+        }
+      }),
+      status: 'success',
+      isLoading: false,
+      isError: false
+    });
+    vi.mocked(biddingApi.getTenderSchema).mockResolvedValue(
+      bidSchema({
+        steps: [
+          step('administrative', 'Eligibility and Document Requirements', 'ADMINISTRATIVE', [
+            field('administrative.eligible', 'Confirm eligibility to participate', 'boolean', 'administrative', 'acknowledgement', 'ADMINISTRATIVE', true, 'eligible')
+          ]),
+          step('goodsTechnical', 'Technical Response', 'TECHNICAL', [field('technical.productCompliance', 'Product compliance statement', 'textarea', 'technical', 'text', 'TECHNICAL', true, 'productCompliance')]),
+          step('goodsFinancial', 'Quantity Schedule / Financial Offer', 'FINANCIAL', [
+            field('financial.unitRate', 'Unit rate for Laptop', 'number', 'financial', 'pricing', 'FINANCIAL', true, 'unitRate', {
+              itemId: 'line-1',
+              itemNo: '1',
+              description: 'Laptop',
+              quantity: 1,
+              unit: 'Each',
+              min: 0
+            })
+          ]),
+          step('goodsReview', 'Review Submission', 'COMBINED', [field('review.confirmComplete', 'Confirm the bid is complete and ready for submission', 'boolean', 'review', 'acknowledgement', 'COMBINED', true, 'review.confirmComplete')])
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'getTenderDraft').mockResolvedValue(
+      bidDto({
+        documents: [
+          {
+            id: 'bid-doc-1',
+            documentId: 'doc-1',
+            name: 'Barua_ya_Maombi_ya_Mkopo.pdf',
+            documentType: 'ADMIN_FINANCIAL_CAPACITY_FINANCIAL_CAPACITY_REQUIREMENT_1',
+            envelope: 'ADMINISTRATIVE',
+            reviewStatus: 'UPLOADED',
+            checksum: 'a'.repeat(64),
+            metadata: {
+              requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload',
+              fieldId: 'goods.financialRequirement.fin-1.evidenceUpload'
+            }
+          }
+        ]
+      })
+    );
+    vi.spyOn(biddingApi, 'saveTenderDraft').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(bidDto());
+    vi.spyOn(biddingApi, 'uploadDocuments').mockResolvedValue(bidDto());
+
+    render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await openEligibilityStep();
+    const uploadCard = screen.getByText('Financial capacity requirement 1').closest('label');
+    expect(uploadCard).not.toBeNull();
+    expect(within(uploadCard as HTMLElement).getByText('Uploaded: Barua_ya_Maombi_ya_Mkopo.pdf')).toBeInTheDocument();
+    expect(within(uploadCard as HTMLElement).getByText('Upload another file')).toBeInTheDocument();
+    expect(within(uploadCard as HTMLElement).queryByText('No file selected yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No files selected')).not.toBeInTheDocument();
+    const input = within(uploadCard as HTMLElement).getByLabelText('Financial capacity requirement 1') as HTMLInputElement;
+    expect(input).toHaveClass('bid-upload-input');
+    expect(input).toHaveClass('sr-only');
+
+    fireEvent.change(input, { target: { files: [new File(['updated'], 'updated-accounts.pdf', { type: 'application/pdf' })] } });
+
+    await waitFor(() => expect(biddingApi.uploadDocuments).toHaveBeenCalledTimes(1));
+    expect(biddingApi.uploadDocuments).toHaveBeenCalledWith('bid-1', expect.objectContaining({
+      documentType: 'ADMIN_FINANCIAL_CAPACITY_FINANCIAL_CAPACITY_REQUIREMENT_1',
+      envelope: 'ADMINISTRATIVE',
+      metadata: expect.objectContaining({ requirementKey: 'goods.financialRequirement.fin-1.evidenceUpload', fieldId: 'goods.financialRequirement.fin-1.evidenceUpload' })
+    }));
+  });
+
   it('does not render a hero Review Submission shortcut', async () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
@@ -1913,7 +1995,13 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
     checkCard('I confirm the bid is accurate and complete');
     checkCard('I accept the tender and contract terms');
     fireEvent.click(screen.getByRole('button', { name: 'Submit Sealed Bid' }));
+    fireEvent.change(await screen.findByLabelText('Signature keyphrase'), { target: { value: 'Signing123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit bid' }));
 
+    await waitFor(() => expect(biddingApi.updateBid).toHaveBeenCalled());
+    const savedPayload = vi.mocked(biddingApi.updateBid).mock.calls.at(-1)?.[1];
+    expect(savedPayload?.administrative).toEqual(expect.objectContaining({ eligible: true }));
+    expect(savedPayload?.administrative).not.toHaveProperty('administrative');
     expect(await screen.findByText('Bid submitted successfully')).toBeInTheDocument();
     expect(screen.getByText('hash-1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Draft' })).toBeDisabled();
@@ -1931,6 +2019,58 @@ describe('BiddingWorkspaceProcurexPage procurex-ui flow parity', () => {
 
     fireEvent.click(printButton);
     expect(print).toHaveBeenCalled();
+  });
+
+  it('surfaces backend submit blockers instead of the generic fallback', async () => {
+    const blocker = 'Complete required bid sections before submitting: technical.goods.productDetails.item-1784129862512-s28v6l.';
+    const draft = bidDto({
+      payload: {
+        administrative: { eligible: true, taxCompliant: true, documentsConfirmed: true },
+        technical: { productCompliance: 'Compliant product response.' },
+        financial: { items: [{ id: 'line-1', itemNo: '1', description: 'Laptop', quantity: 1, unit: 'Each', rate: 2500000 }] },
+        declarations: { confirmAccuracy: false, acceptTerms: false, noConflict: true }
+      },
+      documents: [
+        {
+          id: 'bid-doc-1',
+          documentId: 'doc-1',
+          name: 'eligibility.pdf',
+          documentType: 'ADMINISTRATIVE_EVIDENCE',
+          envelope: 'ADMINISTRATIVE',
+          reviewStatus: 'UPLOADED',
+          checksum: 'a'.repeat(64),
+          metadata: { requirementKey: 'eligibility', size: 12, mimeType: 'application/pdf' }
+        }
+      ],
+      responses: [{ requirementKey: 'unitRate', response: { value: 2500000 } }]
+    });
+    vi.mocked(biddingApi.getTenderDraft).mockResolvedValue(draft);
+    vi.spyOn(biddingApi, 'updateBid').mockResolvedValue(draft);
+    vi.mocked(biddingApi.submitBid).mockRejectedValue({
+      response: { status: 400, data: { message: blocker } },
+      message: 'Request failed with status code 400'
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/bidding?tenderId=tender-1']}>
+        <BiddingWorkspaceProcurexPage />
+      </MemoryRouter>
+    );
+
+    await openEligibilityStep();
+    completeGate();
+    openProgressStep('Review Submission');
+    expect(await screen.findByRole('heading', { name: 'Review Submission' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    checkCard('I confirm the bid is accurate and complete');
+    checkCard('I accept the tender and contract terms');
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Sealed Bid' }));
+    fireEvent.change(await screen.findByLabelText('Signature keyphrase'), { target: { value: 'Signing123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit bid' }));
+
+    await waitFor(() => expect(biddingApi.submitBid).toHaveBeenCalled());
+    await waitFor(() => expect(container.querySelector('[data-bid-workspace-status]')).toHaveTextContent(blocker));
+    expect(container.querySelector('[data-bid-workspace-status]')).not.toHaveTextContent('Bid could not be submitted.');
   });
 });
 
