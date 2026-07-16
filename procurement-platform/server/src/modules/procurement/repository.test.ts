@@ -1855,7 +1855,11 @@ describe('procurement tender write repository', () => {
       $transaction: vi.fn((callback) => callback(tx))
     } as any);
 
-    const result = await repository.failTenderReview('tender-review', { adminUserId: 'admin-user-1' }, { messageId: 'recipient-message' });
+    const result = await repository.failTenderReview(
+      'tender-review',
+      { adminOrgId: 'platform-org-1', adminUserId: 'admin-user-1' },
+      { messageId: 'recipient-message', signatureKeyphrase: 'Signing123' }
+    );
 
     expect(tx.communicationItem.findUnique.mock.invocationCallOrder[0]).toBeLessThan(tx.tender.updateMany.mock.invocationCallOrder[0]);
     expect(tx.tender.updateMany).toHaveBeenCalledWith({

@@ -39,14 +39,10 @@ import {
   type AdminProfilePreferencesInput,
   type UserListQuery
 } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
+import { rebuildComplianceIndex, searchComplianceIndex, type SearchIndexDocument } from './searchIndex.js';
 
 type AdminSession = Awaited<ReturnType<ModuleRepository['findActiveSession']>>;
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 function sha256(value: string) {
   return createHash('sha256').update(value).digest('hex');
@@ -344,6 +340,8 @@ export class ModuleService {
   async search(token: string | undefined, query: SearchQuery): Promise<PageDto<SearchResultDto>> {
     const admin = await this.requireAdmin(token);
     return this.asAdmin(admin, async (tx) => {
+      const indexed = await searchComplianceIndex(query).catch(() => null);
+      if (indexed) return indexed;
       const result = await this.repository.search(query, tx);
       const unsortedItems: SearchResultDto[] = [
         ...result.users.map((item) => ({
@@ -486,6 +484,147 @@ export class ModuleService {
 
       const start = (query.page - 1) * query.pageSize;
       return page(items.slice(start, start + query.pageSize), query, items.length);
+    });
+  }
+
+  async reindexSearch(token: string | undefined) {
+    const admin = await this.requireAdmin(token);
+    return this.asAdmin(admin, async (tx) => {
+      const query: SearchQuery = { q: '', page: 1, pageSize: 1000 };
+      const result = await this.repository.search(query, tx);
+      const documents: SearchIndexDocument[] = [
+        ...result.users.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'user',
+            title: item.displayName,
+            subtitle: item.email,
+            status: item.verificationStatus,
+            stage: item.accountType,
+            party: item.email,
+            summary: `Verification status is ${item.verificationStatus}.`,
+            routeHint: '/admin/users',
+            createdAt: item.createdAt.toISOString(),
+            updatedAt: item.updatedAt.toISOString()
+          })
+        ),
+        ...result.organizations.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'organization',
+            title: item.name,
+            subtitle: item.taxId ?? item.kind,
+            stage: item.kind,
+            party: item.country,
+            summary: item.taxId ? `Tax ID ${item.taxId}` : 'Organization registry record.',
+            routeHint: '/admin/users',
+            createdAt: item.createdAt.toISOString(),
+            updatedAt: item.updatedAt.toISOString()
+          })
+        ),
+        ...result.tenders.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'tender',
+            title: item.title,
+            subtitle: item.reference,
+            status: item.status,
+            stage: item.method ?? item.type,
+            party: item.buyerOrg?.name ?? null,
+            amount: money(item.budget, item.currency),
+            summary: item.description ?? `${item.type} tender in ${item.status}.`,
+            routeHint: '/procurement/tender-details',
+            createdAt: item.createdAt.toISOString(),
+            updatedAt: item.updatedAt.toISOString()
+          })
+        ),
+        ...result.documents.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'document',
+            title: item.name,
+            subtitle: item.documentType,
+            stage: item.documentType,
+            party: item.ownerOrg?.name ?? item.uploadedByUser?.displayName ?? null,
+            summary: item.uploadedByUser?.email ? `Uploaded by ${item.uploadedByUser.email}.` : 'Document object.',
+            routeHint: '/records',
+            createdAt: item.createdAt.toISOString()
+          })
+        ),
+        ...result.auditEvents.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'audit-event',
+            title: item.event,
+            subtitle: item.entityRef ? `${item.entityType} ${item.entityRef}` : item.entityType,
+            status: item.severity,
+            stage: item.actorUser?.accountType ?? 'SYSTEM',
+            party: item.actorUser?.displayName ?? null,
+            summary: `Audit event for ${item.entityType}.`,
+            routeHint: '/admin/audit',
+            createdAt: item.createdAt.toISOString()
+          })
+        ),
+        ...result.complianceCases.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'compliance',
+            title: item.title,
+            subtitle: item.ownerOrg?.name ?? item.owner ?? 'Platform',
+            status: item.status,
+            stage: item.severity,
+            party: item.ownerOrg?.name ?? item.owner ?? null,
+            summary: 'Compliance case.',
+            routeHint: '/admin/audit',
+            createdAt: item.createdAt.toISOString()
+          })
+        ),
+        ...result.evaluations.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'evaluation',
+            title: item.tender.title,
+            subtitle: item.tender.reference,
+            status: item.status,
+            stage: item.currentStage,
+            party: item.buyerOrg.name,
+            summary: `Evaluation progress ${item.progress}%.`,
+            routeHint: '/evaluation',
+            createdAt: item.createdAt.toISOString(),
+            updatedAt: item.updatedAt.toISOString()
+          })
+        ),
+        ...result.awards.map((item) =>
+          searchIndexDocument({
+            id: item.id,
+            type: 'award',
+            title: item.workspace.tender.title,
+            subtitle: item.workspace.tender.reference,
+            status: item.status,
+            party: item.workspace.buyerOrg.name,
+            amount: money(item.amount, item.currency),
+            summary: item.reason ?? 'Award recommendation.',
+            routeHint: '/awards-contracts/award-response',
+            createdAt: item.createdAt.toISOString()
+          })
+        )
+      ];
+      const rebuild = await rebuildComplianceIndex(documents);
+      await this.repository.createAuditEvent(
+        {
+          actorUserId: admin.user.id,
+          event: 'compliance.search.reindexed',
+          entityType: 'compliance_search_index',
+          severity: AuditSeverity.INFO,
+          payload: { ...rebuild, documentCount: documents.length }
+        },
+        tx
+      );
+      return {
+        ...rebuild,
+        documentCount: documents.length,
+        generatedAt: new Date().toISOString()
+      };
     });
   }
 
@@ -1209,6 +1348,24 @@ function payloadSummary(payload: Record<string, unknown>) {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return '';
+}
+
+function searchIndexDocument(item: SearchResultDto): SearchIndexDocument {
+  return {
+    ...item,
+    searchText: [
+      item.title,
+      item.subtitle,
+      item.status,
+      item.stage,
+      item.party,
+      item.amount,
+      item.summary,
+      item.routeHint
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ')
+  };
 }
 
 function weeklyBuckets(rows: Array<{ createdAt: Date }>) {

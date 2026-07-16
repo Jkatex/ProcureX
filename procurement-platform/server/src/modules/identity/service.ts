@@ -14,6 +14,7 @@ import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } fr
 import type { IncomingMessage } from 'node:http';
 import { promisify } from 'node:util';
 import { ModuleRepository, type SessionWithUser, type UserWithDefaultOrg, type VerificationWithUser } from './repository.js';
+import { generateRecoveryCodes, generateTotpSecret, hashRecoveryCode, normalizeRecoveryCode, otpauthUrl, verifyTotpCode } from './mfa.js';
 import { createIdentityNotifications, type DeliveryReceipt, type IdentityNotificationProvider } from './notifications.js';
 import { ProductionRegistryProvider, isRegistryProviderFailure, type RegistryProvider } from './registryProviders.js';
 import { DeterministicScreeningProvider, type ScreeningProvider } from './screeningProviders.js';
@@ -32,7 +33,9 @@ import {
 import {
   moduleDefinition,
   type AdminVerificationDto,
+  type AuthSignInResponseDto,
   type AuthSessionDto,
+  type MfaStatusDto,
   type ModuleStatus,
   type RegistryRecordDto,
   type SessionUserDto,
@@ -53,6 +56,7 @@ import {
   removeStoredProfileImage,
   type ProfileImageContent
 } from './profileImageStorage.js';
+import { requestError } from '../shared/apiErrors.js';
 
 const scrypt = promisify(scryptCallback);
 const phoneOtpPurpose = 'PHONE_OTP';
@@ -64,9 +68,12 @@ const tenderContactEmailPurpose = 'TENDER_CONTACT_EMAIL_CODE';
 const tenderContactPhonePurpose = 'TENDER_CONTACT_PHONE_OTP';
 const profileEmailChangePurpose = 'PROFILE_EMAIL_CHANGE';
 const profilePhoneChangePurpose = 'PROFILE_PHONE_CHANGE';
+const mfaLoginPurpose = 'MFA_LOGIN';
+const mfaTotpSetupPurpose = 'MFA_TOTP_SETUP';
 const sessionDays = 7;
 const maxChallengeAttempts = 5;
 const phoneOtpMinutes = 10;
+const mfaChallengeMinutes = 5;
 const activationMinutes = 60;
 const passwordResetMinutes = 30;
 const resendCooldownSeconds = 30;
@@ -163,12 +170,6 @@ type AuthAuditInput = AuthAuditContext & {
   details?: Record<string, unknown>;
 };
 
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
-
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -254,6 +255,20 @@ function metadataArray(value: unknown): Record<string, unknown>[] {
 
 function inputJson(value: Record<string, unknown>): Prisma.InputJsonObject {
   return value as Prisma.InputJsonObject;
+}
+
+function recoveryCodeHashes(value: Record<string, unknown>) {
+  const hashes = value.mfaRecoveryCodeHashes;
+  return Array.isArray(hashes) ? hashes.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
+}
+
+function recoveryCodeSalt(value: Record<string, unknown>) {
+  const salt = value.mfaRecoveryCodeSalt;
+  return typeof salt === 'string' && salt.trim() ? salt : randomToken(16);
+}
+
+function mfaMethodsFromState(enabled: boolean, recoveryCount: number): Array<'totp' | 'recovery_code'> {
+  return enabled ? ['totp', ...(recoveryCount > 0 ? (['recovery_code'] as const) : [])] : [];
 }
 
 export function mergeVerificationProfileInput(existingPayload: unknown, inputProfile: unknown): Record<string, unknown> {
@@ -1575,7 +1590,7 @@ export class ModuleService {
     });
   }
 
-  async signIn(emailInput: string, password: string, audit?: AuthAuditContext): Promise<AuthSessionDto> {
+  async signIn(emailInput: string, password: string, audit?: AuthAuditContext): Promise<AuthSignInResponseDto> {
     const email = normalizeEmail(emailInput);
     const user = await this.repository.findUserByEmail(email);
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
@@ -1588,6 +1603,40 @@ export class ModuleService {
       throw requestError('Invalid email or password.', 401);
     }
 
+    const mfaFactor = await this.repository.findVerifiedTotpFactor(user.id);
+    if (mfaFactor) {
+      await this.repository.replacePendingChallenges({ userId: user.id, purpose: mfaLoginPurpose, target: email });
+      const expiresAt = new Date(Date.now() + mfaChallengeMinutes * 60 * 1000);
+      const challenge = await this.repository.createChallenge({
+        userId: user.id,
+        purpose: mfaLoginPurpose,
+        target: email,
+        codeHash: sha256(randomToken(32)),
+        expiresAt,
+        metadata: inputJson({
+          methods: mfaMethodsFromState(true, recoveryCodeHashes(metadataObject(user.metadata)).length),
+          verifiedFactorId: mfaFactor.id
+        })
+      });
+      await this.recordAuthEvent('identity.auth.mfa_challenge_started', {
+        ...audit,
+        userId: user.id,
+        ownerOrgId: user.memberships[0]?.organization.id,
+        entityRef: challenge.id,
+        target: email
+      });
+      return {
+        mfaRequired: true,
+        challengeId: challenge.id,
+        methods: mfaMethodsFromState(true, recoveryCodeHashes(metadataObject(user.metadata)).length),
+        expiresAt: expiresAt.toISOString()
+      };
+    }
+
+    return this.createAuthSession(user, audit, 'identity.auth.sign_in_succeeded', email);
+  }
+
+  private async createAuthSession(user: UserWithDefaultOrg, audit: AuthAuditContext | undefined, event: string, target?: string): Promise<AuthSessionDto> {
     const token = randomToken();
     const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
     const isFirstSignIn = !(await this.repository.hasPriorSession(user.id));
@@ -1598,12 +1647,12 @@ export class ModuleService {
       expiresAt
     });
 
-    await this.recordAuthEvent('identity.auth.sign_in_succeeded', {
+    await this.recordAuthEvent(event, {
       ...audit,
       userId: user.id,
       ownerOrgId: user.memberships[0]?.organization.id,
       entityRef: session.id,
-      target: email
+      target
     });
 
     return {
@@ -1612,6 +1661,178 @@ export class ModuleService {
       expiresAt: expiresAt.toISOString(),
       isFirstSignIn
     };
+  }
+
+  async mfaStatus(token?: string): Promise<MfaStatusDto> {
+    const { user } = await this.requireSession(token);
+    const [factors, fullUser] = await Promise.all([this.repository.listMfaFactors(user.id), this.repository.findUserById(user.id)]);
+    const metadata = metadataObject(fullUser?.metadata);
+    const enabled = factors.some((factor) => factor.type === 'totp' && factor.verified);
+    const recoveryCount = recoveryCodeHashes(metadata).length;
+    return {
+      enabled,
+      methods: mfaMethodsFromState(enabled, recoveryCount),
+      factors: factors.map((factor) => ({
+        id: factor.id,
+        type: factor.type,
+        verified: factor.verified,
+        createdAt: factor.createdAt.toISOString()
+      })),
+      recoveryCodesRemaining: recoveryCount
+    };
+  }
+
+  async startTotpMfa(token: string | undefined, audit?: AuthAuditContext) {
+    const { user } = await this.requireSession(token);
+    const secret = generateTotpSecret();
+    const factor = await this.repository.createMfaFactor({ userId: user.id, type: 'totp', secretRef: secret, verified: false });
+    await this.repository.replacePendingChallenges({ userId: user.id, purpose: mfaTotpSetupPurpose, target: user.email });
+    const challenge = await this.repository.createChallenge({
+      userId: user.id,
+      purpose: mfaTotpSetupPurpose,
+      target: user.email,
+      codeHash: sha256(randomToken(32)),
+      expiresAt: new Date(Date.now() + mfaChallengeMinutes * 60 * 1000),
+      metadata: inputJson({ factorId: factor.id })
+    });
+    await this.recordAuthEvent('identity.mfa.totp_started', {
+      ...audit,
+      userId: user.id,
+      ownerOrgId: user.organizationId,
+      entityRef: factor.id
+    });
+    return {
+      factorId: factor.id,
+      challengeId: challenge.id,
+      secret,
+      otpauthUrl: otpauthUrl({ issuer: 'ProcureX', accountName: user.email, secret }),
+      expiresAt: challenge.expiresAt.toISOString()
+    };
+  }
+
+  async verifyTotpMfa(token: string | undefined, input: { factorId: string; code: string }, audit?: AuthAuditContext) {
+    const { user } = await this.requireSession(token);
+    const factor = await this.repository.findMfaFactor(input.factorId);
+    if (!factor || factor.userId !== user.id || factor.type !== 'totp' || !factor.secretRef) throw requestError('TOTP enrollment was not found.', 404);
+    if (!verifyTotpCode({ secret: factor.secretRef, code: input.code })) {
+      await this.recordAuthEvent('identity.mfa.totp_verify_failed', {
+        ...audit,
+        userId: user.id,
+        ownerOrgId: user.organizationId,
+        entityRef: factor.id,
+        severity: AuditSeverity.WARNING
+      });
+      throw requestError('Authenticator code is incorrect.', 400);
+    }
+
+    await this.repository.verifyMfaFactor(factor.id);
+    await this.repository.replacePendingChallenges({ userId: user.id, purpose: mfaTotpSetupPurpose, target: user.email });
+    const fullUser = await this.repository.findUserById(user.id);
+    if (!fullUser) throw requestError('Current user was not found.', 404);
+    const recoveryCodes = await this.rotateRecoveryCodes(fullUser, audit, 'identity.mfa.recovery_codes_created');
+    await this.recordAuthEvent('identity.mfa.totp_verified', {
+      ...audit,
+      userId: user.id,
+      ownerOrgId: user.organizationId,
+      entityRef: factor.id
+    });
+    return {
+      enabled: true,
+      factorId: factor.id,
+      recoveryCodes
+    };
+  }
+
+  async regenerateMfaRecoveryCodes(token: string | undefined, audit?: AuthAuditContext) {
+    const { user } = await this.requireSession(token);
+    const factor = await this.repository.findVerifiedTotpFactor(user.id);
+    if (!factor) throw requestError('Enable authenticator MFA before generating recovery codes.', 409);
+    const fullUser = await this.repository.findUserById(user.id);
+    if (!fullUser) throw requestError('Current user was not found.', 404);
+    const recoveryCodes = await this.rotateRecoveryCodes(fullUser, audit, 'identity.mfa.recovery_codes_regenerated');
+    return {
+      recoveryCodes,
+      recoveryCodesRemaining: recoveryCodes.length
+    };
+  }
+
+  async verifyMfaChallenge(input: { challengeId: string; code: string }, audit?: AuthAuditContext): Promise<AuthSessionDto> {
+    const challenge = await this.repository.findChallenge(input.challengeId);
+    if (!challenge || challenge.purpose !== mfaLoginPurpose) throw requestError('MFA challenge was not found.', 404);
+    if (challenge.status !== 'PENDING' || challenge.expiresAt < new Date()) throw requestError('MFA challenge is no longer valid.', 410);
+    if (challenge.attempts >= maxChallengeAttempts) throw requestError('Too many MFA attempts. Please sign in again.', 429);
+    if (!challenge.user) throw requestError('MFA challenge is not linked to a user.', 400);
+
+    const factor = await this.repository.findVerifiedTotpFactor(challenge.user.id);
+    if (!factor?.secretRef) throw requestError('Authenticator MFA is no longer available for this account.', 409);
+    const metadata = metadataObject(challenge.user.metadata);
+    const totpOk = verifyTotpCode({ secret: factor.secretRef, code: input.code });
+    const recoveryOk = totpOk ? false : await this.consumeRecoveryCode(challenge.user, input.code);
+
+    if (!totpOk && !recoveryOk) {
+      await this.repository.incrementChallengeAttempts(challenge.id);
+      await this.recordAuthEvent('identity.auth.mfa_failed_attempt', {
+        ...audit,
+        userId: challenge.user.id,
+        ownerOrgId: challenge.user.memberships[0]?.organization.id,
+        entityRef: challenge.id,
+        target: challenge.target,
+        severity: AuditSeverity.WARNING
+      });
+      throw requestError('MFA code is incorrect.', 400);
+    }
+
+    await this.repository.consumeChallenge(challenge.id);
+    await this.recordAuthEvent(recoveryOk ? 'identity.auth.mfa_recovery_code_used' : 'identity.auth.mfa_totp_verified', {
+      ...audit,
+      userId: challenge.user.id,
+      ownerOrgId: challenge.user.memberships[0]?.organization.id,
+      entityRef: challenge.id,
+      target: challenge.target,
+      details: {
+        remainingRecoveryCodes: recoveryCodeHashes(metadata).length
+      }
+    });
+    const refreshedUser = await this.repository.findUserById(challenge.user.id);
+    return this.createAuthSession(refreshedUser ?? challenge.user, audit, 'identity.auth.mfa_sign_in_succeeded', challenge.target);
+  }
+
+  private async rotateRecoveryCodes(user: UserWithDefaultOrg, audit: AuthAuditContext | undefined, event: string) {
+    const recoveryCodes = generateRecoveryCodes();
+    const salt = randomToken(16);
+    await this.repository.updateUser(user.id, {
+      metadata: inputJson({
+        ...metadataObject(user.metadata),
+        mfaRecoveryCodeSalt: salt,
+        mfaRecoveryCodeHashes: recoveryCodes.map((code) => hashRecoveryCode(code, salt)),
+        mfaRecoveryCodesRotatedAt: new Date().toISOString()
+      })
+    });
+    await this.recordAuthEvent(event, {
+      ...audit,
+      userId: user.id,
+      ownerOrgId: user.memberships[0]?.organization.id,
+      details: { recoveryCodeCount: recoveryCodes.length }
+    });
+    return recoveryCodes;
+  }
+
+  private async consumeRecoveryCode(user: UserWithDefaultOrg, code: string) {
+    if (!normalizeRecoveryCode(code)) return false;
+    const metadata = metadataObject(user.metadata);
+    const salt = recoveryCodeSalt(metadata);
+    const hashes = recoveryCodeHashes(metadata);
+    const hash = hashRecoveryCode(code, salt);
+    if (!hashes.includes(hash)) return false;
+    await this.repository.updateUser(user.id, {
+      metadata: inputJson({
+        ...metadata,
+        mfaRecoveryCodeSalt: salt,
+        mfaRecoveryCodeHashes: hashes.filter((candidate) => candidate !== hash),
+        mfaRecoveryCodeUsedAt: new Date().toISOString()
+      })
+    });
+    return true;
   }
 
   async forgotPassword(emailInput: string, audit?: AuthAuditContext) {

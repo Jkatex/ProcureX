@@ -1,3 +1,4 @@
+import { notificationFromApiError } from '@/shared/api/errors';
 import { communicationApi } from './api';
 import type { CommunicationAttachment } from './types';
 
@@ -7,8 +8,8 @@ export async function openCommunicationAttachment(messageId: string, attachment:
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank', 'noopener,noreferrer');
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-  } catch {
-    window.alert(`Could not open ${attachment.name}.`);
+  } catch (error) {
+    notifyAttachmentError(error, 'Attachment could not open', `Could not open ${attachment.name}.`);
   }
 }
 
@@ -18,9 +19,17 @@ export async function downloadCommunicationAttachment(messageId: string, attachm
     const url = URL.createObjectURL(blob);
     triggerAttachmentDownload(url, attachment.name);
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-  } catch {
-    window.alert(`Could not download ${attachment.name}.`);
+  } catch (error) {
+    notifyAttachmentError(error, 'Attachment could not download', `Could not download ${attachment.name}.`);
   }
+}
+
+function notifyAttachmentError(error: unknown, title: string, fallback: string) {
+  window.dispatchEvent(
+    new CustomEvent('procurex:notify', {
+      detail: notificationFromApiError(error, { title, fallback })
+    })
+  );
 }
 
 function triggerAttachmentDownload(url: string, fileName: string) {

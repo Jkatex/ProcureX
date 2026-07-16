@@ -2,12 +2,7 @@ import { ContractLifecycleItemStatus, ContractTerminationStatus, InvoiceStatus, 
 import { ModuleService as AwardContractService } from '../award-contract/service.js';
 import { moduleDefinition, type ModuleStatus, type PostAwardActionDto, type PostAwardBlockerDto, type PostAwardCloseoutReadinessDto, type PostAwardCommunicationSummaryDto, type PostAwardContractRowDto, type PostAwardFinancialEligibilityDto, type PostAwardHealthDto, type PostAwardMeetingActionSummaryDto, type PostAwardOperationalReadinessDto, type PostAwardPerformanceReadinessDto, type PostAwardProcurementType, type PostAwardRecordDto, type PostAwardRequestContext, type PostAwardSecurityExpirySummaryDto, type PostAwardStageDto, type PostAwardTaskDto, type PostAwardUrgentActionDto, type PostAwardVisibilityScope, type PostAwardWarrantySummaryDto, type PostAwardWorkflowSectionDto, type PostAwardWorkspaceDto } from './types.js';
 import type { ContractDetailDto, ContractListItemDto, ControlWorkflowActionInput, FinanceWorkflowActionInput } from '../award-contract/types.js';
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
+import { requestError } from '../shared/apiErrors.js';
 
 const activeStatuses = new Set(['SIGNED', 'PENDING_ACTIVATION', 'MOBILIZATION', 'ACTIVE', 'SUSPENDED', 'AT_RISK', 'COMPLETED', 'WARRANTY_DEFECTS', 'CLOSING', 'TERMINATION_REVIEW', 'TERMINATED', 'CLOSED']);
 

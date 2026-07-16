@@ -18,12 +18,14 @@ import {
   keyphraseRecoveryEmailSchema,
   keyphraseRecoveryPhoneSchema,
   keyphraseRecoveryStartSchema,
+  mfaAuthVerifySchema,
   resendChallengeSchema,
   resetPasswordSchema,
   setPasswordSchema,
   signInSchema,
   signatureKeyphraseOnlySchema,
   signatureRequestSchema,
+  totpVerifySchema,
   profileContactChangeStartSchema,
   profileContactChangeVerifySchema,
   startRegistrationSchema,
@@ -32,17 +34,12 @@ import {
   verifyOtpSchema,
   verifyResetCodeSchema
 } from './validators.js';
+import { requestError } from '../shared/apiErrors.js';
 
 function bearerToken(req: Request) {
   const header = req.header('authorization') ?? '';
   const [scheme, token] = header.split(/\s+/);
   return scheme?.toLowerCase() === 'bearer' ? token : undefined;
-}
-
-function requestError(message: string, status = 403) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 export class ModuleController {
@@ -191,6 +188,46 @@ export class ModuleController {
       const input = signInSchema.parse(req.body);
       await this.requireTurnstile(req, input.turnstileToken, input.email);
       res.json(await this.service.signIn(input.email, input.password, this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  mfaStatus: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.mfaStatus(bearerToken(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  startTotpMfa: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(201).json(await this.service.startTotpMfa(bearerToken(req), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyTotpMfa: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.verifyTotpMfa(bearerToken(req), totpVerifySchema.parse(req.body), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  regenerateMfaRecoveryCodes: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.regenerateMfaRecoveryCodes(bearerToken(req), this.auditContext(req)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  verifyAuthMfa: RequestHandler = async (req, res, next) => {
+    try {
+      res.json(await this.service.verifyMfaChallenge(mfaAuthVerifySchema.parse(req.body), this.auditContext(req)));
     } catch (error) {
       next(error);
     }

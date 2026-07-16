@@ -831,8 +831,9 @@ export class RoutedIdentityNotifications implements IdentityNotificationProvider
 
   constructor(private readonly config = process.env) {
     const legacyDevConsole = devConsoleEnabled(config);
-    this.emailProvider = providerName(config.IDENTITY_EMAIL_PROVIDER) ?? (legacyDevConsole ? 'dev-console' : 'resend');
-    this.phoneProvider = providerName(config.IDENTITY_PHONE_PROVIDER) ?? (legacyDevConsole ? 'dev-console' : 'sms');
+    const production = isProductionRuntime() || config.APP_ENV === 'production' || config.NODE_ENV === 'production';
+    this.emailProvider = providerName(config.IDENTITY_EMAIL_PROVIDER) ?? (legacyDevConsole || !production ? 'dev-console' : 'resend');
+    this.phoneProvider = providerName(config.IDENTITY_PHONE_PROVIDER) ?? (legacyDevConsole || !production ? 'dev-console' : 'sms');
     this.production = new ProductionIdentityNotifications(config);
 
     if (this.emailProvider === 'dev-console' || this.phoneProvider === 'dev-console') {

@@ -437,7 +437,8 @@ export const tenderReviewQuerySchema = z
 
 export const failTenderReviewBodySchema = z
   .object({
-    messageId: uuidSchema
+    messageId: uuidSchema,
+    signatureKeyphrase: signatureKeyphraseSchema
   })
   .strict();
 

@@ -14,12 +14,7 @@ import {
   type RecordsRequestContext,
   type ModuleStatus
 } from './types.js';
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
+import { requestError } from '../shared/apiErrors.js';
 
 export class ModuleService {
   constructor(

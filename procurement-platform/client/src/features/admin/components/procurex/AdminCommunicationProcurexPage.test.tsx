@@ -345,12 +345,13 @@ describe('AdminCommunicationProcurexPage', () => {
 
     expect(await screen.findByLabelText('Subject')).toHaveValue('Your tender has failed review');
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please attach the missing delivery schedule and update the budget summary.' } });
+    fireEvent.change(screen.getByLabelText('Signature keyphrase'), { target: { value: 'review-keyphrase' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send Message' }));
 
     await waitFor(() => expect(composeMessage).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(failTenderReview).toHaveBeenCalledWith(
       '22222222-2222-4222-8222-222222222222',
-      { messageId: '66666666-6666-4666-8666-666666666666' }
+      { messageId: '66666666-6666-4666-8666-666666666666', signatureKeyphrase: 'review-keyphrase' }
     ));
     expect(composeMessage.mock.invocationCallOrder[0]).toBeLessThan(failTenderReview.mock.invocationCallOrder[0]);
     expect(composeMessage).toHaveBeenCalledWith(expect.objectContaining({

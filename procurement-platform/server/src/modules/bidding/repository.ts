@@ -5,6 +5,7 @@ import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import { canonicalJson, sealBidPackage, sha256Hex, type CanonicalBidPackage } from './bidEncryption.service.js';
 import { draftFromBidRecord, validateBidDraft } from './bidValidation.service.js';
 import type { BidDocumentInput, BidDraftInput, BidDto, BidReceiptDto, BidSampleDto, CreateBidSampleInput, PatchBidSampleInput } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 const tenderValidationInclude = {
   buyerOrg: { select: { id: true, name: true } },
@@ -820,12 +821,6 @@ function safeDocumentMetadata(value: unknown): Record<string, unknown> {
     delete metadata[key];
   }
   return metadata;
-}
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 function requireSignatureKeyphrase(value?: string) {

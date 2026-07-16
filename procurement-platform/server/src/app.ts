@@ -1,15 +1,11 @@
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import helmet from 'helmet';
+import { ZodError } from 'zod';
 import { registeredModules } from './modules/index.js';
-import { localizedMessage, requestLanguage } from './modules/shared/localization.js';
+import { apiErrorResponseBody, requestError, statusFromError } from './modules/shared/apiErrors.js';
+import { requestLanguage } from './modules/shared/localization.js';
 import { securityConfig, validateProductionSecurityConfig } from './security/config.js';
-
-function requestError(message: string, status = 403) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 export function createApp() {
   validateProductionSecurityConfig();
@@ -45,7 +41,7 @@ export function createApp() {
           callback(null, true);
           return;
         }
-        callback(requestError('CORS origin is not allowed.', 403));
+        callback(requestError({ status: 403, code: 'SECURITY_CORS_ORIGIN_DENIED', userMessage: 'This browser origin is not allowed.', reason: 'ProcureX blocked a request from an unapproved origin.' }));
       }
     })
   );
@@ -66,18 +62,39 @@ export function createApp() {
     }
   }
 
-  app.use((_req, res) => {
-    res.status(404).json({ error: 'not_found' });
+  app.use((req, res) => {
+    const language = requestLanguage(req);
+    res.status(404).json(
+      apiErrorResponseBody(
+        requestError({
+          status: 404,
+          code: 'ROUTE_NOT_FOUND',
+          userMessage: 'The requested ProcureX endpoint was not found.',
+          reason: 'Check the link or return to the previous page.'
+        }),
+        language
+      )
+    );
   });
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
-    const status = typeof error?.status === 'number' ? error.status : 500;
     const language = requestLanguage(req);
-    const fallback = status === 500 ? 'Unexpected server error.' : String(error?.message ?? 'Request failed.');
-    res.status(status).json({
-      error: status === 500 ? 'internal_error' : 'request_error',
-      message: localizedMessage(fallback, language)
-    });
+    const normalizedError =
+      error instanceof ZodError
+        ? requestError({
+            status: 400,
+            code: 'VALIDATION_FAILED',
+            userMessage: 'Some submitted information is incomplete or invalid.',
+            reason: 'Review the highlighted fields and try again.',
+            fieldErrors: error.issues.map((issue) => ({
+              path: issue.path.join('.'),
+              message: issue.message,
+              code: issue.code
+            }))
+          })
+        : error;
+    const status = statusFromError(normalizedError);
+    res.status(status).json(apiErrorResponseBody(normalizedError, language));
   };
 
   app.use(errorHandler);

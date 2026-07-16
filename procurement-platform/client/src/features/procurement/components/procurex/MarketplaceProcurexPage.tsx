@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
-import { demoUsers } from '@/shared/data/fixtures';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
 import { procurementApi } from '../../api';
 import { useMarketplaceData } from '../../hooks';
@@ -66,7 +65,7 @@ export function MarketplaceProcurexPage() {
   const [recommendedPage, setRecommendedPage] = useState(1);
   const [allTendersPage, setAllTendersPage] = useState(1);
   const activeTab = getActiveTab(location.pathname, location.search);
-  const organization = user?.organization || demoUsers.user.organization;
+  const organization = user?.organization || 'Your organization';
   const canCreateTender = !user || user.capabilities.includes('BUYER');
 
   const activeMarketplaceTenders = useMemo(() => {

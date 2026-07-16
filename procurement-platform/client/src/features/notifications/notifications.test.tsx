@@ -5,7 +5,7 @@ import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { NotificationCard } from '@/shared/components/NotificationCard';
-import { apiErrorMessage, notificationFromApiError } from '@/shared/api/errors';
+import { apiErrorMessage, apiRawErrorMessage, notificationFromApiError } from '@/shared/api/errors';
 import notificationsReducer, { enqueueNotification } from './slice';
 import { NotificationToastHost } from './NotificationToastHost';
 
@@ -196,13 +196,13 @@ describe('ProcureX notification cards', () => {
   it('maps common API errors to reasons without generic retry actions', () => {
     expect(notificationFromApiError({ response: { status: 429, data: { message: 'Please wait.' } } })).toMatchObject({
       tone: 'warning',
-      message: 'Please wait.',
+      message: 'Request failed.',
       reason: 'This action was attempted too many times in a short period.',
       action: undefined
     });
     expect(notificationFromApiError({ response: { status: 401, data: { message: 'Session invalid.' } } })).toMatchObject({
       tone: 'warning',
-      message: 'Session invalid.',
+      message: 'Request failed.',
       reason: 'Your session is no longer valid for this request.',
       action: { label: 'Sign in again', to: '/sign-in' }
     });
@@ -210,6 +210,12 @@ describe('ProcureX notification cards', () => {
       tone: 'error',
       reason: 'ProcureX could not reach the service needed for this action.',
       action: undefined
+    });
+    expect(notificationFromApiError({ response: { status: 404, data: { code: 'PROCUREMENT_TENDER_NOT_FOUND', userMessage: 'Tender was not found.', reason: 'The requested record could not be found.', fieldErrors: [] } } })).toMatchObject({
+      tone: 'warning',
+      title: 'Record not found',
+      message: 'Tender was not found.',
+      reason: 'The requested record could not be found.'
     });
   });
 
@@ -227,21 +233,56 @@ describe('ProcureX notification cards', () => {
     expect(notificationFromApiError({ response: { status: 403, data: { message: 'Access denied.' } } })).toMatchObject({
       tone: 'error',
       title: 'Action blocked',
-      message: 'Access denied.',
+      message: 'Request failed.',
       reason: 'Your account, permission, or security check does not allow this action right now.'
     });
   });
 
-  it('surfaces safe 4xx API messages while keeping server errors generic', () => {
+  it('keeps raw API text behind the explicit helper while keeping notifications generic', () => {
     const error = { response: { status: 400, data: { message: 'Raw backend validation detail.' } } };
     const serverError = { response: { status: 500, data: { message: 'Database secret detail.' } } };
 
-    expect(apiErrorMessage(error, 'Could not save profile.')).toBe('Raw backend validation detail.');
-    expect(apiErrorMessage({ response: { status: 409, data: { error: 'The bid submission deadline has passed.' } } }, 'Bid could not be submitted.')).toBe('The bid submission deadline has passed.');
+    expect(apiRawErrorMessage(error)).toBe('Raw backend validation detail.');
+    expect(apiRawErrorMessage({ response: { status: 409, data: { error: 'The bid submission deadline has passed.' } } })).toBe('The bid submission deadline has passed.');
+    expect(apiErrorMessage(error, 'Could not save profile.')).toBe('Could not save profile.');
+    expect(apiErrorMessage({ response: { status: 409, data: { error: 'The bid submission deadline has passed.' } } }, 'Bid could not be submitted.')).toBe('Submission is closed for this tender.');
     expect(apiErrorMessage(serverError, 'Bid could not be submitted.')).toBe('Bid could not be submitted.');
     expect(notificationFromApiError(error, { fallback: 'Could not save profile.' })).toMatchObject({
-      message: 'Raw backend validation detail.',
+      message: 'Could not save profile.',
       reason: 'Some submitted information is incomplete or invalid.'
     });
+  });
+
+  it('uses standard API error contract fields without exposing technical messages', () => {
+    const error = {
+      response: {
+        status: 400,
+        data: {
+          success: false,
+          error: 'request_error',
+          code: 'PROCUREMENT_VALIDATION_FAILED',
+          message: 'Tender details are incomplete.',
+          userMessage: 'Tender details are incomplete.',
+          reason: 'Add the missing tender details, then submit again.',
+          fieldErrors: [
+            { path: 'title', message: 'Tender title must contain at least 5 characters.', code: 'too_small' },
+            { path: 'closingDate', message: 'Submission deadline must be in the future.', code: 'custom' },
+            { path: 'requirements.budget', message: 'Tender budget is required before publishing.', code: 'custom' },
+            { path: 'internal.secret', message: 'Fourth detail is hidden from the notification summary.', code: 'custom' }
+          ]
+        }
+      }
+    };
+
+    expect(notificationFromApiError(error)).toMatchObject({
+      tone: 'warning',
+      title: 'Check the information',
+      message: 'Tender details are incomplete.',
+      reason: 'Add the missing tender details, then submit again.'
+    });
+    expect(notificationFromApiError(error).details).toContain('Title: Tender title must contain at least 5 characters.');
+    expect(notificationFromApiError(error).details).toContain('Closing Date: Submission deadline must be in the future.');
+    expect(notificationFromApiError(error).details).not.toContain('Fourth detail');
+    expect(apiRawErrorMessage(error)).toBe('Tender details are incomplete.');
   });
 });

@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SupplierProcurementDetails } from '@/features/procurement/components/procurex/SupplierTenderDetailProcurexPage';
 import { downloadTenderDocument, openTenderDocument } from '@/features/procurement/tenderDocumentActions';
 import { procurementApi } from '@/features/procurement/api';
+import { useNotifications } from '@/features/notifications/hooks';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import type { TenderDetailDocument, TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
@@ -168,6 +169,7 @@ function TenderReviewQueuePage() {
 
 function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
   const navigate = useNavigate();
+  const { notifyApiError } = useNotifications();
   const [detail, setDetail] = useState<TenderReviewDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -208,7 +210,7 @@ function TenderReviewDetailPage({ tenderId }: { tenderId: string }) {
       navigate(`/admin/tender-review?reviewNotice=${encodeURIComponent(response.message)}`, { replace: true });
     } catch (caught) {
       setSignatureError(isKeyphraseApiError(caught) ? apiErrorMessage(caught, 'Tender review could not be completed.') : '');
-      setError(caught);
+      notifyApiError(caught, { title: 'Tender review not completed', fallback: 'Tender review could not be completed.' });
     } finally {
       setSaving(false);
     }
@@ -288,12 +290,18 @@ function TenderReviewDetailView({
   onPass: () => void;
   onFail: () => void;
 }) {
+  const { notifyApiError } = useNotifications();
+
   function handleOpenDocument(document: TenderDetailDocument) {
-    void openTenderDocument(tender, document, 'documents').catch(() => window.alert(`Could not open ${document.name}.`));
+    void openTenderDocument(tender, document, 'documents').catch((error) => {
+      notifyApiError(error, { title: 'Document could not open', fallback: `Could not open ${document.name}.` });
+    });
   }
 
   function handleDownloadDocument(document: TenderDetailDocument) {
-    void downloadTenderDocument(tender, document).catch(() => window.alert(`Could not download ${document.name}.`));
+    void downloadTenderDocument(tender, document).catch((error) => {
+      notifyApiError(error, { title: 'Document could not download', fallback: `Could not download ${document.name}.` });
+    });
   }
 
   return (

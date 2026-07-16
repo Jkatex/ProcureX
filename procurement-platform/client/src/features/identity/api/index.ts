@@ -8,7 +8,9 @@ import type {
   SigningCredentialStatus,
   KeyphraseRecoveryHistoryItem,
   KeyphraseStatusResponse,
+  MfaStatus,
   ProfileImageMutationResult,
+  TotpStartResponse,
   VerificationMe,
   VerificationProfile,
   VerificationSubmitResult
@@ -79,6 +81,22 @@ export const identityApi = {
   },
   async getKeyphraseStatus() {
     const response = await apiClient.get<KeyphraseStatusResponse>('/api/identity/keyphrase/status');
+    return response.data;
+  },
+  async getMfaStatus() {
+    const response = await apiClient.get<MfaStatus>('/api/identity/mfa/status');
+    return response.data;
+  },
+  async startTotpMfa() {
+    const response = await apiClient.post<TotpStartResponse>('/api/identity/mfa/totp/start', {});
+    return response.data;
+  },
+  async verifyTotpMfa(input: { factorId: string; code: string }) {
+    const response = await apiClient.post<{ enabled: true; factorId: string; recoveryCodes: string[] }>('/api/identity/mfa/totp/verify', input);
+    return response.data;
+  },
+  async regenerateMfaRecoveryCodes() {
+    const response = await apiClient.post<{ recoveryCodes: string[]; recoveryCodesRemaining: number }>('/api/identity/mfa/recovery-codes/regenerate', {});
     return response.data;
   },
   async changeKeyphrase(input: { currentKeyphrase: string; password: string; newKeyphrase: string; confirmKeyphrase: string }) {

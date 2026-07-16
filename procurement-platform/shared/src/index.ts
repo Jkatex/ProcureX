@@ -43,6 +43,7 @@ export type FeatureGateName =
 export type FeatureGateMap = Record<FeatureGateName, boolean>;
 
 export * from './localization.js';
+export * from './apiErrors.js';
 export * from './tanzaniaAdministrativeAreas.js';
 export * from './helpCentre.js';
 

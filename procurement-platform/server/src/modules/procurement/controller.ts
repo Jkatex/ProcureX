@@ -1,5 +1,7 @@
 import type { RequestHandler, Response } from 'express';
 import type { ZodError } from 'zod';
+import { validationErrorResponse } from '../shared/apiErrors.js';
+import { requestLanguage } from '../shared/localization.js';
 import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, ModuleService, PUBLISH_VALIDATION_FAILED_CODE } from './service.js';
 import {
   buyerNoticeBodySchema,
@@ -34,22 +36,13 @@ import {
   updateTenderBodySchema,
   updatePlanBodySchema
 } from './validators.js';
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
+import { requestError } from '../shared/apiErrors.js';
 
 function validationResponse(res: Response, error: ZodError) {
-  return res.status(400).json({
-    success: false,
-    message: 'Validation failed',
-    errors: error.issues.map((issue) => ({
-      path: issue.path.join('.'),
-      message: issue.message,
-      code: issue.code
-    }))
+  return validationErrorResponse(res, error, res.req ? requestLanguage(res.req) : 'en', {
+    code: 'PROCUREMENT_VALIDATION_FAILED',
+    userMessage: 'Tender details are incomplete.',
+    reason: 'Add the missing tender details, then submit again.'
   });
 }
 

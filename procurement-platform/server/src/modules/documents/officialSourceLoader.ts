@@ -1,5 +1,6 @@
 import { compactRows, formatValue, money, row, type OfficialSourceSnapshot } from './officialDocumentBuilder.js';
 import type { OfficialDocumentGenerateInput, OfficialProcurementType } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 type OfficialSourceDb = Record<string, any>;
 
@@ -19,12 +20,6 @@ export async function loadOfficialSource(db: OfficialSourceDb, input: OfficialDo
   if (key === 'invoice') return loadInvoice(db, input);
   if (key === 'documentobject' || key === 'document') return loadDocumentObject(db, input);
   throw requestError(`Official document source type "${input.sourceEntityType}" is not supported yet.`, 400);
-}
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 async function loadTender(db: OfficialSourceDb, input: OfficialDocumentGenerateInput): Promise<OfficialSourceSnapshot> {

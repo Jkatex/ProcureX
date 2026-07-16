@@ -6,6 +6,7 @@ import { mkdir, rm, unlink } from 'node:fs/promises';
 import { basename, dirname, extname, join, normalize } from 'node:path';
 import type { IncomingHttpHeaders, IncomingMessage } from 'node:http';
 import type { BidDocumentInput } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 const allowedEnvelopes = new Set(['ADMINISTRATIVE', 'TECHNICAL', 'FINANCIAL', 'COMBINED']);
 const allowedDocumentTypes = new Set([
@@ -385,12 +386,6 @@ function s3Client() {
     forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true'
   });
   return cachedS3Client;
-}
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 function destroyReadable(stream: NodeJS.ReadableStream, error: Error) {

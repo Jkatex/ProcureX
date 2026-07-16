@@ -82,3 +82,23 @@ export type KeyphraseStatusResponse = {
   credential: SigningCredentialStatus;
   recoveryHistory: KeyphraseRecoveryHistoryItem[];
 };
+
+export type MfaStatus = {
+  enabled: boolean;
+  methods: Array<'totp' | 'recovery_code'>;
+  factors: Array<{
+    id: string;
+    type: string;
+    verified: boolean;
+    createdAt: string;
+  }>;
+  recoveryCodesRemaining: number;
+};
+
+export type TotpStartResponse = {
+  factorId: string;
+  challengeId: string;
+  secret: string;
+  otpauthUrl: string;
+  expiresAt: string;
+};

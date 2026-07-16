@@ -11,6 +11,7 @@ import type {
   SupplierRecommendationRow,
   SupplierRecommendationsResponseDto
 } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 const scoringVersion = 'supplier-recommendations-v1';
 const maxRecommendations = 20;
@@ -776,8 +777,3 @@ function deadlineTime(tender: RecommendedTenderRecord) {
   return tender.closingDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
 }
 
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}

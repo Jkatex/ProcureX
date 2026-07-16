@@ -69,16 +69,11 @@ import {
   type UpdateTenderResponseDto,
   type UpdateProcurementPlanInput
 } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 export const MARKETPLACE_UNAVAILABLE_MESSAGE = 'Marketplace is temporarily unavailable. Please try again later.';
 export const MARKETPLACE_UNAVAILABLE_CODE = 'MARKETPLACE_UNAVAILABLE';
 export const PUBLISH_VALIDATION_FAILED_CODE = 'PUBLISH_VALIDATION_FAILED';
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 type SignatureKeyphraseInput = { signatureKeyphrase: string };
 
@@ -516,7 +511,8 @@ export class ModuleService {
 
   async failTenderReview(tenderId: string, token: string | undefined, input: TenderReviewFailInput): Promise<TenderReviewDecisionResponseDto> {
     const session = await this.identity.requireAdmin(token);
-    const result = await this.repository.failTenderReview(tenderId, { adminUserId: session.user.id }, input);
+    const adminOrgId = await this.repository.resolvePlatformOrganizationId(session.user.organizationId);
+    const result = await this.repository.failTenderReview(tenderId, { adminOrgId, adminUserId: session.user.id }, input);
     if (!result) throw requestError('Tender review item was not found.', 404);
     return result;
   }

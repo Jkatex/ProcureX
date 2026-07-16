@@ -73,12 +73,7 @@ import {
 } from '../award-contract/validators.js';
 import { activationItemParamsSchema, closeoutStepParamsSchema, controlWorkflowActionBodySchema, financeWorkflowActionBodySchema, idParamsSchema, invoiceParamsSchema, milestoneParamsSchema, moduleStatusQuerySchema, recordParamsSchema } from './validators.js';
 import type { PostAwardRequestContext } from './types.js';
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
+import { requestError } from '../shared/apiErrors.js';
 
 function bearerToken(req: Request) {
   const header = req.header('authorization') ?? '';

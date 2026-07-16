@@ -12,6 +12,7 @@ import { randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';
 import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import type { EvaluationDecisionStatus, EvaluationRecordsQuery, EvaluationRequestContext, SaveEvaluationWorkspaceInput } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 const publishedTenderStatuses = [
   TenderStatus.PUBLISHED,
@@ -255,12 +256,6 @@ function recordsWhere(query: EvaluationRecordsQuery, context?: EvaluationRequest
   return where;
 }
 
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
-
 function scopedTenderWhere(tenderId: string, context?: EvaluationRequestContext): Prisma.TenderWhereInput {
   return {
     id: tenderId,
@@ -446,6 +441,54 @@ function sectionDraftProgress(sectionDraft: Record<string, unknown>) {
   if (typeof completion !== 'object' || completion === null || Array.isArray(completion)) return 0;
   const percent = (completion as Record<string, unknown>).percent;
   return typeof percent === 'number' && Number.isFinite(percent) ? Math.max(0, Math.min(100, Math.round(percent))) : 0;
+}
+
+function evaluationOpenings(payload: Prisma.JsonValue | null | undefined) {
+  const object = workspacePayload(payload);
+  return {
+    technicalOpened: typeof object.technicalOpenedAt === 'string' && object.technicalOpenedAt.length > 0,
+    financialOpened: typeof object.financialOpenedAt === 'string' && object.financialOpenedAt.length > 0
+  };
+}
+
+function criterionStage(criterion: { stage: EvaluationStage | string }) {
+  return String(criterion.stage).toUpperCase();
+}
+
+function isTechnicalCriterion(criterion: { stage: EvaluationStage | string }) {
+  return [EvaluationStage.PRELIMINARY, EvaluationStage.ELIGIBILITY, EvaluationStage.TECHNICAL].map(String).includes(criterionStage(criterion));
+}
+
+function isFinancialCriterion(criterion: { stage: EvaluationStage | string }) {
+  return [EvaluationStage.FINANCIAL, EvaluationStage.COMPARISON].map(String).includes(criterionStage(criterion));
+}
+
+function wantsFinancialStage(activeStageId?: string) {
+  return ['financial', 'pricing', 'ranking', 'report', 'comparison'].includes(activeStageId ?? '');
+}
+
+function draftFlag(sectionDraft: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const direct = sectionDraft[key];
+    if (direct === true) return true;
+    if (direct && typeof direct === 'object' && !Array.isArray(direct)) {
+      const object = direct as Record<string, unknown>;
+      if (object.complete === true || object.completed === true || object.canOpenFinancial === true) return true;
+    }
+  }
+  return false;
+}
+
+function technicalReviewComplete(
+  sectionDraft: Record<string, unknown>,
+  bids: Array<{ id: string }>,
+  criteria: Array<{ id: string; stage: EvaluationStage | string; weight: Prisma.Decimal | null; maxScore: Prisma.Decimal | null }>,
+  scores: Array<{ bidId: string; criterionId: string | null; score: Prisma.Decimal | null }>
+) {
+  if (draftFlag(sectionDraft, ['preliminaryComplete', 'technicalComplete', 'financialReady', 'preliminary', 'technical', 'opening'])) return true;
+  const technicalCriteria = criteria.filter(isTechnicalCriterion);
+  if (technicalCriteria.length === 0) return true;
+  return bids.every((bid) => isBidEvaluated(bid.id, technicalCriteria, scores));
 }
 
 function stageForActiveStageId(activeStageId: string | undefined): EvaluationStage | undefined {
@@ -700,11 +743,20 @@ export class ModuleRepository {
       if (input.selectedBidId && !submittedBidIds.has(input.selectedBidId)) {
         throw requestError('Selected bid must belong to a submitted bid on this tender.');
       }
+      const existingPayload = workspacePayload(workspace.payload);
+      const existingOpenings = evaluationOpenings(workspace.payload);
+      const technicalOpened = existingOpenings.technicalOpened || Boolean(input.openTechnical);
+      const financialOpened = existingOpenings.financialOpened;
+      if (wantsFinancialStage(input.activeStageId) && !financialOpened && !input.openFinancial) {
+        throw requestError('Financial evaluation cannot be opened before the financial opening is recorded.', 409);
+      }
 
       for (const score of input.scores) {
         const criterion = criteriaById.get(score.criterionId);
         if (!submittedBidIds.has(score.bidId)) throw requestError('Scores can only be saved for submitted bids on this tender.');
         if (!criterion) throw requestError('Score references an evaluation criterion that does not belong to this tender.');
+        if (isTechnicalCriterion(criterion) && !technicalOpened) throw requestError('Technical opening must be recorded before technical review can begin.', 409);
+        if (isFinancialCriterion(criterion) && !financialOpened) throw requestError('Financial opening must be recorded before financial scoring can begin.', 409);
         if (score.score > scoreLimit(criterion)) throw requestError('Score cannot exceed the criterion maximum score.');
 
         await tx.evaluationScore.deleteMany({
@@ -740,9 +792,33 @@ export class ModuleRepository {
       const nextDecisions = { ...existingDecisions };
       const nextSectionDraft = mergeSectionDraft(workspace.payload, input.sectionDraft);
       const categoryCompletionOverride = sectionDraftAllowsCompletion(nextSectionDraft);
+      if (input.openFinancial && !technicalOpened) {
+        throw requestError('Technical opening must be recorded before financial opening.', 409);
+      }
+      if (input.openFinancial && !technicalReviewComplete(nextSectionDraft, tender.bids, criteria, freshScores)) {
+        throw requestError('Complete preliminary and technical evaluation before financial opening.', 409);
+      }
+      const nowIso = new Date().toISOString();
+      const openingPayload = {
+        ...existingPayload,
+        ...(input.openTechnical && !existingOpenings.technicalOpened
+          ? {
+              technicalOpenedAt: nowIso,
+              technicalOpenedByUserId: context?.userId ?? null
+            }
+          : {}),
+        ...(input.openFinancial && !existingOpenings.financialOpened
+          ? {
+              financialOpenedAt: nowIso,
+              financialOpenedByUserId: context?.userId ?? null
+            }
+          : {})
+      };
+      const nextOpenings = evaluationOpenings(openingPayload as Prisma.JsonValue);
 
       for (const decision of input.decisions) {
         if (!submittedBidIds.has(decision.bidId)) throw requestError('Decisions can only be saved for submitted bids on this tender.');
+        if (decision.status === 'RECOMMENDED' && !nextOpenings.financialOpened) throw requestError('Financial opening must be recorded before an award recommendation can be prepared.', 409);
         if (decision.status === 'RECOMMENDED' && !categoryCompletionOverride && !isBidEvaluated(decision.bidId, criteria, freshScores)) {
           throw requestError('A bid must be fully evaluated before it can be recommended.');
         }
@@ -761,7 +837,7 @@ export class ModuleRepository {
       const progress = completed ? 100 : Math.max(scoreProgress, sectionDraftProgress(nextSectionDraft));
       const activeStage = stageForActiveStageId(input.activeStageId);
       const payload = {
-        ...workspacePayload(workspace.payload),
+        ...openingPayload,
         decisions: nextDecisions,
         sectionDraft: nextSectionDraft,
         rankings,
@@ -783,6 +859,39 @@ export class ModuleRepository {
           payload: payload as Prisma.InputJsonObject
         }
       });
+
+      if (input.openTechnical && !existingOpenings.technicalOpened) {
+        await tx.auditEvent.create({
+          data: {
+            ownerOrgId: tender.buyerOrgId,
+            actorUserId: context?.userId ?? null,
+            event: 'evaluation.technical_opened',
+            entityType: 'evaluation_workspace',
+            entityRef: workspace.id,
+            severity: AuditSeverity.INFO,
+            payload: {
+              tenderId: tender.id,
+              openedAt: payload['technicalOpenedAt']
+            }
+          }
+        });
+      }
+      if (input.openFinancial && !existingOpenings.financialOpened) {
+        await tx.auditEvent.create({
+          data: {
+            ownerOrgId: tender.buyerOrgId,
+            actorUserId: context?.userId ?? null,
+            event: 'evaluation.financial_opened',
+            entityType: 'evaluation_workspace',
+            entityRef: workspace.id,
+            severity: AuditSeverity.INFO,
+            payload: {
+              tenderId: tender.id,
+              openedAt: payload['financialOpenedAt']
+            }
+          }
+        });
+      }
 
       const recommendedDecision = Object.entries(nextDecisions).find((entry) => entry[1]?.status === 'RECOMMENDED');
       if (recommendedDecision) {

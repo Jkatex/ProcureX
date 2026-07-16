@@ -1,5 +1,4 @@
 import { apiClient } from '@/shared/api/http';
-import { demoUsers } from '@/shared/data/fixtures';
 import { toTenderType } from '../createTenderConfig';
 import { isActiveInvitedTender, isActiveMarketplaceTender } from '../marketplaceTenderVisibility';
 import type {
@@ -91,7 +90,7 @@ export const procurementApi = {
     const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/pass`, input);
     return response.data;
   },
-  async failTenderReview(tenderId: string, input: { messageId: string }): Promise<TenderReviewDecisionResponse> {
+  async failTenderReview(tenderId: string, input: { messageId: string; signatureKeyphrase: string }): Promise<TenderReviewDecisionResponse> {
     const response = await apiClient.post<TenderReviewDecisionResponse>(`/api/procurement/admin/tender-review/${tenderId}/fail`, input);
     return response.data;
   }
@@ -225,7 +224,7 @@ export function mergeSessionMarketplaceData(
   payload: MarketplacePayload,
   drafts: CreateTenderDraft[],
   publishedTenders: CreateTenderDraft[],
-  organization = demoUsers.user.organization
+  organization = 'Current organization'
 ): MarketplacePayload {
   const sessionTenderRows = publishedTenders.map((draft): MarketplaceTenderRow => createMarketplaceTenderFromDraft(draft, organization));
   const sessionMyTenderRows = drafts.map((draft): MyTenderRow => ({

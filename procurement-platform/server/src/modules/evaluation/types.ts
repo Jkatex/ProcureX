@@ -294,6 +294,8 @@ export type SaveEvaluationWorkspaceInput = {
   decisions: EvaluationDecisionInput[];
   sectionDraft: Record<string, unknown>;
   complete: boolean;
+  openTechnical?: boolean;
+  openFinancial?: boolean;
   activeStageId?: string;
   selectedBidId?: string;
   signatureKeyphrase?: string;

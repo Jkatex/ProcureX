@@ -243,6 +243,44 @@ export class ModuleRepository {
     });
   }
 
+  listMfaFactors(userId: string) {
+    return this.db.mfaFactor.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  findMfaFactor(id: string) {
+    return this.db.mfaFactor.findUnique({
+      where: { id }
+    });
+  }
+
+  findVerifiedTotpFactor(userId: string) {
+    return this.db.mfaFactor.findFirst({
+      where: { userId, type: 'totp', verified: true },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  createMfaFactor(input: { userId: string; type: string; secretRef?: string | null; verified?: boolean }) {
+    return this.db.mfaFactor.create({
+      data: {
+        userId: input.userId,
+        type: input.type,
+        secretRef: input.secretRef ?? null,
+        verified: input.verified ?? false
+      }
+    });
+  }
+
+  verifyMfaFactor(id: string) {
+    return this.db.mfaFactor.update({
+      where: { id },
+      data: { verified: true }
+    });
+  }
+
   createChallenge(input: {
     userId?: string;
     purpose: string;

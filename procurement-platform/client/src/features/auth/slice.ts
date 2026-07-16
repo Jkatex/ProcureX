@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/tool
 import { apiErrorMessage, apiRawErrorMessage } from '@/shared/api/errors';
 import { clearStoredAuthToken, getStoredAuthToken, storeAuthToken } from '@/shared/api/authToken';
 import type { SessionUser } from '@/shared/types/domain';
-import { authApi, type AuthSessionResponse, type SessionResponse } from './api';
+import { authApi, type AuthSessionResponse, type AuthSignInResponse, type SessionResponse } from './api';
 
 type AuthState = {
   user: SessionUser | null;
@@ -27,13 +27,24 @@ const initialState: AuthState = {
   sessionExpired: false
 };
 
-export const signInWithCredentials = createAsyncThunk<AuthSessionResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }>(
+export const signInWithCredentials = createAsyncThunk<AuthSignInResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }>(
   'auth/signInWithCredentials',
   async (input, { rejectWithValue }) => {
     try {
       return await authApi.signIn(input);
     } catch (error) {
       return rejectWithValue(apiRawErrorMessage(error) || apiErrorMessage(error, 'Sign-in failed.'));
+    }
+  }
+);
+
+export const completeMfaSignIn = createAsyncThunk<AuthSessionResponse, { challengeId: string; code: string }, { rejectValue: string }>(
+  'auth/completeMfaSignIn',
+  async (input, { rejectWithValue }) => {
+    try {
+      return await authApi.verifyMfa(input);
+    } catch (error) {
+      return rejectWithValue(apiRawErrorMessage(error) || apiErrorMessage(error, 'MFA verification failed.'));
     }
   }
 );
@@ -87,6 +98,15 @@ const authSlice = createSlice({
         state.sessionExpired = false;
       })
       .addCase(signInWithCredentials.fulfilled, (state, action) => {
+        if ('mfaRequired' in action.payload) {
+          state.status = 'idle';
+          state.user = null;
+          state.token = null;
+          state.expiresAt = null;
+          state.isAuthenticated = false;
+          state.sessionExpired = false;
+          return;
+        }
         state.status = 'succeeded';
         state.user = action.payload.user;
         state.token = action.payload.token;
@@ -98,6 +118,23 @@ const authSlice = createSlice({
       .addCase(signInWithCredentials.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload ?? action.error.message ?? 'Sign-in failed.';
+      })
+      .addCase(completeMfaSignIn.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(completeMfaSignIn.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.expiresAt = action.payload.expiresAt;
+        state.isAuthenticated = true;
+        state.sessionExpired = false;
+        storeAuthToken(action.payload.token);
+      })
+      .addCase(completeMfaSignIn.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload ?? action.error.message ?? 'MFA verification failed.';
       })
       .addCase(hydrateAuthSession.pending, (state) => {
         state.status = 'loading';

@@ -9,6 +9,15 @@ export type AuthSessionResponse = {
   isFirstSignIn: boolean;
 };
 
+export type MfaChallengeResponse = {
+  mfaRequired: true;
+  challengeId: string;
+  methods: Array<'totp' | 'recovery_code'>;
+  expiresAt: string;
+};
+
+export type AuthSignInResponse = AuthSessionResponse | MfaChallengeResponse;
+
 export type SessionResponse = {
   user: SessionUser;
   expiresAt: string;
@@ -85,7 +94,11 @@ export const authApi = {
     return response.data;
   },
   async signIn(input: { email: string; password: string; turnstileToken: string }) {
-    const response = await apiClient.post<AuthSessionResponse>('/api/identity/auth/sign-in', input);
+    const response = await apiClient.post<AuthSignInResponse>('/api/identity/auth/sign-in', input);
+    return response.data;
+  },
+  async verifyMfa(input: { challengeId: string; code: string }) {
+    const response = await apiClient.post<AuthSessionResponse>('/api/identity/auth/mfa/verify', input);
     return response.data;
   },
   async forgotPassword(input: { email: string; turnstileToken: string }) {

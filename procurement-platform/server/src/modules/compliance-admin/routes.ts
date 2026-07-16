@@ -16,6 +16,7 @@ export function createModuleRouter() {
   router.post('/users/:id/reset-access', controller.resetUserAccess);
   router.post('/users/:id/revoke-sessions', controller.revokeUserSessions);
   router.get('/search', controller.search);
+  router.post('/search/reindex', controller.reindexSearch);
   router.get('/compliance/cases', controller.cases);
   router.patch('/compliance/cases/:id', controller.updateCase);
   router.get('/compliance/rules', controller.rules);

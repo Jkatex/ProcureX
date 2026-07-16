@@ -36,10 +36,62 @@ export type OfficialDocumentVersionDto = {
   downloadUrl: string;
 };
 
+export type DocumentObjectDto = {
+  id: string;
+  ownerOrgId: string | null;
+  uploadedByUserId: string | null;
+  name: string;
+  objectKey: string;
+  documentType: string;
+  checksum: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  storageDriver: 'local' | 's3' | 'legacy' | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  contentUrl: string;
+  downloadUrl: string;
+};
+
+export type DocumentUploadInput = {
+  name?: string;
+  documentType?: string;
+  ownerOrgId?: string;
+  sourceModule?: string;
+  sourceEntityType?: string;
+  sourceEntityId?: string;
+  metadata?: Record<string, unknown>;
+};
+
+async function uploadDocumentRequest(file: File, input: DocumentUploadInput = {}) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', input.name || file.name);
+  formData.append('documentType', input.documentType || 'GENERAL_DOCUMENT');
+  if (input.ownerOrgId) formData.append('ownerOrgId', input.ownerOrgId);
+  if (input.sourceModule) formData.append('sourceModule', input.sourceModule);
+  if (input.sourceEntityType) formData.append('sourceEntityType', input.sourceEntityType);
+  if (input.sourceEntityId) formData.append('sourceEntityId', input.sourceEntityId);
+  if (input.metadata) formData.append('metadata', JSON.stringify(input.metadata));
+  const response = await apiClient.post<DocumentObjectDto>('/api/documents/uploads', formData, {
+    headers: { 'Content-Type': undefined }
+  });
+  return response.data;
+}
+
 export const documentsApi = {
-  requestUpload: async (name: string) => ({ objectKey: `mock/${name}` }),
+  requestUpload: uploadDocumentRequest,
+  uploadDocument: uploadDocumentRequest,
   contentUrl(documentId: string, download = false) {
     return `/api/documents/${documentId}/content${download ? '?download=true' : ''}`;
+  },
+  async signDocument(documentId: string, input: { note?: string; signatureKeyphrase: string }) {
+    const response = await apiClient.post<DocumentObjectDto>(`/api/documents/${documentId}/sign`, input);
+    return response.data;
+  },
+  async approveDocument(documentId: string, input: { note?: string; signatureKeyphrase: string }) {
+    const response = await apiClient.post<DocumentObjectDto>(`/api/documents/${documentId}/approve`, input);
+    return response.data;
   },
   async generateOfficialDocument(input: OfficialDocumentGenerateInput) {
     const response = await apiClient.post<{ document: OfficialDocumentVersionDto; validationWarnings: OfficialDocumentVersionDto['validationWarnings'] }>(

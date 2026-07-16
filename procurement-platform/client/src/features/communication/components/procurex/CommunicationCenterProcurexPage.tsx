@@ -19,6 +19,7 @@ import type {
   CommunicationRecipient,
   CommunicationTenderLink
 } from '@/features/communication/types';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { WorkspaceTopBar } from '@/shared/components/procurex/WorkspaceTopBar';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 
@@ -1170,8 +1171,8 @@ function formatInputDate(value: string) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function errorMessage(_error: unknown, fallback: string) {
-  return fallback;
+function errorMessage(error: unknown, fallback: string) {
+  return apiErrorMessage(error, fallback);
 }
 
 function findSupportRecipient(recipients: CommunicationRecipient[]) {

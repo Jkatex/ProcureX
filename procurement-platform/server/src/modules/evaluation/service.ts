@@ -214,7 +214,8 @@ function toWorkspaceDto(tender: EvaluationWorkspaceTenderRecord | null, auditEve
   const scores = workspace?.scores ?? [];
   const decisions = readDecisions(workspace?.payload);
   const sectionDraft = readSectionDraft(workspace?.payload);
-  const priceScores = financialScores(tender.bids);
+  const openings = readOpenings(workspace?.payload);
+  const priceScores = openings.financialOpened ? financialScores(tender.bids) : new Map<string, number>();
   const bids = tender.bids.map((bid) => {
     const bidScores = criteria.map((criterion) => {
       const score = latestScore(scores, bid.id, criterion.id);
@@ -238,7 +239,7 @@ function toWorkspaceDto(tender: EvaluationWorkspaceTenderRecord | null, auditEve
       submittedAt: bid.submittedAt?.toISOString() ?? null,
       receiptRef: bid.receipt?.receiptRef ?? null,
       receiptHash: bid.receipt?.receiptHash ?? null,
-      documents: bid.documents.filter((item) => financialDocumentsVisible(workspace?.currentStage, item.envelope)).map((item) => ({
+      documents: bid.documents.filter((item) => financialDocumentsVisible(item.envelope, openings.financialOpened)).map((item) => ({
         id: item.document.id,
         name: item.document.name,
         documentType: item.document.documentType,
@@ -248,12 +249,12 @@ function toWorkspaceDto(tender: EvaluationWorkspaceTenderRecord | null, auditEve
         requirementKey: response.requirementKey,
         response: response.response
       })),
-      financialAmount: decimalToNumber(bid.totalAmount),
+      financialAmount: openings.financialOpened ? decimalToNumber(bid.totalAmount) : null,
       currency: bid.currency,
       eligibilityStatus: eligibilityStatus(bid.payload),
       scores: bidScores,
       technicalScore: technical,
-      financialScore: priceScores.get(bid.id) ?? null,
+      financialScore: openings.financialOpened ? priceScores.get(bid.id) ?? null : null,
       totalScore: technical,
       evaluated: technical !== null,
       decisionStatus: decisionStatus(decision?.status),
@@ -728,22 +729,9 @@ function countEvaluationCriteria(metadata: Prisma.JsonValue | null | undefined):
   return 0;
 }
 
-function financialDocumentsVisible(currentStage: EvaluationStage | null | undefined, envelope: string) {
+function financialDocumentsVisible(envelope: string, financialOpened: boolean) {
   if (envelope !== 'FINANCIAL') return true;
-  if (!currentStage) return false;
-  const order = [
-    EvaluationStage.OPENING,
-    EvaluationStage.CONFLICT,
-    EvaluationStage.PRELIMINARY,
-    EvaluationStage.ELIGIBILITY,
-    EvaluationStage.TECHNICAL,
-    EvaluationStage.FINANCIAL,
-    EvaluationStage.CLARIFICATIONS,
-    EvaluationStage.COMPARISON,
-    EvaluationStage.REPORT,
-    EvaluationStage.RECOMMENDATION
-  ];
-  return order.indexOf(currentStage) >= order.indexOf(EvaluationStage.FINANCIAL);
+  return financialOpened;
 }
 
 function readDecisions(payload: Prisma.JsonValue | null | undefined) {
@@ -757,6 +745,14 @@ function readSectionDraft(payload: Prisma.JsonValue | null | undefined) {
   const sectionDraft = jsonObject(payload).sectionDraft;
   if (typeof sectionDraft !== 'object' || sectionDraft === null || Array.isArray(sectionDraft)) return {};
   return sectionDraft as Record<string, unknown>;
+}
+
+function readOpenings(payload: Prisma.JsonValue | null | undefined) {
+  const object = jsonObject(payload);
+  return {
+    technicalOpened: typeof object.technicalOpenedAt === 'string' && object.technicalOpenedAt.length > 0,
+    financialOpened: typeof object.financialOpenedAt === 'string' && object.financialOpenedAt.length > 0
+  };
 }
 
 function readString(payload: Prisma.JsonValue | null | undefined, key: string) {

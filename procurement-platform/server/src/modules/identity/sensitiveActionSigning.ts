@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { signCanonicalPayloadHash } from './signing.js';
+import { requestError } from '../shared/apiErrors.js';
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -15,12 +16,6 @@ export type SensitiveActionSigningInput = {
   payload: Record<string, unknown>;
   requestMetadata?: Record<string, unknown>;
 };
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(',')}]`;

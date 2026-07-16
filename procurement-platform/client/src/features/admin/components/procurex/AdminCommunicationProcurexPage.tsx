@@ -13,6 +13,7 @@ import {
 } from '@/features/communication/composeAttachments';
 import type { ComposeAttachment } from '@/features/communication/composeAttachments';
 import { procurementApi } from '@/features/procurement/api';
+import { apiErrorMessage } from '@/shared/api/errors';
 import type {
   CommunicationListResponse,
   CommunicationMailboxMessage,
@@ -90,6 +91,7 @@ export function AdminCommunicationProcurexPage() {
   const [dateSearch, setDateSearch] = useState('');
   const [page, setPage] = useState(1);
   const [compose, setCompose] = useState<ComposeState>(() => initialComposeState());
+  const [reviewSignatureKeyphrase, setReviewSignatureKeyphrase] = useState('');
   const [replySource, setReplySource] = useState<CommunicationMailboxMessage | null>(null);
   const [organizations, setOrganizations] = useState<CommunicationRecipient[]>([]);
   const [tenders, setTenders] = useState<CommunicationTenderLink[]>([]);
@@ -111,10 +113,11 @@ export function AdminCommunicationProcurexPage() {
   const senderMailboxName = user?.organization || user?.displayName || 'Admin mailbox';
   const reviewDecision = searchParams.get('reviewDecision');
   const reviewTenderId = searchParams.get('reviewTenderId') || searchParams.get('tenderId') || '';
+  const reviewFailureFlow = reviewDecision === 'fail' && Boolean(reviewTenderId) && !compose.replyToMessageId;
   const hasRecipientDestination = Boolean(senderOrgId && compose.recipients.some((recipient) => recipient.id && recipient.id !== senderOrgId));
   const attachmentsReady = composeAttachmentsReady(compose.attachments);
   const loadingAttachmentCount = compose.attachments.filter((attachment) => attachment.status === 'loading').length;
-  const sendDisabled = saving || !hasRecipientDestination || !attachmentsReady;
+  const sendDisabled = saving || !hasRecipientDestination || !attachmentsReady || (reviewFailureFlow && reviewSignatureKeyphrase.trim().length < 6);
 
   const loadMailbox = useCallback(
     async (nextFolder: MailboxFolder = folder, nextPage = 1, nextSelectedId = '', nextSearch = submittedSearch) => {
@@ -347,6 +350,7 @@ export function AdminCommunicationProcurexPage() {
 
   function openCompose() {
     setCompose(initialComposeState());
+    setReviewSignatureKeyphrase('');
     setSelectedId('');
     setSelectedMessage(null);
     setSearchParams({ view: 'compose' });
@@ -451,6 +455,10 @@ export function AdminCommunicationProcurexPage() {
       setError('Wait for attachments to finish loading before sending.');
       return;
     }
+    if (reviewFailureFlow && reviewSignatureKeyphrase.trim().length < 6) {
+      setError('Enter your signing keyphrase before returning this tender for amendments.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -482,13 +490,14 @@ export function AdminCommunicationProcurexPage() {
         })));
       const result = results[0];
       if (!result) throw new Error('No message was sent.');
-      if (reviewDecision === 'fail' && reviewTenderId && !compose.replyToMessageId) {
+      if (reviewFailureFlow) {
         const ownerDelivery =
           result.deliveries.find((delivery) => delivery.folder !== 'sent' && delivery.tenderId === reviewTenderId) ??
           result.deliveries.find((delivery) => delivery.folder === 'inbox') ??
           result.message;
-        await procurementApi.failTenderReview(reviewTenderId, { messageId: ownerDelivery.id });
+        await procurementApi.failTenderReview(reviewTenderId, { messageId: ownerDelivery.id, signatureKeyphrase: reviewSignatureKeyphrase.trim() });
         setCompose(initialComposeState());
+        setReviewSignatureKeyphrase('');
         navigate('/admin/tender-review', { replace: true });
         return;
       }
@@ -634,6 +643,22 @@ export function AdminCommunicationProcurexPage() {
                   <span>Message</span>
                   <textarea className="form-input" rows={6} value={compose.body} onChange={(event) => setCompose((current) => ({ ...current, body: event.target.value }))} placeholder="Write your message" required />
                 </label>
+                {reviewFailureFlow ? (
+                  <label className="span-2">
+                    <span>Signature keyphrase</span>
+                    <input
+                      className="form-input"
+                      type="password"
+                      value={reviewSignatureKeyphrase}
+                      minLength={6}
+                      maxLength={128}
+                      autoComplete="current-password"
+                      onChange={(event) => setReviewSignatureKeyphrase(event.target.value)}
+                      placeholder="Sign this return decision"
+                      required
+                    />
+                  </label>
+                ) : null}
                 <div className="span-2 communication-compose-attachments">
                   <div>
                     <span className="form-label">Attachments</span>
@@ -1101,8 +1126,8 @@ function formatInputDate(value: string) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function errorMessage(_error: unknown, fallback: string) {
-  return fallback;
+function errorMessage(error: unknown, fallback: string) {
+  return apiErrorMessage(error, fallback);
 }
 
 function recipientMatchesSearch(recipient: CommunicationRecipient, searchTerm: string) {

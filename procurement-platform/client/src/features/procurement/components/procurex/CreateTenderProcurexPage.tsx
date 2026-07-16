@@ -5464,8 +5464,6 @@ function getPublishTenderErrorMessage(error: unknown, fallback: string) {
 }
 
 function getApiValidationErrorMessage(error: unknown, fallback: string) {
-  const sharedMessage = apiErrorMessage(error, '');
-  if (sharedMessage) return sharedMessage;
   const body = apiErrorBody(error);
   const issueMessages = Array.isArray(body?.errors)
     ? body.errors
@@ -5473,6 +5471,8 @@ function getApiValidationErrorMessage(error: unknown, fallback: string) {
         .filter(Boolean)
     : [];
   if (issueMessages.length) return issueMessages.slice(0, 3).join(' ');
+  const sharedMessage = apiErrorMessage(error, '');
+  if (sharedMessage) return sharedMessage;
   const message = stringValue(body?.message || body?.error);
   if (message) return message;
   return fallback;

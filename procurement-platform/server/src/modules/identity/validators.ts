@@ -60,6 +60,20 @@ export const signInSchema = z.object({
   turnstileToken: turnstileTokenSchema
 });
 
+export const totpVerifySchema = z
+  .object({
+    factorId: z.string().uuid(),
+    code: z.string().min(6).max(24)
+  })
+  .strict();
+
+export const mfaAuthVerifySchema = z
+  .object({
+    challengeId: z.string().uuid(),
+    code: z.string().min(6).max(24)
+  })
+  .strict();
+
 export const forgotPasswordSchema = z.object({
   email: z.string().email(),
   turnstileToken: turnstileTokenSchema

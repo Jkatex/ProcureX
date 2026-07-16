@@ -69,6 +69,8 @@ export const saveWorkspaceBodySchema = z
     selectedBidId: uuidSchema.optional(),
     sectionDraft: z.record(z.unknown()).optional().default({}),
     complete: z.boolean().optional().default(false),
+    openTechnical: z.boolean().optional(),
+    openFinancial: z.boolean().optional(),
     signatureKeyphrase: signatureKeyphraseSchema.optional()
   })
   .strict()

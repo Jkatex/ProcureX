@@ -14,6 +14,66 @@ const apiMessageTranslations: Record<string, Record<SupportedLanguage, string>> 
     en: 'Request failed.',
     sw: 'Ombi halikufanikiwa.'
   },
+  'Some submitted information is incomplete or invalid.': {
+    en: 'Some submitted information is incomplete or invalid.',
+    sw: 'Baadhi ya taarifa ulizowasilisha hazijakamilika au si sahihi.'
+  },
+  'Review the highlighted fields and try again.': {
+    en: 'Review the highlighted fields and try again.',
+    sw: 'Kagua sehemu zilizoonyeshwa kisha ujaribu tena.'
+  },
+  'Your session is no longer valid for this request.': {
+    en: 'Your session is no longer valid for this request.',
+    sw: 'Kipindi chako hakitumiki tena kwa ombi hili.'
+  },
+  'Your account, permission, or security check does not allow this action right now.': {
+    en: 'Your account, permission, or security check does not allow this action right now.',
+    sw: 'Akaunti, ruhusa, au ukaguzi wa usalama haukuruhusu kitendo hiki kwa sasa.'
+  },
+  'The requested record could not be found.': {
+    en: 'The requested record could not be found.',
+    sw: 'Rekodi iliyoombwa haikupatikana.'
+  },
+  'The request conflicts with an existing record or the current workflow state.': {
+    en: 'The request conflicts with an existing record or the current workflow state.',
+    sw: 'Ombi linakinzana na rekodi iliyopo au hali ya sasa ya mtiririko wa kazi.'
+  },
+  'The code, link, or request has expired.': {
+    en: 'The code, link, or request has expired.',
+    sw: 'Msimbo, kiungo, au ombi limeisha muda.'
+  },
+  'This action was attempted too many times in a short period.': {
+    en: 'This action was attempted too many times in a short period.',
+    sw: 'Kitendo hiki kimejaribiwa mara nyingi ndani ya muda mfupi.'
+  },
+  'A required service is temporarily unavailable.': {
+    en: 'A required service is temporarily unavailable.',
+    sw: 'Huduma inayohitajika haipatikani kwa muda.'
+  },
+  'ProcureX could not complete this action.': {
+    en: 'ProcureX could not complete this action.',
+    sw: 'ProcureX haikuweza kukamilisha kitendo hiki.'
+  },
+  'ProcureX could not complete this request.': {
+    en: 'ProcureX could not complete this request.',
+    sw: 'ProcureX haikuweza kukamilisha ombi hili.'
+  },
+  'This browser origin is not allowed.': {
+    en: 'This browser origin is not allowed.',
+    sw: 'Chanzo hiki cha kivinjari hakiruhusiwi.'
+  },
+  'ProcureX blocked a request from an unapproved origin.': {
+    en: 'ProcureX blocked a request from an unapproved origin.',
+    sw: 'ProcureX imezuia ombi kutoka chanzo kisichoidhinishwa.'
+  },
+  'The requested ProcureX endpoint was not found.': {
+    en: 'The requested ProcureX endpoint was not found.',
+    sw: 'Njia ya ProcureX iliyoombwa haikupatikana.'
+  },
+  'Check the link or return to the previous page.': {
+    en: 'Check the link or return to the previous page.',
+    sw: 'Kagua kiungo au rudi kwenye ukurasa uliopita.'
+  },
   'Security check failed. Please refresh the page and try again.': {
     en: 'Security check failed. Please refresh the page and try again.',
     sw: 'Ukaguzi wa usalama haukufanikiwa. Tafadhali pakia ukurasa upya kisha ujaribu tena.'

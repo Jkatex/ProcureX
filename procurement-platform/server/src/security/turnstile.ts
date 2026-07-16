@@ -1,4 +1,5 @@
 import { securityConfig } from './config.js';
+import { requestError } from '../modules/shared/apiErrors.js';
 
 const localDevelopmentTokenPrefix = 'local-dev-turnstile:';
 const cloudflareAlwaysPassTestingSecret = '1x0000000000000000000000000000000AA';
@@ -7,12 +8,6 @@ type TurnstileResponse = {
   success?: boolean;
   'error-codes'?: string[];
 };
-
-function requestError(message: string, status = 403) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 export async function verifyTurnstileToken(input: { token: string; remoteIp?: string }) {
   const config = securityConfig();

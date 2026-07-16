@@ -33,17 +33,12 @@ import {
   violationEvidenceBodySchema,
   workflowListQuerySchema
 } from './validators.js';
+import { requestError } from '../shared/apiErrors.js';
 
 function bearerToken(req: Request) {
   const header = req.header('authorization') ?? '';
   const [scheme, token] = header.split(/\s+/);
   return scheme?.toLowerCase() === 'bearer' ? token : undefined;
-}
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 export class ModuleController {
@@ -133,6 +128,14 @@ export class ModuleController {
   search: RequestHandler = async (req, res, next) => {
     try {
       res.json(await this.service.search(bearerToken(req), searchQuerySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reindexSearch: RequestHandler = async (req, res, next) => {
+    try {
+      res.status(202).json(await this.service.reindexSearch(bearerToken(req)));
     } catch (error) {
       next(error);
     }

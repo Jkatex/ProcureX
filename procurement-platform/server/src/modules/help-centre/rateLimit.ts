@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import { createHash } from 'node:crypto';
+import { requestError } from '../shared/apiErrors.js';
 
 type MemoryEntry = {
   count: number;
@@ -10,12 +11,6 @@ const memoryStore = new Map<string, MemoryEntry>();
 
 function hashValue(value: string) {
   return createHash('sha256').update(value).digest('hex');
-}
-
-function requestError(message: string, status = 429) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 export function resetHelpCentreRateLimitState() {

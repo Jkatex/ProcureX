@@ -1995,8 +1995,11 @@ describe('bidding financial document exposure in evaluation views', () => {
     expect(workspace.bids[0]?.documents.map((document) => document.documentType)).toEqual(['TECHNICAL_PROPOSAL']);
   });
 
-  it('reveals financial envelope documents at the financial evaluation stage', async () => {
-    const tender = evaluationTenderRecord(EvaluationStage.FINANCIAL);
+  it('reveals financial envelope documents after financial opening', async () => {
+    const tender = evaluationTenderRecord(EvaluationStage.FINANCIAL, {
+      technicalOpenedAt: '2026-07-01T08:10:00.000Z',
+      financialOpenedAt: '2026-07-01T08:30:00.000Z'
+    });
     const service = new EvaluationService({
       health: vi.fn(),
       getWorkspaceByTenderId: vi.fn().mockResolvedValue({ tender, auditEvents: [] })
@@ -2253,7 +2256,7 @@ function canonicalBidPackageFixture(): CanonicalBidPackage {
   };
 }
 
-function evaluationTenderRecord(currentStage: EvaluationStage) {
+function evaluationTenderRecord(currentStage: EvaluationStage, payload: Record<string, unknown> = {}) {
   return {
     id: 'tender-1',
     reference: 'PX-2026-001',
@@ -2272,7 +2275,7 @@ function evaluationTenderRecord(currentStage: EvaluationStage) {
       status: 'IN_PROGRESS',
       currentStage,
       progress: 0,
-      payload: {},
+      payload,
       updatedAt: new Date('2026-07-01T08:00:00.000Z'),
       criteria: [],
       scores: [],

@@ -2,10 +2,11 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
-import { signInWithCredentials } from '@/features/auth/slice';
+import type { MfaChallengeResponse } from '@/features/auth/api';
+import { completeMfaSignIn, signInWithCredentials } from '@/features/auth/slice';
 import { LanguageSwitcher } from '@/shared/components/LanguageSwitcher';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AuthAlert, authAlert, authAlertFromError, type AuthAlertMessage } from './AuthAlert';
+import { AuthAlert, authAlert, authAlertFromError, authAlertText, type AuthAlertMessage } from './AuthAlert';
 import { TurnstileWidget } from './TurnstileWidget';
 
 type LocationState = {
@@ -46,6 +47,8 @@ export function SignInProcurexPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaChallenge, setMfaChallenge] = useState<MfaChallengeResponse | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [alert, setAlert] = useState<AuthAlertMessage | null>(null);
@@ -81,6 +84,13 @@ export function SignInProcurexPage() {
 
     try {
       const session = await dispatch(signInWithCredentials({ email: emailValue.trim(), password: passwordValue, turnstileToken })).unwrap();
+      if ('mfaRequired' in session) {
+        setMfaChallenge(session);
+        setMfaCode('');
+        setTurnstileToken('');
+        setTurnstileResetKey((value) => value + 1);
+        return;
+      }
       const intendedPath = locationState?.from?.pathname;
       navigate(destinationOverride ?? destinationFor(session.user, session.isFirstSignIn, intendedPath), { replace: true });
     } catch (caughtError) {
@@ -94,8 +104,28 @@ export function SignInProcurexPage() {
     }
   }
 
+  async function verifyMfa(destinationOverride?: string) {
+    if (!mfaChallenge || loading) return;
+    setAlert(null);
+    if (!mfaCode.trim()) {
+      setAlert(authAlertText('Enter your authenticator or recovery code.', 'error'));
+      return;
+    }
+    try {
+      const session = await dispatch(completeMfaSignIn({ challengeId: mfaChallenge.challengeId, code: mfaCode.trim() })).unwrap();
+      const intendedPath = locationState?.from?.pathname;
+      navigate(destinationOverride ?? destinationFor(session.user, session.isFirstSignIn, intendedPath), { replace: true });
+    } catch (caughtError) {
+      setAlert(authAlertFromError(caughtError, 'sign-in'));
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (mfaChallenge) {
+      await verifyMfa();
+      return;
+    }
     await signIn(email, password);
   }
 
@@ -167,6 +197,23 @@ export function SignInProcurexPage() {
                 </div>
               </div>
 
+              {mfaChallenge ? (
+                <div className="form-group-new">
+                  <label className="form-label-new" htmlFor="sign-in-mfa-code">Authenticator or recovery code</label>
+                  <input
+                    id="sign-in-mfa-code"
+                    className={`form-input-new ${alert?.tone === 'error' ? 'is-invalid' : ''}`}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={mfaCode}
+                    placeholder="123456"
+                    onChange={(event) => setMfaCode(event.target.value)}
+                    required
+                  />
+                </div>
+              ) : null}
+
               <div className="auth-row">
                 <button className="link-new" type="button" onClick={() => navigate('/forgot-password')}>
                   {t('auth.signIn.forgot')}
@@ -175,11 +222,11 @@ export function SignInProcurexPage() {
 
               <AuthAlert message={alert} />
 
-              <TurnstileWidget action="sign_in" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+              {!mfaChallenge ? <TurnstileWidget action="sign_in" resetKey={turnstileResetKey} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} /> : null}
 
-              <button ref={submitRef} type="submit" className="btn-continue-new" disabled={loading || !turnstileToken}>
+              <button ref={submitRef} type="submit" className="btn-continue-new" disabled={loading || (!mfaChallenge && !turnstileToken) || (Boolean(mfaChallenge) && !mfaCode.trim())}>
                 {loading ? <span className="auth-spinner" aria-hidden="true" /> : null}
-                {loading ? t('auth.signIn.submitting') : t('auth.signIn.submit')}
+                {loading ? t('auth.signIn.submitting') : mfaChallenge ? 'Verify code' : t('auth.signIn.submit')}
               </button>
 
             </form>

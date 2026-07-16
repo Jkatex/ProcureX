@@ -4,6 +4,7 @@ import { createWriteStream } from 'node:fs';
 import { mkdir, readFile, rm, unlink } from 'node:fs/promises';
 import type { IncomingHttpHeaders, IncomingMessage } from 'node:http';
 import { dirname, extname, join, normalize } from 'node:path';
+import { requestError } from '../shared/apiErrors.js';
 
 export type ProfileImageMetadata = {
   objectKey: string;
@@ -26,12 +27,6 @@ const allowedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const allowedMimes = new Set(['image/png', 'image/jpeg', 'image/webp', 'application/octet-stream']);
 const unsafeExtensions = new Set(['.svg', '.exe', '.dll', '.bat', '.cmd', '.com', '.msi', '.ps1', '.sh', '.js', '.mjs', '.cjs', '.vbs', '.html', '.htm']);
 const unsafeMimes = new Set(['image/svg+xml', 'text/html', 'application/javascript', 'text/javascript', 'application/x-msdownload']);
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 export function maxProfileImageBytes() {
   const value = Number(process.env.PROFILE_IMAGE_MAX_BYTES ?? 2 * 1024 * 1024);

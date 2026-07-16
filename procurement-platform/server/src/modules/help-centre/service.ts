@@ -9,6 +9,7 @@ import { normalizeHelpText } from './normalization.js';
 import { ModuleRepository } from './repository.js';
 import { assertValidHelpFaqs } from './validation.js';
 import { moduleDefinition, type HelpMessageInput, type ModuleStatus } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 assertValidHelpFaqs(allHelpFaqs);
 
@@ -175,11 +176,5 @@ function fallbackResponse(signedIn: boolean): HelpMessageResponse {
     relatedQuestions: allHelpFaqs.slice(0, 4).map((faq) => ({ faqId: faq.id, title: faq.title })),
     action: signedIn ? { label: 'Contact Support', path: '/support' } : { label: 'Contact Support', path: '/contact' }
   };
-}
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 

@@ -17,6 +17,7 @@ export function createModuleRouter() {
   router.post('/registration/set-password', controller.setPassword);
 
   router.post('/auth/sign-in', publicAuthLimit, controller.signIn);
+  router.post('/auth/mfa/verify', publicAuthLimit, controller.verifyAuthMfa);
   router.post('/auth/forgot-password', publicAuthLimit, controller.forgotPassword);
   router.post('/auth/resend-reset-code', publicAuthLimit, controller.resendResetCode);
   router.post('/auth/verify-reset-code', publicAuthLimit, controller.verifyResetCode);
@@ -27,6 +28,10 @@ export function createModuleRouter() {
   router.patch('/preferences', controller.updatePreferences);
   router.post('/activity', controller.recordAccountActivity);
   router.post('/auth/sign-out', controller.signOut);
+  router.get('/mfa/status', controller.mfaStatus);
+  router.post('/mfa/totp/start', controller.startTotpMfa);
+  router.post('/mfa/totp/verify', controller.verifyTotpMfa);
+  router.post('/mfa/recovery-codes/regenerate', controller.regenerateMfaRecoveryCodes);
 
   router.get('/verification/me', controller.getVerificationMe);
   router.post('/verification/registry-lookup', controller.registryLookup);

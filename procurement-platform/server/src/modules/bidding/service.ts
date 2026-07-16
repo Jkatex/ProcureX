@@ -13,12 +13,7 @@ import {
 } from './types.js';
 import { draftWithValidation, validateBidDraft, withValidation } from './bidValidation.service.js';
 import type { Request } from 'express';
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
+import { requestError } from '../shared/apiErrors.js';
 
 function validateJsonDocumentMetadata(document: BidDocumentInput) {
   if (!document.checksum || !/^[a-f0-9]{64}$/i.test(document.checksum)) throw requestError('Bid document checksum is required.', 400);

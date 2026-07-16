@@ -26,6 +26,25 @@ export type DocumentContent = {
   body: string | Buffer;
 };
 
+export type DocumentContentAccessMode = 'open' | 'download';
+
+export type DocumentObjectDto = {
+  id: string;
+  ownerOrgId: string | null;
+  uploadedByUserId: string | null;
+  name: string;
+  objectKey: string;
+  documentType: string;
+  checksum: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  storageDriver: 'local' | 's3' | 'legacy' | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  contentUrl: string;
+  downloadUrl: string;
+};
+
 export const officialDocumentStatuses = ['DRAFT', 'PENDING_APPROVAL', 'SIGNED', 'OFFICIAL', 'VOID'] as const;
 
 export type OfficialDocumentStatus = (typeof officialDocumentStatuses)[number];

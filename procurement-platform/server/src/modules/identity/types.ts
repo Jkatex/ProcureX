@@ -63,6 +63,27 @@ export type AuthSessionDto = {
   isFirstSignIn: boolean;
 };
 
+export type MfaChallengeDto = {
+  mfaRequired: true;
+  challengeId: string;
+  methods: Array<'totp' | 'recovery_code'>;
+  expiresAt: string;
+};
+
+export type AuthSignInResponseDto = AuthSessionDto | MfaChallengeDto;
+
+export type MfaStatusDto = {
+  enabled: boolean;
+  methods: Array<'totp' | 'recovery_code'>;
+  factors: Array<{
+    id: string;
+    type: string;
+    verified: boolean;
+    createdAt: string;
+  }>;
+  recoveryCodesRemaining: number;
+};
+
 export type RegistryRecordDto = {
   id: string;
   source: string;

@@ -33,8 +33,9 @@ function expectValidationResponse(res: ReturnType<typeof mockResponse>, next: Re
   expect(res.json).toHaveBeenCalledWith(
     expect.objectContaining({
       success: false,
-      message: 'Validation failed',
-      errors: expect.any(Array)
+      code: 'PROCUREMENT_VALIDATION_FAILED',
+      message: 'Tender details are incomplete.',
+      fieldErrors: expect.any(Array)
     })
   );
   expect(next).not.toHaveBeenCalled();

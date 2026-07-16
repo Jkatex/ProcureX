@@ -58,6 +58,7 @@ import type {
   UpdateTenderResponseDto,
   UpdateProcurementPlanInput
 } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 const planInclude = {
   ownerOrg: { select: { id: true, name: true } },
@@ -163,12 +164,6 @@ type MarketplaceTenderRowContext = MarketplaceContext & {
   savedTenderIds?: Set<string>;
   bidState?: MarketplaceBidState;
 };
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 function requireSignatureKeyphrase(value?: string) {
   if (!value) throw requestError('Digital signature keyphrase is required.', 400);
@@ -1224,7 +1219,7 @@ export class ModuleRepository {
 
   async failTenderReview(
     tenderId: string,
-    context: { adminUserId: string },
+    context: { adminOrgId: string; adminUserId: string },
     input: TenderReviewFailInput
   ): Promise<TenderReviewDecisionResponseDto | null> {
     const decidedAt = new Date();
@@ -1287,6 +1282,23 @@ export class ModuleRepository {
           status: true,
           visibility: true,
           publishedAt: true
+        }
+      });
+      await signSensitiveAction(tx, {
+        userId: context.adminUserId,
+        organizationId: context.adminOrgId,
+        signatureKeyphrase: requireSignatureKeyphrase(input.signatureKeyphrase),
+        moduleKey: 'procurement',
+        actionKey: 'tender.publish_return',
+        entityType: 'tender',
+        entityRef: tender.id,
+        payload: {
+          tenderId: tender.id,
+          reference: tender.reference,
+          messageId: message.id,
+          decidedAt: decidedAt.toISOString(),
+          previousStatus: TenderStatus.REVIEW,
+          nextStatus: TenderStatus.DRAFT
         }
       });
       return { tender, messageId: message.id };

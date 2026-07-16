@@ -11,16 +11,11 @@ import {
   replyMessageBodySchema,
   tenderLinkQuerySchema
 } from './validators.js';
+import { requestError } from '../shared/apiErrors.js';
 
 function bearerToken(req: Parameters<RequestHandler>[0]) {
   const header = req.header('authorization') ?? '';
   return header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : undefined;
-}
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 export class ModuleController {

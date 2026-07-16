@@ -628,6 +628,7 @@ export type TenderReviewDetailDto = TenderDetailDto & {
 
 export type TenderReviewFailInput = {
   messageId: string;
+  signatureKeyphrase: string;
 };
 
 export type TenderReviewDecisionResponseDto = {

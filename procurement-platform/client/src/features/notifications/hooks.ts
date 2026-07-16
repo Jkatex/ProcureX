@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useAppDispatch } from '@/app/store';
+import { notificationFromApiError, type ApiErrorNotificationContext } from '@/shared/api/errors';
 import type { CreateNotificationInput, NotificationTone } from '@/shared/types/notifications';
 import { clearNotifications, dismissNotification, enqueueNotification } from './slice';
 
@@ -28,6 +29,7 @@ export function useNotifications() {
     notifyInfo: (title: string, message: string, options?: NotifyOptions) => notifyTone('info', title, message, options),
     notifyWarning: (title: string, message: string, options?: NotifyOptions) => notifyTone('warning', title, message, options),
     notifyError: (title: string, message: string, options?: NotifyOptions) => notifyTone('error', title, message, options),
+    notifyApiError: (error: unknown, context?: ApiErrorNotificationContext) => dispatch(enqueueNotification(notificationFromApiError(error, context))),
     dismissNotification: (id: string) => dispatch(dismissNotification(id)),
     clearNotifications: () => dispatch(clearNotifications())
   };

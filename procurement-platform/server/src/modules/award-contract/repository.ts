@@ -158,6 +158,7 @@ import type {
   SupplierRiskProfileInput,
   ThreeWayMatchInput
 } from './types.js';
+import { requestError } from '../shared/apiErrors.js';
 
 const recommendationInclude = {
   workspace: {
@@ -490,12 +491,6 @@ const documentSelect = {
 } satisfies Prisma.DocumentObjectSelect;
 
 type ContractDocumentRecord = Prisma.DocumentObjectGetPayload<{ select: typeof documentSelect }>;
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
 
 function effectiveOrgId(context: AwardContractRequestContext, requestedOrgId?: string) {
   if (context.isAdmin) return requestedOrgId || context.organizationId || '';

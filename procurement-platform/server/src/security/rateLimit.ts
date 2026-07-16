@@ -4,6 +4,7 @@ import { Redis } from 'ioredis';
 import { createHash } from 'node:crypto';
 import { ModuleRepository } from '../modules/identity/repository.js';
 import { isProductionRuntime, securityConfig } from './config.js';
+import { requestError } from '../modules/shared/apiErrors.js';
 
 type MemoryEntry = {
   count: number;
@@ -15,12 +16,6 @@ let redisClient: Redis | null = null;
 
 function hashValue(value: string) {
   return createHash('sha256').update(value).digest('hex');
-}
-
-function requestError(message: string, status = 429) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
 }
 
 function incrementMemoryRateLimit(key: string, windowSeconds: number) {

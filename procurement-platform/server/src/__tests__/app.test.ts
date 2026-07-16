@@ -2,6 +2,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
 import { registeredModules } from '../modules/index.js';
+import { apiErrorResponseBody } from '../modules/shared/apiErrors.js';
 import { resetAuthRateLimitState } from '../security/rateLimit.js';
 import { verifyTurnstileToken } from '../security/turnstile.js';
 
@@ -38,6 +39,52 @@ describe('ProcureX server skeleton', () => {
 
     expect(response.body.status).toBe('ok');
     expect(response.body.modules).toHaveLength(registeredModules.length);
+  });
+
+  it('returns the standard user-facing error contract for missing routes', async () => {
+    const response = await request(createApp()).get('/api/not-a-module').expect(404);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: 'request_error',
+      code: 'ROUTE_NOT_FOUND',
+      message: 'The requested ProcureX endpoint was not found.',
+      userMessage: 'The requested ProcureX endpoint was not found.',
+      reason: 'Check the link or return to the previous page.',
+      fieldErrors: []
+    });
+  });
+
+  it('localizes validation errors into the standard response contract', async () => {
+    const response = await request(createApp())
+      .post('/api/identity/auth/sign-in')
+      .set('X-ProcureX-Language', 'sw')
+      .send({})
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      error: 'request_error',
+      code: 'VALIDATION_FAILED',
+      userMessage: 'Baadhi ya taarifa ulizowasilisha hazijakamilika au si sahihi.',
+      reason: 'Kagua sehemu zilizoonyeshwa kisha ujaribu tena.'
+    });
+    expect(response.body.fieldErrors.length).toBeGreaterThan(0);
+  });
+
+  it('keeps internal server errors generic in the standard response contract', () => {
+    const response = apiErrorResponseBody(Object.assign(new Error('Database password leaked.'), { status: 500 }), 'en');
+
+    expect(response).toMatchObject({
+      success: false,
+      error: 'internal_error',
+      code: 'INTERNAL_ERROR',
+      message: 'Unexpected server error.',
+      userMessage: 'Unexpected server error.',
+      reason: 'ProcureX could not complete this request.',
+      fieldErrors: []
+    });
+    expect(JSON.stringify(response)).not.toContain('Database password leaked');
   });
 
   it('mounts each module status route', async () => {

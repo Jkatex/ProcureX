@@ -1,4 +1,6 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';
 import {
   buildOfficialPdfSections,
   documentControlRows,
@@ -10,8 +12,11 @@ import { renderOfficialPdf } from './officialPdfRenderer.js';
 import { readOfficialPdf, safeFilename as safeOfficialFilename, sha256, storeOfficialPdf } from './officialStorage.js';
 import { findOfficialTemplate, listOfficialTemplateDtos, type OfficialTemplateDefinition } from './officialTemplates.js';
 import { loadOfficialSource } from './officialSourceLoader.js';
+import { readStoredDocument, type ParsedDocumentUpload } from './storage.js';
 import type {
+  DocumentContentAccessMode,
   DocumentContent,
+  DocumentObjectDto,
   DocumentRequestContext,
   OfficialDocumentActionInput,
   OfficialDocumentFile,
@@ -23,12 +28,7 @@ import type {
   OfficialTemplateDto,
   OfficialValidationWarning
 } from './types.js';
-
-function requestError(message: string, status = 400) {
-  const error = new Error(message) as Error & { status?: number };
-  error.status = status;
-  return error;
-}
+import { requestError } from '../shared/apiErrors.js';
 
 function escapeHtml(value: string) {
   return value
@@ -93,7 +93,43 @@ export class ModuleRepository {
     return { ready: true };
   }
 
-  async content(id: string, context: DocumentRequestContext): Promise<DocumentContent> {
+  async createUploadedDocument(upload: ParsedDocumentUpload, context: DocumentRequestContext): Promise<DocumentObjectDto> {
+    const created = await this.db.documentObject.create({
+      data: {
+        ownerOrgId: upload.ownerOrgId ?? null,
+        uploadedByUserId: context.userId ?? null,
+        name: upload.name,
+        objectKey: upload.objectKey,
+        documentType: upload.documentType,
+        checksum: upload.checksum,
+        metadata: {
+          ...upload.userMetadata,
+          ...upload.metadata,
+          contentType: upload.contentType,
+          sizeBytes: upload.sizeBytes,
+          storage: upload.storageDriver,
+          storageDriver: upload.storageDriver,
+          sourceModule: upload.sourceModule ?? null,
+          sourceEntityType: upload.sourceEntityType ?? null,
+          sourceEntityId: upload.sourceEntityId ?? null,
+          uploadedAt: new Date().toISOString(),
+          uploadedByUserId: context.userId ?? null
+        } as Prisma.InputJsonObject
+      }
+    });
+    await this.createDocumentAuditEvent('documents.uploaded', created, context, {
+      checksum: created.checksum,
+      contentType: upload.contentType,
+      sizeBytes: upload.sizeBytes,
+      storageDriver: upload.storageDriver,
+      sourceModule: upload.sourceModule ?? null,
+      sourceEntityType: upload.sourceEntityType ?? null,
+      sourceEntityId: upload.sourceEntityId ?? null
+    });
+    return this.documentObjectDto(created);
+  }
+
+  async content(id: string, context: DocumentRequestContext, mode: DocumentContentAccessMode = 'open'): Promise<DocumentContent> {
     const document = await this.db.documentObject.findUnique({
       where: { id },
       include: {
@@ -122,10 +158,30 @@ export class ModuleRepository {
     const contentBase64 = typeof metadata.contentBase64 === 'string' ? metadata.contentBase64 : '';
     const mimeType = typeof metadata.mimeType === 'string' && metadata.mimeType.trim() ? metadata.mimeType.trim() : '';
     if (contentBase64 && mimeType) {
+      await this.createDocumentAuditEvent(mode === 'download' ? 'documents.downloaded' : 'documents.opened', document, context, {
+        legacyContent: true,
+        contentType: mimeType
+      });
       return {
         filename: safeFilename(document.name),
         contentType: mimeType,
         body: Buffer.from(contentBase64, 'base64')
+      };
+    }
+
+    const storageDriver = metadata.storage ?? metadata.storageDriver;
+    const storedContentType = typeof metadata.contentType === 'string' && metadata.contentType.trim() ? metadata.contentType.trim() : '';
+    if ((storageDriver === 'local' || storageDriver === 's3') && storedContentType) {
+      const body = await readStoredDocument(document.objectKey, metadata);
+      await this.createDocumentAuditEvent(mode === 'download' ? 'documents.downloaded' : 'documents.opened', document, context, {
+        contentType: storedContentType,
+        storageDriver,
+        checksum: document.checksum ?? null
+      });
+      return {
+        filename: safeFilename(document.name),
+        contentType: storedContentType,
+        body
       };
     }
 
@@ -137,6 +193,10 @@ export class ModuleRepository {
       [copy.created, document.createdAt.toISOString()],
       [copy.metadata, JSON.stringify(metadata)]
     ];
+    await this.createDocumentAuditEvent(mode === 'download' ? 'documents.downloaded' : 'documents.opened', document, context, {
+      previewOnly: true,
+      contentType: 'text/html; charset=utf-8'
+    });
     return {
       filename: `${safeFilename(document.name)}.html`,
       contentType: 'text/html; charset=utf-8',
@@ -357,6 +417,100 @@ export class ModuleRepository {
     return this.officialVersionDto(version, version.template?.code ?? null);
   }
 
+  async approveDocument(id: string, input: OfficialDocumentActionInput, context: DocumentRequestContext): Promise<DocumentObjectDto> {
+    return this.markDocument(id, input, context, 'approve');
+  }
+
+  async signDocument(id: string, input: OfficialDocumentActionInput, context: DocumentRequestContext): Promise<DocumentObjectDto> {
+    return this.markDocument(id, input, context, 'sign');
+  }
+
+  private async markDocument(id: string, input: OfficialDocumentActionInput, context: DocumentRequestContext, action: 'approve' | 'sign') {
+    if (!context.userId) throw requestError('Sign in before confirming this document action.', 401);
+    if (!input.signatureKeyphrase) throw requestError('Digital signature keyphrase is required for this document action.', 400);
+
+    const existing = await this.db.documentObject.findUnique({
+      where: { id },
+      include: {
+        tenderDocuments: { include: { tender: { select: { buyerOrgId: true } } } },
+        bidDocuments: { include: { bid: { select: { buyerOrgId: true, supplierOrgId: true } } } },
+        contractVersions: { include: { contract: { select: { buyerOrgId: true, supplierOrgId: true } } } },
+        contractMilestoneEvidence: { include: { milestone: { include: { contract: { select: { buyerOrgId: true, supplierOrgId: true } } } } } },
+        terminationEvidence: { include: { termination: { include: { contract: { select: { buyerOrgId: true, supplierOrgId: true } } } } } }
+      }
+    });
+    if (!existing) throw requestError('Document was not found.', 404);
+    if (!this.canManageDocument(existing, context)) throw requestError('Permission to manage this document is required.', 403);
+
+    const updated = await this.db.$transaction(async (tx) => {
+      const actionKey = action === 'approve' ? 'document.approve' : 'document.sign';
+      const signed = await signSensitiveAction(tx, {
+        userId: context.userId!,
+        organizationId: context.organizationId ?? existing.ownerOrgId ?? null,
+        signatureKeyphrase: input.signatureKeyphrase!,
+        moduleKey: 'documents',
+        actionKey,
+        entityType: 'document_object',
+        entityRef: existing.id,
+        payload: {
+          documentId: existing.id,
+          checksum: existing.checksum,
+          action,
+          note: input.note ?? null
+        }
+      });
+      const now = new Date().toISOString();
+      const metadata = objectPayload(existing.metadata);
+      const historyKey = action === 'approve' ? 'approvals' : 'signatures';
+      const history = Array.isArray(metadata[historyKey]) ? (metadata[historyKey] as unknown[]) : [];
+      const document = await tx.documentObject.update({
+        where: { id: existing.id },
+        data: {
+          metadata: {
+            ...metadata,
+            status: action === 'approve' ? 'APPROVED' : metadata.status ?? 'SIGNED',
+            [historyKey]: [
+              ...history,
+              {
+                action,
+                userId: context.userId ?? null,
+                organizationId: context.organizationId ?? null,
+                signedActionId: signed.id,
+                signatureHash: signed.signatureHash,
+                note: input.note ?? null,
+                at: now
+              }
+            ],
+            lastDecisionAt: now,
+            lastDecisionByUserId: context.userId ?? null
+          } as Prisma.InputJsonObject
+        }
+      });
+      if (tx.auditEvent?.create) {
+        await tx.auditEvent.create({
+          data: {
+            ownerOrgId: document.ownerOrgId ?? context.organizationId ?? null,
+            actorUserId: context.userId ?? null,
+            event: action === 'approve' ? 'documents.approved' : 'documents.signed',
+            entityType: 'document_object',
+            entityRef: document.id,
+            severity: 'INFO',
+            payload: {
+              documentType: document.documentType,
+              checksum: document.checksum,
+              signedActionId: signed.id,
+              signatureHash: signed.signatureHash,
+              note: input.note ?? null
+            } as Prisma.InputJsonObject
+          }
+        });
+      }
+      return document;
+    });
+
+    return this.documentObjectDto(updated);
+  }
+
   private canReadDocument(document: any, context: DocumentRequestContext) {
     if (context.isAdmin) return true;
     const organizationId = context.organizationId;
@@ -377,6 +531,71 @@ export class ModuleRepository {
 
     const terminationEvidence = (document.terminationEvidence ?? []) as Array<{ termination: { contract: { buyerOrgId: string; supplierOrgId: string | null } } }>;
     return terminationEvidence.some((row) => row.termination.contract.buyerOrgId === organizationId || row.termination.contract.supplierOrgId === organizationId);
+  }
+
+  private canManageDocument(document: any, context: DocumentRequestContext) {
+    if (context.isAdmin) return true;
+    if (!context.organizationId) return false;
+    if (document.ownerOrgId === context.organizationId) return true;
+
+    const tenderDocuments = (document.tenderDocuments ?? []) as Array<{ tender: { buyerOrgId: string } }>;
+    if (tenderDocuments.some((row) => row.tender.buyerOrgId === context.organizationId)) return true;
+
+    const contractVersions = (document.contractVersions ?? []) as Array<{ contract: { buyerOrgId: string; supplierOrgId: string | null } }>;
+    if (contractVersions.some((row) => row.contract.buyerOrgId === context.organizationId)) return true;
+
+    const milestoneEvidence = (document.contractMilestoneEvidence ?? []) as Array<{ milestone: { contract: { buyerOrgId: string; supplierOrgId: string | null } } }>;
+    if (milestoneEvidence.some((row) => row.milestone.contract.buyerOrgId === context.organizationId)) return true;
+
+    const terminationEvidence = (document.terminationEvidence ?? []) as Array<{ termination: { contract: { buyerOrgId: string; supplierOrgId: string | null } } }>;
+    return terminationEvidence.some((row) => row.termination.contract.buyerOrgId === context.organizationId);
+  }
+
+  private documentObjectDto(document: any): DocumentObjectDto {
+    const metadata = objectPayload(document.metadata);
+    const storageDriver = metadata.storageDriver ?? metadata.storage;
+    const sizeBytes = Number(metadata.sizeBytes);
+    return {
+      id: document.id,
+      ownerOrgId: document.ownerOrgId ?? null,
+      uploadedByUserId: document.uploadedByUserId ?? null,
+      name: document.name,
+      objectKey: document.objectKey,
+      documentType: document.documentType,
+      checksum: document.checksum ?? null,
+      contentType:
+        typeof metadata.contentType === 'string'
+          ? metadata.contentType
+          : typeof metadata.mimeType === 'string'
+            ? metadata.mimeType
+            : null,
+      sizeBytes: Number.isFinite(sizeBytes) && sizeBytes >= 0 ? sizeBytes : null,
+      storageDriver: storageDriver === 's3' || storageDriver === 'local' ? storageDriver : metadata.contentBase64 ? 'legacy' : null,
+      metadata,
+      createdAt: document.createdAt.toISOString(),
+      contentUrl: `/api/documents/${document.id}/content`,
+      downloadUrl: `/api/documents/${document.id}/content?download=true`
+    };
+  }
+
+  private async createDocumentAuditEvent(event: string, document: any, context: DocumentRequestContext, payload: Record<string, unknown>) {
+    if (!this.db.auditEvent?.create) return;
+    await this.db.auditEvent.create({
+      data: {
+        ownerOrgId: document.ownerOrgId ?? context.organizationId ?? null,
+        actorUserId: context.userId ?? null,
+        event,
+        entityType: 'document_object',
+        entityRef: document.id,
+        severity: 'INFO',
+        payload: {
+          documentType: document.documentType,
+          objectKey: document.objectKey,
+          checksum: document.checksum ?? null,
+          ...payload
+        } as Prisma.InputJsonObject
+      }
+    });
   }
 
   private async upsertOfficialTemplate(template: OfficialTemplateDefinition) {

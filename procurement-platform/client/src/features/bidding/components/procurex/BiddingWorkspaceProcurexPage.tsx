@@ -4,7 +4,7 @@ import html2pdf from 'html2pdf.js';
 import { store } from '@/app/store';
 import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseModal';
 import { ProcurexWorkspaceChrome } from '@/shared/components/procurex/ProcurexWorkspaceChrome';
-import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
+import { apiErrorMessage, apiRawErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import { useTenderDetail } from '@/features/procurement/hooks';
 import type { TenderDetail } from '@/features/procurement/types';
 import { biddingApi } from '../../api';
@@ -437,7 +437,7 @@ export function BiddingWorkspaceProcurexPage() {
       setActiveStep(receiptStepIndex(steps, workflow));
       showBidNotice('success', 'Notice', workflow === 'consultancy' ? 'Technical and financial envelopes sealed. Receipt generated.' : 'Bid package sealed. Receipt generated.');
     } catch (error) {
-      const message = errorMessage(error, 'Bid could not be submitted.');
+      const message = bidSubmitErrorMessage(error, 'Bid could not be submitted.');
       setSignatureError(isKeyphraseApiError(error) ? message : '');
       showBidNotice('error', 'Notice', message);
     } finally {
@@ -7499,6 +7499,14 @@ function humanize(value: string) {
 }
 
 function errorMessage(error: unknown, fallback: string) {
+  return apiErrorMessage(error, fallback);
+}
+
+function bidSubmitErrorMessage(error: unknown, fallback: string) {
+  if (isKeyphraseApiError(error)) return apiErrorMessage(error, fallback);
+  const status = (error as { response?: { status?: number } }).response?.status;
+  const rawMessage = apiRawErrorMessage(error);
+  if (status && status >= 400 && status < 500 && rawMessage) return rawMessage;
   return apiErrorMessage(error, fallback);
 }
 

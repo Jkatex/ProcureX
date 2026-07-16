@@ -4,6 +4,7 @@ import { ModuleService } from '../modules/identity/service.js';
 import type { EmailValidationProvider, EmailValidationResult } from '../modules/identity/emailValidation.js';
 import type { PhoneValidationProvider, PhoneValidationResult } from '../modules/identity/phoneValidation.js';
 import type { RegistryLookupRequest, RegistryProvider, RegistryProviderRecord } from '../modules/identity/registryProviders.js';
+import type { AuthSessionDto } from '../modules/identity/types.js';
 
 class FakeIdentityRepository {
   users = new Map<string, any>();
@@ -18,6 +19,7 @@ class FakeIdentityRepository {
   history: any[] = [];
   signatures: any[] = [];
   signingCredentials: any[] = [];
+  mfaFactors: any[] = [];
   trustHistory: any[] = [];
   screeningChecks: any[] = [];
   preferences = new Map<string, any>();
@@ -71,6 +73,40 @@ class FakeIdentityRepository {
       }
     }
     return Promise.resolve({ count });
+  }
+
+  listMfaFactors(userId: string) {
+    return Promise.resolve(this.mfaFactors.filter((factor) => factor.userId === userId));
+  }
+
+  findMfaFactor(id: string) {
+    return Promise.resolve(this.mfaFactors.find((factor) => factor.id === id) ?? null);
+  }
+
+  findVerifiedTotpFactor(userId: string) {
+    return Promise.resolve(this.mfaFactors.find((factor) => factor.userId === userId && factor.type === 'totp' && factor.verified) ?? null);
+  }
+
+  createMfaFactor(input: Record<string, unknown>) {
+    const factor = {
+      id: this.nextId('mfa-factor'),
+      verified: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...input
+    };
+    this.mfaFactors.push(factor);
+    return Promise.resolve(factor);
+  }
+
+  verifyMfaFactor(id: string) {
+    const factor = this.mfaFactors.find((item) => item.id === id);
+    if (factor) {
+      factor.verified = true;
+      factor.verifiedAt = new Date();
+      factor.updatedAt = new Date();
+    }
+    return Promise.resolve(factor ?? null);
   }
 
   upsertPreference(input: { userId: string; preferredLanguage?: string; timezone?: string; metadata?: Record<string, unknown> }) {
@@ -648,6 +684,12 @@ function legalAcceptance() {
   } as const;
 }
 
+async function signInSession(service: ModuleService, email: string, password: string): Promise<AuthSessionDto> {
+  const response = await service.signIn(email, password);
+  if ('mfaRequired' in response) throw new Error('Expected sign-in to return a session.');
+  return response;
+}
+
 const testLocation = {
   region: 'Dar es Salaam',
   district: 'Ilala',
@@ -737,13 +779,13 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('walkthrough@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('walkthrough@example.test', 'Strong123!');
+    const session = await signInSession(service, 'walkthrough@example.test', 'Strong123!');
 
     expect(session.user.email).toBe('walkthrough@example.test');
     expect(session.user.verificationStatus).toBe(VerificationStatus.NOT_STARTED);
     expect(session.isFirstSignIn).toBe(true);
 
-    const nextSession = await service.signIn('walkthrough@example.test', 'Strong123!');
+    const nextSession = await signInSession(service, 'walkthrough@example.test', 'Strong123!');
     expect(nextSession.isFirstSignIn).toBe(false);
   });
 
@@ -813,7 +855,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('language@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('language@example.test', 'Strong123!');
+    const session = await signInSession(service, 'language@example.test', 'Strong123!');
 
     await expect(service.preferences(session.token)).resolves.toMatchObject({ preferredLanguage: 'en' });
     const updated = await service.updatePreferences(session.token, { preferredLanguage: 'sw' }, { ipAddress: '127.0.0.1', userAgent: 'vitest' });
@@ -865,7 +907,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('profile-location@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('profile-location@example.test', 'Strong123!');
+    const session = await signInSession(service, 'profile-location@example.test', 'Strong123!');
 
     const saved = await service.updateProfile(session.token, {
       profile: {
@@ -890,7 +932,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('contact-change@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('contact-change@example.test', 'Strong123!');
+    const session = await signInSession(service, 'contact-change@example.test', 'Strong123!');
 
     await expect(service.startProfileContactChange(undefined, { field: 'email', value: 'missing-session@example.test' })).rejects.toMatchObject({ status: 401 });
 
@@ -923,7 +965,7 @@ describe('identity production auth', () => {
     const firstOtp = await service.verifyOtp(first.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(firstOtp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('first-contact@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('first-contact@example.test', 'Strong123!');
+    const session = await signInSession(service, 'first-contact@example.test', 'Strong123!');
 
     await service.startRegistration({ email: 'taken-contact@example.test', phone: '+255700000075' });
 
@@ -939,7 +981,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('protected-profile@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('protected-profile@example.test', 'Strong123!');
+    const session = await signInSession(service, 'protected-profile@example.test', 'Strong123!');
     await repository.upsertVerificationProfile({
       userId: session.user.id,
       organizationId: session.user.organizationId,
@@ -1202,7 +1244,7 @@ describe('identity production auth', () => {
       challengeId: reset.challengeId
     });
     await service.resetPassword(reset.challengeId, notifications.resets[0].code, 'Better123!');
-    const session = await service.signIn('reset@example.test', 'Better123!');
+    const session = await signInSession(service, 'reset@example.test', 'Better123!');
 
     expect(session.user.email).toBe('reset@example.test');
   });
@@ -1213,7 +1255,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('revoke@example.test', 'Strong123!', legalAcceptance());
-    const oldSession = await service.signIn('revoke@example.test', 'Strong123!');
+    const oldSession = await signInSession(service, 'revoke@example.test', 'Strong123!');
 
     await service.forgotPassword('revoke@example.test');
     await service.resetPassword(resetChallengeIdFromEmail(notifications.resets[0]), notifications.resets[0].code, 'Better123!');
@@ -1454,7 +1496,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('ekyc@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('ekyc@example.test', 'Strong123!');
+    const session = await signInSession(service, 'ekyc@example.test', 'Strong123!');
     const keyphrase = await requestSignatureForSession(service, session.token);
 
     const registry = await service.registryLookup({
@@ -1503,7 +1545,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('individual@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('individual@example.test', 'Strong123!');
+    const session = await signInSession(service, 'individual@example.test', 'Strong123!');
     const keyphrase = await requestSignatureForSession(service, session.token);
     const registry = await service.registryLookup({ entityType: 'individual', registryNumber: '1234567890' });
 
@@ -1525,7 +1567,7 @@ describe('identity production auth', () => {
     expect(organization.buyerProfile).toMatchObject({ procuringType: 'Verified individual buyer' });
     expect(organization.supplierProfile).toMatchObject({ trustTier: TrustTier.SILVER, riskLevel: RiskLevel.LOW });
 
-    const refreshedSession = await service.signIn('individual@example.test', 'Strong123!');
+    const refreshedSession = await signInSession(service, 'individual@example.test', 'Strong123!');
     expect(refreshedSession.user.capabilities).toEqual(expect.arrayContaining(['BUYER', 'SUPPLIER']));
     expect(refreshedSession.user.permissions).toEqual(expect.arrayContaining(['procurement.create', 'bidding.submit']));
   });
@@ -1546,7 +1588,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('keyphrase@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('keyphrase@example.test', 'Strong123!');
+    const session = await signInSession(service, 'keyphrase@example.test', 'Strong123!');
     const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-KEYPHRASE' });
     const input = {
       entityType: 'business' as const,
@@ -1584,7 +1626,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('access@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('access@example.test', 'Strong123!');
+    const session = await signInSession(service, 'access@example.test', 'Strong123!');
     const keyphrase = await requestSignatureForSession(service, session.token);
     const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-ACCESS' });
 
@@ -1631,7 +1673,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps.at(-1)!.code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('blocked@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('blocked@example.test', 'Strong123!');
+    const session = await signInSession(service, 'blocked@example.test', 'Strong123!');
     const keyphrase = await requestSignatureForSession(service, session.token);
     const registry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-BLOCKED' });
     const result = await service.submitVerification(session.token, {
@@ -1674,7 +1716,7 @@ describe('identity production auth', () => {
     const firstOtp = await service.verifyOtp(first.challengeId, notifications.phoneOtps.at(-1)!.code);
     await service.activateEmail(firstOtp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('duplicate-one@example.test', 'Strong123!', legalAcceptance());
-    const firstSession = await service.signIn('duplicate-one@example.test', 'Strong123!');
+    const firstSession = await signInSession(service, 'duplicate-one@example.test', 'Strong123!');
     const firstKeyphrase = await requestSignatureForSession(service, firstSession.token, 'SigningOne123');
     const firstRegistry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-200' });
     await service.submitVerification(firstSession.token, {
@@ -1694,7 +1736,7 @@ describe('identity production auth', () => {
     const secondOtp = await service.verifyOtp(second.challengeId, notifications.phoneOtps.at(-1)!.code);
     await service.activateEmail(secondOtp.activationChallengeId, notifications.activations.at(-1)!.code);
     await service.setPassword('duplicate-two@example.test', 'Strong123!', legalAcceptance());
-    const secondSession = await service.signIn('duplicate-two@example.test', 'Strong123!');
+    const secondSession = await signInSession(service, 'duplicate-two@example.test', 'Strong123!');
     const secondKeyphrase = await requestSignatureForSession(service, secondSession.token, 'SigningTwo123');
     const secondRegistry = await service.registryLookup({ entityType: 'business', businessRegistrationSource: 'tin', registryNumber: 'TIN-200' });
     const result = await service.submitVerification(secondSession.token, {
@@ -1731,7 +1773,7 @@ describe('identity production auth', () => {
     const otp = await service.verifyOtp(registration.challengeId, notifications.phoneOtps[0].code);
     await service.activateEmail(otp.activationChallengeId, notifications.activations[0].code);
     await service.setPassword('pending@example.test', 'Strong123!', legalAcceptance());
-    const session = await service.signIn('pending@example.test', 'Strong123!');
+    const session = await signInSession(service, 'pending@example.test', 'Strong123!');
     const keyphrase = await requestSignatureForSession(service, session.token);
     const registry = await service.registryLookup({ entityType: 'individual', registryNumber: 'TIN-300' });
     const submitted = await service.submitVerification(session.token, {
@@ -1752,7 +1794,7 @@ describe('identity production auth', () => {
     await service.setPassword('admin@example.test', 'Strong123!', legalAcceptance());
     const adminUser = repository.usersByEmail.get('admin@example.test');
     adminUser.accountType = AccountType.ADMIN;
-    const adminSession = await service.signIn('admin@example.test', 'Strong123!');
+    const adminSession = await signInSession(service, 'admin@example.test', 'Strong123!');
 
     await service.decideAdminVerification(adminSession.token, submitted.verification.id, 'approve', 'Registry confidence manually reviewed.');
 
