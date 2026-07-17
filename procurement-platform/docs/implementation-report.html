@@ -513,6 +513,8 @@
           <li><a href="#module-implementation-atlas">Detailed Module Implementation Atlas</a></li>
           <li><a href="#frontend-workflow-atlas">Frontend Screen And Workflow Atlas</a></li>
           <li><a href="#data-security-testing-traceability">Data, Security, Testing, And Operations Traceability</a></li>
+          <li><a href="#technology-stack-deep-dive">Technology And Stack Deep Dive</a></li>
+          <li><a href="#security-implementation-deep-dive">Security Implementation Deep Dive</a></li>
           <li><a href="#references">References And Figures Used</a></li>
         </ol>
       </nav>
@@ -7366,7 +7368,7 @@ SignInProcurexPage.tsx
         <div><strong>41</strong>registered ProcureX page keys.</div>
         <div><strong>35/35</strong>desktop target/reference screenshots.</div>
       </div>
-      
+
     <article id="frontend-atlas-routing" class="handover-unit">
       <h3>17.1 Routing And Guard Architecture</h3>
       <p class="tagline">Frontend route, registry, workflow, and screenshot evidence.</p>
@@ -7379,7 +7381,7 @@ SignInProcurexPage.tsx
 <tr><th>Page registry source</th><td><code>client/src/features/procurexPageRegistry.tsx</code></td></tr>
 <tr><th>Parity source</th><td><code>docs/ui-parity/routes.json</code> and <code>docs/ui-parity/screenshots/</code></td></tr></table>
     </article>
-      
+
     <article id="frontend-atlas-public" class="handover-unit">
       <h3>17.2 Public Discovery Screens</h3>
       <p class="tagline">Frontend route, registry, workflow, and screenshot evidence.</p>
@@ -7789,15 +7791,910 @@ SignInProcurexPage.tsx
     </article>
     </section>
 
+
+    <section id="technology-stack-deep-dive" class="section">
+      <h2>19. Technology And Stack Deep Dive</h2>
+      <p>This chapter lists the technologies, frameworks, libraries, infrastructure services, and development tools used to implement ProcureX. It is based on the repository manifests, TypeScript configs, Vite config, Docker Compose services, environment examples, and implementation files.</p>
+      <div class="summary-box">
+        <p>The stack is intentionally split by responsibility: React and Vite own the browser app, Express and Prisma own the API and persistence boundary, PostgreSQL/Redis/Elasticsearch/MinIO provide local infrastructure, and TypeScript/Vitest/Playwright/ESLint keep the implementation verifiable.</p>
+      </div>
+      <table><tr><th>Direct npm package entries</th><td>62</td></tr>
+<tr><th>Docker services</th><td>4</td></tr>
+<tr><th>Client package groups</th><td><code>@emotion/react</code>, <code>@emotion/styled</code>, <code>@mui/icons-material</code>, <code>@mui/material</code>, <code>@procurex/shared</code>, <code>@reduxjs/toolkit</code>, <code>axios</code>, <code>html2pdf.js</code>, <code>i18next</code>, <code>react</code>, <code>react-dom</code>, <code>react-i18next</code>, <code>react-redux</code>, <code>react-router-dom</code>, <code>recharts</code>, <code>socket.io-client</code>, <code>xlsx</code>, <code>@eslint/js</code>, <code>@testing-library/jest-dom</code>, <code>@testing-library/react</code>, <code>@testing-library/user-event</code>, <code>@types/node</code>, <code>@types/react</code>, <code>@types/react-dom</code>, <code>@vitejs/plugin-react</code>, <code>eslint</code>, <code>eslint-plugin-react-hooks</code>, <code>eslint-plugin-react-refresh</code>, <code>globals</code>, <code>jsdom</code>, <code>playwright</code>, <code>typescript</code>, <code>typescript-eslint</code>, <code>vite</code>, <code>vitest</code></td></tr>
+<tr><th>Server package groups</th><td><code>@aws-sdk/client-s3</code>, <code>@elastic/elasticsearch</code>, <code>@prisma/client</code>, <code>@procurex/shared</code>, <code>@types/busboy</code>, <code>busboy</code>, <code>cors</code>, <code>dotenv</code>, <code>express</code>, <code>helmet</code>, <code>ioredis</code>, <code>nodemailer</code>, <code>pdf-lib</code>, <code>resend</code>, <code>zod</code>, <code>@types/cors</code>, <code>@types/express</code>, <code>@types/node</code>, <code>@types/nodemailer</code>, <code>@types/supertest</code>, <code>prisma</code>, <code>supertest</code>, <code>tsx</code>, <code>typescript</code>, <code>vitest</code></td></tr></table>
+      <h3>19.0 Direct Package And Infrastructure Inventory</h3>
+      <table><tr><th>Workspace</th><th>Kind</th><th>Package / technology</th><th>Version / image</th></tr><tr><td>client</td><td>dependency</td><td><code>@emotion/react</code></td><td><code>^11.14.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>@emotion/styled</code></td><td><code>^11.14.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>@mui/icons-material</code></td><td><code>^6.5.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>@mui/material</code></td><td><code>^6.5.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>@procurex/shared</code></td><td><code>0.1.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>@reduxjs/toolkit</code></td><td><code>^2.5.1</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>axios</code></td><td><code>^1.7.9</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>html2pdf.js</code></td><td><code>^0.14.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>i18next</code></td><td><code>^24.2.2</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>react</code></td><td><code>^19.0.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>react-dom</code></td><td><code>^19.0.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>react-i18next</code></td><td><code>^15.4.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>react-redux</code></td><td><code>^9.2.0</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>react-router-dom</code></td><td><code>^7.1.5</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>recharts</code></td><td><code>^2.15.1</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>socket.io-client</code></td><td><code>^4.8.1</code></td></tr>
+<tr><td>client</td><td>dependency</td><td><code>xlsx</code></td><td><code>^0.18.5</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@eslint/js</code></td><td><code>^9.20.0</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@testing-library/jest-dom</code></td><td><code>^6.6.3</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@testing-library/react</code></td><td><code>^16.2.0</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@testing-library/user-event</code></td><td><code>^14.6.1</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@types/node</code></td><td><code>^22.10.1</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@types/react</code></td><td><code>^19.0.8</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@types/react-dom</code></td><td><code>^19.0.3</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>@vitejs/plugin-react</code></td><td><code>^4.3.4</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>eslint</code></td><td><code>^9.20.1</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>eslint-plugin-react-hooks</code></td><td><code>^5.1.0</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>eslint-plugin-react-refresh</code></td><td><code>^0.4.18</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>globals</code></td><td><code>^15.15.0</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>jsdom</code></td><td><code>^26.0.0</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>playwright</code></td><td><code>^1.49.1</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>typescript</code></td><td><code>^5.6.3</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>typescript-eslint</code></td><td><code>^8.24.0</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>vite</code></td><td><code>^5.4.21</code></td></tr>
+<tr><td>client</td><td>devDependency</td><td><code>vitest</code></td><td><code>^2.1.8</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>@aws-sdk/client-s3</code></td><td><code>^3.699.0</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>@elastic/elasticsearch</code></td><td><code>^8.15.2</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>@prisma/client</code></td><td><code>^6.19.3</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>@procurex/shared</code></td><td><code>0.1.0</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>@types/busboy</code></td><td><code>^1.5.4</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>busboy</code></td><td><code>^1.6.0</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>cors</code></td><td><code>^2.8.5</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>dotenv</code></td><td><code>^16.6.1</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>express</code></td><td><code>^4.19.2</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>helmet</code></td><td><code>^8.2.0</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>ioredis</code></td><td><code>^5.4.1</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>nodemailer</code></td><td><code>^9.0.3</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>pdf-lib</code></td><td><code>^1.17.1</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>resend</code></td><td><code>^6.15.0</code></td></tr>
+<tr><td>server</td><td>dependency</td><td><code>zod</code></td><td><code>^3.23.8</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>@types/cors</code></td><td><code>^2.8.17</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>@types/express</code></td><td><code>^4.17.21</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>@types/node</code></td><td><code>^22.10.1</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>@types/nodemailer</code></td><td><code>^8.0.1</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>@types/supertest</code></td><td><code>^6.0.2</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>prisma</code></td><td><code>^6.19.3</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>supertest</code></td><td><code>^7.0.0</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>tsx</code></td><td><code>^4.19.2</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>typescript</code></td><td><code>^5.6.3</code></td></tr>
+<tr><td>server</td><td>devDependency</td><td><code>vitest</code></td><td><code>^2.1.8</code></td></tr>
+<tr><td>shared</td><td>devDependency</td><td><code>vitest</code></td><td><code>^2.1.8</code></td></tr>
+<tr><td>shared</td><td>devDependency</td><td><code>typescript</code></td><td><code>^5.6.3</code></td></tr></table>
+      <table><tr><th>Workspace</th><th>Kind</th><th>Package / technology</th><th>Version / image</th></tr><tr><td>docker-compose</td><td>service</td><td><code>postgres</code></td><td><code>postgres:16-alpine</code></td></tr>
+<tr><td>docker-compose</td><td>service</td><td><code>redis</code></td><td><code>redis:7-alpine</code></td></tr>
+<tr><td>docker-compose</td><td>service</td><td><code>elasticsearch</code></td><td><code>docker.elastic.co/elasticsearch/elasticsearch:8.15.2</code></td></tr>
+<tr><td>docker-compose</td><td>service</td><td><code>minio</code></td><td><code>minio/minio:RELEASE.2024-10-13T13-34-11Z</code></td></tr></table>
+
+    <article id="technology-stack-workspaces" class="handover-unit">
+      <h3>19.1 Npm Workspaces And Monorepo Packaging</h3>
+      <p class="tagline">Root package orchestration for client, server, and shared contracts.</p>
+      <p>ProcureX is packaged as a private npm monorepo. The root package owns workspace discovery and delegates development, build, test, database, infrastructure, and generation commands to the appropriate child workspace.</p>
+      <table><tr><th>Configured in</th><td><code>package.json</code> with workspaces <code>client</code>, <code>server</code>, and <code>shared</code>.</td></tr>
+<tr><th>Used for</th><td>Keeping frontend, backend, and shared contract code versioned together while still allowing workspace-specific scripts.</td></tr>
+<tr><th>Why it fits</th><td>Procurement workflows cross UI, API, shared permissions, database models, and tests; a monorepo keeps those contracts visible in one implementation tree.</td></tr>
+<tr><th>Maintainer check</th><td>When adding a package, verify whether it belongs in the root, client, server, or shared workspace and avoid duplicating cross-workspace dependencies unnecessarily.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-node-esm" class="handover-unit">
+      <h3>19.2 Node.js 20+ And ES Modules</h3>
+      <p class="tagline">Runtime and module format for server tooling and scripts.</p>
+      <p>The repository declares ES module behavior and a Node.js 20.11 or newer engine. Server code, scripts, and generated tooling use modern import syntax and ES2022 targets.</p>
+      <table><tr><th>Configured in</th><td><code>package.json</code>, <code>server/package.json</code>, and TypeScript configs.</td></tr>
+<tr><th>Used for</th><td>Running Express, Prisma tooling, TypeScript execution through tsx, report verification scripts, seed scripts, and local automation.</td></tr>
+<tr><th>Why it fits</th><td>Node 20 provides stable modern JavaScript APIs, native fetch support used by Turnstile verification, and compatibility with current tooling.</td></tr>
+<tr><th>Maintainer check</th><td>Keep imports extension-aware in server output and confirm generated code remains compatible with NodeNext module resolution.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-typescript" class="handover-unit">
+      <h3>19.3 TypeScript Strict Mode</h3>
+      <p class="tagline">Typed implementation language across client, server, and shared packages.</p>
+      <p>TypeScript is the primary implementation language. The client compiles through Vite with JSX support, the server uses NodeNext module resolution, and shared contracts emit declarations for reuse.</p>
+      <table><tr><th>Configured in</th><td><code>client/tsconfig.json</code>, <code>server/tsconfig.json</code>, and <code>shared/tsconfig.json</code>.</td></tr>
+<tr><th>Used for</th><td>DTOs, module contracts, React components, service inputs, repository return types, validation helper signatures, and shared permission vocabulary.</td></tr>
+<tr><th>Why it fits</th><td>Procurement systems have many workflow states and cross-module records; strict typing reduces accidental contract drift.</td></tr>
+<tr><th>Maintainer check</th><td>Preserve strict mode, avoid widening shared contracts without tests, and keep generated declarations valid for both client and server consumers.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-react" class="handover-unit">
+      <h3>19.4 React 19 And React DOM</h3>
+      <p class="tagline">Primary frontend rendering technology.</p>
+      <p>React renders the production ProcureX application and all page-level experiences that replaced the static prototype surfaces. React DOM mounts the application in the Vite browser entrypoint.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code> and <code>client/src/main.tsx</code>.</td></tr>
+<tr><th>Used for</th><td>ProcureX pages, public routes, authenticated workspaces, admin surfaces, forms, upload controls, dashboards, and reusable shared components.</td></tr>
+<tr><th>Why it fits</th><td>The platform is highly interactive and stateful; React keeps page composition and workflow UI testable.</td></tr>
+<tr><th>Maintainer check</th><td>Keep user-visible behavior under Testing Library coverage when changing page components or route-level rendering.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-vite" class="handover-unit">
+      <h3>19.5 Vite And React Plugin</h3>
+      <p class="tagline">Frontend development server, build pipeline, and test environment.</p>
+      <p>Vite provides the client development server, production build, alias resolution, test environment configuration, and Rollup-powered bundling strategy.</p>
+      <table><tr><th>Configured in</th><td><code>client/vite.config.ts</code>.</td></tr>
+<tr><th>Used for</th><td>Fast local dev on port 5173, React plugin transformation, path aliases, jsdom tests, and optimized build output.</td></tr>
+<tr><th>Why it fits</th><td>The UI is large and screenshot-heavy; Vite keeps iteration fast while preserving production bundling controls.</td></tr>
+<tr><th>Maintainer check</th><td>When adding large libraries, update manual chunking only if bundle grouping or page load behavior needs deliberate control.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-vite-chunks" class="handover-unit">
+      <h3>19.6 Vite Manual Chunk Strategy</h3>
+      <p class="tagline">Explicit browser bundle grouping for predictable production assets.</p>
+      <p>The client build groups MUI, router, Redux, i18n, React, Axios, charts, and miscellaneous dependencies into named vendor chunks. This makes build output easier to reason about as the application grows.</p>
+      <table><tr><th>Configured in</th><td><code>client/vite.config.ts</code> under <code>rollupOptions.output.manualChunks</code>.</td></tr>
+<tr><th>Used for</th><td>Separating large framework and library dependencies from feature code.</td></tr>
+<tr><th>Why it fits</th><td>ProcureX has many feature modules and a large UI surface, so predictable vendor chunks help maintenance and performance analysis.</td></tr>
+<tr><th>Maintainer check</th><td>After adding a major dependency, inspect build output to decide whether it should join an existing vendor group.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-mui" class="handover-unit">
+      <h3>19.7 Material UI And MUI Icons</h3>
+      <p class="tagline">Component foundation and icon library.</p>
+      <p>MUI provides a tested component foundation while ProcureX styles layer the product-specific visual language on top. MUI Icons provide standardized action and navigation symbols.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code> with <code>@mui/material</code> and <code>@mui/icons-material</code>.</td></tr>
+<tr><th>Used for</th><td>Interactive controls, layout primitives, dialogs, forms, icons, and shared UI pieces where the production app benefits from accessible defaults.</td></tr>
+<tr><th>Why it fits</th><td>Procurement workflows need consistent forms, tables, buttons, and navigational controls more than decorative custom widgets.</td></tr>
+<tr><th>Maintainer check</th><td>Keep MUI usage consistent with the ProcureX design CSS and avoid mixing incompatible component patterns on the same surface.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-emotion" class="handover-unit">
+      <h3>19.8 Emotion Styling Runtime</h3>
+      <p class="tagline">Style engine required by the MUI component stack.</p>
+      <p>Emotion supports MUI styled components and runtime style injection. ProcureX also uses static CSS for design-system compatibility, so Emotion is part of the component layer rather than the only styling mechanism.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code> with <code>@emotion/react</code> and <code>@emotion/styled</code>.</td></tr>
+<tr><th>Used for</th><td>MUI styling internals and component-level styling support.</td></tr>
+<tr><th>Why it fits</th><td>It is the supported styling engine for the selected MUI version.</td></tr>
+<tr><th>Maintainer check</th><td>Avoid duplicating large style rules in Emotion when the existing ProcureX CSS layer already owns page-level design.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-redux" class="handover-unit">
+      <h3>19.9 Redux Toolkit And React Redux</h3>
+      <p class="tagline">Application state management for authenticated workflows.</p>
+      <p>Redux Toolkit provides structured slices and store setup while React Redux connects components to authentication, notifications, and feature state.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code> and client app store files.</td></tr>
+<tr><th>Used for</th><td>Auth/session state, notifications, and feature state that must survive route changes or coordinate multiple components.</td></tr>
+<tr><th>Why it fits</th><td>ProcureX workflows span pages and modules; central state makes guards and shared UI behavior predictable.</td></tr>
+<tr><th>Maintainer check</th><td>Keep API side effects in feature helpers or thunks and keep reducers focused on state transitions.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-router" class="handover-unit">
+      <h3>19.10 React Router</h3>
+      <p class="tagline">Client-side routing and access-gated navigation.</p>
+      <p>React Router maps public, protected, verified, and administrator routes to lazy-loaded ProcureX pages. It is the client-side navigation backbone.</p>
+      <table><tr><th>Configured in</th><td><code>client/src/app/router.tsx</code>.</td></tr>
+<tr><th>Used for</th><td>Public pages, authenticated workspace pages, admin-only pages, redirects, route guards, and deep links.</td></tr>
+<tr><th>Why it fits</th><td>The platform is a suite of modules; route-level ownership makes the workspace predictable.</td></tr>
+<tr><th>Maintainer check</th><td>When adding a protected page, decide the guard requirements in the router rather than burying access decisions inside page UI.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-axios" class="handover-unit">
+      <h3>19.11 Axios API Client</h3>
+      <p class="tagline">Browser HTTP client with auth and localization interceptors.</p>
+      <p>Axios is wrapped in a shared API client that applies the base URL, bearer token, ProcureX language header, and Accept-Language header before requests leave the browser.</p>
+      <table><tr><th>Configured in</th><td><code>client/src/shared/api/http.ts</code>.</td></tr>
+<tr><th>Used for</th><td>Feature API helpers, JSON requests, document downloads, error handling, and authenticated backend communication.</td></tr>
+<tr><th>Why it fits</th><td>Interceptors centralize common request behavior across many modules.</td></tr>
+<tr><th>Maintainer check</th><td>Keep token, language, and base URL handling centralized so feature modules do not invent their own HTTP policy.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-i18n" class="handover-unit">
+      <h3>19.12 i18next And React i18next</h3>
+      <p class="tagline">Localization stack for English and Swahili behavior.</p>
+      <p>The i18n stack provides translated UI copy and request-language propagation. API error helpers also use language state to present localized guidance.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code>, <code>client/src/i18n</code>, and shared API helpers.</td></tr>
+<tr><th>Used for</th><td>Language switching, localized loading states, error notifications, static content, and request headers.</td></tr>
+<tr><th>Why it fits</th><td>ProcureX targets procurement users who may need English or Swahili guidance across formal workflows.</td></tr>
+<tr><th>Maintainer check</th><td>When adding user-visible text, add localized resources and test layout behavior where translations are longer.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-recharts" class="handover-unit">
+      <h3>19.13 Recharts</h3>
+      <p class="tagline">Charting library for dashboards and analytics surfaces.</p>
+      <p>Recharts supports dashboard, analytics, records, and admin visualization surfaces where procurement activity is summarized visually.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code>.</td></tr>
+<tr><th>Used for</th><td>Charts, KPIs, analytics panels, records summaries, and admin metrics.</td></tr>
+<tr><th>Why it fits</th><td>It integrates cleanly with React components and is sufficient for operational procurement analytics.</td></tr>
+<tr><th>Maintainer check</th><td>Keep charts accessible with surrounding labels, tables, or text summaries so assessment evidence is not visual-only.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-socket-client" class="handover-unit">
+      <h3>19.14 Socket.IO Client</h3>
+      <p class="tagline">Realtime-capable browser dependency for future live workflow updates.</p>
+      <p>The client includes socket.io-client as the browser realtime dependency. It prepares communication and notification surfaces for live updates where the API supports them.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code>.</td></tr>
+<tr><th>Used for</th><td>Realtime-ready communication, notification, or workflow update channels.</td></tr>
+<tr><th>Why it fits</th><td>Procurement workflows benefit from timely message, clarification, and status changes.</td></tr>
+<tr><th>Maintainer check</th><td>Authenticate realtime channels and document server-side event contracts before expanding live behavior.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-html2pdf" class="handover-unit">
+      <h3>19.15 html2pdf.js</h3>
+      <p class="tagline">Client-side PDF export support for tender and annex documents.</p>
+      <p>html2pdf.js supports browser-side PDF generation where a rendered tender document or annex needs to become a downloadable artifact from the client experience.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code> and procurement page tests.</td></tr>
+<tr><th>Used for</th><td>Tender document and annex export flows in the client.</td></tr>
+<tr><th>Why it fits</th><td>Some procurement documents are assembled from browser-visible structured data and can be exported without a server round trip.</td></tr>
+<tr><th>Maintainer check</th><td>Keep generated document content testable and avoid relying on visual-only checks for official records.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-xlsx" class="handover-unit">
+      <h3>19.16 xlsx</h3>
+      <p class="tagline">Spreadsheet import/export support.</p>
+      <p>The xlsx package supports structured spreadsheet data workflows such as procurement tables, records, financial schedules, or operational exports.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code>.</td></tr>
+<tr><th>Used for</th><td>Excel-compatible import or export behavior where feature pages need tabular procurement data.</td></tr>
+<tr><th>Why it fits</th><td>Procurement users often exchange commercial, BOQ, supplier, or report data in spreadsheet form.</td></tr>
+<tr><th>Maintainer check</th><td>Validate imported data before sending it to APIs and preserve explicit column mapping in tests.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-shared" class="handover-unit">
+      <h3>19.17 Shared Package Contracts</h3>
+      <p class="tagline">Cross-workspace types, permissions, localization, and domain vocabulary.</p>
+      <p>The shared package exposes contracts consumed by both client and server. It keeps account types, permissions, feature gates, localization helpers, and domain vocabulary consistent.</p>
+      <table><tr><th>Configured in</th><td><code>shared/package.json</code> and <code>shared/src/index.ts</code>.</td></tr>
+<tr><th>Used for</th><td>Permission names, feature gate types, API error contracts, localization data, and shared procurement domain types.</td></tr>
+<tr><th>Why it fits</th><td>Shared vocabulary prevents the client and server from drifting on access rules or DTO semantics.</td></tr>
+<tr><th>Maintainer check</th><td>Treat shared exports as public internal API: update both consumers and tests when changing them.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-css" class="handover-unit">
+      <h3>19.18 ProcureX CSS And Design Assets</h3>
+      <p class="tagline">Static design-system, prototype compatibility, and visual parity assets.</p>
+      <p>The client uses global styles, token CSS, prototype compatibility CSS, and ProcureX UI design-system CSS to preserve the reference interface while supporting production React behavior.</p>
+      <table><tr><th>Configured in</th><td><code>client/src/styles/</code> and <code>client/public/procurex-ui/</code>.</td></tr>
+<tr><th>Used for</th><td>Layout, visual tokens, page-specific presentation, PDF-render classes, screenshot parity, and static assets.</td></tr>
+<tr><th>Why it fits</th><td>The platform migrated from a static design prototype, so preserving visual parity requires a stable CSS layer.</td></tr>
+<tr><th>Maintainer check</th><td>Avoid unrelated style churn and check desktop/mobile screenshots after changing page-level CSS.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-testing-library" class="handover-unit">
+      <h3>19.19 Testing Library And jsdom</h3>
+      <p class="tagline">React component and page interaction testing.</p>
+      <p>Testing Library checks user-visible UI behavior in a jsdom environment. It is used heavily for route guards, page states, forms, uploads, and feature workflows.</p>
+      <table><tr><th>Configured in</th><td><code>client/vite.config.ts</code> test settings and client dev dependencies.</td></tr>
+<tr><th>Used for</th><td>Rendering React pages, simulating user actions, checking DOM output, and validating guard redirects.</td></tr>
+<tr><th>Why it fits</th><td>Procurement screens need behavior tests that read like user flows rather than implementation-detail snapshots.</td></tr>
+<tr><th>Maintainer check</th><td>Assert accessible labels, text, roles, and visible outcomes rather than fragile component internals.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-playwright" class="handover-unit">
+      <h3>19.20 Playwright</h3>
+      <p class="tagline">Browser automation for screenshots, E2E flows, and report verification.</p>
+      <p>Playwright is used for UI parity screenshot capture, selected browser flow tests, and A4 PDF page-count verification for the implementation report.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code> and scripts under <code>client/e2e/</code> and <code>scripts/</code>.</td></tr>
+<tr><th>Used for</th><td>Opening real browser pages, capturing desktop/mobile screenshots, checking flows, and rendering print artifacts.</td></tr>
+<tr><th>Why it fits</th><td>The report and UI parity process require browser-accurate rendering evidence.</td></tr>
+<tr><th>Maintainer check</th><td>Keep screenshot routes and seeded test assumptions synchronized when adding pages.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-eslint" class="handover-unit">
+      <h3>19.21 ESLint, typescript-eslint, React Hooks, And React Refresh Rules</h3>
+      <p class="tagline">Static quality tooling for frontend code.</p>
+      <p>ESLint combines JavaScript recommended rules, TypeScript rules, React Hooks rules, and React Refresh export checks for the client workspace.</p>
+      <table><tr><th>Configured in</th><td><code>client/eslint.config.js</code>.</td></tr>
+<tr><th>Used for</th><td>Catching common TypeScript and React mistakes before runtime.</td></tr>
+<tr><th>Why it fits</th><td>Large multi-page React code benefits from consistent hooks and component export rules.</td></tr>
+<tr><th>Maintainer check</th><td>Run client lint when changing shared hooks, route code, or component modules.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-express" class="handover-unit">
+      <h3>19.22 Express</h3>
+      <p class="tagline">Backend HTTP framework and module router host.</p>
+      <p>Express hosts the ProcureX API. It applies global middleware, health checks, registered module routers, 404 handling, and centralized error handling.</p>
+      <table><tr><th>Configured in</th><td><code>server/src/app.ts</code> and module <code>routes.ts</code> files.</td></tr>
+<tr><th>Used for</th><td>API routing, middleware composition, request parsing, error handling, and module mounting.</td></tr>
+<tr><th>Why it fits</th><td>The modular API pattern maps cleanly to Express routers and controller/service boundaries.</td></tr>
+<tr><th>Maintainer check</th><td>Keep global middleware before module mounts and keep module routes narrow.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-prisma" class="handover-unit">
+      <h3>19.23 Prisma Client And Prisma CLI</h3>
+      <p class="tagline">Typed database client, schema contract, migrations, validation, and seed tooling.</p>
+      <p>Prisma provides the database schema, generated client, migrations, seed scripts, and validation commands used by the server workspace.</p>
+      <table><tr><th>Configured in</th><td><code>server/prisma/schema.prisma</code> and server package scripts.</td></tr>
+<tr><th>Used for</th><td>Repository persistence, migrations, schema validation, data seeding, and typed query access.</td></tr>
+<tr><th>Why it fits</th><td>The database is large and multi-domain; generated types make repository code easier to maintain.</td></tr>
+<tr><th>Maintainer check</th><td>Run schema validation after schema changes and keep migration names aligned with workflow intent.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-postgres" class="handover-unit">
+      <h3>19.24 PostgreSQL</h3>
+      <p class="tagline">Primary relational database for procurement workflow state.</p>
+      <p>PostgreSQL stores identity, organizations, procurement, bidding, evaluation, contracts, financial data, communication, compliance, documents, and audit records.</p>
+      <table><tr><th>Configured in</th><td><code>docker-compose.yml</code> and <code>server/.env.example</code>.</td></tr>
+<tr><th>Used for</th><td>Transactional workflow records, row-level security policies, audit trails, and relational module data.</td></tr>
+<tr><th>Why it fits</th><td>Procurement requires durable relational consistency, tenant-aware access, and complex workflow history.</td></tr>
+<tr><th>Maintainer check</th><td>Preserve RLS assumptions and verify migrations against realistic seeded data.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-zod" class="handover-unit">
+      <h3>19.25 Zod</h3>
+      <p class="tagline">Runtime schema validation for API inputs.</p>
+      <p>Zod schemas validate route params, query strings, request bodies, document metadata, workflow payloads, and module status queries before service methods run.</p>
+      <table><tr><th>Configured in</th><td>Module <code>validators.ts</code> files and <code>server/src/app.ts</code> error normalization.</td></tr>
+<tr><th>Used for</th><td>Rejecting malformed or incomplete input with structured field errors.</td></tr>
+<tr><th>Why it fits</th><td>TypeScript types disappear at runtime; Zod supplies runtime guardrails at API boundaries.</td></tr>
+<tr><th>Maintainer check</th><td>Add or update schema tests when changing accepted payload shapes.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-helmet" class="handover-unit">
+      <h3>19.26 Helmet</h3>
+      <p class="tagline">HTTP security headers and content security policy.</p>
+      <p>Helmet applies browser security headers and a configured content security policy before domain routes are mounted.</p>
+      <table><tr><th>Configured in</th><td><code>server/src/app.ts</code>.</td></tr>
+<tr><th>Used for</th><td>Default security headers, CSP directives, frame restrictions, object restrictions, and allowed script/connect/image/style/font sources.</td></tr>
+<tr><th>Why it fits</th><td>The API must establish browser security posture centrally instead of leaving each route to decide headers.</td></tr>
+<tr><th>Maintainer check</th><td>When adding external browser services, update CSP narrowly and document the reason.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-cors" class="handover-unit">
+      <h3>19.27 CORS Middleware</h3>
+      <p class="tagline">Browser origin allow-listing for API calls.</p>
+      <p>CORS is configured from security settings. Requests from missing origins or allowed configured origins are accepted; unapproved browser origins receive a structured security error.</p>
+      <table><tr><th>Configured in</th><td><code>server/src/app.ts</code> and <code>server/src/security/config.ts</code>.</td></tr>
+<tr><th>Used for</th><td>Restricting which browser origins can call the API.</td></tr>
+<tr><th>Why it fits</th><td>The frontend and API can run on different hosts locally and in deployment, but the API should not accept arbitrary browser origins.</td></tr>
+<tr><th>Maintainer check</th><td>Set production <code>CORS_ORIGINS</code> explicitly and avoid wildcard origins.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-redis" class="handover-unit">
+      <h3>19.28 Redis And ioredis</h3>
+      <p class="tagline">Fast shared store for auth rate limiting and local infrastructure readiness.</p>
+      <p>Redis is available through Docker Compose and ioredis. Authentication rate limiting uses Redis when configured, with memory fallback for non-production development.</p>
+      <table><tr><th>Configured in</th><td><code>docker-compose.yml</code>, <code>server/.env.example</code>, and <code>server/src/security/rateLimit.ts</code>.</td></tr>
+<tr><th>Used for</th><td>Rate-limit counters and local service infrastructure.</td></tr>
+<tr><th>Why it fits</th><td>Rate limiting must be shared across server instances in production.</td></tr>
+<tr><th>Maintainer check</th><td>Production requires <code>REDIS_URL</code> and should not rely on memory fallback.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-elasticsearch" class="handover-unit">
+      <h3>19.29 Elasticsearch</h3>
+      <p class="tagline">Search infrastructure for admin and marketplace-oriented indexing.</p>
+      <p>Elasticsearch is provided in local infrastructure and the server includes the official client for indexed search and reindex workflows.</p>
+      <table><tr><th>Configured in</th><td><code>docker-compose.yml</code>, <code>server/package.json</code>, and compliance admin search files.</td></tr>
+<tr><th>Used for</th><td>Admin search, platform oversight, and searchable operational records where configured.</td></tr>
+<tr><th>Why it fits</th><td>Compliance and admin use cases need search across records that are not convenient to inspect only through relational tables.</td></tr>
+<tr><th>Maintainer check</th><td>Keep relational source of truth clear and treat search indexes as derived read models.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-s3-minio" class="handover-unit">
+      <h3>19.30 AWS S3 Client And MinIO</h3>
+      <p class="tagline">Object storage abstraction for document uploads and local development.</p>
+      <p>The server can store documents locally or through S3-compatible object storage. MinIO supplies the local S3-compatible service in Docker Compose.</p>
+      <table><tr><th>Configured in</th><td><code>server/src/modules/documents/storage.ts</code>, <code>server/.env.example</code>, and <code>docker-compose.yml</code>.</td></tr>
+<tr><th>Used for</th><td>Document object storage, official documents, attachments, and uploaded evidence.</td></tr>
+<tr><th>Why it fits</th><td>Procurement records often include binary files that should not live directly in relational columns.</td></tr>
+<tr><th>Maintainer check</th><td>Keep object keys safe, validate file content, and store metadata/checksums beside database records.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-busboy" class="handover-unit">
+      <h3>19.31 Busboy Multipart Upload Parser</h3>
+      <p class="tagline">Streaming file upload parser for document endpoints.</p>
+      <p>Busboy parses multipart document uploads with file and field limits, allowing the server to validate and store files while controlling payload size.</p>
+      <table><tr><th>Configured in</th><td><code>server/src/modules/documents/storage.ts</code>.</td></tr>
+<tr><th>Used for</th><td>Single-file document upload parsing with size, file count, and field count limits.</td></tr>
+<tr><th>Why it fits</th><td>Procurement evidence can be large, so upload parsing should stream and enforce limits early.</td></tr>
+<tr><th>Maintainer check</th><td>Keep file limits aligned with documented upload policy and never bypass safety validation.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-pdflib" class="handover-unit">
+      <h3>19.32 pdf-lib</h3>
+      <p class="tagline">Server-side PDF generation and report page-count verification.</p>
+      <p>pdf-lib is used by the server for official PDF rendering and by report verification tooling to count generated A4 pages.</p>
+      <table><tr><th>Configured in</th><td><code>server/package.json</code> and document renderer files.</td></tr>
+<tr><th>Used for</th><td>Official document PDFs, metadata, signatures, and verification of generated report page counts.</td></tr>
+<tr><th>Why it fits</th><td>It can create and inspect PDFs in Node without a browser dependency for server-side document workflows.</td></tr>
+<tr><th>Maintainer check</th><td>Keep official document tests checking PDF headers, size, and checksum shape.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-nodemailer" class="handover-unit">
+      <h3>19.33 Nodemailer</h3>
+      <p class="tagline">SMTP-capable email delivery for local/testing support flows.</p>
+      <p>Nodemailer supports configurable email delivery paths, especially local or testing email behavior around support and identity-related messages.</p>
+      <table><tr><th>Configured in</th><td><code>server/package.json</code>, <code>server/.env.example</code>, and support email files.</td></tr>
+<tr><th>Used for</th><td>Support email and SMTP-style delivery where configured.</td></tr>
+<tr><th>Why it fits</th><td>It is a flexible Node email transport for non-production and controlled delivery scenarios.</td></tr>
+<tr><th>Maintainer check</th><td>Do not enable local-only SMTP policy in production when security config requires production providers.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-resend" class="handover-unit">
+      <h3>19.34 Resend</h3>
+      <p class="tagline">Production-oriented transactional email provider.</p>
+      <p>Resend is the production-oriented identity email provider expected by security configuration when running in production mode.</p>
+      <table><tr><th>Configured in</th><td><code>server/package.json</code>, <code>server/.env.example</code>, and identity delivery provider code.</td></tr>
+<tr><th>Used for</th><td>Transactional identity email delivery such as activation, password reset, and verification flows.</td></tr>
+<tr><th>Why it fits</th><td>Identity events need reliable provider-backed delivery rather than console-only local output.</td></tr>
+<tr><th>Maintainer check</th><td>Production requires <code>RESEND_API_KEY</code> and <code>RESEND_FROM</code> when Resend is selected.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-dotenv" class="handover-unit">
+      <h3>19.35 dotenv And Environment-Driven Runtime Configuration</h3>
+      <p class="tagline">Configuration loading for local and deployment-specific behavior.</p>
+      <p>dotenv and helper scripts load example environment values for local runs while production validation enforces security-sensitive variables.</p>
+      <table><tr><th>Configured in</th><td><code>server/package.json</code>, <code>scripts/run-with-env.mjs</code>, and <code>server/.env.example</code>.</td></tr>
+<tr><th>Used for</th><td>Database URLs, Redis, S3, provider credentials, upload limits, CORS, Turnstile, and server port configuration.</td></tr>
+<tr><th>Why it fits</th><td>The same codebase needs local development, test, and deployment-specific settings without committing secrets.</td></tr>
+<tr><th>Maintainer check</th><td>Document new environment variables and add production validation when they affect security.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-docker" class="handover-unit">
+      <h3>19.36 Docker Compose Infrastructure</h3>
+      <p class="tagline">Local PostgreSQL, Redis, Elasticsearch, and MinIO services.</p>
+      <p>Docker Compose provides a reproducible local infrastructure layer for development and validation. It starts the services needed by the server without requiring manual host installation.</p>
+      <table><tr><th>Configured in</th><td><code>docker-compose.yml</code>.</td></tr>
+<tr><th>Used for</th><td>PostgreSQL, Redis, Elasticsearch, MinIO, persistent volumes, ports, and service health checks.</td></tr>
+<tr><th>Why it fits</th><td>ProcureX depends on multiple infrastructure services; Compose keeps local setup repeatable.</td></tr>
+<tr><th>Maintainer check</th><td>Keep example environment ports and Compose service ports synchronized.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-tsx" class="handover-unit">
+      <h3>19.37 tsx</h3>
+      <p class="tagline">TypeScript execution for development server and scripts.</p>
+      <p>tsx runs server TypeScript in watch mode and executes Prisma seed and verification scripts without a separate manual compile step.</p>
+      <table><tr><th>Configured in</th><td><code>server/package.json</code> scripts.</td></tr>
+<tr><th>Used for</th><td>Server development, seed scripts, RLS verification, and help-centre validation.</td></tr>
+<tr><th>Why it fits</th><td>It keeps TypeScript-based operational scripts close to runtime code.</td></tr>
+<tr><th>Maintainer check</th><td>Keep long-running dev scripts separate from one-shot validation scripts.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-vitest-supertest" class="handover-unit">
+      <h3>19.38 Vitest And Supertest</h3>
+      <p class="tagline">Unit, integration, and HTTP boundary testing.</p>
+      <p>Vitest runs server, client, and shared tests. Supertest exercises Express app endpoints without starting a real network listener.</p>
+      <table><tr><th>Configured in</th><td><code>client/package.json</code>, <code>server/package.json</code>, and <code>shared/package.json</code>.</td></tr>
+<tr><th>Used for</th><td>Module services, API routing, app health, route guards, React pages, shared utilities, and document workflows.</td></tr>
+<tr><th>Why it fits</th><td>The test stack covers both pure logic and HTTP behavior while staying fast enough for local development.</td></tr>
+<tr><th>Maintainer check</th><td>Add focused tests beside the module being changed before relying on broad smoke checks.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-prisma-tooling" class="handover-unit">
+      <h3>19.39 Prisma Migration, Generate, Validate, And Seed Tooling</h3>
+      <p class="tagline">Database lifecycle commands in npm scripts.</p>
+      <p>The server workspace exposes commands for Prisma validation, generation, development migrations, deployment migrations, and multiple seed datasets.</p>
+      <table><tr><th>Configured in</th><td><code>server/package.json</code> and root database scripts.</td></tr>
+<tr><th>Used for</th><td>Schema validation, client generation, migration execution, seeded demos, cleanup flows, and local repeatability.</td></tr>
+<tr><th>Why it fits</th><td>Procurement workflows require realistic linked data for testing bids, awards, contracts, invoices, and records.</td></tr>
+<tr><th>Maintainer check</th><td>Keep seed scripts idempotent or provide cleanup scripts when creating demo workflows.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="technology-stack-typings" class="handover-unit">
+      <h3>19.40 Type Definitions And Developer Support Packages</h3>
+      <p class="tagline">Typed integration with Node, React, Express, CORS, Nodemailer, Supertest, and Busboy.</p>
+      <p>The repository includes direct @types packages and TypeScript ESLint tooling so external libraries remain type-aware in implementation and tests.</p>
+      <table><tr><th>Configured in</th><td>Client and server devDependencies.</td></tr>
+<tr><th>Used for</th><td>Compile-time safety around framework APIs, test helpers, file uploads, email, browser globals, and Node APIs.</td></tr>
+<tr><th>Why it fits</th><td>Type-aware external APIs reduce accidental misuse of middleware, request handlers, and component props.</td></tr>
+<tr><th>Maintainer check</th><td>Update type packages with their runtime packages when upgrading major versions.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+    </section>
+
+    <section id="security-implementation-deep-dive" class="section">
+      <h2>20. Security Implementation Deep Dive</h2>
+      <p>This chapter explains how security is implemented in ProcureX at the HTTP, browser, identity, authorization, database, document, signing, audit, and operations layers. It uses actual source paths so the reader can trace each security claim to implementation evidence.</p>
+      <div class="summary-box">
+        <p>The security model is defense in depth: the client prevents incorrect navigation, the API validates and authorizes requests, PostgreSQL enforces row-level policies, document storage validates binary evidence, and signed actions create proof for high-risk workflow decisions.</p>
+      </div>
+      <h3>20.0 Security Traceability Matrix</h3>
+      <table><tr><th>Control</th><th>Implementation file(s)</th><th>Threat addressed</th><th>Validation method</th></tr><tr><td>Helmet/CSP headers</td><td>server/src/app.ts</td><td>Clickjacking, unsafe sources, object injection</td><td>App header tests or browser response inspection</td></tr>
+<tr><td>CORS allow-list</td><td>server/src/app.ts, server/src/security/config.ts</td><td>Unapproved browser origins</td><td>Allowed/denied origin API tests</td></tr>
+<tr><td>Production config validation</td><td>server/src/security/config.ts</td><td>Unsafe provider or missing secret deployment</td><td>Production-auth configuration tests</td></tr>
+<tr><td>Auth rate limiting</td><td>server/src/security/rateLimit.ts</td><td>Credential stuffing and OTP abuse</td><td>Rate-limit tests and audit event checks</td></tr>
+<tr><td>Turnstile</td><td>server/src/security/turnstile.ts</td><td>Automated public entry abuse</td><td>Widget/provider tests</td></tr>
+<tr><td>Route guards</td><td>client/src/app/routeGuards.tsx</td><td>Unauthorized UI navigation</td><td>Route guard tests</td></tr>
+<tr><td>Access policy</td><td>server/src/security/accessPolicy.ts</td><td>Permission drift and role confusion</td><td>Access-policy unit tests</td></tr>
+<tr><td>Database context</td><td>server/src/db/context.ts</td><td>Missing tenant context</td><td>RLS verification</td></tr>
+<tr><td>RLS policies</td><td>server/prisma/sql/rls/*.sql</td><td>Cross-tenant data leakage</td><td>RLS verification</td></tr>
+<tr><td>Signed actions</td><td>server/src/modules/identity/sensitiveActionSigning.ts</td><td>Repudiation and tampering</td><td>Signing tests and module workflow tests</td></tr>
+<tr><td>Signing credentials</td><td>server/src/modules/identity/signing.ts</td><td>Plain private keys and weak signatures</td><td>Signing helper tests</td></tr>
+<tr><td>Document uploads</td><td>server/src/modules/documents/storage.ts</td><td>Malicious or oversized files</td><td>Document upload tests</td></tr>
+<tr><td>API errors</td><td>server/src/modules/shared/apiErrors.ts, client/src/shared/api/errors.ts</td><td>Leaked internals and inconsistent error UX</td><td>API error tests</td></tr>
+<tr><td>Audit events</td><td>identity repository, compliance admin, rateLimit.ts</td><td>Untraceable security activity</td><td>Service and repository tests</td></tr></table>
+
+    <article id="security-deep-overview" class="handover-unit">
+      <h3>20.1 Security Architecture Overview</h3>
+      <p class="tagline">Layered controls across browser, API, identity, database, documents, and operations.</p>
+      <p>ProcureX security is implemented as a layered model. Browser requests are constrained by headers and CORS, sensitive entry points use anti-abuse controls, route guards protect client navigation, services enforce workflow rules, database context enables row-level security, and document/signature flows add evidence controls.</p>
+      <table><tr><th>Primary files</th><td><code>server/src/app.ts</code>, <code>server/src/security/*</code>, <code>client/src/app/routeGuards.tsx</code>, <code>server/src/db/context.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Unauthorized browser origins, unverified users, over-posted payloads, tenant data leaks, unsigned sensitive actions, unsafe uploads, and weak production configuration.</td></tr>
+<tr><th>Implementation shape</th><td>Central app middleware first, route guards and service checks second, database context and RLS below persistence, and tests as verification evidence.</td></tr>
+<tr><th>Maintainer check</th><td>Do not treat any single layer as sufficient; protected workflows need both UI and server-side enforcement.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-helmet-csp" class="handover-unit">
+      <h3>20.2 Helmet Headers And Content Security Policy</h3>
+      <p class="tagline">Browser-side security headers applied before module routes.</p>
+      <p>The Express app configures Helmet with explicit CSP directives. Defaults restrict content to self, block object sources, prevent framing by other pages, and allow only known script, connect, image, style, font, and frame sources needed by ProcureX and Turnstile.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/app.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Clickjacking, malicious object embedding, unexpected script sources, unexpected API connections, and unsafe frame ancestors.</td></tr>
+<tr><th>How implemented</th><td>Helmet middleware is registered before CORS, JSON parsing, health routes, and module router mounting.</td></tr>
+<tr><th>Validation method</th><td>App tests and manual browser checks should confirm headers are present and external services fail closed unless explicitly listed.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-cors" class="handover-unit">
+      <h3>20.3 CORS Origin Allow-Listing</h3>
+      <p class="tagline">Controlled browser-origin access to the API.</p>
+      <p>CORS reads configured allowed origins and falls back to known local development origins when no explicit list is supplied. Unknown origins receive a structured 403 security error instead of silent acceptance.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/app.ts</code> and <code>server/src/security/config.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Unapproved browser origins calling authenticated API endpoints.</td></tr>
+<tr><th>How implemented</th><td>The origin callback accepts empty origins and configured origins, otherwise it calls the centralized request-error helper with a CORS denial code.</td></tr>
+<tr><th>Validation method</th><td>API boundary tests should check allowed and denied origins when CORS behavior changes.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-production-config" class="handover-unit">
+      <h3>20.4 Production Security Configuration Validation</h3>
+      <p class="tagline">Fail-fast checks for production-only requirements.</p>
+      <p>Production runtime calls validateProductionSecurityConfig before the app starts. This prevents local-only notification providers, missing Redis, missing CORS origins, missing Turnstile secrets, missing registry provider credentials, and missing signing secrets from slipping into production.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/security/config.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Accidental deployment with console-only OTP delivery, incomplete anti-abuse controls, missing provider secrets, or weak signing configuration.</td></tr>
+<tr><th>How implemented</th><td>The config helper detects production mode, normalizes provider selections, checks required environment variables, and throws before Express starts.</td></tr>
+<tr><th>Validation method</th><td>Production-auth tests should exercise invalid provider combinations and missing configuration cases.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-body-limits" class="handover-unit">
+      <h3>20.5 Request Parsing And Body Limits</h3>
+      <p class="tagline">JSON parsing control for API payload size.</p>
+      <p>The Express app applies JSON parsing with a configurable request body limit. This is separate from multipart document upload limits and protects JSON endpoints from unexpected payload size growth.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/app.ts</code> using <code>REQUEST_BODY_LIMIT</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Oversized JSON payloads, accidental memory pressure, and unbounded request bodies.</td></tr>
+<tr><th>How implemented</th><td>express.json is mounted once before module routes with a default limit of 160mb unless overridden.</td></tr>
+<tr><th>Validation method</th><td>Endpoint tests should cover oversized or malformed payload behavior for high-risk modules.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-rate-limit" class="handover-unit">
+      <h3>20.6 Authentication Rate Limiting</h3>
+      <p class="tagline">Redis-backed rate limiting with audited lockout events.</p>
+      <p>Auth rate limiting hashes the request IP, increments a limiter counter, expires counters by window, audits limit hits where database access is configured, and returns a structured 429 error when a threshold is exceeded.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/security/rateLimit.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Credential stuffing, OTP brute force, password reset abuse, and high-frequency authentication attempts.</td></tr>
+<tr><th>How implemented</th><td>Redis is used when configured. Non-production can fall back to an in-memory map; production requires Redis.</td></tr>
+<tr><th>Validation method</th><td>Identity production-auth tests should verify rate-limited behavior and audit resilience.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-turnstile" class="handover-unit">
+      <h3>20.7 Cloudflare Turnstile Verification</h3>
+      <p class="tagline">Anti-automation challenge verification for sensitive public entry points.</p>
+      <p>Turnstile verification accepts special local development and Cloudflare test tokens only outside production. Otherwise it sends the token and optional remote IP to Cloudflare siteverify and rejects unavailable or failing checks.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/security/turnstile.ts</code> and client Turnstile widget code.</td></tr>
+<tr><th>Threats addressed</th><td>Automated registration, support, or authentication abuse.</td></tr>
+<tr><th>How implemented</th><td>The server posts form data to the Turnstile verification endpoint and returns success plus provider error codes.</td></tr>
+<tr><th>Validation method</th><td>Widget tests and identity/support tests should verify local, missing-secret, and provider-failure behavior.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-token-transport" class="handover-unit">
+      <h3>20.8 Session Token Transport And Client API Headers</h3>
+      <p class="tagline">Bearer token and language headers applied by the shared HTTP client.</p>
+      <p>The client stores the auth token in localStorage and adds it as a Bearer token through an Axios request interceptor. The same interceptor adds ProcureX language headers to support localized API responses.</p>
+      <table><tr><th>Implemented in</th><td><code>client/src/shared/api/authToken.ts</code> and <code>client/src/shared/api/http.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Missing auth headers, inconsistent request language, and duplicated feature-level token logic.</td></tr>
+<tr><th>How implemented</th><td>Feature modules use the shared Axios client instead of constructing their own raw HTTP policy.</td></tr>
+<tr><th>Validation method</th><td>API helper tests and auth-flow tests should verify protected requests receive the expected Authorization header.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-route-guards" class="handover-unit">
+      <h3>20.9 ProtectedRoute Client Guard</h3>
+      <p class="tagline">Client-side route protection for signed-in and verified users.</p>
+      <p>ProtectedRoute blocks unauthenticated users, redirects expired sessions, optionally requires verification, checks minimum trust tier, enforces permissions and feature gates, and can redirect admin users away from user surfaces.</p>
+      <table><tr><th>Implemented in</th><td><code>client/src/app/routeGuards.tsx</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Accidental exposure of protected screens to unauthenticated, unverified, or under-trusted users.</td></tr>
+<tr><th>How implemented</th><td>The guard reads auth state from Redux, checks route options, and returns redirects before rendering page children.</td></tr>
+<tr><th>Validation method</th><td><code>client/src/app/routeGuards.test.tsx</code> verifies redirect and access behavior.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-admin-route" class="handover-unit">
+      <h3>20.10 AdminRoute Enforcement</h3>
+      <p class="tagline">Administrator-only client surfaces.</p>
+      <p>AdminRoute requires an authenticated user with ADMIN account type and admin.access permission. Non-admin users are redirected to the verified dashboard or identity verification depending on their status.</p>
+      <table><tr><th>Implemented in</th><td><code>client/src/app/routeGuards.tsx</code>.</td></tr>
+<tr><th>Threats addressed</th><td>User accounts opening administrator dashboards, audit screens, compliance tools, or user management pages.</td></tr>
+<tr><th>How implemented</th><td>The guard checks session state, account type, and permission before rendering admin children.</td></tr>
+<tr><th>Validation method</th><td>Route guard tests and admin page tests should verify both allowed and rejected states.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-permissions" class="handover-unit">
+      <h3>20.11 Permissions And Feature Gates</h3>
+      <p class="tagline">Shared access vocabulary computed on the server.</p>
+      <p>Access policy converts account type, verification status, capabilities, trust tier, risk level, and screening status into permissions and feature gates. Admins receive all permission names; user permissions depend on operating rules.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/security/accessPolicy.ts</code> and shared permission contracts.</td></tr>
+<tr><th>Threats addressed</th><td>Inconsistent buyer/supplier/admin authorization decisions across modules.</td></tr>
+<tr><th>How implemented</th><td>computeAccessContext returns permission arrays and featureGate booleans consumed by sessions and route guards.</td></tr>
+<tr><th>Validation method</th><td>Access-policy tests should cover admin, buyer, supplier, unverified, blocked, and low-trust subjects.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-capabilities" class="handover-unit">
+      <h3>20.12 Organization Capability Model</h3>
+      <p class="tagline">Buyer and supplier powers are organization capabilities, not login roles.</p>
+      <p>ProcureX separates account type from procurement capability. A normal user can operate as a buyer or supplier depending on organization capabilities; administrator status is a platform authority rather than a procurement party role.</p>
+      <table><tr><th>Implemented in</th><td>Shared contracts, identity/session DTOs, organization models, and access-policy computation.</td></tr>
+<tr><th>Threats addressed</th><td>Role confusion, incorrect cross-organization actions, and hard-coded buyer/supplier login assumptions.</td></tr>
+<tr><th>How implemented</th><td>Capabilities are included in access subjects and can be evaluated by app policy and RLS helper functions.</td></tr>
+<tr><th>Validation method</th><td>Module tests should verify buyer-only and supplier-only operations with realistic organization context.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-trust-risk" class="handover-unit">
+      <h3>20.13 Trust Tier, Risk Level, And Screening Status</h3>
+      <p class="tagline">Risk-aware access context for sensitive procurement operations.</p>
+      <p>Access computation uses verification status, trust tier, risk level, and screening status to decide whether a user can operate. Blocked screening status and critical risk prevent normal operation when gates are enabled.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/security/accessPolicy.ts</code> and identity service workflows.</td></tr>
+<tr><th>Threats addressed</th><td>High-risk or blocked organizations continuing sensitive procurement activity.</td></tr>
+<tr><th>How implemented</th><td>Trust tiers are ranked and compared; risk and screening defaults are normalized when absent.</td></tr>
+<tr><th>Validation method</th><td>Identity and access-policy tests should cover rejected, expired, blocked, critical-risk, and approved states.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-db-context" class="handover-unit">
+      <h3>20.14 Prisma Database Context</h3>
+      <p class="tagline">Request identity values injected into PostgreSQL transaction settings.</p>
+      <p>withDbContext wraps Prisma work in a transaction and sets app.current_user_id, app.current_organization_id, app.current_account_type, and app.current_capabilities. RLS SQL functions then read those values.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/db/context.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Repository code running without tenant or user context for RLS-protected tables.</td></tr>
+<tr><th>How implemented</th><td>The helper uses set_config in the transaction before executing the repository work callback.</td></tr>
+<tr><th>Validation method</th><td><code>npm --workspace server run verify:rls</code> should verify context-dependent data access.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-rls-functions" class="handover-unit">
+      <h3>20.15 PostgreSQL RLS Context Functions</h3>
+      <p class="tagline">Database-side helpers for current user, organization, account type, and capabilities.</p>
+      <p>The RLS SQL creates app.current_user_id, app.current_organization_id, app.current_account_type, app.current_capabilities, app.is_admin, app.same_org, and app.has_capability functions.</p>
+      <table><tr><th>Implemented in</th><td><code>server/prisma/sql/rls/001_app_context.sql</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Ad hoc tenant checks repeated inconsistently in application queries.</td></tr>
+<tr><th>How implemented</th><td>Stable SQL functions read transaction settings and expose reusable policy predicates.</td></tr>
+<tr><th>Validation method</th><td>RLS verification should test user, admin, same organization, public marketplace, buyer, and supplier paths.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-rls-policies" class="handover-unit">
+      <h3>20.16 PostgreSQL Row-Level Security Policies</h3>
+      <p class="tagline">Tenant isolation and workflow-specific database policies.</p>
+      <p>The RLS SQL enables and forces row-level security on organization, document, procurement, bidding, contract, financial, communication, compliance, identity, tender, bid, and evaluation tables with policies based on user, organization, admin status, public visibility, and capabilities.</p>
+      <table><tr><th>Implemented in</th><td><code>server/prisma/sql/rls/002_enable_rls.sql</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Cross-tenant reads/writes, unauthorized bid mutation, improper tender visibility, and identity record exposure.</td></tr>
+<tr><th>How implemented</th><td>General tenant_isolation policies are created for org-column tables, then specialized policies are created for users, accounts, sessions, verification profiles, tenders, bids, and evaluation scores.</td></tr>
+<tr><th>Validation method</th><td>Run RLS verification and add policy tests whenever schema tables are added.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-zod-validation" class="handover-unit">
+      <h3>20.17 Zod Validation As A Security Boundary</h3>
+      <p class="tagline">Runtime request validation before services mutate workflow state.</p>
+      <p>Module validators reject invalid params, query strings, and bodies before service methods perform domain work. Zod errors are converted into localized structured API error responses.</p>
+      <table><tr><th>Implemented in</th><td>Module <code>validators.ts</code> files and <code>server/src/app.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Malformed payloads, over-posting, missing required fields, invalid workflow action data, and unsafe query parameters.</td></tr>
+<tr><th>How implemented</th><td>Controllers parse input with schemas and app-level error handling maps ZodError to VALIDATION_FAILED responses.</td></tr>
+<tr><th>Validation method</th><td>Module validator tests and controller/service tests should cover accepted and rejected payloads.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-api-errors" class="handover-unit">
+      <h3>20.18 Centralized API Errors And Localized Client Guidance</h3>
+      <p class="tagline">Safe, consistent error shaping across server and client.</p>
+      <p>The server uses shared API error helpers to shape status, code, user message, reason, actions, and field errors. The client converts API failures into localized notifications and safer user-facing guidance.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/shared/apiErrors.ts</code> and <code>client/src/shared/api/errors.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Leaking raw server failures, inconsistent permission messages, confusing validation output, and unlocalized failure states.</td></tr>
+<tr><th>How implemented</th><td>The app error handler normalizes Zod and request errors; the client maps status/code/message patterns to actionable copy.</td></tr>
+<tr><th>Validation method</th><td>API error tests should cover validation, auth, permission, not found, conflict, rate limit, upload, and document errors.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-identity-flow" class="handover-unit">
+      <h3>20.19 Identity Registration, Verification, And Session Security</h3>
+      <p class="tagline">Account lifecycle security around OTP, activation, password setup, sign-in, MFA, and profile verification.</p>
+      <p>The identity service coordinates registration, OTP challenges, email activation, password setup, sign-in sessions, MFA flows, password recovery, verification profiles, registry checks, screening, and trust evaluation.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/identity/service.ts</code> and related identity provider files.</td></tr>
+<tr><th>Threats addressed</th><td>Unverified accounts, weak account activation flows, missing delivery validation, unauthorized profile changes, and incomplete verification evidence.</td></tr>
+<tr><th>How implemented</th><td>Identity workflows create challenges, verify submitted codes, persist sessions, calculate access context, and record audit-relevant events.</td></tr>
+<tr><th>Validation method</th><td>Identity production-auth tests and delivery-provider tests verify registration and security-sensitive edge cases.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-provider-config" class="handover-unit">
+      <h3>20.20 Provider Configuration Restrictions</h3>
+      <p class="tagline">Production rules for email, SMS, WhatsApp, registry, screening, and signing providers.</p>
+      <p>Production security validation rejects local-only dev-console, SMTP, and WhatsApp test-style identity paths and requires provider credentials for Resend, SMS providers, registry lookup, email validation, and signing.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/security/config.ts</code> and <code>server/.env.example</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Production deployment without real delivery, registry, validation, or signing providers.</td></tr>
+<tr><th>How implemented</th><td>Environment values are normalized and checked during app startup. Missing required production variables produce a hard failure.</td></tr>
+<tr><th>Validation method</th><td>Configuration tests should assert that unsafe production provider combinations fail before serving traffic.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-signing-keyphrase" class="handover-unit">
+      <h3>20.21 Digital Signing Credential Security</h3>
+      <p class="tagline">Ed25519 keys protected by keyphrase-derived AES-256-GCM encryption.</p>
+      <p>Signing credentials are generated as Ed25519 key pairs. Private keys are encrypted with AES-256-GCM using a key derived from the user keyphrase with scrypt. Fingerprints and provider metadata support later verification.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/identity/signing.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Plaintext private-key storage, weak signing evidence, invalid keyphrase usage, and inactive credential signing.</td></tr>
+<tr><th>How implemented</th><td>The module validates keyphrase length, derives encryption keys with scrypt, encrypts private keys with random salt and IV, and signs canonical hashes.</td></tr>
+<tr><th>Validation method</th><td>Signing tests should cover credential creation, repeated keyphrase validation, decrypt failure, re-encryption, revoke, and sign behavior.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-sensitive-actions" class="handover-unit">
+      <h3>20.22 Sensitive Action Signing</h3>
+      <p class="tagline">Canonical payload hashes and signed action records for high-risk workflow events.</p>
+      <p>Sensitive action signing builds a canonical payload containing module key, action key, entity details, user, organization, payload, and signed time. It hashes the canonical JSON, signs it with the user credential, and stores a signed action record.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/identity/sensitiveActionSigning.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Repudiation of important workflow approvals, unsigned contract actions, and tampered payload evidence.</td></tr>
+<tr><th>How implemented</th><td>Canonical JSON sorting creates stable hashes; Ed25519 signature metadata and key fingerprint are persisted with the signed action.</td></tr>
+<tr><th>Validation method</th><td>Module tests should require keyphrases for protected actions and verify signed action records are created.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-upload-limits" class="handover-unit">
+      <h3>20.23 Document Upload Size, Count, And Field Limits</h3>
+      <p class="tagline">Multipart controls before files enter storage.</p>
+      <p>Document upload parsing allows one file at a time, limits field count, enforces max bytes, and deletes partially stored objects if parsing or validation fails.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/documents/storage.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Oversized files, upload flooding, partial-object leftovers, and malformed multipart payloads.</td></tr>
+<tr><th>How implemented</th><td>Busboy limits fileSize, files, and fields; file streams are monitored and failed uploads clean up storage.</td></tr>
+<tr><th>Validation method</th><td>Document tests should cover missing file, too many files, too-large files, and invalid multipart fields.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-file-validation" class="handover-unit">
+      <h3>20.24 MIME, Extension, And Magic-Byte Validation</h3>
+      <p class="tagline">Content safety checks for uploaded procurement evidence.</p>
+      <p>Uploaded documents must use allowed extensions and MIME types, reject explicitly unsafe extensions, and pass magic-byte checks for PDFs, PNGs, JPGs, DOCX, and XLSX files.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/documents/storage.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Executable uploads, disguised scripts, mismatched PDF/image/Office content, shell scripts, HTML payloads, and unsafe archive/script formats.</td></tr>
+<tr><th>How implemented</th><td>Validation checks extension, MIME type, first bytes, script/HTML prefixes, MZ executables, and PDF/image/ZIP signatures.</td></tr>
+<tr><th>Validation method</th><td>Upload tests should include accepted files, blocked executable extensions, MIME mismatches, bad magic bytes, and invalid metadata.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-object-keys" class="handover-unit">
+      <h3>20.25 Safe Object Keys And Local Path Protection</h3>
+      <p class="tagline">Storage paths sanitized before local or S3 persistence.</p>
+      <p>Object keys are built from sanitized source module, entity type, entity id, timestamp, random suffix, and safe filename. Local paths are normalized and checked to remain under the configured upload root.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/documents/storage.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Path traversal, unsafe filenames, object-key injection, and accidental writes outside the document storage root.</td></tr>
+<tr><th>How implemented</th><td>Filename, display name, path part, document type, and UUID-like values are normalized before storage.</td></tr>
+<tr><th>Validation method</th><td>Storage tests should cover traversal attempts, unsafe characters, and localPathForObjectKey root enforcement.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-storage-checksums" class="handover-unit">
+      <h3>20.26 Storage Drivers, Checksums, And Metadata Filtering</h3>
+      <p class="tagline">Local/S3 storage with hashes and user metadata controls.</p>
+      <p>The storage layer supports local files and S3-compatible object storage. It computes SHA-256 checksums, stores size/content-type metadata, and filters user metadata fields that could expose storage paths, encrypted payloads, or key references.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/documents/storage.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Tampered document evidence, unsafe user-controlled metadata, leaked storage internals, and misconfigured S3 storage.</td></tr>
+<tr><th>How implemented</th><td>Storage driver selection reads environment variables; checksums are computed while streaming or buffering; blocked metadata keys are removed.</td></tr>
+<tr><th>Validation method</th><td>Document repository tests should verify stored checksums, metadata, content retrieval, and failure cases.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-profile-images" class="handover-unit">
+      <h3>20.27 Profile Image Upload Security</h3>
+      <p class="tagline">Separate image-specific upload controls for identity profile media.</p>
+      <p>Profile image handling is separated from general document storage so image size, type, storage location, and account profile behavior can evolve independently from procurement evidence documents.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/identity/profileImageStorage.ts</code> and identity profile routes.</td></tr>
+<tr><th>Threats addressed</th><td>Oversized media, unsupported image content, and mixing profile media policy with official document policy.</td></tr>
+<tr><th>How implemented</th><td>Profile image storage uses dedicated environment settings and identity service integration.</td></tr>
+<tr><th>Validation method</th><td>Profile image tests should verify allowed types, max size, replacement behavior, and content retrieval.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-audit-events" class="handover-unit">
+      <h3>20.28 Audit Events And Security Evidence</h3>
+      <p class="tagline">Security-relevant events recorded for accountability.</p>
+      <p>Audit events are created for important actions such as rate limiting and broader identity/admin workflows. Audit storage is designed not to block enforcement when recording fails in a secondary path.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/security/rateLimit.ts</code>, identity repository code, and compliance/admin modules.</td></tr>
+<tr><th>Threats addressed</th><td>Untraceable abuse, missing administrative evidence, and lack of security operation history.</td></tr>
+<tr><th>How implemented</th><td>Rate-limit auditing hashes IP and user-agent values before storage and catches audit failures so enforcement still proceeds.</td></tr>
+<tr><th>Validation method</th><td>Service tests should verify audit creation for sensitive operations without making audit storage a single point of failure.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-support-email" class="handover-unit">
+      <h3>20.29 Support Email And Contact Security</h3>
+      <p class="tagline">Controlled public contact and support ticket delivery.</p>
+      <p>Support email and ticket workflows separate public contact input, authenticated support tickets, email delivery, and comments/status changes. Email tests verify provider behavior and failure handling.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/support/email.ts</code> and support service files.</td></tr>
+<tr><th>Threats addressed</th><td>Unvalidated contact payloads, unhandled email failures, support spam, and confused support-ticket ownership.</td></tr>
+<tr><th>How implemented</th><td>Support validators shape input; service methods create tickets/comments/status changes and call delivery helpers where required.</td></tr>
+<tr><th>Validation method</th><td><code>server/src/modules/support/email.test.ts</code> and support service tests should remain focused on delivery and workflow outcomes.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-localization" class="handover-unit">
+      <h3>20.30 Localization-Safe Security Responses</h3>
+      <p class="tagline">Language-aware request and error handling without leaking internals.</p>
+      <p>The server reads request language and shapes error responses through shared helpers. The client maps technical errors into localized, user-facing notification titles, reasons, and actions.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/modules/shared/localization.ts</code>, <code>server/src/app.ts</code>, and <code>client/src/shared/api/errors.ts</code>.</td></tr>
+<tr><th>Threats addressed</th><td>Raw stack traces, confusing security failures, and inconsistent bilingual user guidance.</td></tr>
+<tr><th>How implemented</th><td>404 and error middleware call apiErrorResponseBody with request language; client code curates safe copy by status and code.</td></tr>
+<tr><th>Validation method</th><td>Localization and API error tests should verify English/Swahili response behavior for common security failures.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-test-evidence" class="handover-unit">
+      <h3>20.31 Security Test Evidence</h3>
+      <p class="tagline">Executable checks for production auth, providers, route guards, signing, uploads, and RLS.</p>
+      <p>Security behavior is covered through focused tests across server and client workspaces. The implementation treats tests as executable documentation for what must remain true.</p>
+      <table><tr><th>Implemented in</th><td><code>server/src/__tests__/identity-production-auth.test.ts</code>, <code>server/src/__tests__/identity-delivery-providers.test.ts</code>, <code>client/src/app/routeGuards.test.tsx</code>, signing tests, document tests, and RLS verification.</td></tr>
+<tr><th>Threats addressed</th><td>Regression of security-sensitive behavior after feature work.</td></tr>
+<tr><th>How implemented</th><td>Tests exercise service methods, route guards, provider setup, signing helpers, upload storage, and app-level routing.</td></tr>
+<tr><th>Validation method</th><td><code>npm test</code> plus <code>npm --workspace server run verify:rls</code> for database policy checks.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+
+    <article id="security-deep-maintenance" class="handover-unit">
+      <h3>20.32 Security Maintenance Checklist</h3>
+      <p class="tagline">How future changes should preserve the implemented security model.</p>
+      <p>Every security-sensitive change should be reviewed across the same layers used by the implementation: route exposure, validation, service authorization, repository context, RLS policy, document safety, signed action evidence, audit behavior, and user-facing error handling.</p>
+      <table><tr><th>Implementation checklist</th><td>Route guard, API validator, service permission check, database context, RLS policy, audit event, upload/signature control, and tests.</td></tr>
+<tr><th>Threats addressed</th><td>Partial security changes that protect the UI but not the API, or protect the API but leave persistence policies open.</td></tr>
+<tr><th>How implemented</th><td>Keep controls centralized where possible and add module-local checks only for domain-specific workflow rules.</td></tr>
+<tr><th>Validation method</th><td>Run narrow tests first, then broader workspace tests and RLS verification when data-access policy is touched.</td></tr></table>
+      <p>For assessment and engineering handover, this page should be read as implementation evidence: it names the stack element, explains where it lives, describes how ProcureX uses it, and states what maintainers must protect when changing it.</p>
+    </article>
+    </section>
+
     <section id="references" class="section">
-      <h2>19. References And Figures Used</h2>
+      <h2>21. References And Figures Used</h2>
       <p>
         This report was prepared from the implementation guide, repository
         structure, UI parity assets, backend module structure, Prisma database
         foundation, and screenshot capture workflow in the ProcureX workspace.
       </p>
 
-      <h3>19.1 Repository References</h3>
+      <h3>21.1 Repository References</h3>
       <ul>
         <li><code>procurement-platform/docs/architecture.md</code> - system implementation guide.</li>
         <li><code>procurement-platform/docs/ui-parity/README.md</code> - UI parity workflow.</li>
@@ -7812,7 +8709,7 @@ SignInProcurexPage.tsx
         <li><code>procurement-platform/server/prisma/schema.prisma</code> - database schema model.</li>
       </ul>
 
-      <h3>19.2 Figure Asset References</h3>
+      <h3>21.2 Figure Asset References</h3>
       <p>
         Screenshots are UI parity assets from the reference prototype and the
         production React target:
