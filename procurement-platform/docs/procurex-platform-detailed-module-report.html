@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProcureX Detailed Module Implementation Report</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #596579;
+      --paper: #ffffff;
+      --soft: #f4f7fb;
+      --line: #d8deea;
+      --accent: #0f766e;
+      --accent-dark: #0b4f49;
+      --accent-soft: #e5f5f2;
+      --gold: #a16207;
+      --blue: #1d4ed8;
+      --code: #eef2f7;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #e9edf5;
+      font: 12pt/1.62 Georgia, "Times New Roman", serif;
+    }
+
+    .page {
+      width: min(100%, 1080px);
+      margin: 24px auto;
+      padding: 56px 72px;
+      background: var(--paper);
+      box-shadow: 0 18px 48px rgba(23, 32, 51, 0.14);
+    }
+
+    .title-page {
+      min-height: 900px;
+      display: grid;
+      align-content: center;
+      border: 1px solid var(--line);
+      padding: 76px;
+      margin-bottom: 40px;
+      background:
+        linear-gradient(180deg, rgba(15, 118, 110, 0.10), transparent 38%),
+        var(--paper);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    .label,
+    .meta,
+    table,
+    .toc,
+    .callout,
+    .module-meta {
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 34pt;
+      line-height: 1.12;
+    }
+
+    h2 {
+      margin: 38px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 21pt;
+    }
+
+    h3 {
+      margin: 28px 0 10px;
+      font-size: 16pt;
+    }
+
+    h4 {
+      margin: 20px 0 8px;
+      font-size: 12pt;
+      color: var(--accent-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    ul,
+    ol {
+      margin-top: 8px;
+      padding-left: 24px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    a {
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--code);
+      font: 10.5pt Consolas, "Courier New", monospace;
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 12px 0 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e5edf8;
+      font: 10pt/1.5 Consolas, "Courier New", monospace;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 22px;
+      font-size: 10.5pt;
+    }
+
+    th,
+    td {
+      vertical-align: top;
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: var(--soft);
+      color: var(--accent-dark);
+    }
+
+    .label {
+      margin: 0 0 14px;
+      color: var(--accent-dark);
+      font-weight: 700;
+      font-size: 10pt;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      color: var(--muted);
+      font-size: 15pt;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 42px;
+      font-size: 10.5pt;
+    }
+
+    .meta div,
+    .callout,
+    .module,
+    .evidence-grid > div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .meta div {
+      padding: 12px 14px;
+    }
+
+    .toc {
+      columns: 2;
+      column-gap: 34px;
+      padding-left: 18px;
+      font-size: 10.5pt;
+    }
+
+    .toc li {
+      break-inside: avoid;
+      margin: 6px 0;
+    }
+
+    .callout {
+      margin: 16px 0 22px;
+      padding: 16px 18px;
+    }
+
+    .callout strong {
+      color: var(--accent-dark);
+    }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin: 14px 0 22px;
+    }
+
+    .evidence-grid > div {
+      padding: 14px 16px;
+    }
+
+    .module {
+      margin: 24px 0 32px;
+      padding: 22px 24px;
+      background: #fff;
+    }
+
+    .module h3 {
+      margin-top: 0;
+      color: var(--accent-dark);
+    }
+
+    .module-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 14px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      font-size: 9.5pt;
+      font-weight: 700;
+    }
+
+    .pill.blue {
+      background: #e8f0ff;
+      color: var(--blue);
+    }
+
+    .pill.gold {
+      background: #fff7db;
+      color: var(--gold);
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 10.5pt;
+    }
+
+    .footer-note {
+      margin-top: 34px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font: 10pt/1.5 Arial, Helvetica, sans-serif;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .page {
+        width: auto;
+        margin: 0;
+        padding: 34px 44px;
+        box-shadow: none;
+      }
+
+      .module,
+      table {
+        break-inside: avoid;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page,
+      .title-page {
+        margin: 0;
+        padding: 28px 20px;
+      }
+
+      .toc,
+      .meta,
+      .evidence-grid,
+      .section-grid {
+        columns: 1;
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="title-page">
+      <p class="label">ProcureX Procurement Platform</p>
+      <h1>Detailed Module Implementation Report</h1>
+      <p class="subtitle">A standalone technical report documenting the platform key features and how they are implemented across frontend, backend, database, testing, validation, and security.</p>
+      <div class="meta">
+        <div><strong>Report date:</strong><br>18 July 2026</div>
+        <div><strong>Deliverable:</strong><br>New standalone HTML documentation file</div>
+        <div><strong>Primary source:</strong><br>Direct inspection of <code>client</code>, <code>server</code>, <code>shared</code>, Prisma, scripts, tests, and docs</div>
+        <div><strong>Change scope:</strong><br>Documentation only. No application behavior, schema, API, or test code changed.</div>
+      </div>
+    </section>
+
+    <section id="contents">
+      <h2>Table Of Contents</h2>
+      <ol class="toc">
+        <li><a href="#executive-overview">Executive Overview</a></li>
+        <li><a href="#architecture">Platform Architecture</a></li>
+        <li><a href="#evidence">Evidence And Inspection Method</a></li>
+        <li><a href="#public-content">Public Content And Guest Marketplace</a></li>
+        <li><a href="#identity">Authentication, Identity, MFA, And Signing</a></li>
+        <li><a href="#organization">Organization And Access Capabilities</a></li>
+        <li><a href="#workspace">Workspace Dashboard And App Launcher</a></li>
+        <li><a href="#procurement">Procurement Planning And Tender Management</a></li>
+        <li><a href="#bidding">Bidding Workspace</a></li>
+        <li><a href="#evaluation">Evaluation Workflow</a></li>
+        <li><a href="#award-contract">Awarding And Contract Formation</a></li>
+        <li><a href="#post-award">Post-Award Execution And Tracking</a></li>
+        <li><a href="#financial">Financial Workflows</a></li>
+        <li><a href="#documents">Documents And Official Document Generation</a></li>
+        <li><a href="#communication">Communication Center</a></li>
+        <li><a href="#records">Records And Audit History</a></li>
+        <li><a href="#admin">Admin And Compliance</a></li>
+        <li><a href="#support">Support Tickets And Contact Support</a></li>
+        <li><a href="#help-centre">Help Centre FAQ Assistant</a></li>
+        <li><a href="#intelligence">Intelligence And Supplier/Risk Insights</a></li>
+        <li><a href="#integration">Integration And Registry Records</a></li>
+        <li><a href="#shared-ui">Notifications, Localization, And Shared UI</a></li>
+        <li><a href="#testing-validation">Testing And Validation Strategy</a></li>
+        <li><a href="#security">Security Coverage</a></li>
+        <li><a href="#manual-validation">Manual Validation Checklist</a></li>
+      </ol>
+    </section>
+
+    <section id="executive-overview">
+      <h2>Executive Overview</h2>
+      <p>ProcureX is implemented as a full-stack procurement lifecycle platform. It supports public discovery, registration, identity verification, organization capability management, tender planning, tender creation, supplier bidding, bid evaluation, award recommendation, contract formation, post-award execution, payment tracking, support, communication, records, compliance administration, and analytics-oriented intelligence boundaries.</p>
+      <p>The platform is organized as a TypeScript monorepo under <code>procurement-platform</code>. The production client is a React and Vite application. The backend is an Express API with Prisma persistence. The database model is PostgreSQL-oriented and split across functional schemas such as <code>identity</code>, <code>organization</code>, <code>procurement</code>, <code>bidding</code>, <code>evaluation</code>, <code>contract</code>, <code>financial</code>, <code>compliance</code>, <code>communication</code>, <code>documents</code>, <code>records</code>, <code>intelligence</code>, <code>integration</code>, <code>content</code>, and <code>support</code>.</p>
+      <p>The implementation separates login identity from procurement capability. A user account is either <code>USER</code> or <code>ADMIN</code>. Buyer and supplier behavior comes from organization capabilities and workflow context. This is important because a normal company account can be buyer, supplier, or both without turning the login account type into a procurement role.</p>
+      <p>Runtime support is provided through Docker Compose infrastructure: PostgreSQL for transactional storage, Redis for rate-limit backing where configured, Elasticsearch for search-oriented admin/intelligence use, and MinIO or S3-compatible storage for uploaded objects. Local scripts in <code>scripts/</code> start the platform, run environment-aware commands, generate ProcureX pages, and capture UI parity screenshots.</p>
+    </section>
+
+    <section id="architecture">
+      <h2>Platform Architecture</h2>
+      <div class="evidence-grid">
+        <div>
+          <h3>Frontend Shape</h3>
+          <p>The client application uses React 19, Vite, React Router, Redux Toolkit, Axios, MUI, i18next, Recharts, DOMPurify, ExcelJS, and PDF helpers. Routing is centralized in <code>client/src/app/routes.tsx</code>, with lazy page loading through <code>procurexPageRegistry</code>. Shared route guard components decide whether a page is public, authenticated, verified-only, or admin-only.</p>
+        </div>
+        <div>
+          <h3>Backend Shape</h3>
+          <p>The Express app is created in <code>server/src/app.ts</code>. It applies Helmet, CORS checks, JSON body limits, registered module routers, health reporting, 404 handling, and centralized error handling. Modules are registered in <code>server/src/modules/index.ts</code> and follow a repeated boundary: routes, controller, service, repository, validators, and types.</p>
+        </div>
+        <div>
+          <h3>Database Shape</h3>
+          <p>Prisma is the model and migration source. The schema includes enums for account, tender, bid, evaluation, award, contract, financial, compliance, communication, and support states. Core domain models preserve ownership through user ids, organization ids, buyer organization ids, supplier organization ids, workflow assignment ids, and document references.</p>
+        </div>
+        <div>
+          <h3>Security Shape</h3>
+          <p>The platform uses browser security headers, CSP directives, CORS allowlists, rate limits, Turnstile verification for public auth, bearer-token API calls, route guards, admin-only routes, validation-first controllers, standardized safe error responses, signing keyphrases for sensitive actions, audit events, and RLS-aware database context.</p>
+        </div>
+      </div>
+
+      <h3>Registered Backend Modules</h3>
+      <p>The API currently registers these base paths: <code>/api/public</code>, <code>/api/identity</code>, <code>/api/organization</code>, <code>/api/procurement</code>, <code>/api/bidding</code>, <code>/api/evaluation</code>, <code>/api/award-contract</code>, <code>/api/post-award</code>, <code>/api/financial</code>, <code>/api/compliance-admin</code>, <code>/api/communication</code>, <code>/api/dashboard</code>, <code>/api/records</code>, <code>/api/intelligence</code>, <code>/api/integration</code>, <code>/api/documents</code>, <code>/api/support</code>, and <code>/api/help-centre</code>. The app also aliases the evaluation router under <code>/api/evaluations</code> for client compatibility.</p>
+
+      <h3>Typical Request Flow</h3>
+      <pre>React page or hook
+  -> feature API helper
+  -> shared Axios apiClient with bearer token and locale headers
+  -> Express route
+  -> controller validation
+  -> service business rule
+  -> repository persistence or provider call
+  -> Prisma/PostgreSQL, object storage, or external provider
+  -> standardized response or localized ProcureX API error</pre>
+    </section>
+
+    <section id="evidence">
+      <h2>Evidence And Inspection Method</h2>
+      <p>This report was produced by inspecting source files rather than relying only on existing prose documentation. The inspection included the root README, workspace package scripts, current architecture docs, server module registration, Express app setup, client route definitions, the generated ProcureX page registry, feature API helpers, Prisma schema model and enum names, migration names, RLS SQL, security configuration, rate-limit code, and test inventories.</p>
+      <table>
+        <thead>
+          <tr><th>Area</th><th>Evidence Used</th><th>Why It Matters</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Frontend</td><td><code>client/src/app/routes.tsx</code>, <code>client/src/features/*</code>, <code>client/src/shared/api/http.ts</code>, page tests</td><td>Shows actual user routes, feature boundaries, API calls, auth headers, locale headers, and UI smoke/flow coverage.</td></tr>
+          <tr><td>Backend</td><td><code>server/src/app.ts</code>, <code>server/src/modules/index.ts</code>, module route/controller/service/repository files</td><td>Shows real API base paths, module responsibilities, request validation, service orchestration, and persistence access.</td></tr>
+          <tr><td>Database</td><td><code>server/prisma/schema.prisma</code>, migration folders, <code>server/prisma/sql/rls</code>, <code>server/src/db/context.ts</code></td><td>Shows domain schemas, tables, relations, enum states, RLS helper functions, and request context propagation.</td></tr>
+          <tr><td>Testing</td><td>Server and client <code>*.test.ts</code> and <code>*.test.tsx</code> files, e2e scripts, localization audits</td><td>Shows validated behavior for auth, route guards, tender flows, bidding, evaluation, awards, post-award, support, help, and security.</td></tr>
+          <tr><td>Security</td><td><code>security/config.ts</code>, <code>security/rateLimit.ts</code>, <code>security/turnstile.ts</code>, API error utilities, RLS verification</td><td>Shows configured protections and production enforcement expectations.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong>Important documentation note:</strong> This report intentionally describes implementation details without copying large source blocks. It is written as a technical implementation report, not as a source-code mirror.</div>
+    </section>
+
+    <section id="public-content" class="module">
+      <h3>Public Content And Guest Marketplace</h3>
+      <div class="module-meta"><span class="pill">Frontend: public</span><span class="pill blue">Backend: /api/public + /api/procurement/public</span><span class="pill gold">Database: content + procurement</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The public layer introduces ProcureX before authentication. It includes welcome content, guest marketplace browsing, public contact entry, privacy policy, terms and conditions, and navigation into registration or sign-in. It lets suppliers discover opportunities and lets buyers understand the platform without entering protected workspaces.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Routes such as <code>/</code>, <code>/guest-marketplace</code>, <code>/about</code>, <code>/privacy</code>, <code>/terms</code>, <code>/contact</code>, <code>/help</code>, and <code>/status</code> are declared as public routes. Public pages live under <code>client/src/features/public</code>, with ProcureX prototype-derived pages lazy-loaded through the page registry. Public API helpers fetch marketplace data, welcome landing data, page versions, and legal versions.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The public module exposes page and legal-version endpoints: <code>GET /api/public/pages/:pageKey</code> and <code>GET /api/public/legal/current</code>. The procurement module also exposes public welcome and marketplace data through <code>/api/procurement/public/welcome</code> and <code>/api/procurement/marketplace</code>. Public services provide stable fallback content when repository access is unavailable.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Content is backed by <code>PublicPageVersion</code>, <code>PublicPageKey</code>, and <code>PublicPageStatus</code>. Marketplace visibility comes from procurement tables such as <code>Tender</code>, with fields for status, visibility, title, dates, buyer organization, and tender details.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Coverage includes public service tests for latest published page DTOs, fallback content, and current legal versions. Client tests verify public welcome rendering, public content pages, contact page behavior, marketplace rendering, and auth-route behavior that keeps help open publicly.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Public endpoints avoid session requirements, but still run through global Helmet, CORS, request body size, and error handling. Public legal content is read-only. Guest marketplace data is constrained to public or intended marketplace visibility instead of exposing private buyer drafts.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="identity" class="module">
+      <h3>Authentication, Identity, MFA, And Signing</h3>
+      <div class="module-meta"><span class="pill">Frontend: auth + identity + account</span><span class="pill blue">Backend: /api/identity</span><span class="pill gold">Database: identity + organization + integration</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The identity module handles registration, OTP verification, email activation, password setup, sign-in, MFA checks, forgot-password and reset-password, session lookup, sign-out, preferences, account profile updates, contact change verification, profile image storage, company verification, registry lookup, admin verification decisions, signing credentials, keyphrase change, and keyphrase recovery.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Public auth pages cover registration, sign-in, forgot password, session expired, account locked, and keyphrase recovery. Protected identity pages include verification, security keyphrase, and account profile. The client identity API calls <code>/api/identity/verification/me</code>, registry lookup, draft save, verification submit, signature status/request/test/revoke, MFA status/start/verify, recovery-code regeneration, keyphrase change/recovery, profile update, contact-change verification, profile image upload/content/delete, and admin keyphrase history.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The route surface includes registration start/resend/verify/activate/set-password, sign-in, MFA verification, forgot/reset code flows, session, access context, preferences, account activity, sign-out, MFA TOTP setup, profile and signature operations, verification operations, profile image operations, and admin verification review. Controllers validate request bodies and route params, then delegate to the identity service for challenge creation, provider delivery, password/session behavior, verification state, and signing.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Identity persistence includes <code>User</code>, <code>Account</code>, <code>Session</code>, <code>UserPreference</code>, <code>UserPolicyAcceptance</code>, <code>MfaFactor</code>, <code>IdentityChallenge</code>, <code>VerificationProfile</code>, <code>VerificationDocument</code>, <code>VerificationProfileHistory</code>, <code>DigitalSignature</code>, <code>SigningCredential</code>, <code>SignedAction</code>, <code>KeyphraseRecovery</code>, and <code>ScreeningCheck</code>. Organization links are formed through memberships and organization ids so session context can include company access.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Identity has deep server tests for OTP delivery, local-only code exposure, email and phone validation, duplicate detection, legal acceptance before password setup, session revocation after password reset, challenge expiry and attempt caps, registry lookup, production delivery providers, admin decisions, signing credentials, and audit behavior. Client tests cover register, sign-in, forgot-password, Turnstile widget behavior, identity verification signature steps, account profile, contact verification, locked legal name fields, profile image actions, and route guards.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Public auth endpoints use rate limits and Turnstile. Production config rejects dev-console identity notifications, SMTP-only production email, local WhatsApp phone verification, and missing secrets. Password and OTP flows avoid leaking raw codes except in local dev-console mode. Sensitive signature and profile mutations use stronger mutation rate limits. Signing keyphrases protect eKYC submission and workflow actions, while audit tests verify sensitive tokens and keyphrases are not stored in audit payloads.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="organization" class="module">
+      <h3>Organization And Access Capabilities</h3>
+      <div class="module-meta"><span class="pill">Frontend: identity/workspace/admin consumers</span><span class="pill blue">Backend: /api/organization</span><span class="pill gold">Database: organization</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>Organization modeling is the platform backbone for buyer and supplier behavior. Instead of assigning buyer or supplier as a login role, the platform attaches capabilities to the organization. This lets one company act as buyer, supplier, or both while the login account remains a normal user account.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The user sees organization capability indirectly through workspace access, procurement actions, bidding actions, and account profile/verification screens. Route guards and session state consume capabilities returned by the identity access/session flow to decide whether core procurement routes can be entered.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The organization module exposes a status route and provides a stable boundary for future organization-specific APIs. Identity and procurement services use organization context heavily when creating verification profiles, assigning memberships, evaluating trust, creating tenders, saving bids, and applying RLS context.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Core tables include <code>Organization</code>, <code>OrganizationMember</code>, <code>OrganizationCapability</code>, <code>OrganizationProfile</code>, <code>BuyerProfile</code>, <code>SupplierProfile</code>, <code>TrustTierHistory</code>, and <code>PermissionOverride</code>. Organization kind separates company organizations from platform administration organizations.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Identity production-auth tests validate computed IAM access context, dual buyer/supplier capabilities, local sanctions/watchlist routing, duplicate approved registry handling, and company verification outcomes. Route guard tests validate capability-sensitive access decisions for procurement core routes.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Organization id is part of the database context through <code>withDbContext</code>. RLS helper functions compare current organization ids to row ownership fields. Admin users can inspect platform data through admin context while normal users remain bounded by their own organization and workflow assignments.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="workspace" class="module">
+      <h3>Workspace Dashboard And App Launcher</h3>
+      <div class="module-meta"><span class="pill">Frontend: workspace + shared TopBar</span><span class="pill blue">Backend: /api/dashboard</span><span class="pill gold">Database: cross-domain reads</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The workspace is the authenticated home for verified users. It summarizes tasks, tenders, bids, awards, contracts, messages, records, and access to platform apps. The app launcher creates a module-oriented navigation surface so users can move between procurement, bidding, evaluation, awards, communication, records, and support.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Routes <code>/apps</code> and <code>/dashboard</code> render verified pages through the ProcureX page registry. The workspace dashboard feature includes fixtures, hooks, a slice, types, API helper, and ProcureX components. Shared <code>TopBar</code> and platform app drawer components manage quick navigation, account menu access, help center links, language changes, and sign-out.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The dashboard module exposes <code>GET /api/dashboard/workspace</code> plus status routes. The workspace service composes a dashboard DTO from available domain repositories and fallback data so the frontend can render a consistent dashboard even when certain downstream records are empty.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>The dashboard is not a single-table module. It reads across identity, organization, procurement, bidding, evaluation, contract, communication, records, and compliance summaries. Data remains owned by those domains while the dashboard service creates a presentation contract.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server dashboard tests validate workspace service behavior. Client tests cover workspace dashboard rendering, top bar app drawer opening/closing, app navigation, account menu navigation, uploaded image refresh, Help Centre links, language persistence, and server sign-out calls.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Workspace routes require authentication and verified access except for deliberately allowed support paths. Admin redirects prevent administrators from accidentally entering ordinary user workspaces when admin-specific destinations are configured.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="procurement" class="module">
+      <h3>Procurement Planning And Tender Management</h3>
+      <div class="module-meta"><span class="pill">Frontend: procurement</span><span class="pill blue">Backend: /api/procurement</span><span class="pill gold">Database: procurement</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The procurement module supports public welcome data, marketplace discovery, master data, category taxonomy, tender design checks, tender creation, tender drafting, updates, publication, closure, tender detail, buyer logo/document access, saved tenders, tender amendments, admin tender review, contact verification, and annual procurement planning with plan lines.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Procurement pages include marketplace, create tender, tender publication, tender details, tender document, supplier tender detail, and procurement guide. The feature contains tender document model builders for goods and consultancy, PDF HTML generation helpers, spreadsheet import, tender PDF pack generation, marketplace visibility logic, create tender configuration, hooks, fixtures, slice, and API helpers.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The route surface includes <code>/master-data</code>, <code>/design/taxonomy</code>, <code>/design/standardize-category</code>, <code>/design/scan-language</code>, <code>/design/form-schemas</code>, <code>/marketplace</code>, <code>/admin/tender-review</code>, <code>/contact-verifications</code>, <code>/tenders</code>, tender patch/delete/publish/close/save, document open/download/download-recording, amendments create/update/publish/cancel, evaluation opening, and planning endpoints. The service coordinates category normalization, design validation, tender persistence, marketplace projection, and admin review decisions.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Procurement models include <code>Tender</code>, <code>TenderAmendment</code>, <code>SavedTender</code>, <code>ProcurementPlan</code>, <code>ProcurementPlanLine</code>, <code>TenderCategory</code>, <code>TenderDocument</code>, <code>TenderRequirement</code>, <code>TenderMilestone</code>, and <code>TenderCommercialItem</code>. Tender ownership uses <code>buyerOrgId</code>, while status and visibility enums control marketplace exposure and workflow readiness.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server tests cover public welcome mapping/fallbacks, master data shapes, category order, repository behavior, controller behavior, service logic, marketplace seed data, award-ready seed data, and demo evaluation award seed data. Client tests cover marketplace, create tender wizard, tender details, supplier tender detail, procurement API behavior, and page smoke rendering.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Mutation routes use API mutation rate limits. Contact verification has its own rate-limited path. RLS policies protect tender rows by organization, with public marketplace exceptions for published public tenders. Admin tender review remains admin-routed in the frontend and routed through backend checks.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="bidding" class="module">
+      <h3>Bidding Workspace</h3>
+      <div class="module-meta"><span class="pill">Frontend: bidding</span><span class="pill blue">Backend: /api/bidding</span><span class="pill gold">Database: bidding + documents + contract samples</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The bidding workspace lets suppliers create and continue tender-specific bid drafts, fetch tender-driven schemas, complete administrative, technical, and financial responses, upload documents, create and update physical sample records, validate submission requirements, submit bids, receive receipts, withdraw where allowed, and review submitted responses.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p><code>BiddingWorkspaceProcurexPage</code> implements the production bidder workflow. It uses schema-driven controls, structured response payloads, document upload metadata, sample tracking panels, eligibility gates, review submission documents, PDF/print actions, and notices. The API helper uploads bid documents with multipart form data and calls draft, bid, document, sample, submit, and withdraw endpoints.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The bidding module exposes <code>GET /my</code>, tender schema, tender draft get/save, bid detail, bid patch, document add/delete, sample create/list/patch, submit, and withdraw. Service files split responsibilities across bid schema construction, submission schema, validation, encryption/sealing, and document upload handling.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Bidding models include <code>Bid</code>, <code>BidVersion</code>, <code>BidDocument</code>, <code>BidResponse</code>, <code>BidReceipt</code>, and <code>BidSample</code>. Bids carry both <code>buyerOrgId</code> and <code>supplierOrgId</code>, which supports buyer/supplier visibility rules and sealed submission handling. Sample-related contract tables capture later receipt, custody, verification, testing, and disposition.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Backend bidding tests cover core module behavior. Client bidding tests are extensive: document upload, schema fetches, sample creation/list/patch, sample-required behavior, read-only submitted samples, progress gating, goods and works response structures, uploads, BOQ calculations, declarations, review documents, PDF actions, final submitted receipts, and backend blocker display.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Bid access is organization-sensitive. Suppliers write their own bids; buyers can view submitted data only through allowed workflow windows. Bid receipt and sealing logic provide traceability. Uploads are handled as documents rather than raw uncontrolled fields, and frontend notifications avoid exposing backend internals when upload validation fails.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="evaluation" class="module">
+      <h3>Evaluation Workflow</h3>
+      <div class="module-meta"><span class="pill">Frontend: evaluation</span><span class="pill blue">Backend: /api/evaluation and /api/evaluations</span><span class="pill gold">Database: evaluation + bidding + procurement</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The evaluation module transforms closed or ready tender submissions into evaluator workspaces. It supports readiness checks, dashboard records, draft workspaces, tender-specific workspace data, scoring criteria, saved section drafts, bid opening readiness, evaluation stages, lock reasons, and recommendation handoff.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The evaluation page is loaded through the ProcureX page registry and routed at <code>/evaluation</code>. Its API helper calls dashboard, records, drafts, ready list, workspace get, and workspace save endpoints. The page integrates selection state, route-driven workspace opening, scoring panels, source tender data, bid details, and save behavior.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The module provides readiness, dashboard, records, drafts, tender workspace read, and tender workspace update behavior. The service decides whether a tender can open for evaluation, marks elapsed tenders closed where required, returns explicit lock reasons, provides tender design data and saved drafts, and persists evaluator work.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Evaluation models include <code>EvaluationWorkspace</code>, <code>WorkflowAssignment</code>, <code>EvaluationCriterion</code>, <code>EvaluationScore</code>, <code>AwardRecommendation</code>, <code>ApprovalStep</code>, and award handoff records. Enums capture evaluation status, stages, workflow assignment types, approval status, and recommendation status.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server evaluation tests cover opening closed tenders, past-closing published tender behavior, lock reasons, workspace DTO data, readiness maintenance, draft listing, and saved draft behavior. Client e2e scripts cover evaluation workspace flow, while static page tests clear saved evaluation selection when entering evaluation.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Evaluation access is assignment-aware. RLS policies protect <code>evaluation_scores</code> by current user, admin status, buyer organization, and workflow assignment context. The frontend route is protected and may redirect admins to analytics rather than ordinary evaluator screens.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="award-contract" class="module">
+      <h3>Awarding And Contract Formation</h3>
+      <div class="module-meta"><span class="pill">Frontend: awardsContracts</span><span class="pill blue">Backend: /api/award-contract</span><span class="pill gold">Database: evaluation + contract + financial</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>This module converts evaluated bids into award decisions, award notices, supplier responses, award approval routes, tie-breakers, delivery feasibility checks, standstill periods, budget commitments, contract drafts, clauses, negotiations, signatures, sample procurement decisions, contract versions, milestones, inspections, invoices, risks, variations, disputes, terminations, closeout, and supplier performance.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The feature includes dashboard, recommendation, response, drafting, clauses, negotiation, signing, sample procurement, and older post-award tracking pages. Shared award contract components include role access, action catalogue, action forms, flow state, simple shared UI, and lifecycle-specific presentation components. The API helper contains detailed calls for recommendations, notices, contracts, samples, clauses, negotiations, signatures, milestones, payments, risks, and termination-related records.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The route file is one of the largest in the system. It exposes recommendation read and decision endpoints, notice response/cancel/reissue, tender contract draft creation, sample lifecycle endpoints, contract list/detail/documents/versioning, negotiation, signature, milestone, management plan, commencement, non-conformance, securities, penalties, change requests, deliverables, acceptances, inspections, invoices, payment schedules, payments, three-way matching, payment approvals, risk forecasting, supplier risk, risks, variations, issues, disputes, terminations, closeout, warranties, required documents, workflow approvals, and invoice status updates.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Contract formation uses <code>AwardRecommendation</code>, <code>AwardGroup</code>, <code>AwardWinner</code>, <code>AwardClause</code>, <code>AwardNegotiation</code>, <code>AwardBidPack</code>, <code>AwardApprovalRoute</code>, <code>AwardApprovalStep</code>, <code>AwardTieBreaker</code>, <code>DeliveryFeasibilityCheck</code>, <code>AwardNotice</code>, <code>AwardResponse</code>, <code>StandstillPeriod</code>, <code>AwardNotification</code>, <code>Contract</code>, <code>ContractParty</code>, <code>ContractClause</code>, <code>ContractNegotiation</code>, <code>ContractVersion</code>, <code>ContractSignature</code>, <code>ContractMilestone</code>, and many execution-linked contract records.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server tests cover award-contract service and demo seeds. Client flow tests validate empty lifecycle queues, dashboard URL behavior, contract signing sequence, supplier signing gate, generated contract documents, award confirmation, notice sending, supplier responses, contract drafting, clause editing, negotiation decisions, sample status labels, read-only cross-party controls, and hidden payload fields.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Award mutations use rate limits, and sensitive decisions accept signing keyphrases. Buyer and supplier controls are role filtered in the UI and should be enforced in backend services. Route guard tests confirm award contract workflow routes are behind authentication. The service records auditable decision history and avoids showing internal clause errors in user-facing toasts.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="post-award" class="module">
+      <h3>Post-Award Execution And Tracking</h3>
+      <div class="module-meta"><span class="pill">Frontend: postAward</span><span class="pill blue">Backend: /api/post-award</span><span class="pill gold">Database: contract + financial + documents</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The post-award module tracks a signed contract through activation, management planning, mobilization, obligations, evidence requirements, goods delivery schedules, dispatch notices, goods receipts, inspections, site handover, works progress, BOQ measurement, certificates, defects, service levels, service reports, service credits, service incidents, consultancy deliverables, claims, extension requests, amendments, changes, securities, penalties, invoices, payments, risks, issues, disputes, terminations, notices, meetings, warranties, urgent actions, closeout readiness, required documents, and supplier performance.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p><code>PostAwardAppPage</code> renders a contract chooser and a deep workspace based on active section, active task, contract id, viewer role, and URL params. It includes dynamic action forms for goods, works, services, consultancy, finance, risk, dispute, warranty, notices, meetings, and closeout. It maps form data into structured payloads and routes actions through the post-award API helper.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The backend provides contract list, action catalog, workspace load, document upload, management plan upsert/generation, activation item submit/review, contract activation, obligation/evidence creation, delivery and inspection records, finance actions, lifecycle review actions, closeout readiness, and many action-specific patch endpoints. Finance-sensitive endpoints use a dedicated post-award finance rate limit.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Post-award relies on the expanded contract schema: <code>ContractActivation</code>, <code>ContractActivationItem</code>, <code>ContractBaseline</code>, <code>ContractObligation</code>, <code>ContractEvidenceRequirement</code>, <code>ContractDeliverySchedule</code>, <code>ContractDispatchNotice</code>, <code>ContractGoodsReceipt</code>, <code>ContractSiteHandover</code>, <code>ContractWorksProgressReport</code>, <code>ContractInterimPaymentCertificate</code>, <code>ContractDefect</code>, <code>ContractServiceReport</code>, <code>ContractClaim</code>, <code>ContractAmendment</code>, and many more operational tables.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server post-award service tests validate workspace and action behavior. Client post-award tests validate the application page. Award contract flow tests also cover post-award navigation, action forms, document evidence upload, structured goods inspection defects, read-only other-party forms, admin hidden fields, and production-form submission behavior.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Post-award actions are party-aware and include buyer, supplier, and admin viewing distinctions. Finance endpoints are rate limited. Signature keyphrases appear on high-impact approvals and closeout actions. The UI hides advanced technical payload fields while preserving defaults required for backend records.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="financial" class="module">
+      <h3>Financial Purchase Orders, Invoices, Matching, And Payments</h3>
+      <div class="module-meta"><span class="pill">Frontend: awardsContracts + postAward</span><span class="pill blue">Backend: /api/financial + embedded finance routes</span><span class="pill gold">Database: financial + contract</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The financial area covers purchase orders, invoices, budget commitments, three-way match results, payment approvals, payment confirmations, payment schedules, deductions, retention, advance recovery, liquidated damages, and payment status tracking. Financial workflows are integrated into awards and post-award rather than presented as a standalone public user surface.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Financial controls appear in award contract and post-award pages. Users create invoices, verify or return invoices, approve payments with signature keyphrases, initiate and complete payments, and confirm payment receipt. Forms are route and action driven, with role-based read-only behavior when the current party should not mutate a record.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The standalone financial module currently exposes status, while detailed financial behavior is implemented through award-contract and post-award routes. This keeps payment actions attached to the contract lifecycle and makes financial records auditable in context.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Financial models include <code>PurchaseOrder</code>, <code>Invoice</code>, <code>BudgetCommitment</code>, <code>ThreeWayMatchResult</code>, <code>PaymentApproval</code>, and <code>PaymentConfirmation</code>. Contract-linked payment schedules and payments live in the contract schema. Invoice statuses capture draft, submitted, matched, review, blocked, paid, and rejected states.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Post-award and award-contract tests cover invoice creation, matching, payment approvals, signature-protected approval fields, status updates, payment confirmation, and hidden internal fields. Server app tests verify post-award finance mutation rate limiting.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Financial mutations are high risk and are protected by route auth, party-aware service logic, mutation rate limits, typed validation, and keyphrase requirements for approvals. Payment and invoice states are recorded as structured records rather than free-form text only.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="documents" class="module">
+      <h3>Documents And Official Document Generation</h3>
+      <div class="module-meta"><span class="pill">Frontend: documents + procurement + bidding + awards</span><span class="pill blue">Backend: /api/documents</span><span class="pill gold">Database: documents</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The documents module handles generic uploads, document content access, approval, signing, official templates, official document generation, official document open/download, official version history, official approval, and official signing. It supports procurement documents, bid evidence, profile images, contract source documents, milestone evidence, and official award/contract documents.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The documents API helper uploads multipart file data, signs and approves documents, generates official documents, and opens/downloads generated content as blobs. Other features call document helpers from their own workflows so document behavior remains reusable while UI stays contextual.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>Backend files include storage handling, official source loading, official templates, official document builder, PDF renderer, official storage, controller, repository, validators, and service. Routes cover upload, official template listing, official generation, official open/download/version list, official approve/sign, generic approve/sign, and content retrieval.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Document models include <code>DocumentObject</code>, <code>OfficialDocumentTemplate</code>, and <code>OfficialDocumentVersion</code>. Document objects track uploader, owner organization, storage metadata, review state, and payload. Official versions track generated content, validation warnings, approval/signing state, generated-by user, and related entity metadata.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server official document tests validate official document behavior. Client tests validate bid document uploads, identity profile image uploads, account image display and deletion, award source document actions, milestone evidence document id submission, and PDF/open document behavior from bidding and awards workflows.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Document content is accessed through API endpoints rather than direct public file paths. Multipart uploads are centralized. Signing and approval endpoints accept structured payloads. Official document warnings make generation safer without blocking every imperfect draft.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="communication" class="module">
+      <h3>Communication Center</h3>
+      <div class="module-meta"><span class="pill">Frontend: communication + admin communication</span><span class="pill blue">Backend: /api/communication</span><span class="pill gold">Database: communication</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The communication center provides user and admin mailboxes, message composition, replies, read state, archive state, message patching, attachments, recipient lookup, tender links, support-compose routing, failed-review messaging, and workflow-aware communication records.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The communication feature includes attachment actions, compose attachment helpers, support compose route helpers, API calls, hooks, slice, fixtures, pages, and ProcureX communication center components. User routes go to <code>/communication</code>, while admin routes go to <code>/admin/communication</code>. The UI supports opening messages, downloading attachments, composing, replying, searching, folder changes, and support recipient fallbacks.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>Routes expose mailbox status, message list, compose, attachment open/download, message detail, patch, mark-read, archive, replies, recipients, and tender links. The service and repository scope messages to the viewer and support admin/user communication workflows.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Communication persistence uses <code>CommunicationItem</code> and <code>CommunicationAttachment</code>. Enums capture communication kind, priority, and status. Messages can relate to tender/workflow context through payloads and entity references.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Backend tests cover repository and service behavior. Client tests cover live user mailbox rendering, read-state update on open, attachment open/download, search and folder reloads, compose, support compose with admin recipient, fallback notices, replies, and admin full-page communication flows.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Communication access is mailbox-scoped. Attachments are fetched through controlled API URLs. Admin routes are admin protected. Support compose can be allowed for unverified signed-in users while normal communication remains blocked until verification, as enforced by route guard tests.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="records" class="module">
+      <h3>Records And Audit History</h3>
+      <div class="module-meta"><span class="pill">Frontend: records</span><span class="pill blue">Backend: /api/records</span><span class="pill gold">Database: records + compliance</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>Records provide the searchable operational history of procurement activity. The module supports dashboard summaries, record lists, chart data, insights, CSV export, PDF export, and record detail pages. It gives users and administrators an auditable memory of workflow activity.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The records feature includes fixtures, hooks, slice, types, API helpers, pages, and the ProcureX records history page. The API helper fetches dashboard data, list data, chart data, insights, record detail, and export blobs. The page displays timeline and history-oriented data.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>Routes expose <code>/dashboard</code>, <code>/charts</code>, <code>/insights</code>, <code>/export/csv</code>, <code>/export/pdf</code>, detail by id, and list endpoints. Controllers validate query params and route ids, services require authentication for sensitive data, and repositories read record/audit sources.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>The main records table is <code>RecordEntry</code>. Audit-oriented events are stored in <code>AuditEvent</code> in the compliance schema. This split lets the system distinguish user-facing records from lower-level audit events while still presenting both as traceability evidence.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Client tests cover records history rendering. Server app tests validate standardized errors and registered module routing. Admin audit tests cover audit event listing from compliance-admin endpoints.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Records are authenticated. Export endpoints must preserve the same scoping rules as list and detail endpoints. Audit payload helpers are used elsewhere to avoid storing sensitive raw request data while still giving enough context for investigation.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="admin" class="module">
+      <h3>Admin And Compliance</h3>
+      <div class="module-meta"><span class="pill">Frontend: admin</span><span class="pill blue">Backend: /api/compliance-admin + identity admin</span><span class="pill gold">Database: compliance + content + identity</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>Admin users are platform compliance operators. The module supports admin app registry, dashboard, users, invitations, suspensions, reinstatements, access resets, session revocation, global search and reindexing, compliance cases, compliance rules, reviews, violations, violation evidence, enforcements, appeals, collusion alerts, supplier risk profiles, audit events, analytics, datastore CRUD/version restoration, profile preferences, communication state changes, admin actions, undo actions, verification review, and rescreening.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Admin routes include <code>/admin</code>, <code>/admin/users</code>, <code>/admin/analytics</code>, <code>/admin/audit</code>, <code>/admin/tender-review</code>, <code>/admin/communication</code>, and <code>/admin/profile</code>. Admin pages use <code>AdminRoute</code>, admin-specific shell components, admin API helpers, workflow record DTOs, tender review integration, identity admin endpoints, and communication workflows.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The compliance-admin module exposes a broad API for admin dashboard, user management, search, compliance, risk, audit, analytics, datastore, profile preferences, communication state, and reversible admin actions. It uses search index support and wraps privileged repository work in admin database context.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Admin/compliance models include <code>AuditEvent</code>, <code>ComplianceCase</code>, <code>ComplianceRule</code>, <code>RiskSignal</code>, <code>SupplierRiskProfile</code>, <code>RiskForecast</code>, <code>CollusionAlert</code>, <code>ComplianceReview</code>, <code>ViolationCase</code>, <code>ViolationEvidence</code>, <code>EnforcementRecord</code>, <code>AppealRecord</code>, <code>AdminAction</code>, <code>DataStoreEntry</code>, and <code>DataStoreEntryVersion</code>.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server tests validate compliance admin service behavior, module validators, datastore payloads, and protected admin data routes. Client admin tests cover admin dashboard, admin shared utilities, admin users, admin tender review, admin communication, account registry sidebars, and admin routing behavior.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Admin pages require <code>ADMIN</code> account type and <code>admin.access</code> permission. RLS gives admin context special inspection power through <code>app.is_admin()</code>. Admin datastore tables have admin-only RLS policies. Sensitive admin actions are recorded and some support undo records.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="support" class="module">
+      <h3>Support Tickets And Contact Support</h3>
+      <div class="module-meta"><span class="pill">Frontend: support + communication link</span><span class="pill blue">Backend: /api/support</span><span class="pill gold">Database: support + compliance audit</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>Support provides public contact submission, authenticated ticket listing, ticket creation, ticket detail, ticket comments, and ticket status updates. It creates a path for account-specific help without asking users to put sensitive information into the Help Centre assistant.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The support feature contains API helpers, pages, components, and tests. The <code>/support</code> route redirects signed-in users to a support compose route. Communication pages can also open support compose with admin recipient fallback behavior.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>Support routes expose status, public contact, ticket list, ticket create, ticket detail, comment creation, and status update. The service validates access so users can only see tickets they are allowed to access. Email sending is separated into a support email module and does not block ticket creation when delivery fails.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Support persistence uses <code>SupportTicket</code> and <code>SupportTicketComment</code>. Status and priority enums track ticket lifecycle and urgency. Audit events record support actions where appropriate.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server support tests validate ticket payloads, ticket creation, comments, scoping, audit behavior, public contact email, email failure tolerance, and Swahili email labels. Client support tests verify support pages and auth-route behavior.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Ticket access is explicitly checked. Public contact is separated from authenticated ticket access. Email failures are handled without exposing transport internals to users. Support provides a safer escalation path than putting passwords, codes, bid prices, or bank details into help questions.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="help-centre" class="module">
+      <h3>Help Centre FAQ Assistant</h3>
+      <div class="module-meta"><span class="pill">Frontend: helpCentre</span><span class="pill blue">Backend: /api/help-centre</span><span class="pill gold">Database: audit only</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The Help Centre provides categories, FAQ lists, FAQ details, popular questions, category pages, suggestions, and a message endpoint that matches user questions to approved FAQ answers. It is intentionally guidance-only and warns users not to include secrets or confidential procurement data.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The active IDE file <code>client/src/features/helpCentre/api/index.ts</code> defines <code>helpCentreApi</code>. It calls status, categories, FAQs, FAQ detail, popular, category, suggestions, and message endpoints. The API types come from <code>@procurex/shared</code>, which keeps FAQ DTOs consistent between client and server.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The server help-centre module loads categories and a catalog of FAQs, validates the complete FAQ knowledge base at service startup, normalizes question text, matches questions by FAQ content, user role, selected category, current path, account type, and capabilities, and returns either a matched response or a safe fallback response. The message endpoint accepts optional auth, so signed-in users can get context-aware help while public users still receive approved general guidance.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>The FAQ catalog itself is source-backed rather than modeled as a Prisma table in the current implementation. The module writes safe audit events to the compliance audit table for matched and unmatched FAQ interactions, storing metadata such as match state, faq id, category, confidence, path, account type, and capabilities without storing sensitive question content.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Help-centre service tests validate the complete FAQ knowledge base, exact and alternative bid submission matching, punctuation and case normalization, keyword and category relevance, weak match handling, matched and fallback responses, safe audit metadata, category lists, popular FAQs, category FAQs, suggestions, and individual FAQ lookups. The validation layer requires at least 250 enabled FAQs, non-empty titles, summaries, questions, keywords, steps, valid roles, valid categories, valid action paths, and valid related FAQ references.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>The message endpoint has a dedicated in-memory rate limit keyed by hashed IP. Optional session lookup is tolerant of invalid tokens and does not make public help depend on login. Fallback warnings explicitly tell users not to include passwords, verification codes, bid prices, bank details, or confidential documents.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="intelligence" class="module">
+      <h3>Intelligence And Supplier/Risk Insights</h3>
+      <div class="module-meta"><span class="pill">Frontend: procurement/admin consumers</span><span class="pill blue">Backend: /api/intelligence</span><span class="pill gold">Database: intelligence + compliance</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The intelligence boundary supports marketplace analytics, recommended tenders, supplier recommendations for a tender, market snapshots, price benchmarks, supplier match signals, risk signals, risk forecasts, and future ML-service integration.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Intelligence is consumed through marketplace, admin analytics, and dashboard-oriented surfaces rather than a separate public route in the current client. It is designed as a data and recommendation layer that can feed procurement discovery and compliance dashboards.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>Routes expose status, <code>/marketplace/analytics</code>, <code>/marketplace/recommended-tenders</code>, and <code>/tenders/:tenderId/supplier-recommendations</code>. The module has repository, service, validators, types, and tests, which gives it a production-style boundary even while advanced ML work remains future-facing.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Intelligence models include <code>MarketSnapshot</code>, <code>PriceBenchmark</code>, and <code>SupplierMatchSignal</code>. Compliance-linked models such as <code>RiskSignal</code>, <code>SupplierRiskProfile</code>, <code>RiskForecast</code>, and <code>CollusionAlert</code> support risk and anomaly views.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Server intelligence tests validate module behavior. Admin and marketplace tests indirectly validate downstream display of analytics and recommendations where used.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Recommendations must respect organization context and marketplace visibility. Risk intelligence should avoid exposing internal compliance signals to ordinary suppliers unless explicitly intended for the user-facing workflow.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="integration" class="module">
+      <h3>Integration And Registry Records</h3>
+      <div class="module-meta"><span class="pill">Frontend: identity/admin consumers</span><span class="pill blue">Backend: /api/integration + identity providers</span><span class="pill gold">Database: integration</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>The integration boundary stores external system definitions, registry records, sync runs, and integration events. It also supports identity registry lookup workflows through TRA and BRELA provider abstractions, email validation provider configuration, SMS/WhatsApp provider configuration, and future external procurement system connections.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>Registry lookup appears in identity verification flows. Admin and compliance areas can benefit from registry and sync history as the integration module grows. No separate integration workspace route is exposed to ordinary users in the current client.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>The integration module exposes status and has the standard repository/service/validator/types boundary. Identity services use registry provider files for TRA/BRELA-style lookup and provider result normalization. Delivery provider tests cover Resend, SMTP, Beem, Briq, and WhatsApp behaviors that are part of the platform integration layer.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>Integration models include <code>ExternalSystem</code>, <code>RegistryRecord</code>, <code>IntegrationSyncRun</code>, and <code>IntegrationEvent</code>. Registry records are unique by source and registry number, allowing verification flows to persist matched external identity evidence.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Identity tests validate registry lookup, provider unavailability behavior, local-only registry mocks, deterministic production registry checks, duplicate registry handling, email deliverability, phone validation, and provider configuration enforcement.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Production security validation requires real registry base URLs and API keys. Local test registry mocks are only allowed outside production. Provider failures are surfaced as safe user-facing provider errors rather than raw SDK or network exceptions.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="shared-ui" class="module">
+      <h3>Notifications, Localization, And Shared UI</h3>
+      <div class="module-meta"><span class="pill">Frontend: shared + notifications + i18n</span><span class="pill blue">Backend: shared errors/localization</span><span class="pill gold">Database: user preferences</span></div>
+      <div class="section-grid">
+        <div>
+          <h4>Key Features</h4>
+          <p>Cross-cutting UI behavior includes shared shell components, top bars, account menu, app drawer, language switcher, data tables, empty states, KPI cards, forms, status badges, notification toasts, localized static pages, route guards, and reusable formatting utilities.</p>
+        </div>
+        <div>
+          <h4>Frontend Implementation</h4>
+          <p>The shared Axios API client adds bearer authorization, <code>X-ProcureX-Language</code>, and <code>Accept-Language</code> headers. Notification code maps standard API error fields into clear user messages while hiding technical raw text unless explicitly requested by helper utilities. i18next resources preserve English and Swahili parity.</p>
+        </div>
+        <div>
+          <h4>Backend Implementation</h4>
+          <p>Shared backend utilities provide audit payload shaping, localization, and standardized API error responses. Express centralizes Zod validation error conversion and 404 behavior. The server uses request language to localize validation and error output.</p>
+        </div>
+        <div>
+          <h4>Database Design</h4>
+          <p>User preferences store preferred language and timezone. Audit events store normalized, safe event details. Shared contracts in <code>@procurex/shared</code> define account types, organization capabilities, localization helpers, Help Centre contracts, and API error contract types.</p>
+        </div>
+        <div>
+          <h4>Testing And Validation</h4>
+          <p>Client tests cover notifications, language switching, top bar behavior, localization resource parity, ProcureX static page localization, route guards, and page smoke tests. Server tests cover standard error contracts, localized validation errors, generic internal errors, and module status mounting.</p>
+        </div>
+        <div>
+          <h4>Security Notes</h4>
+          <p>Notification tests verify standard API error fields do not expose technical messages by default. Auth token handling is centralized in the API client. Route guards enforce public, protected, verified, and admin access before sensitive pages render.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="testing-validation">
+      <h2>Testing And Validation Strategy</h2>
+      <p>The repository uses targeted unit, integration-style, and UI tests rather than a single broad test type. The server uses Vitest and Supertest for API, service, provider, and validation behavior. The client uses Vitest, React Testing Library, jsdom, and Playwright-based e2e scripts for richer flows.</p>
+      <table>
+        <thead>
+          <tr><th>Validation Layer</th><th>Implementation</th><th>Coverage Examples</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>TypeScript compile</td><td>Root build runs shared, server, and client builds.</td><td>DTO, import, route, and React component type compatibility.</td></tr>
+          <tr><td>Prisma validation</td><td><code>npm run db:validate</code> validates <code>server/prisma/schema.prisma</code>.</td><td>Model, enum, relation, schema, and datasource correctness.</td></tr>
+          <tr><td>Zod validators</td><td>Controllers parse query params, route params, and request bodies before service calls.</td><td>Identity, procurement, bidding, evaluation, compliance, records, support, and help-centre inputs.</td></tr>
+          <tr><td>Server tests</td><td><code>npm --workspace server test</code>.</td><td>App health, security headers, CORS, Turnstile, rate limits, identity production auth, delivery providers, procurement services, evaluation, awards, post-award, support, public content, help centre, and module validators.</td></tr>
+          <tr><td>Client tests</td><td><code>npm --workspace client test</code>.</td><td>Route guards, public pages, auth pages, identity, bidding, procurement, communication, awards, post-award, admin pages, notifications, localization, top bar, and support pages.</td></tr>
+          <tr><td>E2E scripts</td><td><code>client/e2e/evaluation-workspace-flow.mjs</code> and <code>client/e2e/awards-contracts-smoke.mjs</code>.</td><td>Evaluation and award/contract smoke workflows against running app surfaces.</td></tr>
+          <tr><td>RLS verification</td><td><code>npm --workspace server run verify:rls</code>.</td><td>Confirms seeded buyer, supplier, and admin context cannot read or mutate outside allowed scope.</td></tr>
+          <tr><td>Help Centre validation</td><td><code>npm --workspace server run validate:help-centre</code>.</td><td>Ensures FAQ catalog size, roles, categories, action paths, alternatives, keywords, steps, warnings, and related links are valid.</td></tr>
+          <tr><td>Localization and layout checks</td><td>Client localization audit and language layout scripts.</td><td>English/Swahili parity and localized static page text coverage.</td></tr>
+          <tr><td>UI parity screenshots</td><td><code>npm --workspace client run ui:parity:screenshots</code>.</td><td>Desktop/mobile comparison between reference prototype and React target pages.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="security">
+      <h2>Security Coverage</h2>
+      <h3>HTTP And Browser Protections</h3>
+      <p>The Express app uses Helmet with an explicit Content Security Policy. CSP directives restrict default sources, base URI, object sources, frame ancestors, script sources, connect sources, image sources, style sources, font sources, and Turnstile frames. CORS permits configured production origins or local development origins and rejects unapproved browser origins with a standardized ProcureX API error.</p>
+
+      <h3>Authentication And Session Protections</h3>
+      <p>Public auth endpoints are protected by auth rate limits and Turnstile checks. The client stores and injects bearer tokens through a shared API client. Route guards keep unauthenticated users away from protected pages, keep unverified users away from normal workspaces, and keep normal users away from admin pages.</p>
+
+      <h3>Rate Limiting</h3>
+      <p>General auth and mutation rate limits use <code>express-rate-limit</code> with Redis when configured and memory fallback outside production. Keys are hashed. Rate-limit events can be audited with hashed IP and user agent. Specific routes use profiles: public auth, sensitive identity, procurement contact verification, award sample mutation, post-award finance mutation, and Help Centre message rate limiting.</p>
+
+      <h3>Production Configuration Enforcement</h3>
+      <p>Production startup validation requires real CORS origins, Redis URL, Turnstile secret, public app URL, Resend configuration, SMS provider configuration, registry provider configuration, Mailboxlayer key, and signature hash secret. It rejects local-only providers such as dev-console notification delivery, SMTP identity email in production, and WhatsApp phone verification where marked local/testing-only.</p>
+
+      <h3>Data Access And RLS</h3>
+      <p>Database context utilities set transaction-local values for current user id, current organization id, current account type, and current capabilities. RLS SQL defines helper functions such as current user, current organization, current account type, current capabilities, admin detection, same organization checks, and capability checks. Policies protect users, accounts, sessions, verification profiles, tenders, bid rows, evaluation scores, admin datastore rows, and compliance rules.</p>
+
+      <h3>Validation And Error Safety</h3>
+      <p>Controllers use validators before business logic. Central error handling converts Zod issues into a stable error response with field errors. Internal server errors are kept generic so raw implementation messages, database messages, and secrets do not leak to users. Client notification tests confirm technical text stays hidden from ordinary notification summaries.</p>
+
+      <h3>Signing And Audit</h3>
+      <p>Signing credentials and signed actions give high-impact workflow decisions a cryptographic/audit boundary. Keyphrase-protected actions include identity verification submission, award approvals, supplier award responses where needed, contract signing, payment approvals, termination decisions, and closeout decisions. Audit payload helpers record useful metadata while avoiding raw secrets.</p>
+    </section>
+
+    <section id="manual-validation">
+      <h2>Manual Validation Checklist</h2>
+      <ol>
+        <li>Open this file directly in a browser: <code>procurement-platform/docs/procurex-platform-detailed-module-report.html</code>.</li>
+        <li>Confirm the title page displays the report title, report date, source scope, and documentation-only change scope.</li>
+        <li>Use the table of contents links to jump to several module sections and back using browser navigation.</li>
+        <li>Confirm the report has sections for public content, identity, organization, workspace, procurement, bidding, evaluation, awards, post-award, financial, documents, communication, records, admin, support, help centre, intelligence, integration, shared UI, testing, and security.</li>
+        <li>Confirm the document is standalone by opening it without running the app, Vite, Express, or Docker services.</li>
+        <li>Optionally run <code>git diff -- docs/procurex-platform-detailed-module-report.html</code> to confirm this is the only added documentation file.</li>
+      </ol>
+      <div class="callout"><strong>Final implementation snapshot:</strong> The new report is intentionally documentation-only. It explains how the existing platform is implemented, what modules exist, how frontend and backend pieces connect, what database entities support each workflow, what tests validate the behavior, and what security controls protect the system.</div>
+    </section>
+
+    <p class="footer-note">Prepared for the ProcureX local workspace. Source code inspected from the monorepo under <code>procurement-platform</code>. Existing documentation files were not replaced.</p>
+  </main>
+</body>
+</html>
