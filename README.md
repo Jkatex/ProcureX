@@ -1,6 +1,6 @@
 # ProcureX Local Setup
 
-This README is the practical setup guide for running the ProcureX procurement platform locally. For the product overview, architecture narrative, screenshots, and roadmap, see [Introduction.md](Introduction.md). For deeper workspace notes and demo datasets, see [procurement-platform/README.md](procurement-platform/README.md).
+This README is the setup guide for running the ProcureX procurement platform locally. For the product overview, architecture narrative, screenshots, and roadmap, see [Introduction.md](Introduction.md). For deeper workspace notes and demo datasets, see [procurement-platform/README.md](procurement-platform/README.md).
 
 ## Prerequisites
 
