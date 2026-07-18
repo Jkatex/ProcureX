@@ -4297,7 +4297,8 @@ function ReviewPanel({
   completeness,
   isSubmitted,
   receipt,
-  onEditField
+  onEditField,
+  onPatch
 }: {
   tender: TenderDetail;
   schema: BidSubmissionSchemaDto;
@@ -6888,15 +6889,6 @@ function envelopeManifest(workflow: WorkflowType, documents: BidDocumentState[])
   };
 }
 
-function requirementRowsFromJson(requirements?: Record<string, unknown>) {
-  if (!requirements) return [];
-  return Object.entries(requirements).flatMap(([section, value]) => {
-    if (Array.isArray(value)) return value.map((item, index) => ({ id: `${section}-${index}`, section, payload: objectPayload(item) }));
-    if (value && typeof value === 'object') return [{ id: section, section, payload: objectPayload(value) }];
-    return [{ id: section, section, payload: { value } }];
-  });
-}
-
 function normalizeSampleRequirements(tender?: TenderDetail | null): SampleRequirement[] {
   const requirements = objectPayload(tender?.requirements);
   const goods = objectPayload(requirements.goods);
@@ -7042,21 +7034,6 @@ function objectPayload(value: unknown): Record<string, unknown> {
 
 function payloadTitle(payload: Record<string, unknown>, fallback: string) {
   return String(payload.title || payload.name || payload.requirementName || payload.description || payload.value || fallback);
-}
-
-function payloadSummary(payload: Record<string, unknown>) {
-  const pairs = Object.entries(payload)
-    .filter(([key, value]) => key !== 'id' && value !== undefined && value !== null && String(value).trim())
-    .slice(0, 4)
-    .map(([key, value]) => `${humanize(key)}: ${formatUnknown(value)}`);
-  return pairs.join(' / ') || 'Buyer requirement';
-}
-
-function formatUnknown(value: unknown): string {
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.map(formatUnknown).join(', ');
-  if (value && typeof value === 'object') return payloadTitle(value as Record<string, unknown>, 'Configured');
-  return String(value ?? '');
 }
 
 function workflowLabel(value: WorkflowType) {

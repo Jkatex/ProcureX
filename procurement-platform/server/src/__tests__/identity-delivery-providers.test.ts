@@ -10,16 +10,21 @@ const smtpMocks = vi.hoisted(() => ({
   sendMail: vi.fn()
 }));
 
-vi.mock('resend', () => ({
-  Resend: vi.fn().mockImplementation((apiKey: string) => {
-    resendMocks.constructor(apiKey);
-    return {
-      emails: {
-        send: resendMocks.send
-      }
+vi.mock('resend', () => {
+  class MockResend {
+    emails = {
+      send: resendMocks.send
     };
-  })
-}));
+
+    constructor(apiKey: string) {
+      resendMocks.constructor(apiKey);
+    }
+  }
+
+  return {
+    Resend: MockResend
+  };
+});
 
 vi.mock('nodemailer', () => {
   const createTransport = vi.fn((options: unknown) => {
