@@ -115,6 +115,12 @@ function renderPostAward(initialEntry = '/post-award?contract=contract-1&stage=d
   );
 }
 
+async function findEntranceContractRow() {
+  const chooser = await screen.findByLabelText('Contracts');
+  const contractTitle = await within(chooser).findByText('Clinic delivery contract');
+  return contractTitle.closest('tr') as HTMLElement;
+}
+
 function row(overrides: Partial<PostAwardContractRow> = {}): PostAwardContractRow {
   return {
     id: 'contract-1',
@@ -335,7 +341,7 @@ describe('PostAwardAppPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Contract tracking' })).toBeInTheDocument();
     expect(screen.getByText('Track signed contracts')).toBeInTheDocument();
-    expect(screen.getByText('Clinic delivery contract')).toBeInTheDocument();
+    expect(await screen.findByText('Clinic delivery contract')).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/post-award');
     expect(postAwardApi.workspace).not.toHaveBeenCalled();
   });
@@ -344,8 +350,7 @@ describe('PostAwardAppPage', () => {
     const user = userEvent.setup();
     renderPostAward('/post-award');
 
-    const chooser = await screen.findByLabelText('Contracts');
-    const contractRow = within(chooser).getByText('Clinic delivery contract').closest('tr') as HTMLElement;
+    const contractRow = await findEntranceContractRow();
     await user.click(within(contractRow).getByRole('button', { name: 'Open' }));
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/post-award?contract=contract-1&stage=delivery'));
@@ -359,8 +364,7 @@ describe('PostAwardAppPage', () => {
     const user = userEvent.setup();
     renderPostAward('/post-award');
 
-    const chooser = await screen.findByLabelText('Contracts');
-    const contractRow = within(chooser).getByText('Clinic delivery contract').closest('tr') as HTMLElement;
+    const contractRow = await findEntranceContractRow();
     await user.click(within(contractRow).getByRole('button', { name: label }));
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/post-award?contract=contract-1&stage=${stage}`));

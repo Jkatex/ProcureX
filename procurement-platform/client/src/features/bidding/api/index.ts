@@ -1,5 +1,5 @@
 import { apiClient } from '@/shared/api/http';
-import type { BidDocumentInput, BidDocumentUploadInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, BidSubmissionSchemaDto, BidSubmissionSchemaResponseDto, CreateBidSampleInput, PatchBidSampleInput } from '../types';
+import type { BidDocumentInput, BidDocumentUploadInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, BidSubmissionSchemaResponseDto, CreateBidSampleInput, PatchBidSampleInput } from '../types';
 
 export const biddingApi = {
   async listBids() {

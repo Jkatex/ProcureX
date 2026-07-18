@@ -530,7 +530,7 @@ function getBidWorkspaceUploadAccept(requirement = {}) {
     if (/license|certificate|permit|registration|tax|bank|statement|audited|cv|evidence|authorization|policy|insurance/.test(text)) {
         return '.pdf,.doc,.docx,.jpg,.jpeg,.png';
     }
-    return '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png';
+    return '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png';
 }
 
 function renderBidWorkspaceRequirementInput(requirement, draft, required = false, workflowRequired = false) {
@@ -1167,7 +1167,7 @@ function renderGoodsBidProductSpecificationResponse(tender = {}, draft = {}) {
                                 <textarea class="form-input" rows="3" data-bid-response="${escapeBidWorkspaceHtml(getBidWorkspaceProductSpecItemResponseId(group, 'short-specification'))}" aria-label="Supplier short specification for ${escapeBidWorkspaceHtml(group.productName)}" placeholder="Optional short offered specification for this item">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, getBidWorkspaceProductSpecItemResponseId(group, 'short-specification')))}</textarea>
                             </label>
                             <div class="form-group">
-                                ${renderBidWorkspaceUploadControl(getBidWorkspaceProductSpecItemResponseId(group, 'attachment'), draft, 'Attach item evidence', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', false)}
+                                ${renderBidWorkspaceUploadControl(getBidWorkspaceProductSpecItemResponseId(group, 'attachment'), draft, 'Attach item evidence', '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', false)}
                             </div>
                         </div>
                     </article>
@@ -1461,7 +1461,7 @@ function renderBidWorkspaceFinancialCapacityMatrix(tender = {}, draft = {}, pref
                                     <td>${escapeBidWorkspaceHtml(evidence)}</td>
                                     <td><textarea class="form-input" rows="2" data-bid-response="${baseId}-value" ${required ? 'data-bid-workflow-required-response="true"' : ''} placeholder="Enter amount or response">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-value`))}</textarea></td>
                                     <td><textarea class="form-input" rows="2" data-bid-response="${baseId}-note">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${baseId}-note`))}</textarea></td>
-                                    <td>${renderBidWorkspaceUploadControl(`${baseId}-upload`, draft, uploadLabel, '.pdf,.doc,.docx,.xls,.xlsx', required)}</td>
+                                    <td>${renderBidWorkspaceUploadControl(`${baseId}-upload`, draft, uploadLabel, '.pdf,.doc,.docx,.xlsx', required)}</td>
                                 </tr>
                             `;
                         }).join('')}
@@ -1500,7 +1500,7 @@ function renderBidWorkspaceScoringGuidance(tender = {}, profile = {}, draft = {}
                             <strong>${escapeBidWorkspaceHtml(criterion.name || `Criterion ${index + 1}`)}</strong>
                             <p>${escapeBidWorkspaceHtml((criterion.subcriteria || []).join(', ') || criterion.description || 'Buyer-defined evaluation criterion.')}</p>
                             <textarea class="form-input" rows="2" data-bid-response="${id}-response" placeholder="Explain where this response is addressed.">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, `${id}-response`))}</textarea>
-                            ${renderBidWorkspaceUploadControl(`${id}-evidence`, draft, 'Attach evidence', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', false)}
+                            ${renderBidWorkspaceUploadControl(`${id}-evidence`, draft, 'Attach evidence', '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', false)}
                         </article>
                     `;
                 }).join('')}
@@ -2979,7 +2979,7 @@ function renderGoodsBidCommercialTerms(draft = {}) {
     `;
 }
 
-function renderBidWorkspaceUploadControl(responseId, draft = {}, label = 'Upload evidence', accept = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', workflowRequired = false, required = false) {
+function renderBidWorkspaceUploadControl(responseId, draft = {}, label = 'Upload evidence', accept = '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', workflowRequired = false, required = false) {
     const value = getBidWorkspaceSavedResponse(draft, responseId);
     return `
         <div class="bid-upload-response" data-bid-upload-control>
@@ -2997,7 +2997,7 @@ function renderServiceMilestoneEvidenceUploadControl(responseId, draft = {}) {
         <div class="bid-upload-response service-milestone-upload-control" data-bid-upload-control>
             <span>Evidence upload</span>
             <label class="service-milestone-upload-drop">
-                <input class="service-milestone-upload-input" type="file" data-bid-file-input accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" aria-label="Upload evidence / deliverable file">
+                <input class="service-milestone-upload-input" type="file" data-bid-file-input accept=".pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png" aria-label="Upload evidence / deliverable file">
                 <strong>Choose deliverable file</strong>
                 <small>PDF, Word, Excel, JPG or PNG</small>
             </label>
@@ -3309,7 +3309,7 @@ function renderWorksBidSimilarProjectUploadCard(index = 0, draft = {}, required 
                 <span class="section-kicker">Similar project ${index + 1}</span>
                 ${required ? '' : `<button class="icon-delete-btn" type="button" data-delete-similar-project-slot aria-label="Delete similar project slot" title="Delete similar project slot">${renderBidWorkspaceTrashIcon()}</button>`}
             </div>
-            ${renderBidWorkspaceUploadControl(`works-similar-projects-document-${index}`, draft, 'Upload similar project document', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', required)}
+            ${renderBidWorkspaceUploadControl(`works-similar-projects-document-${index}`, draft, 'Upload similar project document', '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', required)}
         </article>
     `;
 }
@@ -3492,7 +3492,7 @@ function renderWorksBidTechnicalProposal(tender = {}, draft = {}) {
                     <div class="form-group"><label class="form-label">Proposed Completion Period</label><input class="form-input" data-bid-response="works-schedule-completion-period" data-bid-workflow-required-response="true" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'works-schedule-completion-period') || tender.requirements?.fields?.completionPeriod || '')}" placeholder="e.g. 14 months"></div>
                     <div class="form-group wide"><label class="form-label">Proposed Work Plan</label><textarea class="form-input" rows="4" data-bid-response="works-proposal-work-plan" data-bid-workflow-required-response="true" placeholder="Describe the work breakdown, sequencing, mobilization, subcontractors, materials, site logistics, and how the uploaded work program will be executed.">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'works-proposal-work-plan'))}</textarea></div>
                     <div class="form-group wide"><label class="form-label">Resource Allocation Plan</label><textarea class="form-input" rows="3" data-bid-response="works-schedule-resources" data-bid-workflow-required-response="true">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'works-schedule-resources'))}</textarea></div>
-                    <div class="form-group wide">${renderBidWorkspaceUploadControl('works-program-upload', draft, 'Upload work program', '.pdf,.doc,.docx,.xls,.xlsx,.mpp', ganttRequired)}</div>
+                    <div class="form-group wide">${renderBidWorkspaceUploadControl('works-program-upload', draft, 'Upload work program', '.pdf,.doc,.docx,.xlsx,.mpp', ganttRequired)}</div>
                 </div>
             </section>
             <section class="works-response-section">
@@ -3880,7 +3880,7 @@ function renderServiceBidCategoryResponse(tender = {}, draft = {}) {
                 ${config.responses.map(([key, label, type]) => {
                     const responseId = `service-category-${key}`;
                     if (type === 'upload') {
-                        return `<div class="form-group wide">${renderBidWorkspaceUploadControl(responseId, draft, label, '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', false)}</div>`;
+                        return `<div class="form-group wide">${renderBidWorkspaceUploadControl(responseId, draft, label, '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', false)}</div>`;
                     }
                     if (type === 'maintenance-schedule-table' || type === 'spare-parts-table' || type === 'technician-qualifications-table') {
                         return renderServiceBidCategoryTableResponse(type, key, label, draft);
@@ -4307,7 +4307,7 @@ function renderServiceBidStaffingCapacity(tender = {}, draft = {}) {
                     </div>
                     <div class="form-grid two">
                         <div class="form-group wide"><label class="form-label">Capacity Evidence Summary</label><textarea class="form-input" rows="3" data-bid-response="service-capacity-evidence-summary" placeholder="Summarize team capacity, similar assignments, peak-load coverage, and current workload">${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-capacity-evidence-summary'))}</textarea></div>
-                        <div class="form-group">${renderBidWorkspaceUploadControl('service-capacity-evidence-upload', draft, 'Upload capacity evidence', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', false)}</div>
+                        <div class="form-group">${renderBidWorkspaceUploadControl('service-capacity-evidence-upload', draft, 'Upload capacity evidence', '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', false)}</div>
                     </div>
                 </section>
                 <section class="service-plan-subsection">
@@ -4477,7 +4477,7 @@ function renderServiceBidSlaReportingCompliance(tender = {}, draft = {}) {
                 <div class="form-grid two">
                     <div class="form-group"><label class="form-label">Reporting Format</label><select class="form-input" data-bid-response="service-report-format"><option value="">Select</option>${['PDF', 'Excel dashboard', 'Portal dashboard', 'Presentation'].map(option => `<option ${getBidWorkspaceSavedResponse(draft, 'service-report-format') === option ? 'selected' : ''}>${option}</option>`).join('')}</select></div>
                     <div class="form-group"><label class="form-label">Communication Channels</label><input class="form-input" data-bid-response="service-report-channels" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-report-channels'))}" placeholder="Portal, email, meetings, hotline"></div>
-                    <div class="form-group">${renderBidWorkspaceUploadControl('service-report-template', draft, 'Client reporting template', '.pdf,.doc,.docx,.xls,.xlsx', false)}</div>
+                    <div class="form-group">${renderBidWorkspaceUploadControl('service-report-template', draft, 'Client reporting template', '.pdf,.doc,.docx,.xlsx', false)}</div>
                     <div class="form-group"><label class="form-label">Meeting Schedule</label><input class="form-input" data-bid-response="service-report-meetings" value="${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'service-report-meetings'))}" placeholder="e.g. Monthly review meeting"></div>
                 </div>
             </section>
@@ -4924,7 +4924,7 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
                 <div class="form-grid two" style="margin-top: 14px;">
                     <div class="form-group wide"><label class="form-label">Professional / Firm Summary</label><textarea class="form-input" rows="3" data-bid-response="consultancy-profile-summary"${getConsultancyRequiredAttr(qualificationRequired && !expertRows.length)}>${escapeBidWorkspaceHtml(getBidWorkspaceSavedResponse(draft, 'consultancy-profile-summary'))}</textarea></div>
                     ${individualRows.some(row => isConsultancyBidRequired(row.cvRequired)) ? `<div class="form-group" data-consultancy-mode-panel="individual" ${individualSubmission ? '' : 'hidden'}>${renderBidWorkspaceUploadControl('consultancy-individual-cv', draft, 'Individual consultant CV', '.pdf,.doc,.docx', individualCvRequired)}</div>` : ''}
-                    ${[...individualRows, ...firmRows].some(row => isConsultancyBidRequired(row.similarAssignmentsEvidenceRequired || row.requiredEvidence)) ? `<div class="form-group">${renderBidWorkspaceUploadControl('consultancy-similar-assignment-evidence', draft, 'Similar assignment evidence', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', true)}</div>` : ''}
+                    ${[...individualRows, ...firmRows].some(row => isConsultancyBidRequired(row.similarAssignmentsEvidenceRequired || row.requiredEvidence)) ? `<div class="form-group">${renderBidWorkspaceUploadControl('consultancy-similar-assignment-evidence', draft, 'Similar assignment evidence', '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', true)}</div>` : ''}
                 </div>
             </section>
             ${(reportingStructureRows.length || coordinationRows.length || administrativeRows.length) ? `<section class="bid-dynamic-group consultancy-tor-section">
@@ -4947,7 +4947,7 @@ function renderConsultancyBidTorWorkbook(tender = {}, draft = {}, dynamicRequire
                     ${visibleSupportingRows.map((item, index) => {
                         const required = isConsultancyBidRequired(item);
                         const label = typeof item === 'string' ? item : (item.documentName || item.documentTitle || item.title || `Supporting document ${index + 1}`);
-                        return `<div class="form-group">${renderBidWorkspaceUploadControl(`consultancy-supporting-${index}`, draft, label, '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png', required)}</div>`;
+                        return `<div class="form-group">${renderBidWorkspaceUploadControl(`consultancy-supporting-${index}`, draft, label, '.pdf,.doc,.docx,.xlsx,.jpg,.jpeg,.png', required)}</div>`;
                     }).join('')}
                 </div>
             </section>` : ''}

@@ -4,7 +4,7 @@ import { editableTrustTierValues } from '@/shared/trustRisk';
 import type { AwardContractActionDefinition, CrossPartyVisibility, PickerOption, WorkflowActionOwner } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';
 import { actionDefinitionForTitle } from './AwardContractActionCatalogue';
-import { clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlow';
+import { clearAwardContractDirtyWork, confirmAwardContractNavigation, useAwardContractFlowGuard } from './AwardContractFlowState';
 import { notifyAward } from './AwardContractSimpleShared';
 import { canUseWorkflowOwner, inferActionOwner, ownerLockedReason, useAwardContractAccess } from './AwardContractRoleAccess';
 

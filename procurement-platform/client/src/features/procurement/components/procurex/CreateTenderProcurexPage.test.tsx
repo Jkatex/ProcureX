@@ -1,7 +1,7 @@
 import { ThemeProvider } from '@mui/material';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -288,12 +288,12 @@ function mockBrowserDownload() {
   return { blobs, click, downloads };
 }
 
-function spreadsheetFile(rows: unknown[][], fileName = 'import.xlsx') {
-  const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-  const data = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  return new File([data], fileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+async function spreadsheetFile(rows: unknown[][], fileName = 'import.xlsx') {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Sheet1');
+  rows.forEach((row) => worksheet.addRow(row));
+  const data = await workbook.xlsx.writeBuffer();
+  return new File([data as BlobPart], fileName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 function blobToArrayBuffer(blob: Blob) {
@@ -934,7 +934,7 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
 
     const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
-    const file = spreadsheetFile([
+    const file = await spreadsheetFile([
       ['Id', 'Item name', 'Quantity', 'Unit'],
       ['99', 'Solar inverter', '3', 'Pcs']
     ], 'goods-boq.xlsx');
@@ -964,13 +964,13 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
     await user.click(screen.getByRole('button', { name: 'Download Excel Template' }));
 
+    await waitFor(() => expect(download.click).toHaveBeenCalled());
     expect(download.downloads.at(-1)).toBe('goods-quantity-schedule-template.xlsx');
-    expect(download.click).toHaveBeenCalled();
-    const workbook = XLSX.read(await blobToArrayBuffer(download.blobs[0]), { type: 'array' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
-    expect(rows[0]).toEqual(['Id', 'Item name', 'Quantity', 'Unit']);
-    expect(rows[0]).toHaveLength(4);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await blobToArrayBuffer(download.blobs[0]) as unknown as Buffer);
+    const firstRow = workbook.worksheets[0].getRow(1).values as unknown[];
+    expect(firstRow.slice(1, 5)).toEqual(['Id', 'Item name', 'Quantity', 'Unit']);
+    expect(firstRow.slice(1, 5)).toHaveLength(4);
   });
 
   it('keeps goods product specifications as manual-only rows', async () => {
@@ -1039,7 +1039,7 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
 
     const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
-    const file = spreadsheetFile([
+    const file = await spreadsheetFile([
       ['Id', 'Item name', 'Quantity', 'Unit'],
       ['1', 'Water pump', '4', 'Pcs']
     ]);
@@ -1058,7 +1058,7 @@ describe('CreateTenderProcurexPage', () => {
     await user.click(screen.getAllByRole('button', { name: /Tender Requirements/ })[0]);
 
     const input = screen.getByLabelText('Import goods quantity schedule') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [spreadsheetFile([
+    fireEvent.change(input, { target: { files: [await spreadsheetFile([
       ['Item', 'Description', 'Unit', 'Qty'],
       ['1', 'Water pump', 'Pcs', '4']
     ], 'old-format.xlsx')] } });

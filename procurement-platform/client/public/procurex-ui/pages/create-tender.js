@@ -420,7 +420,7 @@ const createTenderRequirementTemplates = {
                         emptyText: 'No specification documents added yet.',
                         columns: [
                             { id: 'documentTitle', label: 'Document title', type: 'select-custom-prompt', options: createTenderRequirementOptions.worksTechnicalSpecificationTitles },
-                            { id: 'documentUpload', label: 'Upload document', type: 'file', accept: '.pdf,.doc,.docx,.xls,.xlsx' }
+                            { id: 'documentUpload', label: 'Upload document', type: 'file', accept: '.pdf,.doc,.docx,.xlsx' }
                         ]
                     }
                 ]
@@ -1054,7 +1054,7 @@ const createTenderRequirementTemplates = {
                         emptyText: 'No supporting documents added yet.',
                         columns: [
                             { id: 'documentTitle', label: 'Document Title', type: 'text' },
-                            { id: 'fileUpload', label: 'File Upload', type: 'file', accept: '.pdf,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.jpg,.jpeg,.png' },
+                            { id: 'fileUpload', label: 'File Upload', type: 'file', accept: '.pdf,.doc,.docx,.xlsx,.dwg,.dxf,.jpg,.jpeg,.png' },
                             { id: 'category', label: 'Category', type: 'select', options: ['Existing reports', 'Policy documents', 'Architectural drawings', 'Baseline studies', 'Previous assessments', 'Other'] },
                             { id: 'confidential', label: 'Confidential', type: 'toggle' }
                         ]

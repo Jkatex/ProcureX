@@ -515,7 +515,7 @@ function renderTenderPlanning() {
                             <strong data-planning-current-year>${escapeProcurementPlanningHtml(selectedYear)}</strong>
                         </article>
                     </section>
-                    <input type="file" accept=".xls,.xlsx,.csv" data-plan-upload-input aria-label="Upload annual procurement plan Excel file" hidden>
+                    <input type="file" accept=".xlsx,.csv" data-plan-upload-input aria-label="Upload annual procurement plan Excel file" hidden>
                     <section class="planning-kpi-grid app-planning-kpis" data-planning-summary aria-label="Procurement planning summary">
                         ${renderProcurementPlanningSummary(records, selectedYear)}
                     </section>

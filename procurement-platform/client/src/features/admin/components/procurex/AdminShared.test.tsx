@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { AdminAppsDrawer, adminAppRegistry } from './AdminShared';
+import { AdminAppsDrawer } from './AdminShared';
+import { adminAppRegistry } from './AdminSharedUtils';
 import { resolveAdminAppIconAsset } from './adminAppIconAssets';
 
 describe('admin app registry', () => {

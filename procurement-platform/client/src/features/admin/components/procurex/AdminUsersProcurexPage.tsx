@@ -7,7 +7,8 @@ import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
 import { displayTrustRiskLabel, riskLevelSummary, trustTierSummary } from '@/shared/trustRisk';
 import type { CreateNotificationInput } from '@/shared/types/notifications';
 import type { SessionUser } from '@/shared/types/domain';
-import { AdminCommandDrawer, AdminHero, AdminShell, AdminUndoBanner, displayLabel, exportCsv, formatDate, printAdminPage, useAdminCommand } from './AdminShared';
+import { AdminCommandDrawer, AdminHero, AdminShell, AdminUndoBanner } from './AdminShared';
+import { displayLabel, exportCsv, formatDate, printAdminPage, useAdminCommand } from './AdminSharedUtils';
 
 type StatusFilter = '' | SessionUser['verificationStatus'];
 

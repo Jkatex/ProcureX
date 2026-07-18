@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAppSelector } from '@/app/store';
 import { adminApi } from '@/features/admin/api';
 import { identityApi } from '@/features/identity/api';
 import type { KeyphraseRecoveryHistoryItem, SigningCredentialStatus, VerificationMe } from '@/features/identity/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AdminCommandDrawer, AdminError, AdminHero, AdminShell, badgeClass, displayLabel, formatDate, useAdminCommand } from './AdminShared';
+import { AdminCommandDrawer, AdminError, AdminHero, AdminShell } from './AdminShared';
+import { badgeClass, displayLabel, formatDate, useAdminCommand } from './AdminSharedUtils';
 
 type AdminProfileTab = 'overview' | 'account' | 'entity' | 'classification' | 'documents' | 'settings' | 'system';
 
@@ -37,7 +38,7 @@ export function AdminProfileProcurexPage() {
 
   useBodyPageMetadata('admin-profile');
 
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -60,11 +61,11 @@ export function AdminProfileProcurexPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [sessionUser]);
 
   useEffect(() => {
     void loadProfile();
-  }, []);
+  }, [loadProfile]);
 
   const user = verificationMe?.user ?? sessionUser;
   const verification = verificationMe?.verification;

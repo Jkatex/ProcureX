@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi, type AdminAnalytics } from '@/features/admin/api';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AdminError, AdminHero, AdminPanel, AdminShell, compactNumber, displayLabel, exportCsv, formatDate, maxCount, printAdminPage } from './AdminShared';
+import { AdminError, AdminHero, AdminPanel, AdminShell } from './AdminShared';
+import { compactNumber, displayLabel, exportCsv, formatDate, maxCount, printAdminPage } from './AdminSharedUtils';
 
 export function AdminAnalyticsProcurexPage() {
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
@@ -9,24 +10,28 @@ export function AdminAnalyticsProcurexPage() {
   const [to, setTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const rangeRef = useRef({ from: '', to: '' });
+
+  rangeRef.current = { from, to };
 
   useBodyPageMetadata('admin-analytics');
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setAnalytics(await adminApi.analytics({ from: from || undefined, to: to || undefined }));
+      const range = rangeRef.current;
+      setAnalytics(await adminApi.analytics({ from: range.from || undefined, to: range.to || undefined }));
     } catch (caught) {
       setError(caught);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const totals = analytics?.totals ?? {};
 

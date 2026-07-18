@@ -27,7 +27,8 @@ import {
   terminationTypeOptions
 } from './AwardContractActionForms';
 import { AwardContractAccessProvider } from './AwardContractRoleAccess';
-import { LockedFlowStepPanel, flowStepFromSearch } from './AwardContractFlow';
+import { LockedFlowStepPanel } from './AwardContractFlow';
+import { flowStepFromSearch } from './AwardContractFlowState';
 import {
   AwardHero,
   ProcurexAwardFrame,

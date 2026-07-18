@@ -11,7 +11,7 @@ import {
 } from '@/shared/components/procurex/PlatformAppsDrawer';
 import type { AwardQueueId, BadgeTone, LifecycleAction } from '../../types';
 import { awardQueueLabels } from '../../fixtures';
-import { confirmAwardContractNavigation } from './AwardContractFlow';
+import { confirmAwardContractNavigation } from './AwardContractFlowState';
 
 type FrameProps = {
   pageKey: string;

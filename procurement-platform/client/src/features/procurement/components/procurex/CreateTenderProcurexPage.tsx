@@ -61,8 +61,8 @@ import type {
 import type { CommunicationRecipient } from '@/features/communication/types';
 
 const steps = ['Basic Information', 'Procurement Planning', 'Tender Requirements', 'Evaluation Criteria and Weights', 'Review Tender', 'Tender Review and Publication'];
-const tenderImportAccept = '.xlsx,.xls,.csv,.txt';
-const goodsQuantityImportAccept = '.xlsx,.xls';
+const tenderImportAccept = '.xlsx,.csv,.txt';
+const goodsQuantityImportAccept = '.xlsx';
 const goodsQuantityTemplateHeaders = ['Id', 'Item name', 'Quantity', 'Unit'];
 
 type ContactVerificationUiState = Record<
@@ -198,7 +198,7 @@ function createRegulatoryLicenseRow(licenseName: string): CreateTenderRegulatory
 }
 
 function downloadGoodsQuantityTemplate() {
-  downloadTenderSpreadsheetTemplate(
+  void downloadTenderSpreadsheetTemplate(
     'goods-quantity-schedule-template.xlsx',
     [
       goodsQuantityTemplateHeaders,
@@ -256,7 +256,7 @@ function getServiceBoqTotal(row: CreateTenderServiceBoqRow) {
 }
 
 function downloadWorksBoqTemplate() {
-  downloadTenderSpreadsheetTemplate('works-boq-template.xlsx', [
+  void downloadTenderSpreadsheetTemplate('works-boq-template.xlsx', [
     ['No.', 'Description', 'Unit', 'Quantity'],
     ['1', '', '', '']
   ]);
@@ -313,7 +313,7 @@ async function handleTenderSpreadsheetImport<T>(
     });
   } catch (error) {
     notifyWarning('Import not added', error instanceof Error ? error.message : `${label} could not be imported.`, {
-      reason: 'Use a supported .xlsx, .xls, .csv, or .txt file and try again.'
+      reason: 'Use a supported .xlsx, .csv, or .txt file and try again.'
     });
   } finally {
     input.value = '';
@@ -1915,10 +1915,10 @@ function RequirementsStep({
     function importGoodsQuantitySchedule(event: ChangeEvent<HTMLInputElement>) {
       const input = event.currentTarget;
       const fileName = input.files?.[0]?.name ?? '';
-      if (!/\.(xlsx|xls)$/i.test(fileName)) {
+      if (!/\.xlsx$/i.test(fileName)) {
         input.value = '';
         notifyWarning('Import not added', 'The Excel format is not correct. Download Excel Template and use exactly four columns: Id, Item name, Quantity, Unit.', {
-          reason: 'Only .xlsx or .xls files that match the ProcureX Goods BOQ template can be imported here.'
+          reason: 'Only .xlsx files that match the ProcureX Goods BOQ template can be imported here.'
         });
         return;
       }
@@ -4049,7 +4049,7 @@ function WorksRequirementsStep({
                         <td>
                           <label className="btn btn-secondary scope-add goods-import-control">
                             Upload document
-                            <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" aria-label={`Upload document ${index + 1}`} onChange={(event) => updateSpecificationDocument(row.id, { uploadName: event.target.files?.[0]?.name ?? '' })} />
+                            <input type="file" accept=".pdf,.doc,.docx,.xlsx" aria-label={`Upload document ${index + 1}`} onChange={(event) => updateSpecificationDocument(row.id, { uploadName: event.target.files?.[0]?.name ?? '' })} />
                           </label>
                           {row.uploadName ? <span className="form-hint">{row.uploadName}</span> : null}
                         </td>

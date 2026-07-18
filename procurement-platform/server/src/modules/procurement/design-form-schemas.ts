@@ -206,7 +206,7 @@ const schemaSections: Record<FormSchemaType, Omit<DesignFormSchemaDto, 'schemaVe
             emptyText: 'No specification documents added yet.',
             columns: [
               { id: 'documentTitle', label: 'Document title', type: 'select-custom-prompt', options: inlineOptions.worksTechnicalSpecificationTitles },
-              { id: 'documentUpload', label: 'Upload document', type: 'file', accept: '.pdf,.doc,.docx,.xls,.xlsx' }
+              { id: 'documentUpload', label: 'Upload document', type: 'file', accept: '.pdf,.doc,.docx,.xlsx' }
             ]
           }
         ]

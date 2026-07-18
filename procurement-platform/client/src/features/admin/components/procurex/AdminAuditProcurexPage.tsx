@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi, type AuditEvent, type PageDto } from '@/features/admin/api';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AdminError, AdminHero, AdminPanel, AdminShell, EmptyRow, badgeClass, displayLabel, exportCsv, formatDate, printAdminPage } from './AdminShared';
+import { AdminError, AdminHero, AdminPanel, AdminShell, EmptyRow } from './AdminShared';
+import { badgeClass, displayLabel, exportCsv, formatDate, printAdminPage } from './AdminSharedUtils';
 
 const severities = ['', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
 
@@ -17,23 +18,27 @@ export function AdminAuditProcurexPage() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const filtersRef = useRef({ query: '', severity: '', entityType: '', eventType: '', actorRole: '', from: '', to: '' });
+
+  filtersRef.current = { query, severity, entityType, eventType, actorRole, from, to };
 
   useBodyPageMetadata('admin-audit');
 
-  async function load(nextPage = page, append = false) {
+  const load = useCallback(async (nextPage = 1, append = false) => {
     setLoading(true);
     setError(null);
     try {
+      const filters = filtersRef.current;
       const response = await adminApi.listAuditEvents({
         page: nextPage,
         pageSize: 20,
-        q: query || undefined,
-        severity: severity || undefined,
-        entityType: entityType || undefined,
-        eventType: eventType || undefined,
-        actorRole: actorRole || undefined,
-        from: from || undefined,
-        to: to || undefined
+        q: filters.query || undefined,
+        severity: filters.severity || undefined,
+        entityType: filters.entityType || undefined,
+        eventType: filters.eventType || undefined,
+        actorRole: filters.actorRole || undefined,
+        from: filters.from || undefined,
+        to: filters.to || undefined
       });
       setEvents((current) => (append && current ? { ...response, items: [...current.items, ...response.items] } : response));
       setPage(nextPage);
@@ -42,11 +47,11 @@ export function AdminAuditProcurexPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load(1);
-  }, []);
+  }, [load]);
 
   function exportEvents() {
     exportCsv(

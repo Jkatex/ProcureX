@@ -8,7 +8,8 @@ import { SignatureKeyphraseModal } from '@/shared/components/SignatureKeyphraseM
 import { apiErrorMessage, isKeyphraseApiError } from '@/shared/api/errors';
 import type { TenderDetailDocument, TenderReviewDetail, TenderReviewListResponse, TenderReviewQueueItem } from '@/features/procurement/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AdminError, AdminHero, AdminPanel, AdminShell, badgeClass, displayLabel, formatDate } from './AdminShared';
+import { AdminError, AdminHero, AdminPanel, AdminShell } from './AdminShared';
+import { badgeClass, displayLabel, formatDate } from './AdminSharedUtils';
 
 const pageSize = 1000;
 

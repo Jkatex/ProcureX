@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { supportComposeRoute } from '@/features/communication/supportComposeRoute';
 import { ProtectedRoute } from './routeGuards';
-import { routes } from './router';
+import { routes } from './routes';
 
 describe('auth routes', () => {
   it('redirects role selection to registration', () => {

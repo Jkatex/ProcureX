@@ -22,7 +22,8 @@ import type {
   CommunicationTenderLink
 } from '@/features/communication/types';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AdminShell, badgeClass, displayLabel, formatDate } from './AdminShared';
+import { AdminShell } from './AdminShared';
+import { badgeClass, displayLabel, formatDate } from './AdminSharedUtils';
 
 type MailboxFolder = NonNullable<CommunicationMailboxQuery['folder']>;
 
@@ -340,7 +341,7 @@ export function AdminCommunicationProcurexPage() {
       if (item && !options.some((tender) => tender.id === item.id)) options.unshift(item);
     });
     return options;
-  }, [replySource, searchParamKey, searchParams, tenders]);
+  }, [replySource, searchParams, tenders]);
 
   function goAdminCommunicationHome(replace = false) {
     navigate('/admin/communication', { replace });

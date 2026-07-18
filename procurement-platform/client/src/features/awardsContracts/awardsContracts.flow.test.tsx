@@ -635,7 +635,6 @@ describe('awards and contracts empty lifecycle flow', () => {
   });
 
   it('asks the buyer to confirm the award before sending notices', async () => {
-    const user = userEvent.setup();
     const notifications = captureAwardNotifications();
     const awardAction = lifecycleAction({
       id: 'award-rec-unconfirmed',
@@ -739,7 +738,6 @@ describe('awards and contracts empty lifecycle flow', () => {
   });
 
   it('gates contract generation until the supplier accepts and a contract is linked', async () => {
-    const user = userEvent.setup();
     const notifications = captureAwardNotifications();
     const awardAction = lifecycleAction({
       id: 'award-rec-contract',

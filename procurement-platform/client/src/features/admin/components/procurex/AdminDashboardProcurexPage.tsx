@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, type AdminApp, type AdminDashboard } from '@/features/admin/api';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';
-import { AdminCommandDrawer, AdminError, AdminShell, AdminUndoBanner, adminAppRegistry, badgeClass, compactNumber, displayLabel, formatDate, useAdminCommand } from './AdminShared';
+import { AdminCommandDrawer, AdminError, AdminShell, AdminUndoBanner } from './AdminShared';
+import { adminAppRegistry, badgeClass, compactNumber, displayLabel, formatDate, useAdminCommand } from './AdminSharedUtils';
 
 type AdminQueueItem = AdminDashboard['adminActionQueue'][number];
 
