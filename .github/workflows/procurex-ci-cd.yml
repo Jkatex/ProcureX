@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - develop
+    tags:
+      - "v*"
     paths:
       - procurement-platform/**
       - procurex-ui/**
@@ -93,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: validate
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
     environment: production
     permissions:
       contents: read

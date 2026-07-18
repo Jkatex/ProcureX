@@ -1,8 +1,8 @@
 import { AuditSeverity } from '@prisma/client';
-import type { Request, RequestHandler } from 'express';
+import type { Request } from 'express';
 import { Redis } from 'ioredis';
 import { createHash } from 'node:crypto';
-import { ipKeyGenerator, rateLimit, type IncrementResponse, type Options, type Store } from 'express-rate-limit';
+import { ipKeyGenerator, type IncrementResponse, type Options, type Store } from 'express-rate-limit';
 import { ModuleRepository } from '../modules/identity/repository.js';
 import { requestError } from '../modules/shared/apiErrors.js';
 import { isProductionRuntime, securityConfig } from './config.js';
@@ -202,8 +202,4 @@ export function createApiMutationRateLimitOptions(name: string): Partial<Options
     windowSeconds: () => securityConfig().apiMutationRateLimitWindowSeconds,
     enabled: () => securityConfig().apiMutationRateLimitEnabled
   });
-}
-
-export function createAuthRateLimit(name: string): RequestHandler {
-  return rateLimit(createAuthRateLimitOptions(name));
 }
