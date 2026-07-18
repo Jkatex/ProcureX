@@ -12,7 +12,7 @@ export async function readTenderSpreadsheetRows(file: File): Promise<TenderSprea
   }
   if (excelExtensions.has(extension)) {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await readFileArrayBuffer(file) as unknown as Buffer);
+    await workbook.xlsx.load((await readFileArrayBuffer(file)) as Parameters<typeof workbook.xlsx.load>[0]);
     const worksheet = workbook.worksheets[0];
     return worksheet ? normalizeRows(readWorksheetRows(worksheet)) : [];
   }

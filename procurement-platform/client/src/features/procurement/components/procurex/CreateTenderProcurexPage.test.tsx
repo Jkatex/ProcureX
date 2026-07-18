@@ -967,7 +967,7 @@ describe('CreateTenderProcurexPage', () => {
     await waitFor(() => expect(download.click).toHaveBeenCalled());
     expect(download.downloads.at(-1)).toBe('goods-quantity-schedule-template.xlsx');
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await blobToArrayBuffer(download.blobs[0]) as unknown as Buffer);
+    await workbook.xlsx.load((await blobToArrayBuffer(download.blobs[0])) as Parameters<typeof workbook.xlsx.load>[0]);
     const firstRow = workbook.worksheets[0].getRow(1).values as unknown[];
     expect(firstRow.slice(1, 5)).toEqual(['Id', 'Item name', 'Quantity', 'Unit']);
     expect(firstRow.slice(1, 5)).toHaveLength(4);
