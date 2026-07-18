@@ -59,18 +59,25 @@ const pathEntries = [
   ...(process.env.PATH ?? '').split(delimiter)
 ].filter(Boolean);
 
-function quoteWindowsCommandArg(value) {
-  if (!/[ \t&()^|<>"]/.test(value)) return value;
-  return `"${value.replace(/"/g, '\\"')}"`;
-}
-
 function resolveWindowsCommand(executable) {
   if (!isWindows) return { command: executable, shell: false };
+
+  function resolveNodeShim(commandPath) {
+    const source = readFileSync(commandPath, 'utf8');
+    const match = source.match(/"%dp0%\\([^"]+)"\s+%\*/);
+    if (!match) return null;
+    return resolve(dirname(commandPath), match[1]);
+  }
+
+  function nodeShimCommand(commandPath) {
+    const scriptPath = resolveNodeShim(commandPath);
+    return scriptPath ? { command: process.execPath, argsPrefix: [scriptPath], shell: false } : null;
+  }
 
   if (extname(executable)) {
     const extension = extname(executable).toLowerCase();
     if (extension === '.cmd' || extension === '.bat') {
-      return { command: quoteWindowsCommandArg(executable), shell: true };
+      return nodeShimCommand(executable) ?? { command: executable, shell: true };
     }
     return { command: executable, shell: false };
   }
@@ -80,7 +87,7 @@ function resolveWindowsCommand(executable) {
       const candidate = resolve(directory, `${executable}${extension}`);
       if (existsSync(candidate)) {
         if (extension === '.cmd' || extension === '.bat') {
-          return { command: quoteWindowsCommandArg(candidate), shell: true };
+          return nodeShimCommand(candidate) ?? { command: candidate, shell: true };
         }
         return { command: candidate, shell: false };
       }
@@ -91,25 +98,16 @@ function resolveWindowsCommand(executable) {
 }
 
 const resolvedCommand = resolveWindowsCommand(command);
-const isWindowsScript = isWindows && /\.(?:cmd|bat)$/i.test(resolvedCommand.command);
+const resolvedArgs = [...(resolvedCommand.argsPrefix ?? []), ...args];
 
-function quoteForCmd(value) {
-  return `"${String(value).replace(/"/g, '""')}"`;
-}
-
-const spawnCommand = isWindowsScript
-  ? [quoteForCmd(resolvedCommand.command), ...args.map(quoteForCmd)].join(' ')
-  : resolvedCommand.command;
-const spawnArgs = isWindowsScript ? [] : args;
-
-const child = spawn(spawnCommand, spawnArgs, {
+const child = spawn(resolvedCommand.command, resolvedArgs, {
   cwd,
   env: {
     ...process.env,
     ...parsedEnv,
     PATH: pathEntries.join(delimiter)
   },
-  shell: isWindowsScript ? true : resolvedCommand.shell,
+  shell: resolvedCommand.shell,
   stdio: 'inherit'
 });
 

@@ -6,13 +6,14 @@ const supplierTenderCommunicationDraftStorageKey = 'procurex.communicationCenter
 const supplierTenderClarificationCategories = ['Technical', 'Financial', 'Deliverables', 'Legal', 'Timeline', 'Commercial Schedule'];
 
 function escapeSupplierTenderDetailHtml(value = '') {
+    if (typeof window.ProcureXShared?.escapeHtml === 'function') return window.ProcureXShared.escapeHtml(value);
     if (typeof escapeBidWorkspaceHtml === 'function') return escapeBidWorkspaceHtml(value);
-    return String(value)
-        .replace(/and/g, 'and')
-        .replace(/</g, 'andlt;')
-        .replace(/>/g, 'andgt;')
-        .replace(/"/g, 'andquot;')
-        .replace(/'/g, 'and#039;');
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function formatSupplierTenderMoney(value) {

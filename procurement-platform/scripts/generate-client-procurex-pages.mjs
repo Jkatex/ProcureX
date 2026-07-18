@@ -290,13 +290,16 @@ function lazyRegistryEntry(feature, page, componentName) {
   return `  '${page}': lazy(() => import('@/features/${feature}/components/procurex/${componentName}').then((module) => ({ default: module.${componentName} })))`;
 }
 
+const htmlEntityDecodeMap = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'"
+};
+
 function decodeHtml(value) {
-  return value
-    .replaceAll('&amp;', '&')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'");
+  return value.replace(/&(amp|lt|gt|quot|#39);/g, (entity) => htmlEntityDecodeMap[entity] ?? entity);
 }
 
 function shouldCatalogText(value) {

@@ -1,12 +1,13 @@
 // IAM registration, identity verification review, and entity-specific profile editor.
 
 function escapeIamProfileHtml(value = '') {
+    if (typeof window.ProcureXShared?.escapeHtml === 'function') return window.ProcureXShared.escapeHtml(value);
     return String(value ?? '')
-        .replace(/and/g, 'and')
-        .replace(/</g, 'andlt;')
-        .replace(/>/g, 'andgt;')
-        .replace(/"/g, 'andquot;')
-        .replace(/'/g, 'and#039;');
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function getIamProfileValue(data, key, fallback = '') {

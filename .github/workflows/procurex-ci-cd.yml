@@ -20,6 +20,9 @@ concurrency:
   group: procurex-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -92,6 +95,9 @@ jobs:
     needs: validate
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     environment: production
+    permissions:
+      contents: read
+      deployments: write
     env:
       HAS_PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL != '' }}
       HAS_DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL != '' }}

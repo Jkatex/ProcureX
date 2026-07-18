@@ -1,9 +1,13 @@
 import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
+import { createApiMutationRateLimitOptions } from '../../security/rateLimit.js';
 import { ModuleController } from './controller.js';
 
 export function createModuleRouter() {
   const router = Router();
   const controller = new ModuleController();
+  const awardMutationLimit = rateLimit(createApiMutationRateLimitOptions('award-contract-mutation'));
+  const sampleMutationLimit = rateLimit(createApiMutationRateLimitOptions('award-contract-sample-mutation'));
 
   router.get('/', controller.status);
   router.get('/dashboard', controller.dashboard);
@@ -11,38 +15,38 @@ export function createModuleRouter() {
   router.get('/recommendations', controller.listRecommendations);
   router.get('/recommendations/:id', controller.recommendation);
   router.get('/recommendations/:id/evaluation-report', controller.evaluationReport);
-  router.patch('/recommendations/:id/draft', controller.saveAwardDecisionDraft);
-  router.post('/recommendations/:id/approve', controller.approveRecommendation);
-  router.post('/recommendations/:id/return', controller.returnRecommendation);
-  router.put('/recommendations/:id/approval-route', controller.upsertAwardApprovalRoute);
-  router.put('/recommendations/:id/approval-steps', controller.upsertAwardApprovalStep);
-  router.post('/recommendations/:id/tie-breakers', controller.createAwardTieBreaker);
-  router.put('/recommendations/:id/delivery-feasibility', controller.upsertDeliveryFeasibility);
-  router.put('/recommendations/:id/standstill', controller.upsertStandstillPeriod);
-  router.post('/recommendations/:id/notifications', controller.createAwardNotification);
-  router.post('/recommendations/:id/budget-commitments', controller.createBudgetCommitmentForRecommendation);
-  router.put('/recommendations/:id/clauses', controller.upsertAwardClause);
-  router.post('/recommendations/:id/negotiations', controller.createAwardNegotiation);
-  router.post('/recommendations/:id/bid-pack', controller.generateAwardBidPack);
-  router.post('/recommendations/:id/settle', controller.settleAwardGroup);
+  router.patch('/recommendations/:id/draft', awardMutationLimit, controller.saveAwardDecisionDraft);
+  router.post('/recommendations/:id/approve', awardMutationLimit, controller.approveRecommendation);
+  router.post('/recommendations/:id/return', awardMutationLimit, controller.returnRecommendation);
+  router.put('/recommendations/:id/approval-route', awardMutationLimit, controller.upsertAwardApprovalRoute);
+  router.put('/recommendations/:id/approval-steps', awardMutationLimit, controller.upsertAwardApprovalStep);
+  router.post('/recommendations/:id/tie-breakers', awardMutationLimit, controller.createAwardTieBreaker);
+  router.put('/recommendations/:id/delivery-feasibility', awardMutationLimit, controller.upsertDeliveryFeasibility);
+  router.put('/recommendations/:id/standstill', awardMutationLimit, controller.upsertStandstillPeriod);
+  router.post('/recommendations/:id/notifications', awardMutationLimit, controller.createAwardNotification);
+  router.post('/recommendations/:id/budget-commitments', awardMutationLimit, controller.createBudgetCommitmentForRecommendation);
+  router.put('/recommendations/:id/clauses', awardMutationLimit, controller.upsertAwardClause);
+  router.post('/recommendations/:id/negotiations', awardMutationLimit, controller.createAwardNegotiation);
+  router.post('/recommendations/:id/bid-pack', awardMutationLimit, controller.generateAwardBidPack);
+  router.post('/recommendations/:id/settle', awardMutationLimit, controller.settleAwardGroup);
 
-  router.post('/notices/:id/respond', controller.respondToNotice);
-  router.post('/notices/:id/cancel', controller.cancelAwardNotice);
-  router.post('/notices/:id/reissue', controller.reissueAwardNotice);
+  router.post('/notices/:id/respond', awardMutationLimit, controller.respondToNotice);
+  router.post('/notices/:id/cancel', awardMutationLimit, controller.cancelAwardNotice);
+  router.post('/notices/:id/reissue', awardMutationLimit, controller.reissueAwardNotice);
 
-  router.post('/tenders/:tenderId/contract-draft', controller.prepareTenderContractDraft);
+  router.post('/tenders/:tenderId/contract-draft', awardMutationLimit, controller.prepareTenderContractDraft);
 
   router.get('/samples', controller.listSamples);
   router.get('/samples/:sampleId', controller.sample);
-  router.post('/samples/:sampleId/receive', controller.receiveSample);
-  router.post('/samples/:sampleId/verify', controller.verifySample);
-  router.post('/samples/:sampleId/custody-transfer', controller.transferSampleCustody);
-  router.post('/samples/:sampleId/evaluations', controller.evaluateSample);
-  router.post('/samples/:sampleId/tests', controller.createSampleTest);
-  router.post('/samples/:sampleId/clarifications', controller.requestSampleClarification);
-  router.post('/samples/:sampleId/return', controller.returnSample);
-  router.post('/samples/:sampleId/retain', controller.retainSample);
-  router.post('/samples/:sampleId/dispose', controller.disposeSample);
+  router.post('/samples/:sampleId/receive', sampleMutationLimit, controller.receiveSample);
+  router.post('/samples/:sampleId/verify', sampleMutationLimit, controller.verifySample);
+  router.post('/samples/:sampleId/custody-transfer', sampleMutationLimit, controller.transferSampleCustody);
+  router.post('/samples/:sampleId/evaluations', sampleMutationLimit, controller.evaluateSample);
+  router.post('/samples/:sampleId/tests', sampleMutationLimit, controller.createSampleTest);
+  router.post('/samples/:sampleId/clarifications', sampleMutationLimit, controller.requestSampleClarification);
+  router.post('/samples/:sampleId/return', sampleMutationLimit, controller.returnSample);
+  router.post('/samples/:sampleId/retain', sampleMutationLimit, controller.retainSample);
+  router.post('/samples/:sampleId/dispose', sampleMutationLimit, controller.disposeSample);
 
   router.get('/contracts', controller.listContracts);
   router.get('/contracts/:id', controller.contract);

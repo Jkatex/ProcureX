@@ -526,6 +526,33 @@ class ProcureXApp {
         return titles[this.currentPage] || this.currentPage.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
 
+    escapeHtml(value = '') {
+        if (typeof window.ProcureXShared?.escapeHtml === 'function') return window.ProcureXShared.escapeHtml(value);
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    createSummaryRow(label, value) {
+        const row = document.createElement('div');
+        const labelNode = document.createElement('span');
+        const valueNode = document.createElement('strong');
+        labelNode.textContent = String(label ?? '');
+        valueNode.textContent = String(value ?? '');
+        row.append(labelNode, valueNode);
+        return row;
+    }
+
+    replaceSummaryRows(container, rows = []) {
+        const nodes = rows
+            .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+            .map(([label, value]) => this.createSummaryRow(label, value));
+        container.replaceChildren(...nodes);
+    }
+
     renderPage() {
         const pageContent = document.getElementById('page-content');
         document.body.dataset.page = this.currentPage;
@@ -1131,9 +1158,19 @@ class ProcureXApp {
 
         signatureName?.addEventListener('input', () => {
             const value = signatureName.value.trim();
-            signaturePreview.innerHTML = value
-                ? `<strong>${value}</strong><span>Digitally signed on ProcureX</span>`
-                : '<span>Typed signature preview</span>';
+            if (signaturePreview) {
+                if (value) {
+                    const nameNode = document.createElement('strong');
+                    const statusNode = document.createElement('span');
+                    nameNode.textContent = value;
+                    statusNode.textContent = 'Digitally signed on ProcureX';
+                    signaturePreview.replaceChildren(nameNode, statusNode);
+                } else {
+                    const placeholderNode = document.createElement('span');
+                    placeholderNode.textContent = 'Typed signature preview';
+                    signaturePreview.replaceChildren(placeholderNode);
+                }
+            }
             resetSignatureConfirmationIfChanged();
         });
 
@@ -1658,8 +1695,8 @@ class ProcureXApp {
         return true;
     }
 
-    renderEkycRegistrySummary(record = {}) {
-        const rows = Array.isArray(record.summaryRows) && record.summaryRows.length
+    getEkycRegistrySummaryRows(record = {}) {
+        return Array.isArray(record.summaryRows) && record.summaryRows.length
             ? record.summaryRows
             : [
                 ['Source', record.source],
@@ -1668,10 +1705,12 @@ class ProcureXApp {
                 ['Registered', record.registeredOn],
                 ['Location', record.location]
             ];
+    }
 
-        return rows
+    renderEkycRegistrySummary(record = {}) {
+        return this.getEkycRegistrySummaryRows(record)
             .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
-            .map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`)
+            .map(([label, value]) => `<div><span>${this.escapeHtml(label)}</span><strong>${this.escapeHtml(value)}</strong></div>`)
             .join('');
     }
 
@@ -1788,7 +1827,7 @@ class ProcureXApp {
         const summary = form.querySelector('[data-registry-summary]');
         if (kicker) kicker.textContent = record.source === 'TRA' ? 'TRA Information (Fetched)' : 'Fetched information';
         if (name) name.textContent = record.name;
-        if (summary) summary.innerHTML = this.renderEkycRegistrySummary(record);
+        if (summary) this.replaceSummaryRows(summary, this.getEkycRegistrySummaryRows(record));
         review?.classList.remove('ekyc-hidden');
     }
 
@@ -1800,13 +1839,13 @@ class ProcureXApp {
         const summary = form.querySelector('[data-ekyc-complete-summary]');
         if (!summary) return;
 
-        summary.innerHTML = `
-            <div><span>Applicant type</span><strong>${registryConfig.applicantLabel}</strong></div>
-            ${registryConfig.registrationMethod ? `<div><span>Registration method</span><strong>${registryConfig.registrationMethod}</strong></div>` : ''}
-            <div><span>Registry source</span><strong>${registryConfig.source}</strong></div>
-            <div><span>Verified name</span><strong>${registryRecord?.name || 'Pending review'}</strong></div>
-            <div><span>Signature</span><strong>${signatureName}</strong></div>
-        `;
+        this.replaceSummaryRows(summary, [
+            ['Applicant type', registryConfig.applicantLabel],
+            ['Registration method', registryConfig.registrationMethod],
+            ['Registry source', registryConfig.source],
+            ['Verified name', registryRecord?.name || 'Pending review'],
+            ['Signature', signatureName]
+        ]);
     }
 
     showRegistrationScreen(screenNumber) {
@@ -2164,25 +2203,58 @@ class ProcureXApp {
     }
 
     getPageRenderFunction(pageName) {
-        const renderAliases = {
-            'identity-verification': 'renderIamVerification',
-            'account-profile': 'renderVerificationStatus',
-            'marketplace': 'renderSupplierMarketplace',
-            'tender-detail': 'renderSupplierTenderDetail',
-            'procurement-guide': 'renderSupplierJourney'
-        };
-        const renderFnName = renderAliases[pageName] || 'render' + pageName.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('');
-        if (typeof window[renderFnName] === 'function') {
-            return window[renderFnName]();
+        switch (pageName) {
+            case 'welcome': return window.renderWelcome?.() ?? this.renderWelcome();
+            case 'register': return window.renderRegister?.() ?? this.renderComingSoon();
+            case 'sign-in': return window.renderSignIn?.() ?? this.renderSignIn();
+            case 'role-selection': return window.renderRoleSelection?.() ?? this.renderRoleSelection();
+            case 'identity-verification': return window.renderIamVerification?.() ?? this.renderIamVerification();
+            case 'account-profile': return window.renderVerificationStatus?.() ?? this.renderVerificationStatus();
+            case 'app-launcher': return window.renderAppLauncher?.() ?? this.renderComingSoon();
+            case 'workspace-dashboard': return window.renderWorkspaceDashboard?.() ?? this.renderWorkspaceDashboard();
+            case 'tender-planning': return window.renderTenderPlanning?.() ?? this.renderTenderPlanning();
+            case 'procurement-planning-details': return window.renderProcurementPlanningDetails?.() ?? this.renderComingSoon();
+            case 'procurement-planning-questions': return window.renderProcurementPlanningQuestions?.() ?? this.renderComingSoon();
+            case 'procurement-planning-complaints': return window.renderProcurementPlanningComplaints?.() ?? this.renderComingSoon();
+            case 'procurement-planning-monitoring': return window.renderProcurementPlanningMonitoring?.() ?? this.renderComingSoon();
+            case 'procurement-planning-customer': return window.renderProcurementPlanningCustomer?.() ?? this.renderComingSoon();
+            case 'procurement-planning-purchase': return window.renderProcurementPlanningPurchase?.() ?? this.renderComingSoon();
+            case 'procurement-planning-tender-docs': return window.renderProcurementPlanningTenderDocs?.() ?? this.renderComingSoon();
+            case 'procurement-planning-documents': return window.renderProcurementPlanningDocuments?.() ?? this.renderComingSoon();
+            case 'procurement-planning-dashboard': return window.renderProcurementPlanningDashboard?.() ?? this.renderComingSoon();
+            case 'procurement-planning-app-items': return window.renderProcurementPlanningAppItems?.() ?? this.renderComingSoon();
+            case 'procurement-planning-spp-schedule': return window.renderProcurementPlanningSppSchedule?.() ?? this.renderComingSoon();
+            case 'procurement-planning-budget-funding': return window.renderProcurementPlanningBudgetFunding?.() ?? this.renderComingSoon();
+            case 'procurement-planning-approvals': return window.renderProcurementPlanningApprovals?.() ?? this.renderComingSoon();
+            case 'procurement-planning-documents-evidence': return window.renderProcurementPlanningDocumentsEvidence?.() ?? this.renderComingSoon();
+            case 'procurement-planning-risks-alerts': return window.renderProcurementPlanningRisksAlerts?.() ?? this.renderComingSoon();
+            case 'procurement-planning-reports': return window.renderProcurementPlanningReports?.() ?? this.renderComingSoon();
+            case 'admin-dashboard': return window.renderAdminDashboard?.() ?? this.renderAdminDashboard();
+            case 'admin-users': return window.renderAdminUsers?.() ?? this.renderAdminUsers();
+            case 'admin-analytics': return window.renderAdminAnalytics?.() ?? this.renderAdminAnalytics();
+            case 'admin-audit': return window.renderAdminAudit?.() ?? this.renderAdminAudit();
+            case 'procurement-guide': return window.renderSupplierJourney?.() ?? this.renderSupplierJourney();
+            case 'guest-marketplace': return window.renderGuestMarketplace?.() ?? this.renderGuestMarketplace();
+            case 'about-procurex': return window.renderAboutProcurex?.() ?? this.renderComingSoon();
+            case 'privacy-policy': return window.renderPrivacyPolicy?.() ?? this.renderComingSoon();
+            case 'terms-and-conditions': return window.renderTermsAndConditions?.() ?? this.renderComingSoon();
+            case 'contact': return window.renderContact?.() ?? this.renderComingSoon();
+            case 'marketplace': return window.renderSupplierMarketplace?.() ?? this.renderSupplierMarketplace();
+            case 'tender-detail': return window.renderSupplierTenderDetail?.() ?? this.renderSupplierTenderDetail();
+            case 'communication-center': return window.renderCommunicationCenter?.() ?? this.renderCommunicationCenter();
+            case 'create-tender': return window.renderCreateTender?.() ?? this.renderCreateTender();
+            case 'tender-publication': return window.renderTenderPublication?.() ?? this.renderTenderPublication();
+            case 'tender-details': return window.renderTenderDetails?.() ?? this.renderTenderDetails();
+            case 'records-history': return window.renderRecordsHistory?.() ?? this.renderRecordsHistory();
+            case 'bidding-workspace': return window.renderBiddingWorkspace?.() ?? this.renderBiddingWorkspace();
+            case 'bid-evaluation': return window.renderBidEvaluation?.() ?? this.renderBidEvaluation();
+            case 'awarding-contracts': return window.renderAwardingContracts?.() ?? this.renderComingSoon();
+            case 'award-recommendation': return window.renderAwardRecommendation?.() ?? this.renderAwardRecommendation();
+            case 'award-response': return window.renderAwardResponse?.() ?? this.renderComingSoon();
+            case 'contract-negotiation': return window.renderContractNegotiation?.() ?? this.renderContractNegotiation();
+            case 'post-award-tracking': return window.renderPostAwardTracking?.() ?? this.renderPostAwardTracking();
+            default: return this.renderComingSoon();
         }
-        if (typeof window.app?.[renderFnName] === 'function' && !this.isPlaceholderRenderer(renderFnName, window.app[renderFnName])) {
-            return window.app[renderFnName]();
-        }
-        return this.renderComingSoon();
-    }
-
-    isPlaceholderRenderer(renderFnName, renderFn) {
-        return ProcureXApp.prototype[renderFnName] === renderFn;
     }
 
     renderComingSoon() {

@@ -39,7 +39,10 @@ export function securityConfig() {
     turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY,
     authRateLimitMax: numberEnv(process.env.AUTH_RATE_LIMIT_MAX, 10),
     authRateLimitWindowSeconds: numberEnv(process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS, 60),
-    authRateLimitEnabled: !boolEnv(process.env.AUTH_RATE_LIMIT_DISABLED)
+    authRateLimitEnabled: !boolEnv(process.env.AUTH_RATE_LIMIT_DISABLED),
+    apiMutationRateLimitMax: numberEnv(process.env.API_MUTATION_RATE_LIMIT_MAX, 120),
+    apiMutationRateLimitWindowSeconds: numberEnv(process.env.API_MUTATION_RATE_LIMIT_WINDOW_SECONDS, 60),
+    apiMutationRateLimitEnabled: !boolEnv(process.env.API_MUTATION_RATE_LIMIT_DISABLED)
   };
 }
 

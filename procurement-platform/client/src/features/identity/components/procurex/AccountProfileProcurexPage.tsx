@@ -917,7 +917,7 @@ export function AccountProfileProcurexPage() {
 }
 
 function ContactDisplayRow({ label, value, hint, onEdit }: { label: string; value: string; hint: string; onEdit: () => void }) {
-  const plainLabel = label.replace('*', '').trim();
+  const plainLabel = label.replaceAll('*', '').trim();
   return (
     <div className="form-group iam-profile-field">
       <span className="form-label">{label}</span>

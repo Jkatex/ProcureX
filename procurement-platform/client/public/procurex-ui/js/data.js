@@ -5616,7 +5616,7 @@ function getAwardContractLegacyDraftKey(tenderId) {
 
 function sanitizeAwardContractDraftValue(value) {
     if (typeof window.ProcureXShared?.sanitizeDraftField === 'function') return window.ProcureXShared.sanitizeDraftField(value);
-    return String(value ?? '').replace(/<[^>]*>/g, '').trim().slice(0, 1500);
+    return String(value ?? '').replace(/[<>]/g, ' ').trim().slice(0, 1500);
 }
 
 function sanitizeAwardContractDraftObject(value) {

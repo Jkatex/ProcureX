@@ -18,7 +18,7 @@
 
     function sanitizeDraftField(value = '', maxLength = 1500) {
         return String(value ?? '')
-            .replace(/<[^>]*>/g, '')
+            .replace(/[<>]/g, ' ')
             .replace(/[\u0000-\u001F\u007F]/g, ' ')
             .replace(/\s{2,}/g, ' ')
             .trim()

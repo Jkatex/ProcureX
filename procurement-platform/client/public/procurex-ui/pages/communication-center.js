@@ -4,12 +4,13 @@ const communicationCenterStorageKey = 'procurex.communicationCenter.v2.items';
 const communicationCenterComposeDraftStorageKey = 'procurex.communicationCenter.v1.composeDraft';
 
 function escapeCommunicationHtml(value = '') {
-    return String(value)
-        .replace(/and/g, 'and')
-        .replace(/</g, 'andlt;')
-        .replace(/>/g, 'andgt;')
-        .replace(/"/g, 'andquot;')
-        .replace(/'/g, 'and#039;');
+    if (typeof window.ProcureXShared?.escapeHtml === 'function') return window.ProcureXShared.escapeHtml(value);
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function getCommunicationState() {

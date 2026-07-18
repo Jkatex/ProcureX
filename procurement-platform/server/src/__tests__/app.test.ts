@@ -20,6 +20,9 @@ describe('ProcureX server skeleton', () => {
     delete process.env.AUTH_RATE_LIMIT_MAX;
     delete process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS;
     delete process.env.AUTH_RATE_LIMIT_DISABLED;
+    delete process.env.API_MUTATION_RATE_LIMIT_MAX;
+    delete process.env.API_MUTATION_RATE_LIMIT_WINDOW_SECONDS;
+    delete process.env.API_MUTATION_RATE_LIMIT_DISABLED;
     delete process.env.CORS_ORIGINS;
     delete process.env.TURNSTILE_SECRET_KEY;
     process.env.APP_ENV = 'local';
@@ -155,6 +158,42 @@ describe('ProcureX server skeleton', () => {
     const app = createApp();
     await request(app).post('/api/identity/auth/sign-in').send({ email: 'user@example.test', password: 'Strong123!', turnstileToken: 'bad-token' }).expect(403);
     await request(app).post('/api/identity/auth/sign-in').send({ email: 'user@example.test', password: 'Strong123!', turnstileToken: 'bad-token' }).expect(429);
+  });
+
+  it('rate limits sensitive identity profile and signature mutations', async () => {
+    process.env.AUTH_RATE_LIMIT_MAX = '1';
+    process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS = '60';
+
+    const app = createApp();
+    await request(app).post('/api/identity/signature/request').send({ signatureName: 'Amina Buyer' });
+    await request(app).post('/api/identity/signature/request').send({ signatureName: 'Amina Buyer' }).expect(429);
+  });
+
+  it('rate limits procurement contact verification mutations', async () => {
+    process.env.AUTH_RATE_LIMIT_MAX = '1';
+    process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS = '60';
+
+    const app = createApp();
+    await request(app).post('/api/procurement/contact-verifications/verify').send({ challengeId: 'challenge-1', code: '000000' });
+    await request(app).post('/api/procurement/contact-verifications/verify').send({ challengeId: 'challenge-1', code: '000000' }).expect(429);
+  });
+
+  it('rate limits award-contract sample mutations', async () => {
+    process.env.API_MUTATION_RATE_LIMIT_MAX = '1';
+    process.env.API_MUTATION_RATE_LIMIT_WINDOW_SECONDS = '60';
+
+    const app = createApp();
+    await request(app).post('/api/award-contract/samples/sample-1/verify').send({ condition: 'accepted' });
+    await request(app).post('/api/award-contract/samples/sample-1/verify').send({ condition: 'accepted' }).expect(429);
+  });
+
+  it('rate limits post-award finance mutations', async () => {
+    process.env.API_MUTATION_RATE_LIMIT_MAX = '1';
+    process.env.API_MUTATION_RATE_LIMIT_WINDOW_SECONDS = '60';
+
+    const app = createApp();
+    await request(app).patch('/api/post-award/contracts/contract-1/invoices/invoice-1/verify').send({ financeNote: 'Checked' });
+    await request(app).patch('/api/post-award/contracts/contract-1/invoices/invoice-1/verify').send({ financeNote: 'Checked' }).expect(429);
   });
 
   it('returns the public welcome contract without authentication', async () => {
