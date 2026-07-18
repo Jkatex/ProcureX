@@ -1,8 +1,8 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export type TenderSpreadsheetRow = string[];
 
-const excelExtensions = new Set(['xlsx', 'xls']);
+const excelExtensions = new Set(['xlsx']);
 const textExtensions = new Set(['csv', 'txt']);
 
 export async function readTenderSpreadsheetRows(file: File): Promise<TenderSpreadsheetRow[]> {
@@ -11,14 +11,12 @@ export async function readTenderSpreadsheetRows(file: File): Promise<TenderSprea
     return parseCsvText(await readFileText(file));
   }
   if (excelExtensions.has(extension)) {
-    const workbook = XLSX.read(await readFileArrayBuffer(file), { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    if (!firstSheetName) return [];
-    const worksheet = workbook.Sheets[firstSheetName];
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, raw: false, defval: '' });
-    return normalizeRows(rows);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await readFileArrayBuffer(file) as unknown as Buffer);
+    const worksheet = workbook.worksheets[0];
+    return worksheet ? normalizeRows(readWorksheetRows(worksheet)) : [];
   }
-  throw new Error('Use an Excel or CSV file for this import.');
+  throw new Error('Use a .xlsx, .csv, or .txt file for this import.');
 }
 
 function readFileText(file: File) {
@@ -47,15 +45,15 @@ function readFileArrayBuffer(file: File) {
   });
 }
 
-export function downloadTenderSpreadsheetTemplate(fileName: string, rows: TenderSpreadsheetRow[], columnWidths?: Array<{ wch: number }>) {
-  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+export async function downloadTenderSpreadsheetTemplate(fileName: string, rows: TenderSpreadsheetRow[], columnWidths?: Array<{ wch: number }>) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Template');
+  rows.forEach((row) => worksheet.addRow(row));
   if (columnWidths?.length) {
-    worksheet['!cols'] = columnWidths;
+    worksheet.columns = columnWidths.map((column) => ({ width: column.wch }));
   }
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
-  const data = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const data = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([data as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -66,6 +64,29 @@ export function downloadTenderSpreadsheetTemplate(fileName: string, rows: Tender
 
 function fileExtension(fileName: string) {
   return fileName.split('.').pop()?.trim().toLowerCase() ?? '';
+}
+
+function readWorksheetRows(worksheet: ExcelJS.Worksheet): unknown[][] {
+  const rows: unknown[][] = [];
+  const columnCount = worksheet.columnCount;
+  worksheet.eachRow((row) => {
+    const values: unknown[] = [];
+    for (let columnIndex = 1; columnIndex <= columnCount; columnIndex += 1) {
+      values.push(readCellValue(row.getCell(columnIndex).value));
+    }
+    rows.push(values);
+  });
+  return rows;
+}
+
+function readCellValue(value: ExcelJS.CellValue): unknown {
+  if (!value || value instanceof Date) return value;
+  if (typeof value !== 'object') return value;
+  if ('text' in value && value.text !== undefined) return value.text;
+  if ('result' in value && value.result !== undefined) return readCellValue(value.result as ExcelJS.CellValue);
+  if ('richText' in value && Array.isArray(value.richText)) return value.richText.map((part) => part.text ?? '').join('');
+  if ('formula' in value && value.formula !== undefined) return value.result ?? '';
+  return '';
 }
 
 function parseCsvText(text: string): TenderSpreadsheetRow[] {

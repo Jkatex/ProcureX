@@ -2,6 +2,68 @@
 
 const PLATFORM_LOGO_SRC = 'assets/logo.svg';
 const PROCUREX_LOTTIE_SRC = 'assets/ProcureX.json';
+const PROCUREX_PAGE_NAMES = new Set([
+    'welcome',
+    'register',
+    'sign-in',
+    'role-selection',
+    'identity-verification',
+    'account-profile',
+    'app-launcher',
+    'workspace-dashboard',
+    'tender-planning',
+    'procurement-planning-details',
+    'procurement-planning-questions',
+    'procurement-planning-complaints',
+    'procurement-planning-monitoring',
+    'procurement-planning-customer',
+    'procurement-planning-purchase',
+    'procurement-planning-tender-docs',
+    'procurement-planning-documents',
+    'procurement-planning-dashboard',
+    'procurement-planning-app-items',
+    'procurement-planning-spp-schedule',
+    'procurement-planning-budget-funding',
+    'procurement-planning-approvals',
+    'procurement-planning-documents-evidence',
+    'procurement-planning-risks-alerts',
+    'procurement-planning-reports',
+    'admin-dashboard',
+    'admin-users',
+    'admin-analytics',
+    'admin-audit',
+    'procurement-guide',
+    'guest-marketplace',
+    'about-procurex',
+    'privacy-policy',
+    'terms-and-conditions',
+    'contact',
+    'marketplace',
+    'tender-detail',
+    'communication-center',
+    'create-tender',
+    'tender-publication',
+    'tender-details',
+    'records-history',
+    'bidding-workspace',
+    'bid-evaluation',
+    'awarding-contracts',
+    'award-recommendation',
+    'award-response',
+    'contract-negotiation',
+    'post-award-tracking'
+]);
+const PROCUREX_PAGE_SANITIZER_CONFIG = {
+    ADD_TAGS: ['dotlottie-player'],
+    ADD_ATTR: ['background', 'speed', 'loop', 'autoplay'],
+    ALLOW_ARIA_ATTR: true,
+    ALLOW_DATA_ATTR: true,
+    CUSTOM_ELEMENT_HANDLING: {
+        tagNameCheck: /^dotlottie-player$/i,
+        attributeNameCheck: /^(class|src|background|speed|loop|autoplay|aria-label)$/i,
+        allowCustomizedBuiltInElements: false
+    }
+};
 
 function renderPlatformLogo(className = 'platform-logo') {
     return `
@@ -20,7 +82,6 @@ function renderProcureXLottie(className = 'procurex-lottie', label = 'ProcureX a
 class ProcureXApp {
     constructor() {
         this.currentPage = 'welcome';
-        this.pages = {};
         this.registrationTimer = null;
         this.procurementFeedTimer = null;
         this.notificationTimers = new Map();
@@ -30,7 +91,6 @@ class ProcureXApp {
     init() {
         this.setupNotifications();
         this.setupRouting();
-        this.loadAllPages();
         this.renderPage();
         this.setupEventListeners();
         this.launchInitialDemoIfRequested();
@@ -177,7 +237,7 @@ class ProcureXApp {
             'iam-verification': 'identity-verification',
             'verification-status': 'account-profile'
         };
-        page = pageAliases[page] || page;
+        page = this.getAllowedPageName(pageAliases[page] || page) || 'welcome';
         if (page === 'bid-evaluation' && !options.preserveEvaluationSelection) {
             this.clearEvaluationEntrySelection();
         }
@@ -185,10 +245,15 @@ class ProcureXApp {
         this.currentPage = page;
         const routeSearch = this.normalizeRouteSearch(options.routeSearch || '');
         if (updateHistory && (page !== previousPage || routeSearch)) {
-            const url = `?page=${page}${routeSearch ? `&${routeSearch}` : ''}`;
+            const url = `?page=${encodeURIComponent(page)}${routeSearch ? `&${routeSearch}` : ''}`;
             history.pushState({ page }, '', url);
         }
         this.renderPage();
+    }
+
+    getAllowedPageName(pageName) {
+        const normalizedPage = String(pageName || '').trim();
+        return PROCUREX_PAGE_NAMES.has(normalizedPage) ? normalizedPage : '';
     }
 
     normalizeRouteSearch(routeSearch = '') {
@@ -555,17 +620,40 @@ class ProcureXApp {
 
     renderPage() {
         const pageContent = document.getElementById('page-content');
+        if (!pageContent) return;
         document.body.dataset.page = this.currentPage;
         this.clearProcurementFeedTimer();
-        if (this.pages[this.currentPage]) {
-            const pageHtml = this.pages[this.currentPage]();
-            const navHeader = this.getNavigationHeader();
-            pageContent.setAttribute('aria-live', 'polite');
-            pageContent.innerHTML = navHeader + pageHtml;
-            this.initializePageComponents();
-        } else {
-            pageContent.innerHTML = this.renderComingSoon();
+        const pageHtml = this.getPageRenderFunction(this.currentPage);
+        const navHeader = this.getNavigationHeader();
+        this.setSanitizedPageContent(pageContent, navHeader + pageHtml);
+        this.initializePageComponents();
+    }
+
+    setSanitizedPageContent(pageContent, html) {
+        pageContent.setAttribute('aria-live', 'polite');
+        if (typeof window.DOMPurify?.sanitize !== 'function') {
+            pageContent.replaceChildren(this.createUnavailablePageNode());
+            return;
         }
+        pageContent.innerHTML = window.DOMPurify.sanitize(html, PROCUREX_PAGE_SANITIZER_CONFIG);
+    }
+
+    createUnavailablePageNode() {
+        const container = document.createElement('div');
+        container.className = 'coming-soon';
+        const title = document.createElement('h2');
+        title.className = 'coming-soon-title';
+        title.textContent = 'Page unavailable';
+        const message = document.createElement('p');
+        message.className = 'coming-soon-text';
+        message.textContent = 'This workspace is not available right now.';
+        const button = document.createElement('button');
+        button.className = 'btn btn-primary';
+        button.type = 'button';
+        button.setAttribute('data-navigate', 'welcome');
+        button.textContent = 'Back to Home';
+        container.append(title, message, button);
+        return container;
     }
 
     initializePageComponents() {
@@ -2140,66 +2228,6 @@ class ProcureXApp {
             status.classList.add('success');
         }
         form.reset();
-    }
-
-    loadAllPages() {
-        // Load all page modules - render functions are registered by individual page files or available globally
-        const pageNames = [
-            'welcome',
-            'register',
-            'sign-in',
-            'role-selection',
-            'identity-verification',
-            'account-profile',
-            'app-launcher',
-            'workspace-dashboard',
-            'tender-planning',
-            'procurement-planning-details',
-            'procurement-planning-questions',
-            'procurement-planning-complaints',
-            'procurement-planning-monitoring',
-            'procurement-planning-customer',
-            'procurement-planning-purchase',
-            'procurement-planning-tender-docs',
-            'procurement-planning-documents',
-            'procurement-planning-dashboard',
-            'procurement-planning-app-items',
-            'procurement-planning-spp-schedule',
-            'procurement-planning-budget-funding',
-            'procurement-planning-approvals',
-            'procurement-planning-documents-evidence',
-            'procurement-planning-risks-alerts',
-            'procurement-planning-reports',
-            'admin-dashboard',
-            'admin-users',
-            'admin-analytics',
-            'admin-audit',
-            'procurement-guide',
-            'guest-marketplace',
-            'about-procurex',
-            'privacy-policy',
-            'terms-and-conditions',
-            'contact',
-            'marketplace',
-            'tender-detail',
-            'communication-center',
-            'create-tender',
-            'tender-publication',
-            'tender-details',
-            'records-history',
-            'bidding-workspace',
-            'bid-evaluation',
-            'awarding-contracts',
-            'award-recommendation',
-            'award-response',
-            'contract-negotiation',
-            'post-award-tracking'
-        ];
-
-        this.pages = {};
-        pageNames.forEach((page) => {
-            this.pages[page] = () => this.getPageRenderFunction(page);
-        });
     }
 
     getPageRenderFunction(pageName) {
