@@ -23,6 +23,7 @@ import {
   EvaluationStatus,
   InvoiceStatus,
   OrganizationCapabilityName,
+  OrganizationKind,
   ProcurementMethod,
   RecommendationStatus,
   SignatureStatus,
@@ -39,6 +40,8 @@ import { withDbContext } from '../src/db/context.js';
 export const DEMO_APP_DATASET = 'demo-app-temp';
 export const DEMO_APP_REFERENCE_PREFIX = 'PX-DEMO-APP';
 export const DEMO_APP_USER_EMAIL = 'demo@procurex.tz';
+export const DEMO_APP_BID_READY_BUYER_ORG_NAME = 'PX-DEMO-APP Buyer Authority';
+export const DEMO_APP_BID_READY_TENDER_REFERENCE = 'PX-DEMO-APP-BID-READY-TENDER-001';
 
 type AnyDb = Record<string, any>;
 type DemoActor = {
@@ -90,6 +93,16 @@ export function demoAppPayload(extra: Record<string, unknown> = {}) {
     referencePrefix: DEMO_APP_REFERENCE_PREFIX,
     ...extra
   };
+}
+
+export function assertBidReadyTenderBuyerIsExternal(input: { buyerOrgId?: string | null; supplierOrgId?: string | null }) {
+  if (!input.buyerOrgId || !input.supplierOrgId) {
+    throw new Error('Bid-ready tender requires both buyer and supplier organization ids.');
+  }
+
+  if (input.buyerOrgId === input.supplierOrgId) {
+    throw new Error('Bid-ready tender buyer organization must be different from the demo supplier organization.');
+  }
 }
 
 function ref(suffix: string) {
@@ -324,6 +337,14 @@ export async function cleanupDemoAppData(db: AnyDb) {
       ]
     }
   });
+  await db.organization.deleteMany({
+    where: {
+      OR: [
+        { name: DEMO_APP_BID_READY_BUYER_ORG_NAME },
+        { metadata: { path: ['dataset'], equals: DEMO_APP_DATASET } }
+      ]
+    }
+  });
 }
 
 async function createDocument(db: AnyDb, actor: DemoActor, key: string, name: string, documentType: string) {
@@ -348,6 +369,56 @@ async function createDocument(db: AnyDb, actor: DemoActor, key: string, name: st
       metadata: demoAppPayload({ objectKey, storage: 'temporary-seed' })
     }
   });
+}
+
+async function ensureBidReadyBuyerOrganization(db: AnyDb) {
+  const organization = await db.organization.upsert({
+    where: { name: DEMO_APP_BID_READY_BUYER_ORG_NAME },
+    update: {
+      kind: OrganizationKind.COMPANY,
+      taxId: 'PX-DEMO-APP-BUYER-TIN',
+      country: 'TZ',
+      metadata: demoAppPayload({
+        role: 'external-buyer',
+        publicName: 'ProcureX Temporary Buyer Authority',
+        safeForDemoSupplierBidding: true
+      })
+    },
+    create: {
+      name: DEMO_APP_BID_READY_BUYER_ORG_NAME,
+      kind: OrganizationKind.COMPANY,
+      taxId: 'PX-DEMO-APP-BUYER-TIN',
+      country: 'TZ',
+      metadata: demoAppPayload({
+        role: 'external-buyer',
+        publicName: 'ProcureX Temporary Buyer Authority',
+        safeForDemoSupplierBidding: true
+      })
+    }
+  });
+
+  await db.organizationCapability.upsert({
+    where: { organizationId_capability: { organizationId: organization.id, capability: OrganizationCapabilityName.BUYER } },
+    update: { enabled: true },
+    create: { organizationId: organization.id, capability: OrganizationCapabilityName.BUYER, enabled: true }
+  });
+
+  await db.buyerProfile.upsert({
+    where: { organizationId: organization.id },
+    update: {
+      procuringType: 'Temporary external demo buyer',
+      budgetCode: 'PX-DEMO-APP-BUYER-BUDGET',
+      payload: demoAppPayload({ role: 'buyer-profile', canReceiveDemoBids: true })
+    },
+    create: {
+      organizationId: organization.id,
+      procuringType: 'Temporary external demo buyer',
+      budgetCode: 'PX-DEMO-APP-BUYER-BUDGET',
+      payload: demoAppPayload({ role: 'buyer-profile', canReceiveDemoBids: true })
+    }
+  });
+
+  return organization;
 }
 
 async function seedWorkspace(db: AnyDb, actor: DemoActor) {
@@ -418,6 +489,9 @@ async function seedWorkspace(db: AnyDb, actor: DemoActor) {
 }
 
 async function seedProcurement(db: AnyDb, actor: DemoActor, docs: Record<string, any>) {
+  const bidReadyBuyerOrg = await ensureBidReadyBuyerOrganization(db);
+  assertBidReadyTenderBuyerIsExternal({ buyerOrgId: bidReadyBuyerOrg.id, supplierOrgId: actor.organization.id });
+
   const plan = await db.procurementPlan.upsert({
     where: {
       ownerOrgId_financialYear_name: {
@@ -558,6 +632,83 @@ async function seedProcurement(db: AnyDb, actor: DemoActor, docs: Record<string,
     }
   });
 
+  const bidReadyTender = await db.tender.upsert({
+    where: { reference: DEMO_APP_BID_READY_TENDER_REFERENCE },
+    update: {
+      buyerOrgId: bidReadyBuyerOrg.id,
+      ownerUserId: null,
+      title: 'Temporary Demo App Bid-Ready Office Supplies Tender',
+      type: TenderType.GOODS,
+      description:
+        'A complete public marketplace opportunity for office paper, toner, filing materials, and delivery services. This tender is owned by a separate temporary buyer so demo@procurex.tz can bid on it as a supplier.',
+      status: TenderStatus.OPEN,
+      method: ProcurementMethod.OPEN_TENDER,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      budget: 72_500_000,
+      currency: 'TZS',
+      location: 'Dodoma and Dar es Salaam, Tanzania',
+      contractType: ContractType.UNIT_PRICE,
+      publishedAt: fixedDate('2026-07-19', 8),
+      closingDate: fixedDate('2026-09-15', 14),
+      requirements: demoAppPayload({
+        bidReady: true,
+        envelopes: ['administrative', 'technical', 'financial'],
+        eligibility: ['valid business registration', 'TIN certificate', 'tax clearance', 'delivery capacity statement'],
+        samplesRequired: false,
+        canBeBidByDemoUser: true
+      }),
+      metadata: demoAppPayload({
+        module: 'procurement',
+        bidReady: true,
+        buyerOrganizationName: bidReadyBuyerOrg.name,
+        supplierOrganizationName: actor.organization.name,
+        publication: { openingDate: '2026-07-19T00:00:00.000Z' },
+        marketplace: {
+          category: 'Office supplies',
+          keywords: ['office supplies', 'paper', 'toner', 'stationery', 'delivery'],
+          recommendationReason: 'Strong match for demo supplier profile and low-risk office supply category.'
+        }
+      })
+    },
+    create: {
+      reference: DEMO_APP_BID_READY_TENDER_REFERENCE,
+      buyerOrgId: bidReadyBuyerOrg.id,
+      ownerUserId: null,
+      title: 'Temporary Demo App Bid-Ready Office Supplies Tender',
+      type: TenderType.GOODS,
+      description:
+        'A complete public marketplace opportunity for office paper, toner, filing materials, and delivery services. This tender is owned by a separate temporary buyer so demo@procurex.tz can bid on it as a supplier.',
+      status: TenderStatus.OPEN,
+      method: ProcurementMethod.OPEN_TENDER,
+      visibility: Visibility.PUBLIC_MARKETPLACE,
+      budget: 72_500_000,
+      currency: 'TZS',
+      location: 'Dodoma and Dar es Salaam, Tanzania',
+      contractType: ContractType.UNIT_PRICE,
+      publishedAt: fixedDate('2026-07-19', 8),
+      closingDate: fixedDate('2026-09-15', 14),
+      requirements: demoAppPayload({
+        bidReady: true,
+        envelopes: ['administrative', 'technical', 'financial'],
+        eligibility: ['valid business registration', 'TIN certificate', 'tax clearance', 'delivery capacity statement'],
+        samplesRequired: false,
+        canBeBidByDemoUser: true
+      }),
+      metadata: demoAppPayload({
+        module: 'procurement',
+        bidReady: true,
+        buyerOrganizationName: bidReadyBuyerOrg.name,
+        supplierOrganizationName: actor.organization.name,
+        publication: { openingDate: '2026-07-19T00:00:00.000Z' },
+        marketplace: {
+          category: 'Office supplies',
+          keywords: ['office supplies', 'paper', 'toner', 'stationery', 'delivery'],
+          recommendationReason: 'Strong match for demo supplier profile and low-risk office supply category.'
+        }
+      })
+    }
+  });
+
   await db.procurementPlanLine.createMany({
     data: [
       {
@@ -593,20 +744,35 @@ async function seedProcurement(db: AnyDb, actor: DemoActor, docs: Record<string,
     ]
   });
 
-  for (const tender of [draftTender, openTender, reviewTender, evaluationTender]) {
+  for (const [tender, categoryName] of [
+    [draftTender, 'Temporary Demo App ICT Equipment Category'],
+    [openTender, 'Temporary Demo App Facilities Services Category'],
+    [reviewTender, 'Temporary Demo App Works Review Category'],
+    [evaluationTender, 'Temporary Demo App Consultancy Evaluation Category'],
+    [bidReadyTender, 'Temporary Demo App Bid-Ready Office Supplies Category']
+  ]) {
     await db.tenderCategory.upsert({
-      where: { tenderId_name: { tenderId: tender.id, name: 'Temporary Demo App Category' } },
+      where: { tenderId_name: { tenderId: tender.id, name: categoryName } },
       update: { type: tender.type },
-      create: { tenderId: tender.id, name: 'Temporary Demo App Category', type: tender.type }
+      create: { tenderId: tender.id, name: categoryName, type: tender.type }
     });
   }
+
+  await db.tenderCategory.upsert({
+    where: { tenderId_name: { tenderId: bidReadyTender.id, name: 'Office supplies' } },
+    update: { type: TenderType.GOODS },
+    create: { tenderId: bidReadyTender.id, name: 'Office supplies', type: TenderType.GOODS }
+  });
 
   await db.tenderRequirement.createMany({
     data: [
       { tenderId: openTender.id, section: 'Eligibility', payload: demoAppPayload({ key: 'valid-registration', description: 'Supplier must submit valid registration documents.', mandatory: true, evidence: 'BRELA extract' }) },
       { tenderId: openTender.id, section: 'Technical', payload: demoAppPayload({ key: 'service-methodology', description: 'Supplier must provide a detailed service methodology.', mandatory: true, scored: true }) },
       { tenderId: evaluationTender.id, section: 'Technical', payload: demoAppPayload({ key: 'consultant-team', description: 'Lead consultant qualifications and staffing plan.', mandatory: true, scored: true }) },
-      { tenderId: reviewTender.id, section: 'Review', payload: demoAppPayload({ key: 'site-visit-plan', description: 'Site visit arrangements awaiting review.', mandatory: false, reviewer: 'legal' }) }
+      { tenderId: reviewTender.id, section: 'Review', payload: demoAppPayload({ key: 'site-visit-plan', description: 'Site visit arrangements awaiting review.', mandatory: false, reviewer: 'legal' }) },
+      { tenderId: bidReadyTender.id, section: 'Administrative', payload: demoAppPayload({ key: 'business-registration', description: 'Upload current business registration, TIN, and tax clearance documents.', mandatory: true, envelope: 'administrative' }) },
+      { tenderId: bidReadyTender.id, section: 'Technical', payload: demoAppPayload({ key: 'delivery-capacity', description: 'Describe stock availability, delivery fleet, delivery timetable, and quality-control process.', mandatory: true, envelope: 'technical', scored: true }) },
+      { tenderId: bidReadyTender.id, section: 'Financial', payload: demoAppPayload({ key: 'priced-boq', description: 'Complete all commercial line rates and totals for the listed office supplies.', mandatory: true, envelope: 'financial' }) }
     ]
   });
 
@@ -614,7 +780,9 @@ async function seedProcurement(db: AnyDb, actor: DemoActor, docs: Record<string,
     data: [
       { tenderId: openTender.id, name: 'Clarification window closes', dueDate: fixedDate('2026-07-25', 14), payload: demoAppPayload({ milestoneType: 'clarification' }) },
       { tenderId: openTender.id, name: 'Tender closes', dueDate: fixedDate('2026-08-05', 14), payload: demoAppPayload({ milestoneType: 'closing' }) },
-      { tenderId: evaluationTender.id, name: 'Technical scores locked', dueDate: fixedDate('2026-07-18', 14), payload: demoAppPayload({ milestoneType: 'evaluation' }) }
+      { tenderId: evaluationTender.id, name: 'Technical scores locked', dueDate: fixedDate('2026-07-18', 14), payload: demoAppPayload({ milestoneType: 'evaluation' }) },
+      { tenderId: bidReadyTender.id, name: 'Bid-ready tender clarification deadline', dueDate: fixedDate('2026-08-20', 14), payload: demoAppPayload({ milestoneType: 'clarification', bidReady: true }) },
+      { tenderId: bidReadyTender.id, name: 'Bid-ready tender submission deadline', dueDate: fixedDate('2026-09-15', 14), payload: demoAppPayload({ milestoneType: 'closing', bidReady: true }) }
     ]
   });
 
@@ -622,13 +790,19 @@ async function seedProcurement(db: AnyDb, actor: DemoActor, docs: Record<string,
     data: [
       { tenderId: openTender.id, itemNo: '1', description: 'Facility maintenance monthly service', quantity: 12, unit: 'month', rate: 18_000_000, total: 216_000_000, payload: demoAppPayload({ priceBasis: 'monthly' }) },
       { tenderId: openTender.id, itemNo: '2', description: 'Transition and mobilization allowance', quantity: 1, unit: 'lot', rate: 24_000_000, total: 24_000_000, payload: demoAppPayload({ priceBasis: 'lump-sum' }) },
-      { tenderId: draftTender.id, itemNo: '1', description: 'Laptop computer package', quantity: 30, unit: 'unit', rate: 2_500_000, total: 75_000_000, payload: demoAppPayload({ draft: true }) }
+      { tenderId: draftTender.id, itemNo: '1', description: 'Laptop computer package', quantity: 30, unit: 'unit', rate: 2_500_000, total: 75_000_000, payload: demoAppPayload({ draft: true }) },
+      { tenderId: bidReadyTender.id, itemNo: '1', description: 'A4 multipurpose paper, 80gsm, carton of 5 reams', quantity: 1_200, unit: 'carton', rate: 28_000, total: 33_600_000, payload: demoAppPayload({ bidReady: true, priceBasis: 'unit-rate' }) },
+      { tenderId: bidReadyTender.id, itemNo: '2', description: 'Laser printer toner cartridge, assorted models', quantity: 220, unit: 'unit', rate: 95_000, total: 20_900_000, payload: demoAppPayload({ bidReady: true, priceBasis: 'unit-rate' }) },
+      { tenderId: bidReadyTender.id, itemNo: '3', description: 'Box files and archive folders', quantity: 1_000, unit: 'unit', rate: 9_500, total: 9_500_000, payload: demoAppPayload({ bidReady: true, priceBasis: 'unit-rate' }) },
+      { tenderId: bidReadyTender.id, itemNo: '4', description: 'Scheduled delivery to Dodoma and Dar es Salaam offices', quantity: 10, unit: 'trip', rate: 850_000, total: 8_500_000, payload: demoAppPayload({ bidReady: true, priceBasis: 'delivery' }) }
     ]
   });
 
   for (const [tender, document] of [
     [openTender, docs.tender],
     [openTender, docs.requirements],
+    [bidReadyTender, docs.tender],
+    [bidReadyTender, docs.requirements],
     [evaluationTender, docs.evaluation],
     [draftTender, docs.draftTender]
   ]) {
@@ -669,8 +843,13 @@ async function seedProcurement(db: AnyDb, actor: DemoActor, docs: Record<string,
     update: {},
     create: { tenderId: openTender.id, organizationId: actor.organization.id }
   });
+  await db.savedTender.upsert({
+    where: { tenderId_organizationId: { tenderId: bidReadyTender.id, organizationId: actor.organization.id } },
+    update: {},
+    create: { tenderId: bidReadyTender.id, organizationId: actor.organization.id }
+  });
 
-  return { draftTender, openTender, reviewTender, evaluationTender };
+  return { draftTender, openTender, reviewTender, evaluationTender, bidReadyTender };
 }
 
 async function seedBidding(db: AnyDb, actor: DemoActor, tenders: Record<string, any>, docs: Record<string, any>) {
@@ -1525,6 +1704,19 @@ async function seedCommunicationRecordsSupportAndIntelligence(
   await db.marketSnapshot.create({ data: { ownerOrgId: actor.organization.id, name: `${DEMO_APP_REFERENCE_PREFIX} Market snapshot`, payload: demoAppPayload({ category: 'facility services', averageBid: 151_000_000, competition: 'healthy', signal: 'prices stable' }), capturedAt: fixedDate('2026-07-18', 8) } });
   await db.priceBenchmark.create({ data: { ownerOrgId: actor.organization.id, tenderType: TenderType.SERVICE, category: 'Facilities services', payload: demoAppPayload({ p25: 142_000_000, median: 153_000_000, p75: 168_000_000, currency: 'TZS' }), capturedAt: fixedDate('2026-07-18', 8) } });
   await db.supplierMatchSignal.create({ data: { tenderId: tenders.openTender.id, supplierOrgId: actor.organization.id, score: 94, payload: demoAppPayload({ matchedCapabilities: ['service delivery', 'Dar es Salaam coverage'], risk: 'LOW' }) } });
+  await db.supplierMatchSignal.create({
+    data: {
+      tenderId: tenders.bidReadyTender.id,
+      supplierOrgId: actor.organization.id,
+      score: 99,
+      payload: demoAppPayload({
+        bidReady: true,
+        matchedCapabilities: ['office supplies', 'stationery', 'toner delivery', 'Dar es Salaam coverage'],
+        recommendationReason: 'Saved public tender from an external buyer organization with no existing demo bid.',
+        risk: 'LOW'
+      })
+    }
+  });
 
   const externalSystem = await db.externalSystem.create({
     data: { ownerOrgId: actor.organization.id, name: `${DEMO_APP_REFERENCE_PREFIX} Temporary Registry Gateway`, systemType: 'REGISTRY', status: 'Configured', config: demoAppPayload({ endpoint: 'local-demo-registry', auth: 'mock-token-ref' }) }

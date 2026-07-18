@@ -172,3 +172,4 @@ Use these dev-only TRA/BRELA identifiers during identity verification. They are 
 - A company can act as buyer, supplier, or both through organization capabilities and profiles.
 - Admin is a platform compliance account, not a buyer or supplier role.
 - Buyer, supplier, evaluator, and approver behavior is represented by organization capabilities and workflow assignments.
+

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { AccountType, VerificationStatus } from '@prisma/client';
 import {
   assertBaseDemoUser,
+  assertBidReadyTenderBuyerIsExternal,
   assertDemoAppSeedRuntime,
+  DEMO_APP_BID_READY_BUYER_ORG_NAME,
+  DEMO_APP_BID_READY_TENDER_REFERENCE,
   DEMO_APP_DATASET,
   DEMO_APP_REFERENCE_PREFIX,
   DEMO_APP_USER_EMAIL,
@@ -48,5 +51,24 @@ describe('temporary demo app data seed safety', () => {
         verificationStatus: VerificationStatus.APPROVED
       })
     ).toThrow(/normal USER account/);
+  });
+
+  it('requires the bid-ready tender to be owned by an external buyer organization', () => {
+    expect(DEMO_APP_BID_READY_BUYER_ORG_NAME).toBe('PX-DEMO-APP Buyer Authority');
+    expect(DEMO_APP_BID_READY_TENDER_REFERENCE).toBe('PX-DEMO-APP-BID-READY-TENDER-001');
+
+    expect(() =>
+      assertBidReadyTenderBuyerIsExternal({
+        buyerOrgId: 'temporary-buyer-org',
+        supplierOrgId: 'demo-supplier-org'
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      assertBidReadyTenderBuyerIsExternal({
+        buyerOrgId: 'demo-supplier-org',
+        supplierOrgId: 'demo-supplier-org'
+      })
+    ).toThrow(/different from the demo supplier organization/);
   });
 });
