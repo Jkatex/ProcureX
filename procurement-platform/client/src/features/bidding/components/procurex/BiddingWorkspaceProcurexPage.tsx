@@ -972,33 +972,6 @@ export function BiddingWorkspaceProcurexPage() {
     return <div className="scope-empty">No bid response fields were configured for this section.</div>;
   }
 
-  function uploadBoxState(requirementKey: string) {
-    return {
-      disabled: saving || sampleSaving || isSubmitted || uploading,
-      isUploading: uploadingKey === requirementKey
-    };
-  }
-
-  function patchAdmin(key: string, value: boolean | string) {
-    setForm((current) => ({ ...current, administrative: { ...current.administrative, [key]: value } }));
-  }
-
-  function patchTechnical(key: string, value: unknown) {
-    setForm((current) => ({ ...current, technical: { ...current.technical, [key]: value } }));
-  }
-
-  function patchFinancial(key: 'items' | 'boqItems' | 'fees', rows: PriceRow[]) {
-    setForm((current) => ({ ...current, financial: { ...current.financial, [key]: rows } }));
-  }
-
-  function patchFinancialText(key: 'paymentTerms' | 'validityDays', value: string) {
-    setForm((current) => ({ ...current, financial: { ...current.financial, [key]: value } }));
-  }
-
-  function patchDeclaration(key: string, value: boolean | string) {
-    setForm((current) => ({ ...current, declarations: { ...current.declarations, [key]: value } }));
-  }
-
   function patchSchemaResponse(field: BidSubmissionSchemaFieldDto, value: unknown) {
     setSchemaResponses((current) => ({
       ...current,
@@ -1047,48 +1020,6 @@ function StepPanel({ kicker, title, description, badge, className, children }: {
       ) : null}
       {children}
     </article>
-  );
-}
-
-function BidCommandBar({
-  tender,
-  requiredInputs,
-  totalAmount,
-  documents,
-  samples,
-  validationIssues,
-  completeness
-}: {
-  tender: TenderDetail;
-  requiredInputs: number;
-  totalAmount: number;
-  documents: BidDocumentState[];
-  samples: BidSampleDto[];
-  validationIssues: string[];
-  completeness: { percent: number; sectionsComplete: number; totalSections: number };
-}) {
-  const pendingCount = validationIssues.length;
-  const readinessLabel = pendingCount ? `${pendingCount} pending` : 'Ready';
-  return (
-    <aside className="bid-command-bar" aria-label="Bid workspace status">
-      <BidCommandMetric label="Required inputs" value={String(requiredInputs)} />
-      <BidCommandMetric label="Evidence" value={String(documents.length)} />
-      <BidCommandMetric label="Samples" value={String(samples.length)} />
-      <BidCommandMetric label="Total" value={formatMoney(totalAmount, tender.currency || 'TZS')} />
-      <div className={`bid-command-readiness ${pendingCount ? 'is-pending' : 'is-ready'}`}>
-        <span>{readinessLabel}</span>
-        <strong>{`${completeness.percent}% complete`}</strong>
-      </div>
-    </aside>
-  );
-}
-
-function BidCommandMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bid-command-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }
 
