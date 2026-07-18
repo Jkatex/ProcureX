@@ -4,7 +4,7 @@ This README is the practical setup guide for running the ProcureX procurement pl
 
 ## Prerequisites
 
-- Node.js `>=20.11`
+- Node.js `>=20.19`
 - npm with workspace support
 - Docker Desktop or Docker Engine with Docker Compose
 - Git

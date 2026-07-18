@@ -5011,13 +5011,6 @@ function PublicationStep({
   );
 }
 
-function formatReviewLabel(value: string) {
-  return value
-    .replace(/[_-]+/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
 function normalizeDraftForType(draft: CreateTenderDraft, typeId: CreateTenderProcurementTypeId): CreateTenderDraft {
   return {
     ...draft,

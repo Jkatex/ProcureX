@@ -450,7 +450,10 @@ function isMeaningful(value: unknown): boolean {
 }
 
 function sanitizeFilename(filename: string) {
-  return filename.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim();
+  return Array.from(filename)
+    .map((char) => (char.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(char) ? '_' : char))
+    .join('')
+    .trim();
 }
 
 function escapeHtml(value: unknown) {

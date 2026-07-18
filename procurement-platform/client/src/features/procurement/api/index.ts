@@ -28,7 +28,7 @@ export const procurementApi = {
     const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
     return normalizeMarketplacePayload(response.data).tenders;
   },
-  async getMarketplace(_context?: unknown): Promise<MarketplacePayload> {
+  async getMarketplace(): Promise<MarketplacePayload> {
     const response = await apiClient.get<MarketplacePayload>('/api/procurement/marketplace');
     return normalizeMarketplacePayload(response.data);
   },

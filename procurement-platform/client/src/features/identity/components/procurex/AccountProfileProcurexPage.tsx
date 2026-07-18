@@ -474,13 +474,21 @@ export function AccountProfileProcurexPage() {
     setStatusMessage(null);
 
     try {
-      const {
-        location: profileLocation,
-        emailAddress: _emailAddress,
-        phoneNumber: _phoneNumber,
-        displayName: _displayName,
-        ...profileWithoutLocation
-      } = profile;
+      const profileLocation = profile.location;
+      const profileWithoutLocation: Record<string, unknown> = {
+        fullName: profile.fullName,
+        country: profile.country,
+        preferredLanguage: profile.preferredLanguage,
+        professionalTitle: profile.professionalTitle,
+        companyName: profile.companyName,
+        tradingName: profile.tradingName,
+        tinNumber: profile.tinNumber,
+        registrationNumber: profile.registrationNumber,
+        bankName: profile.bankName,
+        accountName: profile.accountName,
+        accountNumber: profile.accountNumber,
+        profileImage: profile.profileImage
+      };
       const saved = await identityApi.updateProfile({
         profile: {
           ...profileWithoutLocation,

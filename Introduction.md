@@ -143,7 +143,7 @@ Registered API module boundaries include identity, organization, procurement, bi
 
 Requirements:
 
-- Node.js `>=20.11`
+- Node.js `>=20.19`
 - npm with workspace support
 - Docker Desktop or compatible Docker Engine
 - PowerShell on Windows, or an equivalent shell with adjusted copy commands
