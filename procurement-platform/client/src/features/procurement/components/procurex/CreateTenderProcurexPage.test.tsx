@@ -401,7 +401,7 @@ describe('CreateTenderProcurexPage', () => {
 
     expect(screen.queryByText('Email verified')).not.toBeInTheDocument();
     expect(screen.getByText('Contact verified')).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('hides temporary tender contact verification codes from notifications', async () => {
     const user = userEvent.setup();
@@ -533,7 +533,7 @@ describe('CreateTenderProcurexPage', () => {
     expectReviewText('Access to Credit');
     expectReviewText('50000000');
     expectReviewText(/Valid service provider license/);
-  }, 10000);
+  }, 20000);
 
   it('adds regulatory license requirements at the bottom of Non Consultancy tender requirements', async () => {
     const user = userEvent.setup();

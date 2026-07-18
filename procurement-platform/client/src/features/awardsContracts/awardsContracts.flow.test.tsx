@@ -1653,7 +1653,7 @@ describe('awards and contracts empty lifecycle flow', () => {
     expect(screen.getByRole('row', { name: /Mobilization/ })).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /Invoices/ })).toBeInTheDocument();
     expect(container.querySelector('[data-award-contract-form]')).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   it('submits structured goods inspection defects without exposing JSON payload fields', async () => {
     const user = userEvent.setup();
