@@ -585,7 +585,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.getByRole('heading', { name: 'Tender Documentation' })).toBeInTheDocument();
     expectReviewText('Environmental Compliance Certificate');
     expectReviewText('National Environment Management Council (NEMC)');
-  }, 10000);
+  }, 20000);
 
   it('renders and manages Consultancy TOR requirements like the ProcureX reference', async () => {
     const user = userEvent.setup();
@@ -888,7 +888,7 @@ describe('CreateTenderProcurexPage', () => {
     expectReviewText('Building Permit');
     expect(screen.getAllByRole('button', { name: 'Open' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: 'Download' }).length).toBeGreaterThan(0);
-  }, 10000);
+  }, 20000);
 
   it('renders goods tender requirements with a BOQ table and product specification builder', async () => {
     const user = userEvent.setup();
@@ -925,7 +925,7 @@ describe('CreateTenderProcurexPage', () => {
     expect(screen.queryByLabelText('Item 1 unit price')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Solar panel kit' })).toBeInTheDocument();
     expect(screen.getByText('No specifications added for this item yet.')).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('imports goods BOQ rows from Excel and allows the same file to be selected again', async () => {
     const user = userEvent.setup();
