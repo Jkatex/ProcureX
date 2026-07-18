@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { apiErrorMessage, apiRawErrorMessage } from '@/shared/api/errors';
+import { apiErrorMessage } from '@/shared/api/errors';
 import { clearStoredAuthToken, getStoredAuthToken, storeAuthToken } from '@/shared/api/authToken';
 import type { SessionUser } from '@/shared/types/domain';
 import { authApi, type AuthSessionResponse, type AuthSignInResponse, type SessionResponse } from './api';
@@ -12,6 +12,14 @@ type AuthState = {
   status: 'idle' | 'loading' | 'succeeded' | 'failed';
   error: string | null;
   sessionExpired: boolean;
+};
+
+type AuthRejectValue = {
+  response?: {
+    status?: number;
+    data?: unknown;
+  };
+  message?: string;
 };
 
 const initialToken = getStoredAuthToken();
@@ -27,24 +35,24 @@ const initialState: AuthState = {
   sessionExpired: false
 };
 
-export const signInWithCredentials = createAsyncThunk<AuthSignInResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: string }>(
+export const signInWithCredentials = createAsyncThunk<AuthSignInResponse, { email: string; password: string; turnstileToken: string }, { rejectValue: AuthRejectValue }>(
   'auth/signInWithCredentials',
   async (input, { rejectWithValue }) => {
     try {
       return await authApi.signIn(input);
     } catch (error) {
-      return rejectWithValue(apiRawErrorMessage(error) || apiErrorMessage(error, 'Sign-in failed.'));
+      return rejectWithValue(serializableApiError(error));
     }
   }
 );
 
-export const completeMfaSignIn = createAsyncThunk<AuthSessionResponse, { challengeId: string; code: string }, { rejectValue: string }>(
+export const completeMfaSignIn = createAsyncThunk<AuthSessionResponse, { challengeId: string; code: string }, { rejectValue: AuthRejectValue }>(
   'auth/completeMfaSignIn',
   async (input, { rejectWithValue }) => {
     try {
       return await authApi.verifyMfa(input);
     } catch (error) {
-      return rejectWithValue(apiRawErrorMessage(error) || apiErrorMessage(error, 'MFA verification failed.'));
+      return rejectWithValue(serializableApiError(error));
     }
   }
 );
@@ -117,7 +125,7 @@ const authSlice = createSlice({
       })
       .addCase(signInWithCredentials.rejected, (state, action) => {
         state.status = 'failed';
-        state.error = action.payload ?? action.error.message ?? 'Sign-in failed.';
+        state.error = apiErrorMessage(action.payload ?? action.error, 'Sign-in failed.');
       })
       .addCase(completeMfaSignIn.pending, (state) => {
         state.status = 'loading';
@@ -134,7 +142,7 @@ const authSlice = createSlice({
       })
       .addCase(completeMfaSignIn.rejected, (state, action) => {
         state.status = 'failed';
-        state.error = action.payload ?? action.error.message ?? 'MFA verification failed.';
+        state.error = apiErrorMessage(action.payload ?? action.error, 'MFA verification failed.');
       })
       .addCase(hydrateAuthSession.pending, (state) => {
         state.status = 'loading';
@@ -181,6 +189,30 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
       }
     );
   });
+}
+
+function serializableApiError(error: unknown): AuthRejectValue {
+  if (typeof error === 'string') return { message: error };
+  if (!error || typeof error !== 'object') return { message: String(error ?? 'Request failed.') };
+
+  const candidate = error as {
+    response?: {
+      status?: unknown;
+      data?: unknown;
+    };
+    message?: unknown;
+  };
+  return {
+    ...(candidate.response
+      ? {
+          response: {
+            status: typeof candidate.response.status === 'number' ? candidate.response.status : undefined,
+            data: candidate.response.data
+          }
+        }
+      : {}),
+    message: typeof candidate.message === 'string' ? candidate.message : undefined
+  };
 }
 
 export const { assumeUser, setSessionUser, signOut } = authSlice.actions;

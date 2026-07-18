@@ -114,6 +114,8 @@ The default seed creates these local-only accounts:
 
 These credentials are for local development data only.
 
+If either account shows "Sign-in failed" locally, first confirm the browser is calling `http://localhost:4000/api/identity/auth/sign-in` and that the server terminal shows `ProcureX server listening on http://localhost:4000`. In local mode, sign-in attempts also print `[procurex-auth-diagnostic]` lines with the request URL, status, loaded env file, app env, and hashed email only. A `success` status means the backend accepted the credentials; `401`, `403`, or `429` points to password/autofill, Turnstile, or rate-limit handling respectively.
+
 ## Optional Demo Seeds
 
 Run optional seeds from `procurement-platform/` after the main migration/seed flow.

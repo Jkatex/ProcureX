@@ -240,6 +240,20 @@ describe('SignInProcurexPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password.');
   });
 
+  it('shows security guidance for Turnstile failures instead of invalid credentials', async () => {
+    mockedAuthApi.signIn.mockRejectedValueOnce(apiError(403, 'Security check failed. Please refresh the page and try again.'));
+
+    renderSignIn();
+
+    fireEvent.change(screen.getByLabelText('Email Address *'), { target: { value: 'demo@procurex.tz' } });
+    fireEvent.change(screen.getByLabelText('Password *'), { target: { value: 'Demo123!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete security check' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Security check failed or expired. Complete the security check and try again.');
+    expect(screen.queryByText('Sign-in failed. Check the email and password.')).not.toBeInTheDocument();
+  });
+
   it('routes locked or suspended account responses to the account support page', async () => {
     mockedAuthApi.signIn.mockRejectedValueOnce(apiError(423, 'Account locked pending support review.'));
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AuditSeverity, VerificationStatus } from '@prisma/client';
 import type { Request, RequestHandler } from 'express';
 import { verifyTurnstileToken } from '../../security/turnstile.js';
@@ -34,12 +35,28 @@ import {
   verifyOtpSchema,
   verifyResetCodeSchema
 } from './validators.js';
-import { requestError } from '../shared/apiErrors.js';
+import { requestError, statusFromError } from '../shared/apiErrors.js';
 
 function bearerToken(req: Request) {
   const header = req.header('authorization') ?? '';
   const [scheme, token] = header.split(/\s+/);
   return scheme?.toLowerCase() === 'bearer' ? token : undefined;
+}
+
+function localAuthDiagnosticsEnabled() {
+  if (process.env.PROCUREX_AUTH_DIAGNOSTICS === 'true') return true;
+  if (process.env.PROCUREX_AUTH_DIAGNOSTICS === 'false') return false;
+  return process.env.APP_ENV === 'local' && process.env.NODE_ENV !== 'production';
+}
+
+function normalizedEmailHash(email: unknown) {
+  if (typeof email !== 'string' || !email.trim()) return undefined;
+  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+}
+
+function requestBodyEmail(req: Request) {
+  const body = req.body as { email?: unknown } | undefined;
+  return body?.email;
 }
 
 export class ModuleController {
@@ -103,6 +120,25 @@ export class ModuleController {
       await this.recordTurnstileRejection(req, target, { errorCodes: result.errorCodes });
       throw requestError('Security check failed. Please refresh the page and try again.', 403);
     }
+  }
+
+  private logSignInDiagnostic(req: Request, input: { status: number | 'success'; email?: unknown; error?: unknown }) {
+    if (!localAuthDiagnosticsEnabled()) return;
+    const status = input.status === 'success' ? 'success' : input.status;
+    const errorCode = input.error && typeof input.error === 'object' && 'code' in input.error ? String((input.error as { code?: unknown }).code) : undefined;
+    console.info(
+      '[procurex-auth-diagnostic]',
+      JSON.stringify({
+        event: 'sign-in',
+        status,
+        method: req.method,
+        url: req.originalUrl || req.path,
+        envFile: process.env.PROCUREX_SERVER_ENV_FILE ?? '.env.example',
+        appEnv: process.env.APP_ENV ?? null,
+        emailHash: normalizedEmailHash(input.email) ?? null,
+        ...(errorCode ? { errorCode } : {})
+      })
+    );
   }
 
   status: RequestHandler = async (req, res, next) => {
@@ -184,11 +220,16 @@ export class ModuleController {
   };
 
   signIn: RequestHandler = async (req, res, next) => {
+    let emailForDiagnostic: unknown = requestBodyEmail(req);
     try {
       const input = signInSchema.parse(req.body);
+      emailForDiagnostic = input.email;
       await this.requireTurnstile(req, input.turnstileToken, input.email);
-      res.json(await this.service.signIn(input.email, input.password, this.auditContext(req)));
+      const session = await this.service.signIn(input.email, input.password, this.auditContext(req));
+      this.logSignInDiagnostic(req, { status: 'success', email: emailForDiagnostic });
+      res.json(session);
     } catch (error) {
+      this.logSignInDiagnostic(req, { status: statusFromError(error), email: emailForDiagnostic, error });
       next(error);
     }
   };

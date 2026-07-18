@@ -151,6 +151,18 @@ describe('ProcureX server skeleton', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('accepts local development Turnstile tokens without a configured secret', async () => {
+    delete process.env.TURNSTILE_SECRET_KEY;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(verifyTurnstileToken({ token: 'local-dev-turnstile:sign_in:0' })).resolves.toEqual({
+      success: true,
+      errorCodes: []
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('rate limits public auth endpoints before repeated security checks', async () => {
     process.env.AUTH_RATE_LIMIT_MAX = '1';
     process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS = '60';
