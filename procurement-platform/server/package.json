@@ -11,6 +11,7 @@
     "dev:example": "node ../scripts/run-server-dev.mjs .env.example",
     "build": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma generate --schema server/prisma/schema.prisma && tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "pretest": "npm --prefix ../shared run build && npm run db:generate",
     "test": "vitest run",
     "db:validate": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma validate --schema server/prisma/schema.prisma",
     "db:generate": "node ../scripts/run-with-env.mjs . server/.env.example -- prisma generate --schema server/prisma/schema.prisma",
