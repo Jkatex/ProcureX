@@ -1,3 +1,4 @@
+/* Exercises tests behavior so regressions are caught close to the domain workflow they protect. */
 import { AccountType, PublicPageKey, PublicPageStatus, RiskLevel, TrustTier, VerificationStatus } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ModuleService } from '../modules/identity/service.js';

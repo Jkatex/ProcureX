@@ -1,3 +1,4 @@
+/* Renders the shared Sidebar Nav UI while keeping page-specific presentation near its workflow data. */
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';

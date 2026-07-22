@@ -1,3 +1,4 @@
+/* Supports the support server workflow with reusable logic kept close to the module that owns it. */
 import nodemailer, { type Transporter } from 'nodemailer';
 import type { SupportTicketPriority } from '@prisma/client';
 import { resolveSupportedLanguage, type SupportedLanguage } from '@procurex/shared';

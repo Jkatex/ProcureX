@@ -1,3 +1,4 @@
+/* Exercises public behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { apiClient } from '@/shared/api/http';
 import { publicApi } from '.';

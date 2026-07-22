@@ -1,3 +1,4 @@
+/* Defines support TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { SupportTicketPriority, SupportTicketStatus } from '@prisma/client';
 
 export const moduleDefinition = {

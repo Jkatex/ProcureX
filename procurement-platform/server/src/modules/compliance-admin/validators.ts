@@ -1,3 +1,4 @@
+/* Validates compliance admin request payloads at the module boundary before service logic trusts client input. */
 import { AdminActionType, AuditSeverity, ComplianceCaseStatus } from '@prisma/client';
 import { z } from 'zod';
 

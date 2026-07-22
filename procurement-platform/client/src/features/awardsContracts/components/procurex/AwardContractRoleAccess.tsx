@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Award Contract Role Access UI while keeping page-specific presentation near its workflow data. */
 import { createContext, useContext, type ReactNode } from 'react';
 import type { WorkflowAccess, WorkflowActionOwner } from '../../types';
 import { StatusBadge } from './AwardsContractsProcurexShared';

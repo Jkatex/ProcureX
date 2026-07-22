@@ -1,3 +1,4 @@
+/* Coordinates evaluation business rules across repositories and peer modules before data leaves the server boundary. */
 import { EvaluationStage, type Prisma } from '@prisma/client';
 import { ModuleRepository, type EvaluationWorkspaceAuditRecord, type EvaluationWorkspaceTenderRecord } from './repository.js';
 import {

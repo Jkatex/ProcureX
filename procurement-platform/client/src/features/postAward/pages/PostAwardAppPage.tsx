@@ -1,3 +1,4 @@
+/* Connects post Award route pages to their feature shell so routing stays thinner than workflow UI logic. */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';

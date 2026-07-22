@@ -1,3 +1,4 @@
+/* Renders the public Guest Marketplace ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MarketplaceCategoryGrid, PublicTenderRowCard } from '@/features/procurement/components/MarketplaceComponents';

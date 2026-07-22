@@ -1,3 +1,4 @@
+/* Automates the generate client procurex pages developer workflow so repeated project tasks run with the same assumptions every time. */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

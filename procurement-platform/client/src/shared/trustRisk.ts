@@ -1,3 +1,4 @@
+/* Supports the shared client workflow with reusable logic kept close to the screens that consume it. */
 import type { RiskLevel, TrustTier, ScreeningStatus } from './types/domain';
 
 export const editableTrustTierValues = ['UNVERIFIED', 'VERIFIED', 'BRONZE', 'SILVER', 'GOLD'] as const;

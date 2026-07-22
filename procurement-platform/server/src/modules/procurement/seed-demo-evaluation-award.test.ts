@@ -1,3 +1,4 @@
+/* Exercises procurement behavior so regressions are caught close to the domain workflow they protect. */
 import { AwardResponseAction, EvaluationStatus, RecommendationStatus, TenderStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../../db/prisma.js';

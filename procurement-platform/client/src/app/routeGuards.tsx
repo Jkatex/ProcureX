@@ -1,3 +1,4 @@
+/* Supports the app client workflow with reusable logic kept close to the screens that consume it. */
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation } from 'react-router-dom';

@@ -1,3 +1,4 @@
+/* Collects shared package exports so client and server imports stay stable across package refactors. */
 export const accountTypes = ['USER', 'ADMIN'] as const;
 export const organizationCapabilities = ['BUYER', 'SUPPLIER'] as const;
 export const trustTiers = ['UNVERIFIED', 'VERIFIED', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM'] as const;

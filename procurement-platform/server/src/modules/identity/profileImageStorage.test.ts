@@ -1,3 +1,4 @@
+/* Exercises identity behavior so regressions are caught close to the domain workflow they protect. */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

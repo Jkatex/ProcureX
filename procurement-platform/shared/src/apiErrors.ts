@@ -1,3 +1,4 @@
+/* Shares API Errors domain data between client and server so both packages interpret platform rules consistently. */
 export type ApiFieldError = {
   path: string;
   message: string;

@@ -1,3 +1,4 @@
+/* Renders the shared Chart Card UI while keeping page-specific presentation near its workflow data. */
 import { Card, CardContent } from '@mui/material';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { chartSeries } from '@/shared/data/fixtures';

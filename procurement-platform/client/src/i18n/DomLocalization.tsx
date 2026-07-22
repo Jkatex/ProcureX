@@ -1,3 +1,4 @@
+/* Supports the i18n client workflow with reusable logic kept close to the screens that consume it. */
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ensureProcurexStaticNamespace } from './index';

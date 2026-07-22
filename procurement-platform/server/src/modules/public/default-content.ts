@@ -1,3 +1,4 @@
+/* Supports the public server workflow with reusable logic kept close to the module that owns it. */
 import { PublicPageKey, PublicPageStatus } from '@prisma/client';
 import { pageKeyToRouteKey, type PublicPageVersionDto } from './types.js';
 

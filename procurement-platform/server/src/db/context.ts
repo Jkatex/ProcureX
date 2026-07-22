@@ -1,3 +1,4 @@
+/* Centralizes context database access so server modules share one connection and transaction convention. */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { AccountType } from '@prisma/client';
 import { prisma as defaultPrisma } from './prisma.js';

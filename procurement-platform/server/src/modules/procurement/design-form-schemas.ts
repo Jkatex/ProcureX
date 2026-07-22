@@ -1,3 +1,4 @@
+/* Supports the procurement server workflow with reusable logic kept close to the module that owns it. */
 import { getProcurementMasterDataOptions } from './master-data.js';
 import {
   designFormSchemaTypeValues,

@@ -1,3 +1,4 @@
+/* Defines identity TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { AccountType, VerificationStatus } from '@prisma/client';
 import type { FeatureGateMap, PermissionName, RiskLevel, ScreeningStatus, TrustTier } from '@procurex/shared';
 

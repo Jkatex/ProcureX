@@ -1,3 +1,4 @@
+/* Supports the custom elements d ts client workflow with reusable logic kept close to the screens that consume it. */
 import type { DetailedHTMLProps, HTMLAttributes } from 'react';
 
 type DotLottiePlayerProps = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & {

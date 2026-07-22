@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Award Contract Flow State UI while keeping page-specific presentation near its workflow data. */
 import { useEffect } from 'react';
 import type { FlowStep } from '../../types';
 

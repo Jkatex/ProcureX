@@ -1,3 +1,4 @@
+/* Validates records request payloads at the module boundary before service logic trusts client input. */
 import { z } from 'zod';
 import { recordStatusValues, recordTypeValues, sortFieldValues } from './types.js';
 

@@ -1,3 +1,4 @@
+/* Exercises app behavior so regressions are caught close to the domain workflow they protect. */
 import { Navigate } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { supportComposeRoute } from '@/features/communication/supportComposeRoute';

@@ -1,3 +1,4 @@
+/* Renders the identity Identity Security Keyphrase ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';

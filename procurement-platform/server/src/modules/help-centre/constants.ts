@@ -1,3 +1,4 @@
+/* Supports the help centre server workflow with reusable logic kept close to the module that owns it. */
 import type { HelpFaqCategory } from '@procurex/shared';
 
 export const approvedHelpActionPaths = [

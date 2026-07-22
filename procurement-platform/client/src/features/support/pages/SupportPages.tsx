@@ -1,3 +1,4 @@
+/* Connects support route pages to their feature shell so routing stays thinner than workflow UI logic. */
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';

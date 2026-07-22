@@ -1,3 +1,4 @@
+/* Renders the public Welcome ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';

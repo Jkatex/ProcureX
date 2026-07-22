@@ -1,3 +1,4 @@
+/* Renders the admin admin App Icon Assets UI while keeping page-specific presentation near its workflow data. */
 export const adminAppIconAssetPaths = {
   'command-center': '/assets/app-icons/admin/command-center.png',
   'user-management': '/assets/app-icons/admin/user-management.png',

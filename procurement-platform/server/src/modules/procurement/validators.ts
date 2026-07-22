@@ -1,3 +1,4 @@
+/* Validates procurement request payloads at the module boundary before service logic trusts client input. */
 import { z } from 'zod';
 import { TenderType } from '@prisma/client';
 import { marketplaceBudgetBandValues, marketplaceSortValues, marketplaceVisibilityFilterValues, planningSortValues } from './types.js';

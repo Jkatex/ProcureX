@@ -1,3 +1,4 @@
+/* Renders the shared Timeline UI while keeping page-specific presentation near its workflow data. */
 import type { TimelineItem } from '@/shared/types/domain';
 import { StatusBadge } from './StatusBadge';
 

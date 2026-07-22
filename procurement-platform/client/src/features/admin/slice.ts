@@ -1,3 +1,4 @@
+/* Owns admin client state transitions so components can render workflow state instead of mutating it directly. */
 import { createSlice } from '@reduxjs/toolkit';
 import type { AdminMetric, RecordItem, Tender } from '@/shared/types/domain';
 

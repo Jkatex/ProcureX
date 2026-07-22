@@ -1,3 +1,4 @@
+/* Renders the procurement Create Tender ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';
@@ -131,6 +132,7 @@ const consultancyFirmSectors = ['Public sector', 'Health', 'Education', 'Infrast
 const consultancyAuthorities = ['Project Manager', 'Supervising Officer', 'Accounting Officer', 'User Department', 'Steering Committee', 'Tender Board', 'Other'];
 const consultancyCommunicationMethods = ['Email', 'Procurement portal', 'Physical meetings', 'Virtual meetings', 'Phone', 'Official letters'];
 const consultancyDocumentCategories = ['Existing reports', 'Policy documents', 'Architectural drawings', 'Baseline studies', 'Previous assessments', 'Other'];
+/* These catalogs mirror common Tanzanian procurement setup choices so the draft can guide buyers without hiding free-form options. */
 const worksContractTypeDescriptions: Record<string, string> = {
   'Lump Sum Contract': 'A single total price is agreed for the whole work or project.',
   'Unit Price Contract': 'Payment is based on measured quantities completed.',
@@ -357,6 +359,7 @@ export function CreateTenderProcurexPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { notifyError, notifySuccess, notifyWarning } = useNotifications();
+  /* The draft is intentionally local-first so buyers can build a large tender before committing a server save. */
   const [draft, setDraft] = useState<CreateTenderDraft>(() => createEmptyTenderDraft());
   const [activeStep, setActiveStep] = useState(0);
   const [validationMessage, setValidationMessage] = useState('');

@@ -1,3 +1,4 @@
+/* Renders the auth Recover Keyphrase ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { FormEvent, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { identityApi } from '@/features/identity/api';

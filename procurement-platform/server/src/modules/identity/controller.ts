@@ -1,3 +1,4 @@
+/* Translates identity HTTP requests into service calls while normalizing responses and errors for Express. */
 import { createHash } from 'node:crypto';
 import { AuditSeverity, VerificationStatus } from '@prisma/client';
 import type { Request, RequestHandler } from 'express';

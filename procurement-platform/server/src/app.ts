@@ -1,3 +1,4 @@
+/* Composes the Express application pipeline, security middleware, and module routes behind one server entrypoint. */
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import helmet from 'helmet';

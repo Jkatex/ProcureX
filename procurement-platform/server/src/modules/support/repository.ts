@@ -1,3 +1,4 @@
+/* Encapsulates support persistence queries so service logic does not depend on raw Prisma access patterns. */
 import { AuditSeverity, SupportTicketStatus, type Prisma, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import type {

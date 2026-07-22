@@ -1,3 +1,4 @@
+/* Renders the support Cookie Consent Banner UI while keeping page-specific presentation near its workflow data. */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';

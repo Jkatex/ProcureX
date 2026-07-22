@@ -1,3 +1,4 @@
+/* Supports the procurement server workflow with reusable logic kept close to the module that owns it. */
 import type { TenderLanguageScanDto, TenderLanguageScanInput, TenderLanguageScanIssueDto, TenderLanguageScanRiskLevel, TenderLanguageScanSeverity } from './types.js';
 
 export const tenderLanguageScannerVersion = 'tender-language-rules-v1';

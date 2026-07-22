@@ -1,3 +1,4 @@
+/* Shares help Centre domain data between client and server so both packages interpret platform rules consistently. */
 export const helpUserRoles = ['PUBLIC', 'BUYER', 'SUPPLIER', 'ADMIN'] as const;
 
 export type HelpUserRole = (typeof helpUserRoles)[number];

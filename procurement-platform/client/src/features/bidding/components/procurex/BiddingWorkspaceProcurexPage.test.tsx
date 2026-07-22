@@ -1,3 +1,4 @@
+/* Exercises bidding behavior so regressions are caught close to the domain workflow they protect. */
 import { act, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { configureStore } from '@reduxjs/toolkit';
 import type { ReactElement } from 'react';

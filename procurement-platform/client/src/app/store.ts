@@ -1,3 +1,4 @@
+/* Configures the Redux store and typed hooks so feature slices share one predictable client state container. */
 import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, type TypedUseSelectorHook } from 'react-redux';
 import adminReducer from '@/features/admin/slice';

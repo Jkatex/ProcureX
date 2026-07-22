@@ -1,3 +1,4 @@
+/* Renders the shared Account Menu UI while keeping page-specific presentation near its workflow data. */
 import AccountCircleRoundedIcon from '@mui/icons-material/AccountCircleRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';

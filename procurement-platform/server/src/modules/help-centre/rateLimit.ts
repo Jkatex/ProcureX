@@ -1,3 +1,4 @@
+/* Supports the help centre server workflow with reusable logic kept close to the module that owns it. */
 import type { RequestHandler } from 'express';
 import { createHash } from 'node:crypto';
 import { requestError } from '../shared/apiErrors.js';

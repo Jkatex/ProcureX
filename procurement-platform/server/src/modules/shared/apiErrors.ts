@@ -1,3 +1,4 @@
+/* Supports the shared server workflow with reusable logic kept close to the module that owns it. */
 import type { Response } from 'express';
 import type { ZodError } from 'zod';
 import type { SupportedLanguage } from '@procurex/shared';

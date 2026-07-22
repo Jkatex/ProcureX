@@ -1,3 +1,4 @@
+/* Renders the shared Kpi Card UI while keeping page-specific presentation near its workflow data. */
 type KpiCardProps = {
   label: string;
   value: string;

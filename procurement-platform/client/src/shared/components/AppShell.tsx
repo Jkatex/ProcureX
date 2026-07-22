@@ -1,3 +1,4 @@
+/* Renders the shared App Shell UI while keeping page-specific presentation near its workflow data. */
 import { Outlet } from 'react-router-dom';
 import { SidebarNav } from './SidebarNav';
 import { TopBar } from './TopBar';

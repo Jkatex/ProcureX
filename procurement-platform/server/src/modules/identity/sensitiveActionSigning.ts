@@ -1,3 +1,4 @@
+/* Supports the identity server workflow with reusable logic kept close to the module that owns it. */
 import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { signCanonicalPayloadHash } from './signing.js';

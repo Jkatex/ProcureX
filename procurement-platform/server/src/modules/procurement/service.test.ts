@@ -1,3 +1,4 @@
+/* Exercises procurement behavior so regressions are caught close to the domain workflow they protect. */
 import { ProcurementMethod, TenderStatus, TenderType, Visibility } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';

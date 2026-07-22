@@ -1,3 +1,4 @@
+/* Renders the auth Register ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { Fragment, FormEvent, useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';

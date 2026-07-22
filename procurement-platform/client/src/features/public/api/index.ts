@@ -1,3 +1,4 @@
+/* Wraps public HTTP calls behind typed operations so UI code does not depend on raw endpoints. */
 import { apiClient } from '@/shared/api/http';
 import type { MarketplacePayload } from '@/features/procurement/types';
 import type { CurrentLegalVersions, PublicContentPageKey, PublicPageVersion, WelcomeLandingData } from '../types';

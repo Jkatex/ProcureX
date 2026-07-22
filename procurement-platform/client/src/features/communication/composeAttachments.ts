@@ -1,3 +1,4 @@
+/* Supports the communication client workflow with reusable logic kept close to the screens that consume it. */
 import type { CommunicationAttachmentUpload } from './types';
 
 export type ComposeAttachmentStatus = 'loading' | 'ready' | 'error';

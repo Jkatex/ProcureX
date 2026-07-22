@@ -1,3 +1,4 @@
+/* Supports the documents server workflow with reusable logic kept close to the module that owns it. */
 import { compactRows, formatValue, money, row, type OfficialSourceSnapshot } from './officialDocumentBuilder.js';
 import type { OfficialDocumentGenerateInput, OfficialProcurementType } from './types.js';
 import { requestError } from '../shared/apiErrors.js';

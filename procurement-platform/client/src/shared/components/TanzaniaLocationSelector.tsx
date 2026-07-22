@@ -1,3 +1,4 @@
+/* Renders the shared Tanzania Location Selector UI while keeping page-specific presentation near its workflow data. */
 import {
   getDistrictsForRegion,
   getTanzaniaRegions,

@@ -1,3 +1,4 @@
+/* Exercises support behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it, vi } from 'vitest';
 
 const smtpMocks = vi.hoisted(() => ({

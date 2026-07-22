@@ -1,3 +1,4 @@
+/* Coordinates help centre business rules across repositories and peer modules before data leaves the server boundary. */
 import { AccountType, AuditSeverity } from '@prisma/client';
 import type { HelpFaq, HelpMessageResponse, HelpSessionContext, HelpUserRole } from '@procurex/shared';
 import { auditPayload, type RequestAuditContext } from '../shared/audit.js';

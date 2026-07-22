@@ -1,3 +1,4 @@
+/* Supports the compliance admin server workflow with reusable logic kept close to the module that owns it. */
 import { Client } from '@elastic/elasticsearch';
 import type { PageDto, SearchQuery, SearchResultDto } from './types.js';
 

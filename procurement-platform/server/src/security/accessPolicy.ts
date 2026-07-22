@@ -1,3 +1,4 @@
+/* Centralizes access Policy security behavior so production safeguards stay consistent across server modules. */
 import {
   type AccountType,
   type FeatureGateMap,

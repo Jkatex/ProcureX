@@ -1,3 +1,4 @@
+/* Renders the shared Public Shell UI while keeping page-specific presentation near its workflow data. */
 import { Button } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Outlet } from 'react-router-dom';

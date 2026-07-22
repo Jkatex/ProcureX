@@ -1,3 +1,4 @@
+/* Exercises compliance admin behavior so regressions are caught close to the domain workflow they protect. */
 import { AccountType, AdminActionType, AuditSeverity, ComplianceCaseStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModuleService } from './service.js';

@@ -1,3 +1,4 @@
+/* Exercises admin behavior so regressions are caught close to the domain workflow they protect. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@mui/material';

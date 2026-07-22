@@ -1,3 +1,4 @@
+/* Shares localization domain data between client and server so both packages interpret platform rules consistently. */
 export const supportedLanguages = ['en', 'sw'] as const;
 
 export type SupportedLanguage = (typeof supportedLanguages)[number];

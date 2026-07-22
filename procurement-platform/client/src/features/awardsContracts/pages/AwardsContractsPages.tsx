@@ -1,3 +1,4 @@
+/* Connects awards Contracts route pages to their feature shell so routing stays thinner than workflow UI logic. */
 export { AwardingContractsProcurexPage as AwardingContractsPage } from '../components/procurex/AwardingContractsProcurexPage';
 export { AwardRecommendationProcurexPage as AwardRecommendationPage } from '../components/procurex/AwardRecommendationProcurexPage';
 export { AwardResponseProcurexPage as AwardResponsePage } from '../components/procurex/AwardResponseProcurexPage';

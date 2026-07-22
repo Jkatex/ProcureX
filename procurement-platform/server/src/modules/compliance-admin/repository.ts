@@ -1,3 +1,4 @@
+/* Encapsulates compliance admin persistence queries so service logic does not depend on raw Prisma access patterns. */
 import {
   AccountType,
   AdminActionType,

@@ -1,3 +1,4 @@
+/* Defines compliance admin TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { AdminActionType, AuditSeverity, ComplianceCaseStatus } from '@prisma/client';
 
 export const moduleDefinition = {

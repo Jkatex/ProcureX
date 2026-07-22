@@ -1,3 +1,4 @@
+/* Exercises dashboard behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import { ModuleService } from './service.js';
 import { dashboardQuerySchema } from './validators.js';

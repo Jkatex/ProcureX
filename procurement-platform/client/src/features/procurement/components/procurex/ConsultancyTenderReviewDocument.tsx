@@ -1,3 +1,4 @@
+/* Renders the procurement Consultancy Tender Review Document UI while keeping page-specific presentation near its workflow data. */
 import { type ReactNode } from 'react';
 import { useProfileImagePreview } from '@/features/identity/hooks/useProfileImagePreview';
 import {

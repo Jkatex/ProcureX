@@ -1,3 +1,4 @@
+/* Registers integration HTTP routes and keeps transport concerns separate from controller behavior. */
 import { Router } from 'express';
 import { ModuleController } from './controller.js';
 

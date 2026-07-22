@@ -1,3 +1,4 @@
+/* Defines bidding TypeScript contracts that keep API payloads, state, and UI props aligned. */
 export type BidDocumentEnvelope = 'ADMINISTRATIVE' | 'TECHNICAL' | 'FINANCIAL' | 'COMBINED';
 export type BidWorkflowType = 'goods' | 'works' | 'services' | 'consultancy' | 'generic';
 

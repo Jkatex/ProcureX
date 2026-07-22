@@ -1,3 +1,4 @@
+/* Renders the procurement Tender Detail Prototype Components UI while keeping page-specific presentation near its workflow data. */
 import { useState, type ReactNode } from 'react';
 import type { TenderDetail, TenderDetailDocument } from '../../types';
 

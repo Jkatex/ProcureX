@@ -1,3 +1,4 @@
+/* Automates the run server dev developer workflow so repeated project tasks run with the same assumptions every time. */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

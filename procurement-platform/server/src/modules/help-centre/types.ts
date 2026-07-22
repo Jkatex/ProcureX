@@ -1,3 +1,4 @@
+/* Defines help centre TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type {
   HelpFaq,
   HelpFaqCategory,

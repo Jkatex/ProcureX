@@ -1,3 +1,4 @@
+/* Coordinates bidding business rules across repositories and peer modules before data leaves the server boundary. */
 import { BidSampleStatus, BidStatus, TenderStatus, Visibility } from '@prisma/client';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { ModuleRepository, tenderAcceptsBids, toBidDto } from './repository.js';

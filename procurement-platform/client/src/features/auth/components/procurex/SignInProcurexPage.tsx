@@ -1,3 +1,4 @@
+/* Renders the auth Sign In ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';

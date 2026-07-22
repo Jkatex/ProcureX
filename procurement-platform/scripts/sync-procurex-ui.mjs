@@ -1,3 +1,4 @@
+/* Automates the sync procurex UI developer workflow so repeated project tasks run with the same assumptions every time. */
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

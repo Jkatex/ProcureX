@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Award Contract Flow UI while keeping page-specific presentation near its workflow data. */
 import { type CSSProperties, type ReactNode } from 'react';
 import type { FlowLockReason, FlowStep } from '../../types';
 import { flowStepStatus } from './AwardContractFlowState';

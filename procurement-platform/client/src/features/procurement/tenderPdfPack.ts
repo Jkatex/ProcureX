@@ -1,3 +1,4 @@
+/* Supports the procurement client workflow with reusable logic kept close to the screens that consume it. */
 import html2pdf from 'html2pdf.js';
 import {
   consultancyTenderDocumentModelFromTender,

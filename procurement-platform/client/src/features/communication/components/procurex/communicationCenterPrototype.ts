@@ -1,3 +1,4 @@
+/* Renders the communication communication Center Prototype UI while keeping page-specific presentation near its workflow data. */
 type CommunicationAttachment = {
   id?: string;
   name?: string;

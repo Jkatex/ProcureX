@@ -1,3 +1,4 @@
+/* Supports the styles client workflow with reusable logic kept close to the screens that consume it. */
 import { createTheme } from '@mui/material/styles';
 
 export const procurexTheme = createTheme({

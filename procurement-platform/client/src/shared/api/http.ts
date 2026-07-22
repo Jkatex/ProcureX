@@ -1,3 +1,4 @@
+/* Supports the shared client workflow with reusable logic kept close to the screens that consume it. */
 import axios from 'axios';
 import { currentRequestLanguage } from '@/i18n';
 import { getStoredAuthToken } from './authToken';

@@ -1,3 +1,4 @@
+/* Supports the identity server workflow with reusable logic kept close to the module that owns it. */
 import { createCipheriv, createDecipheriv, createHash, generateKeyPairSync, randomBytes, scrypt as scryptCallback, sign as signBuffer } from 'node:crypto';
 
 export const signingProviderName = 'procurex-keyphrase-ed25519-v1';

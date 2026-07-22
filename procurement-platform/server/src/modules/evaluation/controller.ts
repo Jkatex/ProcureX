@@ -1,3 +1,4 @@
+/* Translates evaluation HTTP requests into service calls while normalizing responses and errors for Express. */
 import type { RequestHandler } from 'express';
 import { ModuleService } from './service.js';
 import { ModuleService as IdentityService } from '../identity/service.js';

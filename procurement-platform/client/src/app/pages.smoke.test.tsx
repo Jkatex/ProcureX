@@ -1,3 +1,4 @@
+/* Exercises app behavior so regressions are caught close to the domain workflow they protect. */
 import { ThemeProvider } from '@mui/material';
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';

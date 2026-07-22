@@ -1,3 +1,4 @@
+/* Defines organization TypeScript contracts that keep API payloads, state, and UI props aligned. */
 export const moduleDefinition = {
   key: 'organization',
   name: 'Organization',

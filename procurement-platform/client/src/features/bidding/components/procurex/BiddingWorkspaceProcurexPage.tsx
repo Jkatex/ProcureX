@@ -1,3 +1,4 @@
+/* Renders the bidding Bidding Workspace ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
@@ -148,6 +149,7 @@ export function BiddingWorkspaceProcurexPage() {
   const bidReferenceNumber = useMemo(() => bid?.reference || generatedBidReference(tender, sessionUser?.organizationId || sessionUser?.id || bidderName), [bid?.reference, bidderName, sessionUser?.id, sessionUser?.organizationId, tender]);
   const sampleRequirements = useMemo(() => schemaSampleRequirements(schema, tender), [schema, tender]);
   const sampleItemOptions = useMemo(() => sampleOptionsFromTender(tender, sampleRequirements), [tender, sampleRequirements]);
+  /* Schema-derived state lets each tender type drive the same workspace shell without hard-coding every field in JSX. */
   const steps = useMemo(() => (schema ? schemaSteps(schema) : []), [schema]);
   const totalAmount = useMemo(() => (schema ? schemaTotalFromResponses(schema, schemaResponses) : totalFromForm(form, workflow)), [form, schema, schemaResponses, workflow]);
   const gate = useMemo(() => schemaGateStatus(schema, schemaResponses, documents), [documents, schema, schemaResponses]);
@@ -6321,6 +6323,7 @@ function actionableSchemaFields(schema: BidSubmissionSchemaDto) {
 }
 
 function validateSchemaResponses(schema: BidSubmissionSchemaDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
+  /* Only actionable schema fields block submission; review and receipt sections summarize work already captured elsewhere. */
   return actionableValidationFields(schema)
     .filter((field) => field.required && !schemaFieldComplete(field, responses, documents, samples))
     .map((field) => field.label);
@@ -6369,6 +6372,7 @@ function uniqueSchemaFields(fields: BidSubmissionSchemaFieldDto[]) {
 }
 
 function schemaFieldComplete(field: BidSubmissionSchemaFieldDto, responses: SchemaResponseState, documents: BidDocumentState[], samples: BidSampleDto[]) {
+  /* Completion rules intentionally combine structured responses and uploads because many procurement requirements need both. */
   if (field.type === 'file' || field.responseType === 'attachment') return documentsForSchemaField(documents, field).length > 0;
   if (field.section === 'samples') return samples.some((sample) => sampleMatchesField(sample, field));
   const value = schemaFieldValue(field, responses);
@@ -6425,6 +6429,7 @@ function goodsFinancialRequirementComplete(field: BidSubmissionSchemaFieldDto, v
 }
 
 function schemaGateStatus(schema: BidSubmissionSchemaDto | null, responses: SchemaResponseState, documents: BidDocumentState[]): GateStatus {
+  /* Administrative fields form the first gate so bidders do not invest in pricing before mandatory eligibility is ready. */
   const fields = schema?.steps.find((step) => step.id === 'administrative')?.fields ?? [];
   const items = fields
     .filter((field) => field.required)

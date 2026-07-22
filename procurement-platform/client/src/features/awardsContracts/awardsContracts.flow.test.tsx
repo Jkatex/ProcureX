@@ -1,3 +1,4 @@
+/* Exercises awards Contracts behavior so regressions are caught close to the domain workflow they protect. */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';

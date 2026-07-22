@@ -1,3 +1,4 @@
+/* Coordinates compliance admin business rules across repositories and peer modules before data leaves the server boundary. */
 import { createHash, randomBytes } from 'node:crypto';
 import { AccountType, AdminActionType, AuditSeverity, CommunicationStatus, ComplianceCaseStatus, MemberStatus, type Prisma } from '@prisma/client';
 import { withDbContext } from '../../db/context.js';

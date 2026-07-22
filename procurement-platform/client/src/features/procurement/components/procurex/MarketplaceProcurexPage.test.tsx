@@ -1,3 +1,4 @@
+/* Exercises procurement behavior so regressions are caught close to the domain workflow they protect. */
 import { ThemeProvider } from '@mui/material';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

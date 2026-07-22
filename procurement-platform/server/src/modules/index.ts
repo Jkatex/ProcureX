@@ -1,3 +1,4 @@
+/* Exports the index ts server module boundary for route registration and cross-module wiring. */
 import { createModuleRouter as createIdentityRouter, moduleDefinition as identityDefinition } from './identity/index.js';
 import { createModuleRouter as createOrganizationRouter, moduleDefinition as organizationDefinition } from './organization/index.js';
 import { createModuleRouter as createProcurementRouter, moduleDefinition as procurementDefinition } from './procurement/index.js';

@@ -1,3 +1,4 @@
+/* Supports the shared client workflow with reusable logic kept close to the screens that consume it. */
 import type { AxiosError } from 'axios';
 import type { ApiErrorAction, ApiErrorResponse, ApiFieldError } from '@procurex/shared';
 import i18n from '@/i18n';

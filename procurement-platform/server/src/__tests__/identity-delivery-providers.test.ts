@@ -1,3 +1,4 @@
+/* Exercises tests behavior so regressions are caught close to the domain workflow they protect. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const resendMocks = vi.hoisted(() => ({

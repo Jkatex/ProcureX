@@ -1,3 +1,4 @@
+/* Renders the shared app Icon Assets UI while keeping page-specific presentation near its workflow data. */
 export const appIconAssetPaths = {
   iam: '/assets/app-icons/registration-verification.png',
   procurement: '/assets/app-icons/procurement.png',

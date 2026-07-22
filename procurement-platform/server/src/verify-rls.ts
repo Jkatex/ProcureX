@@ -1,3 +1,4 @@
+/* Supports the verify RLS ts server workflow with reusable logic kept close to the module that owns it. */
 import { AccountType } from '@prisma/client';
 import { prisma } from './db/prisma.js';
 import { withDbContext } from './db/context.js';

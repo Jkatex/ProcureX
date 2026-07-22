@@ -1,3 +1,4 @@
+/* Exercises award contract behavior so regressions are caught close to the domain workflow they protect. */
 import { AwardNoticeStatus, AwardResponseAction, ContractLifecycleItemStatus, ContractMilestoneStatus, ContractPartyRole, ContractStatus, ContractTerminationType, InvoiceStatus, RecommendationStatus, TenderStatus } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';

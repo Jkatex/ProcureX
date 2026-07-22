@@ -1,3 +1,4 @@
+/* Connects procurement route pages to their feature shell so routing stays thinner than workflow UI logic. */
 import { useTranslation } from 'react-i18next';
 import { PageHeader, Timeline } from '@/shared/components';
 import { procurementTimeline } from '@/shared/data/fixtures';

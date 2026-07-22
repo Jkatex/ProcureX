@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Awarding Contracts ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';

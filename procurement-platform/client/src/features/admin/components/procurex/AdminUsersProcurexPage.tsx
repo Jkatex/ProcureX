@@ -1,3 +1,4 @@
+/* Renders the admin Admin Users ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useMemo, useState } from 'react';
 import { adminApi, type AdminUser, type AdminVerification, type PageDto } from '@/features/admin/api';
 import { useNotifications } from '@/features/notifications/hooks';

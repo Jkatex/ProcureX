@@ -1,3 +1,4 @@
+/* Encapsulates documents persistence queries so service logic does not depend on raw Prisma access patterns. */
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { signSensitiveAction } from '../identity/sensitiveActionSigning.js';

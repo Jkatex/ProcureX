@@ -1,3 +1,4 @@
+/* Supports the shared client workflow with reusable logic kept close to the screens that consume it. */
 import { localeForLanguage, type SupportedLanguage } from '@procurex/shared';
 
 export function formatMoney(value: number, currency = 'TZS', language: SupportedLanguage = 'en') {

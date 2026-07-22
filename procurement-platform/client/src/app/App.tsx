@@ -1,3 +1,4 @@
+/* Supports the app client workflow with reusable logic kept close to the screens that consume it. */
 import { useEffect, useRef } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { hydrateAuthSession } from '@/features/auth/slice';

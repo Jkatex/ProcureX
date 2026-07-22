@@ -1,3 +1,4 @@
+/* Supports the procurement client workflow with reusable logic kept close to the screens that consume it. */
 import ExcelJS from 'exceljs';
 
 export type TenderSpreadsheetRow = string[];

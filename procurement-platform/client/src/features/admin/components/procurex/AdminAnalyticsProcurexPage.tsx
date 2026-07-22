@@ -1,3 +1,4 @@
+/* Renders the admin Admin Analytics ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminApi, type AdminAnalytics } from '@/features/admin/api';
 import { useBodyPageMetadata } from '@/shared/hooks/useBodyPageMetadata';

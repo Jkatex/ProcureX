@@ -1,3 +1,4 @@
+/* Supports the shared server workflow with reusable logic kept close to the module that owns it. */
 import type { Request } from 'express';
 import { resolveSupportedLanguage, type SupportedLanguage } from '@procurex/shared';
 

@@ -1,3 +1,4 @@
+/* Owns documents client state transitions so components can render workflow state instead of mutating it directly. */
 import { createSlice } from '@reduxjs/toolkit';
 
 const documentsSlice = createSlice({

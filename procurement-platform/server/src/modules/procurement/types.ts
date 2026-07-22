@@ -1,3 +1,4 @@
+/* Defines procurement TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { TenderType } from '@prisma/client';
 
 export const moduleDefinition = {

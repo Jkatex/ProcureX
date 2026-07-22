@@ -1,3 +1,4 @@
+/* Supports the notifications client workflow with reusable logic kept close to the screens that consume it. */
 import { lazy, Suspense, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/store';
 import type { CreateNotificationInput } from '@/shared/types/notifications';

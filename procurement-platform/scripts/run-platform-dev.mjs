@@ -1,3 +1,4 @@
+/* Automates the run platform dev developer workflow so repeated project tasks run with the same assumptions every time. */
 import { spawn } from 'node:child_process';
 
 const isWindows = process.platform === 'win32';

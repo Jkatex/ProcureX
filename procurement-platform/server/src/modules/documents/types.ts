@@ -1,3 +1,4 @@
+/* Defines documents TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { SupportedLanguage } from '@procurex/shared';
 
 export const moduleDefinition = {

@@ -1,3 +1,4 @@
+/* Supports the procurement server workflow with reusable logic kept close to the module that owns it. */
 import { masterDataGroupValues, type MasterDataGroup, type MasterDataGroupDto, type MasterDataItemDto } from './types.js';
 
 type CatalogInputItem = Omit<MasterDataItemDto, 'value' | 'isActive' | 'sortOrder'> & Partial<Pick<MasterDataItemDto, 'value' | 'isActive' | 'sortOrder'>>;

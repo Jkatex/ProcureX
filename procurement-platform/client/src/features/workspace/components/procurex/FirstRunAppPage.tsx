@@ -1,3 +1,4 @@
+/* Renders the workspace First Run App page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';

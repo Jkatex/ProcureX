@@ -1,3 +1,4 @@
+/* Registers post award HTTP routes and keeps transport concerns separate from controller behavior. */
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { createApiMutationRateLimitOptions } from '../../security/rateLimit.js';

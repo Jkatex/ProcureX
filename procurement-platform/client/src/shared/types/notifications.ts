@@ -1,3 +1,4 @@
+/* Defines shared TypeScript contracts that keep API payloads, state, and UI props aligned. */
 export type NotificationTone = 'success' | 'info' | 'warning' | 'error';
 
 export type NotificationAction = {

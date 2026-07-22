@@ -1,3 +1,4 @@
+/* Connects bidding route pages to their feature shell so routing stays thinner than workflow UI logic. */
 import { Button, LinearProgress, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '@/app/store';

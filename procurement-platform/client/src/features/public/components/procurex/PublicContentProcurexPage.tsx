@@ -1,3 +1,4 @@
+/* Renders the public Public Content ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { ProcurexStaticPage } from '@/shared/components/procurex/ProcurexStaticPage';
 import { usePublicPageContent } from '../../hooks';
 import type { PublicContentPageKey, PublicPageVersion } from '../../types';

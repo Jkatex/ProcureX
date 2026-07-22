@@ -1,3 +1,4 @@
+/* Renders the shared Empty State UI while keeping page-specific presentation near its workflow data. */
 import { Button } from '@mui/material';
 import { Link } from 'react-router-dom';
 

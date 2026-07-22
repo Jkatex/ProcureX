@@ -1,3 +1,4 @@
+/* Supports the help centre server workflow with reusable logic kept close to the module that owns it. */
 import type { HelpFaq } from '@procurex/shared';
 import { helpCategories } from '../constants.js';
 import { awardsFaqs } from './awards.faqs.js';

@@ -1,3 +1,4 @@
+/* Renders the communication Communication Center ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';

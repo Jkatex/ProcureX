@@ -1,3 +1,4 @@
+/* Renders the shared Signature Keyphrase Modal UI while keeping page-specific presentation near its workflow data. */
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useEffect, useState, type FormEvent } from 'react';
 

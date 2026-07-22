@@ -1,3 +1,4 @@
+/* Renders the shared Procurex Workspace Chrome UI while keeping page-specific presentation near its workflow data. */
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';

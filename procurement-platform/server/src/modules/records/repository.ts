@@ -1,3 +1,4 @@
+/* Encapsulates records persistence queries so service logic does not depend on raw Prisma access patterns. */
 import {
   BidStatus,
   CommunicationStatus,

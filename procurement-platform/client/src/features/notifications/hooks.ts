@@ -1,3 +1,4 @@
+/* Exposes notifications hooks that keep component state access and side effects consistent across screens. */
 import { useCallback } from 'react';
 import { useAppDispatch } from '@/app/store';
 import { notificationFromApiError, type ApiErrorNotificationContext } from '@/shared/api/errors';

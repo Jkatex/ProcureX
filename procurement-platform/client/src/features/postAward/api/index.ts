@@ -1,3 +1,4 @@
+/* Wraps post Award HTTP calls behind typed operations so UI code does not depend on raw endpoints. */
 import { apiClient } from '@/shared/api/http';
 import { awardsContractsApi } from '@/features/awardsContracts/api';
 import type { PostAwardContractRow, PostAwardDocument, PostAwardWorkspace } from '../types';

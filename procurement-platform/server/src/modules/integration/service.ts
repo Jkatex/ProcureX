@@ -1,3 +1,4 @@
+/* Coordinates integration business rules across repositories and peer modules before data leaves the server boundary. */
 import { ModuleRepository } from './repository.js';
 import { moduleDefinition, type ModuleStatus } from './types.js';
 

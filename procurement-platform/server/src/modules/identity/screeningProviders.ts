@@ -1,3 +1,4 @@
+/* Supports the identity server workflow with reusable logic kept close to the module that owns it. */
 import type { ScreeningStatus } from '@procurex/shared';
 
 export type ScreeningProviderInput = {

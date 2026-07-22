@@ -1,3 +1,4 @@
+/* Renders the shared Status Badge UI while keeping page-specific presentation near its workflow data. */
 import { statusTone } from '@/shared/utils/format';
 
 type StatusBadgeProps = {

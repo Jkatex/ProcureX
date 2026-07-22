@@ -1,3 +1,4 @@
+/* Defines award contract TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type {
   AwardNoticeStatus,
   AwardResponseAction,

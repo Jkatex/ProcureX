@@ -1,3 +1,4 @@
+/* Supports the identity server workflow with reusable logic kept close to the module that owns it. */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const base32Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';

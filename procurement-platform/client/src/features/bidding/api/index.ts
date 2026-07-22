@@ -1,3 +1,4 @@
+/* Wraps bidding HTTP calls behind typed operations so UI code does not depend on raw endpoints. */
 import { apiClient } from '@/shared/api/http';
 import type { BidDocumentInput, BidDocumentUploadInput, BidDraftPayload, BidDto, BidReceiptDto, BidSampleDto, BidSubmissionSchemaResponseDto, CreateBidSampleInput, PatchBidSampleInput } from '../types';
 

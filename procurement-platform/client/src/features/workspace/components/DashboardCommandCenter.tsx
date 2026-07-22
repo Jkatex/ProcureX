@@ -1,3 +1,4 @@
+/* Renders the workspace Dashboard Command Center UI while keeping page-specific presentation near its workflow data. */
 import { Button } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

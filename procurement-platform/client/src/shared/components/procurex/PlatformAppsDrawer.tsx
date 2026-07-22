@@ -1,3 +1,4 @@
+/* Renders the shared Platform Apps Drawer UI while keeping page-specific presentation near its workflow data. */
 import { resolveAppIconAsset } from './appIconAssets';
 import { useTranslation } from 'react-i18next';
 

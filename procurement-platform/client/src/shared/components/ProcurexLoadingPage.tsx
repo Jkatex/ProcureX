@@ -1,3 +1,4 @@
+/* Renders the shared Procurex Loading page UI while keeping page-specific presentation near its workflow data. */
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
 

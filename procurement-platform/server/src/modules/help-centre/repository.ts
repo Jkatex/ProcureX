@@ -1,3 +1,4 @@
+/* Encapsulates help centre persistence queries so service logic does not depend on raw Prisma access patterns. */
 import { AuditSeverity, type Prisma, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 

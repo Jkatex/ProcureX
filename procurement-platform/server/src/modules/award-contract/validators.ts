@@ -1,3 +1,4 @@
+/* Validates award contract request payloads at the module boundary before service logic trusts client input. */
 import {
   ApprovalStatus,
   AwardResponseAction,

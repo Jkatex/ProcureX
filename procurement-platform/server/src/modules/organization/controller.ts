@@ -1,3 +1,4 @@
+/* Translates organization HTTP requests into service calls while normalizing responses and errors for Express. */
 import type { RequestHandler } from 'express';
 import { ModuleService } from './service.js';
 import { moduleStatusQuerySchema } from './validators.js';

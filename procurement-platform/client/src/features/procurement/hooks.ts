@@ -1,3 +1,4 @@
+/* Exposes procurement hooks that keep component state access and side effects consistent across screens. */
 import { useEffect, useState } from 'react';
 import { useAppSelector } from '@/app/store';
 import { mergeSessionMarketplaceData, procurementApi } from './api';

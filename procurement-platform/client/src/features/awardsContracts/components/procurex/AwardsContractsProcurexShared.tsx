@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Awards Contracts Procurex Shared UI while keeping page-specific presentation near its workflow data. */
 import type { MouseEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';

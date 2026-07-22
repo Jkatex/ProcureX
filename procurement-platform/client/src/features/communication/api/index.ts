@@ -1,3 +1,4 @@
+/* Wraps communication HTTP calls behind typed operations so UI code does not depend on raw endpoints. */
 import { apiClient } from '@/shared/api/http';
 import type {
   CommunicationListResponse,

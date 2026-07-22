@@ -1,3 +1,4 @@
+/* Renders the procurement Supplier Tender Detail ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { downloadTenderDocument, openTenderDocument } from '../../tenderDocumentActions';

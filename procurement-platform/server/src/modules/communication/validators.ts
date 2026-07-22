@@ -1,3 +1,4 @@
+/* Validates communication request payloads at the module boundary before service logic trusts client input. */
 import { CommunicationKind, CommunicationPriority, CommunicationStatus } from '@prisma/client';
 import { z } from 'zod';
 import { communicationFolderValues, communicationSortValues } from './types.js';

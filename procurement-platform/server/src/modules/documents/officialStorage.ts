@@ -1,3 +1,4 @@
+/* Supports the documents server workflow with reusable logic kept close to the module that owns it. */
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';

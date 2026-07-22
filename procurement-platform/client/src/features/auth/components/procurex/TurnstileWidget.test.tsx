@@ -1,3 +1,4 @@
+/* Exercises auth behavior so regressions are caught close to the domain workflow they protect. */
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';

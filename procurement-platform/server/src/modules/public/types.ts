@@ -1,3 +1,4 @@
+/* Defines public TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import { PublicPageKey, PublicPageStatus } from '@prisma/client';
 
 export const moduleDefinition = {

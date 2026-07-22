@@ -1,3 +1,4 @@
+/* Provides deterministic shared fixture data for demos and tests that need realistic workflow context. */
 import type { AdminMetric, Bid, MessageItem, RecordItem, SessionUser, Tender, TimelineItem, WorkItem } from '@/shared/types/domain';
 
 export const demoUsers: Record<'user' | 'admin', SessionUser> = {

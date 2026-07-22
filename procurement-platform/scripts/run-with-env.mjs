@@ -1,3 +1,4 @@
+/* Automates the run with env developer workflow so repeated project tasks run with the same assumptions every time. */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { delimiter, dirname, extname, isAbsolute, resolve } from 'node:path';

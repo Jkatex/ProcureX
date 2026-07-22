@@ -1,3 +1,4 @@
+/* Renders the admin Admin Shared Utils UI while keeping page-specific presentation near its workflow data. */
 import { useState } from 'react';
 import type { AdminApp } from '@/features/admin/api';
 

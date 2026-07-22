@@ -1,3 +1,4 @@
+/* Owns auth client state transitions so components can render workflow state instead of mutating it directly. */
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { clearStoredAuthToken, getStoredAuthToken, storeAuthToken } from '@/shared/api/authToken';

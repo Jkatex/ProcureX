@@ -1,3 +1,4 @@
+/* Validates evaluation request payloads at the module boundary before service logic trusts client input. */
 import { z } from 'zod';
 import { EvaluationStatus, TenderType } from '@prisma/client';
 

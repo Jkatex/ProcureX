@@ -1,3 +1,4 @@
+/* Renders the shared Data Table UI while keeping page-specific presentation near its workflow data. */
 import type { ReactNode } from 'react';
 
 type DataTableProps<T> = {

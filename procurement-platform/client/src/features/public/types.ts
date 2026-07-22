@@ -1,3 +1,4 @@
+/* Defines public TypeScript contracts that keep API payloads, state, and UI props aligned. */
 export type PublicPageKey = 'welcome' | 'about' | 'privacy' | 'terms' | 'contact' | 'guest-marketplace';
 
 export type WelcomeLandingStats = {

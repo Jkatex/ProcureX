@@ -1,3 +1,4 @@
+/* Encapsulates intelligence persistence queries so service logic does not depend on raw Prisma access patterns. */
 import { BidStatus, OrganizationCapabilityName, TenderStatus, Visibility, type Prisma, type PrismaClient } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { standardizeCategoryName } from '../procurement/category-taxonomy.js';

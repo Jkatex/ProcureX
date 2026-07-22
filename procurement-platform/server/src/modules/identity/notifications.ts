@@ -1,3 +1,4 @@
+/* Supports the identity server workflow with reusable logic kept close to the module that owns it. */
 import { randomUUID } from 'node:crypto';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { Resend, type CreateEmailOptions, type CreateEmailRequestOptions } from 'resend';

@@ -1,3 +1,4 @@
+/* Exposes identity hooks that keep component state access and side effects consistent across screens. */
 import { useEffect, useState } from 'react';
 import { identityApi } from '@/features/identity/api';
 import type { ProfileImageMetadata } from '@/features/identity/types';

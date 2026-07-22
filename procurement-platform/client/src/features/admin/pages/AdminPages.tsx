@@ -1,3 +1,4 @@
+/* Connects admin route pages to their feature shell so routing stays thinner than workflow UI logic. */
 export { AdminDashboardProcurexPage as AdminDashboardPage } from '@/features/admin/components/procurex/AdminDashboardProcurexPage';
 export { AdminUsersProcurexPage as AdminUsersPage } from '@/features/admin/components/procurex/AdminUsersProcurexPage';
 export { AdminAnalyticsProcurexPage as AdminAnalyticsPage } from '@/features/admin/components/procurex/AdminAnalyticsProcurexPage';

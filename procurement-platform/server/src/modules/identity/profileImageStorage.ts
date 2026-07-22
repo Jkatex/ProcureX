@@ -1,3 +1,4 @@
+/* Supports the identity server workflow with reusable logic kept close to the module that owns it. */
 import Busboy from 'busboy';
 import { createHash, randomBytes } from 'node:crypto';
 import { createWriteStream } from 'node:fs';

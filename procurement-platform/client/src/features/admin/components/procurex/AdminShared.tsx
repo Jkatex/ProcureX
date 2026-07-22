@@ -1,3 +1,4 @@
+/* Renders the admin Admin Shared UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/app/store';

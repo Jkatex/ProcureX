@@ -1,3 +1,4 @@
+/* Wraps help Centre HTTP calls behind typed operations so UI code does not depend on raw endpoints. */
 import type {
   HelpCategoryListResponse,
   HelpFaq,

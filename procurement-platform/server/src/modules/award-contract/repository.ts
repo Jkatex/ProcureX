@@ -1,3 +1,4 @@
+/* Encapsulates award contract persistence queries so service logic does not depend on raw Prisma access patterns. */
 import {
   ApprovalStatus,
   AuditSeverity,
@@ -2120,6 +2121,12 @@ function contractDetailDto(
   };
 }
 
+/*
+ * The award-contract module owns a long-lived workflow that spans recommendation,
+ * notice, signature, activation, execution, invoice, and closeout records. Keeping
+ * those joins and DTO mappings here protects service methods from duplicating
+ * visibility rules or accidentally leaking buyer/supplier-only fields.
+ */
 export class ModuleRepository {
   constructor(private readonly db: PrismaClient = prisma) {}
 
@@ -2153,6 +2160,7 @@ export class ModuleRepository {
       'contract-signing': []
     };
 
+    /* Dashboard queues merge award recommendations and contracts because users think in next actions, not table names. */
     for (const recommendation of recommendations) {
       const listItem = listRecommendationDto(recommendation);
       const roleContext = recommendation.workspace.buyerOrgId === organizationId ? 'BUYER' : 'SUPPLIER';

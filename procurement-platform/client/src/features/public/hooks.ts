@@ -1,3 +1,4 @@
+/* Exposes public hooks that keep component state access and side effects consistent across screens. */
 import { useEffect, useMemo, useState } from 'react';
 import { publicApi } from './api';
 import type { CurrentLegalVersions, PublicContentPageKey, PublicPageVersion, WelcomeLandingData } from './types';

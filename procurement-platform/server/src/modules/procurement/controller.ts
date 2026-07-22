@@ -1,3 +1,4 @@
+/* Translates procurement HTTP requests into service calls while normalizing responses and errors for Express. */
 import type { RequestHandler, Response } from 'express';
 import type { ZodError } from 'zod';
 import { validationErrorResponse } from '../shared/apiErrors.js';

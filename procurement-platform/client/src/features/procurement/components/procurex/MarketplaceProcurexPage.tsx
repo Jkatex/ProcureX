@@ -1,3 +1,4 @@
+/* Renders the procurement Marketplace ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';

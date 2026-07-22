@@ -1,3 +1,4 @@
+/* Exercises communication behavior so regressions are caught close to the domain workflow they protect. */
 import { CommunicationKind, CommunicationPriority, CommunicationStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleService } from './service.js';

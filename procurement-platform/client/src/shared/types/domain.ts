@@ -1,3 +1,4 @@
+/* Defines shared TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { AccountType, FeatureGateMap, PermissionName, RiskLevel, ScreeningStatus, TrustTier, OrganizationCapability } from '@procurex/shared';
 
 export type { AccountType, FeatureGateMap, PermissionName, RiskLevel, ScreeningStatus, TrustTier, OrganizationCapability };

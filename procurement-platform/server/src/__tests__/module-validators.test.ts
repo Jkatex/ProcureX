@@ -1,3 +1,4 @@
+/* Exercises tests behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import { moduleStatusQuerySchema as identitySchema } from '../modules/identity/validators.js';
 import { moduleStatusQuerySchema as organizationSchema } from '../modules/organization/validators.js';

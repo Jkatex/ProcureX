@@ -1,3 +1,4 @@
+/* Renders the identity Account Profile ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { useNavigate } from 'react-router-dom';

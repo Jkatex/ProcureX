@@ -1,3 +1,4 @@
+/* Supports the documents server workflow with reusable logic kept close to the module that owns it. */
 import type {
   OfficialDocumentType,
   OfficialProcurementType,

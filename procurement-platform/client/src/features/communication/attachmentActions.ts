@@ -1,3 +1,4 @@
+/* Supports the communication client workflow with reusable logic kept close to the screens that consume it. */
 import { notificationFromApiError } from '@/shared/api/errors';
 import { communicationApi } from './api';
 import type { CommunicationAttachment } from './types';

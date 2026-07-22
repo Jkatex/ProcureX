@@ -1,3 +1,4 @@
+/* Supports the shared server workflow with reusable logic kept close to the module that owns it. */
 import { createHash } from 'node:crypto';
 import { AuditSeverity, type Prisma } from '@prisma/client';
 import type { Request } from 'express';

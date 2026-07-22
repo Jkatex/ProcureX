@@ -1,3 +1,4 @@
+/* Owns notifications client state transitions so components can render workflow state instead of mutating it directly. */
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { CreateNotificationInput, UserNotification } from '@/shared/types/notifications';
 

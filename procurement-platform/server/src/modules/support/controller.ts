@@ -1,3 +1,4 @@
+/* Translates support HTTP requests into service calls while normalizing responses and errors for Express. */
 import type { Request, RequestHandler } from 'express';
 import type { SupportTicketStatus } from '@prisma/client';
 import { requestAuditContext } from '../shared/audit.js';

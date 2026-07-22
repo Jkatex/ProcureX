@@ -1,3 +1,4 @@
+/* Validates documents request payloads at the module boundary before service logic trusts client input. */
 import { z } from 'zod';
 import { officialDocumentTypes, officialProcurementTypes } from './types.js';
 

@@ -1,3 +1,4 @@
+/* Supports the identity server workflow with reusable logic kept close to the module that owns it. */
 export type EmailValidationRequest = {
   email: string;
 };

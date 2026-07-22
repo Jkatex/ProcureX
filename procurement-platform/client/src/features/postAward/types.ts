@@ -1,3 +1,4 @@
+/* Defines post Award TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { ContractDetailDto } from '@/features/awardsContracts/types';
 
 export type PostAwardViewerRole = 'BUYER' | 'SUPPLIER' | 'ADMIN' | 'NONE';

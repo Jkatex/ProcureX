@@ -1,3 +1,4 @@
+/* Translates compliance admin HTTP requests into service calls while normalizing responses and errors for Express. */
 import type { Request, RequestHandler } from 'express';
 import { ModuleService } from './service.js';
 import type { DataStoreEntryCreateInput } from './types.js';

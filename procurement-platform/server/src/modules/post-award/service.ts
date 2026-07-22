@@ -1,3 +1,4 @@
+/* Coordinates post award business rules across repositories and peer modules before data leaves the server boundary. */
 import { ContractLifecycleItemStatus, ContractTerminationStatus, InvoiceStatus, type ContractStatus } from '@prisma/client';
 import { ModuleService as AwardContractService } from '../award-contract/service.js';
 import { moduleDefinition, type ModuleStatus, type PostAwardActionDto, type PostAwardBlockerDto, type PostAwardCloseoutReadinessDto, type PostAwardCommunicationSummaryDto, type PostAwardContractRowDto, type PostAwardFinancialEligibilityDto, type PostAwardHealthDto, type PostAwardMeetingActionSummaryDto, type PostAwardOperationalReadinessDto, type PostAwardPerformanceReadinessDto, type PostAwardProcurementType, type PostAwardRecordDto, type PostAwardRequestContext, type PostAwardSecurityExpirySummaryDto, type PostAwardStageDto, type PostAwardTaskDto, type PostAwardUrgentActionDto, type PostAwardVisibilityScope, type PostAwardWarrantySummaryDto, type PostAwardWorkflowSectionDto, type PostAwardWorkspaceDto } from './types.js';
@@ -6,6 +7,10 @@ import { requestError } from '../shared/apiErrors.js';
 
 const activeStatuses = new Set(['SIGNED', 'PENDING_ACTIVATION', 'MOBILIZATION', 'ACTIVE', 'SUSPENDED', 'AT_RISK', 'COMPLETED', 'WARRANTY_DEFECTS', 'CLOSING', 'TERMINATION_REVIEW', 'TERMINATED', 'CLOSED']);
 
+/*
+ * Post-award is a facade over award-contract state: it reshapes signed contract data into operational workspaces
+ * without becoming a second source of truth for contract execution.
+ */
 export class ModuleService {
   constructor(private readonly awardContracts = new AwardContractService()) {}
 
@@ -598,6 +603,7 @@ export class ModuleService {
   private async ensureAccess(contractId: string, context: PostAwardRequestContext, owner: 'BUYER' | 'SUPPLIER' | 'SHARED') {
     const workspace = await this.workspace(contractId, context);
     const access = workspace.contract.access;
+    /* Re-read access from the workspace so every mutating action honors the same role projection the UI received. */
     if (owner === 'BUYER' && !access.canManageBuyerActions) throw requestError(access.readOnlyReason ?? 'This action is restricted to the buyer.', 403);
     if (owner === 'SUPPLIER' && !access.canSubmitSupplierActions) throw requestError(access.readOnlyReason ?? 'This action is restricted to the supplier.', 403);
     if (owner === 'SHARED' && access.viewerRole === 'NONE') throw requestError(access.readOnlyReason ?? 'You do not have access to this contract.', 403);
@@ -662,6 +668,7 @@ function workspaceDto(contract: ContractDetailDto): PostAwardWorkspaceDto {
   const health = healthFor(contract, currentBlockers);
   const visibleStages = scrubStages(stages, role);
   const timeline = scrubRecords(timelineFor(contract), role);
+  /* Scrubbing happens before the DTO leaves this facade so shared timeline data can serve all roles safely. */
   return {
     contract: {
       id: contract.id,

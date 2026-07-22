@@ -1,3 +1,4 @@
+/* Supports the help centre server workflow with reusable logic kept close to the module that owns it. */
 import { allHelpFaqs, helpCategories } from './data/catalog.js';
 import { assertValidHelpFaqs } from './validation.js';
 

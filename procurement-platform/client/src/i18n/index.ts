@@ -1,3 +1,4 @@
+/* Supports the i18n client workflow with reusable logic kept close to the screens that consume it. */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { resolveSupportedLanguage, supportedLanguages, type SupportedLanguage } from '@procurex/shared';

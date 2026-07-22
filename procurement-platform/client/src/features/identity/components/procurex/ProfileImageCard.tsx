@@ -1,3 +1,4 @@
+/* Renders the identity Profile Image Card UI while keeping page-specific presentation near its workflow data. */
 import { ChangeEvent, useRef, useState } from 'react';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { identityApi } from '@/features/identity/api';

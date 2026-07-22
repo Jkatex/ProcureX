@@ -1,3 +1,4 @@
+/* Exercises evaluation behavior so regressions are caught close to the domain workflow they protect. */
 import { EvaluationStage, EvaluationStatus, TenderStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleRepository } from '../repository.js';

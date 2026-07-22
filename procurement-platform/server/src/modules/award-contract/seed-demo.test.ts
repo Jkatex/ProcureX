@@ -1,3 +1,4 @@
+/* Exercises award contract behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

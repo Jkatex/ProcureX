@@ -1,3 +1,4 @@
+/* Renders the auth Turnstile Widget UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AuthAlert, authAlert } from './AuthAlert';

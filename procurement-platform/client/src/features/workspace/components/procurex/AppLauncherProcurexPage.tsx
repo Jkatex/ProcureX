@@ -1,3 +1,4 @@
+/* Renders the workspace App Launcher ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';

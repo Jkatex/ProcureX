@@ -1,3 +1,4 @@
+/* Encapsulates bidding persistence queries so service logic does not depend on raw Prisma access patterns. */
 import { BidSampleStatus, BidStatus, EnvelopeType, TenderStatus, TenderType, Visibility, type Prisma, type PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../../db/prisma.js';

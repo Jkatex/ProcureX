@@ -1,3 +1,4 @@
+/* Supports the procurement server workflow with reusable logic kept close to the module that owns it. */
 import { TenderType } from '@prisma/client';
 import { getProcurementDesignFormSchema, procurementDesignSchemaVersion } from './design-form-schemas.js';
 import type { DesignFormControlDto, DesignFormSectionDto, FormSchemaType, TenderDraftValidationDto } from './types.js';

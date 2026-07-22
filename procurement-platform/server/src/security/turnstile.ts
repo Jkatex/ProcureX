@@ -1,3 +1,4 @@
+/* Centralizes turnstile security behavior so production safeguards stay consistent across server modules. */
 import { securityConfig } from './config.js';
 import { requestError } from '../modules/shared/apiErrors.js';
 

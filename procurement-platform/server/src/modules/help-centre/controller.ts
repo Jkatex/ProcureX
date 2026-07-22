@@ -1,3 +1,4 @@
+/* Translates help centre HTTP requests into service calls while normalizing responses and errors for Express. */
 import type { Request, RequestHandler } from 'express';
 import { requestAuditContext } from '../shared/audit.js';
 import { ModuleService } from './service.js';

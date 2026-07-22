@@ -1,3 +1,4 @@
+/* Supports the shared client workflow with reusable logic kept close to the screens that consume it. */
 const authTokenKey = 'procurex.authToken';
 
 export function getStoredAuthToken() {

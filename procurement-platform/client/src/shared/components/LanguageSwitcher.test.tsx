@@ -1,3 +1,4 @@
+/* Exercises shared behavior so regressions are caught close to the domain workflow they protect. */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';

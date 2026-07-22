@@ -1,3 +1,4 @@
+/* Coordinates identity business rules across repositories and peer modules before data leaves the server boundary. */
 import {
   AccountType,
   AdminActionType,
@@ -82,6 +83,9 @@ const passwordResetSentMessage = 'Password reset code has been sent to this emai
 const passwordResetAccountNotFoundMessage = 'No account found for this email.';
 const keyphraseRecoveryRequestedMessage = 'If an eligible ProcureX account matches this email, keyphrase recovery instructions have been sent.';
 
+/*
+ * Purpose constants are persisted with challenges, so changing them is a data-compatibility change as well as a code change.
+ */
 type RegistrationStartInput = {
   email: string;
   phone: string;

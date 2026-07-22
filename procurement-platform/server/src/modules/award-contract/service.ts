@@ -1,3 +1,4 @@
+/* Coordinates award contract business rules across repositories and peer modules before data leaves the server boundary. */
 import { ModuleRepository } from './repository.js';
 import {
   moduleDefinition,

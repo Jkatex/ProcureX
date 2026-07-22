@@ -1,3 +1,4 @@
+/* Supports the help centre server workflow with reusable logic kept close to the module that owns it. */
 import type { HelpFaq, HelpSessionContext } from '@procurex/shared';
 import { genericWeakTerms } from './constants.js';
 import { meaningfulWords, normalizeHelpText } from './normalization.js';

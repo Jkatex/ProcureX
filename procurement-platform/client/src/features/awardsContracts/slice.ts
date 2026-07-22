@@ -1,3 +1,4 @@
+/* Owns awards Contracts client state transitions so components can render workflow state instead of mutating it directly. */
 import { createSlice } from '@reduxjs/toolkit';
 
 const awardsContractsSlice = createSlice({

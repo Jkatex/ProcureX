@@ -1,3 +1,4 @@
+/* Connects workspace route pages to their feature shell so routing stays thinner than workflow UI logic. */
 import { Button } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';

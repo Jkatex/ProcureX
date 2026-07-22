@@ -1,3 +1,4 @@
+/* Supports the bidding server workflow with reusable logic kept close to the module that owns it. */
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import Busboy from 'busboy';
 import { createHash, randomBytes } from 'node:crypto';

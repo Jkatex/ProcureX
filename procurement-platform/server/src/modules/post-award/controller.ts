@@ -1,3 +1,4 @@
+/* Translates post award HTTP requests into service calls while normalizing responses and errors for Express. */
 import type { Request, RequestHandler } from 'express';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { ModuleService } from './service.js';

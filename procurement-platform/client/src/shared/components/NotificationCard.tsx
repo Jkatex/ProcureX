@@ -1,3 +1,4 @@
+/* Renders the shared Notification Card UI while keeping page-specific presentation near its workflow data. */
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';

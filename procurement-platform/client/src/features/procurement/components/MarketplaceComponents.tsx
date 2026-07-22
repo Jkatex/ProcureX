@@ -1,3 +1,4 @@
+/* Renders the procurement Marketplace Components UI while keeping page-specific presentation near its workflow data. */
 import { Link } from 'react-router-dom';
 import type { ReactElement, ReactNode } from 'react';
 import { hasActiveMarketplaceDeadline, isTenderOpenForBidding, isUpcomingMarketplaceTender } from '../marketplaceTenderVisibility';

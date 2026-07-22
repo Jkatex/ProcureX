@@ -1,3 +1,4 @@
+/* Renders the procurement Tender Workspace Components UI while keeping page-specific presentation near its workflow data. */
 import { Button, TextField } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

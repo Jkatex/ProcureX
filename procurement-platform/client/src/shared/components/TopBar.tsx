@@ -1,3 +1,4 @@
+/* Renders the shared Top Bar UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useRef, useState } from 'react';
 import { Tooltip } from '@mui/material';
 import { useTranslation } from 'react-i18next';

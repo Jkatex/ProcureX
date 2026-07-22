@@ -1,3 +1,4 @@
+/* Exercises documents behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import { buildOfficialPdfSections, validateOfficialSource, type OfficialSourceSnapshot } from '../officialDocumentBuilder.js';
 import { renderOfficialPdf } from '../officialPdfRenderer.js';

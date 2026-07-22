@@ -1,3 +1,4 @@
+/* Exercises i18n behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import enCommon from './locales/en/common.json';
 import swCommon from './locales/sw/common.json';

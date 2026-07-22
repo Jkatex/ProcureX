@@ -1,3 +1,4 @@
+/* Owns workspace client state transitions so components can render workflow state instead of mutating it directly. */
 import { createSlice } from '@reduxjs/toolkit';
 import type { WorkspaceItem } from './types';
 

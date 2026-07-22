@@ -1,3 +1,4 @@
+/* Renders the admin Admin Tender Review ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { SupplierProcurementDetails } from '@/features/procurement/components/procurex/SupplierTenderDetailProcurexPage';

@@ -1,3 +1,4 @@
+/* Exercises support behavior so regressions are caught close to the domain workflow they protect. */
 import { AccountType, SupportTicketPriority, SupportTicketStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { ModuleService } from './service.js';

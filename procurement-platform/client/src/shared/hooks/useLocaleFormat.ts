@@ -1,3 +1,4 @@
+/* Exposes shared hooks that keep component state access and side effects consistent across screens. */
 import { useTranslation } from 'react-i18next';
 import type { SupportedLanguage } from '@/i18n';
 import { formatDate, formatMoney } from '@/shared/utils/format';

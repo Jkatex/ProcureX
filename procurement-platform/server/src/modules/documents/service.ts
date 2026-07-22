@@ -1,3 +1,4 @@
+/* Coordinates documents business rules across repositories and peer modules before data leaves the server boundary. */
 import type { IncomingMessage } from 'node:http';
 import { ModuleRepository } from './repository.js';
 import { parseAndStoreDocumentUpload, removeStoredDocument } from './storage.js';

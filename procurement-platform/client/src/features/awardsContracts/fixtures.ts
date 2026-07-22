@@ -1,3 +1,4 @@
+/* Provides deterministic awards Contracts fixture data for demos and tests that need realistic workflow context. */
 import type {
   AwardQueueId,
   AwardWorkflowStep,

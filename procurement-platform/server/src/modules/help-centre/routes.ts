@@ -1,3 +1,4 @@
+/* Registers help centre HTTP routes and keeps transport concerns separate from controller behavior. */
 import { Router } from 'express';
 import { createHelpCentreRateLimit } from './rateLimit.js';
 import { ModuleController } from './controller.js';

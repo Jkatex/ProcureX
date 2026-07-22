@@ -1,3 +1,4 @@
+/* Renders the admin Admin Profile ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useCallback, useEffect, useState } from 'react';
 import { useAppSelector } from '@/app/store';
 import { adminApi } from '@/features/admin/api';

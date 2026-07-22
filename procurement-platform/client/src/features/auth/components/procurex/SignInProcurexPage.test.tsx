@@ -1,3 +1,4 @@
+/* Exercises auth behavior so regressions are caught close to the domain workflow they protect. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';

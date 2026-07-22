@@ -1,3 +1,4 @@
+/* Exercises bidding behavior so regressions are caught close to the domain workflow they protect. */
 import { BidSampleStatus, BidStatus, EvaluationStage, TenderStatus, Visibility } from '@prisma/client';
 import { createDecipheriv } from 'node:crypto';
 import express from 'express';

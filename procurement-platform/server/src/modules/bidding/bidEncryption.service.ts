@@ -1,3 +1,4 @@
+/* Supports the bidding server workflow with reusable logic kept close to the module that owns it. */
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 
 const encryptionAlgorithm = 'aes-256-gcm';

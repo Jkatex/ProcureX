@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Award Contract Action Forms UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { apiErrorMessage } from '@/shared/api/errors';
 import { editableTrustTierValues } from '@/shared/trustRisk';

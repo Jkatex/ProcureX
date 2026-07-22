@@ -1,3 +1,4 @@
+/* Exercises identity behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import { createEncryptedSigningCredential, signCanonicalPayloadHash, validateRepeatedKeyphrase } from './signing.js';
 

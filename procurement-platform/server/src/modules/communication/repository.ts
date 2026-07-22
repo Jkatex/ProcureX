@@ -1,3 +1,4 @@
+/* Encapsulates communication persistence queries so service logic does not depend on raw Prisma access patterns. */
 import { createHash, randomUUID } from 'node:crypto';
 import {
   AuditSeverity,

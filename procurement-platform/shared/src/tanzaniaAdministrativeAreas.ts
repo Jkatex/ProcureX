@@ -1,3 +1,4 @@
+/* Shares Tanzania administrative-area reference data so client forms and server validation use the same geography. */
 export type TanzaniaLocationSelection = {
   region: string;
   district: string;
@@ -20,6 +21,7 @@ export type TanzaniaAdministrativeAreas = {
   }>;
 };
 
+/* Keep this dataset as plain data: downstream selectors rely on stable names rather than generated IDs. */
 export const tanzaniaAdministrativeAreas = {
   "country": "Tanzania",
   "countryCode": "TZ",

@@ -1,3 +1,4 @@
+/* Coordinates procurement business rules across repositories and peer modules before data leaves the server boundary. */
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { ProcurementMethod, TenderStatus, Visibility } from '@prisma/client';
 import { Readable } from 'node:stream';
@@ -179,6 +180,7 @@ export class ModuleService {
       return await this.repository.getMarketplaceData(context, query);
     } catch (error) {
       if (isDatabaseUnavailable(error)) {
+        /* Local demos should stay browsable without infrastructure, but production must surface the outage clearly. */
         if (!isProductionRuntime()) return emptyMarketplace(query);
         console.error('[procurement.marketplace] Database unavailable while loading marketplace.', error);
         throw marketplaceUnavailableError();
@@ -370,6 +372,7 @@ export class ModuleService {
     const tender = await this.repository.getTenderForPublication(tenderId);
     if (!tender) throw requestError('Tender was not found.', 404);
 
+    /* Publication is intentionally multi-gated so buyers get precise repair messages before an irreversible signed action. */
     const ownershipStatusErrors = ownershipAndStatusIssues(tender, organizationId);
     if (ownershipStatusErrors.length > 0) throw publishValidationError(ownershipStatusErrors, publishErrorStatus(ownershipStatusErrors));
 

@@ -1,3 +1,4 @@
+/* Exercises procurement behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleController } from './controller.js';
 import { MARKETPLACE_UNAVAILABLE_CODE, MARKETPLACE_UNAVAILABLE_MESSAGE, PUBLISH_VALIDATION_FAILED_CODE } from './service.js';

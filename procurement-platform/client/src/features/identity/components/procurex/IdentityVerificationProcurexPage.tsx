@@ -1,3 +1,4 @@
+/* Renders the identity Identity Verification ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store';

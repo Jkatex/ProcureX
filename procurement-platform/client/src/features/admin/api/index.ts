@@ -1,3 +1,4 @@
+/* Wraps admin HTTP calls behind typed operations so UI code does not depend on raw endpoints. */
 import { apiClient } from '@/shared/api/http';
 import type { VerificationProfile } from '@/features/identity/types';
 import type { RiskLevel, ScreeningStatus, SessionUser, TrustTier } from '@/shared/types/domain';

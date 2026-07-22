@@ -1,3 +1,4 @@
+/* Coordinates public business rules across repositories and peer modules before data leaves the server boundary. */
 import { PublicPageKey } from '@prisma/client';
 import { ModuleRepository } from './repository.js';
 import { defaultPublicPageVersion } from './default-content.js';

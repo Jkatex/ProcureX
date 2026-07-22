@@ -1,3 +1,4 @@
+/* Supports the app client workflow with reusable logic kept close to the screens that consume it. */
 import { Suspense } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { procurexPageRegistry } from '@/features/procurexPageRegistry';

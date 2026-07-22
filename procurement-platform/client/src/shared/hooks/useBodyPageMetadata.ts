@@ -1,3 +1,4 @@
+/* Exposes shared hooks that keep component state access and side effects consistent across screens. */
 import { useEffect } from 'react';
 
 export function useBodyPageMetadata(pageKey: string) {

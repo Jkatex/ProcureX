@@ -1,3 +1,4 @@
+/* Bootstraps the HTTP server separately from the Express app so tests can import app behavior without opening a port. */
 import dotenv from 'dotenv';
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';

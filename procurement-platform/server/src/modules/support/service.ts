@@ -1,3 +1,4 @@
+/* Coordinates support business rules across repositories and peer modules before data leaves the server boundary. */
 import { AccountType, AuditSeverity, SupportTicketStatus, type Prisma } from '@prisma/client';
 import { ModuleService as IdentityService } from '../identity/service.js';
 import { auditPayload, type RequestAuditContext } from '../shared/audit.js';

@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Award Contract Simple Shared UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useState, type ReactNode } from 'react';
 import { apiClient } from '@/shared/api/http';
 import type { AwardDecisionDraftInput, AwardRecommendationDetailDto, AwardSourceDocumentDto } from '../../types';

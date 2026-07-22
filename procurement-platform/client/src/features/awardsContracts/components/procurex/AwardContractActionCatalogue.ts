@@ -1,3 +1,4 @@
+/* Renders the awards Contracts Award Contract Action Catalogue UI while keeping page-specific presentation near its workflow data. */
 import type { AwardContractActionDefinition } from '../../types';
 
 export const awardContractActionCatalogue: AwardContractActionDefinition[] = [

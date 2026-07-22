@@ -1,3 +1,4 @@
+/* Supports the documents server workflow with reusable logic kept close to the module that owns it. */
 import type { OfficialPdfRow, OfficialPdfSection } from './officialPdfRenderer.js';
 import type { OfficialTemplateDefinition } from './officialTemplates.js';
 import type { OfficialValidationWarning } from './types.js';

@@ -1,3 +1,4 @@
+/* Defines communication TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { CommunicationKind, CommunicationPriority, CommunicationStatus, OrganizationKind } from '@prisma/client';
 
 export const moduleDefinition = {

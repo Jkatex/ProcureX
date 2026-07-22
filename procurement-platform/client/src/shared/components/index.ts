@@ -1,3 +1,4 @@
+/* Renders the shared index UI while keeping page-specific presentation near its workflow data. */
 export * from './AppShell';
 export * from './ChartCard';
 export * from './DataTable';

@@ -1,3 +1,4 @@
+/* Supports the documents server workflow with reusable logic kept close to the module that owns it. */
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 
 export type OfficialPdfRow = {

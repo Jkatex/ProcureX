@@ -1,3 +1,4 @@
+/* Renders the admin Admin Dashboard ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, type AdminApp, type AdminDashboard } from '@/features/admin/api';

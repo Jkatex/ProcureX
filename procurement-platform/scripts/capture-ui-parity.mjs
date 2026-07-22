@@ -1,3 +1,4 @@
+/* Automates the capture UI parity developer workflow so repeated project tasks run with the same assumptions every time. */
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';

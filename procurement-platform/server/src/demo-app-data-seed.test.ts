@@ -1,3 +1,4 @@
+/* Exercises demo app data seed test ts behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import { AccountType, VerificationStatus } from '@prisma/client';
 import {

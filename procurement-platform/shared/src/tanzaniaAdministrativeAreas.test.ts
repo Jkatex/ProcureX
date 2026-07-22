@@ -1,3 +1,4 @@
+/* Exercises shared platform behavior so regressions are caught close to the domain workflow they protect. */
 import { describe, expect, it } from 'vitest';
 import { getDistrictsForRegion, getTanzaniaRegions, getWardsForDistrict, isValidTanzaniaLocation } from './tanzaniaAdministrativeAreas.js';
 

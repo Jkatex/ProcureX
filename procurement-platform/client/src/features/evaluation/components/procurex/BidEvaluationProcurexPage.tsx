@@ -1,3 +1,4 @@
+/* Renders the evaluation Bid Evaluation ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { Fragment, type ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';

@@ -1,3 +1,4 @@
+/* Exercises public behavior so regressions are caught close to the domain workflow they protect. */
 import { PublicPageKey, PublicPageStatus } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { ModuleService } from './service.js';

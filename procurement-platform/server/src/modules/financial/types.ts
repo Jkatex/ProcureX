@@ -1,3 +1,4 @@
+/* Defines financial TypeScript contracts that keep API payloads, state, and UI props aligned. */
 export const moduleDefinition = {
   key: 'financial',
   name: 'Financial',

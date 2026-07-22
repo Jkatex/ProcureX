@@ -1,3 +1,4 @@
+/* Renders the records Records History ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useEffect, useMemo, useState } from 'react';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';

@@ -1,3 +1,4 @@
+/* Encapsulates evaluation persistence queries so service logic does not depend on raw Prisma access patterns. */
 import {
   AuditSeverity,
   BidStatus,

@@ -1,3 +1,4 @@
+/* Defines client route composition so navigation, guards, and feature pages remain centralized. */
 import { Navigate } from 'react-router-dom';
 import { lazy, Suspense, type ComponentProps, type ElementType, type ReactNode } from 'react';
 import { procurexPageRegistry, type ProcurexPageKey } from '@/features/procurexPageRegistry';

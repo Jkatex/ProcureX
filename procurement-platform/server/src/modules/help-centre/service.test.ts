@@ -1,3 +1,4 @@
+/* Exercises help centre behavior so regressions are caught close to the domain workflow they protect. */
 import { AccountType } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { allHelpFaqs, helpCategories } from './data/catalog.js';

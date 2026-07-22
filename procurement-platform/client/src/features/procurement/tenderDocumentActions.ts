@@ -1,3 +1,4 @@
+/* Supports the procurement client workflow with reusable logic kept close to the screens that consume it. */
 import { apiClient } from '@/shared/api/http';
 import { documentsApi } from '@/features/documents/api';
 import { generateTenderPackPdfBlob, generatedTenderPackFilename } from './tenderPdfPack';

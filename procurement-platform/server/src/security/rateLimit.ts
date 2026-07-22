@@ -1,3 +1,4 @@
+/* Centralizes rate Limit security behavior so production safeguards stay consistent across server modules. */
 import { AuditSeverity } from '@prisma/client';
 import type { Request } from 'express';
 import { Redis } from 'ioredis';

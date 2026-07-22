@@ -1,3 +1,4 @@
+/* Exercises procurement behavior so regressions are caught close to the domain workflow they protect. */
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';

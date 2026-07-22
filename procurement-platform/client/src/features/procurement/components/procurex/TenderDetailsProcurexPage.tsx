@@ -1,3 +1,4 @@
+/* Renders the procurement Tender Details ProcureX page UI while keeping page-specific presentation near its workflow data. */
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiErrorMessage } from '@/shared/api/errors';

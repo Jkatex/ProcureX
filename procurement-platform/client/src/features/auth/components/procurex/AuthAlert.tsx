@@ -1,3 +1,4 @@
+/* Renders the auth Auth Alert UI while keeping page-specific presentation near its workflow data. */
 import type { AxiosError } from 'axios';
 import { useTranslation } from 'react-i18next';
 import { NotificationCard } from '@/shared/components/NotificationCard';

@@ -1,3 +1,4 @@
+/* Exercises shared behavior so regressions are caught close to the domain workflow they protect. */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { I18nextProvider } from 'react-i18next';

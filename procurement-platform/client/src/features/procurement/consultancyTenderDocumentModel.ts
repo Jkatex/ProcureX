@@ -1,3 +1,4 @@
+/* Supports the procurement client workflow with reusable logic kept close to the screens that consume it. */
 import { createEmptyConsultancyRequirements } from './createTenderConfig';
 import type {
   CreateTenderConsultancyAssignmentActivityRow,

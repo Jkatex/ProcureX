@@ -1,3 +1,4 @@
+/* Renders the shared Procurex Static page UI while keeping page-specific presentation near its workflow data. */
 import { ChangeEvent, FormEvent, MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';

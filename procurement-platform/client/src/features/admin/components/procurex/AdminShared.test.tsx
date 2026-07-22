@@ -1,3 +1,4 @@
+/* Exercises admin behavior so regressions are caught close to the domain workflow they protect. */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { AdminAppsDrawer } from './AdminShared';

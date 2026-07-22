@@ -1,3 +1,4 @@
+/* Renders the shared Language Switcher UI while keeping page-specific presentation near its workflow data. */
 import { useTranslation } from 'react-i18next';
 import { store } from '@/app/store';
 import { accountApi } from '@/features/account/api';

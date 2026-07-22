@@ -1,3 +1,4 @@
+/* Defines post award TypeScript contracts that keep API payloads, state, and UI props aligned. */
 import type { ContractStatus } from '@prisma/client';
 import type { ContractDetailDto } from '../award-contract/types.js';
 
