@@ -3724,7 +3724,129 @@ npm --workspace client run ui:parity:screenshots</pre>
         </figure>
       </div>
 
-      <h3>12.4 Validation Limitations</h3>
+      <h3>12.4 System Test Scenarios</h3>
+      <p>
+        Fresh system testing evidence was captured from the developed ProcureX
+        system on the local development stack. The evidence is stored under
+        <code>docs/system-testing/</code> and includes command-result logs,
+        database setup output, e2e execution output, and screenshots captured
+        from the running React client and Express API.
+      </p>
+      <table>
+        <tr>
+          <th>Scenario</th>
+          <th>Test Objective</th>
+          <th>Execution Evidence</th>
+          <th>Observed Result</th>
+        </tr>
+        <tr>
+          <td>ST-01 Database schema validation</td>
+          <td>Confirm that the Prisma schema is valid for the configured ProcureX data model.</td>
+          <td><code>system-testing/results/db-validate.txt</code></td>
+          <td>Passed. Prisma loaded <code>server/prisma/schema.prisma</code> and reported the schema as valid.</td>
+        </tr>
+        <tr>
+          <td>ST-02 Local database reset and migration baseline</td>
+          <td>Prepare a clean local PostgreSQL state for browser-backed system testing.</td>
+          <td><code>system-testing/results/db-reset.txt</code></td>
+          <td>Passed after reset. All migration folders from initialization through post-award operations were applied successfully.</td>
+        </tr>
+        <tr>
+          <td>ST-03 Server module behavior</td>
+          <td>Verify backend API, service, repository, security, provider, and seed behaviors.</td>
+          <td><code>system-testing/results/server-test.txt</code></td>
+          <td>Passed. Vitest reported 29 passing test files, 454 passing tests, and 5 skipped tests.</td>
+        </tr>
+        <tr>
+          <td>ST-04 Client rendering and route protection</td>
+          <td>Verify React page rendering, protected route behavior, feature components, API helpers, localization, and shared UI behavior.</td>
+          <td><code>system-testing/results/client-test.txt</code></td>
+          <td>Passed. Vitest reported 37 passing test files and 370 passing tests.</td>
+        </tr>
+        <tr>
+          <td>ST-05 Evaluation workflow e2e</td>
+          <td>Exercise the evaluation buyer workflow against the running client and API with seeded evaluation data.</td>
+          <td><code>system-testing/results/evaluation-e2e.txt</code> and <code>system-testing/screenshots/evaluation/evaluation-landing-developed-system.png</code></td>
+          <td>Partially completed. Sign-in and page access worked, but the script timed out waiting for the seeded tender action for <code>PX-GDS-2026-001</code>.</td>
+        </tr>
+        <tr>
+          <td>ST-06 Award, contract, and post-award workflow e2e</td>
+          <td>Exercise buyer award dashboard, recommendation, negotiation, and post-award surfaces against seeded demo data.</td>
+          <td><code>system-testing/results/award-contract-e2e.txt</code>, <code>system-testing/results/db-seed-award-e2e.txt</code>, and screenshots in <code>system-testing/screenshots/award-contract/</code></td>
+          <td>Partially completed. Demo seeding succeeded and browser screenshots were captured, but the smoke script timed out in the direct post-award chooser health assertion.</td>
+        </tr>
+      </table>
+
+      <div class="figure-grid">
+        <figure>
+          <img src="system-testing/screenshots/evaluation/evaluation-landing-developed-system.png" alt="Developed system evaluation landing screen">
+          <figcaption>System testing screenshot: evaluation landing page captured from the developed React system after API sign-in.</figcaption>
+        </figure>
+        <figure>
+          <img src="system-testing/screenshots/award-contract/buyer-award-dashboard-developed-system.png" alt="Developed system buyer award dashboard">
+          <figcaption>System testing screenshot: buyer award dashboard captured from the running developed system.</figcaption>
+        </figure>
+        <figure>
+          <img src="system-testing/screenshots/award-contract/buyer-award-recommendation-developed-system.png" alt="Developed system award recommendation screen">
+          <figcaption>System testing screenshot: award recommendation workspace captured from the seeded developed system.</figcaption>
+        </figure>
+        <figure>
+          <img src="system-testing/screenshots/award-contract/buyer-contract-negotiation-developed-system.png" alt="Developed system contract negotiation screen">
+          <figcaption>System testing screenshot: contract negotiation workspace captured from the seeded developed system.</figcaption>
+        </figure>
+        <figure>
+          <img src="system-testing/screenshots/award-contract/buyer-post-award-developed-system.png" alt="Developed system post-award tracking screen">
+          <figcaption>System testing screenshot: post-award tracking entrance captured from the developed system.</figcaption>
+        </figure>
+        <figure>
+          <img src="system-testing/screenshots/award-contract/buyer-post-award-finance-developed-system.png" alt="Developed system post-award finance screen">
+          <figcaption>System testing screenshot: post-award finance route captured from the developed system.</figcaption>
+        </figure>
+      </div>
+
+      <h3>12.5 Results Discussion</h3>
+      <p>
+        The successful schema, server, and client test results show that the
+        core codebase is internally coherent. The Prisma validation result
+        confirms that the current data model can be parsed and validated. The
+        server test result confirms substantial backend coverage across API
+        modules, validation, security behavior, service logic, repository logic,
+        and seed behavior. The client test result confirms that the React
+        application renders expected routes and components under jsdom and that
+        route guards and shared UI behaviors remain stable.
+      </p>
+      <p>
+        The database migration evidence also revealed a real system-testing
+        concern: the existing local database had drifted from the migration
+        history. This was corrected by resetting the local development database
+        and applying all migrations from the repository. The result is useful
+        because it proves the migration history can build a clean ProcureX
+        database from scratch, while also showing that repeated local testing
+        should begin from a known database state when browser scenarios depend
+        on seeded data.
+      </p>
+      <p>
+        The browser-backed e2e results are mixed and therefore informative. The
+        evaluation workflow reached authenticated system access but timed out
+        when locating the expected seeded tender action. The award and contract
+        workflow reached seeded browser surfaces and supported screenshot
+        capture, but the scripted smoke test timed out while validating the
+        direct post-award chooser. These outputs do not invalidate the passing
+        lower-level test suites; instead, they identify the next hardening area:
+        the e2e scripts and demo seed assumptions need to be aligned so full
+        lifecycle browser tests can run repeatedly without manual intervention.
+      </p>
+      <p>
+        The screenshots show that key developed-system pages are reachable after
+        real API sign-in and seeded data preparation. They support visual
+        confirmation of the evaluation landing page, award dashboard, award
+        recommendation workspace, contract negotiation workspace, and post-award
+        surfaces. Together with the command logs, these screenshots provide
+        concrete evidence from the developed system rather than only design
+        mockups or intended behavior.
+      </p>
+
+      <h3>12.6 Validation Limitations</h3>
       <p>
         The current validation strategy gives meaningful coverage, but it should
         continue to mature. Screenshot validation proves visual similarity, not
